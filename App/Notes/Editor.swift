@@ -68,10 +68,6 @@ struct Editor: View {
     // note again after it has changed on disk shows what is there now — or
     // that it has gone — rather than the last read.
     private func text(of note: Note, in library: Library) -> Result<String, LibraryError> {
-        do {
-            return .success(try library.read(note))
-        } catch {
-            return .failure(error)
-        }
+        Result { () throws(LibraryError) in try library.read(note) }
     }
 }

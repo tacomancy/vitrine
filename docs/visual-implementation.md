@@ -167,14 +167,24 @@ the spec; it is what makes the window's minimum size mean something.
 `Radius.large`, filling its pane. The sidebar sits directly on `bg`. The
 split view is padded by one gutter on every side.
 
+### List rows
+
+Every selectable row in the shell — sidebar rows and note list rows today
+— shares one treatment (ADR 0008, Update): `SelectedRowPill` draws the
+row's content behind the `bg-raised` pill at `Radius.medium` with the 2 px
+`primary` rule along its left edge, both clear when the row is not
+selected so content never shifts, and `RowButton` wraps that in a plain
+button inset 4 px from the pane's edges that takes the brass ring when
+focused and is marked selected for accessibility. A row's own file adds
+only what differs: its content and its colors.
+
 ### The sidebar
 
 `Sidebar` is LIBRARY, FILES, and the SCOUTS stub, on `bg`. Every row is a
 `SidebarRow`: 24 px, `compact` text, an 11 px SF Symbol glyph (`books.vertical`
 for All Notes, `folder`, `doc.text`, `paperclip`), and a mono `label` count
-on the right. Selected, a row is the `bg-raised` pill at `Radius.medium`
-inset 4 px from the sidebar's edges, with the 2 px `primary` rule along its
-left edge and its glyph in `accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
+on the right. Selected, a row is the selected-row pill with its glyph in
+`accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
 its text is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`.
 Row content starts 6 px inside the pill so it lines up with the labels at
 12 px. With no library, All Notes is `fg-disabled` throughout and inert.
@@ -203,12 +213,9 @@ the nearest step) and the modification date in mono `label`, `fg-muted`,
 on a shared baseline; content padded 7 × 11 px (compact density,
 `NoteListMetrics`). The date reads as the mockup's column: the time for a
 note modified today, `Aug 28` for one modified this year, the full date
-for anything older. Selected, the row is the `bg-raised` pill at
-`Radius.medium`, inset 4 px from the pane's edges like a sidebar row, with
-the 2 px `primary` rule along its left edge; its title steps up from
-`fg-secondary`, regular, to `fg`, semibold. Rows take the brass ring when
-focused and are marked selected for accessibility, with the date as their
-value. Opening a row while the tree highlights a different note moves that
+for anything older. Selected, the row is the selected-row pill and its
+title steps up from `fg-secondary`, regular, to `fg`, semibold; the date
+is the row's accessibility value. Opening a row while the tree highlights a different note moves that
 highlight to the note's folder: the scope is unchanged, and the tree never
 points at one note while the list and editor show another.
 

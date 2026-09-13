@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// One 24 px sidebar row: a disclosure slot, a glyph, a name, and a count.
-/// Selected, it is a `bg-raised` pill with the 2 px sapphire rule and a
-/// brass glyph — the active nav item (ADR 0008; brief rules 2 and 3).
-/// With `select` it is a button; without, it is inert.
+/// Selected, it is the selected-row pill with a brass glyph — the active
+/// nav item (ADR 0008; brief rules 2 and 3). With `select` it is a button;
+/// without, it is inert.
 struct SidebarRow: View {
     enum Disclosure {
         case none
@@ -26,58 +26,42 @@ struct SidebarRow: View {
     let emphasis: Emphasis
     let select: (() -> Void)?
 
-    @FocusState private var isFocused: Bool
-
-    private static let shape = RoundedRectangle(cornerRadius: Radius.medium)
-
     var body: some View {
         if let select {
-            Button(action: select) { content }
-                .buttonStyle(.plain)
-                .focused($isFocused)
-                .brassFocusRing(isFocused: isFocused, cornerRadius: Radius.medium)
-                .padding(.horizontal, SidebarMetrics.rowInset)
-                .accessibilityAddTraits(emphasis == .selected ? [.isSelected] : [])
+            RowButton(isSelected: emphasis == .selected, select: select) { content }
                 .accessibilityValue(disclosureValue)
         } else {
             content
-                .padding(.horizontal, SidebarMetrics.rowInset)
+                .selectedRowPill(isSelected: false)
+                .padding(.horizontal, SelectedRowPill.inset)
                 .accessibilityElement(children: .combine)
         }
     }
 
     private var content: some View {
-        HStack(spacing: 0) {
-            (emphasis == .selected ? Color(.primary) : Color.clear)
-                .frame(width: SidebarMetrics.ruleWidth)
-            HStack(spacing: SidebarMetrics.glyphSpacing) {
-                HStack(spacing: SidebarMetrics.chevronSpacing) {
-                    chevron.frame(width: SidebarMetrics.chevronSize)
-                    Image(systemName: glyph)
-                        .font(.system(size: SidebarMetrics.glyphSize))
-                        .foregroundStyle(glyphColor)
-                }
-                Text(name)
-                    .font(.sans(.compact, weight: .regular))
-                    .foregroundStyle(textColor)
-                    .lineLimit(1)
-                Spacer(minLength: SidebarMetrics.glyphSpacing)
-                if let count {
-                    Text(count.formatted())
-                        .font(.mono(.label, weight: .regular))
-                        .foregroundStyle(countColor)
-                }
+        HStack(spacing: SidebarMetrics.glyphSpacing) {
+            HStack(spacing: SidebarMetrics.chevronSpacing) {
+                chevron.frame(width: SidebarMetrics.chevronSize)
+                Image(systemName: glyph)
+                    .font(.system(size: SidebarMetrics.glyphSize))
+                    .foregroundStyle(glyphColor)
             }
-            .padding(
-                .leading,
-                SidebarMetrics.contentInset + SidebarMetrics.depthIndent * CGFloat(depth)
-            )
-            .padding(.trailing, SidebarMetrics.contentInset)
+            Text(name)
+                .font(.sans(.compact, weight: .regular))
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+            Spacer(minLength: SidebarMetrics.glyphSpacing)
+            if let count {
+                Text(count.formatted())
+                    .font(.mono(.label, weight: .regular))
+                    .foregroundStyle(countColor)
+            }
         }
+        .padding(
+            .leading, SidebarMetrics.contentInset + SidebarMetrics.depthIndent * CGFloat(depth)
+        )
+        .padding(.trailing, SidebarMetrics.contentInset)
         .frame(height: SidebarMetrics.rowHeight)
-        .background(emphasis == .selected ? Color(.bgRaised) : Color.clear, in: Self.shape)
-        .clipShape(Self.shape)
-        .contentShape(Rectangle())
     }
 
     /// The slot is kept for rows without a chevron so glyphs align at a depth.

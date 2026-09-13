@@ -2,44 +2,28 @@ import Library
 import SwiftUI
 
 /// One note list row: the note's title and its modification date on a
-/// baseline. Selected, it is the `bg-raised` pill with the 2 px sapphire
-/// rule (ADR 0008, Update) and its title steps up to `fg`, semibold.
+/// baseline. Selected, it is the selected-row pill (ADR 0008, Update) and
+/// its title steps up to `fg`, semibold.
 struct NoteRow: View {
     let note: Note
     let isSelected: Bool
     let open: () -> Void
 
-    @FocusState private var isFocused: Bool
-
-    private static let shape = RoundedRectangle(cornerRadius: Radius.medium)
-
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 0) {
-                (isSelected ? Color(.primary) : Color.clear)
-                    .frame(width: NoteListMetrics.ruleWidth)
-                HStack(alignment: .firstTextBaseline, spacing: NoteListMetrics.dateSpacing) {
-                    Text(note.title)
-                        .font(.sans(.compact, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? Color(.fg) : Color(.fgSecondary))
-                        .lineLimit(1)
-                    Spacer(minLength: NoteListMetrics.dateSpacing)
-                    Text(modifiedLabel)
-                        .font(.mono(.label, weight: .regular))
-                        .foregroundStyle(Color(.fgMuted))
-                }
-                .padding(.vertical, NoteListMetrics.rowPaddingVertical)
-                .padding(.horizontal, NoteListMetrics.rowPaddingHorizontal)
+        RowButton(isSelected: isSelected, select: open) {
+            HStack(alignment: .firstTextBaseline, spacing: NoteListMetrics.dateSpacing) {
+                Text(note.title)
+                    .font(.sans(.compact, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color(.fg) : Color(.fgSecondary))
+                    .lineLimit(1)
+                Spacer(minLength: NoteListMetrics.dateSpacing)
+                Text(modifiedLabel)
+                    .font(.mono(.label, weight: .regular))
+                    .foregroundStyle(Color(.fgMuted))
             }
-            .background(isSelected ? Color(.bgRaised) : Color.clear, in: Self.shape)
-            .clipShape(Self.shape)
-            .contentShape(Rectangle())
+            .padding(.vertical, NoteListMetrics.rowPaddingVertical)
+            .padding(.horizontal, NoteListMetrics.rowPaddingHorizontal)
         }
-        .buttonStyle(.plain)
-        .focused($isFocused)
-        .brassFocusRing(isFocused: isFocused, cornerRadius: Radius.medium)
-        .padding(.horizontal, NoteListMetrics.rowInset)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityValue(modifiedLabel)
     }
 

@@ -7,6 +7,8 @@ struct WindowShell: View {
     let currentLibrary: CurrentLibrary
 
     @State private var selectedTab: Tab = .notes
+    /// The window's Notes selection, one per window like its library.
+    @State private var selection = NotesSelection()
 
     /// Every pane at its minimum, with a gutter around each.
     private static let minimumWidth =
@@ -23,6 +25,9 @@ struct WindowShell: View {
         .background(Color(.bg))
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: Self.minimumWidth, minHeight: Self.minimumHeight)
+        .onChange(of: currentLibrary.library) {
+            selection.clear()
+        }
         .alert(
             "Vitrine couldn’t open that folder", isPresented: isShowingOpenFailure,
             presenting: currentLibrary.openFailure
@@ -36,8 +41,9 @@ struct WindowShell: View {
     @ViewBuilder
     private func body(for tab: Tab) -> some View {
         switch tab {
-        case .notes where currentLibrary.library == nil: FirstRun(currentLibrary: currentLibrary)
-        case .notes: NotesTab(currentLibrary: currentLibrary)
+        case .notes where currentLibrary.library == nil:
+            FirstRun(currentLibrary: currentLibrary, selection: selection)
+        case .notes: NotesTab(currentLibrary: currentLibrary, selection: selection)
         case .tags: TagsTab()
         case .sources, .ideas, .dashboard: SoonSurface(tab: tab)
         }

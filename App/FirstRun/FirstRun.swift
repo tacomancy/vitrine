@@ -5,9 +5,7 @@ import SwiftUI
 /// on-disk promise and the one action that opens a folder as a library.
 struct FirstRun: View {
     let currentLibrary: CurrentLibrary
-
-    /// With no library there is nothing to select; the sidebar asks anyway.
-    @State private var selection = NotesSelection()
+    let selection: NotesSelection
 
     private static let columnWidth: CGFloat = 600
     private static let columnSpacing: CGFloat = 22
