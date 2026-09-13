@@ -10,10 +10,11 @@
 # on Sources/ also keeps VitrineCore/Tests/ out. When both targets are
 # present each lists the same file with the same counts, so the first
 # entry per path is kept and the rest dropped before summing — the floor
-# applies to the package as a whole and not per file. A package with no
-# executable lines has nothing left uncovered and counts as 100%.
-# Whole-percent arithmetic rounds down, so the floor is conservative: 89.9%
-# fails.
+# applies to the package as a whole and not per file. A total of zero
+# executable lines is a failure, not a pass: the package has real sources,
+# so zero means the report is not shaped as expected and the gate would
+# otherwise pass without measuring anything. Whole-percent arithmetic
+# rounds down, so the floor is conservative: 89.9% fails.
 #
 # Usage: Scripts/coverage-gate.sh <path/to/Vitrine.xcresult> [report.json]
 set -euo pipefail
@@ -28,17 +29,18 @@ xcrun xccov view --report --json "$result_bundle" > "$report"
 
 read -r covered executable < <(
     jq -r --arg sources "$PACKAGE_SOURCES_PATH_FRAGMENT" '
-        [.targets[].files[] | select(.path | contains($sources))]
+        [.targets[].files[]? | select(.path | contains($sources))]
         | unique_by(.path)
         | "\(map(.coveredLines) | add // 0) \(map(.executableLines) | add // 0)"
     ' "$report"
 )
 
 if [[ "$executable" -eq 0 ]]; then
-    percent=100
-else
-    percent=$(( covered * 100 / executable ))
+    echo "coverage-gate: FAIL — no executable lines found under ${PACKAGE_SOURCES_PATH_FRAGMENT} in ${report}; the report is not measuring the package." >&2
+    exit 1
 fi
+
+percent=$(( covered * 100 / executable ))
 echo "coverage-gate: package line coverage ${percent}% (${covered}/${executable}); floor ${MINIMUM_LINE_COVERAGE_PERCENT}%."
 
 if [[ "$percent" -lt "$MINIMUM_LINE_COVERAGE_PERCENT" ]]; then
