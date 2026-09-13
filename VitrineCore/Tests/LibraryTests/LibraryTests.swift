@@ -210,8 +210,9 @@ import Testing
         let library = try Library.open(at: vault)
 
         // Reading List, Scratch, Welcome; Daily/2026-09-13, Daily/Journal;
-        // Projects/Vitrine; Topics/Alignment, Interpretability, Journal, Scratch.
-        #expect(library.allNotes.count == 10)
+        // Projects/Vitrine; Topics/Agents, Alignment, Interpretability, Journal,
+        // Scratch.
+        #expect(library.allNotes.count == 11)
         #expect(library.root.folders.map(\.name) == ["Daily", "Projects", "Topics"])
         #expect(!library.root.folders.map(\.name).contains(".obsidian"))
         #expect(library.root.folders.flatMap(\.attachments).map(\.name) == ["sketch.png"])
