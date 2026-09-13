@@ -1,0 +1,13 @@
+# Xcode / SwiftPM
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+*.xcscmblueprint
+
+# Vitrine per-library sidecar (ADR 0002) — never committed, from any library
+.vitrine/
+
+# macOS
+.DS_Store
