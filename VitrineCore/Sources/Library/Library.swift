@@ -2,8 +2,10 @@ import Foundation
 
 /// A folder on disk opened as a unit: the whole tree of folders, notes, and
 /// attachments, scanned once at `open(at:)` and immutable after that.
-/// Nothing is ever written into the folder (ADR 0002).
-public struct Library: Sendable {
+/// Nothing is ever written into the folder (ADR 0002). Two libraries are
+/// equal when they were opened from the same folder and scanned the same
+/// tree, so a view can tell a replaced library from a re-opened one.
+public struct Library: Sendable, Equatable {
     /// The library folder's name, shown in the title bar.
     public let name: String
     /// The library folder itself, as the top of the tree.

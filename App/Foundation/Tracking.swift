@@ -5,4 +5,6 @@ import CoreGraphics
 enum Tracking {
     /// Caps labels: LIBRARY, FILES, SOON.
     static let capsLabel: CGFloat = 0.14
+    /// Display lines: the First run headline.
+    static let display: CGFloat = -0.022
 }
