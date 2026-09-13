@@ -101,8 +101,10 @@ so they aren't accidentally reused for something else.
   or listed under `tags:` in frontmatter. A note has a tag if it appears in
   either place; the set is the union, deduplicated case-insensitively. The
   rules, each matching Obsidian unless marked:
-  - A tag is letters, digits, `_`, `-`, and `/`, and must contain at least
-    one non-digit (`#1` is not a tag). Trailing punctuation is not part of it.
+  - The **tag grammar**: a tag is letters, digits, `_`, `-`, and `/`, and
+    must contain at least one non-digit (`#1` is not a tag). Trailing
+    punctuation is not part of it. The grammar is the same in both places;
+    a frontmatter value that fails it is not a tag and is dropped.
   - Inline, `#` counts only at the start of a line or after whitespace
     (`url/#frag` is not a tag). In frontmatter a leading `#` is stripped.
   - Nothing inside a fenced code block or inline code is a tag.
