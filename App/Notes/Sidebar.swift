@@ -7,8 +7,8 @@ import SwiftUI
 /// right, because there genuinely is nothing.
 struct Sidebar: View {
     let currentLibrary: CurrentLibrary
+    let selection: NotesSelection
 
-    @State private var selection: SidebarSelection = .allNotes
     @State private var expandedFolders: Set<String> = []
 
     var body: some View {
@@ -20,7 +20,7 @@ struct Sidebar: View {
                 sectionLabel("Files")
                     .padding(.top, SidebarMetrics.sectionSpacing)
                 FileTree(
-                    root: library.root, selection: $selection, expandedFolders: $expandedFolders)
+                    root: library.root, selection: selection, expandedFolders: $expandedFolders)
             }
             Spacer(minLength: 0)
             ScoutsStub()
@@ -28,7 +28,6 @@ struct Sidebar: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onChange(of: currentLibrary.library) {
-            selection = .allNotes
             expandedFolders = []
         }
     }
@@ -45,9 +44,9 @@ struct Sidebar: View {
             SidebarRow(
                 glyph: "books.vertical", name: "All Notes", count: library.allNotes.count,
                 depth: 0, disclosure: .none,
-                emphasis: selection == .allNotes ? .selected : .normal
+                emphasis: selection.sidebar == .allNotes ? .selected : .normal
             ) {
-                selection = .allNotes
+                selection.selectAllNotes()
             }
         } else {
             SidebarRow(

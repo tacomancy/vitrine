@@ -64,11 +64,11 @@ family-plus-weight route avoids ever spelling it.
 | `label` | 11 | caps section labels, mono counts, the SOON badge |
 | `caption` | 12 | the library name in the title bar, metadata |
 | `compact` | 13 | tabs, sidebar rows, the app name |
-| `body` | 14 | the product default |
+| `body` | 14 | the product default; the editor's note text |
 | `lead` | 16 | |
 | `subheading` | 18 | |
 | `heading` | 21 | |
-| `title` | 25 | |
+| `title` | 25 | the editor's note title, the First run headline |
 | `display` | 31 | |
 | `hero` | 39 | |
 | `poster` | 49 | |
@@ -167,14 +167,24 @@ the spec; it is what makes the window's minimum size mean something.
 `Radius.large`, filling its pane. The sidebar sits directly on `bg`. The
 split view is padded by one gutter on every side.
 
+### List rows
+
+Every selectable row in the shell — sidebar rows and note list rows today
+— shares one treatment (ADR 0008, Update): `SelectedRowPill` draws the
+row's content behind the `bg-raised` pill at `Radius.medium` with the 2 px
+`primary` rule along its left edge, both clear when the row is not
+selected so content never shifts, and `RowButton` wraps that in a plain
+button inset 4 px from the pane's edges that takes the brass ring when
+focused and is marked selected for accessibility. A row's own file adds
+only what differs: its content and its colors.
+
 ### The sidebar
 
 `Sidebar` is LIBRARY, FILES, and the SCOUTS stub, on `bg`. Every row is a
 `SidebarRow`: 24 px, `compact` text, an 11 px SF Symbol glyph (`books.vertical`
 for All Notes, `folder`, `doc.text`, `paperclip`), and a mono `label` count
-on the right. Selected, a row is the `bg-raised` pill at `Radius.medium`
-inset 4 px from the sidebar's edges, with the 2 px `primary` rule along its
-left edge and its glyph in `accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
+on the right. Selected, a row is the selected-row pill with its glyph in
+`accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
 its text is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`.
 Row content starts 6 px inside the pill so it lines up with the labels at
 12 px. With no library, All Notes is `fg-disabled` throughout and inert.
@@ -184,9 +194,47 @@ entries follow it only while it is expanded — in a lazy stack inside a
 scroll view. Each depth is inset 14 px more. Folder rows carry an 8 px
 `chevron.right` in `fg-muted`, turned 90° when expanded; every row keeps
 the chevron's slot so glyphs align within a depth. Clicking a folder
-selects it and toggles it, as Obsidian does; clicking a note selects it;
-attachments are not buttons. Rows take the brass ring when focused but do
+selects it and toggles it, as Obsidian does; clicking a note selects it,
+scopes the note list to its folder, and opens it; attachments are not
+buttons. Rows take the brass ring when focused but do
 not force themselves into the Tab loop.
+
+### The note list
+
+`NoteList` is a floating surface holding the `N NOTES · MODIFIED ↓` header
+and one `NoteRow` per note in the sidebar's scope, newest first (notes
+modified at the same instant keep tree order). The header is a `CapsLabel`
+in `fg-muted` — the one caps treatment, tracked like LIBRARY and FILES
+even though the mockup leaves this line untracked — padded 7 px above and
+below and inset to where the rows' titles start.
+
+A row is a `Button`: the title at `compact` (the mockup's 12.5 px taken to
+the nearest step) and the modification date in mono `label`, `fg-muted`,
+on a shared baseline; content padded 7 × 11 px (compact density,
+`NoteListMetrics`). The date reads as the mockup's column: the time for a
+note modified today, `Aug 28` for one modified this year, the full date
+for anything older. Selected, the row is the selected-row pill and its
+title steps up from `fg-secondary`, regular, to `fg`, semibold; the date
+is the row's accessibility value. Opening a row while the tree highlights a different note moves that
+highlight to the note's folder: the scope is unchanged, and the tree never
+points at one note while the list and editor show another.
+
+### The editor
+
+`Editor` is a floating surface that is empty until a note is open. With
+one, it stacks the 34 px breadcrumb — the note's path relative to the
+library root in mono `label`, `fg-muted`, inset 16 px, its separators
+spaced as ` / `, truncated in the middle when the pane is narrow — over a
+scrolling page padded 20 × 36 px: the title at `title` (25 px), semibold, `fg`, then
+11 px below it the note's text exactly as it is on disk, frontmatter
+delimiters included, as a `Text(verbatim:)` at `body` (14 px — the spec's
+15 px is off the scale, and story 28 asks for the brief's body size) with
+6 px line spacing for the mockup's 1.65 line height, in `fg`, selectable
+and copyable, in a measure of at most 720 px aligned to the leading edge.
+A note that cannot be read shows `LibraryError`'s sentence in `danger` at
+the same size in place of the text. The read happens each time the pane
+draws, so selecting a note again after it has changed on disk shows what
+is there now. No SOURCE/PREVIEW toggle, property line, or rail.
 
 ### First run
 

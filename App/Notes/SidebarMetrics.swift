@@ -8,12 +8,8 @@ enum SidebarMetrics {
     static let depthIndent: CGFloat = 14
     static let glyphSize: CGFloat = 11
     static let chevronSize: CGFloat = 8
-    /// The selected row's sapphire rule (ADR 0008, Update).
-    static let ruleWidth: CGFloat = 2
-    /// A row's pill sits this far in from the sidebar's edges…
-    static let rowInset: CGFloat = 4
-    /// …and its content this far in from the pill, so the text lines up
-    /// with the section labels at `labelInset`.
+    /// A row's content sits this far in from the selected-row pill's rule,
+    /// so the text lines up with the section labels at `labelInset`.
     static let contentInset: CGFloat = 6
     static let chevronSpacing: CGFloat = 6
     static let glyphSpacing: CGFloat = 8

@@ -135,12 +135,14 @@ so they aren't accidentally reused for something else.
   **command palette** (`⌘K`), which also lists actions.
 - **Editor** — the pane where one note's body is edited. Source Markdown is
   always what's on disk; any rendering (**Preview**) is a view over it.
-  Beside it, the **rail** shows the note's **backlinks** — one entry per
-  linking note, with the line of text around each link as **context** — and
-  its **info**: path, modification date, tags, and counts of outgoing links,
-  backlinks, and unresolved links. Following a link opens its target in the
-  editor without changing the sidebar's scope; **back** and **forward**
-  (⌘[ / ⌘]) walk the notes opened this session.
+  Above the note, the **breadcrumb** is the bar showing the note's path
+  relative to the library root. Beside the editor, the **rail** shows the
+  note's **backlinks** — one entry per linking note, with the line of text
+  around each link as **context** — and its **info**: path, modification
+  date, tags, and counts of outgoing links, backlinks, and unresolved
+  links. Following a link opens its target in the editor without changing
+  the sidebar's scope; **back** and **forward** (⌘[ / ⌘]) walk the notes
+  opened this session.
 - **Window** — the single main window in which one library is open
   (ADR 0007). Everything below is a region of it.
 - **First run** — what the window shows when no library is open: the
