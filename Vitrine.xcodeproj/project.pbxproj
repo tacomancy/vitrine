@@ -10,7 +10,7 @@
    file may contain. Anything beyond that list is reverted. */
 
 /* Begin PBXBuildFile section */
-		A00000000000000000000001 /* VitrineCore in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000001 /* VitrineCore */; };
+		A00000000000000000000001 /* Library in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000001 /* Library */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,7 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A00000000000000000000001 /* VitrineCore in Frameworks */,
+				A00000000000000000000001 /* Library in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,7 +93,7 @@
 			);
 			name = Vitrine;
 			packageProductDependencies = (
-				E00000000000000000000001 /* VitrineCore */,
+				E00000000000000000000001 /* Library */,
 			);
 			productName = Vitrine;
 			productReference = B00000000000000000000001 /* Vitrine.app */;
@@ -206,9 +206,9 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E00000000000000000000001 /* VitrineCore */ = {
+		E00000000000000000000001 /* Library */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = VitrineCore;
+			productName = Library;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

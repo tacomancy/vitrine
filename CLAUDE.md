@@ -28,19 +28,24 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 
 ## Current state
 
-**Scaffold done (issue #3); first feature specified (#8) and split into
-tickets (#10 `Library` seam · #11 shell · #12 first run and file tree ·
-#13 read a note).** `Vitrine.xcodeproj` builds the app; `Scripts/test.sh`
-is the verification command CI runs, with a coverage gate. ADRs 0001–0010
-are Accepted; 0008 was settled by `prototype/window-chrome`.
-
-The window shell (#11) is built: token color assets, bundled Inter and IBM
+**First feature specified (issue #8) and split into tickets; ① and ②
+built.** The `Library` seam (issue #10) replaces the scaffold's placeholder
+target: `Library.open(at:)` scans a folder into folders, notes, and
+attachments in display order, `read(_:)` returns a note's text, and every
+scan rule is a red-first test in `LibraryTests` against two fixtures — one
+purpose-built, one written by Obsidian. The window shell (issue #11) is
+built against an empty library: token color assets, bundled Inter and IBM
 Plex Mono, the type scale, the drawn title bar and tab strip, the gutter
-split view with three floating panes, and the SOON stubs — all against an
-empty library, no disk access. `docs/visual-implementation.md` records the
-translation. The `Library` seam (#10) runs in a parallel session; #12 and
-#13 wire the two together. Update this section whenever the answer to
-"where are we?" changes — it's the first thing a fresh agent reads.
+split view with three floating panes, and the SOON stubs, with
+`docs/visual-implementation.md` recording the translation. `Scripts/test.sh`
+is the verification command CI runs, with a coverage gate. ADRs 0001–0010
+are Accepted.
+
+Next, in order: #12 First run and opening a library into the file tree
+(wiring ① into ②), #13 selecting a note and reading it. `/implement` per
+ticket on its own branch, clearing context between tickets. Update this
+section whenever the answer to "where are we?" changes — it's the first
+thing a fresh agent reads.
 
 ## Engineering discipline
 

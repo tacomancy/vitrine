@@ -28,9 +28,9 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "VitrineCoreTests"
-               BuildableName = "VitrineCoreTests"
-               BlueprintName = "VitrineCoreTests"
+               BlueprintIdentifier = "LibraryTests"
+               BuildableName = "LibraryTests"
+               BlueprintName = "LibraryTests"
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </BuildActionEntry>
@@ -49,9 +49,9 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "VitrineCoreTests"
-               BuildableName = "VitrineCoreTests"
-               BlueprintName = "VitrineCoreTests"
+               BlueprintIdentifier = "LibraryTests"
+               BuildableName = "LibraryTests"
+               BlueprintName = "LibraryTests"
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </TestableReference>
