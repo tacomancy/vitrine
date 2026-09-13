@@ -1,0 +1,74 @@
+# BACKLOG.md — Vitrine
+
+Things captured so they aren't lost, without pretending they've been thought
+through. A name and a sentence or two — not a spec. When an item is ready to
+be built, it graduates into `CONTEXT.md` and/or an ADR and is removed from here.
+
+Nothing in this file is v1 (ADR 0003). Where a `design/` screen illustrates an
+item, it's noted — those screens are aspiration, not spec (ADR 0004).
+
+## Parked features
+
+- **Sources.** External items (papers, articles, pages) as first-class objects
+  with metadata, read status, collections, a PDF reader with highlights, and
+  BibTeX/Zotero import. Must survive ADR 0002 (plain files + sidecar). Screen 03.
+- **Anchors.** Durable references to a passage inside a note, stored in the
+  sidecar, re-matched by fuzzy similarity when the text changes, and the target
+  of links from ideas and sources. The design's #1 distinguishing feature — and
+  the one with the most unanswered questions (storage format, re-match
+  threshold, what happens on a failed match). Screens 02, 10.
+- **Ideas.** A tracked working question with a status, a user-set confidence,
+  and separate supporting/contradicting evidence ledgers pointing at anchors or
+  source locations. List, board, and matrix views. Likely depends on Anchors
+  and Sources. Screens 04, 12.
+- **Dashboards.** User-composed grids of panels (relationship graph, coverage,
+  tag co-occurrence, orphans) scoped by tag and date. Depends on the Index
+  being rich enough to feed them. Screen 05.
+- **Scouts.** Agents that collect sources — fetch papers, follow citation
+  trails — into inboxes. Only the sidebar block is designed. Needs: where
+  agents run, what "collection" produces on disk, how it's reviewed.
+- **Quick capture.** A menu-bar extra (`⌃Space`) that files a thought from any
+  app, pre-filling context from the frontmost window. Screen 06.
+- **Tag rename / merge** across the whole library, with an undoable
+  confirmation and affected count. Screen 09's toolbar. Plausibly early v2.
+- **Tag descriptions.** A user-written paragraph per tag, shown on the tag
+  page. Where it lives on disk is the question (sidecar? a note per tag?).
+- **Smart searches.** Saved, named queries in the sidebar ("Read but not yet
+  linked"). Needs a query model v1 deliberately doesn't have.
+- **Heading and block links** (`[[Note#Heading]]`, `[[Note^block]]`) and
+  **note embeds** (`![[Note]]`). v1 links and embeds are whole-note / image
+  only.
+- **Graph view.** Likely a dashboard panel rather than its own surface.
+- **Templates, daily notes, plugins.** Obsidian features beyond the core.
+  Unranked.
+- **Sync / multi-device / iPadOS.** ADR 0001 keeps the door open and nothing
+  more.
+
+## Open questions
+
+Unresolved and blocking *something* — each should become an ADR when the thing
+it blocks is next up.
+
+- **Project layout and stack detail.** Xcode project + local Swift package, or
+  SwiftPM-only with an app target? Minimum macOS version? Blocks scaffolding.
+  (ADR 0001 defers this deliberately.)
+- **Index storage.** In-memory only (rebuilt on open) vs. SQLite in the
+  sidecar (faster reopen, but a file to manage). Blocks the Index
+  implementation. Constrained by ADR 0002.
+- **Editor approach.** Plain `NSTextView` with syntax highlighting vs. a
+  rendered/WYSIWYG hybrid. The mockups show a Source/Preview toggle, which
+  suggests the former. Blocks the Editor. Likely the first AppKit bridge per
+  ADR 0001.
+- **External-edit handling.** How Vitrine notices files changed by Obsidian or
+  another editor while a library is open, and what happens to an open Editor
+  when its file changes underneath it. Required by ADR 0002.
+- **Multiple open libraries.** v1 assumes one at a time. Confirm or reject
+  before any window/scene architecture is fixed.
+- **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
+  candidate. Fix it when something first needs to go there.
+- **Appearance in v1.** The brief defines dark (default) and cream "playbill"
+  light. Ship both in v1, or dark only with light following? Screen 07b shows
+  light applied. Blocks the color-asset setup.
+- **Fonts.** Inter, IBM Plex Mono, and Josefin Sans need bundling (ADR 0004).
+  Confirm licensing for app distribution (all three are OFL) and whether
+  Josefin Sans is needed at all in v1 — the brief bans it inside product UI.

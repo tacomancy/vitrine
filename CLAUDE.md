@@ -1,0 +1,136 @@
+# CLAUDE.md
+
+Instructions for any agent — Claude Code or otherwise — working on Vitrine.
+
+Vitrine is a native macOS app for personal knowledge management, research,
+note-taking, and continuous learning. It follows the precedent of Obsidian and
+LogSeq, and will eventually add agentic source collection, high-level dashboards,
+and research-idea tracking. **v1 is the Obsidian-like core only: notes, tags,
+links, and library navigation.** Everything else is parked in `BACKLOG.md`.
+
+## Read first, in order
+
+1. `CONTEXT.md` — domain vocabulary. Use these exact terms in code, docs, tests,
+   and commit messages; don't invent synonyms for concepts already named there.
+2. `docs/adr/` — why specific decisions were made. Check the `Status` line before
+   trusting a `Decision`; a superseded ADR is kept for history, not for guidance.
+3. `BACKLOG.md` — what is deliberately *not* being built yet, and the open
+   questions nobody has answered. Read it so you don't re-derive or quietly
+   resolve something that's parked on purpose.
+4. `CODING_STANDARDS.md` — required before writing or reviewing code.
+5. `design/vitrine-design-system-brief.md` — required before any UI work. It
+   is the visual authority (ADR 0004): tokens, type, the seven rules, the
+   accessibility contract. `design/README.md` and the screenshots are layout
+   reference for the v1 screens named in ADR 0004 — and aspiration for the
+   rest.
+
+## Current state
+
+**Design docs, a design package, and the engineering workflow — no code yet.**
+ADRs 0001–0005 are all Accepted. The next piece of work is the ADR on project
+layout and stack detail (see `BACKLOG.md` § Open questions), followed by
+scaffolding an Xcode project against it — via `/grill-with-docs` and a spec
+issue, like everything else. Update this
+section whenever the answer to "where are we?" changes — it's the first thing
+a fresh agent reads.
+
+## Engineering discipline
+
+- **Decisions live in ADRs, not in code comments or chat.** Anything a future
+  agent might reasonably question — a library, a file format, a scope cut, a
+  naming choice with consequences — gets a numbered ADR in `docs/adr/` using
+  `docs/adr/0000-template.md`. Small enough to write in ten minutes; that's the
+  point.
+- **Reversing or extending a decision means a new ADR.** Mark the old one
+  `Superseded by NNNN` or add an `Update` section pointing forward. Never edit
+  an ADR's `Decision` or `Consequences` to make the original reasoning look
+  different than it was.
+- **`CONTEXT.md` is the vocabulary, and it grows deliberately.** If implementation
+  surfaces a concept that isn't named there, propose a term and add it *before*
+  the name spreads through code. Names reserved for later versions (see its
+  § Reserved) are off-limits for v1 concepts.
+- **Stay inside the v1 boundary.** Don't build toward dashboards, source
+  collection, or research-idea tracking because it seems convenient — even a
+  "just in case" field or table. If v1 work genuinely needs a hook for a later
+  feature, that's an ADR, not a quiet addition.
+- **Test-driven, always.** Red before green, one vertical slice at a time, at
+  seams agreed with the owner before the first test is written — exactly as
+  `.claude/skills/tdd/SKILL.md` prescribes. No implementation code without a
+  failing test that was actually run red. Parsing, indexing, link resolution,
+  tag extraction, and search live in a UI-independent module so they can be
+  tested this way; SwiftUI views stay thin.
+- **Code quality is reviewed before a PR, not after.** `CODING_STANDARDS.md`
+  is the written bar for clarity, simplicity, naming, and comments;
+  `/code-review` checks the diff against it (plus its own smell baseline) and
+  against the spec. A PR opens only after that review has run and every
+  finding is either fixed or explicitly declined in the PR body.
+- **Obsidian compatibility is a constraint, not a feature.** A library Vitrine
+  has written must still open cleanly in Obsidian, and vice versa (ADR 0002).
+  When in doubt about a file-format detail, match Obsidian's behavior and note
+  it in `CONTEXT.md`.
+- **Visual work follows the brief, not taste.** Every color is a token from
+  `design/vitrine-design-system-brief.md`; every type size is on its scale;
+  sapphire is every action and brass is punctuation. If a v1 screen needs
+  something the brief doesn't cover, extend the brief deliberately (and say so
+  in the commit), then build against it — never invent one-off styling that
+  lives only in a view.
+- **Stubs stay stubs.** The non-v1 tabs exist (ADR 0005) and show a SOON
+  placeholder. That is the only code allowed to mention a reserved name.
+
+## Workflow
+
+Matt Pocock's skills are vendored in `.claude/skills/` (25 promoted skills,
+upstream `mattpocock/skills@3cca18b`, pinned in `skills-lock.json`; refresh
+with `npx skills update`, then re-read this section). `/ask-matt` is the router
+if you're unsure which one fits. The route every change takes:
+
+1. **Sharpen** — `/grill-with-docs`. Interview until the design tree has no
+   open branches; it writes new terms to `CONTEXT.md` and decisions to
+   `docs/adr/` as it goes. If a question needs a runnable answer, detour
+   through `/prototype` on a `prototype/<name>` branch.
+2. **Specify** — `/to-spec`. Turns the thread into a spec and publishes it as a
+   GitHub issue. **No implementation starts without a spec issue.** For
+   multi-session work, `/to-tickets` then splits it into tracer-bullet tickets
+   with blocking links.
+3. **Build** — `/implement` per ticket, on a branch. It drives `/tdd` at the
+   agreed seams and closes by running `/code-review` (Standards + Spec) on
+   the diff. Clear context between tickets.
+4. **Ship** — open the PR only after step 3's review. Branch names and PR
+   titles carry the type prefix from `CODING_STANDARDS.md` § 7
+   (`feat/…`, `fix/…`, `docs/…`; `feat(index): …`). The PR body links the
+   spec issue and lists any review findings declined, with why.
+
+Bugs that resist a first look go through `/diagnosing-bugs` (feedback loop
+first, then hypothesis). Issues you didn't write go through `/triage`. When
+there's a spare moment, `/improve-codebase-architecture` surveys for
+deepening opportunities and feeds step 1.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `dr-tacomancer/vitrine`, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five defaults — `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Definition of done
+
+A piece of v1 work is done when:
+
+1. It implements a spec issue, and its behavior is covered by tests written
+   red-first that pass.
+2. Any decision it embodies has an ADR, and any new term is in `CONTEXT.md`.
+3. `/code-review` has run on the diff and its findings are resolved or
+   declined in writing.
+4. It works against a real library on disk — including one that Obsidian
+   created — not only against fixtures.
+5. If it has a screen, that screen matches the brief and the relevant mockup
+   as far as the v1 feature set goes.
+6. The `Current state` section above still tells the truth.
