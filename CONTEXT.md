@@ -107,12 +107,19 @@ so they aren't accidentally reused for something else.
   - **Vitrine differs:** nothing inside an HTML tag (`<mark style="… #FFF3A3A6">`)
     is a tag. Obsidian counts those; a hex color is not a tag by anyone's
     intent, and this is the one place v1 knowingly reads a note differently.
-  - A tag's **display spelling** is the first spelling seen in library order;
-    its identity is case-insensitive.
+  - A tag names a topic, not a note, so its identity is case-insensitive.
+    Each segment of a hierarchical tag is itself a topic, and a topic has
+    one name: a segment's **display spelling** is the first spelling of it
+    seen in library order across every tag that contains it, and a tag is
+    displayed as its segments' spellings joined — `#Reading/paper` and
+    `#reading/Notes`, in that order, display as `#Reading/paper` and
+    `#Reading/Notes`, under one `Reading` in the tag tree. *Vitrine's own
+    rule; Obsidian's is undocumented.*
 - Tags are **hierarchical**: `#parent/child` is a tag whose **parent** is
   `#parent`. A note tagged `#parent/child` is also counted under `#parent`.
   The **tag tree** is the set of all tags in the library arranged by this
-  hierarchy, each with a **count** of notes carrying it or any descendant.
+  hierarchy, each with a **count** of notes carrying it or any descendant;
+  siblings sit in the same case-insensitive natural order as the file tree.
 - **Untagged** — a note with no tags in either place. This is the sidebar's
   fixed entry for it; screen 01 of the mockups labels the same row "Unfiled",
   which is a different, reserved concept (§ Reserved) and is not used.
