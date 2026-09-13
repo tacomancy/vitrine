@@ -42,6 +42,12 @@ item, it's noted — those screens are aspiration, not spec (ADR 0004).
   **note embeds** (`![[Note]]`). v1 links and embeds are whole-note / image
   only.
 - **Graph view.** Likely a dashboard panel rather than its own surface.
+- **Keyboard-navigable note list and file tree.** Tab into the note list
+  and the sidebar, ↑ / ↓ between rows, Return to open — the way the tab
+  strip already takes focus. Today only the tab strip opts into the Tab
+  loop; rows follow it only with macOS's Keyboard navigation setting on
+  (surfaced reviewing issue #13). Plausibly a small `feat`; it touches
+  the shared row button (PR #29) once and every row inherits it.
 - **Templates, daily notes, plugins.** Obsidian features beyond the core.
   Unranked.
 - **Sync / multi-device / iPadOS.** ADR 0001 keeps the door open and nothing
