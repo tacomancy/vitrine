@@ -64,17 +64,30 @@ so they aren't accidentally reused for something else.
 - **Link** — a reference from one note to another. Two syntaxes, both
   supported and both resolved the same way:
   - **Wikilink** — `[[Title]]`, resolved by title, library-wide, regardless of
-    folder. `[[Title|shown text]]` displays alternate text.
+    folder. `[[Title|shown text]]` displays alternate text. **Resolution**
+    is case-insensitive and tries, in order: an exact path relative to the
+    library root (`[[folder/Title]]`, with or without `.md`), a note's title,
+    an alias, an attachment's filename. When two notes share a title, a bare
+    `[[Title]]` resolves to the one with the shortest path, then the first
+    alphabetically — Vitrine's tie-break; Obsidian writes path-qualified
+    links in that case and does not document how it reads bare ones.
   - **Markdown link** — `[shown text](path/to/note.md)`, resolved by path
-    relative to the linking note.
+    relative to the linking note, percent-decoded. A destination with a URL
+    scheme is **external**: not a link between notes, never unresolved.
+  A wikilink inside a frontmatter value (`sources: ["[[Title]]"]`) is a link
+  like any other — outgoing from the note and a backlink on its target — as
+  in Obsidian. A link or embed whose target is an attachment resolves to
+  that attachment; following it opens the file with the system.
   Links in v1 point to whole notes only; heading and block targets are
   parked. A link that carries a heading or block fragment (`[[Note#Heading]]`,
   `[[Note#^id]]`) is still a link to `Note` — the fragment is parsed and
   ignored, as Obsidian resolves the note part.
 - **Backlink** — the reverse of a link: from the target's point of view, every
   note that links to it. Backlinks are derived, never stored in the note.
-- **Unresolved link** — a link whose target matches no note in the library.
-  Rendered distinctly; following it offers to create the note.
+- **Unresolved link** — a link whose target matches no note, alias, or
+  attachment in the library. Rendered distinctly; following it offers to
+  create the note (that offer arrives with editing; until then following
+  one does nothing).
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
 - **Embed** — `![[filename]]`. In v1, only images embed; embedding a note is
@@ -122,7 +135,12 @@ so they aren't accidentally reused for something else.
   **command palette** (`⌘K`), which also lists actions.
 - **Editor** — the pane where one note's body is edited. Source Markdown is
   always what's on disk; any rendering (**Preview**) is a view over it.
-  Beside it, the **rail** shows the note's backlinks and info.
+  Beside it, the **rail** shows the note's **backlinks** — one entry per
+  linking note, with the line of text around each link as **context** — and
+  its **info**: path, modification date, tags, and counts of outgoing links,
+  backlinks, and unresolved links. Following a link opens its target in the
+  editor without changing the sidebar's scope; **back** and **forward**
+  (⌘[ / ⌘]) walk the notes opened this session.
 - **Window** — the single main window in which one library is open
   (ADR 0007). Everything below is a region of it.
 - **First run** — what the window shows when no library is open: the
