@@ -102,11 +102,12 @@ so they aren't accidentally reused for something else.
   either place; the set is the union, deduplicated case-insensitively. The
   rules, each matching Obsidian unless marked:
   - The **tag grammar**: a tag is letters, digits, `_`, `-`, and `/`, and
-    must contain at least one non-digit (`#1` is not a tag). Trailing
-    punctuation is not part of it. The grammar is the same in both places;
-    a frontmatter value that fails it is not a tag and is dropped.
+    must contain at least one non-digit (`#1` is not a tag). The grammar is
+    the same in both places; a frontmatter value that fails it is not a tag
+    and is dropped.
   - Inline, `#` counts only at the start of a line or after whitespace
-    (`url/#frag` is not a tag). In frontmatter a leading `#` is stripped.
+    (`url/#frag` is not a tag), and trailing punctuation is not part of the
+    tag (`#tag.` is `#tag`). In frontmatter a leading `#` is stripped.
   - Nothing inside a fenced code block or inline code is a tag.
   - **Vitrine differs:** nothing inside an HTML tag (`<mark style="… #FFF3A3A6">`)
     is a tag. Obsidian counts those; a hex color is not a tag by anyone's
