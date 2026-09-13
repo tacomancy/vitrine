@@ -102,9 +102,9 @@ ring is one treatment app-wide.
 ## Density
 
 Compact is the only density in v1. The shell's compact values: section
-labels inset 12 px with 5 px above the first and 11 px between sections;
-8 px gutters between and around panes. Row heights arrive with the first
-rows (the wiring ticket).
+labels inset 12 px with 5 px above the first, 4 px below each, and 11 px
+between sections; 8 px gutters between and around panes. Sidebar rows are
+24 px (`SidebarMetrics`).
 
 ## The window shell (ADR 0008)
 
@@ -120,8 +120,9 @@ at the window's top edge:
   its own 28 pt bar) and re-applies that after every resize and on leaving
   full screen. The mark (`Mark.imageset`, the 17–32 px cut from
   `design/icons/svg/vitrine-mark-small.svg`, at the spec's 22 px), "Vitrine"
-  at `compact`/semibold in `fg-secondary`, and the library name at `caption`
-  in `fg-muted` follow. The whole bar drags the window (`WindowDragGesture`).
+  at `compact`/semibold in `fg-secondary`, and — once a library is open —
+  "— " and its name at `caption` in `fg-muted` follow. The whole bar drags
+  the window (`WindowDragGesture`).
 - **`TabStrip`**, 31 px, `bg`. One `TabButton` per `Tab` plus a muted `+`.
   The active tab is `bg-raised` with 3 px top radii, a 2 px `primary` rule
   along its bottom edge, and a brass marker; inactive tabs are `fg-muted`
@@ -132,9 +133,9 @@ at the window's top edge:
   that setting on, like every button), move focus and selection with ← / →,
   select with Space or Return, carry the brass ring, and are exposed as a
   tab bar with the selected tab marked selected.
-- **The body** is the selected tab's view. Notes is `NotesTab`; Tags an
-  empty floating surface; Sources, Ideas, and Dashboard one `SoonSurface`
-  each (ADR 0005).
+- **The body** is the selected tab's view. Notes is `NotesTab`, or
+  `FirstRun` while no library is open; Tags an empty floating surface;
+  Sources, Ideas, and Dashboard one `SoonSurface` each (ADR 0005).
 
 No hairline is drawn anywhere in the shell: `bg` / `bg-surface` /
 `bg-raised` contrast does that work (ADR 0008, Update).
@@ -165,6 +166,40 @@ the spec; it is what makes the window's minimum size mean something.
 `FloatingSurface` is the note list and editor's look: `bg-surface` at
 `Radius.large`, filling its pane. The sidebar sits directly on `bg`. The
 split view is padded by one gutter on every side.
+
+### The sidebar
+
+`Sidebar` is LIBRARY, FILES, and the SCOUTS stub, on `bg`. Every row is a
+`SidebarRow`: 24 px, `compact` text, an 11 px SF Symbol glyph (`books.vertical`
+for All Notes, `folder`, `doc.text`, `paperclip`), and a mono `label` count
+on the right. Selected, a row is the `bg-raised` pill at `Radius.medium`
+inset 4 px from the sidebar's edges, with the 2 px `primary` rule along its
+left edge and its glyph in `accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
+its text is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`.
+Row content starts 6 px inside the pill so it lines up with the labels at
+12 px. With no library, All Notes is `fg-disabled` throughout and inert.
+
+`FileTree` flattens the library's tree to the rows on screen — a folder's
+entries follow it only while it is expanded — in a lazy stack inside a
+scroll view. Each depth is inset 14 px more. Folder rows carry an 8 px
+`chevron.right` in `fg-muted`, turned 90° when expanded; every row keeps
+the chevron's slot so glyphs align within a depth. Clicking a folder
+selects it and toggles it, as Obsidian does; clicking a note selects it;
+attachments are not buttons. Rows take the brass ring when focused but do
+not force themselves into the Tab loop.
+
+### First run
+
+`FirstRun` (screen 11, v1 subset) keeps the sidebar at its split-view width
+and gutter so it does not move when a library opens, and centres a 600 px
+column: the headline at `title` with the brief's display tracking
+(`Tracking.display`, −0.022 em), the promise at `compact` in `fg-secondary`
+with 5 px line spacing (the mockup's 1.65 line height, less Inter's own
+line), and `OpenFolderAction` — a `bg-raised` card at `Radius.medium` with a
+1 px `primary` border, a 26 px `primary`-bordered box holding the `folder`
+symbol, the title at `body`, the subline at `caption` in `fg-muted`, and a
+`chevron.right`. Sapphire is the action (rule 2); the card takes focus as
+the tabs do and shows the brass ring.
 
 ### Stubs
 

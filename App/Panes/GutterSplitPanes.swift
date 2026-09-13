@@ -6,6 +6,8 @@ import SwiftUI
 /// window resizes go to the editor, which gives way to nothing until the
 /// others are at their minimums.
 struct GutterSplitPanes: NSViewRepresentable {
+    let currentLibrary: CurrentLibrary
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -14,7 +16,10 @@ struct GutterSplitPanes: NSViewRepresentable {
         let split = GutterSplitView(
             gutter: ShellMetrics.gutter, initialWidths: PaneWidth.all.compactMap(\.ideal))
         split.delegate = context.coordinator
-        for pane in [host(Sidebar()), host(NoteList()), host(Editor())] {
+        let panes = [
+            host(Sidebar(currentLibrary: currentLibrary)), host(NoteList()), host(Editor()),
+        ]
+        for pane in panes {
             split.addArrangedSubview(pane)
         }
         return split
