@@ -1,21 +1,58 @@
+import Library
 import SwiftUI
 
-/// The sidebar, directly on `bg`: LIBRARY and FILES above, the SCOUTS stub
-/// pinned at the bottom (ADR 0005). Empty until a library is open.
+/// The sidebar, directly on `bg`: LIBRARY with All Notes, FILES with the
+/// file tree, and the SCOUTS stub pinned at the bottom (ADR 0005). With no
+/// library open it shows All Notes 0, disabled — the one place that color is
+/// right, because there genuinely is nothing.
 struct Sidebar: View {
-    private static let sectionSpacing: CGFloat = 11
-    private static let labelInset: CGFloat = 12
-    private static let topInset: CGFloat = 5
+    let currentLibrary: CurrentLibrary
+
+    @State private var selection: SidebarSelection = .allNotes
+    @State private var expandedFolders: Set<String> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
-            CapsLabel(text: "Library", color: Color(.fgMuted))
-            CapsLabel(text: "Files", color: Color(.fgMuted))
-            Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            sectionLabel("Library")
+                .padding(.top, SidebarMetrics.topInset)
+            allNotes
+            if let library = currentLibrary.library {
+                sectionLabel("Files")
+                    .padding(.top, SidebarMetrics.sectionSpacing)
+                FileTree(
+                    root: library.root, selection: $selection, expandedFolders: $expandedFolders)
+            }
+            Spacer(minLength: 0)
             ScoutsStub()
+                .padding(.horizontal, SidebarMetrics.labelInset)
         }
-        .padding(.horizontal, Self.labelInset)
-        .padding(.top, Self.topInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: currentLibrary.library) {
+            selection = .allNotes
+            expandedFolders = []
+        }
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        CapsLabel(text: text, color: Color(.fgMuted))
+            .padding(.horizontal, SidebarMetrics.labelInset)
+            .padding(.bottom, SidebarMetrics.labelGap)
+    }
+
+    @ViewBuilder
+    private var allNotes: some View {
+        if let library = currentLibrary.library {
+            SidebarRow(
+                glyph: "books.vertical", name: "All Notes", count: library.allNotes.count,
+                depth: 0, disclosure: .none,
+                state: selection == .allNotes ? .selected : .normal
+            ) {
+                selection = .allNotes
+            }
+        } else {
+            SidebarRow(
+                glyph: "books.vertical", name: "All Notes", count: 0, depth: 0,
+                disclosure: .none, state: .disabled, select: nil)
+        }
     }
 }

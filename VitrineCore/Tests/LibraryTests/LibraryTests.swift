@@ -34,6 +34,15 @@ import Testing
         }
     }
 
+    @Test func two_scans_of_the_same_folder_are_equal_and_of_different_folders_are_not() throws {
+        let scanRules = try Library.open(at: fixture("scan-rules"))
+        let scanRulesAgain = try Library.open(at: fixture("scan-rules"))
+        let obsidianVault = try Library.open(at: fixture("obsidian-vault"))
+
+        #expect(scanRules == scanRulesAgain)
+        #expect(scanRules != obsidianVault)
+    }
+
     @Test func a_folder_with_zero_notes_opens_as_an_empty_library() throws {
         let empty = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: false)
