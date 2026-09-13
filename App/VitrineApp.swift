@@ -7,5 +7,8 @@ struct VitrineApp: App {
         Window("Vitrine", id: "main") {
             ContentView()
         }
+        // PROTOTYPE (prototype/window-chrome): hidden title bar so the chrome can be drawn.
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1280, height: 800)
     }
 }
