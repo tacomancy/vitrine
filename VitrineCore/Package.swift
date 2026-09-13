@@ -30,10 +30,20 @@ let package = Package(
         ),
         .testTarget(
             name: "LibraryTests",
-            dependencies: ["Library"],
+            dependencies: ["Library", "Fixtures"],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        // ADR 0006 (Index-seam Update): not a seam — the one test-support
+        // target, so every test target opens the same fixture libraries.
+        // Under Tests/, it sits outside the coverage gate by construction.
+        .target(
+            name: "Fixtures",
+            path: "Tests/Fixtures",
             // CODING_STANDARDS §6: fixture libraries are real folders, shipped as
             // package resources so tests never depend on the working directory.
-            resources: [.copy("Fixtures")],
+            resources: [.copy("Libraries")],
             swiftSettings: [
                 .defaultIsolation(nil)
             ]
