@@ -22,24 +22,25 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
    is the visual authority (ADR 0004): tokens, type, the seven rules, the
    accessibility contract. `design/README.md` and the screenshots are layout
    reference for the v1 screens named in ADR 0004 — and aspiration for the
-   rest.
+   rest. `docs/visual-implementation.md` is how the brief is translated
+   into code — use its assets, fonts, and constants rather than re-deriving
+   them.
 
 ## Current state
 
-**Scaffold done (issue #3); first feature grilled, not yet specified.**
-`Vitrine.xcodeproj` builds an app that opens to an empty window;
-`VitrineCore/` has a placeholder target and one test; `Scripts/test.sh` is
-the verification command CI runs, with a coverage gate. ADRs 0001–0007 and
-0009 are Accepted; 0008 (window chrome) is Proposed pending a prototype.
+**Scaffold done (issue #3); first feature specified (#8) and split into
+tickets (#10 `Library` seam · #11 shell · #12 first run and file tree ·
+#13 read a note).** `Vitrine.xcodeproj` builds the app; `Scripts/test.sh`
+is the verification command CI runs, with a coverage gate. ADRs 0001–0010
+are Accepted; 0008 was settled by `prototype/window-chrome`.
 
-The first feature is decided (PR #7): a tracer bullet — open a folder as a
-library, browse its file tree, read a note as source text — with one core
-seam, a `Library` target that replaces the placeholder. Next steps, in
-order: `/prototype` on `prototype/window-chrome` to settle ADR 0008, then
-`/to-spec` to publish the spec issue, then `/to-tickets` (① `Library` seam ·
-② visual foundation and shell · ③ First run and wiring). Update this
-section whenever the answer to "where are we?" changes — it's the first
-thing a fresh agent reads.
+The window shell (#11) is built: token color assets, bundled Inter and IBM
+Plex Mono, the type scale, the drawn title bar and tab strip, the gutter
+split view with three floating panes, and the SOON stubs — all against an
+empty library, no disk access. `docs/visual-implementation.md` records the
+translation. The `Library` seam (#10) runs in a parallel session; #12 and
+#13 wire the two together. Update this section whenever the answer to
+"where are we?" changes — it's the first thing a fresh agent reads.
 
 ## Engineering discipline
 

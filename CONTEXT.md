@@ -93,7 +93,12 @@ so they aren't accidentally reused for something else.
   on-disk promise and the action to open a folder as a library. It is also
   what the window shows when the last-opened library can no longer be found.
 - **Tab** — a top-level section of the window: **Notes** and **Tags** are
-  functional in v1; the others are stubs (ADR 0005).
+  functional in v1; the others are stubs (ADR 0005). The **tab strip** is
+  the drawn row of tabs under the **title bar** (ADR 0008).
+- **Gutter** — the 8 px transparent gap between and around the window's
+  panes; dragging one resizes its neighbours. Panes are **floating
+  surfaces** on the window's ground, with no rule drawn between them
+  (ADR 0008).
 - **Index** — Vitrine's derived knowledge of the library: which notes exist,
   their tags, their links and backlinks, and search content. The index is
   built from the library and can always be rebuilt from it; it never holds
