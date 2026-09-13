@@ -26,14 +26,20 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 
 ## Current state
 
-**Scaffold done (issue #3); no features yet.** `Vitrine.xcodeproj` builds an
-app that opens to an empty window; `VitrineCore/` has a placeholder target
-and one test; `Scripts/test.sh` is the verification command CI runs, with a
-coverage gate. ADRs 0001–0007 are Accepted (0006 has a dated Update from
-the scaffold). The next piece of work is the first feature spec — the one
-that deletes the placeholder target and adds the first real seam — via
-`/grill-with-docs` and `/to-spec`. Update this section whenever the answer
-to "where are we?" changes — it's the first thing a fresh agent reads.
+**Scaffold done (issue #3); first feature grilled, not yet specified.**
+`Vitrine.xcodeproj` builds an app that opens to an empty window;
+`VitrineCore/` has a placeholder target and one test; `Scripts/test.sh` is
+the verification command CI runs, with a coverage gate. ADRs 0001–0007 and
+0009 are Accepted; 0008 (window chrome) is Proposed pending a prototype.
+
+The first feature is decided (PR #7): a tracer bullet — open a folder as a
+library, browse its file tree, read a note as source text — with one core
+seam, a `Library` target that replaces the placeholder. Next steps, in
+order: `/prototype` on `prototype/window-chrome` to settle ADR 0008, then
+`/to-spec` to publish the spec issue, then `/to-tickets` (① `Library` seam ·
+② visual foundation and shell · ③ First run and wiring). Update this
+section whenever the answer to "where are we?" changes — it's the first
+thing a fresh agent reads.
 
 ## Engineering discipline
 
