@@ -192,7 +192,11 @@ real sources:
   name sometimes measured nothing and passed vacuously at `100% (0/0)`.
   `Scripts/coverage-gate.sh` now sums every file under
   `VitrineCore/Sources/` across all targets, keeping one entry per path
-  (both targets report identical counts when both are present). The
-  decision above — line coverage of the whole package, ≥ 90 %, read from
-  the `.xcresult` — is unchanged; only how the script identifies the
-  package's lines moved.
+  (both targets report identical counts when both are present). A total
+  of zero executable lines now fails the gate instead of counting as 100 %:
+  the package has real sources, so zero means the report is not shaped as
+  the script expects, and a gate that passes without measuring is the bug
+  this fixes. The decision above — line coverage of the whole package,
+  ≥ 90 %, read from the `.xcresult` — is unchanged; what changed is how
+  the script identifies the package's lines and what it does when it
+  finds none.
