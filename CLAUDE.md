@@ -38,8 +38,10 @@ built against an empty library: token color assets, bundled Inter and IBM
 Plex Mono, the type scale, the drawn title bar and tab strip, the gutter
 split view with three floating panes, and the SOON stubs, with
 `docs/visual-implementation.md` recording the translation. `Scripts/test.sh`
-is the verification command CI runs, with a coverage gate. ADRs 0001–0010
-are Accepted.
+is the verification command CI runs, with a coverage gate that finds the
+package's lines by source path — `xccov` files them under the package
+target or its test target depending on the run (ADR 0006, second Update).
+ADRs 0001–0010 are Accepted.
 
 Next, in order: #12 First run and opening a library into the file tree
 (wiring ① into ②), #13 selecting a note and reading it. `/implement` per
