@@ -25,10 +25,13 @@ item, it's noted — those screens are aspiration, not spec (ADR 0004).
   tag co-occurrence, orphans) scoped by tag and date. Depends on the Index
   being rich enough to feed them. Screen 05.
 - **Scouts.** Agents that collect sources — fetch papers, follow citation
-  trails — into inboxes. Only the sidebar block is designed. Needs: where
-  agents run, what "collection" produces on disk, how it's reviewed.
+  trails — into inboxes; what they return is *unfiled* until the user reviews
+  it (`CONTEXT.md` § Reserved). Only the sidebar block is designed. Needs:
+  where agents run, what "collection" produces on disk, how it's reviewed.
 - **Quick capture.** A menu-bar extra (`⌃Space`) that files a thought from any
   app, pre-filling context from the frontmost window. Screen 06.
+- **Light "playbill" appearance.** Dark only in v1 (ADR 0009); light fills in
+  the second value of each token-named color asset. Screen 07b.
 - **Tag rename / merge** across the whole library, with an undoable
   confirmation and affected count. Screen 09's toolbar. Plausibly early v2.
 - **Tag descriptions.** A user-written paragraph per tag, shown on the tag
@@ -70,12 +73,8 @@ it blocks is next up.
   ADR 0001.
 - **External-edit handling.** How Vitrine notices files changed by Obsidian or
   another editor while a library is open, and what happens to an open Editor
-  when its file changes underneath it. Required by ADR 0002.
+  when its file changes underneath it. Required by ADR 0002. The first
+  screen scans on open only, deliberately; this is due with the spec that
+  introduces editing.
 - **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
   candidate. Fix it when something first needs to go there.
-- **Appearance in v1.** The brief defines dark (default) and cream "playbill"
-  light. Ship both in v1, or dark only with light following? Screen 07b shows
-  light applied. Blocks the color-asset setup.
-- **Fonts.** Inter, IBM Plex Mono, and Josefin Sans need bundling (ADR 0004).
-  Confirm licensing for app distribution (all three are OFL) and whether
-  Josefin Sans is needed at all in v1 — the brief bans it inside product UI.

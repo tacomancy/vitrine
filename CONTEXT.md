@@ -67,7 +67,9 @@ so they aren't accidentally reused for something else.
   `#parent`. A note tagged `#parent/child` is also counted under `#parent`.
   The **tag tree** is the set of all tags in the library arranged by this
   hierarchy, each with a **count** of notes carrying it or any descendant.
-- **Untagged** — a note with no tags in either place.
+- **Untagged** — a note with no tags in either place. This is the sidebar's
+  fixed entry for it; screen 01 of the mockups labels the same row "Unfiled",
+  which is a different, reserved concept (§ Reserved) and is not used.
 
 ## Navigation
 
@@ -87,6 +89,9 @@ so they aren't accidentally reused for something else.
   Beside it, the **rail** shows the note's backlinks and info.
 - **Window** — the single main window in which one library is open
   (ADR 0007). Everything below is a region of it.
+- **First run** — what the window shows when no library is open: the
+  on-disk promise and the action to open a folder as a library. It is also
+  what the window shows when the last-opened library can no longer be found.
 - **Tab** — a top-level section of the window: **Notes** and **Tags** are
   functional in v1; the others are stubs (ADR 0005).
 - **Index** — Vitrine's derived knowledge of the library: which notes exist,
@@ -109,10 +114,19 @@ aspiration, not spec.
   ledgers of supporting and contradicting evidence.
 - **Dashboard** — a user-composed grid of panels aggregating over the library.
 - **Scout** — an agent that collects sources on the user's behalf.
+- **Unfiled** — a source a scout has returned that the user has not yet
+  reviewed. Not a note state and not "untagged".
 - **Quick capture** — the menu-bar entry point that files a thought into the
   library from any app.
 
 ## Open terminology questions
 
-None yet. When one appears, record it here with the candidates considered,
+None open. When one appears, record it here with the candidates considered,
 then resolve it with an ADR if it has consequences beyond naming.
+
+Resolved without an ADR:
+
+- *Untagged* vs *Unfiled* (2026-09-13). The mockups use both for the
+  sidebar row counting notes with no tags (screen 01 "Unfiled 12", screen 09
+  "Untagged 12"). Resolved: the row is **Untagged**; **Unfiled** is reserved
+  for sources returned by a scout and not yet reviewed.
