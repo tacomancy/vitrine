@@ -42,9 +42,14 @@ so they aren't accidentally reused for something else.
   in different folders may share a title. A note carries its **modification
   date** as the file system reports it. Notes may be nested in **folders**; a
   folder is just a filesystem directory and carries no semantics of its own.
-- **Frontmatter** — an optional YAML block at the top of a note, delimited by
-  `---` lines. Vitrine reads `tags` and `aliases` from it in v1; other keys are
-  preserved untouched and shown as **properties** in the editor's property line.
+- **Frontmatter** — an optional YAML block at the very top of a note: the
+  first line is `---` and the block ends at the next `---` line. A `---`
+  anywhere later is body text, as in Obsidian. Vitrine reads `tags` and
+  `aliases` from it in v1 (also the singular `tag` and `alias` keys Obsidian
+  honors), each as a list, a single string, or a comma-separated string;
+  other keys are preserved untouched and shown as **properties** in the
+  editor's property line. The block's raw text is kept as written and is
+  never re-serialized (ADR 0011).
 - **Body** — everything in a note after the frontmatter. Markdown, extended
   with links and tags as defined below.
 - **Attachment** — any non-Markdown, non-hidden file in the library (images,
@@ -62,7 +67,10 @@ so they aren't accidentally reused for something else.
     folder. `[[Title|shown text]]` displays alternate text.
   - **Markdown link** — `[shown text](path/to/note.md)`, resolved by path
     relative to the linking note.
-  Links in v1 point to whole notes only; heading and block targets are parked.
+  Links in v1 point to whole notes only; heading and block targets are
+  parked. A link that carries a heading or block fragment (`[[Note#Heading]]`,
+  `[[Note#^id]]`) is still a link to `Note` — the fragment is parsed and
+  ignored, as Obsidian resolves the note part.
 - **Backlink** — the reverse of a link: from the target's point of view, every
   note that links to it. Backlinks are derived, never stored in the note.
 - **Unresolved link** — a link whose target matches no note in the library.
@@ -70,13 +78,24 @@ so they aren't accidentally reused for something else.
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
 - **Embed** — `![[filename]]`. In v1, only images embed; embedding a note is
-  parked.
+  parked. A display-width suffix (`![[image.png|800]]`) is parsed and ignored.
 
 ## Tags
 
 - **Tag** — a label attached to a note, written inline in the body as `#tag`
   or listed under `tags:` in frontmatter. A note has a tag if it appears in
-  either place; the set is the union, deduplicated case-insensitively.
+  either place; the set is the union, deduplicated case-insensitively. The
+  rules, each matching Obsidian unless marked:
+  - A tag is letters, digits, `_`, `-`, and `/`, and must contain at least
+    one non-digit (`#1` is not a tag). Trailing punctuation is not part of it.
+  - Inline, `#` counts only at the start of a line or after whitespace
+    (`url/#frag` is not a tag). In frontmatter a leading `#` is stripped.
+  - Nothing inside a fenced code block or inline code is a tag.
+  - **Vitrine differs:** nothing inside an HTML tag (`<mark style="… #FFF3A3A6">`)
+    is a tag. Obsidian counts those; a hex color is not a tag by anyone's
+    intent, and this is the one place v1 knowingly reads a note differently.
+  - A tag's **display spelling** is the first spelling seen in library order;
+    its identity is case-insensitive.
 - Tags are **hierarchical**: `#parent/child` is a tag whose **parent** is
   `#parent`. A note tagged `#parent/child` is also counted under `#parent`.
   The **tag tree** is the set of all tags in the library arranged by this
@@ -116,7 +135,11 @@ so they aren't accidentally reused for something else.
 - **Index** — Vitrine's derived knowledge of the library: which notes exist,
   their tags, their links and backlinks, and search content. The index is
   built from the library and can always be rebuilt from it; it never holds
-  anything the library doesn't (ADR 0002).
+  anything the library doesn't (ADR 0002). It lives in memory and is rebuilt
+  every time a library opens (ADR 0012).
+- **Parsing** — reading one note's text into its frontmatter, tags, links,
+  and embeds, without reference to any other note. Parsing is pure; what a
+  link *resolves to* is the Index's business, not the parser's.
 
 ## Reserved
 
