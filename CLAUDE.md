@@ -52,13 +52,18 @@ tag): ① built.** The `NoteParsing` seam (issue #19) is
 `ParsedNote.parse(text)`: frontmatter via Yams (ADR 0011), body tags,
 links, and embeds from a fence-aware scanner, every token with its UTF-8
 range — 34 inline-string tests in `NoteParsingTests`, and the package's
-first dependency. Its Obsidian-fixture criterion moved to ② (`Index`),
-where the extended fixture lands.
+first dependency. ② (`Index`, issue #20) is sharpened but not built: its
+API shape and the per-segment display-spelling rule are on record
+(`CONTEXT.md` § Tags, the #20 thread), and its fixture is already in —
+the Obsidian vault, extended for #20 *and* #26 and blessed once, lives in
+the `Fixtures` test-support target (ADR 0006, Index-seam Update) with
+every expected count written by hand in PR #34.
 
-Next: #20 the `Index`, then #21 the Tags tab. `/implement` per ticket on
-its own branch, clearing context between tickets. Update this section
-whenever the answer to "where are we?" changes — it's the first thing a
-fresh agent reads.
+Next: #36 (frontmatter tag values that fail the grammar are dropped —
+small, blocks #20), then #20 the `Index`, then #21 the Tags tab.
+`/implement` per ticket on its own branch, clearing context between
+tickets. Update this section whenever the answer to "where are we?"
+changes — it's the first thing a fresh agent reads.
 
 ## Engineering discipline
 
