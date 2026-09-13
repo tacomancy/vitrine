@@ -124,7 +124,14 @@ so they aren't accidentally reused for something else.
   `#parent`. A note tagged `#parent/child` is also counted under `#parent`.
   The **tag tree** is the set of all tags in the library arranged by this
   hierarchy, each with a **count** of notes carrying it or any descendant;
-  siblings sit in the same case-insensitive natural order as the file tree.
+  siblings sit in the same case-insensitive natural order as the file tree
+  (two names that order the same, `01` and `1`, fall back to their paths).
+  Each **node** of the tree is one tag: its **name** is its last segment's
+  display spelling, its **path** the whole tag lowercased — its identity —
+  and its **children** the tags one level down. A tag no note carries bare
+  (`#interp` when only `#interp/saes` is written) is still a node. An empty
+  segment is no segment: `#a//b` is `#a/b`, and a tag with none (`/`) is
+  not a tag. *Vitrine's own rule; Obsidian's is unverified.*
 - **Untagged** — a note with no tags in either place. This is the sidebar's
   fixed entry for it; screen 01 of the mockups labels the same row "Unfiled",
   which is a different, reserved concept (§ Reserved) and is not used.
@@ -177,7 +184,12 @@ so they aren't accidentally reused for something else.
   their tags, their links and backlinks, and search content. The index is
   built from the library and can always be rebuilt from it; it never holds
   anything the library doesn't (ADR 0002). It lives in memory and is rebuilt
-  every time a library opens (ADR 0012).
+  every time a library opens (ADR 0012). Building it never fails: a note
+  whose text cannot be read is **skipped** — recorded as such, and neither
+  tagged nor untagged. Notes come out of the index in **library display
+  order**: a folder's own notes, then each subfolder's in turn, every list
+  in the file tree's case-insensitive natural order — the order the note
+  list shows for a selected folder.
 - **Parsing** — reading one note's text into its frontmatter, tags, links,
   embeds, and **structure** — the headings, fenced code blocks, and inline
   code spans the editor colors — without reference to any other note. Parsing is pure; what a
