@@ -1,7 +1,7 @@
 ---
 tags:
   - Alignment
-  - 2026
+  - "2026"
   - foo bar
   - interp/saes
 sources:
