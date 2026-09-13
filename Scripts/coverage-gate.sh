@@ -12,7 +12,7 @@
 # Usage: Scripts/coverage-gate.sh <path/to/Vitrine.xcresult> [report.json]
 set -euo pipefail
 
-MINIMUM_LINE_COVERAGE_PERCENT=101
+MINIMUM_LINE_COVERAGE_PERCENT=90
 
 result_bundle="${1:?usage: coverage-gate.sh <result-bundle> [report.json]}"
 report="${2:-${result_bundle%.xcresult}-coverage.json}"
