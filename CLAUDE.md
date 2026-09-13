@@ -26,13 +26,14 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 
 ## Current state
 
-**Design docs, a design package, and the engineering workflow — no code yet.**
-ADRs 0001–0007 are all Accepted; 0006 fixes the project layout and stack and
-0007 fixes one library in one window. The next piece of work is the
-scaffold: `/to-spec` a spec issue from ADR 0006 § Scaffold scope, then
-`/implement` it on a `chore/scaffold` branch. Update this section whenever
-the answer to "where are we?" changes — it's the first thing a fresh agent
-reads.
+**Scaffold done (issue #3); no features yet.** `Vitrine.xcodeproj` builds an
+app that opens to an empty window; `VitrineCore/` has a placeholder target
+and one test; `Scripts/test.sh` is the verification command CI runs, with a
+coverage gate. ADRs 0001–0007 are Accepted (0006 has a dated Update from
+the scaffold). The next piece of work is the first feature spec — the one
+that deletes the placeholder target and adds the first real seam — via
+`/grill-with-docs` and `/to-spec`. Update this section whenever the answer
+to "where are we?" changes — it's the first thing a fresh agent reads.
 
 ## Engineering discipline
 

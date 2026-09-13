@@ -1,0 +1,30 @@
+# ADR 0006: one job, pull requests to main only. The macos-26 image's default
+# Xcode is the same build as the development machine; nothing is pinned here.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint formatting
+        run: swift format lint --strict --recursive App VitrineCore
+
+      - name: Build and test
+        run: Scripts/test.sh build/Vitrine.xcresult
+
+      - name: Coverage gate
+        run: Scripts/coverage-gate.sh build/Vitrine.xcresult build/coverage.json
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: build/coverage.json
+          if-no-files-found: ignore

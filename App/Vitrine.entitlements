@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ADR 0006: App Sandbox is off. Vitrine reads a folder the user pointed
+	     it at, and the bookmark plumbing the sandbox demands would touch every
+	     file-handling seam for no App Store in return. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
