@@ -28,26 +28,37 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 
 ## Current state
 
-**First feature specified (issue #8) and split into tickets; ①, ②, and ③
-built.** The `Library` seam (issue #10) scans a folder into folders, notes,
-and attachments in display order and reads a note's text, every scan rule a
-red-first test in `LibraryTests` against two fixtures — one purpose-built,
-one written by Obsidian. The window shell (issue #11) draws the title bar
-and tab strip over the gutter split view, per ADR 0008, with
-`docs/visual-implementation.md` recording the translation. First run and
-the launch/open rule (issue #12) are app glue at the seam: `CurrentLibrary`
-holds the one open library, reopens the remembered one at launch, and
-stores a path only when an open succeeds; the sidebar shows *All Notes*
-and the file tree. `Scripts/test.sh` is the verification command CI runs,
-with a coverage gate that finds the package's lines by source path —
-`xccov` files them under the package target or its test target depending
-on the run (ADR 0006, second Update). ADRs 0001–0010 are Accepted.
+**The first feature is built (issue #8): open a library, browse its file
+tree, select a note, and read it.** The `Library` seam (issue #10) scans a
+folder into folders, notes, and attachments in display order and reads a
+note's text, every scan rule a red-first test in `LibraryTests` against
+two fixtures — one purpose-built, one written by Obsidian. The window
+shell (issue #11) draws the title bar and tab strip over the gutter split
+view, per ADR 0008, with `docs/visual-implementation.md` recording the
+translation. First run and the launch/open rule (issue #12) are app glue
+at the seam: `CurrentLibrary` holds the one open library, reopens the
+remembered one at launch, and stores a path only when an open succeeds.
+Selecting and reading (issue #13) is more glue: `NotesSelection` is the
+one piece of view state the three panes share — the sidebar row, which
+scopes the note list, and the note open in the read-only editor — and
+everything on screen derives from it and `Library`. `Scripts/test.sh` is
+the verification command CI runs, with a coverage gate that finds the
+package's lines by source path — `xccov` files them under the package
+target or its test target depending on the run (ADR 0006, second Update).
+ADRs 0001–0012 are Accepted.
 
-Next: #13 selecting a note and reading it — the note list and editor
-panes, wired to the sidebar selection that `Sidebar` keeps as its own view
-state today. `/implement` per ticket on its own branch, clearing context
-between tickets. Update this section whenever the answer to "where are
-we?" changes — it's the first thing a fresh agent reads.
+**The second feature is under way (issue #18, parse notes and browse by
+tag): ① built.** The `NoteParsing` seam (issue #19) is
+`ParsedNote.parse(text)`: frontmatter via Yams (ADR 0011), body tags,
+links, and embeds from a fence-aware scanner, every token with its UTF-8
+range — 34 inline-string tests in `NoteParsingTests`, and the package's
+first dependency. Its Obsidian-fixture criterion moved to ② (`Index`),
+where the extended fixture lands.
+
+Next: #20 the `Index`, then #21 the Tags tab. `/implement` per ticket on
+its own branch, clearing context between tickets. Update this section
+whenever the answer to "where are we?" changes — it's the first thing a
+fresh agent reads.
 
 ## Engineering discipline
 

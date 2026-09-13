@@ -7,6 +7,7 @@ import SwiftUI
 /// others are at their minimums.
 struct GutterSplitPanes: NSViewRepresentable {
     let currentLibrary: CurrentLibrary
+    let selection: NotesSelection
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -17,7 +18,9 @@ struct GutterSplitPanes: NSViewRepresentable {
             gutter: ShellMetrics.gutter, initialWidths: PaneWidth.all.compactMap(\.ideal))
         split.delegate = context.coordinator
         let panes = [
-            host(Sidebar(currentLibrary: currentLibrary)), host(NoteList()), host(Editor()),
+            host(Sidebar(currentLibrary: currentLibrary, selection: selection)),
+            host(NoteList(currentLibrary: currentLibrary, selection: selection)),
+            host(Editor(currentLibrary: currentLibrary, selection: selection)),
         ]
         for pane in panes {
             split.addArrangedSubview(pane)
