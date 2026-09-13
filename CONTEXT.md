@@ -108,7 +108,10 @@ so they aren't accidentally reused for something else.
 
 - **Sidebar** — the left pane. In v1 it holds the **file tree** (folders and
   notes as they sit on disk), the **tag tree**, and fixed entries such as
-  *All Notes*, *Recent*, and *Untagged*.
+  *All Notes*, *Recent*, and *Untagged*. The sidebar picks the note list's
+  **scope**: exactly one row is selected at a time, whichever section it is
+  in — selecting a tag deselects a folder and vice versa. Narrowing a scope
+  further is what **filter chips** are for.
 - **Note list** — the middle pane: the notes matching the current sidebar
   selection and any active **filter chips** (tags added or removed by the
   user), sorted by a chosen key.
