@@ -90,8 +90,9 @@ so they aren't accidentally reused for something else.
   one does nothing).
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
-- **Embed** — `![[filename]]`. In v1, only images embed; embedding a note is
-  parked. A display-width suffix (`![[image.png|800]]`) is parsed and ignored.
+- **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
+  In v1, only images embed; embedding a note is parked. A display-width
+  suffix (`![[image.png|800]]`) is parsed and ignored.
 
 ## Tags
 
@@ -162,7 +163,11 @@ so they aren't accidentally reused for something else.
   every time a library opens (ADR 0012).
 - **Parsing** — reading one note's text into its frontmatter, tags, links,
   and embeds, without reference to any other note. Parsing is pure; what a
-  link *resolves to* is the Index's business, not the parser's.
+  link *resolves to* is the Index's business, not the parser's. Its result
+  is a **parsed note**: the frontmatter (if any), the **body tags** in order
+  of appearance, the links, the embeds, and the body's range. Every token
+  carries its **range** as UTF-8 offsets into the note's text, so the
+  editor can point at it without a second parser.
 
 ## Reserved
 

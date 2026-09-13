@@ -47,11 +47,18 @@ package's lines by source path — `xccov` files them under the package
 target or its test target depending on the run (ADR 0006, second Update).
 ADRs 0001–0012 are Accepted.
 
-Next: the second feature, #18 parse notes and browse by tag, already
-grilled (ADRs 0011, 0012) and split into #19 parsing, #20 the Index, and
-#21 the Tags tab. `/implement` per ticket on its own branch, clearing
-context between tickets. Update this section whenever the answer to
-"where are we?" changes — it's the first thing a fresh agent reads.
+**The second feature is under way (issue #18, parse notes and browse by
+tag): ① built.** The `NoteParsing` seam (issue #19) is
+`ParsedNote.parse(text)`: frontmatter via Yams (ADR 0011), body tags,
+links, and embeds from a fence-aware scanner, every token with its UTF-8
+range — 34 inline-string tests in `NoteParsingTests`, and the package's
+first dependency. Its Obsidian-fixture criterion moved to ② (`Index`),
+where the extended fixture lands.
+
+Next: #20 the `Index`, then #21 the Tags tab. `/implement` per ticket on
+its own branch, clearing context between tickets. Update this section
+whenever the answer to "where are we?" changes — it's the first thing a
+fresh agent reads.
 
 ## Engineering discipline
 
