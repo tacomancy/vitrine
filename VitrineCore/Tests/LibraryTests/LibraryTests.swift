@@ -103,6 +103,78 @@ import Testing
         #expect(Set(sameTitle).count == 2)
     }
 
+    @Test func modifiedAt_is_the_files_modification_date() throws {
+        let copy = try temporaryCopy(ofFixture: "scan-rules")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let knownDate = Date(timeIntervalSince1970: 1_700_000_000)  // 2023-11-14 22:13:20 UTC
+        try FileManager.default.setAttributes(
+            [.modificationDate: knownDate], ofItemAtPath: copy.appending(path: "Banana.md").path)
+
+        let library = try Library.open(at: copy)
+
+        let banana = try #require(library.root.notes.first { $0.title == "Banana" })
+        #expect(banana.modifiedAt == knownDate)
+    }
+
+    @Test func read_returns_a_notes_full_text_frontmatter_included() throws {
+        let library = try Library.open(at: fixture("scan-rules"))
+        let apple = try #require(library.root.notes.first { $0.title == "apple" })
+
+        let text = try library.read(apple)
+
+        #expect(
+            text == """
+                ---
+                title: Apple
+                tags: [fruit]
+                ---
+                # apple
+
+                Read byte-for-byte, frontmatter included.
+
+                """)
+    }
+
+    @Test func reading_a_note_removed_after_the_scan_throws_noteMissing() throws {
+        let copy = try temporaryCopy(ofFixture: "scan-rules")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let library = try Library.open(at: copy)
+        let banana = try #require(library.root.notes.first { $0.title == "Banana" })
+        try FileManager.default.removeItem(at: copy.appending(path: "Banana.md"))
+
+        #expect(throws: LibraryError.noteMissing) {
+            try library.read(banana)
+        }
+    }
+
+    @Test func reading_a_note_without_permission_throws_unreadable() throws {
+        let copy = try temporaryCopy(ofFixture: "scan-rules")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let library = try Library.open(at: copy)
+        let banana = try #require(library.root.notes.first { $0.title == "Banana" })
+        let noPermissions = 0o000
+        try FileManager.default.setAttributes(
+            [.posixPermissions: noPermissions], ofItemAtPath: copy.appending(path: "Banana.md").path)
+
+        #expect(throws: LibraryError.unreadable) {
+            try library.read(banana)
+        }
+    }
+
+    @Test func an_obsidian_vault_opens_as_it_is_on_disk() throws {
+        let vault = try fixture("obsidian-vault")
+        // The fixture is only real once Obsidian has written its folder into it.
+        try #require(FileManager.default.fileExists(atPath: vault.appending(path: ".obsidian").path))
+
+        let library = try Library.open(at: vault)
+
+        // Welcome, Reading List, Daily/2026-09-13, Projects/Vitrine.
+        #expect(library.allNotes.count == 4)
+        #expect(library.root.folders.map(\.name) == ["Daily", "Projects"])
+        #expect(library.root.folders.flatMap(\.attachments).map(\.name) == ["sketch.png"])
+        #expect(library.root.attachments.isEmpty)
+    }
+
     // MARK: - Fixtures
 
     /// A fixture library shipped as a package resource (CODING_STANDARDS §6).

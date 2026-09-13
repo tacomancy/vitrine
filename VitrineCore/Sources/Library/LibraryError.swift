@@ -4,4 +4,6 @@ public enum LibraryError: Error, Equatable {
     case notAFolder
     /// A folder in the library, or a note in it, exists but cannot be read.
     case unreadable
+    /// The note is no longer on disk where the scan found it.
+    case noteMissing
 }
