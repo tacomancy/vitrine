@@ -63,10 +63,8 @@ it blocks is next up.
 - **MC/DC coverage.** Wanted in CI, unavailable: `swiftc` emits no branch
   coverage regions (ADR 0006). Revisit if the toolchain grows them, or
   consider mutation testing (Muter) as a substitute once there is core code
-  to mutate. Adding Muter is its own ADR.
-- **Index storage.** In-memory only (rebuilt on open) vs. SQLite in the
-  sidecar (faster reopen, but a file to manage). Blocks the Index
-  implementation. Constrained by ADR 0002.
+  to mutate. Adding Muter is its own ADR — due now that the `Library` seam
+  exists (issue #10); a chore, not part of a feature spec.
 - **Editor approach.** Plain `NSTextView` with syntax highlighting vs. a
   rendered/WYSIWYG hybrid. The mockups show a Source/Preview toggle, which
   suggests the former. Blocks the Editor. Likely the first AppKit bridge per
