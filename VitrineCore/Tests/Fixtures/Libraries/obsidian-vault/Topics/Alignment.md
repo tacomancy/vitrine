@@ -16,3 +16,5 @@ Notes on #alignment and #interp/circuits, with a
 See [[welcome]], the [[Daily/2026-09-13.md]] entry, and [[sketch.png]].
 [[Alignment]] links to itself; [[Nowhere]] goes nowhere.
 Bare links: [[Scratch]] and [[Journal]].
+
+Or simply [[Start here]].

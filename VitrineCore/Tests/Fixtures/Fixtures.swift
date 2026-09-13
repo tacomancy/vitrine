@@ -16,7 +16,8 @@ public enum Fixtures {
 
     /// A private copy of the fixture library named `name`, for tests that
     /// break something, so the suite runs in any order and in parallel. The
-    /// caller removes it.
+    /// caller removes it. Untyped because a copy that fails is the file
+    /// system's error to describe, not a fixture's.
     public static func temporaryCopy(of name: String) throws -> URL {
         let copy = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString)
@@ -26,10 +27,4 @@ public enum Fixtures {
         try FileManager.default.copyItem(at: library(name), to: copy)
         return copy
     }
-}
-
-/// Why a fixture could not be located.
-public enum FixtureError: Error, Equatable {
-    /// No fixture library of that name is shipped in the bundle.
-    case missing(String)
 }
