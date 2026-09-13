@@ -22,8 +22,12 @@ import Testing
         defer { try? FileManager.default.removeItem(at: copy) }
         let noPermissions = 0o000
         let readable = 0o755
-        try FileManager.default.setAttributes([.posixPermissions: noPermissions], ofItemAtPath: copy.path)
-        defer { try? FileManager.default.setAttributes([.posixPermissions: readable], ofItemAtPath: copy.path) }
+        try FileManager.default.setAttributes(
+            [.posixPermissions: noPermissions], ofItemAtPath: copy.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: readable], ofItemAtPath: copy.path)
+        }
 
         #expect(throws: LibraryError.unreadable) {
             try Library.open(at: copy)
@@ -63,8 +67,8 @@ import Testing
     @Test func entries_whose_name_begins_with_a_dot_are_skipped() throws {
         let library = try Library.open(at: fixture("scan-rules"))
 
-        #expect(!library.root.attachments.map(\.name).contains(".DS_Store"))
-        #expect(!library.root.attachments.map(\.name).contains(".hidden"))
+        #expect(!library.root.notes.map(\.name).contains(".dotfile.md"))
+        #expect(!library.root.attachments.map(\.name).contains(".dotfile.md"))
         #expect(!library.root.folders.map(\.name).contains(".hidden"))
         #expect(!library.allNotes.map(\.title).contains("Hidden Note"))
     }
@@ -72,15 +76,17 @@ import Testing
     @Test func symbolic_links_are_not_followed() throws {
         let library = try Library.open(at: fixture("scan-rules"))
 
-        #expect(!library.root.folders.map(\.name).contains("Linked Alpha"))
-        #expect(!library.root.attachments.map(\.name).contains("Linked Alpha"))
-        #expect(!library.allNotes.contains { $0.path.hasPrefix("Linked Alpha/") })
+        #expect(!library.root.folders.map(\.name).contains("Linked alpha"))
+        #expect(!library.root.attachments.map(\.name).contains("Linked alpha"))
+        #expect(!library.allNotes.contains { $0.path.hasPrefix("Linked alpha/") })
+        #expect(!library.root.notes.map(\.name).contains("Linked apple.md"))
+        #expect(!library.root.attachments.map(\.name).contains("Linked apple.md"))
     }
 
     @Test func allNotes_counts_every_note_at_every_depth() throws {
         let library = try Library.open(at: fixture("scan-rules"))
 
-        // 4 at the root, 4 in Alpha, 1 in beta/Zeta.
+        // 4 at the root, 4 in alpha, 1 in Beta/Zeta.
         #expect(library.allNotes.count == 9)
         #expect(library.allNotes.map(\.title).contains("Deep Note"))
     }
@@ -89,8 +95,10 @@ import Testing
         let library = try Library.open(at: fixture("scan-rules"))
         let alpha = try #require(library.root.folders.first)
 
-        #expect(library.root.folders.map(\.name) == ["Alpha", "beta"])
+        #expect(library.root.folders.map(\.name) == ["alpha", "Beta"])
         #expect(library.root.notes.map(\.title) == ["apple", "Banana", "Same Title", "Zed"])
+        #expect(
+            library.root.attachments.map(\.name) == ["chart 2.png", "Chart 10.png", "notes.txt"])
         #expect(alpha.notes.map(\.title) == ["Note 1", "Note 2", "Note 10", "Same Title"])
     }
 
@@ -98,7 +106,7 @@ import Testing
         let library = try Library.open(at: fixture("scan-rules"))
 
         let sameTitle = library.allNotes.filter { $0.title == "Same Title" }
-        #expect(sameTitle.map(\.path) == ["Same Title.md", "Alpha/Same Title.md"])
+        #expect(sameTitle.map(\.path) == ["Same Title.md", "alpha/Same Title.md"])
         #expect(sameTitle.map(\.name) == ["Same Title.md", "Same Title.md"])
         #expect(Set(sameTitle).count == 2)
     }
@@ -154,7 +162,8 @@ import Testing
         let banana = try #require(library.root.notes.first { $0.title == "Banana" })
         let noPermissions = 0o000
         try FileManager.default.setAttributes(
-            [.posixPermissions: noPermissions], ofItemAtPath: copy.appending(path: "Banana.md").path)
+            [.posixPermissions: noPermissions], ofItemAtPath: copy.appending(path: "Banana.md").path
+        )
 
         #expect(throws: LibraryError.unreadable) {
             try library.read(banana)
@@ -164,13 +173,15 @@ import Testing
     @Test func an_obsidian_vault_opens_as_it_is_on_disk() throws {
         let vault = try fixture("obsidian-vault")
         // The fixture is only real once Obsidian has written its folder into it.
-        try #require(FileManager.default.fileExists(atPath: vault.appending(path: ".obsidian").path))
+        try #require(
+            FileManager.default.fileExists(atPath: vault.appending(path: ".obsidian").path))
 
         let library = try Library.open(at: vault)
 
         // Welcome, Reading List, Daily/2026-09-13, Projects/Vitrine.
         #expect(library.allNotes.count == 4)
         #expect(library.root.folders.map(\.name) == ["Daily", "Projects"])
+        #expect(!library.root.folders.map(\.name).contains(".obsidian"))
         #expect(library.root.folders.flatMap(\.attachments).map(\.name) == ["sketch.png"])
         #expect(library.root.attachments.isEmpty)
     }
@@ -179,7 +190,8 @@ import Testing
 
     /// A fixture library shipped as a package resource (CODING_STANDARDS §6).
     private func fixture(_ name: String) throws -> URL {
-        try #require(Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures"))
+        try #require(
+            Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures"))
     }
 
     /// A private copy of a fixture for tests that break something, so the

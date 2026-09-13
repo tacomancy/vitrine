@@ -21,7 +21,8 @@ public struct Library: Sendable {
     /// folder and `unreadable` when any folder in it cannot be listed.
     public static func open(at url: URL) throws(LibraryError) -> Library {
         var isFolder: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder),
+            isFolder.boolValue
         else { throw .notAFolder }
         let root = try scan(folderAt: url, path: "")
         return Library(name: root.name, root: root, rootURL: url)
@@ -33,7 +34,8 @@ public struct Library: Sendable {
     public func read(_ note: Note) throws(LibraryError) -> String {
         let url = rootURL.appending(path: note.path)
         guard FileManager.default.fileExists(atPath: url.path) else { throw .noteMissing }
-        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else {
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8)
+        else {
             throw .unreadable
         }
         return text
@@ -87,16 +89,14 @@ public struct Library: Sendable {
         return Folder(
             name: url.lastPathComponent,
             path: path,
-            folders: folders.sorted { $0.name.isOrderedBefore($1.name) },
-            notes: notes.sorted { $0.name.isOrderedBefore($1.name) },
-            attachments: attachments.sorted { $0.name.isOrderedBefore($1.name) })
+            folders: folders.sorted { isInDisplayOrder($0.name, $1.name) },
+            notes: notes.sorted { isInDisplayOrder($0.name, $1.name) },
+            attachments: attachments.sorted { isInDisplayOrder($0.name, $1.name) })
     }
-}
 
-extension String {
     /// Finder's and Obsidian's file order: case-insensitive, with digit runs
     /// compared as numbers, so `Note 2` precedes `Note 10`.
-    fileprivate func isOrderedBefore(_ other: String) -> Bool {
-        localizedStandardCompare(other) == .orderedAscending
+    private static func isInDisplayOrder(_ name: String, _ other: String) -> Bool {
+        name.localizedStandardCompare(other) == .orderedAscending
     }
 }
