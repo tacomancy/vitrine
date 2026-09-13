@@ -6,6 +6,9 @@ import SwiftUI
 struct FirstRun: View {
     let currentLibrary: CurrentLibrary
 
+    /// With no library there is nothing to select; the sidebar asks anyway.
+    @State private var selection = NotesSelection()
+
     private static let columnWidth: CGFloat = 600
     private static let columnSpacing: CGFloat = 22
     private static let copySpacing: CGFloat = 9
@@ -17,7 +20,7 @@ struct FirstRun: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Sidebar(currentLibrary: currentLibrary)
+            Sidebar(currentLibrary: currentLibrary, selection: selection)
                 .frame(width: Self.sidebarWidth)
                 .padding(ShellMetrics.gutter)
             VStack(alignment: .leading, spacing: Self.columnSpacing) {

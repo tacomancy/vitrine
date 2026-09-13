@@ -6,7 +6,7 @@ import SwiftUI
 /// collapse; notes and folders select; attachments are shown and nothing more.
 struct FileTree: View {
     let root: Folder
-    @Binding var selection: SidebarSelection
+    let selection: NotesSelection
     /// Expanded folders, by path.
     @Binding var expandedFolders: Set<String>
 
@@ -28,23 +28,24 @@ struct FileTree: View {
             SidebarRow(
                 glyph: "folder", name: folder.name, count: nil, depth: entry.depth,
                 disclosure: isExpanded ? .expanded : .collapsed,
-                emphasis: selection == .folder(folder) ? .selected : .normal
+                emphasis: selection.sidebar == .folder(folder) ? .selected : .normal
             ) {
                 // Obsidian toggles a folder on click; selecting it as well is
                 // what lets a folder scope the note list.
-                selection = .folder(folder)
+                selection.sidebar = .folder(folder)
                 if isExpanded {
                     expandedFolders.remove(folder.path)
                 } else {
                     expandedFolders.insert(folder.path)
                 }
             }
-        case .note(let note):
+        case .note(let note, let folder):
             SidebarRow(
                 glyph: "doc.text", name: note.title, count: nil, depth: entry.depth,
-                disclosure: .none, emphasis: selection == .note(note) ? .selected : .normal
+                disclosure: .none,
+                emphasis: selection.sidebar == .note(note, in: folder) ? .selected : .normal
             ) {
-                selection = .note(note)
+                selection.select(note, in: folder)
             }
         case .attachment(let attachment):
             SidebarRow(
@@ -67,7 +68,7 @@ struct FileTree: View {
                 entries += self.entries(of: subfolder, depth: depth + 1)
             }
         }
-        entries += folder.notes.map { FileTreeEntry(kind: .note($0), depth: depth) }
+        entries += folder.notes.map { FileTreeEntry(kind: .note($0, in: folder), depth: depth) }
         entries += folder.attachments.map { FileTreeEntry(kind: .attachment($0), depth: depth) }
         return entries
     }
