@@ -24,7 +24,7 @@ so they aren't accidentally reused for something else.
   Vitrine knows about is a file inside it. A library is plain files; it has no
   meaning beyond being a folder the user pointed Vitrine at. Obsidian calls
   the same thing a *vault*; any existing Obsidian vault is a valid library.
-  One library is open at a time in v1 (see `BACKLOG.md` § Open questions).
+  One library is open at a time in v1 (ADR 0007).
 - **Note** — one Markdown (`.md`) file in the library. A note's **title** is
   its filename without the extension. Notes may be nested in **folders**; a
   folder is just a filesystem directory and carries no semantics of its own.
@@ -85,6 +85,8 @@ so they aren't accidentally reused for something else.
 - **Editor** — the pane where one note's body is edited. Source Markdown is
   always what's on disk; any rendering (**Preview**) is a view over it.
   Beside it, the **rail** shows the note's backlinks and info.
+- **Window** — the single main window in which one library is open
+  (ADR 0007). Everything below is a region of it.
 - **Tab** — a top-level section of the window: **Notes** and **Tags** are
   functional in v1; the others are stubs (ADR 0005).
 - **Index** — Vitrine's derived knowledge of the library: which notes exist,

@@ -99,8 +99,14 @@ conventions for what the tests look like once written.
   tests use a temporary copy of a fixture.
 - Tests run in any order and in parallel. No shared mutable state, no
   reliance on the working directory.
-- The test framework is fixed by the project-layout ADR; until then these
-  rules are framework-neutral.
+- The framework is Swift Testing (ADR 0006). A test is `@Test func` with the
+  sentence as its function name and **no display-name string** — one name
+  per test, nothing to drift. One `@Suite` per seam, in `<Seam>Tests.swift`;
+  the test target for target `X` is `XTests`. XCTest only for UI automation
+  or `measure` tests, and only when a spec asks for one.
+- Fixture libraries live at `Tests/<Target>Tests/Fixtures/<name>/` as
+  package resources. The Obsidian-produced one is committed as Obsidian
+  wrote it, `.obsidian/` folder included.
 
 ## 7. Git: branches, PRs, and commits
 
@@ -131,14 +137,15 @@ conventions for what the tests look like once written.
 
   When a change spans two types, the branch is too big: split it.
 
-- A PR merges only after `/code-review` has run, tests pass, and the build
-  has zero warnings.
+- A PR merges only after `/code-review` has run, tests pass, the build has
+  zero warnings, and `VitrineCore` line coverage is at or above the CI
+  floor (ADR 0006).
 
 ## 8. Formatting and tooling
 
-- `swift-format` with the committed configuration is the formatter; its
-  output is not debated in review. (Configuration lands with the project
-  scaffold.)
+- The toolchain's `swift format` with the committed `.swift-format` is the
+  formatter; its output is not debated in review. `swift format lint
+  --strict` is the only linter (ADR 0006).
 - Warnings are errors in CI. A warning that must be tolerated is suppressed
   at the narrowest scope with a comment saying why.
 - One type per file, file named for the type. Extensions that add a

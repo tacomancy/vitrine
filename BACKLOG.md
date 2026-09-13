@@ -49,9 +49,10 @@ item, it's noted — those screens are aspiration, not spec (ADR 0004).
 Unresolved and blocking *something* — each should become an ADR when the thing
 it blocks is next up.
 
-- **Project layout and stack detail.** Xcode project + local Swift package, or
-  SwiftPM-only with an app target? Minimum macOS version? Blocks scaffolding.
-  (ADR 0001 defers this deliberately.)
+- **MC/DC coverage.** Wanted in CI, unavailable: `swiftc` emits no branch
+  coverage regions (ADR 0006). Revisit if the toolchain grows them, or
+  consider mutation testing (Muter) as a substitute once there is core code
+  to mutate. Adding Muter is its own ADR.
 - **Index storage.** In-memory only (rebuilt on open) vs. SQLite in the
   sidecar (faster reopen, but a file to manage). Blocks the Index
   implementation. Constrained by ADR 0002.
@@ -62,8 +63,6 @@ it blocks is next up.
 - **External-edit handling.** How Vitrine notices files changed by Obsidian or
   another editor while a library is open, and what happens to an open Editor
   when its file changes underneath it. Required by ADR 0002.
-- **Multiple open libraries.** v1 assumes one at a time. Confirm or reject
-  before any window/scene architecture is fixed.
 - **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
   candidate. Fix it when something first needs to go there.
 - **Appearance in v1.** The brief defines dark (default) and cream "playbill"

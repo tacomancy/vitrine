@@ -27,12 +27,12 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 ## Current state
 
 **Design docs, a design package, and the engineering workflow — no code yet.**
-ADRs 0001–0005 are all Accepted. The next piece of work is the ADR on project
-layout and stack detail (see `BACKLOG.md` § Open questions), followed by
-scaffolding an Xcode project against it — via `/grill-with-docs` and a spec
-issue, like everything else. Update this
-section whenever the answer to "where are we?" changes — it's the first thing
-a fresh agent reads.
+ADRs 0001–0007 are all Accepted; 0006 fixes the project layout and stack and
+0007 fixes one library in one window. The next piece of work is the
+scaffold: `/to-spec` a spec issue from ADR 0006 § Scaffold scope, then
+`/implement` it on a `chore/scaffold` branch. Update this section whenever
+the answer to "where are we?" changes — it's the first thing a fresh agent
+reads.
 
 ## Engineering discipline
 

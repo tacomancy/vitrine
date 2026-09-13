@@ -30,3 +30,9 @@ but it is not being designed for now.
 - **−** No Windows/Linux story. Accepted: this is a personal, Mac-first tool.
 - Exact project layout (Xcode project vs. SwiftPM-only, package naming,
   minimum macOS version) is a separate, later ADR.
+
+## Update (2026-09-13)
+
+ADR 0006 fixes the deferred layout: `Vitrine.xcodeproj` over a local
+`VitrineCore/` package, minimum macOS 26, Swift Testing, toolchain
+`swift format`. ADR 0007 fixes one library in one window.
