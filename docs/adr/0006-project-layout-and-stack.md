@@ -179,3 +179,20 @@ Three things the toolchain refused, found while building issue #3:
   `ENABLE_HARDENED_RUNTIME` to `NO` while the signing identity is `-`. The
   xcconfig keeps `YES` as intent; it becomes live the day a Developer ID is
   configured. There is nothing to notarize without one, so nothing is lost.
+
+## Update (2026-09-13, from the Library seam)
+
+A fourth thing the toolchain does its own way, found once the package had
+real sources:
+
+- **The gate finds the package by source path, not by target name.**
+  `xccov` files a package's sources under its own target on some runs and
+  only under its test target on others — the module is statically linked
+  into the test bundle — so a gate that picked "the package" by target
+  name sometimes measured nothing and passed vacuously at `100% (0/0)`.
+  `Scripts/coverage-gate.sh` now sums every file under
+  `VitrineCore/Sources/` across all targets, keeping one entry per path
+  (both targets report identical counts when both are present). The
+  decision above — line coverage of the whole package, ≥ 90 %, read from
+  the `.xcresult` — is unchanged; only how the script identifies the
+  package's lines moved.

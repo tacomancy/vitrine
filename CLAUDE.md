@@ -39,7 +39,9 @@ the launch/open rule (issue #12) are app glue at the seam: `CurrentLibrary`
 holds the one open library, reopens the remembered one at launch, and
 stores a path only when an open succeeds; the sidebar shows *All Notes*
 and the file tree. `Scripts/test.sh` is the verification command CI runs,
-with a coverage gate. ADRs 0001–0010 are Accepted.
+with a coverage gate that finds the package's lines by source path —
+`xccov` files them under the package target or its test target depending
+on the run (ADR 0006, second Update). ADRs 0001–0010 are Accepted.
 
 Next: #13 selecting a note and reading it — the note list and editor
 panes, wired to the sidebar selection that `Sidebar` keeps as its own view
