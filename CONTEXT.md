@@ -26,8 +26,9 @@ so they aren't accidentally reused for something else.
   the same thing a *vault*; any existing Obsidian vault is a valid library.
   One library is open at a time in v1 (ADR 0007). Its **name** is the
   folder's name. Opening a library **scans** it — eagerly, completely, once —
-  into a tree of folders, notes, and attachments; nothing is written to the
-  folder. The scan rules, each matching Obsidian:
+  into a tree of folders, notes, and attachments; opening writes nothing to
+  the folder. While open, the library is **watched**: a change made by any other tool is noticed and reflected
+  (ADR 0014). The scan rules, each matching Obsidian:
   - Every entry whose name begins with `.` is skipped, files and folders
     alike — `.obsidian/`, `.git/`, `.DS_Store`, and the sidecar.
   - Symbolic links are not followed; a symlink appears nowhere in the tree.
@@ -108,12 +109,19 @@ so they aren't accidentally reused for something else.
   - **Vitrine differs:** nothing inside an HTML tag (`<mark style="… #FFF3A3A6">`)
     is a tag. Obsidian counts those; a hex color is not a tag by anyone's
     intent, and this is the one place v1 knowingly reads a note differently.
-  - A tag's **display spelling** is the first spelling seen in library order;
-    its identity is case-insensitive.
+  - A tag names a topic, not a note, so its identity is case-insensitive.
+    Each segment of a hierarchical tag is itself a topic, and a topic has
+    one name: a segment's **display spelling** is the first spelling of it
+    seen in library order across every tag that contains it, and a tag is
+    displayed as its segments' spellings joined — `#Reading/paper` and
+    `#reading/Notes`, in that order, display as `#Reading/paper` and
+    `#Reading/Notes`, under one `Reading` in the tag tree. *Vitrine's own
+    rule; Obsidian's is undocumented.*
 - Tags are **hierarchical**: `#parent/child` is a tag whose **parent** is
   `#parent`. A note tagged `#parent/child` is also counted under `#parent`.
   The **tag tree** is the set of all tags in the library arranged by this
-  hierarchy, each with a **count** of notes carrying it or any descendant.
+  hierarchy, each with a **count** of notes carrying it or any descendant;
+  siblings sit in the same case-insensitive natural order as the file tree.
 - **Untagged** — a note with no tags in either place. This is the sidebar's
   fixed entry for it; screen 01 of the mockups labels the same row "Unfiled",
   which is a different, reserved concept (§ Reserved) and is not used.
@@ -134,8 +142,14 @@ so they aren't accidentally reused for something else.
 - **Search** — full-text lookup across note titles and bodies. v1 is plain
   term matching, case-insensitive; no query language. Surfaced through the
   **command palette** (`⌘K`), which also lists actions.
-- **Editor** — the pane where one note's body is edited. Source Markdown is
-  always what's on disk; any rendering (**Preview**) is a view over it.
+- **Editor** — the pane where one note is edited as **source** Markdown,
+  frontmatter included, with the parser's ranges colored (ADR 0013). Source
+  is always what's on disk: a note **autosaves** shortly after each pause in
+  typing and whenever it leaves view, written back in place exactly as typed
+  (ADR 0014). Any rendering (**Preview**) is a separate view over it. When
+  another tool changes the open note, a clean editor reloads it; an editor
+  with unsaved edits keeps them, shows *changed on disk*, and asks at the
+  next save whether to overwrite or discard.
   Above the note, the **breadcrumb** is the bar showing the note's path
   relative to the library root. Beside the editor, the **rail** shows the
   note's **backlinks** — one entry per linking note, with the line of text
@@ -162,7 +176,8 @@ so they aren't accidentally reused for something else.
   anything the library doesn't (ADR 0002). It lives in memory and is rebuilt
   every time a library opens (ADR 0012).
 - **Parsing** — reading one note's text into its frontmatter, tags, links,
-  and embeds, without reference to any other note. Parsing is pure; what a
+  embeds, and **structure** — the headings, fenced code blocks, and inline
+  code spans the editor colors — without reference to any other note. Parsing is pure; what a
   link *resolves to* is the Index's business, not the parser's. Its result
   is a **parsed note**: the frontmatter (if any), the **body tags** in order
   of appearance, the links, the embeds, and the body's range. Every token

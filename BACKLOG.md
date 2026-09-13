@@ -32,6 +32,15 @@ item, it's noted — those screens are aspiration, not spec (ADR 0004).
   app, pre-filling context from the frontmost window. Screen 06.
 - **Light "playbill" appearance.** Dark only in v1 (ADR 0009); light fills in
   the second value of each token-named color asset. Screen 07b.
+- **Live-preview editing.** Obsidian-style hidden syntax except around the
+  caret. Parked with its cost from `docs/research/editor-approach.md`:
+  TextKit 2 has no replacing decoration, so it is custom layout fragments
+  plus selection-driven relayout — 3–4× the source editor — and it extends
+  ADR 0013's editor rather than replacing it.
+- **Rename, move, and delete notes.** Not in ADR 0003's v1 verbs (read, edit,
+  create). Rename with Obsidian's `alwaysUpdateLinks` is a link-rewriting
+  feature of its own; delete needs a trash policy. The one rename that ships
+  with editing is naming a note at creation.
 - **Tag rename / merge** across the whole library, with an undoable
   confirmation and affected count. Screen 09's toolbar. Plausibly early v2.
 - **Tag descriptions.** A user-written paragraph per tag, shown on the tag
@@ -67,18 +76,8 @@ Unresolved and blocking *something* — each should become an ADR when the thing
 it blocks is next up.
 
 - **MC/DC coverage.** Wanted in CI, unavailable: `swiftc` emits no branch
-  coverage regions (ADR 0006). Revisit if the toolchain grows them, or
-  consider mutation testing (Muter) as a substitute once there is core code
-  to mutate. Adding Muter is its own ADR — due now that the `Library` seam
-  exists (issue #10); a chore, not part of a feature spec.
-- **Editor approach.** Plain `NSTextView` with syntax highlighting vs. a
-  rendered/WYSIWYG hybrid. The mockups show a Source/Preview toggle, which
-  suggests the former. Blocks the Editor. Likely the first AppKit bridge per
-  ADR 0001.
-- **External-edit handling.** How Vitrine notices files changed by Obsidian or
-  another editor while a library is open, and what happens to an open Editor
-  when its file changes underneath it. Required by ADR 0002. The first
-  screen scans on open only, deliberately; this is due with the spec that
-  introduces editing.
+  coverage regions (ADR 0006). Mutation testing with Muter is the substitute
+  (ADR 0015, Proposed pending the chore ticket). Revisit if the toolchain
+  grows branch regions.
 - **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
   candidate. Fix it when something first needs to go there.
