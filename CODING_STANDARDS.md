@@ -104,6 +104,9 @@ conventions for what the tests look like once written.
 
 ## 7. Git: branches, PRs, and commits
 
+- **Nothing is committed to `main` directly.** Every change — code, docs,
+  tooling, a one-line fix — goes on a new branch, is pushed, and lands
+  through a PR.
 - **Branches** are `<type>/<short-kebab-slug>` — `feat/tag-tree`,
   `fix/alias-resolution`, `docs/adr-0006`. One spec issue per branch.
 - **PR titles** are `<type>(<scope>): <imperative summary>` — the scope is
