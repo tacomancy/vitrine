@@ -5,13 +5,13 @@
 # "The package" is every file under VitrineCore/Sources/, whichever target
 # xccov files it under. Targets are not a reliable handle: the package is
 # statically linked into its test bundle, so some runs report its sources
-# only under LibraryTests with no Library target at all, and a target-name
-# filter then measures nothing and passes vacuously. Selecting by source
-# path finds the same lines either way and keeps VitrineCore/Tests/ out.
-# When both targets are present the same file appears under each, so paths
-# are de-duplicated before summing — one seam, one count, aggregated, so
-# the floor applies to the package as a whole and not per file. A package
-# with no executable lines has nothing left uncovered and counts as 100%.
+# only under the test target with no package target at all, and a
+# target-name filter then measures nothing and passes vacuously. Matching
+# on Sources/ also keeps VitrineCore/Tests/ out. When both targets are
+# present each lists the same file with the same counts, so the first
+# entry per path is kept and the rest dropped before summing — the floor
+# applies to the package as a whole and not per file. A package with no
+# executable lines has nothing left uncovered and counts as 100%.
 # Whole-percent arithmetic rounds down, so the floor is conservative: 89.9%
 # fails.
 #
