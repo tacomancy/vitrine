@@ -6,6 +6,10 @@
 # -suppress-warnings and rejects treatAllWarnings(as:) in Package.swift;
 # passing them on the command line is the only way that reaches every target.
 #
+# The destination names arm64 because both the development machine and the
+# macos-26 runner are Apple silicon; without it xcodebuild warns about
+# multiple matching destinations.
+#
 # Usage: Scripts/test.sh [result-bundle-path]
 set -euo pipefail
 

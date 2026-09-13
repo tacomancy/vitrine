@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint formatting
+        # Scoped to the source folders so a local build/ directory is never linted.
         run: swift format lint --strict --recursive App VitrineCore
 
       - name: Build and test

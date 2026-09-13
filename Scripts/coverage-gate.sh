@@ -3,9 +3,11 @@
 # (ADR 0006). Reads the .xcresult that Scripts/test.sh writes.
 #
 # "The package" is every target in the report that is neither the app bundle
-# nor a test bundle — one target per seam, aggregated, so the floor applies to
-# the package as a whole and not per file. A package with no executable lines
-# has nothing to cover and passes.
+# nor a test bundle (CODING_STANDARDS §6: test targets are named XTests) — one
+# target per seam, aggregated, so the floor applies to the package as a whole
+# and not per file. A package with no executable lines has nothing left
+# uncovered and counts as 100%. Whole-percent arithmetic rounds down, so the
+# floor is conservative: 89.9% fails.
 #
 # Usage: Scripts/coverage-gate.sh <path/to/Vitrine.xcresult> [report.json]
 set -euo pipefail
@@ -26,11 +28,10 @@ read -r covered executable < <(
 )
 
 if [[ "$executable" -eq 0 ]]; then
-    echo "coverage-gate: package has no executable lines; nothing to cover."
-    exit 0
+    percent=100
+else
+    percent=$(( covered * 100 / executable ))
 fi
-
-percent=$(( covered * 100 / executable ))
 echo "coverage-gate: package line coverage ${percent}% (${covered}/${executable}); floor ${MINIMUM_LINE_COVERAGE_PERCENT}%."
 
 if [[ "$percent" -lt "$MINIMUM_LINE_COVERAGE_PERCENT" ]]; then

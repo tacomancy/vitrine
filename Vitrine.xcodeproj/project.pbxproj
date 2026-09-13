@@ -6,13 +6,8 @@
 	objectVersion = 77;
 	objects = {
 
-/* ADR 0006: this file is hand-written and must stay readable. It holds one
-   project, one target, one synchronized folder (App/), the local package
-   twice — as a package reference for linking, and as a folder reference under
-   Packages/ so its test targets are schedulable from this project — the three
-   xcconfig references, and build configurations that point at those xcconfigs
-   and contain no settings of their own. Anything Xcode adds beyond that is
-   reverted. */
+/* ADR 0006 (and its Update) enumerates exactly which objects this hand-written
+   file may contain. Anything beyond that list is reverted. */
 
 /* Begin PBXBuildFile section */
 		A00000000000000000000001 /* VitrineCore in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000001 /* VitrineCore */; };
@@ -111,13 +106,6 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2660;
-				LastUpgradeCheck = 2660;
-				TargetAttributes = {
-					100000000000000000000001 = {
-						CreatedOnToolsVersion = 26.6;
-					};
-				};
 			};
 			buildConfigurationList = 200000000000000000000001 /* Build configuration list for PBXProject "Vitrine" */;
 			developmentRegion = en;

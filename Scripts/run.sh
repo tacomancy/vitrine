@@ -1,5 +1,7 @@
 #!/bin/bash
 # Builds the Debug app and launches it. What /run and .claude/launch.json call.
+# Same destination and warning overrides as Scripts/test.sh, for the same
+# reasons; see the comments there.
 set -euo pipefail
 
 build_dir="build/DerivedData"
