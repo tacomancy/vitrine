@@ -34,6 +34,20 @@
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "NoteParsingTests"
+               BuildableName = "NoteParsingTests"
+               BlueprintName = "NoteParsingTests"
+               ReferencedContainer = "container:VitrineCore">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -52,6 +66,17 @@
                BlueprintIdentifier = "LibraryTests"
                BuildableName = "LibraryTests"
                BlueprintName = "LibraryTests"
+               ReferencedContainer = "container:VitrineCore">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "NoteParsingTests"
+               BuildableName = "NoteParsingTests"
+               BlueprintName = "NoteParsingTests"
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </TestableReference>
