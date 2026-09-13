@@ -44,3 +44,14 @@ product name, and use AI-safety research as sample content. v1 is far narrower
   invented in its place.
 - The brief flags one unconfirmed assumption about tone of voice ("presenting
   and curating work"). Unresolved; matters for copy, not for tokens.
+
+## Update (2026-09-13)
+
+The design package was re-delivered with the product name corrected at the
+source: the mockup file is now `design/Vitrine.dc.html`, and the brand mark
+— **The Case** — arrived as `design/icons/` (SVG masters, the macOS iconset,
+menu-bar template images, web sizes). `design/README.md` § Assets documents
+the three size cuts and is the reference for using the mark. The iconset is
+wired into the app's `AppIcon` set; the menu-bar template images stay in the
+package unused, since the menu-bar extra is Quick capture (§ Reserved). Only
+the screenshot PNGs still carry the old name. The brief is unchanged.

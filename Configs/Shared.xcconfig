@@ -10,7 +10,7 @@ MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
 // No committed Info.plist; the settings here are the whole of it (ADR 0006).
 GENERATE_INFOPLIST_FILE = YES
-// The catalog's AppIcon set is empty until the brand mark is delivered (ADR 0004).
+// The Case, from design/icons/Vitrine.iconset (ADR 0004; design/README.md § Assets).
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
 // ---- Platform -------------------------------------------------------------
