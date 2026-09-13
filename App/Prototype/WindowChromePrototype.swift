@@ -49,7 +49,7 @@ extension Color {
 // MARK: - Switcher
 
 enum ChromeVariant: String, CaseIterable {
-    case a, b, c, d, e
+    case a, b, c, d, e, f
 
     var title: String {
         switch self {
@@ -58,6 +58,7 @@ enum ChromeVariant: String, CaseIterable {
         case .c: "Native chrome (rejected baseline)"
         case .d: "B, softened: 5px surfaces, no hairlines"
         case .e: "Floating surfaces: 8px gutters, no dividers (HStack, look only)"
+        case .f: "E's look, resizable: NSSplitView with an invisible 8px divider"
         }
     }
 }
@@ -75,6 +76,7 @@ struct WindowChromePrototype: View {
             case .c: VariantC()
             case .d: VariantD().environment(\.softChrome, true)
             case .e: VariantE().environment(\.softChrome, true)
+            case .f: VariantF().environment(\.softChrome, true)
             }
             switcher
         }
@@ -248,7 +250,108 @@ struct VariantE: View {
     }
 }
 
-// MARK: - Drawn chrome (A, B, D, E)
+struct VariantF: View {
+    var body: some View {
+        DrawnChrome {
+            GutterSplitView(
+                gutter: 8,
+                panes: [
+                    .init(
+                        minWidth: 196, width: 212, maxWidth: 280, view: AnyView(SidebarContent())),
+                    .init(minWidth: 260, width: 300, maxWidth: 404, view: AnyView(NoteListPane())),
+                    .init(minWidth: 400, width: 800, maxWidth: 10_000, view: AnyView(EditorPane())),
+                ]
+            )
+            .padding(8)
+            .background(Token.bg)
+        }
+    }
+}
+
+/// An NSSplitView whose divider is a transparent gutter: draggable, drawn as nothing.
+/// HSplitView cannot hide its divider; this is the cost of variant E's look with resizing.
+struct GutterSplitView: NSViewRepresentable {
+    struct Pane {
+        var minWidth: CGFloat
+        var width: CGFloat
+        var maxWidth: CGFloat
+        var view: AnyView
+    }
+
+    var gutter: CGFloat
+    var panes: [Pane]
+
+    func makeCoordinator() -> Coordinator { Coordinator(panes: panes) }
+
+    func makeNSView(context: Context) -> NSSplitView {
+        let split = InvisibleDividerSplitView(
+            gutter: gutter, initialWidths: panes.dropLast().map(\.width))
+        split.isVertical = true
+        split.dividerStyle = .thin
+        split.delegate = context.coordinator
+        for (index, pane) in panes.enumerated() {
+            let host = NSHostingView(rootView: pane.view)
+            host.translatesAutoresizingMaskIntoConstraints = false
+            split.addArrangedSubview(host)
+            // The last pane absorbs window resizes; the others hold their width.
+            split.setHoldingPriority(
+                index == panes.count - 1 ? .defaultLow : .defaultHigh, forSubviewAt: index)
+        }
+        return split
+    }
+
+    func updateNSView(_ split: NSSplitView, context: Context) {}
+
+    final class Coordinator: NSObject, NSSplitViewDelegate {
+        let panes: [Pane]
+        var didLayout = false
+        init(panes: [Pane]) { self.panes = panes }
+
+        func splitView(
+            _ splitView: NSSplitView, constrainMinCoordinate proposed: CGFloat,
+            ofSubviewAt index: Int
+        ) -> CGFloat {
+            max(proposed, splitView.arrangedSubviews[index].frame.minX + panes[index].minWidth)
+        }
+
+        func splitView(
+            _ splitView: NSSplitView, constrainMaxCoordinate proposed: CGFloat,
+            ofSubviewAt index: Int
+        ) -> CGFloat {
+            min(proposed, splitView.arrangedSubviews[index].frame.minX + panes[index].maxWidth)
+        }
+    }
+}
+
+final class InvisibleDividerSplitView: NSSplitView {
+    private let gutter: CGFloat
+    private var initialWidths: [CGFloat]?
+
+    init(gutter: CGFloat, initialWidths: [CGFloat]) {
+        self.gutter = gutter
+        self.initialWidths = initialWidths
+        super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { nil }
+
+    override var dividerThickness: CGFloat { gutter }
+    override func drawDivider(in rect: NSRect) {}
+
+    // Divider positions only stick once the view has a real width.
+    override func layout() {
+        super.layout()
+        guard let widths = initialWidths, bounds.width > 0 else { return }
+        initialWidths = nil
+        var position: CGFloat = 0
+        for (index, width) in widths.enumerated() {
+            position += width
+            setPosition(position, ofDividerAt: index)
+            position += gutter
+        }
+    }
+}
+
+// MARK: - Drawn chrome (A, B, D, E, F)
 
 struct DrawnChrome<Content: View>: View {
     @ViewBuilder let content: Content
