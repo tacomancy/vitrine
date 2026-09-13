@@ -26,8 +26,8 @@ so they aren't accidentally reused for something else.
   the same thing a *vault*; any existing Obsidian vault is a valid library.
   One library is open at a time in v1 (ADR 0007). Its **name** is the
   folder's name. Opening a library **scans** it — eagerly, completely, once —
-  into a tree of folders, notes, and attachments. While open, the library is
-  **watched**: a change made by any other tool is noticed and reflected
+  into a tree of folders, notes, and attachments; opening writes nothing to
+  the folder. While open, the library is **watched**: a change made by any other tool is noticed and reflected
   (ADR 0014). The scan rules, each matching Obsidian:
   - Every entry whose name begins with `.` is skipped, files and folders
     alike — `.obsidian/`, `.git/`, `.DS_Store`, and the sidecar.
