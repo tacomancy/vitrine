@@ -20,7 +20,7 @@ struct NoteList: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(notes, id: \.path) { note in
-                            NoteRow(note: note, isSelected: selection.note == note) {
+                            NoteRow(note: note, isSelected: selection.openNote == note) {
                                 selection.open(note)
                             }
                         }

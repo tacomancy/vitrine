@@ -19,7 +19,7 @@ struct Editor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let library = currentLibrary.library, let note = selection.note {
+            if let library = currentLibrary.library, let note = selection.openNote {
                 breadcrumb(for: note)
                 page(for: note, in: library)
             }
@@ -44,18 +44,19 @@ struct Editor: View {
                 Text(note.title)
                     .font(.sans(.title, weight: .semibold))
                     .foregroundStyle(Color(.fg))
-                switch text(of: note, in: library) {
-                case .success(let text):
-                    Text(verbatim: text)
-                        .font(.sans(.body, weight: .regular))
-                        .lineSpacing(Self.textLineSpacing)
-                        .foregroundStyle(Color(.fg))
-                        .textSelection(.enabled)
-                case .failure(let error):
-                    Text(error.localizedDescription)
-                        .font(.sans(.body, weight: .regular))
-                        .foregroundStyle(Color(.danger))
+                Group {
+                    switch text(of: note, in: library) {
+                    case .success(let text):
+                        Text(verbatim: text)
+                            .lineSpacing(Self.textLineSpacing)
+                            .foregroundStyle(Color(.fg))
+                            .textSelection(.enabled)
+                    case .failure(let error):
+                        Text(error.localizedDescription)
+                            .foregroundStyle(Color(.danger))
+                    }
                 }
+                .font(.sans(.body, weight: .regular))
             }
             .frame(maxWidth: Self.measure, alignment: .leading)
             .padding(Self.pagePadding)

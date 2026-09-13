@@ -208,15 +208,17 @@ for anything older. Selected, the row is the `bg-raised` pill at
 the 2 px `primary` rule along its left edge; its title steps up from
 `fg-secondary`, regular, to `fg`, semibold. Rows take the brass ring when
 focused and are marked selected for accessibility, with the date as their
-value.
+value. Opening a row while the tree highlights a different note moves that
+highlight to the note's folder: the scope is unchanged, and the tree never
+points at one note while the list and editor show another.
 
 ### The editor
 
 `Editor` is a floating surface that is empty until a note is open. With
-one, it stacks a 34 px breadcrumb bar — the note's path relative to the
-library root in mono `label`, `fg-muted`, its separators spaced as
-` / `, truncated in the middle when the pane is narrow — over a scrolling
-page padded 20 × 36 px: the title at `title` (25 px), semibold, `fg`, then
+one, it stacks the 34 px breadcrumb — the note's path relative to the
+library root in mono `label`, `fg-muted`, inset 16 px, its separators
+spaced as ` / `, truncated in the middle when the pane is narrow — over a
+scrolling page padded 20 × 36 px: the title at `title` (25 px), semibold, `fg`, then
 11 px below it the note's text exactly as it is on disk, frontmatter
 delimiters included, as a `Text(verbatim:)` at `body` (14 px — the spec's
 15 px is off the scale, and story 28 asks for the brief's body size) with

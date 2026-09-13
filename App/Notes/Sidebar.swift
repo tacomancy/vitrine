@@ -46,7 +46,7 @@ struct Sidebar: View {
                 depth: 0, disclosure: .none,
                 emphasis: selection.sidebar == .allNotes ? .selected : .normal
             ) {
-                selection.sidebar = .allNotes
+                selection.selectAllNotes()
             }
         } else {
             SidebarRow(

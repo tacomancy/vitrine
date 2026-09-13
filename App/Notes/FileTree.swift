@@ -32,7 +32,7 @@ struct FileTree: View {
             ) {
                 // Obsidian toggles a folder on click; selecting it as well is
                 // what lets a folder scope the note list.
-                selection.sidebar = .folder(folder)
+                selection.select(folder)
                 if isExpanded {
                     expandedFolders.remove(folder.path)
                 } else {
