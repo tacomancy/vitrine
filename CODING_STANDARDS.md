@@ -94,7 +94,7 @@ conventions for what the tests look like once written.
   outcome; two setups in one test are two tests.
 - Expected values are independent of the code under test: a literal, a
   worked example, a fixture file. Never recomputed with the same logic.
-- Fixture libraries are real folders under the test target, including at
+- Fixture libraries are real folders shipped as package resources, including at
   least one produced by Obsidian itself. The filesystem is not mocked;
   tests use a temporary copy of a fixture.
 - Tests run in any order and in parallel. No shared mutable state, no
@@ -104,9 +104,10 @@ conventions for what the tests look like once written.
   per test, nothing to drift. One `@Suite` per seam, in `<Seam>Tests.swift`;
   the test target for target `X` is `XTests`. XCTest only for UI automation
   or `measure` tests, and only when a spec asks for one.
-- Fixture libraries live at `Tests/<Target>Tests/Fixtures/<name>/` as
-  package resources. The Obsidian-produced one is committed as Obsidian
-  wrote it, `.obsidian/` folder included.
+- Fixture libraries live at `Tests/Fixtures/Libraries/<name>/`, resources
+  of the one `Fixtures` support target every library-opening test target
+  depends on (ADR 0006, Index-seam Update). The Obsidian-produced one is
+  committed as Obsidian wrote it, `.obsidian/` folder included.
 
 ## 7. Git: branches, PRs, and commits
 

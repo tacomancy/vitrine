@@ -200,3 +200,19 @@ real sources:
   ≥ 90 %, read from the `.xcresult` — is unchanged; what changed is how
   the script identifies the package's lines and what it does when it
   finds none.
+
+## Update (2026-09-13, from the Index seam)
+
+- **One test-support target, `Fixtures`, holds the fixture libraries.**
+  "One target per seam" governs `Sources/`; a target that exists only so
+  two test targets can share the same on-disk vault is not a seam. SwiftPM
+  resources belong to exactly one target, and the Obsidian fixture — the
+  vault the owner blesses by opening it in Obsidian — must be one folder,
+  not a copy per test target that drifts. `Fixtures` lives at
+  `VitrineCore/Tests/Fixtures/` (declared with `path:`), ships the fixture
+  libraries as `.copy` resources, exposes the two helpers every fixture
+  test needs (locate a fixture, take a temporary copy), and is depended on
+  by every test target that opens a library. Under `Tests/`, it is outside
+  the coverage gate by construction (the gate sums `Sources/` only). No
+  other support target is implied: the next shared test helper argues for
+  itself.
