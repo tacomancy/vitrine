@@ -5,7 +5,7 @@ import Library
 struct FileTreeEntry: Identifiable {
     enum Kind {
         case folder(Folder)
-        case note(Note)
+        case note(Note, in: Folder)
         case attachment(Attachment)
     }
 
@@ -16,7 +16,7 @@ struct FileTreeEntry: Identifiable {
     var id: String {
         switch kind {
         case .folder(let folder): folder.path
-        case .note(let note): note.path
+        case .note(let note, _): note.path
         case .attachment(let attachment): attachment.path
         }
     }

@@ -113,6 +113,15 @@ import Testing
         #expect(library.allNotes.map(\.title).contains("Deep Note"))
     }
 
+    @Test func a_folders_allNotes_are_its_own_and_every_subfolders_in_tree_order() throws {
+        let library = try Library.open(at: Fixtures.library("scan-rules"))
+        let beta = try #require(library.root.folders.first { $0.name == "Beta" })
+
+        // Beta holds only an attachment itself; its one note is in Beta/Zeta.
+        #expect(beta.notes.isEmpty)
+        #expect(beta.allNotes.map(\.path) == ["Beta/Zeta/Deep Note.md"])
+    }
+
     @Test func folders_come_before_files_and_each_list_is_in_natural_order() throws {
         let library = try Library.open(at: Fixtures.library("scan-rules"))
         let alpha = try #require(library.root.folders.first)

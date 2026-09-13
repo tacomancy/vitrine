@@ -5,6 +5,7 @@ import SwiftUI
 /// on-disk promise and the one action that opens a folder as a library.
 struct FirstRun: View {
     let currentLibrary: CurrentLibrary
+    let selection: NotesSelection
 
     private static let columnWidth: CGFloat = 600
     private static let columnSpacing: CGFloat = 22
@@ -17,7 +18,7 @@ struct FirstRun: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Sidebar(currentLibrary: currentLibrary)
+            Sidebar(currentLibrary: currentLibrary, selection: selection)
                 .frame(width: Self.sidebarWidth)
                 .padding(ShellMetrics.gutter)
             VStack(alignment: .leading, spacing: Self.columnSpacing) {

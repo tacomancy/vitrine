@@ -13,7 +13,13 @@ let package = Package(
     name: "VitrineCore",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "Library", targets: ["Library"])
+        .library(name: "Library", targets: ["Library"]),
+        .library(name: "NoteParsing", targets: ["NoteParsing"]),
+    ],
+    dependencies: [
+        // ADR 0011: Yams parses frontmatter, pinned exactly; a dependency is
+        // taken only for an externally specified format we must match.
+        .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2")
     ],
     targets: [
         .target(
@@ -38,6 +44,20 @@ let package = Package(
             // CODING_STANDARDS §6: fixture libraries are real folders, shipped as
             // package resources so tests never depend on the working directory.
             resources: [.copy("Libraries")],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .target(
+            name: "NoteParsing",
+            dependencies: ["Yams"],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .testTarget(
+            name: "NoteParsingTests",
+            dependencies: ["NoteParsing"],
             swiftSettings: [
                 .defaultIsolation(nil)
             ]

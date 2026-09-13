@@ -14,8 +14,10 @@ public struct Folder: Sendable, Equatable {
 }
 
 extension Folder {
-    /// This folder's notes followed by each subfolder's, in tree order.
-    var allNotes: [Note] {
+    /// This folder's notes followed by each subfolder's, recursively, in
+    /// tree order — what a folder selected in the sidebar scopes the note
+    /// list to.
+    public var allNotes: [Note] {
         notes + folders.flatMap(\.allNotes)
     }
 }

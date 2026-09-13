@@ -90,8 +90,9 @@ so they aren't accidentally reused for something else.
   one does nothing).
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
-- **Embed** — `![[filename]]`. In v1, only images embed; embedding a note is
-  parked. A display-width suffix (`![[image.png|800]]`) is parsed and ignored.
+- **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
+  In v1, only images embed; embedding a note is parked. A display-width
+  suffix (`![[image.png|800]]`) is parsed and ignored.
 
 ## Tags
 
@@ -135,12 +136,14 @@ so they aren't accidentally reused for something else.
   **command palette** (`⌘K`), which also lists actions.
 - **Editor** — the pane where one note's body is edited. Source Markdown is
   always what's on disk; any rendering (**Preview**) is a view over it.
-  Beside it, the **rail** shows the note's **backlinks** — one entry per
-  linking note, with the line of text around each link as **context** — and
-  its **info**: path, modification date, tags, and counts of outgoing links,
-  backlinks, and unresolved links. Following a link opens its target in the
-  editor without changing the sidebar's scope; **back** and **forward**
-  (⌘[ / ⌘]) walk the notes opened this session.
+  Above the note, the **breadcrumb** is the bar showing the note's path
+  relative to the library root. Beside the editor, the **rail** shows the
+  note's **backlinks** — one entry per linking note, with the line of text
+  around each link as **context** — and its **info**: path, modification
+  date, tags, and counts of outgoing links, backlinks, and unresolved
+  links. Following a link opens its target in the editor without changing
+  the sidebar's scope; **back** and **forward** (⌘[ / ⌘]) walk the notes
+  opened this session.
 - **Window** — the single main window in which one library is open
   (ADR 0007). Everything below is a region of it.
 - **First run** — what the window shows when no library is open: the
@@ -160,7 +163,11 @@ so they aren't accidentally reused for something else.
   every time a library opens (ADR 0012).
 - **Parsing** — reading one note's text into its frontmatter, tags, links,
   and embeds, without reference to any other note. Parsing is pure; what a
-  link *resolves to* is the Index's business, not the parser's.
+  link *resolves to* is the Index's business, not the parser's. Its result
+  is a **parsed note**: the frontmatter (if any), the **body tags** in order
+  of appearance, the links, the embeds, and the body's range. Every token
+  carries its **range** as UTF-8 offsets into the note's text, so the
+  editor can point at it without a second parser.
 
 ## Reserved
 
