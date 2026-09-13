@@ -24,5 +24,5 @@ Requires Xcode 26. Nothing to install.
 - `.claude/skills/` — Matt Pocock's engineering skills, vendored (`/ask-matt` to navigate)
 - `CONTEXT.md` — the vocabulary
 - `docs/adr/` — decisions and why
-- `design/` — the design-system brief (authoritative) and UI mockups (reference)
+- `design/` — the design-system brief (authoritative), UI mockups (reference), and the icon package
 - `BACKLOG.md` — what's parked, and what's still open

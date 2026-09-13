@@ -9,8 +9,8 @@ definition below is the one Vitrine commits to, and Obsidian is the tiebreaker
 for anything left unspecified. Where the design package (`design/`, ADR 0004)
 uses a word, that word wins over Obsidian's for user-facing copy.
 
-The product is **Vitrine**. The mockups in `design/` say "Galaxy Brain"; that
-label is stale and is not the product name.
+The product is **Vitrine**. The screenshot PNGs in `design/screenshots/` still
+say "Galaxy Brain"; that label is stale and is not the product name.
 
 ## Scope
 

@@ -1,8 +1,8 @@
-# Handoff: Galaxy Brain — native macOS research notebook
+# Handoff: Vitrine — native macOS research notebook
 
 ## Overview
 
-Galaxy Brain is a native macOS note-taking and knowledge-base app for AI-safety research (alignment, interpretability, evaluation, oversight, verification). It is a markdown-first notebook with three first-class object types — **Notes**, **Sources** (papers), and **Ideas** (claims that collect evidence) — plus **Dashboards** and a **Tag browser**. A single tabbed window; compact density by default.
+Vitrine is a native macOS note-taking and knowledge-base app for AI-safety research (alignment, interpretability, evaluation, oversight, verification). It is a markdown-first notebook with three first-class object types — **Notes**, **Sources** (papers), and **Ideas** (claims that collect evidence) — plus **Dashboards** and a **Tag browser**. A single tabbed window; compact density by default.
 
 The distinguishing features, in priority order:
 
@@ -14,7 +14,7 @@ The distinguishing features, in priority order:
 
 ## About the design files
 
-`Galaxy Brain.dc.html` is a **design reference created in HTML** — a prototype showing intended look, structure, and copy. It is **not production code to copy**. The task is to recreate these screens in the target codebase using its established patterns. For a native macOS app that means **SwiftUI or AppKit**; if you are building this fresh, SwiftUI with `NavigationSplitView`, `Table`, and `TextEditor`/a markdown editor component is the natural fit.
+`Vitrine.dc.html` is a **design reference created in HTML** — a prototype showing intended look, structure, and copy. It is **not production code to copy**. The task is to recreate these screens in the target codebase using its established patterns. For a native macOS app that means **SwiftUI or AppKit**; if you are building this fresh, SwiftUI with `NavigationSplitView`, `Table`, and `TextEditor`/a markdown editor component is the natural fit.
 
 The file opens directly in a browser. It is a canvas of 13 labelled screen mockups stacked vertically; each screen root carries a `data-screen-label` attribute (`01 Main window`, `02 Editor`, … `12 Ideas board`). All styling is inline; design tokens are CSS custom properties in the `:root` block at the top of the file. `support.js` is the prototype runtime only — ignore it entirely.
 
@@ -103,7 +103,7 @@ Art Deco means geometry, not ornament: stepped corners, hairline rules, wide let
 
 ## Window shell (all screens)
 
-- **Title bar, 38px**, `--color-bg-raised`, 1px bottom `--color-line`. Traffic lights left; app mark (22px, 2px radius, `linear-gradient(160deg,#053274,#020713)` with a 7px brass dot) + "Galaxy Brain" 13px/600 + library name in `--color-fg-muted`. Right side: search field (24px, 3px radius, `⌘K` hint) and per-tab actions.
+- **Title bar, 38px**, `--color-bg-raised`, 1px bottom `--color-line`. Traffic lights left; app mark (22px, 2px radius, `linear-gradient(160deg,#053274,#020713)` with a 7px brass dot) + "Vitrine" 13px/600 + library name in `--color-fg-muted`. Right side: search field (24px, 3px radius, `⌘K` hint) and per-tab actions.
 - **Tab strip, 31px**, `--color-bg`: **Notes · Sources · Ideas · Dashboard · Tags**, plus `+`. Active tab as above. Each tab has a 6px marker dot — square for document-ish tabs, round for synthesis tabs.
 - **Body** fills the rest. Three-pane layouts use `grid-template-columns: 196–212px / 300–404px / 1fr`.
 
@@ -160,7 +160,7 @@ Sidebar 196px / panel grid.
 
 ### 06 — Menu bar extra · 1280×470
 
-macOS menu bar over another app. 26px translucent bar; the Galaxy Brain status item opens a 352px popover anchored below it.
+macOS menu bar over another app. 26px translucent bar; the Vitrine status item opens a 352px popover anchored below it.
 
 - **Quick capture**: QUICK CAPTURE + `⌃Space`, a 66px capture field with brass caret, tag chips, and a **context row** — "Attach to *Weak-to-Strong Generalization* · detected from the frontmost window · p.6" with a checked sapphire checkbox. Destination selector (Inbox, `⌘↩ to file`) and a filled **Capture** button.
 - **TODAY · 4 CAPTURES** list beneath, each with a mono timestamp.
@@ -203,7 +203,7 @@ Anchors pane is the one designed, because it changes behavior:
 
 Empty sidebar with zero counts in `--color-fg-disabled`; centered 600px column.
 
-- "Point Galaxy Brain at a folder" (25px) + the on-disk promise: "Your notes stay plain markdown files on disk. Anchors, links and ideas are stored beside them in a sidecar index — delete the app tomorrow and the folder still reads."
+- "Point Vitrine at a folder" (25px) + the on-disk promise: "Your notes stay plain markdown files on disk. Anchors, links and ideas are stored beside them in a sidecar index — delete the app tomorrow and the folder still reads."
 - Three actions, the first sapphire-bordered: *Open a folder of markdown* (existing vault / Obsidian folder), *Start an empty library*, *Import a bibliography* (BibTeX or Zotero).
 - Footer hint: `⌃Space` captures from anywhere, even before a library exists.
 
@@ -242,11 +242,26 @@ Everything on disk should stay legible: markdown files for notes, a sidecar inde
 
 ## Assets
 
-None. No image files, no icon sets. Every glyph in the mockups is a simple inline SVG (circles, rectangles, 1–2 line strokes) or a text character — **replace all of them with SF Symbols**. The app mark is a placeholder gradient square with a brass dot; it needs a real mark. The PDF figures are striped placeholders.
+**Icons are included** — see `icons/`, built from The Case (the Vitrine mark):
+
+- `icons/svg/` — seven masters: `vitrine-mark.svg` (primary, exactly as specified in the brief), `vitrine-app-icon.svg` (1024 macOS squircle with sunken-navy ground and a brass hairline), `vitrine-mark-cream.svg` (playbill), `vitrine-mark-brass-flat.svg` (no gradient), `vitrine-mark-small.svg` (17–32px cut — taller pane, V pulled clear of the stepped neck so it doesn't read as a downward arrow), `vitrine-mark-16.svg` (16px cut — unstepped frame, V as one solid grid-snapped chevron; the steps and the two-stroke V fuse into a blob in a 4×4px field), `vitrine-mark-template.svg` + `vitrine-mark-16-template.svg` (alpha-only, for the menu bar).
+- `icons/Vitrine.iconset/` — all ten macOS sizes. **Rename `-2x` back to `@2x` before running `iconutil`** (see command below); `@` could not be written here.
+- `icons/menubar/` — `vitrineTemplate.png` @1x/2x/3x. Set `isTemplate = true` so the system tints it.
+- `icons/web/` — 16/32/48/180/192/512 for favicon and web use.
+
+```sh
+cd icons && for f in Vitrine.iconset/*-2x.png; do mv "$f" "${f/-2x/@2x}"; done
+iconutil -c icns Vitrine.iconset -o Vitrine.icns
+```
+
+Three cuts, by size: the **full mark above 32px**, the **small-size cut at 17–32px**, the **unstepped 16px cut at exactly 16px**. Don't scale one cut across all sizes. Clearspace equals the plinth height. Minimum size 16px.
+
+Everything else still needs replacing: every glyph in the mockups is a simple inline SVG (circles, rectangles, 1–2 line strokes) or a text character — **replace all of them with SF Symbols**. The PDF figures are striped placeholders.
 
 ## Files
 
-- `Galaxy Brain.dc.html` — all 13 screens; open in a browser. Screen roots carry `data-screen-label`.
+- `Vitrine.dc.html` — all 13 screens; open in a browser. Screen roots carry `data-screen-label`.
 - `screenshots/` — a 2× PNG of every screen, named to match the sections above (`01-main-window.png` … `12-ideas-board.png`). Use the HTML for exact values; the PNGs are for orientation.
-- `vitrine-design-system-brief.md` — the design system. Authoritative for color, type, and the accessibility contract.
+- `vitrine-design-system-brief.md` — the design system. Authoritative for color, type, the mark, and the accessibility contract.
+- `icons/` — the icon package (see Assets).
 - `support.js` — prototype runtime only; not part of the design.
