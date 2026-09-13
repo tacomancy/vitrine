@@ -4,10 +4,8 @@
 // package targets with -suppress-warnings and rejects treatAllWarnings(as:) as
 // a conflicting option; Scripts/test.sh enforces it for every target instead.
 //
-// ADR 0006: one package, one target per seam. The `VitrineCore` target below
-// is the scaffold's placeholder — it proves the build and the red→green loop
-// and nothing else. The first feature ticket deletes it and adds the first
-// real seam in its place.
+// ADR 0006: one package, one target per seam, each named in CONTEXT.md
+// vocabulary and added by the spec that needs it.
 
 import PackageDescription
 
@@ -15,18 +13,18 @@ let package = Package(
     name: "VitrineCore",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "VitrineCore", targets: ["VitrineCore"])
+        .library(name: "Library", targets: ["Library"])
     ],
     targets: [
         .target(
-            name: "VitrineCore",
+            name: "Library",
             swiftSettings: [
                 .defaultIsolation(nil)
             ]
         ),
         .testTarget(
-            name: "VitrineCoreTests",
-            dependencies: ["VitrineCore"],
+            name: "LibraryTests",
+            dependencies: ["Library"],
             // CODING_STANDARDS §6: fixture libraries are real folders, shipped as
             // package resources so tests never depend on the working directory.
             resources: [.copy("Fixtures")],

@@ -26,20 +26,20 @@ links, and library navigation.** Everything else is parked in `BACKLOG.md`.
 
 ## Current state
 
-**Scaffold done (issue #3); first feature grilled, not yet specified.**
-`Vitrine.xcodeproj` builds an app that opens to an empty window;
-`VitrineCore/` has a placeholder target and one test; `Scripts/test.sh` is
-the verification command CI runs, with a coverage gate. ADRs 0001–0007 and
-0009 are Accepted; 0008 (window chrome) is Proposed pending a prototype.
+**First feature specified (issue #8) and split into tickets; ticket ① built.**
+The `Library` seam (issue #10) replaces the scaffold's placeholder target:
+`Library.open(at:)` scans a folder into folders, notes, and attachments in
+display order, `read(_:)` returns a note's text, and every scan rule is a
+red-first test in `LibraryTests` against two fixtures — one purpose-built,
+one written by Obsidian. `Scripts/test.sh` is the verification command CI
+runs, with a coverage gate. ADRs 0001–0009 are Accepted.
 
-The first feature is decided (PR #7): a tracer bullet — open a folder as a
-library, browse its file tree, read a note as source text — with one core
-seam, a `Library` target that replaces the placeholder. Next steps, in
-order: `/prototype` on `prototype/window-chrome` to settle ADR 0008, then
-`/to-spec` to publish the spec issue, then `/to-tickets` (① `Library` seam ·
-② visual foundation and shell · ③ First run and wiring). Update this
-section whenever the answer to "where are we?" changes — it's the first
-thing a fresh agent reads.
+Next, in order: #11 window chrome and the gutter split view to the brief
+(against an empty library), #12 First run and opening a library into the
+file tree, #13 selecting a note and reading it. `/implement` per ticket on
+its own branch, clearing context between tickets. Update this section
+whenever the answer to "where are we?" changes — it's the first thing a
+fresh agent reads.
 
 ## Engineering discipline
 

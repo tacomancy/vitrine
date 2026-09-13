@@ -24,18 +24,32 @@ so they aren't accidentally reused for something else.
   Vitrine knows about is a file inside it. A library is plain files; it has no
   meaning beyond being a folder the user pointed Vitrine at. Obsidian calls
   the same thing a *vault*; any existing Obsidian vault is a valid library.
-  One library is open at a time in v1 (ADR 0007).
-- **Note** — one Markdown (`.md`) file in the library. A note's **title** is
-  its filename without the extension. Notes may be nested in **folders**; a
+  One library is open at a time in v1 (ADR 0007). Its **name** is the
+  folder's name. Opening a library **scans** it — eagerly, completely, once —
+  into a tree of folders, notes, and attachments; nothing is written to the
+  folder. The scan rules, each matching Obsidian:
+  - Every entry whose name begins with `.` is skipped, files and folders
+    alike — `.obsidian/`, `.git/`, `.DS_Store`, and the sidecar.
+  - Symbolic links are not followed; a symlink appears nowhere in the tree.
+  - Within a folder, folders come before files, and each list is in
+    case-insensitive natural order (`Note 2` before `Note 10`; `alpha` beside
+    `Beta`) — Finder's order.
+  - A folder with zero notes is a valid, empty library.
+- **Note** — one Markdown file in the library: any non-hidden file whose
+  extension is `.md`, matched case-insensitively (`.MD` is a note), as in
+  Obsidian. A note's **title** is its filename without the extension; its
+  **path** — relative to the library root — is its identity, since two notes
+  in different folders may share a title. A note carries its **modification
+  date** as the file system reports it. Notes may be nested in **folders**; a
   folder is just a filesystem directory and carries no semantics of its own.
 - **Frontmatter** — an optional YAML block at the top of a note, delimited by
   `---` lines. Vitrine reads `tags` and `aliases` from it in v1; other keys are
   preserved untouched and shown as **properties** in the editor's property line.
 - **Body** — everything in a note after the frontmatter. Markdown, extended
   with links and tags as defined below.
-- **Attachment** — any non-Markdown file in the library (images, PDFs). v1
-  shows them in the file tree and lets a note embed an image; it does not
-  otherwise interpret them.
+- **Attachment** — any non-Markdown, non-hidden file in the library (images,
+  PDFs), as in Obsidian. v1 shows them in the file tree and lets a note embed
+  an image; it does not otherwise interpret them.
 - **Sidecar** — Vitrine's own per-library state, kept in one hidden folder at
   the library root (ADR 0002). The first-run copy promises "delete the app
   tomorrow and the folder still reads"; the sidecar must never break that.
