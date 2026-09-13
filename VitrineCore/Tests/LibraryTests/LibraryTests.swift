@@ -34,6 +34,18 @@ import Testing
         }
     }
 
+    @Test func each_error_describes_itself_in_plain_words() {
+        #expect(
+            LibraryError.notAFolder.localizedDescription
+                == "That isn’t a folder. Vitrine opens a folder of Markdown files.")
+        #expect(
+            LibraryError.unreadable.localizedDescription
+                == "Vitrine can’t read it. Check its permissions and try again.")
+        #expect(
+            LibraryError.noteMissing.localizedDescription
+                == "The note is no longer where it was on disk.")
+    }
+
     @Test func two_scans_of_the_same_folder_are_equal_and_of_different_folders_are_not() throws {
         let scanRules = try Library.open(at: fixture("scan-rules"))
         let scanRulesAgain = try Library.open(at: fixture("scan-rules"))
