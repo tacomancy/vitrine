@@ -43,6 +43,14 @@ item, it's noted — those screens are aspiration, not spec (ADR 0004).
   Unranked.
 - **Sync / multi-device / iPadOS.** ADR 0001 keeps the door open and nothing
   more.
+- **Obsidian companion package.** Investigate publishing an Obsidian theme
+  and/or plugin alongside the finished app, so a library co-edited in both
+  tools (ADR 0002) looks and behaves consistently. A theme alone can carry the
+  brief's tokens, type, radii, and density but none of the shell (mode tabs,
+  note list, rail); a plugin could read or write the sidecar so state Obsidian
+  doesn't model survives a round trip. Open: whether it's worth maintaining a
+  second codebase, whether to publish to the community directory, and font
+  loading (theme CSS may not fetch remote fonts). Not before v1 ships.
 
 ## Open questions
 
