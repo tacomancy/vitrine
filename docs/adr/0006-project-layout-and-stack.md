@@ -144,3 +144,38 @@ remains is one project, one target, one group, one package reference.
 - Window and scene architecture is fixed separately in ADR 0007.
 - Still open in `BACKLOG.md` and untouched here: index storage, editor
   approach, external-edit handling, sidecar name, appearance, fonts.
+
+## Update (2026-09-13, from the scaffold)
+
+Three things the toolchain refused, found while building issue #3:
+
+- **Package warnings-as-errors moved out of `Package.swift`.** Xcode 26
+  compiles local package targets with `-suppress-warnings` — package warnings
+  are invisible in Xcode builds — and rejects `.treatAllWarnings(as: .error)`
+  as a conflicting option, so the project would not build at all with it.
+  Enforcement is now `Scripts/test.sh`, which passes
+  `SWIFT_SUPPRESS_WARNINGS=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` to
+  `xcodebuild`; those reach every target. CI and humans call that script,
+  so the local command is the CI command; `Scripts/run.sh` (what `/run`
+  calls) builds with the same overrides. The app target keeps
+  warnings-as-errors in its xcconfig as decided. Xcode's GUI still hides
+  package warnings; `swift test` in the package shows them but does not fail.
+- **The `pbxproj` holds the package twice.** An `XCLocalSwiftPackageReference`
+  alone lets the app link the product, but `xcodebuild test` then cannot find
+  the package's test target ("no test bundles available"). A folder reference
+  to the package under a `Packages` group — what Xcode itself writes when a
+  local package is added — makes its targets part of the project graph. The
+  scheme also lists the test target in its build action with
+  `buildForTesting`. The permitted object set is therefore, in full: the
+  project; the `Vitrine` native target with empty Sources, Frameworks, and
+  Resources phases; the `App/` synchronized root group; the `Packages` group
+  holding the package folder reference; the `Configs` group holding the three
+  xcconfig file references; the `Products` group holding the app product
+  reference; the local package reference and its product dependency (plus
+  the build-file entry that links it); and two configuration lists whose four
+  configurations carry no settings of their own. Nothing else — no
+  tool-version stamps, no per-file references.
+- **Hardened runtime is declared, not active.** Xcode forces
+  `ENABLE_HARDENED_RUNTIME` to `NO` while the signing identity is `-`. The
+  xcconfig keeps `YES` as intent; it becomes live the day a Developer ID is
+  configured. There is nothing to notarize without one, so nothing is lost.
