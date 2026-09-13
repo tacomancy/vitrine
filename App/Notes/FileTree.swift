@@ -28,7 +28,7 @@ struct FileTree: View {
             SidebarRow(
                 glyph: "folder", name: folder.name, count: nil, depth: entry.depth,
                 disclosure: isExpanded ? .expanded : .collapsed,
-                state: selection == .folder(folder) ? .selected : .normal
+                emphasis: selection == .folder(folder) ? .selected : .normal
             ) {
                 // Obsidian toggles a folder on click; selecting it as well is
                 // what lets a folder scope the note list.
@@ -42,14 +42,14 @@ struct FileTree: View {
         case .note(let note):
             SidebarRow(
                 glyph: "doc.text", name: note.title, count: nil, depth: entry.depth,
-                disclosure: .none, state: selection == .note(note) ? .selected : .normal
+                disclosure: .none, emphasis: selection == .note(note) ? .selected : .normal
             ) {
                 selection = .note(note)
             }
         case .attachment(let attachment):
             SidebarRow(
                 glyph: "paperclip", name: attachment.name, count: nil, depth: entry.depth,
-                disclosure: .none, state: .normal, select: nil)
+                disclosure: .none, emphasis: .normal, select: nil)
         }
     }
 

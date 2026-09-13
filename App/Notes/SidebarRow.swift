@@ -11,7 +11,7 @@ struct SidebarRow: View {
         case expanded
     }
 
-    enum State {
+    enum Emphasis {
         case normal
         case selected
         case disabled
@@ -23,7 +23,7 @@ struct SidebarRow: View {
     let count: Int?
     let depth: Int
     let disclosure: Disclosure
-    let state: State
+    let emphasis: Emphasis
     let select: (() -> Void)?
 
     @FocusState private var isFocused: Bool
@@ -37,7 +37,7 @@ struct SidebarRow: View {
                 .focused($isFocused)
                 .brassFocusRing(isFocused: isFocused, cornerRadius: Radius.medium)
                 .padding(.horizontal, SidebarMetrics.rowInset)
-                .accessibilityAddTraits(state == .selected ? [.isSelected] : [])
+                .accessibilityAddTraits(emphasis == .selected ? [.isSelected] : [])
                 .accessibilityValue(disclosureValue)
         } else {
             content
@@ -48,7 +48,7 @@ struct SidebarRow: View {
 
     private var content: some View {
         HStack(spacing: 0) {
-            (state == .selected ? Color(.primary) : Color.clear)
+            (emphasis == .selected ? Color(.primary) : Color.clear)
                 .frame(width: SidebarMetrics.ruleWidth)
             HStack(spacing: SidebarMetrics.glyphSpacing) {
                 HStack(spacing: SidebarMetrics.chevronSpacing) {
@@ -75,7 +75,7 @@ struct SidebarRow: View {
             .padding(.trailing, SidebarMetrics.contentInset)
         }
         .frame(height: SidebarMetrics.rowHeight)
-        .background(state == .selected ? Color(.bgRaised) : Color.clear, in: Self.shape)
+        .background(emphasis == .selected ? Color(.bgRaised) : Color.clear, in: Self.shape)
         .clipShape(Self.shape)
         .contentShape(Rectangle())
     }
@@ -103,7 +103,7 @@ struct SidebarRow: View {
     }
 
     private var glyphColor: Color {
-        switch state {
+        switch emphasis {
         case .normal: Color(.fgMuted)
         case .selected: Color(.accent)
         case .disabled: Color(.fgDisabled)
@@ -111,7 +111,7 @@ struct SidebarRow: View {
     }
 
     private var textColor: Color {
-        switch state {
+        switch emphasis {
         case .normal: Color(.fgSecondary)
         case .selected: Color(.fg)
         case .disabled: Color(.fgDisabled)
@@ -119,6 +119,6 @@ struct SidebarRow: View {
     }
 
     private var countColor: Color {
-        state == .disabled ? Color(.fgDisabled) : Color(.fgMuted)
+        emphasis == .disabled ? Color(.fgDisabled) : Color(.fgMuted)
     }
 }

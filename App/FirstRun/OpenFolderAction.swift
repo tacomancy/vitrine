@@ -31,6 +31,8 @@ struct OpenFolderAction: View {
                     Text("Open a folder of markdown")
                         .font(.sans(.body, weight: .regular))
                         .foregroundStyle(Color(.fg))
+                    // The mockup's subline, verbatim (screen 11); "vault" is
+                    // Obsidian's word for a library and the one users know.
                     Text("Point at an existing vault, Obsidian folder, or anything with .md in it")
                         .font(.sans(.caption, weight: .regular))
                         .foregroundStyle(Color(.fgMuted))

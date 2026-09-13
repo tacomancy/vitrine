@@ -45,14 +45,14 @@ struct Sidebar: View {
             SidebarRow(
                 glyph: "books.vertical", name: "All Notes", count: library.allNotes.count,
                 depth: 0, disclosure: .none,
-                state: selection == .allNotes ? .selected : .normal
+                emphasis: selection == .allNotes ? .selected : .normal
             ) {
                 selection = .allNotes
             }
         } else {
             SidebarRow(
                 glyph: "books.vertical", name: "All Notes", count: 0, depth: 0,
-                disclosure: .none, state: .disabled, select: nil)
+                disclosure: .none, emphasis: .disabled, select: nil)
         }
     }
 }

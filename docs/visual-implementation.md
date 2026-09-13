@@ -174,7 +174,7 @@ split view is padded by one gutter on every side.
 for All Notes, `folder`, `doc.text`, `paperclip`), and a mono `label` count
 on the right. Selected, a row is the `bg-raised` pill at `Radius.medium`
 inset 4 px from the sidebar's edges, with the 2 px `primary` rule along its
-left edge and its glyph in `accent` — brass for the active nav item (rule 3);
+left edge and its glyph in `accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
 its text is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`.
 Row content starts 6 px inside the pill so it lines up with the labels at
 12 px. With no library, All Notes is `fg-disabled` throughout and inert.
