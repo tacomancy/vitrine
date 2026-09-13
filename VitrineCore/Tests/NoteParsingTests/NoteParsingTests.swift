@@ -39,6 +39,16 @@ import Testing
         #expect(note.frontmatter == nil)
     }
 
+    @Test func frontmatter_is_recognised_in_a_file_with_windows_line_endings() {
+        let text = "---\r\ntags: [a]\r\n---\r\nBody"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.frontmatter?.tags == ["a"])
+        #expect(note.frontmatter.map { slice(text, $0.rawRange) } == "---\r\ntags: [a]\r\n---")
+        #expect(slice(text, note.bodyRange) == "Body")
+    }
+
     @Test func rawRange_covers_the_block_including_both_delimiters_as_written() {
         let text = """
             ---
@@ -55,16 +65,21 @@ import Testing
 
     // MARK: - Frontmatter keys
 
-    @Test func tags_as_a_block_list_flow_list_string_or_comma_separated_string_are_the_same() {
-        let blockList = ParsedNote.parse("---\ntags:\n  - alpha\n  - beta\n---\n")
-        let flowList = ParsedNote.parse("---\ntags: [alpha, beta]\n---\n")
-        let string = ParsedNote.parse("---\ntags: alpha\n---\n")
-        let commaSeparated = ParsedNote.parse("---\ntags: alpha, beta\n---\n")
+    /// Every form Obsidian accepts under `tags:`, each with the tags it means.
+    private static let tagForms: [(yaml: String, tags: [String])] = [
+        ("tags:\n  - alpha\n  - beta", ["alpha", "beta"]),  // block list
+        ("tags: [alpha, beta]", ["alpha", "beta"]),  // flow list
+        ("tags: alpha", ["alpha"]),  // single string
+        ("tags: alpha, beta", ["alpha", "beta"]),  // comma-separated string
+    ]
 
-        #expect(blockList.frontmatter?.tags == ["alpha", "beta"])
-        #expect(flowList.frontmatter?.tags == ["alpha", "beta"])
-        #expect(string.frontmatter?.tags == ["alpha"])
-        #expect(commaSeparated.frontmatter?.tags == ["alpha", "beta"])
+    @Test(arguments: tagForms)
+    func tags_as_a_block_list_flow_list_string_or_comma_separated_string_yield_the_same_tags(
+        form: (yaml: String, tags: [String])
+    ) {
+        let note = ParsedNote.parse("---\n\(form.yaml)\n---\n")
+
+        #expect(note.frontmatter?.tags == form.tags)
     }
 
     @Test func the_singular_tag_key_yields_tags_too() {
@@ -85,18 +100,22 @@ import Testing
         #expect(note.frontmatter?.tags == ["zeta", "Alpha", "mid"])
     }
 
-    @Test func aliases_and_alias_yield_aliases_in_the_same_forms() {
-        let blockList = ParsedNote.parse("---\naliases:\n  - Start here\n  - Home\n---\n")
-        let flowList = ParsedNote.parse("---\naliases: [Start here, Home]\n---\n")
-        let string = ParsedNote.parse("---\naliases: Start here\n---\n")
-        let commaSeparated = ParsedNote.parse("---\naliases: Start here, Home\n---\n")
-        let singular = ParsedNote.parse("---\nalias: Home\n---\n")
+    /// The same forms under `aliases:`, and the singular `alias:`.
+    private static let aliasForms: [(yaml: String, aliases: [String])] = [
+        ("aliases:\n  - Start here\n  - Home", ["Start here", "Home"]),
+        ("aliases: [Start here, Home]", ["Start here", "Home"]),
+        ("aliases: Start here", ["Start here"]),
+        ("aliases: Start here, Home", ["Start here", "Home"]),
+        ("alias: Home", ["Home"]),
+    ]
 
-        #expect(blockList.frontmatter?.aliases == ["Start here", "Home"])
-        #expect(flowList.frontmatter?.aliases == ["Start here", "Home"])
-        #expect(string.frontmatter?.aliases == ["Start here"])
-        #expect(commaSeparated.frontmatter?.aliases == ["Start here", "Home"])
-        #expect(singular.frontmatter?.aliases == ["Home"])
+    @Test(arguments: aliasForms)
+    func aliases_and_alias_yield_aliases_in_the_same_forms(
+        form: (yaml: String, aliases: [String])
+    ) {
+        let note = ParsedNote.parse("---\n\(form.yaml)\n---\n")
+
+        #expect(note.frontmatter?.aliases == form.aliases)
     }
 
     @Test func invalid_yaml_in_the_block_yields_no_frontmatter_and_the_full_text_as_body() {
@@ -114,12 +133,16 @@ import Testing
         #expect(note.frontmatter?.tags == ["yes", "no"])
     }
 
-    @Test func bodyRange_starts_after_the_frontmatter_or_at_0_when_there_is_none() {
-        let withFrontmatter = ParsedNote.parse("---\ntags: [a]\n---\nBody")
-        let withoutFrontmatter = ParsedNote.parse("Body")
+    @Test func bodyRange_starts_on_the_line_after_the_frontmatter() {
+        let note = ParsedNote.parse("---\ntags: [a]\n---\nBody")
 
-        #expect(withFrontmatter.bodyRange == 18..<22)
-        #expect(withoutFrontmatter.bodyRange == 0..<4)
+        #expect(note.bodyRange == 18..<22)
+    }
+
+    @Test func bodyRange_starts_at_0_when_there_is_no_frontmatter() {
+        let note = ParsedNote.parse("Body")
+
+        #expect(note.bodyRange == 0..<4)
     }
 
     // MARK: - Body tags
@@ -150,6 +173,13 @@ import Testing
         let note = ParsedNote.parse("#1 #2026 #1a")
 
         #expect(note.bodyTags.map(\.name) == ["1a"])
+    }
+
+    @Test func a_digit_is_a_decimal_digit_in_any_script_and_a_numeral_letter_is_not_one() {
+        // U+0663 is an Arabic-Indic digit; 三 is a letter that happens to be a numeral.
+        let note = ParsedNote.parse("#\u{0663} #三")
+
+        #expect(note.bodyTags.map(\.name) == ["三"])
     }
 
     @Test func parent_slash_child_is_one_tag_with_that_name() {
@@ -200,6 +230,12 @@ import Testing
         #expect(note.bodyTags.map(\.name) == ["tag"])
     }
 
+    @Test func nothing_inside_an_html_comment_is_a_tag() {
+        let note = ParsedNote.parse("<!-- #notatag --> #tag")
+
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
     @Test func an_unclosed_delimiter_is_literal_text_and_scanning_continues_after_it() {
         let note = ParsedNote.parse(
             """
@@ -240,6 +276,21 @@ import Testing
                 .wikilink(Wikilink(target: "Note", displayText: nil, range: 17..<32)),
                 .wikilink(Wikilink(target: "Note", displayText: "shown", range: 33..<55)),
             ])
+    }
+
+    @Test func a_wikilink_target_is_trimmed() {
+        let note = ParsedNote.parse("[[ Note ]]")
+
+        #expect(
+            note.links == [.wikilink(Wikilink(target: "Note", displayText: nil, range: 0..<10))])
+    }
+
+    @Test func a_wikilink_with_no_target_is_not_a_link_to_a_note() {
+        // `[[#Heading]]` points into this note; heading links are parked (BACKLOG).
+        let note = ParsedNote.parse("[[]] [[ ]] [[#Heading]] [[|shown]] ![[]]")
+
+        #expect(note.links.isEmpty)
+        #expect(note.embeds.isEmpty)
     }
 
     @Test func a_markdown_link_to_a_path_has_its_destination_percent_decoded_and_is_not_external() {

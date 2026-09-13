@@ -20,13 +20,21 @@ public struct ParsedNote: Sendable, Equatable {
     public static func parse(_ text: String) -> ParsedNote {
         let end = text.utf8.count
         let frontmatter = Frontmatter.read(from: text)
-        // The body starts on the line after the closing `---`, so the newline
-        // that ends that line belongs to neither.
-        let bodyStart = frontmatter.map { min($0.rawRange.upperBound + 1, end) } ?? 0
+        let bodyStart =
+            frontmatter.map { startOfLine(after: $0.rawRange.upperBound, in: text) } ?? 0
         var scanner = BodyScanner(text, from: bodyStart)
         scanner.scan()
         return ParsedNote(
             frontmatter: frontmatter, bodyRange: bodyStart..<end, bodyTags: scanner.tags,
             links: scanner.links, embeds: scanner.embeds)
+    }
+
+    /// The body starts on the line after the closing `---`; the line ending
+    /// that follows it — `\n` or `\r\n` — belongs to neither.
+    private static func startOfLine(after offset: Int, in text: String) -> Int {
+        var bytes = text.utf8.dropFirst(offset)
+        if bytes.first == UInt8(ascii: "\r") { bytes = bytes.dropFirst() }
+        if bytes.first == UInt8(ascii: "\n") { bytes = bytes.dropFirst() }
+        return text.utf8.count - bytes.count
     }
 }

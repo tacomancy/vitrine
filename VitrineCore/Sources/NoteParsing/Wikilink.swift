@@ -9,6 +9,8 @@ public struct Wikilink: Sendable, Equatable {
     /// The token in the note as UTF-8 offsets, both bracket pairs included.
     public let range: Range<Int>
 
+    /// Memberwise, so a caller — the Index, or a test's expected value — can
+    /// build one directly.
     public init(target: String, displayText: String?, range: Range<Int>) {
         self.target = target
         self.displayText = displayText

@@ -6,6 +6,8 @@ public struct Tag: Sendable, Equatable {
     /// The token in the note as UTF-8 offsets, `#` included.
     public let range: Range<Int>
 
+    /// Memberwise, so a caller — the Index, or a test's expected value — can
+    /// build one directly.
     public init(name: String, range: Range<Int>) {
         self.name = name
         self.range = range

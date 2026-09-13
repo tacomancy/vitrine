@@ -11,6 +11,8 @@ public struct MarkdownLink: Sendable, Equatable {
     /// The token in the note as UTF-8 offsets, brackets and parentheses included.
     public let range: Range<Int>
 
+    /// Memberwise, so a caller — the Index, or a test's expected value — can
+    /// build one directly.
     public init(destination: String, displayText: String, isExternal: Bool, range: Range<Int>) {
         self.destination = destination
         self.displayText = displayText

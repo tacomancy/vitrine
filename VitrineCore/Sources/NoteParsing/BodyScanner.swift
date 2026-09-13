@@ -9,6 +9,8 @@ struct BodyScanner {
     /// the offset one past the end, so every token range is a pair of these.
     private let offsets: [Int]
     private var position = 0
+    /// `[[`, `]]`, and `](` are each two scalars wide.
+    private let delimiterWidth = 2
 
     private(set) var tags: [Tag] = []
     private(set) var links: [Link] = []
@@ -125,17 +127,18 @@ struct BodyScanner {
 
     // MARK: - HTML tags
 
-    /// `<` opens an HTML tag when a tag name or `/` follows; `a < b` does not.
+    /// `<` opens an HTML tag when a tag name, `/`, or `!` (a comment)
+    /// follows; `a < b` does not.
     private var isAtHTMLTagStart: Bool {
         guard position + 1 < scalars.count else { return false }
         let next = scalars[position + 1]
-        return next.properties.isAlphabetic || next == "/"
+        return next.properties.isAlphabetic || next == "/" || next == "!"
     }
 
     /// Skips to just past the closing `>` on the same line; a `<` left open
     /// is literal text rather than a hole that swallows the rest of the note.
     private mutating func skipHTMLTag() {
-        guard let closing = index(of: ">", from: position + 1) else {
+        guard let closing = indexOnLine(of: ">", from: position + 1) else {
             position += 1
             return
         }
@@ -158,23 +161,27 @@ struct BodyScanner {
     private mutating func scanWikilink() {
         let isEmbed = isAtEmbed
         let start = isEmbed ? position - 1 : position
-        guard let close = index(of: "]]", from: position + 2) else {
+        guard let close = indexOnLine(of: "]]", from: position + delimiterWidth) else {
             position += 1
             return
         }
-        let inner = scalars[(position + 2)..<close]
-        position = close + 2
+        let inner = scalars[(position + delimiterWidth)..<close]
+        position = close + delimiterWidth
         let range = offsets[start]..<offsets[position]
         let pipe = inner.firstIndex(of: "|")
         if isEmbed {
             let filename = string(inner[inner.startIndex..<(pipe ?? inner.endIndex)])
-            embeds.append(
-                Embed(filename: filename.trimmingCharacters(in: .whitespaces), range: range))
+                .trimmingCharacters(in: .whitespaces)
+            guard !filename.isEmpty else { return }
+            embeds.append(Embed(filename: filename, range: range))
             return
         }
         let targetEnd = inner.firstIndex { $0 == "#" || $0 == "^" || $0 == "|" } ?? inner.endIndex
         let target = string(inner[inner.startIndex..<targetEnd]).trimmingCharacters(
             in: .whitespaces)
+        // `[[#Heading]]` points into this note and `[[]]` at nothing; neither
+        // is a link to a note, and recording one would only read as unresolved.
+        guard !target.isEmpty else { return }
         let displayText = pipe.map { string(inner[($0 + 1)...]) }
         links.append(.wikilink(Wikilink(target: target, displayText: displayText, range: range)))
     }
@@ -186,15 +193,15 @@ struct BodyScanner {
     private mutating func scanMarkdownLink() {
         let isEmbed = isAtEmbed
         let start = isEmbed ? position - 1 : position
-        guard let textEnd = index(of: "]", from: position + 1),
+        guard let textEnd = indexOnLine(of: "]", from: position + 1),
             textEnd + 1 < scalars.count, scalars[textEnd + 1] == "(",
-            let destinationEnd = indexOfClosingParenthesis(from: textEnd + 2)
+            let destinationEnd = indexOfClosingParenthesis(from: textEnd + delimiterWidth)
         else {
             position += 1
             return
         }
         let displayText = string(scalars[(position + 1)..<textEnd])
-        let rawDestination = string(scalars[(textEnd + 2)..<destinationEnd])
+        let rawDestination = string(scalars[(textEnd + delimiterWidth)..<destinationEnd])
         // Obsidian writes spaces in paths as %20; an undecodable destination
         // is kept as written rather than lost.
         let destination = rawDestination.removingPercentEncoding ?? rawDestination
@@ -248,8 +255,8 @@ struct BodyScanner {
         ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
     }
 
-    /// The index where `delimiter` next begins before the end of the line, or nil.
-    private func index(of delimiter: String, from index: Int) -> Int? {
+    /// The index where `delimiter` next begins on the current line, or nil.
+    private func indexOnLine(of delimiter: String, from index: Int) -> Int? {
         let delimiter = Array(delimiter.unicodeScalars)
         var index = index
         while index + delimiter.count <= scalars.count, scalars[index] != "\n" {
@@ -293,7 +300,9 @@ struct BodyScanner {
             || scalar == "_" || scalar == "-" || scalar == "/"
     }
 
+    /// A decimal digit in any script (Unicode `Nd`); a letter that also names
+    /// a number, like `三`, is a letter.
     private func isDigit(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.properties.numericType != nil
+        scalar.properties.generalCategory == .decimalNumber
     }
 }

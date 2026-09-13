@@ -20,27 +20,40 @@ public struct Frontmatter: Sendable, Equatable {
     /// The frontmatter of `text`, or nil when `text` does not begin with a
     /// closed `---` block.
     static func read(from text: String) -> Frontmatter? {
-        var lines = text.split(separator: "\n", omittingEmptySubsequences: false)[...]
-        guard let first = lines.popFirst(), first == delimiter else { return nil }
-        var yaml: [Substring] = []
-        var closingEnd = first.utf8.count
+        // Split on scalars, not characters: Swift reads "\r\n" as one
+        // character, which a split on "\n" would never find.
+        var lines = text.unicodeScalars.split(separator: "\n", omittingEmptySubsequences: false)[
+            ...]
+        guard let first = lines.popFirst(), isDelimiter(first) else { return nil }
+        var yaml: [String] = []
+        var lineStart = first.count + 1  // UTF-8 offset; the delimiter is ASCII
         for line in lines {
-            closingEnd += 1 + line.utf8.count  // the newline before this line, then the line
-            if line == delimiter {
+            if isDelimiter(line) {
                 // Obsidian treats a block whose YAML does not parse as no
                 // frontmatter at all; the whole text is then body.
+                // Not `try?`: an empty block composes to nil and is still
+                // frontmatter, while a parse failure is not.
                 let root: Node?
                 do { root = try Yams.compose(yaml: yaml.joined(separator: "\n")) } catch {
                     return nil
                 }
                 return Frontmatter(
-                    rawRange: 0..<closingEnd,
+                    rawRange: 0..<(lineStart + delimiter.utf8.count),
                     tags: values(under: ["tags", "tag"], in: root),
                     aliases: values(under: ["aliases", "alias"], in: root))
             }
-            yaml.append(line)
+            let content = String(line)
+            yaml.append(content)
+            lineStart += content.utf8.count + 1
         }
         return nil
+    }
+
+    /// A line is a delimiter with or without the `\r` of a Windows line
+    /// ending; Obsidian reads CRLF vaults the same as LF ones.
+    private static func isDelimiter(_ line: Substring.UnicodeScalarView) -> Bool {
+        line.elementsEqual(delimiter.unicodeScalars)
+            || line.elementsEqual((delimiter + "\r").unicodeScalars)
     }
 
     /// Obsidian accepts a list, a single string, or one comma-separated

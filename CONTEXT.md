@@ -90,8 +90,9 @@ so they aren't accidentally reused for something else.
   one does nothing).
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
-- **Embed** — `![[filename]]`. In v1, only images embed; embedding a note is
-  parked. A display-width suffix (`![[image.png|800]]`) is parsed and ignored.
+- **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
+  In v1, only images embed; embedding a note is parked. A display-width
+  suffix (`![[image.png|800]]`) is parsed and ignored.
 
 ## Tags
 
