@@ -34,9 +34,10 @@ struct TabButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        // Reachable with Tab whether or not Full Keyboard Access is on, and
-        // selectable with Space or Return once focused.
-        .focusable(interactions: .activate)
+        // `.edit` puts the tab in the Tab key loop even with Keyboard
+        // navigation off (as text fields are); `.activate` alone would not.
+        // Space or Return selects once focused.
+        .focusable(interactions: [.activate, .edit])
         .onKeyPress(.space) {
             select()
             return .handled

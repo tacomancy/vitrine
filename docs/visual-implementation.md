@@ -126,8 +126,10 @@ at the window's top edge:
   The active tab is `bg-raised` with 3 px top radii, a 2 px `primary` rule
   along its bottom edge, and a brass marker; inactive tabs are `fg-muted`
   with a muted marker. Markers are square for Notes, Sources, and Tags and
-  round for Ideas and Dashboard. Tabs take keyboard focus with Tab whether
-  or not Full Keyboard Access is on, move focus and selection with ← / →,
+  round for Ideas and Dashboard. Tabs take keyboard focus with Tab even
+  when the system's Keyboard navigation setting is off (`.focusable` with
+  the `.edit` interaction — `.activate` alone joins the key loop only with
+  that setting on, like every button), move focus and selection with ← / →,
   select with Space or Return, carry the brass ring, and are exposed as a
   tab bar with the selected tab marked selected.
 - **The body** is the selected tab's view. Notes is `NotesTab`; Tags an
