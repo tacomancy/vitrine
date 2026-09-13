@@ -1,7 +1,6 @@
 # 0008: Drawn title bar and tab strip over a native split view
 
-**Status:** Proposed — becomes Accepted when the `prototype/window-chrome`
-branch confirms the sidebar takes an opaque token fill on macOS 26.
+**Status:** Accepted (see Update — the fallback was built, not the hybrid)
 
 ## Context
 
@@ -47,3 +46,34 @@ the split view's sidebar; this ADR's Update will say which was built.
 - `docs/visual-implementation.md` (ADR 0004) records the SwiftUI translation
   once built. A later ADR that adopts a native toolbar or window tabs
   supersedes this one.
+
+## Update (2026-09-13, from `prototype/window-chrome`)
+
+The prototype settled it against the hybrid. On macOS 26, a
+`NavigationSplitView` inside a `.hiddenTitleBar` window **swallows the drawn
+title bar**: the top 38 pt renders as bare background with no mark, name, or
+search field, whether the split view's toolbar is hidden or kept and whether
+or not the safe area is respected. Its sidebar also renders as an inset card
+with a corner radius well past the brief's 5 px maximum. The fallback named
+above is therefore what gets built:
+
+- **Drawn title bar and tab strip** exactly as decided; unchanged.
+- **Panes are an `NSSplitView` subclass** (bridged with `NSViewRepresentable`)
+  whose divider is an **8 px transparent gutter** — `dividerThickness`
+  overridden, `drawDivider` a no-op. Dragging the gutter resizes; nothing is
+  drawn. `HSplitView` cannot hide its divider, and `NavigationSplitView` is
+  ruled out above. Initial column widths are applied on the split view's first
+  real layout, not from `updateNSView`.
+- **Panes are floating surfaces.** Note list and editor are `bg-surface`
+  with `radius-lg` (5 px) on a `bg` ground, 8 px gutters all round; the
+  sidebar sits directly on `bg`. **Decorative `line` hairlines are not drawn**
+  between panes or under the title bar and tab strip — contrast between
+  `bg`, `bg-surface`, and `bg-raised` does that work. Selected rows are
+  `bg-raised` pills at `radius-md` (3 px) with the 2 px sapphire left rule.
+  This is a deliberate softening of screen 01's hard-edged panes, chosen by
+  the owner from six prototyped variants; it stays inside the brief (rule 4:
+  radii ≤ 5 px; `line` is decorative and exempt) and changes no token.
+
+The prototype and its six variants are the primary source, kept on
+`prototype/window-chrome`; nothing from it is ported without being rewritten
+under `/tdd`.
