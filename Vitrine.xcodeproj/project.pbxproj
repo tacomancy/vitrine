@@ -11,6 +11,7 @@
 
 /* Begin PBXBuildFile section */
 		A00000000000000000000001 /* Library in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000001 /* Library */; };
+		A00000000000000000000002 /* Index in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000003 /* Index */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +32,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000001 /* Library in Frameworks */,
+				A00000000000000000000002 /* Index in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +96,7 @@
 			name = Vitrine;
 			packageProductDependencies = (
 				E00000000000000000000001 /* Library */,
+				E00000000000000000000003 /* Index */,
 			);
 			productName = Vitrine;
 			productReference = B00000000000000000000001 /* Vitrine.app */;
@@ -209,6 +212,10 @@
 		E00000000000000000000001 /* Library */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Library;
+		};
+		E00000000000000000000003 /* Index */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Index;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

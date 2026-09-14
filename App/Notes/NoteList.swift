@@ -1,3 +1,4 @@
+import Index
 import Library
 import SwiftUI
 
@@ -10,8 +11,8 @@ struct NoteList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let library = currentLibrary.library {
-                let notes = notes(in: library)
+            if let library = currentLibrary.library, let index = currentLibrary.index {
+                let notes = notes(in: library, index: index)
                 CapsLabel(
                     text: "\(notes.count.formatted()) notes · modified ↓", color: Color(.fgMuted)
                 )
@@ -20,7 +21,10 @@ struct NoteList: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(notes, id: \.path) { note in
-                            NoteRow(note: note, isSelected: selection.openNote == note) {
+                            NoteRow(
+                                note: note, tags: index.tags(of: note),
+                                isSelected: selection.openNote == note
+                            ) {
                                 selection.open(note)
                             }
                         }
@@ -33,7 +37,7 @@ struct NoteList: View {
     }
 
     /// Newest first; notes modified at the same instant keep tree order.
-    private func notes(in library: Library) -> [Note] {
-        selection.sidebar.notes(in: library).sorted { $0.modifiedAt > $1.modifiedAt }
+    private func notes(in library: Library, index: Index) -> [Note] {
+        selection.sidebar.notes(in: library, index: index).sorted { $0.modifiedAt > $1.modifiedAt }
     }
 }

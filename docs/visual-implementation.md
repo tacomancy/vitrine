@@ -180,44 +180,68 @@ only what differs: its content and its colors.
 
 ### The sidebar
 
-`Sidebar` is LIBRARY, FILES, and the SCOUTS stub, on `bg`. Every row is a
-`SidebarRow`: 24 px, `compact` text, an 11 px SF Symbol glyph (`books.vertical`
-for All Notes, `folder`, `doc.text`, `paperclip`), and a mono `label` count
-on the right. Selected, a row is the selected-row pill with its glyph in
-`accent` (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3);
-its text is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`.
-Row content starts 6 px inside the pill so it lines up with the labels at
-12 px. With no library, All Notes is `fg-disabled` throughout and inert.
+`Sidebar` is LIBRARY, FILES, and TOPICS in one scroll view, with the SCOUTS
+stub pinned below it, on `bg`. Every row is a `SidebarRow`: 24 px,
+`compact` text, an 11 px SF Symbol glyph (`books.vertical` for All Notes,
+`tray` for Untagged — the mockup's open-box glyph — `folder`, `doc.text`,
+`paperclip`, and `number` for a tag's `#`), and a mono `label` count on the
+right. Selected, a row is the selected-row pill with its glyph in `accent`
+(`SidebarRow.Emphasis`) — brass for the active nav item (rule 3); its text
+is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`. Row content
+starts 6 px inside the pill so it lines up with the labels at 12 px. With
+no library, All Notes is `fg-disabled` throughout and inert, and Untagged,
+FILES, and TOPICS are absent.
+
+The sidebar is one scope (`SidebarSelection`): All Notes, Untagged, a
+folder, a note, or a tag — selecting any row deselects every other, in
+every section. The scroll content ends with one section spacing so the
+last row sits clear of SCOUTS.
 
 `FileTree` flattens the library's tree to the rows on screen — a folder's
-entries follow it only while it is expanded — in a lazy stack inside a
-scroll view. Each depth is inset 14 px more. Folder rows carry an 8 px
-`chevron.right` in `fg-muted`, turned 90° when expanded; every row keeps
-the chevron's slot so glyphs align within a depth. Clicking a folder
-selects it and toggles it, as Obsidian does; clicking a note selects it,
-scopes the note list to its folder, and opens it; attachments are not
-buttons. Rows take the brass ring when focused but do
-not force themselves into the Tab loop.
+entries follow it only while it is expanded — in a lazy stack. Each depth
+is inset 14 px more. Folder rows carry an 8 px `chevron.right` in
+`fg-muted`, turned 90° when expanded; every row keeps the chevron's slot so
+glyphs align within a depth. Clicking a folder selects it and toggles it,
+as Obsidian does; clicking a note selects it, scopes the note list to its
+folder, and opens it; attachments are not buttons. Rows take the brass
+ring when focused but do not force themselves into the Tab loop.
+
+`TagTree` is the same treatment for the `Index`'s tag tree: one row per
+node, in the order the seam gives (case-insensitive natural, at every
+level), its name in display spelling and its descendant-inclusive count,
+each depth inset 14 px more. A node with children carries the chevron and
+one click both selects it and toggles it, as a folder does; a leaf only
+selects. Expanded folders and tags are the sidebar's own state, by path,
+and both reset when the library changes.
 
 ### The note list
 
 `NoteList` is a floating surface holding the `N NOTES · MODIFIED ↓` header
-and one `NoteRow` per note in the sidebar's scope, newest first (notes
-modified at the same instant keep tree order). The header is a `CapsLabel`
+and one `NoteRow` per note in the sidebar's scope — All Notes, Untagged, a
+folder, or a tag with its descendants, the last two answered by the
+`Index` — newest first (notes modified at the same instant keep library
+display order). The header is a `CapsLabel`
 in `fg-muted` — the one caps treatment, tracked like LIBRARY and FILES
 even though the mockup leaves this line untracked — padded 7 px above and
 below and inset to where the rows' titles start.
 
 A row is a `Button`: the title at `compact` (the mockup's 12.5 px taken to
 the nearest step) and the modification date in mono `label`, `fg-muted`,
-on a shared baseline; content padded 7 × 11 px (compact density,
-`NoteListMetrics`). The date reads as the mockup's column: the time for a
-note modified today, `Aug 28` for one modified this year, the full date
-for anything older. Selected, the row is the selected-row pill and its
-title steps up from `fg-secondary`, regular, to `fg`, semibold; the date
-is the row's accessibility value. Opening a row while the tree highlights a different note moves that
-highlight to the note's folder: the scope is unchanged, and the tree never
-points at one note while the list and editor show another.
+on a shared baseline, then 3 px below, the **tag row** — the note's tags
+from `Index.tags(of:)`, each with its `#`, space-separated, in mono
+`label` and `link` (the mockup's tag-row blue is the link token), one line
+truncated with an ellipsis; content padded 7 × 11 px (compact density,
+`NoteListMetrics`). A note with no tags keeps the empty line, so every row
+is one height. The tag row is text, not a control: nothing in it
+navigates in this spec. The date reads as the mockup's column: the time
+for a note modified today, `Aug 28` for one modified this year, the full
+date for anything older. Selected, the row is the selected-row pill and
+its title steps up from `fg-secondary`, regular, to `fg`, semibold; the
+date is the row's accessibility value. Opening a row while the tree
+highlights a different note moves that highlight to the note's folder:
+the scope is unchanged, and the tree never points at one note while the
+list and editor show another. A tag or Untagged scope stays as it is when
+a row opens.
 
 ### The editor
 

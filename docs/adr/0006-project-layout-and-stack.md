@@ -216,3 +216,14 @@ real sources:
   the coverage gate by construction (the gate sums `Sources/` only). No
   other support target is implied: the next shared test helper argues for
   itself.
+
+## Update (2026-09-13, from the Tags screen)
+
+- **The app links one product per seam it reads, each a product
+  dependency in the `pbxproj`.** The permitted object set above names "its
+  product dependency (plus the build-file entry that links it)" in the
+  singular because the shell read only `Library`. The Tags screen reads
+  `Index` too, so the project now carries an `XCSwiftPackageProductDependency`
+  and its `PBXBuildFile` for each — the same two objects, once per product
+  the app imports. Nothing else in the set changes; a seam the app does not
+  read (`NoteParsing`, reached only through `Index`) is not linked.
