@@ -287,6 +287,163 @@ import Testing
         #expect(across.map(\.displayText) == ["A markdown link"])
     }
 
+    @Test func a_link_with_a_url_scheme_is_external_and_in_no_table() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let interpretability = try #require(
+            library.allNotes.first { $0.path == "Topics/Interpretability.md" })
+
+        // `[circuits thread](https://transformer-circuits.pub/#toc)` and
+        // `[DEVONthink item](x-devonthink-item://ABC-123)`.
+        let shown = index.links(from: interpretability).map(\.displayText)
+        #expect(!shown.contains("circuits thread"))
+        #expect(!shown.contains("DEVONthink item"))
+        #expect(index.unresolvedLinks.isEmpty == false)
+        #expect(index.unresolvedLinks.keys.allSatisfy { !$0.hasPrefix("https:") })
+        #expect(index.unresolvedLinks.keys.allSatisfy { !$0.hasPrefix("x-devonthink-item:") })
+    }
+
+    @Test func a_heading_or_block_fragment_is_ignored_and_the_note_resolves() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let interpretability = try #require(
+            library.allNotes.first { $0.path == "Topics/Interpretability.md" })
+        let welcome = try welcomeNote(in: library)
+
+        // `[[Welcome#Welcome|the top]]` then `[[Welcome#^intro]]`.
+        let toWelcome = index.links(from: interpretability).filter { $0.target == .note(welcome) }
+        #expect(toWelcome.map(\.displayText) == ["the top", "Welcome"])
+    }
+
+    @Test func a_bare_title_shared_by_two_notes_resolves_to_the_shallower_then_the_first_in_order()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let scratch = try #require(library.allNotes.first { $0.path == "Scratch.md" })
+        let morningJournal = try #require(library.allNotes.first { $0.path == "Daily/Journal.md" })
+
+        // `Bare links: [[Scratch]] and [[Journal]].` — Scratch.md sits above
+        // Topics/Scratch.md; Daily/Journal.md and Topics/Journal.md are level.
+        let bare = index.links(from: alignment).filter {
+            ["Scratch", "Journal"].contains($0.displayText)
+        }
+        #expect(bare.map(\.target) == [.note(scratch), .note(morningJournal)])
+    }
+
+    @Test func a_link_to_a_missing_target_is_unresolved_and_listed_with_its_linking_note() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+
+        // `[[Nowhere]] goes nowhere.` — and nothing else in the fixture is missing.
+        #expect(index.links(from: alignment).map(\.target).contains(.unresolved("Nowhere")))
+        #expect(index.unresolvedLinks == ["Nowhere": [alignment]])
+    }
+
+    @Test func a_frontmatter_link_is_a_backlink_on_its_target_with_the_property_line_as_context()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let readingList = try #require(library.allNotes.first { $0.path == "Reading List.md" })
+
+        // Topics/Alignment's frontmatter: `sources:` / `  - "[[Reading List]]"`.
+        let backlink = try #require(index.backlinks(to: readingList).first { $0.note == alignment })
+        #expect(backlink.contexts == ["  - \"[[Reading List]]\""])
+    }
+
+    @Test func a_self_link_is_outgoing_and_never_a_backlink() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+
+        // `[[Alignment]] links to itself` — and no other note links to Alignment.
+        #expect(index.links(from: alignment).map(\.target).contains(.note(alignment)))
+        #expect(index.backlinks(to: alignment).isEmpty)
+    }
+
+    @Test func a_note_linking_twice_is_one_backlink_with_each_source_line_as_context() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let interpretability = try #require(
+            library.allNotes.first { $0.path == "Topics/Interpretability.md" })
+        let readingList = try #require(library.allNotes.first { $0.path == "Reading List.md" })
+
+        let backlinks = index.backlinks(to: readingList).filter { $0.note == interpretability }
+        #expect(
+            backlinks == [
+                Backlink(
+                    note: interpretability,
+                    contexts: [
+                        "Back to the [reading list](../Reading%20List.md).",
+                        "And again: [[Reading List]].",
+                    ])
+            ])
+    }
+
+    @Test func backlinks_are_sorted_by_the_linking_notes_title() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let welcome = try welcomeNote(in: library)
+
+        // Alignment (frontmatter alias, body title, body alias), Interpretability
+        // (two fragment links), Reading List (a Markdown link), Vitrine (a wikilink).
+        let backlinks = index.backlinks(to: welcome)
+        #expect(
+            backlinks.map(\.note.path) == [
+                "Topics/Alignment.md", "Topics/Interpretability.md", "Reading List.md",
+                "Projects/Vitrine.md",
+            ])
+        #expect(
+            backlinks[0].contexts == [
+                "  - \"[[Start here|the welcome note]]\"",
+                "See [[welcome]], the [[Daily/2026-09-13.md]] entry, and [[sketch.png]].",
+                "Or simply [[Start here]].",
+            ])
+        #expect(
+            backlinks[2].contexts == ["- [A markdown link](Welcome.md) back to the welcome note"])
+        #expect(backlinks[3].contexts == ["Back to [[Welcome]]."])
+    }
+
+    @Test func two_links_to_one_target_on_one_line_are_one_context() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        try "Twice: [[Welcome]] and [[welcome]].\nOnce more: [[Welcome]].\n".write(
+            to: copy.appending(path: "Twice.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let twice = try #require(library.allNotes.first { $0.path == "Twice.md" })
+        let welcome = try welcomeNote(in: library)
+
+        let index = Index.build(from: library)
+
+        #expect(index.links(from: twice).count == 3)
+        let backlink = try #require(index.backlinks(to: welcome).first { $0.note == twice })
+        #expect(
+            backlink.contexts == ["Twice: [[Welcome]] and [[welcome]].", "Once more: [[Welcome]]."])
+    }
+
+    @Test func a_markdown_form_embed_resolves_relative_to_the_note_and_an_external_one_is_excluded()
+        throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        try "![alt](../Projects/sketch.png)\n![web](https://example.com/a.png)\n".write(
+            to: copy.appending(path: "Topics/Embeds.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let embeds = try #require(library.allNotes.first { $0.path == "Topics/Embeds.md" })
+        let projects = try #require(library.root.folders.first { $0.name == "Projects" })
+        let sketch = try #require(projects.attachments.first { $0.path == "Projects/sketch.png" })
+
+        let index = Index.build(from: library)
+
+        #expect(index.links(from: embeds).map(\.target) == [.attachment(sketch)])
+        #expect(index.unresolvedLinks.isEmpty == false)
+        #expect(index.unresolvedLinks.keys.allSatisfy { !$0.hasPrefix("https:") })
+    }
+
     private func welcomeNote(in library: Library) throws -> Note {
         try #require(library.allNotes.first { $0.path == "Welcome.md" })
     }

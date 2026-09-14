@@ -40,8 +40,10 @@ struct LinkResolver {
             uniqueKeysWithValues: attachments.map { ($0.path.lowercased(), $0) })
     }
 
-    /// `link`, as written in `note`, with its target resolved.
-    func resolve(_ link: Link, from note: Note) -> ResolvedLink {
+    /// `link`, as written in `note`, with its target resolved — or nil for
+    /// an external link, which is not a link between notes and belongs in
+    /// no table (CONTEXT.md § Links).
+    func resolve(_ link: Link, from note: Note) -> ResolvedLink? {
         switch link {
         case .wikilink(let wikilink):
             ResolvedLink(
@@ -49,6 +51,8 @@ struct LinkResolver {
                 range: wikilink.range,
                 displayText: wikilink.displayText ?? wikilink.target,
                 isFromFrontmatter: wikilink.isFromFrontmatter)
+        case .markdown(let markdown) where markdown.isExternal:
+            nil
         case .markdown(let markdown):
             ResolvedLink(
                 target: target(ofMarkdownLink: markdown.destination, from: note),
@@ -59,10 +63,17 @@ struct LinkResolver {
     }
 
     /// `embed`, as written in `note`, resolved the way a wikilink to its
-    /// file would be.
-    func resolve(_ embed: Embed, from note: Note) -> ResolvedLink {
-        ResolvedLink(
-            target: target(ofWikilink: embed.filename),
+    /// file would be, or — since the parser does not say which form it was
+    /// written in — as a path relative to the note when that finds nothing.
+    /// Nil for an embed of a URL, which is external like any such link.
+    func resolve(_ embed: Embed, from note: Note) -> ResolvedLink? {
+        guard !MarkdownLink.hasURLScheme(embed.filename) else { return nil }
+        var target = target(ofWikilink: embed.filename)
+        if case .unresolved = target {
+            target = self.target(ofMarkdownLink: embed.filename, from: note)
+        }
+        return ResolvedLink(
+            target: target,
             range: embed.range,
             displayText: embed.filename,
             isFromFrontmatter: false)

@@ -48,10 +48,16 @@ public struct Index: Sendable {
             // The parser keeps links and embeds apart; the note has them in
             // one document order, which their ranges give back.
             let links =
-                (note.parsed.links.map { resolver.resolve($0, from: note.note) }
-                + note.parsed.embeds.map { resolver.resolve($0, from: note.note) })
+                (note.parsed.links.compactMap { resolver.resolve($0, from: note.note) }
+                + note.parsed.embeds.compactMap { resolver.resolve($0, from: note.note) })
                 .sorted { $0.range.lowerBound < $1.range.lowerBound }
-            notes.append(IndexedNote(note: note.note, tags: tags, links: links))
+            let text = Array(note.text.utf8)
+            notes.append(
+                IndexedNote(
+                    note: note.note, tags: tags,
+                    links: links.map {
+                        LinkInContext(link: $0, context: ContextLine(around: $0.range, in: text))
+                    }))
         }
         return Index(tagTree: tree.nodes(), skipped: skipped, notes: notes)
     }
@@ -66,11 +72,53 @@ public struct Index: Sendable {
     /// wikilinks first — each resolved. A self-link is here; an external
     /// link is not (CONTEXT.md § Links). A skipped note has none.
     public func links(from note: Note) -> [ResolvedLink] {
-        indexed(note)?.links ?? []
+        indexed(note)?.links.map(\.link) ?? []
+    }
+
+    /// Every note that links to `note`, sorted by title — by path where two
+    /// titles order the same — each with the lines around its links. A
+    /// note is never its own backlink (CONTEXT.md § Links).
+    public func backlinks(to note: Note) -> [Backlink] {
+        notes.filter { $0.note != note }
+            .compactMap { linking in
+                var contexts: [ContextLine] = []
+                for link in linking.links where link.link.target == .note(note) {
+                    // Links come in document order, so a line's second link
+                    // follows its first: one line is one context.
+                    guard contexts.last?.start != link.context.start else { continue }
+                    contexts.append(link.context)
+                }
+                guard !contexts.isEmpty else { return nil }
+                return Backlink(note: linking.note, contexts: contexts.map(\.text))
+            }
+            .sorted(by: Self.isInTitleOrder)
+    }
+
+    /// Every unresolved target in the library, as written, with the notes
+    /// that link to it in library display order, each once.
+    public var unresolvedLinks: [String: [Note]] {
+        var linking: [String: [Note]] = [:]
+        for note in notes {
+            for case .unresolved(let target) in note.links.map(\.link.target)
+            where linking[target]?.last != note.note {
+                linking[target, default: []].append(note.note)
+            }
+        }
+        return linking
     }
 
     private func indexed(_ note: Note) -> IndexedNote? {
         notes.first { $0.note == note }
+    }
+
+    /// The file tree's order by title (CONTEXT.md, Library), falling back
+    /// to the path so two notes with one title order the same every build.
+    private static func isInTitleOrder(_ backlink: Backlink, _ other: Backlink) -> Bool {
+        switch backlink.note.title.localizedStandardCompare(other.note.title) {
+        case .orderedAscending: true
+        case .orderedDescending: false
+        case .orderedSame: backlink.note.path < other.note.path
+        }
     }
 
     /// The notes carrying `tag` or any tag under it, in library display

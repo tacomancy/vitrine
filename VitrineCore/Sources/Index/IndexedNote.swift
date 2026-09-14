@@ -7,6 +7,7 @@ struct IndexedNote: Sendable {
     /// Deduplicated by identity; frontmatter tags first, then the body's in
     /// order of appearance.
     let tags: [TagPath]
-    /// Every link and embed in document order, frontmatter links first.
-    let links: [ResolvedLink]
+    /// Every link and embed in document order, frontmatter links first,
+    /// each with its line.
+    let links: [LinkInContext]
 }

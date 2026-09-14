@@ -19,4 +19,25 @@ public struct MarkdownLink: Sendable, Equatable {
         self.isExternal = isExternal
         self.range = range
     }
+
+    /// The rule behind `isExternal`, for the Index to apply to an embed's
+    /// file too. RFC 3986: a scheme is a letter, then letters, digits, `+`,
+    /// `-`, or `.`, then `:` — so `https://…` and `mailto:…` are external
+    /// and a relative path is not.
+    public static func hasURLScheme(_ destination: String) -> Bool {
+        var scalars = destination.unicodeScalars[...]
+        guard let first = scalars.popFirst(), isASCIILetter(first) else { return false }
+        for scalar in scalars {
+            if scalar == ":" { return true }
+            guard
+                isASCIILetter(scalar) || ("0"..."9").contains(scalar)
+                    || "+-.".unicodeScalars.contains(scalar)
+            else { return false }
+        }
+        return false
+    }
+
+    private static func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {
+        ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
+    }
 }
