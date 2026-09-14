@@ -48,21 +48,24 @@ target or its test target depending on the run (ADR 0006, second Update).
 ADRs 0001–0012 are Accepted.
 
 **The second feature is under way (issue #18, parse notes and browse by
-tag): ① built.** The `NoteParsing` seam (issue #19) is
+tag): ① and ② built.** The `NoteParsing` seam (issue #19) is
 `ParsedNote.parse(text)`: frontmatter via Yams (ADR 0011), body tags,
 links, and embeds from a fence-aware scanner, every token with its UTF-8
 range — 38 inline-string tests in `NoteParsingTests`, and the package's
 first dependency. The tag grammar (`CONTEXT.md` § Tags) lives once, in
 `TagGrammar`, and both readers use it: a frontmatter value that fails it
-is dropped, as Obsidian does (issue #36). ② (`Index`, issue #20) is
-sharpened but not built: its API shape and the per-segment
-display-spelling rule are on record (`CONTEXT.md` § Tags, the #20
-thread), and its fixture is already in — the Obsidian vault, extended
-for #20 *and* #26 and blessed once, lives in the `Fixtures` test-support
-target (ADR 0006, Index-seam Update) with every expected count written
-by hand in PR #34.
+is dropped, as Obsidian does (issue #36). The `Index` seam (issue #20)
+is `Index.build(from: Library)`: every note read and parsed once, tags
+aggregated per segment with the display spelling first seen in library
+display order (`CONTEXT.md` § Tags), answering `tags(of:)`, `tagTree`,
+`notes(tagged:)`, `untagged`, and `skipped` — a value, in memory only
+(ADR 0012), holding nothing about links or embeds (ADR 0003). Its 12
+tests in `IndexTests` open the Obsidian fixture through `Library` and
+assert counts written by hand (PR #34, plus `Topics/Agents.md` from
+#20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
+Index-seam Update).
 
-Next: #20 the `Index`, then #21 the Tags tab. `/implement` per ticket on
+Next: #21 the Tags tab. `/implement` per ticket on
 its own branch, clearing context between tickets. Update this section
 whenever the answer to "where are we?" changes — it's the first thing a
 fresh agent reads.
