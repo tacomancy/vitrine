@@ -361,6 +361,73 @@ import Testing
             ])
     }
 
+    // MARK: - Frontmatter links
+
+    @Test func a_wikilink_in_a_scalar_frontmatter_value_is_a_link_with_a_range_into_the_block() {
+        let text = "---\nsource: \"[[Note]]\"\n---\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.links == [
+                .wikilink(
+                    Wikilink(
+                        target: "Note", displayText: nil, range: 13..<21, isFromFrontmatter: true))
+            ])
+        #expect(slice(text, 13..<21) == "[[Note]]")
+        #expect(note.links.map(\.isFromFrontmatter) == [true])
+    }
+
+    @Test func wikilinks_in_a_frontmatter_list_are_links_in_the_order_written() {
+        let text = "---\nsources:\n  - \"[[First]]\"\n  - \"[[Second]]\"\n---\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.links == [
+                .wikilink(
+                    Wikilink(
+                        target: "First", displayText: nil, range: 18..<27, isFromFrontmatter: true)),
+                .wikilink(
+                    Wikilink(
+                        target: "Second", displayText: nil, range: 34..<44, isFromFrontmatter: true)
+                ),
+            ])
+        #expect(note.links.map { slice(text, $0.range) } == ["[[First]]", "[[Second]]"])
+    }
+
+    @Test func wikilinks_are_found_under_any_frontmatter_key_at_any_depth() {
+        let text = "---\nrelated: \"[[A]]\"\nmeta:\n  cites: [\"[[B]]\"]\n---\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.links.map { slice(text, $0.range) } == ["[[A]]", "[[B]]"])
+        #expect(note.links.map(\.isFromFrontmatter) == [true, true])
+    }
+
+    @Test func a_frontmatter_wikilink_keeps_its_display_text() {
+        let text = "---\nsource: \"[[Note|shown]]\"\n---\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.links == [
+                .wikilink(
+                    Wikilink(
+                        target: "Note", displayText: "shown", range: 13..<27,
+                        isFromFrontmatter: true))
+            ])
+    }
+
+    @Test func a_markdown_link_and_a_tag_in_a_frontmatter_value_are_not_recognised() {
+        // Obsidian reads neither out of a property value.
+        let note = ParsedNote.parse("---\nsource: \"[shown](Note.md) #tag\"\n---\n")
+
+        #expect(note.links.isEmpty)
+        #expect(note.bodyTags.isEmpty)
+        #expect(note.frontmatter?.tags == [])
+    }
+
     // MARK: - Embeds
 
     @Test func an_embed_names_its_file_with_any_width_dropped() {

@@ -13,6 +13,10 @@ public struct Frontmatter: Sendable, Equatable {
     /// The alternate titles under `aliases:` (or `alias:`), in the order
     /// written.
     public let aliases: [String]
+    /// The wikilinks in the block's string values, in document order, each
+    /// flagged `isFromFrontmatter`. `ParsedNote.links` lists them ahead of
+    /// the body's; nothing outside the parser needs them apart.
+    let links: [Wikilink]
 
     /// Obsidian recognises frontmatter only when the first line is exactly
     /// this and a later line is exactly this again.
@@ -27,7 +31,8 @@ public struct Frontmatter: Sendable, Equatable {
             ...]
         guard let first = lines.popFirst(), isDelimiter(first) else { return nil }
         var yaml: [String] = []
-        var lineStart = first.count + 1  // UTF-8 offset; the delimiter is ASCII
+        let firstLineStart = first.count + 1  // UTF-8 offset; the delimiter is ASCII
+        var lineStart = firstLineStart
         for line in lines {
             if isDelimiter(line) {
                 // Obsidian treats a block whose YAML does not parse as no
@@ -38,10 +43,13 @@ public struct Frontmatter: Sendable, Equatable {
                 do { root = try Yams.compose(yaml: yaml.joined(separator: "\n")) } catch {
                     return nil
                 }
+                let scanner = FrontmatterLinkScanner(
+                    text: text, lines: yaml, firstLineStart: firstLineStart)
                 return Frontmatter(
                     rawRange: 0..<(lineStart + delimiter.utf8.count),
                     tags: values(under: ["tags", "tag"], in: root).filter(TagGrammar.isTag),
-                    aliases: values(under: ["aliases", "alias"], in: root))
+                    aliases: values(under: ["aliases", "alias"], in: root),
+                    links: scanner.links(in: root))
             }
             let content = String(line)
             yaml.append(content)
