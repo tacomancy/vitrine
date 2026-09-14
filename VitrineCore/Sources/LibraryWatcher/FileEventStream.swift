@@ -5,8 +5,9 @@ import Foundation
 /// root, coalesced, with this process's own writes marked (ADR 0014). The
 /// one place FSEvents is named.
 ///
-/// Unchecked because the stream handle is touched only on `queue`, which
-/// FSEvents also delivers on, so nothing here is ever reached concurrently.
+/// Unchecked because the stream handle is created, used, and released only
+/// on `queue` — `start` hops onto it and FSEvents delivers on it — so
+/// nothing here is ever reached concurrently.
 final class FileEventStream: @unchecked Sendable {
     /// Rapid changes to one entry — an editor's burst of writes — arrive as
     /// one batch when they fall within this window.
@@ -32,21 +33,25 @@ final class FileEventStream: @unchecked Sendable {
         return String(cString: resolved)
     }
 
+    /// Begins delivery of every event from now on. Synchronous, so a change
+    /// made right after it returns is already being watched.
     func start() {
-        var context = FSEventStreamContext()
-        context.info = Unmanaged.passUnretained(self).toOpaque()
-        let flags: FSEventStreamCreateFlags = UInt32(
-            kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
-                | kFSEventStreamCreateFlagMarkSelf)
-        guard
-            let stream = FSEventStreamCreate(
-                nil, Self.receive, &context, [rootPath] as CFArray,
-                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), Self.coalescingLatency,
-                flags)
-        else { return }
-        self.stream = stream
-        FSEventStreamSetDispatchQueue(stream, queue)
-        FSEventStreamStart(stream)
+        queue.sync {
+            var context = FSEventStreamContext()
+            context.info = Unmanaged.passUnretained(self).toOpaque()
+            let flags: FSEventStreamCreateFlags = UInt32(
+                kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
+                    | kFSEventStreamCreateFlagMarkSelf)
+            guard
+                let stream = FSEventStreamCreate(
+                    nil, Self.receive, &context, [rootPath] as CFArray,
+                    FSEventStreamEventId(kFSEventStreamEventIdSinceNow), Self.coalescingLatency,
+                    flags)
+            else { return }
+            self.stream = stream
+            FSEventStreamSetDispatchQueue(stream, queue)
+            FSEventStreamStart(stream)
+        }
     }
 
     /// Ends delivery. Once the block below has run no callback follows, and

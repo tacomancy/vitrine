@@ -14,3 +14,13 @@ struct FileEvent: Equatable {
     let wasRenamed: Bool
     let wasModified: Bool
 }
+
+extension FileEvent {
+    /// Whether the library would see this entry at all: not Vitrine's own
+    /// doing, not a dot-entry at any depth (`.obsidian/` churn is invisible),
+    /// and not a symbolic link — the scan rules, applied to events
+    /// (CONTEXT.md § The library).
+    var isVisible: Bool {
+        !isOwn && !isSymbolicLink && !path.split(separator: "/").contains { $0.hasPrefix(".") }
+    }
+}

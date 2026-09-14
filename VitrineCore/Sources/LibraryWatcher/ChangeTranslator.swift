@@ -18,8 +18,11 @@ final class ChangeTranslator: @unchecked Sendable {
     }
 
     /// The changes one batch of events amounts to, each path once, in the
-    /// order the events came — with the two halves of a rename paired into
-    /// one change when the batch holds exactly one departure and one arrival.
+    /// order the events came. The two halves of a rename are one change
+    /// when the batch holds exactly one known entry departing and one
+    /// unknown arriving; any other arrival at a known path is a
+    /// modification — an editor that saves by writing a sibling and
+    /// renaming it over the note has modified the note, not renamed it.
     func changes(for events: [FileEvent]) -> [LibraryChange] {
         var changes: [LibraryChange] = []
         var departed: [String] = []
@@ -33,11 +36,12 @@ final class ChangeTranslator: @unchecked Sendable {
                 changes.append(change)
             }
         }
-        if departed.count == 1, arrived.count == 1 {
+        departed = departed.filter(knownPaths.contains)
+        if departed.count == 1, arrived.count == 1, !knownPaths.contains(arrived[0]) {
             changes.append(.entryRenamed(from: departed[0], to: arrived[0]))
         } else {
-            changes += departed.filter(knownPaths.contains).map(LibraryChange.entryRemoved)
-            changes += arrived.map { knownPaths.contains($0) ? .noteModified($0) : .entryAdded($0) }
+            changes += departed.map(LibraryChange.entryRemoved)
+            changes += arrived.map { knownPaths.contains($0) ? modified($0) : .entryAdded($0) }
         }
         let distinct = changes.reduce(into: [LibraryChange]()) { distinct, change in
             if !distinct.contains(change) { distinct.append(change) }
@@ -53,7 +57,11 @@ final class ChangeTranslator: @unchecked Sendable {
         // A folder's own modification is its entries coming and going, and
         // those arrive as events of their own.
         guard event.wasModified, !event.isFolder else { return nil }
-        return Self.isNote(event.path) ? .noteModified(event.path) : .attachmentModified(event.path)
+        return modified(event.path)
+    }
+
+    private func modified(_ path: String) -> LibraryChange {
+        Library.isNote(path) ? .noteModified(path) : .attachmentModified(path)
     }
 
     private func remember(_ change: LibraryChange) {
@@ -75,26 +83,11 @@ final class ChangeTranslator: @unchecked Sendable {
         knownPaths = knownPaths.filter { $0 != path && !$0.hasPrefix(path + "/") }
     }
 
-    /// Obsidian treats a file as a note when its extension is `md`, in any case.
-    private static func isNote(_ path: String) -> Bool {
-        path.split(separator: "/").last?.lowercased().hasSuffix(".md") == true
-    }
-
     private static func paths(under folder: Folder) -> Set<String> {
         var paths: Set<String> = [folder.path]
         paths.formUnion(folder.notes.map(\.path))
         paths.formUnion(folder.attachments.map(\.path))
         for child in folder.folders { paths.formUnion(Self.paths(under: child)) }
         return paths
-    }
-}
-
-extension FileEvent {
-    /// Whether the library would see this entry at all: not Vitrine's own
-    /// doing, not a dot-entry at any depth (`.obsidian/` churn is invisible),
-    /// and not a symbolic link — the scan rules, applied to events
-    /// (CONTEXT.md § The library).
-    fileprivate var isVisible: Bool {
-        !isOwn && !isSymbolicLink && !path.split(separator: "/").contains { $0.hasPrefix(".") }
     }
 }

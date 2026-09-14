@@ -9,7 +9,8 @@ public enum LibraryError: Error, Equatable {
     case noteMissing
     /// The note, or the folder a note would go in, cannot be written.
     case unwritable
-    /// The title given for a note is empty or contains a path separator.
+    /// The title given for a note is empty, begins with a dot, or contains
+    /// a path separator.
     case invalidName
     /// Another note in the same folder already has that title.
     case nameTaken

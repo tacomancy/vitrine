@@ -69,44 +69,39 @@ public struct Library: Sendable, Equatable {
     }
 
     /// Creates an empty note titled `title` in `folder` and returns it as it
-    /// now sits in the tree. Throws `invalidName` for an empty title or one
-    /// containing `/`, `nameTaken` when a note in that folder already has
-    /// the title (compared case-insensitively, as the file system does), and
-    /// `unwritable` when the file cannot be created.
+    /// now sits in the tree. Throws `invalidName` for a title that is
+    /// empty, begins with `.`, or contains `/`; `nameTaken` when a note in
+    /// that folder already has the title (compared case-insensitively, as
+    /// the file system does); `unwritable` when the file cannot be created.
     public mutating func createNote(named title: String, in folder: Folder) throws(LibraryError)
         -> Note
     {
-        try validate(title: title, in: folder)
-        let name = "\(title).\(Self.noteExtension)"
-        let path = folder.path.isEmpty ? name : "\(folder.path)/\(name)"
+        try validate(title: title, in: folder, renaming: nil)
+        let path = Self.path(ofNoteTitled: title, in: folder.path)
         let url = rootURL.appending(path: path)
         guard (try? Data().write(to: url, options: .withoutOverwriting)) != nil else {
             throw .unwritable
         }
-        self = try rescanning(folderAt: folder.path)
-        guard let note = allNotes.first(where: { $0.path == path }) else { throw .unwritable }
-        return note
+        return try noteAfterRescanning(folderAt: folder.path, noteAt: path)
     }
 
     /// Renames `note` to `title`, in the folder it is in, and returns it as it
     /// now sits in the tree. Links to the note elsewhere are not rewritten —
     /// rename as a feature is parked (BACKLOG.md); this exists for the new
     /// note's title field. Throws `invalidName` and `nameTaken` as
-    /// `createNote` does, `noteMissing` when the file has gone since the scan,
-    /// and `unwritable` when it cannot be renamed.
+    /// `createNote` does — a note may change only the case of its own title —
+    /// `noteMissing` when the file has gone since the scan, and `unwritable`
+    /// when it cannot be renamed.
     public mutating func renameNote(_ note: Note, to title: String) throws(LibraryError) -> Note {
         let folderPath = Self.parentPath(of: note.path)
         guard let folder = folder(at: folderPath) else { throw .noteMissing }
-        try validate(title: title, in: folder)
+        try validate(title: title, in: folder, renaming: note)
         let url = rootURL.appending(path: note.path)
         guard FileManager.default.fileExists(atPath: url.path) else { throw .noteMissing }
-        let name = "\(title).\(Self.noteExtension)"
-        let path = folderPath.isEmpty ? name : "\(folderPath)/\(name)"
+        let path = Self.path(ofNoteTitled: title, in: folderPath)
         guard (try? FileManager.default.moveItem(at: url, to: rootURL.appending(path: path))) != nil
         else { throw .unwritable }
-        self = try rescanning(folderAt: folderPath)
-        guard let renamed = allNotes.first(where: { $0.path == path }) else { throw .unwritable }
-        return renamed
+        return try noteAfterRescanning(folderAt: folderPath, noteAt: path)
     }
 
     /// The tree with `change` — something another tool did on disk —
@@ -130,14 +125,36 @@ public struct Library: Sendable, Equatable {
         }
     }
 
-    /// Refuses a title no note may have in `folder`: empty, holding a path
-    /// separator, or already carried by one of the folder's notes.
-    private func validate(title: String, in folder: Folder) throws(LibraryError) {
-        guard !title.isEmpty, !title.contains("/") else { throw .invalidName }
-        let notes = (self.folder(at: folder.path) ?? folder).notes
-        guard !notes.contains(where: { $0.title.lowercased() == title.lowercased() }) else {
+    /// Refuses a title no note may have in `folder`: empty, beginning with
+    /// `.` (the scan would hide it), holding a path separator, or already
+    /// carried by one of the folder's notes other than the one being renamed.
+    private func validate(title: String, in folder: Folder, renaming note: Note?)
+        throws(LibraryError)
+    {
+        guard !title.isEmpty, !title.hasPrefix("."), !title.contains("/") else {
+            throw .invalidName
+        }
+        let others = notes(in: folder).filter { $0.path != note?.path }
+        guard !others.contains(where: { $0.title.lowercased() == title.lowercased() }) else {
             throw .nameTaken
         }
+    }
+
+    /// The notes directly in `folder` as the tree holds them now — `folder`
+    /// itself may be a snapshot from before the last change.
+    private func notes(in folder: Folder) -> [Note] {
+        (self.folder(at: folder.path) ?? folder).notes
+    }
+
+    /// The tree with the folder at `folderPath` scanned afresh, and the note
+    /// the caller just put at `path` as the scan found it. Throws
+    /// `noteMissing` when it is not there — gone again before the scan.
+    private mutating func noteAfterRescanning(folderAt folderPath: String, noteAt path: String)
+        throws(LibraryError) -> Note
+    {
+        self = try rescanning(folderAt: folderPath)
+        guard let note = allNotes.first(where: { $0.path == path }) else { throw .noteMissing }
+        return note
     }
 
     /// The title a new note in `folder` gets when the user hasn't given one:
@@ -145,8 +162,7 @@ public struct Library: Sendable, Equatable {
     /// notes don't already carry, compared case-insensitively.
     public func uniqueUntitledName(in folder: Folder) -> String {
         let untitled = "Untitled"
-        let taken = Set(
-            (self.folder(at: folder.path) ?? folder).notes.map { $0.title.lowercased() })
+        let taken = Set(notes(in: folder).map { $0.title.lowercased() })
         guard taken.contains(untitled.lowercased()) else { return untitled }
         var counter = 1
         while taken.contains("\(untitled) \(counter)".lowercased()) { counter += 1 }
@@ -182,12 +198,21 @@ public struct Library: Sendable, Equatable {
         let root = root.replacingFolder(at: Self.parentPath(of: path)) { folder in
             folder.with(
                 notes: folder.notes.map { note in
-                    guard note.path == path else { return note }
-                    return Note(
-                        name: note.name, path: note.path, title: note.title, modifiedAt: modifiedAt)
+                    note.path == path ? note.with(modifiedAt: modifiedAt) : note
                 })
         }
         return Library(name: name, root: root, rootURL: rootURL)
+    }
+
+    /// The path, relative to the root, of the entry named `name` in the
+    /// folder at `folderPath`.
+    private static func path(of name: String, in folderPath: String) -> String {
+        folderPath.isEmpty ? name : "\(folderPath)/\(name)"
+    }
+
+    /// The path of the note titled `title` in the folder at `folderPath`.
+    private static func path(ofNoteTitled title: String, in folderPath: String) -> String {
+        path(of: "\(title).\(noteExtension)", in: folderPath)
     }
 
     /// The path of the folder holding the entry at `path`; empty for the root.
@@ -198,6 +223,13 @@ public struct Library: Sendable, Equatable {
 
     /// Obsidian treats a file as a note when its extension is `md`, in any case.
     private static let noteExtension = "md"
+
+    /// Whether the file at `path` — relative to the root, or any path — is a
+    /// note by name: the one rule (CONTEXT.md § Note), for anything that
+    /// meets a file before the tree does.
+    public static func isNote(_ path: String) -> Bool {
+        URL(filePath: path).pathExtension.lowercased() == noteExtension
+    }
 
     private static let entryKeys: Set<URLResourceKey> = [
         .isSymbolicLinkKey, .isDirectoryKey, .contentModificationDateKey,
@@ -227,10 +259,10 @@ public struct Library: Sendable, Equatable {
             // A symbolic link is neither a note nor a folder of the library;
             // following one could also loop forever.
             guard !isSymbolicLink else { continue }
-            let entryPath = path.isEmpty ? name : "\(path)/\(name)"
+            let entryPath = Self.path(of: name, in: path)
             if isDirectory {
                 folders.append(try scan(folderAt: entry, path: entryPath))
-            } else if entry.pathExtension.lowercased() == noteExtension {
+            } else if isNote(name) {
                 notes.append(
                     Note(
                         name: name,

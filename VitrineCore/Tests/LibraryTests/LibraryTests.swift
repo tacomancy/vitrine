@@ -50,7 +50,7 @@ import Testing
                 == "Vitrine can’t write it. Check its permissions and try again.")
         #expect(
             LibraryError.invalidName.localizedDescription
-                == "A note’s title can’t be empty or contain a slash.")
+                == "A note’s title can’t be empty, start with a dot, or contain a slash.")
         #expect(
             LibraryError.nameTaken.localizedDescription
                 == "A note with that title is already in this folder.")
@@ -318,6 +318,19 @@ import Testing
         #expect(library.allNotes.count == 11)
     }
 
+    @Test func createNote_refuses_a_name_beginning_with_a_dot_with_invalidName() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+
+        // A dot-entry is skipped by the scan: the note would vanish as it was made.
+        #expect(throws: LibraryError.invalidName) {
+            try library.createNote(named: ".hidden", in: library.root)
+        }
+        #expect(library.applying(.folderChanged("")).allNotes.count == 11)
+        #expect(library.root.attachments.isEmpty)
+    }
+
     @Test func createNote_refuses_an_existing_title_case_insensitively_with_nameTaken() throws {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
@@ -365,6 +378,22 @@ import Testing
         #expect(throws: LibraryError.invalidName) { try library.renameNote(agents, to: "a/b") }
         #expect(throws: LibraryError.nameTaken) { try library.renameNote(agents, to: "ALIGNMENT") }
         #expect(library.allNotes.map(\.path).contains("Topics/Agents.md"))
+    }
+
+    @Test func renameNote_lets_a_note_change_only_the_case_of_its_own_title() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let agents = try #require(library.allNotes.first { $0.path == "Topics/Agents.md" })
+
+        let renamed = try library.renameNote(agents, to: "AGENTS")
+
+        #expect(renamed.title == "AGENTS")
+        #expect(renamed.path == "Topics/AGENTS.md")
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title)
+                == ["AGENTS", "Alignment", "Interpretability", "Journal", "Scratch"])
     }
 
     @Test func renameNote_leaves_the_text_of_notes_linking_to_it_untouched() throws {

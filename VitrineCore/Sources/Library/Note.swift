@@ -12,3 +12,10 @@ public struct Note: Sendable, Hashable {
     /// The file's modification date, as the file system reports it.
     public let modifiedAt: Date
 }
+
+extension Note {
+    /// This note carrying `modifiedAt` instead; the rest untouched.
+    func with(modifiedAt: Date) -> Note {
+        Note(name: name, path: path, title: title, modifiedAt: modifiedAt)
+    }
+}

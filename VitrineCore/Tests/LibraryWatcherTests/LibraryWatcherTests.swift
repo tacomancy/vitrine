@@ -70,6 +70,30 @@ import Testing
             ])
     }
 
+    @Test func replacing_a_note_by_writing_a_sibling_then_renaming_over_yields_noteModified()
+        async throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let stream = LibraryWatcher.watch(library)
+
+        try OtherTool.replace(copy.appending(path: "Welcome.md"), with: "# Saved by TextEdit\n")
+
+        #expect(await changes(from: stream) == [.noteModified("Welcome.md")])
+    }
+
+    @Test func replacing_an_attachment_the_same_way_yields_attachmentModified() async throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let stream = LibraryWatcher.watch(library)
+
+        try OtherTool.replace(copy.appending(path: "Projects/sketch.png"), with: "new bytes")
+
+        #expect(await changes(from: stream) == [.attachmentModified("Projects/sketch.png")])
+    }
+
     @Test func modifying_an_attachment_with_another_tool_yields_attachmentModified() async throws {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
@@ -89,7 +113,8 @@ import Testing
         let stream = LibraryWatcher.watch(library)
 
         try library.write("# Welcome\n\nVitrine's own save.\n", to: welcome)
-        _ = try library.createNote(named: "Untitled", in: library.root)
+        let untitled = try library.createNote(named: "Untitled", in: library.root)
+        _ = try library.renameNote(untitled, to: "Named")
 
         #expect(await changes(from: stream) == [])
     }

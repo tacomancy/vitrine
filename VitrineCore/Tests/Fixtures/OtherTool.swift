@@ -22,6 +22,12 @@ public enum OtherTool {
             text, url.path, String(times))
     }
 
+    /// Replaces the file at `url` with `text` the way TextEdit and many
+    /// editors save: written to a sibling file first, then renamed over.
+    public static func replace(_ url: URL, with text: String) throws {
+        try run("printf '%s' \"$1\" > \"$2.sb-tmp\" && mv \"$2.sb-tmp\" \"$2\"", text, url.path)
+    }
+
     /// Removes the file at `url`.
     public static func remove(_ url: URL) throws {
         try run("rm \"$1\"", url.path)
@@ -38,6 +44,6 @@ public enum OtherTool {
         process.arguments = ["-c", script, "sh"] + arguments
         try process.run()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw OtherToolError.failed(script) }
+        guard process.terminationStatus == 0 else { throw FixtureError.otherToolFailed(script) }
     }
 }
