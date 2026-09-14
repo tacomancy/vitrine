@@ -7,7 +7,8 @@ public struct Frontmatter: Sendable, Equatable {
     /// included — what an edit writes back untouched (ADR 0011).
     public let rawRange: Range<Int>
     /// The tags under `tags:` (or Obsidian's older `tag:`), in the order
-    /// written, each without a leading `#`.
+    /// written, each without a leading `#`. A value that fails the tag
+    /// grammar is dropped: Obsidian marks it invalid and lists it nowhere.
     public let tags: [String]
     /// The alternate titles under `aliases:` (or `alias:`), in the order
     /// written.
@@ -39,7 +40,7 @@ public struct Frontmatter: Sendable, Equatable {
                 }
                 return Frontmatter(
                     rawRange: 0..<(lineStart + delimiter.utf8.count),
-                    tags: values(under: ["tags", "tag"], in: root),
+                    tags: values(under: ["tags", "tag"], in: root).filter(TagGrammar.isTag),
                     aliases: values(under: ["aliases", "alias"], in: root))
             }
             let content = String(line)

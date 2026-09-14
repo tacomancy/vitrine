@@ -100,6 +100,31 @@ import Testing
         #expect(note.frontmatter?.tags == ["zeta", "Alpha", "mid"])
     }
 
+    @Test func a_frontmatter_value_that_fails_the_tag_grammar_is_not_a_tag() {
+        // Obsidian marks `2026` and `two words` invalid and lists neither.
+        let note = ParsedNote.parse("---\ntags: [ok, \"2026\", \"two words\"]\n---\n")
+
+        #expect(note.frontmatter?.tags == ["ok"])
+    }
+
+    @Test func the_leading_hash_is_stripped_before_the_tag_grammar_applies() {
+        let note = ParsedNote.parse("---\ntags: [\"#2026\"]\n---\n")
+
+        #expect(note.frontmatter?.tags == [])
+    }
+
+    @Test func the_tag_grammar_applies_to_each_value_of_a_comma_separated_string_too() {
+        let note = ParsedNote.parse("---\ntag: \"keep, 1984, y1984\"\n---\n")
+
+        #expect(note.frontmatter?.tags == ["keep", "y1984"])
+    }
+
+    @Test func an_alias_is_not_a_tag_so_the_tag_grammar_does_not_apply_to_aliases() {
+        let note = ParsedNote.parse("---\naliases: [\"two words\", \"1984\"]\n---\n")
+
+        #expect(note.frontmatter?.aliases == ["two words", "1984"])
+    }
+
     /// The same forms under `aliases:`, and the singular `alias:`.
     private static let aliasForms: [(yaml: String, aliases: [String])] = [
         ("aliases:\n  - Start here\n  - Home", ["Start here", "Home"]),

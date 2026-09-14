@@ -281,7 +281,7 @@ struct BodyScanner {
     private mutating func scanTag() {
         let start = position
         position += 1
-        while position < scalars.count, isTagCharacter(scalars[position]) {
+        while position < scalars.count, TagGrammar.isTagCharacter(scalars[position]) {
             position += 1
         }
         // A trailing `-` or `/` reads as punctuation, not as part of the tag.
@@ -289,20 +289,8 @@ struct BodyScanner {
         while end > start + 1, scalars[end - 1] == "-" || scalars[end - 1] == "/" {
             end -= 1
         }
-        let name = scalars[(start + 1)..<end]
-        // Obsidian requires a non-digit somewhere, so `#1` is not a tag.
-        guard name.contains(where: { !isDigit($0) }) else { return }
-        tags.append(Tag(name: string(name), range: offsets[start]..<offsets[end]))
-    }
-
-    private func isTagCharacter(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.properties.isAlphabetic || isDigit(scalar)
-            || scalar == "_" || scalar == "-" || scalar == "/"
-    }
-
-    /// A decimal digit in any script (Unicode `Nd`); a letter that also names
-    /// a number, like `三`, is a letter.
-    private func isDigit(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.properties.generalCategory == .decimalNumber
+        let name = string(scalars[(start + 1)..<end])
+        guard TagGrammar.isTag(name) else { return }
+        tags.append(Tag(name: name, range: offsets[start]..<offsets[end]))
     }
 }
