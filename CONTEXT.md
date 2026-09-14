@@ -69,16 +69,21 @@ so they aren't accidentally reused for something else.
     is case-insensitive and tries, in order: an exact path relative to the
     library root (`[[folder/Title]]`, with or without `.md`), a note's title,
     an alias, an attachment's filename. When two notes share a title, a bare
-    `[[Title]]` resolves to the one with the shortest path, then the first
-    alphabetically — Vitrine's tie-break; Obsidian writes path-qualified
-    links in that case and does not document how it reads bare ones.
+    `[[Title]]` resolves to the one with the shortest path — the fewest
+    folders above it — then the first in library display order (ADR 0016);
+    Vitrine's tie-break, since Obsidian writes path-qualified links in that
+    case and does not document how it reads bare ones.
   - **Markdown link** — `[shown text](path/to/note.md)`, resolved by path
     relative to the linking note, percent-decoded. A destination with a URL
     scheme is **external**: not a link between notes, never unresolved.
   A wikilink inside a frontmatter value (`sources: ["[[Title]]"]`) is a link
   like any other — outgoing from the note and a backlink on its target — as
   in Obsidian. A link or embed whose target is an attachment resolves to
-  that attachment; following it opens the file with the system.
+  that attachment; following it opens the file with the system. An embed
+  resolves as a wikilink to its file would, or — when that finds nothing —
+  as a Markdown link's path relative to the note; an embed of a URL is
+  external. A note that links to itself has an outgoing link and no
+  backlink.
   Links in v1 point to whole notes only; heading and block targets are
   parked. A link that carries a heading or block fragment (`[[Note#Heading]]`,
   `[[Note#^id]]`) is still a link to `Note` — the fragment is parsed and
@@ -162,8 +167,10 @@ so they aren't accidentally reused for something else.
   next save whether to overwrite or discard.
   Above the note, the **breadcrumb** is the bar showing the note's path
   relative to the library root. Beside the editor, the **rail** shows the
-  note's **backlinks** — one entry per linking note, with the line of text
-  around each link as **context** — and its **info**: path, modification
+  note's **backlinks** — one entry per linking note, sorted by title, with
+  the line of text around each link as **context**: one context per line,
+  so a line that links twice reads once (ADR 0016), and a frontmatter
+  link's context is its property line — and its **info**: path, modification
   date, tags, and counts of outgoing links, backlinks, and unresolved
   links. Following a link opens its target in the editor without changing
   the sidebar's scope; **back** and **forward** (⌘[ / ⌘]) walk the notes
