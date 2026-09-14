@@ -8,6 +8,9 @@ extension LibraryError: LocalizedError {
         case .notAFolder: "That isn’t a folder. Vitrine opens a folder of Markdown files."
         case .unreadable: "Vitrine can’t read it. Check its permissions and try again."
         case .noteMissing: "The note is no longer where it was on disk."
+        case .unwritable: "Vitrine can’t write it. Check its permissions and try again."
+        case .invalidName: "A note’s title can’t be empty or contain a slash."
+        case .nameTaken: "A note with that title is already in this folder."
         }
     }
 }

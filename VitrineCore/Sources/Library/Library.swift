@@ -1,17 +1,21 @@
 import Foundation
 
 /// A folder on disk opened as a unit: the whole tree of folders, notes, and
-/// attachments, scanned once at `open(at:)` and immutable after that.
-/// Nothing is ever written into the folder (ADR 0002). Two libraries are
-/// equal when they were opened from the same folder and scanned the same
-/// tree, so a view can tell a replaced library from a re-opened one.
+/// attachments, scanned once at `open(at:)`. A value: writing, creating, and
+/// renaming notes replace the tree in place, and `applying(_:)` folds in what
+/// another tool did. Opening writes nothing into the folder (ADR 0002); the
+/// only files Vitrine ever writes are notes. Two libraries are equal when
+/// they were opened from the same folder and hold the same tree, so a view
+/// can tell a replaced library from a re-opened one.
 public struct Library: Sendable, Equatable {
     /// The library folder's name, shown in the title bar.
     public let name: String
     /// The library folder itself, as the top of the tree.
     public let root: Folder
 
-    private let rootURL: URL
+    /// The library folder on disk — where the tree was scanned from and
+    /// where every note in it is read and written.
+    public let rootURL: URL
 
     /// Every note in the library at every depth, flattened in tree order.
     public var allNotes: [Note] {
@@ -41,6 +45,155 @@ public struct Library: Sendable, Equatable {
             throw .unreadable
         }
         return text
+    }
+
+    /// Overwrites the note on disk with `text` — in place, as UTF-8 without a
+    /// byte-order mark, the buffer exactly as given (ADR 0014: line endings
+    /// and frontmatter are the caller's, never normalized). Throws
+    /// `noteMissing` when the file has gone since the scan and `unwritable`
+    /// when it is there but cannot be written.
+    public mutating func write(_ text: String, to note: Note) throws(LibraryError) {
+        let url = rootURL.appending(path: note.path)
+        guard FileManager.default.fileExists(atPath: url.path) else { throw .noteMissing }
+        // ADR 0014: in place, not write-and-rename — Obsidian and every sync
+        // client see a plain modification of the same inode.
+        guard let file = try? FileHandle(forWritingTo: url) else { throw .unwritable }
+        do {
+            try file.truncate(atOffset: 0)
+            try file.write(contentsOf: Data(text.utf8))
+            try file.close()
+        } catch {
+            throw .unwritable
+        }
+        self = refreshingModifiedAt(ofNoteAt: note.path)
+    }
+
+    /// Creates an empty note titled `title` in `folder` and returns it as it
+    /// now sits in the tree. Throws `invalidName` for an empty title or one
+    /// containing `/`, `nameTaken` when a note in that folder already has
+    /// the title (compared case-insensitively, as the file system does), and
+    /// `unwritable` when the file cannot be created.
+    public mutating func createNote(named title: String, in folder: Folder) throws(LibraryError)
+        -> Note
+    {
+        try validate(title: title, in: folder)
+        let name = "\(title).\(Self.noteExtension)"
+        let path = folder.path.isEmpty ? name : "\(folder.path)/\(name)"
+        let url = rootURL.appending(path: path)
+        guard (try? Data().write(to: url, options: .withoutOverwriting)) != nil else {
+            throw .unwritable
+        }
+        self = try rescanning(folderAt: folder.path)
+        guard let note = allNotes.first(where: { $0.path == path }) else { throw .unwritable }
+        return note
+    }
+
+    /// Renames `note` to `title`, in the folder it is in, and returns it as it
+    /// now sits in the tree. Links to the note elsewhere are not rewritten —
+    /// rename as a feature is parked (BACKLOG.md); this exists for the new
+    /// note's title field. Throws `invalidName` and `nameTaken` as
+    /// `createNote` does, `noteMissing` when the file has gone since the scan,
+    /// and `unwritable` when it cannot be renamed.
+    public mutating func renameNote(_ note: Note, to title: String) throws(LibraryError) -> Note {
+        let folderPath = Self.parentPath(of: note.path)
+        guard let folder = folder(at: folderPath) else { throw .noteMissing }
+        try validate(title: title, in: folder)
+        let url = rootURL.appending(path: note.path)
+        guard FileManager.default.fileExists(atPath: url.path) else { throw .noteMissing }
+        let name = "\(title).\(Self.noteExtension)"
+        let path = folderPath.isEmpty ? name : "\(folderPath)/\(name)"
+        guard (try? FileManager.default.moveItem(at: url, to: rootURL.appending(path: path))) != nil
+        else { throw .unwritable }
+        self = try rescanning(folderAt: folderPath)
+        guard let renamed = allNotes.first(where: { $0.path == path }) else { throw .unwritable }
+        return renamed
+    }
+
+    /// The tree with `change` — something another tool did on disk —
+    /// reflected: the folder around an added, removed, or renamed entry is
+    /// scanned again by the rules of `open(at:)` (ADR 0014); a modified note
+    /// takes its new modification date. A folder that can no longer be
+    /// listed leaves the tree as it was.
+    public func applying(_ change: LibraryChange) -> Library {
+        switch change {
+        case .entryAdded(let path), .entryRemoved(let path):
+            (try? rescanning(folderAt: Self.parentPath(of: path))) ?? self
+        case .entryRenamed(let from, let to):
+            applying(.entryRemoved(from)).applying(.entryAdded(to))
+        case .folderChanged(let path):
+            (try? rescanning(folderAt: path)) ?? self
+        case .noteModified(let path):
+            refreshingModifiedAt(ofNoteAt: path)
+        case .attachmentModified:
+            // The tree holds nothing about an attachment that its contents change.
+            self
+        }
+    }
+
+    /// Refuses a title no note may have in `folder`: empty, holding a path
+    /// separator, or already carried by one of the folder's notes.
+    private func validate(title: String, in folder: Folder) throws(LibraryError) {
+        guard !title.isEmpty, !title.contains("/") else { throw .invalidName }
+        let notes = (self.folder(at: folder.path) ?? folder).notes
+        guard !notes.contains(where: { $0.title.lowercased() == title.lowercased() }) else {
+            throw .nameTaken
+        }
+    }
+
+    /// The title a new note in `folder` gets when the user hasn't given one:
+    /// `Untitled`, or `Untitled 1`, `Untitled 2`, … — the first the folder's
+    /// notes don't already carry, compared case-insensitively.
+    public func uniqueUntitledName(in folder: Folder) -> String {
+        let untitled = "Untitled"
+        let taken = Set(
+            (self.folder(at: folder.path) ?? folder).notes.map { $0.title.lowercased() })
+        guard taken.contains(untitled.lowercased()) else { return untitled }
+        var counter = 1
+        while taken.contains("\(untitled) \(counter)".lowercased()) { counter += 1 }
+        return "\(untitled) \(counter)"
+    }
+
+    /// The folder at `path` as it is in the tree now; nil once it's gone.
+    private func folder(at path: String) -> Folder? {
+        var folder = root
+        for name in path.split(separator: "/") {
+            guard let child = folder.folders.first(where: { $0.name == name }) else { return nil }
+            folder = child
+        }
+        return folder
+    }
+
+    /// The tree with the folder at `path` scanned afresh, by the same rules
+    /// as `open(at:)`. Throws `unreadable` when the folder cannot be listed.
+    private func rescanning(folderAt path: String) throws(LibraryError) -> Library {
+        let rescanned = try Self.scan(folderAt: rootURL.appending(path: path), path: path)
+        let root = root.replacingFolder(at: path) { _ in rescanned }
+        return Library(name: name, root: root, rootURL: rootURL)
+    }
+
+    /// The tree with the note at `path` carrying the modification date the
+    /// file system reports now; unchanged when the file cannot be inspected.
+    private func refreshingModifiedAt(ofNoteAt path: String) -> Library {
+        let url = rootURL.appending(path: path)
+        guard
+            let modifiedAt = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate
+        else { return self }
+        let root = root.replacingFolder(at: Self.parentPath(of: path)) { folder in
+            folder.with(
+                notes: folder.notes.map { note in
+                    guard note.path == path else { return note }
+                    return Note(
+                        name: note.name, path: note.path, title: note.title, modifiedAt: modifiedAt)
+                })
+        }
+        return Library(name: name, root: root, rootURL: rootURL)
+    }
+
+    /// The path of the folder holding the entry at `path`; empty for the root.
+    private static func parentPath(of path: String) -> String {
+        guard let slash = path.lastIndex(of: "/") else { return "" }
+        return String(path[..<slash])
     }
 
     /// Obsidian treats a file as a note when its extension is `md`, in any case.
