@@ -74,8 +74,9 @@ touched. `Index.build` resolves every link and embed per `CONTEXT.md`
 Markdown links relative to the note; external excluded; same-title ties
 by depth then display order, ADR 0016) and answers `links(from:)`,
 `backlinks(to:)` — one per linking note, sorted by title, with one
-context line per linking line — and `unresolvedLinks`; 14 tests against
-the Obsidian fixture. Against the real vault: 304 links, 31 from
+context line per linking line — and `unresolvedLinks`; 18 tests in
+`IndexTests`, 15 against the Obsidian fixture as blessed and 3 on
+temporary copies of it. Against the real vault: 304 links, 31 from
 frontmatter, 20 to attachments, 57 unresolved — 45 of those are
 `[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
 
