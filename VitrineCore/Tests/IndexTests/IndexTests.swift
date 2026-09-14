@@ -204,6 +204,98 @@ import Testing
         #expect(!index.untagged.contains(slashes))
     }
 
+    // MARK: - Links
+
+    @Test func a_wikilink_resolves_to_the_note_with_that_title_case_insensitively() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let welcome = try #require(library.allNotes.first { $0.path == "Welcome.md" })
+
+        // `See [[welcome]], …` in the body; the note's title is `Welcome`.
+        let links = index.links(from: alignment).filter { !$0.isFromFrontmatter }
+        let link = try #require(links.first { $0.target == .note(welcome) })
+        #expect(link.displayText == "welcome")
+        #expect(slice(try library.read(alignment), link.range) == "[[welcome]]")
+    }
+
+    @Test func a_wikilink_to_an_alias_resolves_to_the_note_declaring_it() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let welcome = try #require(library.allNotes.first { $0.path == "Welcome.md" })
+
+        // Welcome declares `aliases: [Start here]`; Alignment ends `Or simply [[Start here]].`
+        let text = try library.read(alignment)
+        let links = index.links(from: alignment).filter { !$0.isFromFrontmatter }
+        let link = try #require(links.first { slice(text, $0.range) == "[[Start here]]" })
+        #expect(link.target == .note(welcome))
+        #expect(link.displayText == "Start here")
+    }
+
+    @Test func a_wikilink_to_a_path_resolves_with_or_without_the_extension() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let welcome = try #require(library.allNotes.first { $0.path == "Welcome.md" })
+        let today = try #require(library.allNotes.first { $0.path == "Daily/2026-09-13.md" })
+
+        // Alignment: `the [[Daily/2026-09-13.md]] entry`; Welcome: `in [[Daily/2026-09-13]]`.
+        let fromAlignment = index.links(from: alignment)
+        #expect(
+            fromAlignment.filter { $0.target == .note(today) }.map(\.displayText) == [
+                "Daily/2026-09-13.md"
+            ])
+        let fromWelcome = index.links(from: welcome)
+        #expect(
+            fromWelcome.filter { $0.target == .note(today) }.map(\.displayText) == [
+                "Daily/2026-09-13"
+            ])
+    }
+
+    @Test func a_wikilink_or_embed_naming_an_attachment_resolves_to_it() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try #require(library.allNotes.first { $0.path == "Topics/Alignment.md" })
+        let vitrine = try #require(library.allNotes.first { $0.path == "Projects/Vitrine.md" })
+        let projects = try #require(library.root.folders.first { $0.name == "Projects" })
+        let sketch = try #require(projects.attachments.first { $0.path == "Projects/sketch.png" })
+
+        // Alignment: `and [[sketch.png]].`; Projects/Vitrine: `![[sketch.png]]` then `[[Welcome]]`.
+        let fromAlignment = index.links(from: alignment)
+        #expect(fromAlignment.filter { $0.target == .attachment(sketch) }.count == 1)
+        let fromVitrine = index.links(from: vitrine)
+        #expect(
+            fromVitrine.map(\.target) == [.attachment(sketch), .note(try welcomeNote(in: library))])
+        #expect(slice(try library.read(vitrine), fromVitrine[0].range) == "![[sketch.png]]")
+    }
+
+    @Test func a_markdown_link_resolves_relative_to_the_linking_note_percent_decoded() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let interpretability = try #require(
+            library.allNotes.first { $0.path == "Topics/Interpretability.md" })
+        let readingList = try #require(library.allNotes.first { $0.path == "Reading List.md" })
+
+        // Topics/Interpretability: `[reading list](../Reading%20List.md)`, then
+        // `[[Reading List]]` on the next line.
+        let up = index.links(from: interpretability).filter { $0.target == .note(readingList) }
+        #expect(up.map(\.displayText) == ["reading list", "Reading List"])
+        // Reading List, at the root: `[A markdown link](Welcome.md)`.
+        let welcome = try welcomeNote(in: library)
+        let across = index.links(from: readingList).filter { $0.target == .note(welcome) }
+        #expect(across.map(\.displayText) == ["A markdown link"])
+    }
+
+    private func welcomeNote(in library: Library) throws -> Note {
+        try #require(library.allNotes.first { $0.path == "Welcome.md" })
+    }
+
+    /// The text a UTF-8 offset range points at.
+    private func slice(_ text: String, _ range: Range<Int>) -> String {
+        String(decoding: Array(text.utf8)[range], as: UTF8.self)
+    }
+
     /// Every node's path at every depth.
     private func allPaths(in nodes: [TagTreeNode]) -> [String] {
         nodes.flatMap { [$0.path] + allPaths(in: $0.children) }
