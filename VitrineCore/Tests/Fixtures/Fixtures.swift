@@ -27,4 +27,11 @@ public enum Fixtures {
         try FileManager.default.copyItem(at: library(name), to: copy)
         return copy
     }
+
+    /// Removes a temporary copy once its test is done with it. A copy that
+    /// cannot be removed is a leak in the temporary directory, not a failed
+    /// test, so nothing is thrown.
+    public static func discard(_ copy: URL) {
+        try? FileManager.default.removeItem(at: copy.deletingLastPathComponent())
+    }
 }
