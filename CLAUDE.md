@@ -65,7 +65,24 @@ assert counts written by hand (PR #34, plus `Topics/Agents.md` from
 #20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
 Index-seam Update).
 
-Next: #21 the Tags tab. `/implement` per ticket on
+**The third feature is under way (issue #38, edit notes, create notes,
+and follow external changes): ① built.** `Library` now writes (issue
+#39): `write(_:to:)` overwrites a note in place — same inode, bytes as
+given, line endings included (ADR 0014); `createNote(named:in:)`,
+`uniqueUntitledName(in:)`, and `renameNote(_:to:)` create and rename
+within a folder with the title rule in `CONTEXT.md` § Note and no link
+rewriting; `applying(_:)` folds a `LibraryChange` into the tree by
+rescanning the folder around it. `LibraryWatcher.watch(_:)` is the new
+seam and target: an `AsyncStream<LibraryChange>` from an FSEvents stream
+on the root — file-level, coalesced within 100 ms, this process's own
+writes marked and dropped, dot-entries and symlinks invisible — ending
+when its consumer is cancelled. FSEvents is named only there. Every
+"another tool changed a file" test drives a real second process
+(`OtherTool`, in `Fixtures`), since the own-write mark is per process.
+Nothing on screen consumes any of this yet.
+
+Next: #21 the Tags tab, and #38's ② (`Index` incremental API and
+`NoteParsing` structure). `/implement` per ticket on
 its own branch, clearing context between tickets. Update this section
 whenever the answer to "where are we?" changes — it's the first thing a
 fresh agent reads.
