@@ -17,9 +17,9 @@ struct LinkResolver {
     /// Attachments by lowercased path.
     private let attachmentsByPath: [String: Attachment]
 
-    /// `read` are the notes whose frontmatter could be read, in library
-    /// display order — the only place aliases come from.
-    init(library: Library, read: [ReadNote]) {
+    /// `notes` are the ones whose text could be read, in library display
+    /// order — the only place aliases come from.
+    init(library: Library, notes: [ReadNote]) {
         var notesByPath: [String: Note] = [:]
         for note in library.allNotes {
             let path = note.path.lowercased()
@@ -28,7 +28,7 @@ struct LinkResolver {
         }
         self.notesByPath = notesByPath
         notesByTitle = Dictionary(grouping: library.allNotes) { $0.title.lowercased() }
-        let aliases = read.flatMap { note in
+        let aliases = notes.flatMap { note in
             (note.parsed.frontmatter?.aliases ?? []).map {
                 (alias: $0.lowercased(), note: note.note)
             }
@@ -131,10 +131,9 @@ struct LinkResolver {
         return segments.joined(separator: "/")
     }
 
-    /// CONTEXT.md § Links: when two notes share a title, the shorter path
-    /// wins — the one with fewer folders above it, since a folder's name
-    /// should not decide — and at equal depth the first in library display
-    /// order, which is alphabetical. `candidates` are in that order.
+    /// ADR 0016: when two notes share a title, the one with fewer folders
+    /// above it wins, and at equal depth the first in library display
+    /// order — the file tree's natural order. `candidates` are in that order.
     private func nearestRoot<Candidate>(
         among candidates: [Candidate], by path: KeyPath<Candidate, String>
     ) -> Candidate? {
@@ -149,13 +148,5 @@ struct LinkResolver {
 
     private func depth(of path: String) -> Int {
         path.count { $0 == "/" }
-    }
-}
-
-extension Folder {
-    /// This folder's attachments followed by each subfolder's, recursively,
-    /// in tree order — the same order as `allNotes`.
-    var allAttachments: [Attachment] {
-        attachments + folders.flatMap(\.allAttachments)
     }
 }

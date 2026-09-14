@@ -38,28 +38,32 @@ public struct Index: Sendable {
             }
             read.append(ReadNote(note: note, text: text, parsed: ParsedNote.parse(text)))
         }
-        let resolver = LinkResolver(library: library, read: read)
+        let resolver = LinkResolver(library: library, notes: read)
         var spellings = SegmentSpellings()
         var tree = TagTreeBuilder()
         var notes: [IndexedNote] = []
         for note in read {
             let tags = tags(in: note.parsed, spellings: &spellings)
             for tag in tags { tree.insert(tag, carriedBy: note.note) }
-            // The parser keeps links and embeds apart; the note has them in
-            // one document order, which their ranges give back.
-            let links =
-                (note.parsed.links.compactMap { resolver.resolve($0, from: note.note) }
-                + note.parsed.embeds.compactMap { resolver.resolve($0, from: note.note) })
-                .sorted { $0.range.lowerBound < $1.range.lowerBound }
-            let text = Array(note.text.utf8)
             notes.append(
-                IndexedNote(
-                    note: note.note, tags: tags,
-                    links: links.map {
-                        LinkInContext(link: $0, context: ContextLine(around: $0.range, in: text))
-                    }))
+                IndexedNote(note: note.note, tags: tags, links: links(in: note, resolver: resolver))
+            )
         }
         return Index(tagTree: tree.nodes(), skipped: skipped, notes: notes)
+    }
+
+    /// A read note's links and embeds resolved, in one document order —
+    /// the parser keeps the two apart; their ranges put them back — each
+    /// with the line it sits on, sliced now, while the text is at hand.
+    private static func links(in note: ReadNote, resolver: LinkResolver) -> [LinkInContext] {
+        let text = Array(note.text.utf8)
+        let links =
+            note.parsed.links.compactMap { resolver.resolve($0, from: note.note) }
+            + note.parsed.embeds.compactMap { resolver.resolve($0, from: note.note) }
+        return
+            links
+            .sorted { $0.range.lowerBound < $1.range.lowerBound }
+            .map { LinkInContext(link: $0, context: ContextLine(around: $0.range, in: text)) }
     }
 
     /// The note's tags in display spelling, deduplicated case-insensitively,
@@ -81,21 +85,28 @@ public struct Index: Sendable {
     public func backlinks(to note: Note) -> [Backlink] {
         notes.filter { $0.note != note }
             .compactMap { linking in
-                var contexts: [ContextLine] = []
-                for link in linking.links where link.link.target == .note(note) {
-                    // Links come in document order, so a line's second link
-                    // follows its first: one line is one context.
-                    guard contexts.last?.start != link.context.start else { continue }
-                    contexts.append(link.context)
-                }
+                let contexts = Self.contexts(of: linking.links, into: note)
                 guard !contexts.isEmpty else { return nil }
-                return Backlink(note: linking.note, contexts: contexts.map(\.text))
+                return Backlink(note: linking.note, contexts: contexts)
             }
             .sorted(by: Self.isInTitleOrder)
     }
 
-    /// Every unresolved target in the library, as written, with the notes
-    /// that link to it in library display order, each once.
+    /// The lines of `links` that point at `target`, each line once
+    /// (ADR 0016). Links come in document order, so a line's second link
+    /// follows its first.
+    private static func contexts(of links: [LinkInContext], into target: Note) -> [String] {
+        var contexts: [ContextLine] = []
+        for link in links where link.link.target == .note(target) {
+            guard contexts.last?.start != link.context.start else { continue }
+            contexts.append(link.context)
+        }
+        return contexts.map(\.text)
+    }
+
+    /// Every unresolved target in the library — a wikilink's target, or a
+    /// Markdown link's percent-decoded destination — with the notes that
+    /// link to it in library display order, each once.
     public var unresolvedLinks: [String: [Note]] {
         var linking: [String: [Note]] = [:]
         for note in notes {

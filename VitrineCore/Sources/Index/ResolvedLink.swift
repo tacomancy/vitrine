@@ -1,4 +1,6 @@
-/// One link or embed in a note, with what its target turned out to be.
+/// One link or embed in a note, with what its target turned out to be —
+/// what `Index.links(from:)` answers, and all the editor needs to draw and
+/// follow it.
 public struct ResolvedLink: Sendable, Equatable {
     /// The note, attachment, or nothing the link points at.
     public let target: LinkTarget

@@ -3,7 +3,7 @@
 /// its property line.
 struct ContextLine: Sendable, Equatable {
     /// The UTF-8 offset where the line begins: its identity within the note,
-    /// so two links on one line are one context.
+    /// so two links on one line are one context (ADR 0016).
     let start: Int
     /// The line without its line ending.
     let text: String
