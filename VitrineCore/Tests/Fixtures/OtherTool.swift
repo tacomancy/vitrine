@@ -23,9 +23,16 @@ public enum OtherTool {
     }
 
     /// Replaces the file at `url` with `text` the way TextEdit and many
-    /// editors save: written to a sibling file first, then renamed over.
+    /// editors save: written to a sibling file first, then renamed over —
+    /// in one process, a moment apart, as an editor does it. Two processes
+    /// (a shell's `printf` then `mv`) can be spawned far enough apart on a
+    /// busy machine that the file system reports them separately.
     public static func replace(_ url: URL, with text: String) throws {
-        try run("printf '%s' \"$1\" > \"$2.sb-tmp\" && mv \"$2.sb-tmp\" \"$2\"", text, url.path)
+        try run(
+            """
+            perl -e 'open(F, ">", "$ARGV[1].sb-tmp") or die; print F $ARGV[0]; close F; \
+            rename("$ARGV[1].sb-tmp", $ARGV[1]) or die' "$1" "$2"
+            """, text, url.path)
     }
 
     /// Removes the file at `url`.
