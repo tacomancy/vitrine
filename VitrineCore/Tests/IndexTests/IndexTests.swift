@@ -67,8 +67,8 @@ import Testing
         // `agents` before `Alignment`: ASCII would put the capital first.
         #expect(
             index.tagTree.map(\.name) == [
-                "agents", "Alignment", "daily", "fixture", "interp", "project", "reading",
-                "vitrine",
+                "agents", "Alignment", "daily", "data", "fixture", "interp", "learning",
+                "project", "reading", "stats", "vitrine",
             ])
         let reading = try #require(index.tagTree.first { $0.path == "reading" })
         #expect(reading.children.map(\.name) == ["Notes", "paper"])
@@ -590,7 +590,8 @@ import Testing
         // Only Welcome carried `vitrine` and `fixture`.
         #expect(
             index.tagTree.map(\.name) == [
-                "agents", "Alignment", "daily", "interp", "project", "reading",
+                "agents", "Alignment", "daily", "data", "interp", "learning", "project",
+                "reading", "stats",
             ])
         #expect(index.notes(tagged: "vitrine").isEmpty)
         #expect(index.untagged == built.untagged)

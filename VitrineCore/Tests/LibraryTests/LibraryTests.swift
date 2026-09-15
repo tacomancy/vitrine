@@ -286,7 +286,7 @@ import Testing
         let refreshed = try #require(library.root.notes.first { $0.title == "Welcome" })
         #expect(refreshed.modifiedAt > welcome.modifiedAt)
         #expect(refreshed.path == welcome.path)
-        #expect(library.allNotes.count == 11)
+        #expect(library.allNotes.count == 14)
     }
 
     // MARK: Creating
@@ -309,7 +309,7 @@ import Testing
             refreshed.notes.map(\.title)
                 == ["Agents", "Alignment", "Circuits", "Interpretability", "Journal", "Scratch"])
         #expect(refreshed.notes.contains(created))
-        #expect(library.allNotes.count == 12)
+        #expect(library.allNotes.count == 15)
     }
 
     @Test func uniqueUntitledName_yields_Untitled_then_Untitled_1_then_Untitled_2() throws {
@@ -335,7 +335,7 @@ import Testing
         #expect(throws: LibraryError.invalidName) {
             try library.createNote(named: "", in: library.root)
         }
-        #expect(library.allNotes.count == 11)
+        #expect(library.allNotes.count == 14)
     }
 
     @Test func createNote_refuses_a_name_containing_a_slash_with_invalidName() throws {
@@ -346,7 +346,7 @@ import Testing
         #expect(throws: LibraryError.invalidName) {
             try library.createNote(named: "Topics/Circuits", in: library.root)
         }
-        #expect(library.allNotes.count == 11)
+        #expect(library.allNotes.count == 14)
     }
 
     @Test func createNote_refuses_a_name_beginning_with_a_dot_with_invalidName() throws {
@@ -358,7 +358,7 @@ import Testing
         #expect(throws: LibraryError.invalidName) {
             try library.createNote(named: ".hidden", in: library.root)
         }
-        #expect(library.applying(.folderChanged("")).allNotes.count == 11)
+        #expect(library.applying(.folderChanged("")).allNotes.count == 14)
         #expect(library.root.attachments.isEmpty)
     }
 
@@ -456,8 +456,8 @@ import Testing
         #expect(
             topics.notes.map(\.title)
                 == ["Agents", "Alignment", "Circuits", "Interpretability", "Journal", "Scratch"])
-        #expect(applied.allNotes.count == 12)
-        #expect(library.allNotes.count == 11)
+        #expect(applied.allNotes.count == 15)
+        #expect(library.allNotes.count == 14)
     }
 
     @Test func applying_entryRemoved_drops_a_note_another_tool_removed() throws {
@@ -471,7 +471,7 @@ import Testing
         let topics = try #require(applied.root.folders.first { $0.name == "Topics" })
         #expect(
             topics.notes.map(\.title) == ["Alignment", "Interpretability", "Journal", "Scratch"])
-        #expect(applied.allNotes.count == 10)
+        #expect(applied.allNotes.count == 13)
     }
 
     @Test func applying_entryRenamed_moves_a_note_another_tool_renamed_across_folders() throws {
@@ -489,7 +489,7 @@ import Testing
         #expect(
             topics.notes.map(\.title) == ["Alignment", "Interpretability", "Journal", "Scratch"])
         #expect(daily.notes.map(\.title) == ["2026-09-13", "Agents", "Journal"])
-        #expect(applied.allNotes.count == 11)
+        #expect(applied.allNotes.count == 14)
     }
 
     @Test func applying_noteModified_refreshes_the_notes_modifiedAt() throws {
@@ -524,7 +524,7 @@ import Testing
         )
         // Only Topics was scanned; the root's new note waits for its own change.
         #expect(applied.root.notes.map(\.title) == ["Reading List", "Scratch", "Welcome"])
-        #expect(applied.applying(.folderChanged("")).allNotes.count == 12)
+        #expect(applied.applying(.folderChanged("")).allNotes.count == 15)
     }
 
     @Test func an_obsidian_vault_opens_as_it_is_on_disk() throws {
@@ -536,10 +536,11 @@ import Testing
         let library = try Library.open(at: vault)
 
         // Reading List, Scratch, Welcome; Daily/2026-09-13, Daily/Journal;
-        // Projects/Vitrine; Topics/Agents, Alignment, Interpretability, Journal,
+        // Projects/Vitrine; Research/Bayesian Inference, Linear Regression,
+        // Survey Sampling; Topics/Agents, Alignment, Interpretability, Journal,
         // Scratch.
-        #expect(library.allNotes.count == 11)
-        #expect(library.root.folders.map(\.name) == ["Daily", "Projects", "Topics"])
+        #expect(library.allNotes.count == 14)
+        #expect(library.root.folders.map(\.name) == ["Daily", "Projects", "Research", "Topics"])
         #expect(!library.root.folders.map(\.name).contains(".obsidian"))
         #expect(library.root.folders.flatMap(\.attachments).map(\.name) == ["sketch.png"])
         #expect(library.root.attachments.isEmpty)
