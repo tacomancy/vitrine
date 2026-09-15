@@ -7,6 +7,8 @@ enum NoteListMetrics {
     static let rowPaddingHorizontal: CGFloat = 11
     /// Between a row's title and its date.
     static let dateSpacing: CGFloat = 6
+    /// Between a row's title line and its tag row.
+    static let tagRowSpacing: CGFloat = 3
     static let headerPaddingVertical: CGFloat = 7
     /// The header starts where the rows' titles do: past the pill's inset,
     /// the rule's slot, and the row padding.

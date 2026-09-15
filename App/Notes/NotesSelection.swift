@@ -15,6 +15,16 @@ final class NotesSelection {
         sidebar = .allNotes
     }
 
+    func selectUntagged() {
+        sidebar = .untagged
+    }
+
+    /// Selecting a tag by its path (a `TagTreeNode`'s) deselects whatever
+    /// folder or note was selected: the sidebar is one scope.
+    func select(tagAt path: String) {
+        sidebar = .tag(path: path)
+    }
+
     func select(_ folder: Folder) {
         sidebar = .folder(folder)
     }
