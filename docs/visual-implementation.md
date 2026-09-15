@@ -110,7 +110,7 @@ between sections; 8 px gutters between and around panes. Sidebar rows are
 
 The window is a SwiftUI `Window` scene with `.windowStyle(.hiddenTitleBar)`
 and a 1280 × 800 default size; `WindowShell` sets the minimum — every pane
-at its minimum with a gutter around each (808 wide), and 520 tall. It is a
+at its minimum with a gutter around each (1036 wide), and 520 tall. It is a
 `VStack` on `bg` that ignores the top safe area so the drawn chrome starts
 at the window's top edge:
 
@@ -149,23 +149,26 @@ transparent, draggable gap. Initial widths are placed as frames in
 before that — and never again.
 
 `GutterSplitPanes` bridges it into SwiftUI with `NSViewRepresentable`,
-hosting the three panes in `NSHostingView`s with `sizingOptions = []` (a
+hosting the four panes in `NSHostingView`s with `sizingOptions = []` (a
 pane's content must not size the split view, and so the window, upward)
 and answering `sizeThatFits` with the proposal for the same reason. The
 panes are laid out the classic way, by the split view's delegate, because
 Auto Layout constraints and holding priorities on the hosted panes fought
 the initial widths (the panes settled at min / max instead of ideal). The
-delegate clamps each drag — left to the leading pane's minimum, right to
-its maximum or the trailing pane's minimum — and distributes every resize:
-the editor takes the rest, and only when the rest would drop below its
-minimum do the note list, then the sidebar, give up width down to theirs.
+delegate clamps each drag to the tighter of its two neighbours' limits —
+the leading pane's minimum or the trailing pane's maximum on the left, the
+leading pane's maximum or the trailing pane's minimum on the right — and
+distributes every resize: the editor, the one pane with no ideal width,
+takes the rest, and only when the rest would drop below its minimum do the
+rail, then the note list, then the sidebar, give up width down to theirs.
 `PaneWidth` holds the spec's numbers: sidebar 196–280 (ideal 212), note
-list 260–404 (ideal 300), editor at least 320. The editor minimum is not in
-the spec; it is what makes the window's minimum size mean something.
+list 260–404 (ideal 300), editor at least 320, rail 220–360 (ideal 260).
+The editor minimum is not in the spec; it is what makes the window's
+minimum size mean something.
 
-`FloatingSurface` is the note list and editor's look: `bg-surface` at
-`Radius.large`, filling its pane. The sidebar sits directly on `bg`. The
-split view is padded by one gutter on every side.
+`FloatingSurface` is the note list, editor, and rail's look: `bg-surface`
+at `Radius.large`, filling its pane. The sidebar sits directly on `bg`.
+The split view is padded by one gutter on every side.
 
 ### List rows
 
@@ -255,10 +258,63 @@ delimiters included, as a `Text(verbatim:)` at `body` (14 px — the spec's
 15 px is off the scale, and story 28 asks for the brief's body size) with
 6 px line spacing for the mockup's 1.65 line height, in `fg`, selectable
 and copyable, in a measure of at most 720 px aligned to the leading edge.
+The text view is keyed by the note's path, so a selection made in one
+note is not carried, clamped, over the next.
 A note that cannot be read shows `LibraryError`'s sentence in `danger` at
 the same size in place of the text. The read happens each time the pane
 draws, so selecting a note again after it has changed on disk shows what
-is there now. No SOURCE/PREVIEW toggle, property line, or rail.
+is there now. No SOURCE/PREVIEW toggle or property line.
+
+The text is `NoteBody`: one `Text` over an `AttributedString` assembled
+from the parser's ranges, so the whole `[[…]]`, `[…](…)`, or `![[…]]`
+token is styled and clickable and nothing is hidden or substituted
+(`CONTEXT.md` § Editor). `BodyLink.all` pairs the tokens of the text on
+screen with `Index.links(from:)` by range — a token the Index does not
+know, because the file changed after the library opened, stays plain
+text — and takes external links, which the Index keeps in no table, from
+the parser's `isExternal`. A link to a note, an attachment, or the
+outside is the `link` token (the mockup's wikilink blue; rule 2 —
+sapphire is every action) — set as the `Text`'s tint, since `Text` colors
+a link run from the tint and not from the run's own color — and carries a
+`vitrine-link://N` URL, `N` its index in the body's links, that the view's
+own `OpenURLAction` intercepts: a note opens in the editor and pushes
+history, an attachment opens with its default app and an external link
+with the system's handler, both through `NSWorkspace.open` — the
+`openURL` environment refuses a file URL. **An unresolved link is `fg-muted` with a dashed
+underline** (`Text.LineStyle(pattern: .dash)`) and carries no URL: it is
+not a link to anywhere, so clicking it does nothing until editing offers
+to create the note. Tags in the body are neither styled nor clickable.
+This is deliberately disposable — attributed `Text` and a URL scheme, no
+`NSTextView` — replaced wholesale when the editor lands (ADR 0013); the
+unresolved treatment is what the editor spec inherits.
+
+Back and Forward are the Go menu, ⌘[ and ⌘], reaching the key window's
+`NotesSelection` through a focused scene value (`FocusedNotesSelection`)
+and disabled at either end of the history. Every way of opening a note —
+a tree row, a list row, a link, a backlink — pushes and discards whatever
+was ahead, as browsers do; the note already open is not entered twice, so
+Back always leads somewhere else.
+
+### The rail
+
+`Rail` is the fourth floating surface, at the split view's trailing edge,
+empty until a note is open. With one, it is two caps sections in a scroll
+view, inset 16 px like the editor's breadcrumb so the two surfaces read
+as one line, the first label padded 11 px so it sits in the breadcrumb's
+34 px band (`RailMetrics`): **BACKLINKS** — one `BacklinkEntry` per
+`Index.backlinks(to:)`, in the seam's title order: the linking note's
+title at `compact` (the spec's 12.5 px taken to the nearest step) in `fg`,
+then each context line at `caption` (the spec's 11.5 px, likewise) in
+`fg-secondary`, one line, ellipsised. An entry is a `RowButton`, never
+drawn selected, that opens its note — scope unchanged, history pushed.
+With none, one line of `caption` in `fg-muted`: *No notes link here.*
+**INFO** — the note's path in mono `label`, `fg-secondary`, truncated in
+the middle; its modification date at `caption` in `fg-secondary`, as
+`Sep 12, 2026 at 3:04 PM`; its tags as the note list's tag row (mono
+`label`, `link`), absent when it has none; and `N links · N backlinks ·
+N unresolved` in mono `label`, `fg-muted`, counted from `links(from:)`
+and `backlinks(to:)`. No ANCHORS, and note-list rows are unchanged
+(spec #25).
 
 ### First run
 

@@ -6,11 +6,11 @@ import AppKit
 /// the prototype settled on.
 final class GutterSplitView: NSSplitView {
     private let gutter: CGFloat
-    private var pendingWidths: [CGFloat]?
+    private var pendingWidths: [CGFloat?]?
 
-    /// `initialWidths` are the leading panes' widths, applied once; the last
-    /// pane gets whatever is left.
-    init(gutter: CGFloat, initialWidths: [CGFloat]) {
+    /// `initialWidths` are the panes' widths in order, applied once; the one
+    /// pane given `nil` gets whatever is left.
+    init(gutter: CGFloat, initialWidths: [CGFloat?]) {
         self.gutter = gutter
         self.pendingWidths = initialWidths
         super.init(frame: .zero)
@@ -34,14 +34,13 @@ final class GutterSplitView: NSSplitView {
         super.layout()
         guard let widths = pendingWidths, bounds.width > 0 else { return }
         pendingWidths = nil
+        let gutters = gutter * CGFloat(widths.count - 1)
+        let rest = bounds.width - gutters - widths.compactMap { $0 }.reduce(0, +)
         var leadingEdge: CGFloat = 0
         for (pane, width) in zip(arrangedSubviews, widths) {
+            let width = width ?? rest
             pane.frame = NSRect(x: leadingEdge, y: 0, width: width, height: bounds.height)
             leadingEdge += width + gutter
-        }
-        if let last = arrangedSubviews.last {
-            last.frame = NSRect(
-                x: leadingEdge, y: 0, width: bounds.width - leadingEdge, height: bounds.height)
         }
     }
 }
