@@ -185,11 +185,14 @@ rewritten over the parser's ranges into standard syntax with a
 into the `Sendable` block model — `Block` with its `Kind` and
 `sourceRange`, `Inline`, `TaskItem`, `ColumnAlignment`, `ImageSource` —
 every block's range mapped back through the pre-pass into the note's
-own UTF-8 offsets and trimmed to exactly its source. A paragraph splits
+own UTF-8 offsets and trimmed to exactly its source. The pre-pass first
+parses the body as written to find the code and HTML blocks the scanner
+does not skip, and rewrites nothing inside them; a paragraph splits
 around its images; HTML reduces to its text; a list is a task list when
-every item has a checkbox. 22 `RenderingTests`, string literal in and
-`[Block]` literal out, plus the Obsidian fixture rendered whole; the
-real vault renders in under 50 ms. The dependency's Swift 5-mode
+every item has a checkbox (ADR 0019, Update). One additive parser
+change, red-first: `Embed.width`. 26 `RenderingTests`, string literal
+in and `[Block]` literal out, plus the Obsidian fixture rendered whole;
+the real vault (79 notes) renders in under 100 ms. The dependency's Swift 5-mode
 warnings are exempt from warnings-as-errors per target in
 `Scripts/test.sh` (ADR 0006, third Update). Nothing on screen uses it
 yet.
