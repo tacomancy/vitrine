@@ -12,7 +12,7 @@ Every value below is contrast-audited and the chart palette is validated for col
 4. **Deco is geometry, not ornament.** Stepped corners, hairline rules, wide letterspaced caps, symmetry. Small radii — 5px max, 0–3px on anything dense. No filigree, no scattered sunburst motifs, no drop shadows faking gilt.
 5. **Status always carries an icon and a label**, never colour alone.
 6. **Chart series are assigned in fixed slot order and never cycled or reshuffled.** There is no slot 7 — a seventh entity folds into "Other". Never a dual-axis chart.
-7. **Focus is always the brass ring:** `outline: 2px solid var(--color-focus); outline-offset: 2px`. Never remove it.
+7. **Focus is always the brass ring:** `outline: 2px solid var(--color-focus); outline-offset: 2px`. Never remove it. *One exception, added with the command palette (issue #69): the palette's query field draws no ring. While the palette is open nothing else on screen can take focus, so the ring would mark nothing — the open palette is the focus, as screen 08 draws it.*
 8. **Text selection is sapphire, washed:** `--color-primary` at 42 % opacity (`rgba(32, 98, 199, 0.42)`), the mockups' `::selection` — a selected state (rule 2) that must leave the text readable through it. *(Added with the editor, issue #41; the mockups carried the value, the brief did not.)*
 
 ## Tokens — paste this in

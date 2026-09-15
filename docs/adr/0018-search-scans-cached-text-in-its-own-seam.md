@@ -63,3 +63,16 @@ megabytes a second, ~100 ms per empty query, and would have tripped the
 trigger on the very first library. The decision stands: the cost of a
 linear scan is the byte search, not the design, and at this rate the
 ~50 ms debounce holds to a library some twenty times this size.
+
+## Update (2026-09-15, from the palette ticket, #69)
+
+The screen that keeps search current found the one currency operation
+the seam lacked: a change another tool made on disk reaches the Index as
+`Index.applying(_:in:)` (ADR 0017, Update), not as one of the four
+one-note operations. `Search.applying(_ change: LibraryChange, in index:
+Index)` is its mirror — every note the change touched is dropped and
+taken again from the parses the Index now holds, and no other — so the
+app calls the two side by side and search never reads the disk, as
+decided above. Rebuilding the whole search on every watcher change was
+rejected: cheap today, but it would make search the one table not kept
+current one note at a time.

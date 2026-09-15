@@ -68,11 +68,7 @@ struct Rail: View {
                 .font(.sans(.caption, weight: .regular))
                 .foregroundStyle(Color(.fgSecondary))
             if !tags.isEmpty {
-                // The note list's tag row, verbatim: not a control in this spec.
-                Text(tags.map { "#" + $0 }.joined(separator: " "))
-                    .font(.mono(.label, weight: .regular))
-                    .foregroundStyle(Color(.link))
-                    .lineLimit(1)
+                TagRow(tags: tags)
             }
             Text("\(links.count) links · \(backlinks) backlinks · \(unresolved) unresolved")
                 .font(.mono(.label, weight: .regular))
