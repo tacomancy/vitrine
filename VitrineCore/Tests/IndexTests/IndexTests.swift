@@ -98,6 +98,27 @@ import Testing
         #expect(index.notes(tagged: "nowhere").isEmpty)
     }
 
+    @Test func co_occurring_tags_count_each_note_once_per_other_tag_out_of_the_tags_notes()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Three notes carry stats or a tag under it: Bayesian Inference
+        // (stats/bayesian, learning/probabilistic, learning/supervised), Linear
+        // Regression (stats, learning/supervised, data/tabular), Survey Sampling
+        // (stats/frequentist, data/tabular, data/survey, learning/supervised).
+        #expect(
+            index.coOccurringTags(with: "stats") == [
+                TagCoOccurrence(tag: "learning", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "learning/supervised", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "data", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/tabular", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/survey", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 3),
+            ])
+    }
+
     @Test func untagged_is_exactly_the_notes_with_no_tag_in_frontmatter_or_body() throws {
         let library = try Library.open(at: Fixtures.library("obsidian-vault"))
         let index = Index.build(from: library)

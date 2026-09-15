@@ -285,6 +285,45 @@ public struct Index: Sendable {
         return notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }.map(\.note)
     }
 
+    /// The other tags carried by the notes tagged `tag` (or a tag under it),
+    /// each with how many of those notes carry it, sorted by count
+    /// descending and then by name (CONTEXT.md § Tag page). A note counts
+    /// once per other tag — carrying `#a/b` and `#a/c` is one note under
+    /// `a`, and one each under `a/b` and `a/c` — and `tag`'s own ancestors
+    /// and descendants are left out, since they co-occur by construction.
+    /// Every entry is here; a tag no note carries yields none.
+    public func coOccurringTags(with tag: String) -> [TagCoOccurrence] {
+        let ancestry = TagPath.segmentIdentities(of: tag)
+        let carriers = notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }
+        var counts: [String: Int] = [:]
+        var spellings: [String: String] = [:]
+        for carrier in carriers {
+            let carried = Set(carrier.tags.flatMap(\.ancestorsAndSelf))
+            for other in carried where !other.isRelated(to: ancestry) {
+                counts[other.identity, default: 0] += 1
+                spellings[other.identity] = other.displaySpelling
+            }
+        }
+        return counts.map { identity, count in
+            TagCoOccurrence(tag: spellings[identity] ?? identity, count: count, outOf: carriers.count)
+        }
+        .sorted(by: Self.isInCoOccurrenceOrder)
+    }
+
+    /// More carriers first; then the file tree's order by tag, falling back
+    /// to the spelling itself so two tags that order the same (`01`, `1`)
+    /// come out the same every build.
+    private static func isInCoOccurrenceOrder(_ entry: TagCoOccurrence, _ other: TagCoOccurrence)
+        -> Bool
+    {
+        guard entry.count == other.count else { return entry.count > other.count }
+        return switch entry.tag.localizedStandardCompare(other.tag) {
+        case .orderedAscending: true
+        case .orderedDescending: false
+        case .orderedSame: entry.tag < other.tag
+        }
+    }
+
     /// A parsed note's tags: frontmatter first, then the body in order of
     /// appearance, each identity once — the parser leaves repeats in.
     private static func tags(in parsed: ParsedNote, spellings: inout SegmentSpellings)

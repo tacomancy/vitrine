@@ -2,7 +2,7 @@
 /// is the segments `parent` and `child`, each a topic with its own identity
 /// and display spelling. Two tags with one identity have one spelling, so
 /// equality is identity.
-struct TagPath: Equatable, Sendable {
+struct TagPath: Hashable, Sendable {
     /// The segments in order, root first. Never empty.
     let segments: [TagSegment]
     /// The whole tag lowercased, segments joined by `/` — its identity, and a
@@ -20,9 +20,19 @@ struct TagPath: Equatable, Sendable {
             TagSegment(identity: segment.lowercased(), name: spellings.spelling(of: segment))
         }
         guard !segments.isEmpty else { return nil }
+        self.init(segments: segments)
+    }
+
+    private init(segments: [TagSegment]) {
         self.segments = segments
         identity = Self.joined(segments.map(\.identity))
         displaySpelling = Self.joined(segments.map(\.name))
+    }
+
+    /// Every tag a note carrying this one is counted under: its root
+    /// first, then each longer prefix, ending with this tag itself.
+    var ancestorsAndSelf: [TagPath] {
+        segments.indices.map { TagPath(segments: Array(segments[...$0])) }
     }
 
     /// Whether a note carrying this tag is counted under the tag whose
@@ -30,6 +40,14 @@ struct TagPath: Equatable, Sendable {
     /// it. An empty `ancestry` is no tag and counts nothing.
     func isCounted(under ancestry: [String]) -> Bool {
         !ancestry.isEmpty && segments.map(\.identity).starts(with: ancestry)
+    }
+
+    /// Whether this tag is the one whose segment identities are `ancestry`,
+    /// or an ancestor or descendant of it — the tags that co-occur with it
+    /// by construction (CONTEXT.md § Tag page).
+    func isRelated(to ancestry: [String]) -> Bool {
+        let identities = segments.map(\.identity)
+        return identities.starts(with: ancestry) || ancestry.starts(with: identities)
     }
 
     /// The character between segments as written.
