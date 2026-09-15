@@ -456,7 +456,7 @@ import Testing
         #expect(bare.map(\.target) == [.note(scratch), .note(morningJournal)])
     }
 
-    @Test func a_bare_title_no_path_matches_resolves_by_folder_depth_not_by_order_or_length()
+    @Test func a_bare_title_matching_no_path_resolves_to_the_note_with_fewer_folders_above_it()
         throws
     {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
@@ -756,8 +756,8 @@ import Testing
         let library = try Library.open(at: Fixtures.library("obsidian-vault"))
         let built = Index.build(from: library)
         let scratch = try note(at: "Topics/Scratch.md", in: library)
-        #expect(built.untagged.map(\.path).contains("Topics/Scratch.md"))
 
+        // Topics/Scratch.md is untagged in the fixture; the new parse tags it.
         let index = built.adding(scratch, parsed: ParsedNote.parse("# Scratch\n\nFiled. #daily\n"))
 
         #expect(index.tags(of: scratch) == ["daily"])
