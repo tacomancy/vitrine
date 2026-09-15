@@ -4,6 +4,7 @@ import SwiftUI
 /// The FILES tree: the library's folders, notes, and attachments as they sit
 /// on disk, in the order the `Library` seam gives. Folders expand and
 /// collapse; notes and folders select; attachments are shown and nothing more.
+/// It scrolls with the rest of the sidebar, not on its own.
 struct FileTree: View {
     let root: Folder
     let selection: NotesSelection
@@ -11,11 +12,9 @@ struct FileTree: View {
     @Binding var expandedFolders: Set<String>
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(visibleEntries) { entry in
-                    row(for: entry)
-                }
+        LazyVStack(spacing: 0) {
+            ForEach(visibleEntries) { entry in
+                row(for: entry)
             }
         }
     }

@@ -1,26 +1,41 @@
+import Index
 import Library
 import SwiftUI
 
-/// The sidebar, directly on `bg`: LIBRARY with All Notes, FILES with the
-/// file tree, and the SCOUTS stub pinned at the bottom (ADR 0005). With no
-/// library open it shows All Notes 0, disabled — the one place that color is
-/// right, because there genuinely is nothing.
+/// The sidebar, directly on `bg`: LIBRARY with All Notes and Untagged, FILES
+/// with the file tree, TOPICS with the tag tree — scrolling as one — and the
+/// SCOUTS stub pinned at the bottom (ADR 0005). With no library open it
+/// shows All Notes 0, disabled — the one place that color is right, because
+/// there genuinely is nothing.
 struct Sidebar: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
 
     @State private var expandedFolders: Set<String> = []
+    @State private var expandedTags: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Library")
-                .padding(.top, SidebarMetrics.topInset)
-            allNotes
-            if let library = currentLibrary.library {
-                sectionLabel("Files")
-                    .padding(.top, SidebarMetrics.sectionSpacing)
-                FileTree(
-                    root: library.root, selection: selection, expandedFolders: $expandedFolders)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionLabel("Library")
+                        .padding(.top, SidebarMetrics.topInset)
+                    allNotes
+                    if let library = currentLibrary.library, let index = currentLibrary.index {
+                        untagged(in: index)
+                        sectionLabel("Files")
+                            .padding(.top, SidebarMetrics.sectionSpacing)
+                        FileTree(
+                            root: library.root, selection: selection,
+                            expandedFolders: $expandedFolders)
+                        sectionLabel("Topics")
+                            .padding(.top, SidebarMetrics.sectionSpacing)
+                        TagTree(
+                            roots: index.tagTree, selection: selection,
+                            expandedTags: $expandedTags)
+                    }
+                }
+                .padding(.bottom, SidebarMetrics.sectionSpacing)
             }
             Spacer(minLength: 0)
             ScoutsStub()
@@ -29,6 +44,7 @@ struct Sidebar: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onChange(of: currentLibrary.library) {
             expandedFolders = []
+            expandedTags = []
         }
     }
 
@@ -52,6 +68,16 @@ struct Sidebar: View {
             SidebarRow(
                 glyph: "books.vertical", name: "All Notes", count: 0, depth: 0,
                 disclosure: .none, emphasis: .disabled, select: nil)
+        }
+    }
+
+    private func untagged(in index: Index) -> some View {
+        SidebarRow(
+            glyph: "tray", name: "Untagged", count: index.untagged.count, depth: 0,
+            disclosure: .none,
+            emphasis: selection.sidebar == .untagged ? .selected : .normal
+        ) {
+            selection.selectUntagged()
         }
     }
 }

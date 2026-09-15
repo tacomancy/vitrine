@@ -47,25 +47,45 @@ package's lines by source path — `xccov` files them under the package
 target or its test target depending on the run (ADR 0006, second Update).
 ADRs 0001–0012 are Accepted.
 
-**The second feature is under way (issue #18, parse notes and browse by
-tag): ① and ② built.** The `NoteParsing` seam (issue #19) is
-`ParsedNote.parse(text)`: frontmatter via Yams (ADR 0011), body tags,
-links, and embeds from a fence-aware scanner, every token with its UTF-8
-range — 38 inline-string tests in `NoteParsingTests`, and the package's
-first dependency. The tag grammar (`CONTEXT.md` § Tags) lives once, in
-`TagGrammar`, and both readers use it: a frontmatter value that fails it
-is dropped, as Obsidian does (issue #36). The `Index` seam (issue #20)
-is `Index.build(from: Library)`: every note read and parsed once, tags
+**The second feature is built (issue #18, parse notes and browse by
+tag).** The `NoteParsing` seam (issue #19) is `ParsedNote.parse(text)`:
+frontmatter via Yams (ADR 0011), body tags, links, and embeds from a
+fence-aware scanner, every token with its UTF-8 range — 38 inline-string
+tests in `NoteParsingTests`, and the package's first dependency. The tag
+grammar (`CONTEXT.md` § Tags) lives once, in `TagGrammar`, and both
+readers use it: a frontmatter value that fails it is dropped, as Obsidian
+does (issue #36). The `Index` seam (issue #20) is
+`Index.build(from: Library)`: every note read and parsed once, tags
 aggregated per segment with the display spelling first seen in library
 display order (`CONTEXT.md` § Tags), answering `tags(of:)`, `tagTree`,
 `notes(tagged:)`, `untagged`, and `skipped` — a value, in memory only
-(ADR 0012), holding nothing about links or embeds (ADR 0003). Its 12
-tests in `IndexTests` open the Obsidian fixture through `Library` and
-assert counts written by hand (PR #34, plus `Topics/Agents.md` from
-#20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
-Index-seam Update).
+(ADR 0012); links and embeds waited for the spec that needed them
+(ADR 0003, then #26 below). Its 12 tag tests in `IndexTests` open the
+Obsidian fixture through `Library` and assert counts written by hand
+(PR #34, plus `Topics/Agents.md` from #20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
+Index-seam Update). The screen (issue #21) is glue at the seam:
+`CurrentLibrary` builds the Index synchronously with every successful
+open, `SidebarSelection` grew Untagged and a tag so the sidebar stays one
+scope, `TagTree` draws TOPICS the way `FileTree` draws FILES, and every
+`NoteRow` carries its tag row — nothing in the app target parses or
+aggregates, and `docs/visual-implementation.md` records the translation.
 
-**The third feature is under way (issue #38, edit notes, create notes,
+**The third feature's seam work is built (issue #25, follow links and
+see backlinks; ticket #26).** `NoteParsing` reads wikilinks out of every
+frontmatter string value — each a `Link` flagged `isFromFrontmatter`,
+placed by Yams' scalar marks — five additive tests, none existing
+touched. `Index.build` resolves every link and embed per `CONTEXT.md`
+§ Links (path → title → alias → attachment name, case-insensitively;
+Markdown links relative to the note; external excluded; same-title ties
+by depth then display order, ADR 0016) and answers `links(from:)`,
+`backlinks(to:)` — one per linking note, sorted by title, with one
+context line per linking line — and `unresolvedLinks`; 18 tests in
+`IndexTests`, 15 against the Obsidian fixture as blessed and 3 on
+temporary copies of it. Against the real vault: 304 links, 31 from
+frontmatter, 20 to attachments, 57 unresolved — 45 of those are
+`[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
+
+**The fourth feature is under way (issue #38, edit notes, create notes,
 and follow external changes): ① built.** `Library` now writes (issue
 #39): `write(_:to:)` overwrites a note in place — same inode, bytes as
 given, line endings included (ADR 0014); `createNote(named:in:)`,
@@ -81,11 +101,12 @@ when its consumer is cancelled. FSEvents is named only there. Every
 (`OtherTool`, in `Fixtures`), since the own-write mark is per process.
 Nothing on screen consumes any of this yet.
 
-Next: #21 the Tags tab, and #38's ② (`Index` incremental API and
-`NoteParsing` structure). `/implement` per ticket on
-its own branch, clearing context between tickets. Update this section
-whenever the answer to "where are we?" changes — it's the first thing a
-fresh agent reads.
+Next: #27 the clickable body, rail, and history — the last ticket of
+#25 — and #38's ② (`Index` incremental API and `NoteParsing`
+structure), which needs only #20. `/implement` per ticket on its own
+branch, clearing context between tickets. Update this section whenever
+the answer to "where are we?" changes — it's the first thing a fresh
+agent reads.
 
 ## Engineering discipline
 

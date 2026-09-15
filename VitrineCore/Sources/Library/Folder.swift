@@ -21,6 +21,13 @@ extension Folder {
         notes + folders.flatMap(\.allNotes)
     }
 
+    /// This folder's attachments followed by each subfolder's, recursively,
+    /// in the same tree order — what a link to an attachment's filename is
+    /// resolved against.
+    public var allAttachments: [Attachment] {
+        attachments + folders.flatMap(\.allAttachments)
+    }
+
     /// This tree with the folder at `path` (this one, for its own path)
     /// replaced by what `transform` makes of it. A path outside the tree
     /// changes nothing.
