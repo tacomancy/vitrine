@@ -55,3 +55,21 @@ the three size cuts and is the reference for using the mark. The iconset is
 wired into the app's `AppIcon` set; the menu-bar template images stay in the
 package unused, since the menu-bar extra is Quick capture (§ Reserved). Only
 the screenshot PNGs still carry the old name. The brief is unchanged.
+
+## Update (2026-09-15): v1 layout deviations from the mockups, on record
+
+Two v1 screens knowingly depart from their mockup's layout while staying
+inside the brief. Both are the owner's choice, both are recorded so they
+are not "corrected" back:
+
+- **Window chrome (screen 01).** Panes are floating surfaces with 8 px
+  gutters and no hairlines, not hard-edged bordered panes — ADR 0008's
+  Update, from the `prototype/window-chrome` variants.
+- **Tag page (screen 09).** In v1 the page shows the tag, its note count as
+  a link into the Notes tab, child-tag chips, and co-occurrence — and **no
+  note list**, which would duplicate the Notes tab's TOPICS scope. The
+  description, the segmented row, the rail, and the toolbar are reserved or
+  parked. `CONTEXT.md` § Tag page holds the definition.
+
+The rule stands: match the mockup where the feature exists in v1, unless a
+deviation is decided and written down here or in the ADR that decided it.
