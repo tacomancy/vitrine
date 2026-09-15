@@ -88,6 +88,9 @@ the caller names — `fg-muted` for section labels, `accent` for SOON).
 `Radius.small` (2), `.medium` (3), `.large` (5). Five is the maximum
 anywhere (brief, rule 4). Floating panes use `large`; the active tab's top
 corners and the SOON badge use `medium`; square tab markers use `small`.
+Every drawn border is `LineWidth.border`, 1 px, in whichever token it
+takes — `line-control` on a control, `info-line` on a chip,
+`accent-quiet` on the badge, `primary` on the first-run card.
 
 ## Focus
 
@@ -249,7 +252,9 @@ a filter chip (§ Filter chips): the row is one attributed `Text` whose
 tag runs carry a `vitrine-tag://N` link, `N` the tag's index in the row,
 over an `openURL` action that adds the chip — one `Text`, so the line
 stays one ellipsised line, and `.tint(link)`, since `Text` colors a link
-from the tint. Nothing in it navigates. The date reads as the mockup's column: the time
+from the tint. Nothing in it navigates. `TokenURL` is the one place a
+token's URL — its kind as the scheme, its index as the host — is built
+and read, for the tag row and the editor alike. The date reads as the mockup's column: the time
 for a note modified today, `Aug 28` for one modified this year, the full
 date for anything older. Selected, the row is the selected-row pill and
 its title steps up from `fg-secondary`, regular, to `fg`, semibold; the
@@ -277,12 +282,13 @@ at `caption`/medium, both in `info`, padded 7 px each side, the `×`
 5 px after the tag. The `×` is the chip's one control —
 `NotesSelection.removeChip(at:)` — and the brass ring around the whole
 chip when it is focused (rule 7); its accessibility label is
-*Remove #tag*. The chip shows its tag as the tag tree spells it —
-`TagChoice.all(in:)` flattens `Index.tagTree` to every tag's path and
-display spelling in tree order — or, for a path the tree no longer has,
-the path itself. A chip's identity is the tag's path, the tag lowercased
-(CONTEXT.md § Tags): `NotesSelection.addChip(for:)` takes a tag as
-displayed or as written and lowercases it, so a click on
+*Remove #tag*. The chip shows its tag as the tag tree spells it — a
+`TagTreeNode`'s `displaySpelling`, found in `FilterChipRow.everyTag`,
+the tree flattened to every node in tree order — or, for a path the
+tree no longer has, the path itself. A chip's identity is the tag's
+path: `NotesSelection.addChip(forTag:)` takes a tag as displayed, as
+written, or as a node's path and asks `Index.tagPath(of:)` for it
+(CONTEXT.md § Tags: lowercased, empty segments dropped), so a click on
 `#Reading/Notes` in a row and a pick of `reading/notes` in the popover
 are one chip, and adding it again is nothing. Chips stay through every
 scope change — selecting the same tag in the sidebar included — and go
@@ -300,15 +306,17 @@ placeholdered *Tag* at `compact` in `fg`, padded 4 × 8 px on
 border) at `Radius.medium`, focused on appearance with the brass ring
 around it. The list is the library's tags in tag tree order, kept to
 those whose path contains what is typed, case-insensitively — a path is
-lowercase — as `TagChoiceRow`s: the sidebar's 24 px row with the `#`
-glyph in `fg-muted` and the display spelling at `compact` in
-`fg-secondary`, up to ten rows before it scrolls, or *No tags match.*
-at `caption` in `fg-muted` when nothing does. ↑ and ↓ move a
-**highlight** over the rows not yet chipped — the selected-row pill,
-its text `fg`, its glyph muted rather than brass, since it is the
-keyboard's place in the list and not a nav item — stopping at either
-end, and the list scrolls to keep it in view; it starts on the first
-such row and returns there as the query changes. ↩ adds the highlighted
+lowercase — each a `SidebarRow` with the `#` glyph and the tag's whole
+display spelling (the spec's "tag paths" shown as the sidebar spells
+them) and no count, up to ten rows before it scrolls, or *No tags
+match.* at `caption` in `fg-muted`, padded 6 × 12 px, when nothing
+does. ↑ and ↓ move a **highlight** over the rows not yet chipped —
+`SidebarRow.Emphasis.highlighted`: the selected-row pill, its text
+`fg`, its glyph muted rather than brass, since it is the keyboard's
+place in the list and not a nav item, as the palette's highlighted note
+will be — stopping at either end, and the list scrolls to keep it in
+view; it starts on the first such row and returns there as the query
+changes. ↩ adds the highlighted
 tag and closes; a click on a row adds that one and closes; Esc closes.
 A tag already chipped is `fg-disabled` throughout and inert, and the
 highlight passes over it. No counts, no fuzzy matching, and nothing
@@ -387,7 +395,7 @@ not announce, such as an undo (ADR 0013, Update).
 | heading (line) | semibold at its level's size | — (`fg`) |
 | fenced code block, inline code span | mono | `fg-secondary` on `bg-sunken` |
 | body tag | — | `link`; the `.link` attribute is `vitrine-tag://N`, `N` its index in the parse's `bodyTags` — a tag inside a link's own token keeps the link's |
-| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N`, `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
+| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N` (`TokenURL`), `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
 | unresolved link or embed | — | `fg-muted`; a single dashed `.underlineStyle` in the storage, and the same `.link` — following it creates the note |
 
 Later rows win inside earlier ones: a link in frontmatter is `link`, code

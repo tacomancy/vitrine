@@ -1,3 +1,4 @@
+import Index
 import Library
 import Observation
 
@@ -47,18 +48,18 @@ final class NotesSelection {
         sidebar = .folder(folder)
     }
 
-    /// Adds a chip for `tag` — a tag without its `#`, as displayed or as
-    /// written — by its path, the tag lowercased (CONTEXT.md § Tags), so a
-    /// click on `Reading/Notes` and a pick of `reading/notes` are one chip.
-    /// A tag already chipped adds nothing.
-    func addChip(for tag: String) {
-        let path = tag.lowercased()
-        guard !chips.contains(path) else { return }
+    /// Adds a chip for `tag` — a tag without its `#`, as displayed, as
+    /// written, or as a tag tree node's path — at the path the Index gives
+    /// it, so a click on `Reading/Notes` and a pick of `reading/notes` are
+    /// one chip. A tag already chipped, or a spelling that is no tag, adds
+    /// nothing.
+    func addChip(forTag tag: String) {
+        guard let path = Index.tagPath(of: tag), !chips.contains(path) else { return }
         chips.append(path)
     }
 
     /// The chip's `×`: the list widens by that one tag.
-    func removeChip(at path: String) {
+    func removeChip(_ path: String) {
         chips.removeAll { $0 == path }
     }
 

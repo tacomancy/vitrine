@@ -82,7 +82,7 @@ struct Editor: View {
                     height: Self.pagePadding.bottom - Self.ringInset),
                 onEdit: buffer.edit,
                 follow: { destination in follow(destination, in: library) },
-                addChip: selection.addChip(for:),
+                addChip: selection.addChip(forTag:),
                 onFocusChange: { isFocused in
                     isTextFocused = isFocused
                     // ADR 0014: a save at once on focus loss.

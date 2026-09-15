@@ -10,10 +10,6 @@ struct TagRow: View {
     let tags: [String]
     let addChip: (String) -> Void
 
-    /// A tag's URL is this scheme and its index in `tags`, so the click
-    /// routes back here and nowhere near the system.
-    private static let scheme = "vitrine-tag"
-
     var body: some View {
         Text(attributedTags)
             .font(.mono(.label, weight: .regular))
@@ -23,10 +19,10 @@ struct TagRow: View {
             .environment(
                 \.openURL,
                 OpenURLAction { url in
-                    guard url.scheme == Self.scheme, let index = url.host().flatMap(Int.init),
-                        tags.indices.contains(index)
+                    guard let token = TokenURL.parse(url), token.kind == .tag,
+                        tags.indices.contains(token.index)
                     else { return .systemAction }
-                    addChip(tags[index])
+                    addChip(tags[token.index])
                     return .handled
                 })
     }
@@ -36,7 +32,7 @@ struct TagRow: View {
         for (index, tag) in tags.enumerated() {
             if index > 0 { attributed += AttributedString(" ") }
             var token = AttributedString("#" + tag)
-            token.link = URL(string: "\(Self.scheme)://\(index)")
+            token.link = TokenURL.url(for: .tag, index: index)
             attributed += token
         }
         return attributed

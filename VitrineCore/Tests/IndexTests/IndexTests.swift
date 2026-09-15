@@ -74,6 +74,29 @@ import Testing
         #expect(reading.children.map(\.name) == ["Notes", "paper"])
     }
 
+    @Test func a_nodes_display_spelling_is_its_segments_spellings_joined() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Written `#Reading/Notes` in Topics/Interpretability, but `#reading/paper`
+        // came first in Reading List: the whole tag as the sidebar spells it.
+        let reading = try #require(index.tagTree.first { $0.path == "reading" })
+        #expect(reading.displaySpelling == "reading")
+        #expect(reading.children.map(\.displaySpelling) == ["reading/Notes", "reading/paper"])
+        let interp = try #require(index.tagTree.first { $0.path == "interp" })
+        let saes = try #require(interp.children.first { $0.path == "interp/saes" })
+        #expect(saes.children.map(\.displaySpelling) == ["interp/saes/dictionary"])
+    }
+
+    @Test func a_tags_path_is_the_tag_lowercased_with_empty_segments_dropped() {
+        #expect(Index.tagPath(of: "Reading/Notes") == "reading/notes")
+        #expect(Index.tagPath(of: "data_science") == "data_science")
+        // CONTEXT.md § Tags: an empty segment is no segment, and a tag with
+        // none is not a tag.
+        #expect(Index.tagPath(of: "a//b") == "a/b")
+        #expect(Index.tagPath(of: "/") == nil)
+    }
+
     @Test func notes_tagged_returns_carriers_of_the_tag_or_any_descendant_in_display_order()
         throws
     {

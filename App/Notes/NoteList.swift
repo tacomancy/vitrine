@@ -15,8 +15,8 @@ struct NoteList: View {
             if let library = currentLibrary.library, let index = currentLibrary.index {
                 let notes = notes(in: library, index: index)
                 FilterChipRow(
-                    chips: selection.chips, choices: TagChoice.all(in: index.tagTree),
-                    add: selection.addChip(for:), remove: selection.removeChip(at:)
+                    chips: selection.chips, tagTree: index.tagTree,
+                    add: selection.addChip(forTag:), remove: selection.removeChip
                 )
                 .padding(.top, NoteListMetrics.headerPaddingVertical)
                 .padding(.horizontal, NoteListMetrics.headerInset)
@@ -32,7 +32,7 @@ struct NoteList: View {
                                 note: note, tags: index.tags(of: note),
                                 isSelected: selection.openNote == note,
                                 open: { selection.open(note) },
-                                addChip: selection.addChip(for:))
+                                addChip: selection.addChip(forTag:))
                         }
                     }
                 }

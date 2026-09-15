@@ -1,3 +1,4 @@
+import Index
 import SwiftUI
 
 /// The `+ filter` popover: a field and the library's tags in tag tree
@@ -6,7 +7,8 @@ import SwiftUI
 /// highlighted or clicked one, Esc closes; a tag already chipped is shown
 /// disabled. No counts, no fuzzy matching (spec #72).
 struct FilterPopover: View {
-    let choices: [TagChoice]
+    /// Every tag in the library, in tag tree order.
+    let tags: [TagTreeNode]
     /// The chips as tag paths — the choices shown disabled.
     let chips: [String]
     /// Adds the tag at this path as a chip; the caller closes the popover.
@@ -23,7 +25,8 @@ struct FilterPopover: View {
     /// Between the field and the first row.
     private static let fieldGap: CGFloat = 6
     private static let fieldPadding = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
-    private static let fieldBorderWidth: CGFloat = 1
+    /// Around *No tags match.*, where the rows would be.
+    private static let emptyPadding = EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
     /// The list shows this many rows before it scrolls.
     private static let visibleRows: CGFloat = 10
 
@@ -47,9 +50,9 @@ struct FilterPopover: View {
 
     /// The tags whose path contains the query, case-insensitively — a path
     /// is lowercase — in tag tree order; every tag with nothing typed.
-    private var shown: [TagChoice] {
+    private var shown: [TagTreeNode] {
         let needle = query.lowercased()
-        return needle.isEmpty ? choices : choices.filter { $0.path.contains(needle) }
+        return needle.isEmpty ? tags : tags.filter { $0.path.contains(needle) }
     }
 
     /// The shown tags that are not chips yet: what the highlight walks.
@@ -67,7 +70,7 @@ struct FilterPopover: View {
             .background(Color(.bgSurface), in: RoundedRectangle(cornerRadius: Radius.medium))
             .overlay {
                 RoundedRectangle(cornerRadius: Radius.medium)
-                    .strokeBorder(Color(.lineControl), lineWidth: Self.fieldBorderWidth)
+                    .strokeBorder(Color(.lineControl), lineWidth: LineWidth.border)
             }
             .brassFocusRing(isFocused: isFieldFocused, cornerRadius: Radius.medium)
             .onSubmit(addHighlighted)
@@ -88,17 +91,13 @@ struct FilterPopover: View {
             Text("No tags match.")
                 .font(.sans(.caption, weight: .regular))
                 .foregroundStyle(Color(.fgMuted))
-                .padding(.horizontal, SidebarMetrics.labelInset)
-                .padding(.vertical, Self.fieldGap)
+                .padding(Self.emptyPadding)
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(shown) { choice in
-                            TagChoiceRow(choice: choice, emphasis: emphasis(of: choice)) {
-                                add(choice.path)
-                            }
-                            .id(choice.path)
+                        ForEach(shown, id: \.path) { tag in
+                            row(for: tag)
                         }
                     }
                 }
@@ -110,9 +109,25 @@ struct FilterPopover: View {
         }
     }
 
-    private func emphasis(of choice: TagChoice) -> TagChoiceRow.Emphasis {
-        if chips.contains(choice.path) { return .chipped }
-        return choice.path == highlighted ? .highlighted : .normal
+    /// A sidebar row with the tag's whole display spelling and no count:
+    /// highlighted under the keyboard, disabled and inert once chipped.
+    @ViewBuilder
+    private func row(for tag: TagTreeNode) -> some View {
+        if chips.contains(tag.path) {
+            SidebarRow(
+                glyph: "number", name: tag.displaySpelling, count: nil, depth: 0,
+                disclosure: .none, emphasis: .disabled, select: nil
+            )
+            .accessibilityValue("already a filter")
+        } else {
+            SidebarRow(
+                glyph: "number", name: tag.displaySpelling, count: nil, depth: 0,
+                disclosure: .none, emphasis: tag.path == highlighted ? .highlighted : .normal
+            ) {
+                add(tag.path)
+            }
+            .id(tag.path)
+        }
     }
 
     /// ↑ ↓: the highlight moves one selectable tag, stopping at either end.

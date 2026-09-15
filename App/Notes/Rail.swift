@@ -69,7 +69,7 @@ struct Rail: View {
                 .font(.sans(.caption, weight: .regular))
                 .foregroundStyle(Color(.fgSecondary))
             if !tags.isEmpty {
-                TagRow(tags: tags, addChip: selection.addChip(for:))
+                TagRow(tags: tags, addChip: selection.addChip(forTag:))
             }
             Text("\(links.count) links · \(backlinks) backlinks · \(unresolved) unresolved")
                 .font(.mono(.label, weight: .regular))

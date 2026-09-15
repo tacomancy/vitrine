@@ -146,15 +146,6 @@ struct NoteTextView: NSViewRepresentable {
         // window's, emptied on a note switch.
         private let undoManager = UndoManager()
 
-        /// A link's storage attribute: this scheme and its index in `links`,
-        /// a URL because AppKit expects one there — its Copy Link and Open
-        /// Link would cast — and the scheme is nothing the system opens.
-        private static let linkScheme = "vitrine-link"
-        /// A tag's, likewise: this scheme and its index in `tags`. A link
-        /// attribute because that is what the view tracks a click on
-        /// without moving the caret; following it adds a chip.
-        private static let tagScheme = "vitrine-tag"
-
         /// What every character carries unless a styled range says otherwise.
         static let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: EditorFont.body,
@@ -245,15 +236,15 @@ struct NoteTextView: NSViewRepresentable {
             renderIfNeeded()
         }
 
+        // A tag is a link in the storage too (`TokenURL`): the one click the
+        // view tracks without moving the caret, so the edit is undisturbed.
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            guard let url = link as? URL, let index = url.host().flatMap(Int.init) else {
-                return false
-            }
-            switch url.scheme {
-            case Self.linkScheme where links.indices.contains(index):
-                follow(links[index].destination)
-            case Self.tagScheme where tags.indices.contains(index):
-                addChip(tags[index])
+            guard let url = link as? URL, let token = TokenURL.parse(url) else { return false }
+            switch token.kind {
+            case .link where links.indices.contains(token.index):
+                follow(links[token.index].destination)
+            case .tag where tags.indices.contains(token.index):
+                addChip(tags[token.index])
             default:
                 return false
             }
@@ -320,27 +311,27 @@ struct NoteTextView: NSViewRepresentable {
                     storage.addAttribute(.font, value: span.font, range: range)
                 }
             }
-            var links: [NSRange: URL] = [:]
+            var linkURLs: [NSRange: URL] = [:]
             var underlines: [NSRange: Int] = [:]
             for styled in styledRanges {
                 if case .link(let index, let isResolved) = styled.kind {
-                    links[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                    linkURLs[styled.range] = TokenURL.url(for: .link, index: index)
                     if !isResolved {
                         underlines[styled.range] = StyledRange.unresolvedUnderline
                     }
                 }
             }
-            let linkTokens = Array(links.keys)
+            let linkTokens = Array(linkURLs.keys)
             for styled in styledRanges {
                 guard case .tag(let index) = styled.kind else { continue }
                 let isInsideLink = linkTokens.contains {
                     NSIntersectionRange($0, styled.range).length > 0
                 }
                 if !isInsideLink {
-                    links[styled.range] = URL(string: "\(Self.tagScheme)://\(index)")
+                    linkURLs[styled.range] = TokenURL.url(for: .tag, index: index)
                 }
             }
-            reconcile(.link, to: links, in: storage)
+            reconcile(.link, to: linkURLs, in: storage)
             reconcile(.underlineStyle, to: underlines, in: storage)
         }
 

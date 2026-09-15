@@ -11,8 +11,6 @@ struct FilterChip: View {
 
     @FocusState private var isFocused: Bool
 
-    private static let borderWidth: CGFloat = 1
-
     var body: some View {
         HStack(spacing: NoteListMetrics.chipRemoveSpacing) {
             Text("#" + tag)
@@ -32,7 +30,7 @@ struct FilterChip: View {
         .background(Color(.infoBg), in: RoundedRectangle(cornerRadius: Radius.medium))
         .overlay {
             RoundedRectangle(cornerRadius: Radius.medium)
-                .strokeBorder(Color(.infoLine), lineWidth: Self.borderWidth)
+                .strokeBorder(Color(.infoLine), lineWidth: LineWidth.border)
         }
         .brassFocusRing(isFocused: isFocused, cornerRadius: Radius.medium)
     }
