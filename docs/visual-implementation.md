@@ -258,6 +258,8 @@ delimiters included, as a `Text(verbatim:)` at `body` (14 px — the spec's
 15 px is off the scale, and story 28 asks for the brief's body size) with
 6 px line spacing for the mockup's 1.65 line height, in `fg`, selectable
 and copyable, in a measure of at most 720 px aligned to the leading edge.
+The text view is keyed by the note's path, so a selection made in one
+note is not carried, clamped, over the next.
 A note that cannot be read shows `LibraryError`'s sentence in `danger` at
 the same size in place of the text. The read happens each time the pane
 draws, so selecting a note again after it has changed on disk shows what
@@ -277,8 +279,8 @@ a link run from the tint and not from the run's own color — and carries a
 `vitrine-link://N` URL, `N` its index in the body's links, that the view's
 own `OpenURLAction` intercepts: a note opens in the editor and pushes
 history, an attachment opens with its default app and an external link
-with the system's handler, both through the `openURL` the editor read
-above the override. **An unresolved link is `fg-muted` with a dashed
+with the system's handler, both through `NSWorkspace.open` — the
+`openURL` environment refuses a file URL. **An unresolved link is `fg-muted` with a dashed
 underline** (`Text.LineStyle(pattern: .dash)`) and carries no URL: it is
 not a link to anywhere, so clicking it does nothing until editing offers
 to create the note. Tags in the body are neither styled nor clickable.

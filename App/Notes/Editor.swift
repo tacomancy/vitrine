@@ -1,3 +1,4 @@
+import AppKit
 import Index
 import Library
 import SwiftUI
@@ -11,10 +12,6 @@ import SwiftUI
 struct Editor: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
-
-    /// The system's handler, read above `NoteBody`'s own — what an attachment
-    /// or an external link opens with.
-    @Environment(\.openURL) private var openWithSystem
 
     private static let breadcrumbHeight: CGFloat = 34
     private static let breadcrumbInset: CGFloat = 16
@@ -65,6 +62,10 @@ struct Editor: View {
                         .lineSpacing(Self.textLineSpacing)
                         .foregroundStyle(Color(.fg))
                         .textSelection(.enabled)
+                        // A fresh view per note: the same `Text` given new
+                        // content keeps its selection, so a range selected in
+                        // one note would show, clamped, over the next.
+                        .id(note.path)
                     case .failure(let error):
                         Text(error.localizedDescription)
                             .foregroundStyle(Color(.danger))
@@ -85,9 +86,12 @@ struct Editor: View {
     private func follow(_ destination: BodyLink.Destination, in library: Library) {
         switch destination {
         case .note(let note): selection.open(note)
+        // `NSWorkspace` directly, not the `openURL` environment: that one
+        // refuses a file URL. False when no app claims the file or scheme,
+        // and then nothing opens, as it would not from Finder either.
         case .attachment(let attachment):
-            openWithSystem(library.rootURL.appending(path: attachment.path))
-        case .external(let url): openWithSystem(url)
+            _ = NSWorkspace.shared.open(library.rootURL.appending(path: attachment.path))
+        case .external(let url): _ = NSWorkspace.shared.open(url)
         case .unresolved: break
         }
     }
