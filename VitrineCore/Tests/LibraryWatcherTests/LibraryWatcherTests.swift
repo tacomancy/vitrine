@@ -5,19 +5,57 @@ import LibraryWatcher
 import Testing
 
 @Suite(.timeLimit(.minutes(1))) struct LibraryWatcherTests {
-    /// Long enough for the file system to report a change and the watcher to
-    /// coalesce it; short enough that a suite of these stays quick.
+    /// The most a test waits for the first change it expects. Generous on
+    /// purpose: a busy CI runner reports a file event seconds late, and a
+    /// test that expects a change pays this only when it never comes.
+    private static let deadline: Duration = .seconds(5)
+    /// How long after a change the rest of its batch is given to arrive.
+    /// The watcher coalesces within 100 ms (ADR 0014), so this is ample.
+    private static let quiet: Duration = .milliseconds(300)
+    /// The period in which a test that expects no change must see none.
+    /// There is nothing to wait for, so this is the whole of its wait.
     private static let settling: Duration = .seconds(1)
 
-    /// Every change the watcher reports in the next `settling` period, after
-    /// which the consuming task is cancelled.
+    /// The changes the watcher reports for what the test just did: the
+    /// first within `deadline`, then whatever else lands in the `quiet`
+    /// period after it; empty when nothing arrives in time.
     private func changes(from stream: AsyncStream<LibraryChange>) async -> [LibraryChange] {
+        await collect(from: stream, firstWithin: Self.deadline, thenFor: Self.quiet)
+    }
+
+    /// Every change the watcher reports in the next `settling` period, for
+    /// the tests that expect none.
+    private func changesInSettlingPeriod(from stream: AsyncStream<LibraryChange>) async
+        -> [LibraryChange]
+    {
+        await collect(from: stream, firstWithin: Self.settling, thenFor: .zero)
+    }
+
+    private func collect(
+        from stream: AsyncStream<LibraryChange>, firstWithin deadline: Duration,
+        thenFor quiet: Duration
+    ) async -> [LibraryChange] {
+        let (arrivals, arrival) = AsyncStream<Void>.makeStream()
         let consumer = Task {
             var collected: [LibraryChange] = []
-            for await change in stream { collected.append(change) }
+            for await change in stream {
+                collected.append(change)
+                arrival.yield()
+            }
+            arrival.finish()
             return collected
         }
-        try? await Task.sleep(for: Self.settling)
+        let arrivedInTime = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { await arrivals.first { _ in true } != nil }
+            group.addTask {
+                try? await Task.sleep(for: deadline)
+                return false
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        if arrivedInTime { try? await Task.sleep(for: quiet) }
         consumer.cancel()
         return await consumer.value
     }
@@ -116,7 +154,7 @@ import Testing
         let untitled = try library.createNote(named: "Untitled", in: library.root)
         _ = try library.renameNote(untitled, to: "Named")
 
-        #expect(await changes(from: stream) == [])
+        #expect(await changesInSettlingPeriod(from: stream) == [])
     }
 
     @Test func deleting_with_another_tool_a_note_the_library_created_yields_entryRemoved()
@@ -147,7 +185,7 @@ import Testing
         try OtherTool.write("", to: copy.appending(path: ".DS_Store"))
         try OtherTool.write("", to: copy.appending(path: "Topics/.hidden.md"))
 
-        #expect(await changes(from: stream) == [])
+        #expect(await changesInSettlingPeriod(from: stream) == [])
     }
 
     @Test func several_rapid_modifications_to_one_note_coalesce_into_one_change() async throws {
