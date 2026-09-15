@@ -76,6 +76,20 @@
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SearchTests"
+               BuildableName = "SearchTests"
+               BlueprintName = "SearchTests"
+               ReferencedContainer = "container:VitrineCore">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -127,6 +141,17 @@
                BlueprintIdentifier = "LibraryWatcherTests"
                BuildableName = "LibraryWatcherTests"
                BlueprintName = "LibraryWatcherTests"
+               ReferencedContainer = "container:VitrineCore">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SearchTests"
+               BuildableName = "SearchTests"
+               BlueprintName = "SearchTests"
                ReferencedContainer = "container:VitrineCore">
             </BuildableReference>
          </TestableReference>

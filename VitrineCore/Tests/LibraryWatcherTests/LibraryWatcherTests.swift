@@ -176,8 +176,8 @@ import Testing
         // The folder's entries go one by one, in whatever order `rm` finds them.
         let removed = await watch.next()
         let entries = [
-            "Topics", "Topics/Agents.md", "Topics/Alignment.md", "Topics/Interpretability.md",
-            "Topics/Journal.md", "Topics/Scratch.md",
+            "Topics", "Topics/Agents.md", "Topics/Alignment.md", "Topics/Café.md",
+            "Topics/Interpretability.md", "Topics/Journal.md", "Topics/Scratch.md",
         ]
         try #require(removed.count == entries.count)
         for entry in entries { try #require(removed.contains(.entryRemoved(entry))) }
