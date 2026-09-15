@@ -312,17 +312,15 @@ public struct Index: Sendable {
     public func coOccurringTags(with tag: String) -> [TagCoOccurrence] {
         let ancestry = TagPath.segmentIdentities(of: tag)
         let carriers = notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }
-        var counts: [String: Int] = [:]
-        var spellings: [String: String] = [:]
+        var counts: [TagPath: Int] = [:]
         for carrier in carriers {
             let carried = Set(carrier.tags.flatMap(\.ancestorsAndSelf))
             for other in carried where !other.isRelated(to: ancestry) {
-                counts[other.identity, default: 0] += 1
-                spellings[other.identity] = other.displaySpelling
+                counts[other, default: 0] += 1
             }
         }
-        return counts.map { identity, count in
-            TagCoOccurrence(tag: spellings[identity] ?? identity, count: count, outOf: carriers.count)
+        return counts.map { other, count in
+            TagCoOccurrence(tag: other.displaySpelling, count: count, outOf: carriers.count)
         }
         .sorted(by: Self.isInCoOccurrenceOrder)
     }

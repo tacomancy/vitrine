@@ -195,7 +195,8 @@ import Testing
                 "Research/Linear Regression.md", "Research/Survey Sampling.md",
             ])
         // Topics/Alignment carries interp/saes and interp/circuits, and Alignment.
-        #expect(index.notes(taggedAll: ["interp", "Alignment"]).map(\.path) == ["Topics/Alignment.md"])
+        #expect(
+            index.notes(taggedAll: ["interp", "Alignment"]).map(\.path) == ["Topics/Alignment.md"])
         #expect(index.notes(taggedAll: ["stats/bayesian", "data"]).isEmpty)
     }
 
