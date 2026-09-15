@@ -58,6 +58,14 @@ struct WindowShell: View {
         } message: { failure in
             Text(failure.localizedDescription)
         }
+        .alert(
+            "Vitrine couldn’t create the note", isPresented: isShowingCreateFailure,
+            presenting: currentLibrary.createFailure
+        ) { _ in
+            Button("OK") {}
+        } message: { failure in
+            Text(failure.localizedDescription)
+        }
     }
 
     @ViewBuilder
@@ -70,6 +78,14 @@ struct WindowShell: View {
         case .tags: TagsTab()
         case .sources, .ideas, .dashboard: SoonSurface(tab: tab)
         }
+    }
+
+    private var isShowingCreateFailure: Binding<Bool> {
+        Binding(
+            get: { currentLibrary.createFailure != nil },
+            set: { isShowing in
+                if !isShowing { currentLibrary.createFailure = nil }
+            })
     }
 
     private var isShowingOpenFailure: Binding<Bool> {

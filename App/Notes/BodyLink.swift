@@ -15,9 +15,9 @@ struct BodyLink {
         case attachment(Attachment)
         /// A Markdown link or embed whose destination has a URL scheme.
         case external(URL)
-        /// Nothing in the library, with the target as written; following
-        /// it creates the note (CONTEXT.md, Unresolved link).
-        case unresolved(String)
+        /// Nothing in the library; following it creates the note, with
+        /// this title (CONTEXT.md, Unresolved link).
+        case unresolved(title: String)
     }
 
     /// The token as UTF-8 offsets into the text, brackets and `!` included.
@@ -64,7 +64,10 @@ extension BodyLink.Destination {
         switch target {
         case .note(let note): self = .note(note)
         case .attachment(let attachment): self = .attachment(attachment)
-        case .unresolved(let target): self = .unresolved(target)
+        case .unresolved:
+            // Every unresolved target has a title; the seam answers nil only
+            // for a resolved one.
+            self = .unresolved(title: target.titleForNewNote ?? "")
         }
     }
 }

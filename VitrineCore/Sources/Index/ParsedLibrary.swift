@@ -40,8 +40,8 @@ struct ParsedLibrary: Sendable {
     }
 
     /// `note` — as the library holds it now — with `parsed` as its parse,
-    /// in the place the note at its path already has.
-    mutating func update(_ note: Note, parsed: ParsedNote) {
+    /// in the place the note at its path already has; skipped, for nil.
+    mutating func update(_ note: Note, parsed: ParsedNote?) {
         guard let index = notes.firstIndex(where: { $0.path == note.path }) else {
             return add(note, parsed: parsed)
         }
@@ -49,9 +49,9 @@ struct ParsedLibrary: Sendable {
         parses[note.path] = parsed
     }
 
-    /// `note` placed in library display order, with `parsed` as its parse;
-    /// a note already at its path is replaced.
-    mutating func add(_ note: Note, parsed: ParsedNote) {
+    /// `note` placed in library display order, with `parsed` as its parse
+    /// — skipped, for nil; a note already at its path is replaced.
+    mutating func add(_ note: Note, parsed: ParsedNote?) {
         remove(note)
         insert(note)
         parses[note.path] = parsed

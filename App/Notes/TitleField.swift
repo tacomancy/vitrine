@@ -7,9 +7,10 @@ import SwiftUI
 /// elsewhere are not rewritten, and nothing here says otherwise.
 struct TitleField: View {
     let note: Note
-    /// Renames the note to the title given, answering with why it was
-    /// refused, or nil.
-    let rename: (String) -> LibraryError?
+    /// Renames the note given to the title given, throwing why it was
+    /// refused. The note is passed because a title typed and then left by
+    /// opening another note is committed for the note it was typed for.
+    let rename: (Note, String) throws(LibraryError) -> Void
     let isFocused: FocusState<Bool>.Binding
 
     @State private var title: String
@@ -21,7 +22,8 @@ struct TitleField: View {
     private static let refusalSpacing: CGFloat = 6
 
     init(
-        note: Note, rename: @escaping (String) -> LibraryError?, isFocused: FocusState<Bool>.Binding
+        note: Note, rename: @escaping (Note, String) throws(LibraryError) -> Void,
+        isFocused: FocusState<Bool>.Binding
     ) {
         self.note = note
         self.rename = rename
@@ -39,10 +41,10 @@ struct TitleField: View {
                 .padding(.horizontal, Self.ringInset)
                 .brassFocusRing(isFocused: isFocused.wrappedValue, cornerRadius: Radius.medium)
                 .padding(.horizontal, -Self.ringInset)
-                .onSubmit(commit)
+                .onSubmit { commit(for: note) }
                 .onExitCommand(perform: revert)
                 .onChange(of: isFocused.wrappedValue) { _, isFocused in
-                    if !isFocused { commit() }
+                    if !isFocused { commit(for: note) }
                 }
                 .accessibilityLabel("Note title")
             if let refusal {
@@ -51,21 +53,29 @@ struct TitleField: View {
                     .foregroundStyle(Color(.danger))
             }
         }
-        // A different note, or this one renamed, brings its own title.
-        .onChange(of: note) { _, note in
+        // A different note, or this one renamed, brings its own title — a
+        // title still being typed for the one left is committed for it
+        // first, its refusal, if any, gone with it.
+        .onChange(of: note) { old, note in
+            if old.path != note.path { commit(for: old) }
             title = note.title
             refusal = nil
         }
     }
 
-    private func commit() {
+    private func commit(for note: Note) {
         let typed = title.trimmingCharacters(in: .whitespaces)
         guard typed != note.title else {
             title = note.title
             refusal = nil
             return
         }
-        refusal = rename(typed)
+        do {
+            try rename(note, typed)
+            refusal = nil
+        } catch {
+            refusal = error
+        }
     }
 
     private func revert() {

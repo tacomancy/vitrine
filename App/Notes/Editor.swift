@@ -34,12 +34,9 @@ struct Editor: View {
                 let note = buffer.note
             {
                 breadcrumb(for: note)
-                TitleField(
-                    note: note, rename: { title in rename(note, to: title) },
-                    isFocused: $isTitleFocused
-                )
-                .padding(.top, Self.pagePadding.top)
-                .padding(.horizontal, Self.pagePadding.leading)
+                TitleField(note: note, rename: rename, isFocused: $isTitleFocused)
+                    .padding(.top, Self.pagePadding.top)
+                    .padding(.horizontal, Self.pagePadding.leading)
                 if let conflict = buffer.conflict {
                     ConflictBar(conflict: conflict, buffer: buffer, selection: selection)
                         .padding(.top, Self.titleSpacing)
@@ -119,37 +116,24 @@ struct Editor: View {
         case .attachment(let attachment):
             _ = NSWorkspace.shared.open(library.rootURL.appending(path: attachment.path))
         case .external(let url): _ = NSWorkspace.shared.open(url)
-        case .unresolved(let target):
+        case .unresolved(let title):
             let folder = selection.sidebar.folderForNewNotes(in: library)
-            // A title the folder refuses — one it already has, say — creates
-            // nothing; the link stays unresolved, as it was.
-            guard
-                let note = try? currentLibrary.createNote(named: Self.title(of: target), in: folder)
-            else { return }
-            selection.open(note)
+            do {
+                selection.open(try currentLibrary.createNote(named: title, in: folder))
+            } catch {
+                currentLibrary.createFailure = error
+            }
         }
-    }
-
-    /// The title a note created from an unresolved link takes: the target's
-    /// last path component, without the `.md` a path-form wikilink or a
-    /// Markdown link may carry — the note is created in one folder, never
-    /// along the target's path.
-    private static func title(of target: String) -> String {
-        let name = target.split(separator: "/").last.map(String.init) ?? target
-        return Library.isNote(name) ? String(name.dropLast(".md".count)) : name
     }
 
     /// The title field's rename: the note's path changes under the buffer
     /// and the selection, so both follow before the library's change
-    /// reaches the panes. Answers with why the rename was refused, or nil.
-    private func rename(_ note: Note, to title: String) -> LibraryError? {
-        do {
-            let renamed = try currentLibrary.renameNote(note, to: title)
-            buffer.renamed(to: renamed)
-            selection.renamed(note, to: renamed)
-            return nil
-        } catch {
-            return error
-        }
+    /// reaches the panes — where they still hold it; a note already left
+    /// is found again by its new path when that change arrives. Throws
+    /// why the rename was refused.
+    private func rename(_ note: Note, to title: String) throws(LibraryError) {
+        let renamed = try currentLibrary.renameNote(note, to: title)
+        if buffer.note?.path == note.path { buffer.renamed(to: renamed) }
+        selection.renamed(note, to: renamed)
     }
 }

@@ -378,7 +378,8 @@ switch (different root), which clears the selection as before.
 system focus ring off) at `title`/semibold in `fg`, with the brass ring
 around it at `Radius.medium` — the field is padded 4 px each side for
 the ring and pulled back 4 px so the text sits at the page's 36 px. Its
-placeholder is *Untitled*. Return or focus loss commits: the text
+placeholder is *Untitled*. Return, focus loss, or another note opening
+under the field commits — for the note the title was typed for: the text
 trimmed of surrounding whitespace, unchanged is nothing, otherwise
 `CurrentLibrary.renameNote` — `Library.renameNote` in the note's folder,
 then `Index.renaming` — and the buffer and selection take the renamed
@@ -403,13 +404,17 @@ tree, *All Notes N*, and the note list show it at once; then
 request when the buffer shows the new note and focuses the field, whose
 text AppKit selects whole on focus, so typing names it. A note created
 from an unresolved link (§ The editor) opens with the caret in the body
-instead. The menu item is disabled with no library open.
+instead. The menu item is disabled with no library open. A creation the
+library refuses — the folder unwritable, or a link's title already taken
+there — is `CurrentLibrary.createFailure`, shown by the window shell as
+an alert like a failed open: *Vitrine couldn't create the note*, with
+`LibraryError`'s sentence.
 
 ### The two bars
 
 `ConflictBar` sits between the title and the text, 11 px under the
 title and inset to the page's 36 px, while `NoteBuffer.conflict` is set
-(ADR 0014): a status with its icon and label (rule 5) — an 11 px
+— a conflict as `CONTEXT.md` § Editor defines it (ADR 0014): a status with its icon and label (rule 5) — an 11 px
 `exclamationmark.triangle` and the label at `caption`/medium, both in
 `warning` — on `warning-bg` at `Radius.medium`, padded 6 × 12 px (8 px at
 the trailing end), and its two actions as `PrimaryButton`s at the
@@ -426,8 +431,12 @@ trailing end. It is one accessibility element, labelled with its status.
   `NoteBuffer.saveAsNew`: `CurrentLibrary.createNote` at the note's own
   title in its folder (`Note.folderPath`), then a save of the buffer's
   text; the bar clears, and the tree row, list row, and Index entry come
-  back. Close is `NotesSelection.close`: the open note leaves the
-  selection and its history, and the buffer empties as it follows.
+  back — or, the folder gone too, the bar stays with `saveFailure`'s
+  sentence under the title. Close is `NotesSelection.close`: the open
+  note leaves the selection and its history, and the buffer empties as it
+  follows. A removed note that comes back on its own — a sync client's
+  restore, Finder's undo — is a note again: a clean buffer takes its
+  text and the bar comes down; a dirty one gets *Changed on disk*.
 
 The buffer decides which bar from the library alone, each time the
 window shell hands it the replaced library (before the selection is

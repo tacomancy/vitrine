@@ -1,4 +1,5 @@
 import AppKit
+import Library
 import SwiftUI
 
 @main
@@ -45,11 +46,13 @@ struct VitrineApp: App {
                 Button("New Note") {
                     guard let library = currentLibrary.library, let selection else { return }
                     let folder = selection.sidebar.folderForNewNotes(in: library)
-                    guard let note = try? currentLibrary.createUntitledNote(in: folder) else {
-                        return
+                    do throws(LibraryError) {
+                        let note = try currentLibrary.createUntitledNote(in: folder)
+                        selection.requestTitleFocus()
+                        selection.open(note)
+                    } catch {
+                        currentLibrary.createFailure = error
                     }
-                    selection.requestTitleFocus()
-                    selection.open(note)
                 }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(currentLibrary.library == nil || selection == nil)

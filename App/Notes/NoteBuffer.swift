@@ -168,9 +168,12 @@ final class NoteBuffer {
     /// with the buffer's text. A refusal — the folder gone too, or the
     /// path unwritable — leaves the bar up, with `saveFailure` saying why.
     func saveAsNew() {
-        guard let note, let library = currentLibrary.library,
-            let folder = library.folder(at: note.folderPath)
-        else { return }
+        guard let note, let library = currentLibrary.library else { return }
+        // The folder is gone with the note: nowhere to write.
+        guard let folder = library.folder(at: note.folderPath) else {
+            saveFailure = .unwritable
+            return
+        }
         do {
             self.note = try currentLibrary.createNote(named: note.title, in: folder)
             conflict = nil
@@ -187,10 +190,13 @@ final class NoteBuffer {
         note = renamed
     }
 
+    /// The disk's text in place of the buffer's — a removed note come back
+    /// is a note again, so any bar comes down with it.
     private func reload(_ current: Note, from library: Library) {
         note = current
         isDirty = false
         saveFailure = nil
+        conflict = nil
         do {
             parsed = ParsedNote.parse(try library.read(current))
             readFailure = nil

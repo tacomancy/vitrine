@@ -178,6 +178,9 @@ so they aren't accidentally reused for something else.
   next save whether to overwrite or discard. When another tool removes
   the open note, the editor keeps its text, shows *removed from disk*,
   and offers to save it as a new note at the same path or to close it.
+  Either is a **conflict**: the disk and the buffer disagree about the
+  note, the editor's **bar** asks which wins, and no save runs until it
+  is answered.
   Above the note, the **breadcrumb** is the bar showing the note's path
   relative to the library root. Beside the editor, the **rail** shows the
   note's **backlinks** — one entry per linking note, sorted by title, with

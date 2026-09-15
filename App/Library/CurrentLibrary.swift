@@ -17,6 +17,9 @@ final class CurrentLibrary {
     private(set) var index: Index?
     /// Why the last open from the panel failed; cleared when the alert closes.
     var openFailure: LibraryError?
+    /// Why the last note ⌘N or a link tried to create was not; cleared
+    /// when the alert closes.
+    var createFailure: LibraryError?
 
     /// The watch over the open library, ended when another replaces it.
     @ObservationIgnored private var watcher: Task<Void, Never>?

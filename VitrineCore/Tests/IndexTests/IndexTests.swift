@@ -926,6 +926,57 @@ import Testing
         #expect(index.unresolvedLinks["sketch.png"] == nil)
     }
 
+    @Test func applying_an_added_note_that_cannot_be_read_records_it_as_skipped() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let locked = copy.appending(path: "Locked.md")
+        try "# Locked\n\n#daily\n".write(to: locked, atomically: true, encoding: .utf8)
+        let noPermissions = 0o000
+        try FileManager.default.setAttributes(
+            [.posixPermissions: noPermissions], ofItemAtPath: locked.path)
+        let changed = library.applying(.entryAdded("Locked.md"))
+        let note = try note(at: "Locked.md", in: changed)
+
+        let index = built.applying(.entryAdded("Locked.md"), in: changed)
+
+        #expect(index.skipped == [note])
+        #expect(index.untagged.contains(note) == false)
+        // A skipped note is still a link target (CONTEXT.md § Index).
+        #expect(index.unresolvedLinks["Locked"] == nil)
+    }
+
+    @Test func applying_a_rename_that_turns_an_attachment_into_a_note_reads_the_note() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        try "# Nowhere\n\n#daily\n".write(
+            to: copy.appending(path: "Nowhere.txt"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try FileManager.default.moveItem(
+            at: copy.appending(path: "Nowhere.txt"), to: copy.appending(path: "Nowhere.md"))
+        let change = LibraryChange.entryRenamed(from: "Nowhere.txt", to: "Nowhere.md")
+        let changed = library.applying(change)
+        let nowhere = try note(at: "Nowhere.md", in: changed)
+
+        let index = built.applying(change, in: changed)
+
+        #expect(index.tags(of: nowhere) == ["daily"])
+        #expect(index.unresolvedLinks["Nowhere"] == nil)
+    }
+
+    // MARK: - Creating a note from an unresolved link
+
+    @Test func an_unresolved_targets_title_for_a_new_note_is_its_last_path_component_without_md() {
+        #expect(
+            LinkTarget.unresolved("Helpful Youtube Videos").titleForNewNote
+                == "Helpful Youtube Videos")
+        #expect(LinkTarget.unresolved("Topics/Circuits").titleForNewNote == "Circuits")
+        #expect(LinkTarget.unresolved("Topics/Circuits.md").titleForNewNote == "Circuits")
+        #expect(LinkTarget.unresolved("Notes.MD").titleForNewNote == "Notes")
+    }
+
     // MARK: - Resolving a link the Index has not seen
 
     @Test func resolve_answers_a_link_in_unsaved_text_from_the_indexs_tables() throws {

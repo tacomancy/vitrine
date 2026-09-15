@@ -83,23 +83,21 @@ public struct Index: Sendable {
     /// This index with `change` — something another tool did on disk
     /// (ADR 0014) — folded in, through `library`, which already reflects
     /// it (`Library.applying`): the notes the change touched are read
-    /// again and parsed, and no other; a renamed note keeps its parse. The
+    /// again and parsed, and no other; a renamed note keeps its parse. A
+    /// note that cannot be read is skipped, as `build` skips it. The
     /// attachments are taken whole from the tree, since links to one
     /// resolve by name alone (ADR 0017, Update).
     public func applying(_ change: LibraryChange, in library: Library) -> Index {
         var parsedLibrary = parsedLibrary
         switch change {
         case .noteModified(let path):
-            guard let note = library.note(at: path), let text = try? library.read(note) else {
-                return self
-            }
-            parsedLibrary.update(note, parsed: ParsedNote.parse(text))
+            guard let note = library.note(at: path) else { return self }
+            parsedLibrary.update(note, parsed: Self.parse(note, in: library))
         case .attachmentModified:
             return self
         case .entryAdded(let path):
-            for note in Self.notes(at: path, in: library) {
-                guard let text = try? library.read(note) else { continue }
-                parsedLibrary.add(note, parsed: ParsedNote.parse(text))
+            for note in Self.notesOnDisk(at: path, in: library) {
+                parsedLibrary.add(note, parsed: Self.parse(note, in: library))
             }
         case .entryRemoved(let path):
             for note in heldNotes(at: path) { parsedLibrary.remove(note) }
@@ -112,23 +110,40 @@ public struct Index: Sendable {
                     parsedLibrary.remove(note)
                 }
             }
+            // What arrived is not always what left: an attachment renamed
+            // `.md` is a note the index has never read.
+            for note in Self.notesOnDisk(at: to, in: library)
+            where !parsedLibrary.notes.contains(where: { $0.path == note.path }) {
+                parsedLibrary.add(note, parsed: Self.parse(note, in: library))
+            }
         case .folderChanged(let path):
-            // Which entries changed is not known: every note under the
-            // folder that is gone leaves, and every one that is new or
-            // carries a modification date the index has not seen is read.
-            let held = Dictionary(
-                uniqueKeysWithValues: heldNotes(at: path).map { ($0.path, $0) })
-            let onDisk = Self.notes(at: path, in: library)
-            for note in held.values where !onDisk.contains(where: { $0.path == note.path }) {
-                parsedLibrary.remove(note)
-            }
-            for note in onDisk where held[note.path]?.modifiedAt != note.modifiedAt {
-                guard let text = try? library.read(note) else { continue }
-                parsedLibrary.update(note, parsed: ParsedNote.parse(text))
-            }
+            reconcile(&parsedLibrary, under: path, with: library)
         }
         parsedLibrary.attachments = library.root.allAttachments
         return Index(parsedLibrary)
+    }
+
+    /// Which entries under the folder at `path` changed is not known: every
+    /// note the index holds there that the tree no longer does leaves, and
+    /// every note the tree holds that is new or carries a modification date
+    /// the index has not seen is read.
+    private func reconcile(
+        _ parsedLibrary: inout ParsedLibrary, under path: String, with library: Library
+    ) {
+        let held = Dictionary(uniqueKeysWithValues: heldNotes(at: path).map { ($0.path, $0) })
+        let onDisk = Self.notesOnDisk(at: path, in: library)
+        for note in held.values where !onDisk.contains(where: { $0.path == note.path }) {
+            parsedLibrary.remove(note)
+        }
+        for note in onDisk where held[note.path]?.modifiedAt != note.modifiedAt {
+            parsedLibrary.update(note, parsed: Self.parse(note, in: library))
+        }
+    }
+
+    /// `note`'s text read through `library` and parsed, or nil when it
+    /// cannot be read — the one place `applying` touches the disk.
+    private static func parse(_ note: Note, in library: Library) -> ParsedNote? {
+        (try? library.read(note)).map(ParsedNote.parse)
     }
 
     /// The notes this index holds at `path`: the one note there, or every
@@ -139,7 +154,7 @@ public struct Index: Sendable {
 
     /// The notes `library` holds at `path`: the one note there, or every
     /// note under the folder there, or none.
-    private static func notes(at path: String, in library: Library) -> [Note] {
+    private static func notesOnDisk(at path: String, in library: Library) -> [Note] {
         if let note = library.note(at: path) { return [note] }
         return library.folder(at: path)?.allNotes ?? []
     }
