@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The three floating panes of the Notes tab in a `GutterSplitView`. The
+/// The four floating panes of the Notes tab in a `GutterSplitView`. The
 /// delegate owns the widths: drags stay within each pane's min and max, and
 /// window resizes go to the editor, which gives way to nothing until the
 /// others are at their minimums.
@@ -15,12 +15,13 @@ struct GutterSplitPanes: NSViewRepresentable {
 
     func makeNSView(context: Context) -> GutterSplitView {
         let split = GutterSplitView(
-            gutter: ShellMetrics.gutter, initialWidths: PaneWidth.all.compactMap(\.ideal))
+            gutter: ShellMetrics.gutter, initialWidths: PaneWidth.all.map(\.ideal))
         split.delegate = context.coordinator
         let panes = [
             host(Sidebar(currentLibrary: currentLibrary, selection: selection)),
             host(NoteList(currentLibrary: currentLibrary, selection: selection)),
             host(Editor(currentLibrary: currentLibrary, selection: selection)),
+            host(Rail(currentLibrary: currentLibrary, selection: selection)),
         ]
         for pane in panes {
             split.addArrangedSubview(pane)
@@ -47,16 +48,24 @@ struct GutterSplitPanes: NSViewRepresentable {
     }
 
     /// Divider `i` sits between panes `i` and `i + 1`; a divider's position
-    /// is measured from the split view's leading edge.
+    /// is measured from the split view's leading edge. Moving it one way
+    /// shrinks pane `i` and grows pane `i + 1`, so each bound is the tighter
+    /// of the two panes' limits.
     final class Coordinator: NSObject, NSSplitViewDelegate {
         private let widths = PaneWidth.all
+        /// The pane that takes whatever the others leave: the editor.
+        private let flexible = PaneWidth.all.firstIndex { $0.ideal == nil } ?? 0
 
         func splitView(
             _ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat,
             ofSubviewAt dividerIndex: Int
         ) -> CGFloat {
             let leadingEdge = splitView.arrangedSubviews[dividerIndex].frame.minX
-            return max(proposedMinimumPosition, leadingEdge + widths[dividerIndex].minimum)
+            let nextTrailingEdge = splitView.arrangedSubviews[dividerIndex + 1].frame.maxX
+            return max(
+                proposedMinimumPosition,
+                leadingEdge + widths[dividerIndex].minimum,
+                nextTrailingEdge - widths[dividerIndex + 1].maximum - splitView.dividerThickness)
         }
 
         func splitView(
@@ -71,21 +80,21 @@ struct GutterSplitPanes: NSViewRepresentable {
                 nextTrailingEdge - widths[dividerIndex + 1].minimum - splitView.dividerThickness)
         }
 
-        // The last pane takes the rest. When the rest is below its minimum,
-        // the panes before it give up width, last first, down to their own.
+        // The editor takes the rest. When the rest is below its minimum, the
+        // other panes give up width — the rail, then the note list, then the
+        // sidebar — down to their own.
         func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
             let panes = splitView.arrangedSubviews
-            let last = panes.indices.last ?? 0
             var paneWidths = panes.map(\.frame.width)
-            let gutters = splitView.dividerThickness * CGFloat(last)
-            paneWidths[last] =
-                splitView.bounds.width - gutters - paneWidths.dropLast().reduce(0, +)
-            for index in stride(from: last - 1, through: 0, by: -1) {
-                let shortfall = widths[last].minimum - paneWidths[last]
+            let gutters = splitView.dividerThickness * CGFloat(panes.count - 1)
+            paneWidths[flexible] = 0
+            paneWidths[flexible] = splitView.bounds.width - gutters - paneWidths.reduce(0, +)
+            for index in panes.indices.reversed() where index != flexible {
+                let shortfall = widths[flexible].minimum - paneWidths[flexible]
                 guard shortfall > 0 else { break }
                 let surrender = min(shortfall, paneWidths[index] - widths[index].minimum)
                 paneWidths[index] -= surrender
-                paneWidths[last] += surrender
+                paneWidths[flexible] += surrender
             }
             var leadingEdge: CGFloat = 0
             for (pane, width) in zip(panes, paneWidths) {

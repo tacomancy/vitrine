@@ -1,13 +1,20 @@
+import Index
 import Library
 import SwiftUI
 
 /// The editor pane, read-only in this slice: the open note's path in a
 /// breadcrumb bar, its title, and its text exactly as it is on disk,
-/// selectable. A note that cannot be read shows the reason in place of its
-/// text. Empty until a note is selected.
+/// selectable, with its links live — a note link opens in place, an
+/// attachment or external link opens with the system. A note that cannot
+/// be read shows the reason in place of its text. Empty until a note is
+/// selected.
 struct Editor: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
+
+    /// The system's handler, read above `NoteBody`'s own — what an attachment
+    /// or an external link opens with.
+    @Environment(\.openURL) private var openWithSystem
 
     private static let breadcrumbHeight: CGFloat = 34
     private static let breadcrumbInset: CGFloat = 16
@@ -19,9 +26,11 @@ struct Editor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let library = currentLibrary.library, let note = selection.openNote {
+            if let library = currentLibrary.library, let index = currentLibrary.index,
+                let note = selection.openNote
+            {
                 breadcrumb(for: note)
-                page(for: note, in: library)
+                page(for: note, in: library, index: index)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -38,7 +47,7 @@ struct Editor: View {
             .frame(height: Self.breadcrumbHeight)
     }
 
-    private func page(for note: Note, in library: Library) -> some View {
+    private func page(for note: Note, in library: Library, index: Index) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Self.titleSpacing) {
                 Text(note.title)
@@ -47,10 +56,15 @@ struct Editor: View {
                 Group {
                     switch text(of: note, in: library) {
                     case .success(let text):
-                        Text(verbatim: text)
-                            .lineSpacing(Self.textLineSpacing)
-                            .foregroundStyle(Color(.fg))
-                            .textSelection(.enabled)
+                        NoteBody(
+                            text: text,
+                            links: BodyLink.all(in: text, resolved: index.links(from: note))
+                        ) { destination in
+                            follow(destination, in: library)
+                        }
+                        .lineSpacing(Self.textLineSpacing)
+                        .foregroundStyle(Color(.fg))
+                        .textSelection(.enabled)
                     case .failure(let error):
                         Text(error.localizedDescription)
                             .foregroundStyle(Color(.danger))
@@ -61,6 +75,20 @@ struct Editor: View {
             .frame(maxWidth: Self.measure, alignment: .leading)
             .padding(Self.pagePadding)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Following a link (CONTEXT.md § Links): a note opens here and pushes
+    /// history, scope untouched; an attachment opens with its default app;
+    /// an external link with the system's handler; an unresolved link
+    /// leads nowhere yet.
+    private func follow(_ destination: BodyLink.Destination, in library: Library) {
+        switch destination {
+        case .note(let note): selection.open(note)
+        case .attachment(let attachment):
+            openWithSystem(library.rootURL.appending(path: attachment.path))
+        case .external(let url): openWithSystem(url)
+        case .unresolved: break
         }
     }
 
