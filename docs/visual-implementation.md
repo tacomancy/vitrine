@@ -274,9 +274,9 @@ continuous spell checking **on**; `allowsUndo` on with the coordinator's
 own `UndoManager`, emptied when a different note opens; the system focus
 ring off on both the text view and its scroll view. Neither draws a
 background: the floating surface shows through. The text color and
-insertion point are `fg`; the selection is the mockup's wash, `primary`
-at 42 % (`EditorColor.selection`); a link's only text attribute is the
-pointing-hand cursor, since its color comes with the rest.
+insertion point are `fg`; the selection is the brief's wash (rule 8),
+`primary` at 42 % (`EditorColor.selection`); a link's only text
+attribute is the pointing-hand cursor, since its color comes with the rest.
 
 **Fonts** are the registered faces by PostScript name
 (`BundledFonts.PostScriptName`, `NSFont.bundled`; `EditorFont`): Inter
@@ -292,12 +292,15 @@ parses the whole text (`ParsedNote.parse`, on one native-storage
 snapshot), resolves each link and embed through `Index.resolve` (a link
 typed a moment ago is colored for what it points at before any save), and
 converts every range from the parser's UTF-8 offsets to UTF-16 once
-(`Highlight.all`). Fonts, the paragraph style, and links are storage
-attributes, set in `textStorage(_:didProcessEditing:)` only where the one
-in place differs (`Highlight.fontSpans`); colors, underlines, and
-backgrounds are rendering attributes on the layout manager, cleared and
-set afresh in `textDidChange`, or on the next run-loop turn for a change
-the view does not announce, such as an undo (ADR 0013, Update).
+(`StyledRange.all` — a **styled range** is a token or structure with the
+font and colors it takes). Fonts, the paragraph style, and links are
+storage attributes, set in `textStorage(_:didProcessEditing:)` only
+where the one in place differs (`StyledRange.fontSpans`); colors,
+underlines, and backgrounds are rendering attributes on the layout
+manager — the editor's three keys removed over the document and set
+afresh, the view's own (spelling, marked text) untouched — in
+`textDidChange`, or on the next run-loop turn for a change the view does
+not announce, such as an undo (ADR 0013, Update).
 
 | Range | Font | Rendering attributes |
 |---|---|---|
@@ -305,7 +308,7 @@ the view does not announce, such as an undo (ADR 0013, Update).
 | heading (line) | semibold at its level's size | — (`fg`) |
 | fenced code block, inline code span | mono | `fg-secondary` on `bg-sunken` |
 | body tag | — | `link` |
-| link or embed to a note, attachment, or the outside | — | `link`; `.link` attribute carries its index in `BodyLink.all` |
+| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N`, `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
 | unresolved link or embed | — | `fg-muted`, single dashed underline; no `.link` |
 
 Later rows win inside earlier ones: a link in frontmatter is `link`, code
@@ -327,14 +330,20 @@ the text as the editor holds it, with its parse, and whether it is dirty
 (CONTEXT.md § Editor). The window shell opens it on every change of the
 open note's path; opening saves what was there. Each edit's parse comes
 up from the coordinator; a save fires `NoteBuffer.autosaveDelay` (1 s)
-after the last one, at once on a note switch, when the window resigns
-key or the app resigns active, on quit, and on ⌘S (File › Save, a no-op
-when clean; Open Library… saves before it replaces the library). A save
+after the last one, at once on a note switch, when the text view gives
+up focus, when the window resigns key or the app resigns active, on
+quit, and on ⌘S (File › Save, a no-op when clean; Open Library… saves
+before it replaces the library). A save
 is `CurrentLibrary.save`: `Library.write` in place, then
 `Index.updating` with the buffer's own parse, the library and Index on
 screen replaced together (ADR 0014, ADR 0017); the note list's date and
 the rail's tags, links, and backlinks follow. The buffer remembers the
-library it read from and writes to no other. There is no dirty indicator.
+library it read from and writes to no other. There is no dirty
+indicator; the one thing the editor says about the buffer is a save that
+could not write — `LibraryError`'s sentence at `caption` in `danger`
+under the title, until a save does, and the text stays ahead of the disk
+until then (or goes with the buffer when the note changes; the spec
+designs nothing further for a file that cannot be written).
 The view writes text into the storage only when the app's parse is not
 the one it showed or reported — a note switch — in one editing block,
 starting at the top with a fresh undo stack; a reload of the same note

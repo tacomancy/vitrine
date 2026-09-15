@@ -46,10 +46,13 @@ final class CurrentLibrary {
     /// the Index (ADR 0014, ADR 0017): the library and Index on screen are
     /// replaced together, and the note comes back as the library holds it
     /// now, with its new modification date. Throws what `Library.write`
-    /// throws — and `noteMissing` with no library open — and then nothing
-    /// has changed.
+    /// throws, and then nothing has changed. A note to save comes from an
+    /// open library — the buffer reads it from this one — so having none
+    /// is a programming error, not a case.
     func save(_ parsed: ParsedNote, to note: Note) throws(LibraryError) -> Note {
-        guard var library, let index else { throw .noteMissing }
+        guard var library, let index else {
+            preconditionFailure("A note is saved into the library it was read from.")
+        }
         try library.write(parsed.text, to: note)
         guard let saved = library.note(at: note.path) else { throw .noteMissing }
         self.index = index.updating(saved, parsed: parsed)

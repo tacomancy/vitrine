@@ -19,6 +19,9 @@ final class NoteBuffer {
     private(set) var parsed: ParsedNote?
     /// Why the open note's text is not here, when it is not.
     private(set) var readFailure: LibraryError?
+    /// Why the last save did not write, while the text is still ahead of
+    /// the disk; cleared by the save that does.
+    private(set) var saveFailure: LibraryError?
     /// Whether the text is ahead of the disk.
     private(set) var isDirty = false
 
@@ -53,12 +56,14 @@ final class NoteBuffer {
     }
 
     /// Saves whatever is here, then takes `note`'s text from the library —
-    /// or empties the buffer for nil.
+    /// or empties the buffer for nil. What a failed save could not write
+    /// goes with it.
     func open(_ note: Note?) {
         save()
         self.note = note
         parsed = nil
         readFailure = nil
+        saveFailure = nil
         isDirty = false
         rootURL = currentLibrary.library?.rootURL
         guard let note, let library = currentLibrary.library else { return }
@@ -82,15 +87,21 @@ final class NoteBuffer {
         }
     }
 
-    /// Writes the text to the note now, when it is ahead of the disk; a
-    /// write that fails leaves it ahead, to be tried at the next save.
+    /// Writes the text to the note now, when it is ahead of the disk. A
+    /// write that fails leaves it ahead, with `saveFailure` saying why, to
+    /// be tried at the next save — and lost with the buffer if none comes
+    /// before the note changes.
     func save() {
         autosave?.cancel()
         guard isDirty, let note, let parsed, currentLibrary.library?.rootURL == rootURL else {
             return
         }
-        guard let saved = try? currentLibrary.save(parsed, to: note) else { return }
-        self.note = saved
-        isDirty = false
+        do {
+            self.note = try currentLibrary.save(parsed, to: note)
+            isDirty = false
+            saveFailure = nil
+        } catch {
+            saveFailure = error
+        }
     }
 }

@@ -130,7 +130,7 @@ cover it; the no-I/O test deletes the library copy before operating.
 `NoteTextView` bridges an `NSTextView` on TextKit 2 (ADR 0013) whose
 `Coordinator` parses the whole text after every change to its characters
 — an undo included, which only the storage delegate sees — sets fonts and
-links in the storage where they differ (`Highlight.fontSpans`) and colors
+links in the storage where they differ (`StyledRange.fontSpans`) and colors
 as rendering attributes, and reports the parse up (ADR 0013, Update, for
 why the hook is `didProcessEditing`). Two seam additions, red-first:
 `Index.resolve(_:from:)` answers what a link or embed the tables have not

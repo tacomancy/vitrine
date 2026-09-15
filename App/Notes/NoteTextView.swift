@@ -111,20 +111,26 @@ struct NoteTextView: NSViewRepresentable {
         private(set) var presented: ParsedNote?
         /// The path of the note on show; a different one starts undo afresh.
         private var presentedPath: String?
-        /// A parse being written into the view, so the storage's processing
-        /// of it neither parses the same text again nor reports it up.
-        private var loading: ParsedNote?
+        /// The parse being written into the view, while it is, so the
+        /// storage's processing of it neither parses the same text again nor
+        /// reports it up.
+        private var beingShown: ParsedNote?
         private var links: [BodyLink] = []
-        private var highlights: [Highlight] = []
-        /// Whether the highlights have changed since the layout manager was
-        /// last given their colors.
+        private var styledRanges: [StyledRange] = []
+        /// Whether the styled ranges have changed since the layout manager
+        /// was last given their colors.
         private var needsRendering = false
         private var isRenderingScheduled = false
         // ADR 0013: undo is per note, so the view's own manager, not the
         // window's, emptied on a note switch.
         private let undoManager = UndoManager()
 
-        /// What every character carries unless a highlight says otherwise.
+        /// A link's storage attribute: this scheme and its index in `links`,
+        /// a URL because AppKit expects one there — its Copy Link and Open
+        /// Link would cast — and the scheme is nothing the system opens.
+        private static let linkScheme = "vitrine-link"
+
+        /// What every character carries unless a styled range says otherwise.
         static let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: EditorFont.body,
             .foregroundColor: NSColor(resource: .fg),
@@ -151,12 +157,12 @@ struct NoteTextView: NSViewRepresentable {
             let selection = textView.selectedRange()
             let scrolled = scrollView.contentView.bounds.origin
             presentedPath = note.path
-            loading = parsed
+            beingShown = parsed
             storage.beginEditing()
             storage.replaceCharacters(
                 in: NSRange(location: 0, length: storage.length), with: parsed.text)
             storage.endEditing()
-            loading = nil
+            beingShown = nil
             renderIfNeeded()
             if isSameNote {
                 let end = storage.length
@@ -186,8 +192,8 @@ struct NoteTextView: NSViewRepresentable {
             range editedRange: NSRange, changeInLength delta: Int
         ) {
             guard editedMask.contains(.editedCharacters) else { return }
-            if let loading {
-                present(loading, in: storage)
+            if let beingShown {
+                present(beingShown, in: storage)
                 return
             }
             let parsed = parse(storage.string)
@@ -204,7 +210,9 @@ struct NoteTextView: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            guard let index = link as? Int, links.indices.contains(index) else { return false }
+            guard let url = link as? URL, url.scheme == Self.linkScheme,
+                let index = url.host().flatMap(Int.init), links.indices.contains(index)
+            else { return false }
             follow(links[index].destination)
             return true
         }
@@ -229,7 +237,7 @@ struct NoteTextView: NSViewRepresentable {
         private func present(_ parsed: ParsedNote, in storage: NSTextStorage) {
             presented = parsed
             links = BodyLink.all(in: parsed, of: note, index: index)
-            highlights = Highlight.all(in: parsed, links: links)
+            styledRanges = StyledRange.all(in: parsed, links: links)
             applyStorageAttributes(to: storage)
             needsRendering = true
             scheduleRendering()
@@ -259,7 +267,7 @@ struct NoteTextView: NSViewRepresentable {
         /// whole note.
         private func applyStorageAttributes(to storage: NSTextStorage) {
             let all = NSRange(location: 0, length: storage.length)
-            for span in Highlight.fontSpans(of: highlights, length: storage.length) {
+            for span in StyledRange.fontSpans(of: styledRanges, length: storage.length) {
                 storage.enumerateAttribute(.font, in: span.range) { current, range, _ in
                     guard (current as? NSFont) != span.font else { return }
                     storage.addAttribute(.font, value: span.font, range: range)
@@ -270,71 +278,47 @@ struct NoteTextView: NSViewRepresentable {
                 storage.addAttribute(
                     .paragraphStyle, value: EditorFont.paragraphStyle, range: range)
             }
-            var wanted: [NSRange: Int] = [:]
-            for highlight in highlights {
-                if case .link(let index) = highlight.kind { wanted[highlight.range] = index }
+            var wanted: [NSRange: URL] = [:]
+            for styled in styledRanges {
+                if case .link(let index, isResolved: true) = styled.kind {
+                    wanted[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                }
             }
-            var inPlace: [NSRange: Int] = [:]
+            var inPlace: [NSRange: URL] = [:]
             storage.enumerateAttribute(.link, in: all) { current, range, _ in
-                guard let index = current as? Int else { return }
-                if wanted[range] == index {
-                    inPlace[range] = index
+                guard let url = current as? URL else { return }
+                if wanted[range] == url {
+                    inPlace[range] = url
                 } else {
                     storage.removeAttribute(.link, range: range)
                 }
             }
-            for (range, index) in wanted where inPlace[range] != index {
-                storage.addAttribute(.link, value: index, range: range)
+            for (range, url) in wanted where inPlace[range] != url {
+                storage.addAttribute(.link, value: url, range: range)
             }
         }
 
         /// Colors, underlines, and backgrounds — rendering attributes, which
-        /// change no layout — cleared and set afresh from the highlights.
+        /// change no layout — the editor's own keys cleared and set afresh
+        /// from the styled ranges; the view's own rendering attributes
+        /// (spelling, marked text) are not touched.
         private func applyRenderingAttributes() {
             guard let layoutManager = textView?.textLayoutManager,
                 let contentManager = layoutManager.textContentManager
             else { return }
             let document = layoutManager.documentRange
-            layoutManager.setRenderingAttributes([:], for: document)
-            for highlight in highlights {
+            for key in StyledRange.renderingKeys {
+                layoutManager.removeRenderingAttribute(key, for: document)
+            }
+            for styled in styledRanges {
                 guard
                     let start = contentManager.location(
-                        document.location, offsetBy: highlight.range.location),
-                    let end = contentManager.location(start, offsetBy: highlight.range.length),
+                        document.location, offsetBy: styled.range.location),
+                    let end = contentManager.location(start, offsetBy: styled.range.length),
                     let range = NSTextRange(location: start, end: end)
                 else { continue }
-                for (key, value) in renderingAttributes(for: highlight.kind) {
+                for (key, value) in styled.renderingAttributes {
                     layoutManager.addRenderingAttribute(key, value: value, for: range)
-                }
-            }
-        }
-
-        /// The tokens' colors (ADR 0013; docs/visual-implementation.md, The
-        /// editor): links and tags `link`, an unresolved link `fg-muted`
-        /// with a dashed underline, frontmatter `fg-muted`, code
-        /// `fg-secondary` on `bg-sunken`; a heading keeps `fg`.
-        private func renderingAttributes(for kind: Highlight.Kind) -> [NSAttributedString.Key: Any]
-        {
-            switch kind {
-            case .frontmatter:
-                [.foregroundColor: NSColor(resource: .fgMuted)]
-            case .fencedCode, .inlineCode:
-                [
-                    .foregroundColor: NSColor(resource: .fgSecondary),
-                    .backgroundColor: NSColor(resource: .bgSunken),
-                ]
-            case .heading:
-                [:]
-            case .tag:
-                [.foregroundColor: NSColor(resource: .link)]
-            case .link(let index):
-                if case .unresolved = links[index].destination {
-                    [
-                        .foregroundColor: NSColor(resource: .fgMuted),
-                        .underlineStyle: NSUnderlineStyle([.single, .patternDash]).rawValue,
-                    ]
-                } else {
-                    [.foregroundColor: NSColor(resource: .link)]
                 }
             }
         }

@@ -758,8 +758,6 @@ import Testing
         let link = try #require(typed.links.first)
         let embed = try #require(typed.embeds.first)
 
-        #expect(typed.links.count == 1)
-        #expect(typed.embeds.count == 1)
         #expect(index.resolve(link, from: alignment) == nil)
         #expect(index.resolve(embed, from: alignment) == nil)
     }

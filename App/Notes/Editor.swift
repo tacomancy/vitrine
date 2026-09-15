@@ -35,6 +35,15 @@ struct Editor: View {
                     .foregroundStyle(Color(.fg))
                     .padding(.top, Self.pagePadding.top)
                     .padding(.horizontal, Self.pagePadding.leading)
+                if let failure = buffer.saveFailure {
+                    // The one thing the buffer says about itself: a save that
+                    // could not write, so the text on screen is not on disk.
+                    Text(failure.localizedDescription)
+                        .font(.sans(.caption, weight: .regular))
+                        .foregroundStyle(Color(.danger))
+                        .padding(.top, Self.titleSpacing)
+                        .padding(.horizontal, Self.pagePadding.leading)
+                }
                 text(of: note, in: library, index: index)
             }
         }
@@ -62,7 +71,11 @@ struct Editor: View {
                     height: Self.pagePadding.bottom - Self.ringInset),
                 onEdit: buffer.edit,
                 follow: { destination in follow(destination, in: library) },
-                onFocusChange: { isTextFocused = $0 }
+                onFocusChange: { isFocused in
+                    isTextFocused = isFocused
+                    // ADR 0014: a save at once on focus loss.
+                    if !isFocused { buffer.save() }
+                }
             )
             .padding(.horizontal, Self.ringInset)
             .padding(.top, Self.titleSpacing - Self.ringInset)
