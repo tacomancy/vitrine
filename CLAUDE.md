@@ -175,10 +175,29 @@ by a 70-check headless harness over the real glue and on screen against
 the vault snapshot; the two-app scenario with Obsidian on the live vault
 is the owner's to confirm.
 
-Next: the Preview spec — the rendered view behind the mockup's
-SOURCE / PREVIEW toggle, its own renderer under ADR 0011's policy (ADR
-0013) — through `/grill-with-docs` and `/to-spec` first.
-`/implement` per ticket on its own
+**The seventh and last v1 feature is under way (issue #77, Preview —
+render a note; tickets #78 and its screen ticket): ① built.** The
+`Rendering` seam (issue #78) is `RenderedNote.render(_ parsed:)`: the
+frontmatter cut, the body's wikilinks, `![[embeds]]`, and `#tags`
+rewritten over the parser's ranges into standard syntax with a
+`vitrine:` destination that never leaves the seam, swift-markdown 0.8.0
+(pinned, `.disableSmartOpts`, ADR 0019) parsing the result, and a walk
+into the `Sendable` block model — `Block` with its `Kind` and
+`sourceRange`, `Inline`, `TaskItem`, `ColumnAlignment`, `ImageSource` —
+every block's range mapped back through the pre-pass into the note's
+own UTF-8 offsets and trimmed to exactly its source. A paragraph splits
+around its images; HTML reduces to its text; a list is a task list when
+every item has a checkbox. 22 `RenderingTests`, string literal in and
+`[Block]` literal out, plus the Obsidian fixture rendered whole; the
+real vault renders in under 50 ms. The dependency's Swift 5-mode
+warnings are exempt from warnings-as-errors per target in
+`Scripts/test.sh` (ADR 0006, third Update). Nothing on screen uses it
+yet.
+
+Next: ② Preview on screen — the SOURCE / PREVIEW toggle and ⌘E, the
+remembered setting, block views over `[Block]`, click routing through
+`Index`, re-render timing — with `docs/visual-implementation.md`
+recording the typography. `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh
 agent reads.
