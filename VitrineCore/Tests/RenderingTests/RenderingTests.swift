@@ -211,6 +211,32 @@ import Testing
             ])
     }
 
+    @Test func a_paragraph_split_around_an_image_merges_its_text_runs_too() {
+        let text = "Say <mark>hi</mark> ![[a.png]]"
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.paragraph([.text("Say hi")]), sourceRange: 0..<19),
+                Block(
+                    .image(source: .attachment("a.png"), alt: "", width: nil), sourceRange: 20..<30),
+            ])
+    }
+
+    @Test func ranges_count_utf8_bytes_and_lines_may_end_in_crlf() {
+        let text = "Café ☕\r\n\r\n# Título\r\nBody"
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.paragraph([.text("Café ☕")]), sourceRange: 0..<9),
+                Block(.heading(level: 1, inlines: [.text("Título")]), sourceRange: 13..<22),
+                Block(.paragraph([.text("Body")]), sourceRange: 24..<28),
+            ])
+    }
+
     // MARK: - Wikilinks, embeds, and tags
 
     @Test func a_wikilink_shows_its_target_or_its_display_text_and_drops_a_fragment() {
@@ -361,6 +387,60 @@ import Testing
             ])
     }
 
+    @Test func a_wikilink_or_tag_inside_code_cmark_alone_recognises_stays_text() {
+        let text = """
+            - item
+              ~~~
+              [[x]] #tag
+              ~~~
+
+            Text.
+
+                #indented [[y]]
+
+            <div>
+            [[z]] #tag
+            </div>
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks.map { slice(text, $0.sourceRange) } == [
+                "- item\n  ~~~\n  [[x]] #tag\n  ~~~",
+                "Text.",
+                // cmark's range for indented code starts at the content.
+                "#indented [[y]]",
+                "<div>\n[[z]] #tag\n</div>",
+            ])
+        guard case .list(_, _, let items) = blocks.first?.kind else {
+            Issue.record("expected a list")
+            return
+        }
+        #expect(
+            items.map { $0.map(\.kind) } == [
+                [.paragraph([.text("item")]), .codeBlock(language: nil, text: "[[x]] #tag")]
+            ])
+        #expect(
+            blocks.dropFirst(2).map(\.kind) == [
+                .codeBlock(language: nil, text: "#indented [[y]]"),
+                .paragraph([.text("[[z]] #tag")]),
+            ])
+    }
+
+    @Test func a_bracket_in_a_wikilinks_display_text_does_not_end_the_link() {
+        let text = "[[Note|a]b]]"
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .paragraph([.wikilink(target: "Note", inlines: [.text("a]b")])]),
+                    sourceRange: 0..<12)
+            ])
+    }
+
     @Test func quotes_and_dashes_stay_as_typed() {
         let text = "\"quoted\" -- and 'single'..."
 
@@ -410,7 +490,7 @@ import Testing
             ---
             # [[Note|Intro]] #tag
 
-            Text with [[A]] and [[B|bee]] and #t1.
+            Tèxt with [[A]] and [[B|bee]] and #t1.
             - [[C]] item
             - ![[i.png|800]]
 
@@ -422,7 +502,7 @@ import Testing
         #expect(
             blocks.map { slice(text, $0.sourceRange) } == [
                 "# [[Note|Intro]] #tag",
-                "Text with [[A]] and [[B|bee]] and #t1.",
+                "Tèxt with [[A]] and [[B|bee]] and #t1.",
                 "- [[C]] item\n- ![[i.png|800]]",
                 "> [[D]] quoted",
             ])

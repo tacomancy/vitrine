@@ -480,11 +480,19 @@ import Testing
 
         #expect(
             note.embeds == [
-                Embed(filename: "image.png", range: 0..<18),
-                Embed(filename: "photo 1.jpg", range: 23..<44),
+                Embed(filename: "image.png", width: 800, range: 0..<18),
+                Embed(filename: "photo 1.jpg", width: nil, range: 23..<44),
             ])
         #expect(slice(text, 23..<44) == "![alt](photo%201.jpg)")
         #expect(note.links.isEmpty)
+    }
+
+    @Test func an_embeds_width_is_the_digits_after_its_last_pipe_and_nothing_else() {
+        let text = "![[a.png|800]] ![[b.png|caption]] ![[c.png|alt|400]] ![[d.png]]"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.embeds.map(\.width) == [800, nil, 400, nil])
     }
 
     @Test func an_escaped_pipe_in_a_table_cell_ends_an_embeds_filename_without_the_backslash() {
@@ -492,7 +500,7 @@ import Testing
 
         let note = ParsedNote.parse(text)
 
-        #expect(note.embeds == [Embed(filename: "image.png", range: 2..<21)])
+        #expect(note.embeds == [Embed(filename: "image.png", width: 300, range: 2..<21)])
         #expect(slice(text, 2..<21) == "![[image.png\\|300]]")
     }
 

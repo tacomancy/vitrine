@@ -13,10 +13,16 @@ struct PrePass {
     private let original: [UInt8]
     private let bodyStart: Int
     private let edits: [Edit]
-    private let lineStarts: [Int]
+    private let lines: LineStarts
 
-    /// One rewrite: the token's range in the original and its replacement's
-    /// range in `text`.
+    /// One token to rewrite: its range in the original and what replaces it.
+    private struct Rewrite {
+        let range: Range<Int>
+        let replacement: String
+    }
+
+    /// One rewrite applied: the token's range in the original and its
+    /// replacement's range in `text`.
     private struct Edit {
         let original: Range<Int>
         let rewritten: Range<Int>
@@ -25,72 +31,79 @@ struct PrePass {
     init(_ parsed: ParsedNote) {
         original = Array(parsed.text.utf8)
         bodyStart = parsed.bodyRange.lowerBound
+        let body = original[bodyStart...]
+        let protected = PrePass.rangesCmarkReadsAsCode(in: body, from: bodyStart)
         var rewritten: [UInt8] = []
         var edits: [Edit] = []
         var copied = bodyStart
-        for (range, replacement) in PrePass.rewrites(in: parsed) {
-            rewritten.append(contentsOf: original[copied..<range.lowerBound])
+        for rewrite in PrePass.rewrites(in: parsed)
+        where !protected.contains(where: { $0.overlaps(rewrite.range) }) {
+            rewritten.append(contentsOf: original[copied..<rewrite.range.lowerBound])
             let start = rewritten.count
-            rewritten.append(contentsOf: replacement.utf8)
-            edits.append(Edit(original: range, rewritten: start..<rewritten.count))
-            copied = range.upperBound
+            rewritten.append(contentsOf: rewrite.replacement.utf8)
+            edits.append(Edit(original: rewrite.range, rewritten: start..<rewritten.count))
+            copied = rewrite.range.upperBound
         }
         rewritten.append(contentsOf: original[copied...])
         text = String(decoding: rewritten, as: UTF8.self)
         self.edits = edits
-        lineStarts = PrePass.lineStarts(of: rewritten)
+        lines = LineStarts(of: rewritten[...])
     }
 
-    /// The tokens to rewrite, in order of appearance, each with its
-    /// replacement. Only the body's: a frontmatter link is cut with the
-    /// frontmatter.
-    private static func rewrites(in parsed: ParsedNote) -> [(Range<Int>, String)] {
-        let wikilinks = parsed.links.compactMap { link -> (Range<Int>, String)? in
+    /// The tokens to rewrite, in order of appearance. Only the body's: a
+    /// frontmatter link is cut with the frontmatter. A Markdown image is
+    /// left for cmark, which reads it itself.
+    private static func rewrites(in parsed: ParsedNote) -> [Rewrite] {
+        let wikilinks = parsed.links.compactMap { link -> Rewrite? in
             guard case .wikilink(let wikilink) = link, !wikilink.isFromFrontmatter else {
                 return nil
             }
-            let shown = wikilink.displayText ?? wikilink.target
-            return (
-                wikilink.range,
-                "[\(shown)](\(VitrineDestination.note(target: wikilink.target).url))"
-            )
+            let shown = (wikilink.displayText ?? wikilink.target).escapingBrackets
+            let destination = VitrineDestination.note(target: wikilink.target)
+            return Rewrite(range: wikilink.range, replacement: "[\(shown)](\(destination.url))")
         }
-        let embeds = parsed.embeds.compactMap { embed -> (Range<Int>, String)? in
-            guard let width = embedWidth(of: embed, in: parsed.text) else { return nil }
-            let destination = VitrineDestination.attachment(path: embed.filename, width: width)
-            return (embed.range, "![](\(destination.url))")
+        let embeds = parsed.embeds.compactMap { embed -> Rewrite? in
+            guard isWikilinkForm(embed, in: parsed.text) else { return nil }
+            let destination = VitrineDestination.attachment(
+                path: embed.filename, width: embed.width)
+            return Rewrite(range: embed.range, replacement: "![](\(destination.url))")
         }
         let tags = parsed.bodyTags.map { tag in
-            (tag.range, "[#\(tag.name)](\(VitrineDestination.tag(name: tag.name).url))")
+            let destination = VitrineDestination.tag(name: tag.name)
+            return Rewrite(range: tag.range, replacement: "[#\(tag.name)](\(destination.url))")
         }
-        return (wikilinks + embeds + tags).sorted { $0.0.lowerBound < $1.0.lowerBound }
+        return (wikilinks + embeds + tags).sorted { $0.range.lowerBound < $1.range.lowerBound }
     }
 
-    /// The width of an `![[image.png|800]]` embed, or nil for a Markdown
-    /// image, which cmark reads itself. The parser drops the suffix, so it
-    /// is read again from the token: digits after the last `|`, as
-    /// Obsidian writes a display width. An embed without one is `.some(nil)`.
-    private static func embedWidth(of embed: Embed, in text: String) -> Int?? {
-        let token = String(decoding: Array(text.utf8)[embed.range], as: UTF8.self)
-        guard token.hasPrefix("![[") else { return nil }
-        guard let pipe = token.lastIndex(of: "|") else { return .some(nil) }
-        let suffix = token[token.index(after: pipe)...].dropLast(2)
-        return .some(Int(suffix))
+    /// Whether an embed is `![[…]]` rather than `![alt](…)`: the parser
+    /// reports both alike, and only the first needs rewriting.
+    private static func isWikilinkForm(_ embed: Embed, in text: String) -> Bool {
+        let opening = "![[".utf8
+        return text.utf8.dropFirst(embed.range.lowerBound).starts(with: opening)
     }
 
-    /// Where a line begins in the rewritten text, one entry per line; cmark
-    /// counts lines from 1 and columns in UTF-8 bytes from 1.
-    private static func lineStarts(of bytes: [UInt8]) -> [Int] {
-        var starts = [0]
-        for (offset, byte) in bytes.enumerated() {
-            if byte == UInt8(ascii: "\n")
-                || (byte == UInt8(ascii: "\r")
-                    && bytes[safe: offset + 1] != UInt8(ascii: "\n"))
-            {
-                starts.append(offset + 1)
+    /// The parser's ranges skip inline code and fences at the start of a
+    /// line, but not a fence indented inside a list item or quote, indented
+    /// code, or an HTML block — all code to cmark. Parsing the body as
+    /// written finds them, so no token inside one is rewritten.
+    private static func rangesCmarkReadsAsCode(in body: ArraySlice<UInt8>, from bodyStart: Int)
+        -> [Range<Int>]
+    {
+        let document = Document(
+            parsing: String(decoding: body, as: UTF8.self), options: [.disableSmartOpts])
+        let lines = LineStarts(of: body)
+        var ranges: [Range<Int>] = []
+        func collect(_ markup: Markup) {
+            if markup is CodeBlock || markup is HTMLBlock, let range = markup.range {
+                let lower = lines.offset(of: range.lowerBound) + bodyStart
+                let upper = lines.offset(of: range.upperBound) + bodyStart
+                ranges.append(lower..<upper)
+                return
             }
+            markup.children.forEach(collect)
         }
-        return starts
+        collect(document)
+        return ranges
     }
 
     /// A markup node's range in the original text, trailing whitespace
@@ -99,15 +112,10 @@ struct PrePass {
     /// rendered from, not the gap after it.
     func sourceRange(of markup: Markup, within parent: Range<Int>) -> Range<Int> {
         guard let range = markup.range else { return parent }
-        let lower = originalOffset(of: offset(of: range.lowerBound))
-        var upper = originalOffset(of: offset(of: range.upperBound))
+        let lower = originalOffset(of: lines.offset(of: range.lowerBound))
+        var upper = originalOffset(of: lines.offset(of: range.upperBound))
         while upper > lower, isWhitespace(original[upper - 1]) { upper -= 1 }
         return lower..<upper
-    }
-
-    /// A location in the rewritten text as a UTF-8 offset into it.
-    private func offset(of location: SourceLocation) -> Int {
-        lineStarts[location.line - 1] + location.column - 1
     }
 
     /// The original offset a rewritten one came from. Inside a replacement,
@@ -132,8 +140,38 @@ struct PrePass {
     }
 }
 
-extension Array {
-    fileprivate subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+/// Where each line of a text begins, so cmark's locations — lines from 1,
+/// columns in UTF-8 bytes from 1 — become offsets into it.
+private struct LineStarts {
+    private let starts: [Int]
+
+    /// A line ends at `\n`, or at a `\r` on its own, as cmark reads both.
+    init(of bytes: ArraySlice<UInt8>) {
+        var starts = [0]
+        var offset = 0
+        var previous: UInt8?
+        for byte in bytes {
+            offset += 1
+            if byte == UInt8(ascii: "\n") {
+                starts.append(offset)
+            } else if previous == UInt8(ascii: "\r") {
+                starts.append(offset - 1)
+            }
+            previous = byte
+        }
+        self.starts = starts
+    }
+
+    func offset(of location: SourceLocation) -> Int {
+        starts[location.line - 1] + location.column - 1
+    }
+}
+
+extension String {
+    /// The text with `[` and `]` backslash-escaped, so shown text with an
+    /// unbalanced bracket cannot end the link it is written into; CommonMark
+    /// renders the escapes as the brackets.
+    fileprivate var escapingBrackets: String {
+        replacing("[", with: "\\[").replacing("]", with: "\\]")
     }
 }

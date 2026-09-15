@@ -104,7 +104,7 @@ struct BlockConverter {
     /// A run's range spans its first and last node that has one: a line
     /// break has none, and would otherwise stand for the whole paragraph.
     private func paragraph(of run: [Markup], within range: Range<Int>) -> Block? {
-        let content = run.flatMap { inlines(of: $0) }.trimmed
+        let content = inlines(of: run).trimmed
         let located = run.filter { $0.range != nil }
         guard !content.isEmpty, let first = located.first, let last = located.last else {
             return nil
@@ -174,16 +174,12 @@ struct BlockConverter {
         }
     }
 
-    /// Adjacent text runs are one: dropping an HTML tag leaves the text on
-    /// either side of it, which reads as one run.
     private func children(of container: Markup) -> [Inline] {
-        container.children.flatMap { inlines(of: $0) }.reduce(into: []) { inlines, inline in
-            if case .text(let next) = inline, case .text(let previous)? = inlines.last {
-                inlines[inlines.endIndex - 1] = .text(previous + next)
-            } else {
-                inlines.append(inline)
-            }
-        }
+        inlines(of: Array(container.children))
+    }
+
+    private func inlines(of run: [Markup]) -> [Inline] {
+        run.flatMap { inlines(of: $0) }.mergingText
     }
 
     /// The inlines one child becomes: none for markup with nothing to draw.
@@ -215,6 +211,18 @@ struct BlockConverter {
 }
 
 extension [Inline] {
+    /// Adjacent text runs as one: dropping an HTML tag leaves the text on
+    /// either side of it, which reads as one run.
+    fileprivate var mergingText: [Inline] {
+        reduce(into: []) { inlines, inline in
+            if case .text(let next) = inline, case .text(let previous)? = inlines.last {
+                inlines[inlines.endIndex - 1] = .text(previous + next)
+            } else {
+                inlines.append(inline)
+            }
+        }
+    }
+
     /// The run without the breaks and whitespace at either end, which a
     /// paragraph split around an image would otherwise begin or end with.
     fileprivate var trimmed: [Inline] {
