@@ -75,6 +75,47 @@ import Testing
         return await consumer.value
     }
 
+    /// A watch read in steps, so a test can act, see what that yielded, and
+    /// act again on the same watch — where `changes(from:)` reads once and,
+    /// by cancelling its consumer, ends the watch. This one's watch ends
+    /// with it: the consumer holds it weakly, so the test's last use of it
+    /// is the end of the watch.
+    private actor SteppedWatch {
+        /// How often `next` looks for a change while waiting for the first.
+        private static let tick: Duration = .milliseconds(10)
+        private var unread: [LibraryChange] = []
+        private var consumer: Task<Void, Never>?
+
+        /// Async, so isolated: the consumer captures `self` before `consumer`
+        /// is set, and only an isolated initializer may touch actor state
+        /// once `self` has escaped — weakly or not.
+        init(_ stream: AsyncStream<LibraryChange>) async {
+            consumer = Task { [weak self] in
+                for await change in stream { await self?.record(change) }
+            }
+        }
+
+        deinit {
+            consumer?.cancel()
+        }
+
+        /// The changes the watcher reports for what the test just did: the
+        /// first within `deadline`, then whatever else lands in the `quiet`
+        /// period after it; empty when nothing arrives in time.
+        func next() async -> [LibraryChange] {
+            let clock = ContinuousClock()
+            let deadline = clock.now + LibraryWatcherTests.deadline
+            while unread.isEmpty, clock.now < deadline { try? await Task.sleep(for: Self.tick) }
+            if !unread.isEmpty { try? await Task.sleep(for: LibraryWatcherTests.quiet) }
+            defer { unread = [] }
+            return unread
+        }
+
+        private func record(_ change: LibraryChange) {
+            unread.append(change)
+        }
+    }
+
     @Test func modifying_a_note_with_another_tool_yields_one_noteModified() async throws {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
@@ -95,6 +136,74 @@ import Testing
         try OtherTool.write("# Circuits\n", to: copy.appending(path: "Topics/Circuits.md"))
 
         #expect(await changes(from: stream) == [.entryAdded("Topics/Circuits.md")])
+    }
+
+    @Test func modifying_a_note_another_tool_just_created_yields_noteModified() async throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let watch = await SteppedWatch(settledWatch(on: library))
+        let circuits = copy.appending(path: "Topics/Circuits.md")
+        try OtherTool.write("# Circuits\n", to: circuits)
+        try #require(await watch.next() == [.entryAdded("Topics/Circuits.md")])
+
+        try OtherTool.append("\nA line from Obsidian.\n", to: circuits)
+
+        #expect(await watch.next() == [.noteModified("Topics/Circuits.md")])
+    }
+
+    @Test func modifying_a_note_after_another_tool_deleted_a_different_one_yields_noteModified()
+        async throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let watch = await SteppedWatch(settledWatch(on: library))
+        try OtherTool.remove(copy.appending(path: "Topics/Agents.md"))
+        try #require(await watch.next() == [.entryRemoved("Topics/Agents.md")])
+
+        try OtherTool.append("\nA line from Obsidian.\n", to: copy.appending(path: "Welcome.md"))
+
+        #expect(await watch.next() == [.noteModified("Welcome.md")])
+    }
+
+    @Test func creating_a_note_in_a_folder_another_tool_deleted_yields_entryAdded() async throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let watch = await SteppedWatch(settledWatch(on: library))
+        try OtherTool.removeFolder(copy.appending(path: "Topics"))
+        // The folder's entries go one by one, in whatever order `rm` finds them.
+        let removed = await watch.next()
+        let entries = [
+            "Topics", "Topics/Agents.md", "Topics/Alignment.md", "Topics/Café.md",
+            "Topics/Interpretability.md", "Topics/Journal.md", "Topics/Scratch.md",
+        ]
+        try #require(removed.count == entries.count)
+        for entry in entries { try #require(removed.contains(.entryRemoved(entry))) }
+
+        try OtherTool.createFolder(copy.appending(path: "Topics"))
+        try OtherTool.write("# Agents\n", to: copy.appending(path: "Topics/Agents.md"))
+
+        #expect(await watch.next() == [.entryAdded("Topics"), .entryAdded("Topics/Agents.md")])
+    }
+
+    @Test func creating_a_note_in_a_folder_another_tool_trashed_yields_entryAdded() async throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let watch = await SteppedWatch(settledWatch(on: library))
+        // Finder deletes by moving to the Trash: the folder leaves the library
+        // whole, and nothing inside it is reported on its own.
+        try OtherTool.rename(
+            copy.appending(path: "Topics"),
+            to: copy.deletingLastPathComponent().appending(path: "Topics"))
+        try #require(await watch.next() == [.entryRemoved("Topics")])
+
+        try OtherTool.createFolder(copy.appending(path: "Topics"))
+        try OtherTool.write("# Agents\n", to: copy.appending(path: "Topics/Agents.md"))
+
+        #expect(await watch.next() == [.entryAdded("Topics"), .entryAdded("Topics/Agents.md")])
     }
 
     @Test func deleting_a_note_with_another_tool_yields_entryRemoved() async throws {

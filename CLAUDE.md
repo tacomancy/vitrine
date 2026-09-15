@@ -175,6 +175,46 @@ by a 70-check headless harness over the real glue and on screen against
 the vault snapshot; the two-app scenario with Obsidian on the live vault
 is the owner's to confirm.
 
+**The fifth feature is under way (issue #72, filter chips and the Tags
+tab): ① built (issue #73).** Two `Index` additions, pure over the
+cached parses and red-first against the Obsidian fixture:
+`coOccurringTags(with:)` answers the tag page's CO-OCCURS WITH — for
+the notes tagged a tag or a descendant, every other tag they carry or
+sit under, each note once per other tag, the tag's own ancestors and
+descendants left out, as `TagCoOccurrence` (`tag`, `count`, `outOf`)
+sorted by count then name — and `notes(taggedAll:)` answers the note
+list behind its chips: the notes carrying every listed tag or a
+descendant of each, in display order, an empty list narrowing nothing.
+`childTags(of:)` was struck: `TagTreeNode.children` already is that.
+The fixture grew `Research/` — three plain notes under fresh roots
+(`stats`, `learning`, `data`) so one tag has co-occurrences with
+distinct counts and ties for the sort to break; seven `IndexTests`
+assert hand-counted tuples, and on the vault snapshot `data_science`
+answers `14` notes with `machine_learning 6/14`, matching a grep count.
+Nothing on screen consumes either yet.
+
+**The sixth feature is under way (issue #67, search and the command
+palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
+is `Search.build(from: Index)`: every read note's title, aliases, and
+full text folded case- and diacritic-insensitively from the parses the
+Index caches — handed out by the new `Index.parsedNotes` — and scanned
+linearly per query (ADR 0018). `results(for:)` splits the query on
+whitespace, keeps every note holding each term as a substring, flags
+`matchedInTitle` when the title or one alias holds them all, and ranks
+title matches first, then the rest, each group newest-modified first
+with ties in display order; a `SearchResult` carries `titleRanges` and
+an `Excerpt` — the first line holding any term, with every occurrence's
+range, or the first non-empty line — with every range mapped back onto
+the original characters (`cafe` washes `Café`). `updating`, `adding`,
+`removing`, and `renaming` mirror the Index's, each re-folding one note;
+`adding` places by `LibraryDisplayOrder`, now public. 20 `SearchTests`
+against the Obsidian fixture, which gained `Topics/Café.md` (a
+diacritic, a `citekey:`, an alias, `#todo`). Measured on the real vault
+(79 notes, 460 KB): every query under 3 ms in release, under 10 ms in
+debug, once the byte search moved to `memmem` (ADR 0018, Update).
+Nothing on screen consumes it yet; ② is the palette, the title-bar
+field, and the *Recent* row.
+
 **The seventh and last v1 feature is under way (issue #77, Preview —
 render a note; tickets #78 and its screen ticket): ① built.** The
 `Rendering` seam (issue #78) is `RenderedNote.render(_ parsed:)`: the
@@ -194,13 +234,16 @@ change, red-first: `Embed.width`. 26 `RenderingTests`, string literal
 in and `[Block]` literal out, plus the Obsidian fixture rendered whole;
 the real vault (79 notes) renders in under 100 ms. The dependency's Swift 5-mode
 warnings are exempt from warnings-as-errors per target in
-`Scripts/test.sh` (ADR 0006, third Update). Nothing on screen uses it
+`Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
 yet.
 
-Next: ② Preview on screen — the SOURCE / PREVIEW toggle and ⌘E, the
-remembered setting, block views over `[Block]`, click routing through
-`Index`, re-render timing — with `docs/visual-implementation.md`
-recording the typography. `/implement` per ticket on its own
+Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
+(issue #75), in parallel; ticket #69 — the palette, the title-bar field,
+and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
+toggle and ⌘E, the remembered setting, block views over `[Block]`, click
+routing through `Index`, re-render timing — with
+`docs/visual-implementation.md` recording the typography.
+`/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh
 agent reads.

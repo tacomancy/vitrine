@@ -40,7 +40,17 @@ public enum OtherTool {
         try run("rm \"$1\"", url.path)
     }
 
-    /// Renames the file at `url` to `destination`.
+    /// Removes the folder at `url` and everything in it.
+    public static func removeFolder(_ url: URL) throws {
+        try run("rm -r \"$1\"", url.path)
+    }
+
+    /// Creates an empty folder at `url`.
+    public static func createFolder(_ url: URL) throws {
+        try run("mkdir \"$1\"", url.path)
+    }
+
+    /// Renames the file or folder at `url` to `destination`.
     public static func rename(_ url: URL, to destination: URL) throws {
         try run("mv \"$1\" \"$2\"", url.path, destination.path)
     }
