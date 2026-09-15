@@ -157,7 +157,8 @@ struct BodyScanner {
     // MARK: - Wikilinks
 
     /// `[[…]]` on one line; anything else is literal text. Obsidian ends the
-    /// target at the first `#` (heading), `^` (block), or `|` (display text).
+    /// target at the first `#` (heading), `^` (block), or `|` (display text)
+    /// — written `\|` inside a table cell.
     private mutating func scanWikilink() {
         let isEmbed = isAtEmbed
         let start = isEmbed ? position - 1 : position
@@ -169,19 +170,19 @@ struct BodyScanner {
         position = close + delimiterWidth
         let range = offsets[start]..<offsets[position]
         let pipe = inner.firstIndex(of: "|")
+        // Obsidian writes the pipe as `\|` inside a table cell so it does not
+        // end the cell; the backslash is table escaping, not part of the target.
+        let beforePipe = pipe.map { $0 > inner.startIndex && inner[$0 - 1] == "\\" ? $0 - 1 : $0 }
         if isEmbed {
-            let filename = string(inner[inner.startIndex..<(pipe ?? inner.endIndex)])
+            let filename = string(inner[inner.startIndex..<(beforePipe ?? inner.endIndex)])
                 .trimmingCharacters(in: .whitespaces)
             guard !filename.isEmpty else { return }
             embeds.append(Embed(filename: filename, range: range))
             return
         }
-        var targetEnd = inner.firstIndex { $0 == "#" || $0 == "^" || $0 == "|" } ?? inner.endIndex
-        // Obsidian writes the pipe as `\|` inside a table cell so it does not
-        // end the cell; the backslash is table escaping, not part of the target.
-        if targetEnd == pipe, targetEnd > inner.startIndex, inner[targetEnd - 1] == "\\" {
-            targetEnd -= 1
-        }
+        let beforeDisplayText = inner[inner.startIndex..<(beforePipe ?? inner.endIndex)]
+        let targetEnd =
+            beforeDisplayText.firstIndex { $0 == "#" || $0 == "^" } ?? beforeDisplayText.endIndex
         let target = string(inner[inner.startIndex..<targetEnd]).trimmingCharacters(
             in: .whitespaces)
         // `[[#Heading]]` points into this note and `[[]]` at nothing; neither

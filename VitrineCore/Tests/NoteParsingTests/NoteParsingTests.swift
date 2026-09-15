@@ -304,8 +304,6 @@ import Testing
     }
 
     @Test func an_escaped_pipe_in_a_table_cell_ends_the_target_without_the_backslash() {
-        // Obsidian writes `\|` inside a table cell so the pipe does not end
-        // the cell; the backslash is table escaping, not part of the target.
         let text = "| [[C1_W2_Linear_Regression.ipynb\\|Linear Regression]] |"
 
         let note = ParsedNote.parse(text)
@@ -318,6 +316,16 @@ import Testing
                         range: 2..<54))
             ])
         #expect(slice(text, 2..<54) == "[[C1_W2_Linear_Regression.ipynb\\|Linear Regression]]")
+    }
+
+    @Test func a_fragment_marker_in_the_display_text_does_not_end_the_target() {
+        let note = ParsedNote.parse("[[Note|see #3]] [[Note|the ^ key]]")
+
+        #expect(
+            note.links == [
+                .wikilink(Wikilink(target: "Note", displayText: "see #3", range: 0..<15)),
+                .wikilink(Wikilink(target: "Note", displayText: "the ^ key", range: 16..<34)),
+            ])
     }
 
     @Test func a_wikilink_target_is_trimmed() {
@@ -459,6 +467,15 @@ import Testing
             ])
         #expect(slice(text, 23..<44) == "![alt](photo%201.jpg)")
         #expect(note.links.isEmpty)
+    }
+
+    @Test func an_escaped_pipe_in_a_table_cell_ends_an_embeds_filename_without_the_backslash() {
+        let text = "| ![[image.png\\|300]] |"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.embeds == [Embed(filename: "image.png", range: 2..<21)])
+        #expect(slice(text, 2..<21) == "![[image.png\\|300]]")
     }
 
     // MARK: - Ranges
