@@ -193,9 +193,31 @@ assert hand-counted tuples, and on the vault snapshot `data_science`
 answers `14` notes with `machine_learning 6/14`, matching a grep count.
 Nothing on screen consumes either yet.
 
+**The sixth feature is under way (issue #67, search and the command
+palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
+is `Search.build(from: Index)`: every read note's title, aliases, and
+full text folded case- and diacritic-insensitively from the parses the
+Index caches — handed out by the new `Index.parsedNotes` — and scanned
+linearly per query (ADR 0018). `results(for:)` splits the query on
+whitespace, keeps every note holding each term as a substring, flags
+`matchedInTitle` when the title or one alias holds them all, and ranks
+title matches first, then the rest, each group newest-modified first
+with ties in display order; a `SearchResult` carries `titleRanges` and
+an `Excerpt` — the first line holding any term, with every occurrence's
+range, or the first non-empty line — with every range mapped back onto
+the original characters (`cafe` washes `Café`). `updating`, `adding`,
+`removing`, and `renaming` mirror the Index's, each re-folding one note;
+`adding` places by `LibraryDisplayOrder`, now public. 20 `SearchTests`
+against the Obsidian fixture, which gained `Topics/Café.md` (a
+diacritic, a `citekey:`, an alias, `#todo`). Measured on the real vault
+(79 notes, 460 KB): every query under 3 ms in release, under 10 ms in
+debug, once the byte search moved to `memmem` (ADR 0018, Update).
+Nothing on screen consumes it yet; ② is the palette, the title-bar
+field, and the *Recent* row.
+
 Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
-(issue #75), in parallel; then the specs already written — search and
-the command palette (issue #67, ADR 0018) and Preview (issue #77).
+(issue #75), in parallel; ticket #69 — the palette, the title-bar field,
+and the *Recent* row; then Preview (issue #77).
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh
