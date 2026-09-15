@@ -72,7 +72,9 @@ so they aren't accidentally reused for something else.
 - **Link** — a reference from one note to another. Two syntaxes, both
   supported and both resolved the same way:
   - **Wikilink** — `[[Title]]`, resolved by title, library-wide, regardless of
-    folder. `[[Title|shown text]]` displays alternate text. **Resolution**
+    folder. `[[Title|shown text]]` displays alternate text; inside a table
+    cell Obsidian writes that pipe as `\|`, and the backslash is table
+    escaping, not part of the title. **Resolution**
     is case-insensitive and tries, in order: an exact path relative to the
     library root (`[[folder/Title]]`, with or without `.md`), a note's title,
     an alias, an attachment's filename. When two notes share a title, a bare
