@@ -3,31 +3,39 @@ import Index
 import Library
 import SwiftUI
 
-/// The editor pane, read-only in this slice: the open note's path in a
-/// breadcrumb bar, its title, and its text exactly as it is on disk,
-/// selectable, with its links live — a note link opens in place, an
-/// attachment or external link opens with the system. A note that cannot
-/// be read shows the reason in place of its text. Empty until a note is
-/// selected.
+/// The editor pane (CONTEXT.md § Editor): the open note's path in a
+/// breadcrumb bar, its title, and its source in the text view — editable,
+/// its links live: a note link opens in place, an attachment or external
+/// link opens with the system. A note that cannot be read shows the reason
+/// in place of its text. Empty until a note is open.
 struct Editor: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
+    let buffer: NoteBuffer
+
+    @State private var isTextFocused = false
 
     private static let breadcrumbHeight: CGFloat = 34
     private static let breadcrumbInset: CGFloat = 16
     private static let pagePadding = EdgeInsets(top: 20, leading: 36, bottom: 20, trailing: 36)
     private static let titleSpacing: CGFloat = 11
-    /// The mockup's 1.65 line height at 14 px, less Inter's own line.
-    private static let textLineSpacing: CGFloat = 6
     private static let measure: CGFloat = 720
+    /// Room inside the surface for the brass ring, drawn 2 px outside the
+    /// text view and 2 px wide.
+    private static let ringInset: CGFloat = 4
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let library = currentLibrary.library, let index = currentLibrary.index,
-                let note = selection.openNote
+                let note = buffer.note
             {
                 breadcrumb(for: note)
-                page(for: note, in: library, index: index)
+                Text(note.title)
+                    .font(.sans(.title, weight: .semibold))
+                    .foregroundStyle(Color(.fg))
+                    .padding(.top, Self.pagePadding.top)
+                    .padding(.horizontal, Self.pagePadding.leading)
+                text(of: note, in: library, index: index)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -44,38 +52,28 @@ struct Editor: View {
             .frame(height: Self.breadcrumbHeight)
     }
 
-    private func page(for note: Note, in library: Library, index: Index) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Self.titleSpacing) {
-                Text(note.title)
-                    .font(.sans(.title, weight: .semibold))
-                    .foregroundStyle(Color(.fg))
-                Group {
-                    switch text(of: note, in: library) {
-                    case .success(let text):
-                        NoteBody(
-                            text: text,
-                            links: BodyLink.all(in: text, resolved: index.links(from: note))
-                        ) { destination in
-                            follow(destination, in: library)
-                        }
-                        .lineSpacing(Self.textLineSpacing)
-                        .foregroundStyle(Color(.fg))
-                        .textSelection(.enabled)
-                        // A fresh view per note: the same `Text` given new
-                        // content keeps its selection, so a range selected in
-                        // one note would show, clamped, over the next.
-                        .id(note.path)
-                    case .failure(let error):
-                        Text(error.localizedDescription)
-                            .foregroundStyle(Color(.danger))
-                    }
-                }
+    @ViewBuilder
+    private func text(of note: Note, in library: Library, index: Index) -> some View {
+        if let parsed = buffer.parsed {
+            NoteTextView(
+                note: note, parsed: parsed, index: index, measure: Self.measure,
+                inset: NSSize(
+                    width: Self.pagePadding.leading - Self.ringInset,
+                    height: Self.pagePadding.bottom - Self.ringInset),
+                onEdit: buffer.edit,
+                follow: { destination in follow(destination, in: library) },
+                onFocusChange: { isTextFocused = $0 }
+            )
+            .padding(.horizontal, Self.ringInset)
+            .padding(.top, Self.titleSpacing - Self.ringInset)
+            .padding(.bottom, Self.ringInset)
+            .brassFocusRing(isFocused: isTextFocused, cornerRadius: Radius.medium)
+        } else if let failure = buffer.readFailure {
+            Text(failure.localizedDescription)
                 .font(.sans(.body, weight: .regular))
-            }
-            .frame(maxWidth: Self.measure, alignment: .leading)
-            .padding(Self.pagePadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(Color(.danger))
+                .padding(.top, Self.titleSpacing)
+                .padding(.horizontal, Self.pagePadding.leading)
         }
     }
 
@@ -94,12 +92,5 @@ struct Editor: View {
         case .external(let url): _ = NSWorkspace.shared.open(url)
         case .unresolved: break
         }
-    }
-
-    // Read whenever the pane draws, not once per selection, so selecting a
-    // note again after it has changed on disk shows what is there now — or
-    // that it has gone — rather than the last read.
-    private func text(of note: Note, in library: Library) -> Result<String, LibraryError> {
-        Result { () throws(LibraryError) in try library.read(note) }
     }
 }

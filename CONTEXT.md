@@ -170,7 +170,9 @@ so they aren't accidentally reused for something else.
   frontmatter included, with the parser's ranges colored (ADR 0013). Source
   is always what's on disk: a note **autosaves** shortly after each pause in
   typing and whenever it leaves view, written back in place exactly as typed
-  (ADR 0014). Any rendering (**Preview**) is a separate view over it. When
+  (ADR 0014). The **buffer** is the open note's text as the editor holds
+  it: **clean** while it is what's on disk, **dirty** from an edit until the
+  save that follows. Any rendering (**Preview**) is a separate view over it. When
   another tool changes the open note, a clean editor reloads it; an editor
   with unsaved edits keeps them, shows *changed on disk*, and asks at the
   next save whether to overwrite or discard.

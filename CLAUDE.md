@@ -126,8 +126,29 @@ tree was scanned without is placed by `LibraryDisplayOrder`, the display
 rule read off two paths. Seven `IndexTests` and five `NoteParsingTests`
 cover it; the no-I/O test deletes the library copy before operating.
 
-Next: #41 the TextKit 2 editor (#38's ③, blocked by ② and #27) and #42
-the screen glue that wires `LibraryWatcher` (④, blocked by ① and ③).
+**③ is built (issue #41): the editor edits.** `NoteBody` is gone;
+`NoteTextView` bridges an `NSTextView` on TextKit 2 (ADR 0013) whose
+`Coordinator` parses the whole text after every change to its characters
+— an undo included, which only the storage delegate sees — sets fonts and
+links in the storage where they differ (`Highlight.fontSpans`) and colors
+as rendering attributes, and reports the parse up (ADR 0013, Update, for
+why the hook is `didProcessEditing`). Two seam additions, red-first:
+`Index.resolve(_:from:)` answers what a link or embed the tables have not
+seen points at, so a link is colored as it is typed; `Library.note(at:)`
+and `folder(at:)` find the tree's current copy by path. The glue:
+`NoteBuffer` is the buffer (`CONTEXT.md` § Editor) — one per window,
+dirty from an edit to the save 1 s later, or at once on note switch,
+window or app deactivation, quit, ⌘S, and before Open Library… —
+`CurrentLibrary.save` writes in place and folds the parse into the Index
+(ADR 0014, ADR 0017), and `NotesSelection.refresh(from:)` finds what it
+holds again by path after the write, since panes compare `Note` and
+`Folder` by value; the window shell tells a save from a library switch by
+root URL. `docs/visual-implementation.md` records the fixed settings, the
+range → attribute table, and the ring. No title field yet (that is ④'s
+create flow), no external-change handling.
+
+Next: #42 the screen glue that wires `LibraryWatcher`, creates notes,
+and the title field (④, blocked by ① and ③).
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh

@@ -72,6 +72,18 @@ final class NotesSelection {
         show(next)
     }
 
+    /// The library changed under this selection — a save — so every note
+    /// and folder held here is a copy from before it, and the panes compare
+    /// by value. Each is found again by its path, the identity a note keeps
+    /// (CONTEXT.md, Note); one that is gone is dropped — the open note
+    /// closes, a scope falls back to All Notes, history closes over it.
+    func refresh(from library: Library) {
+        sidebar = sidebar.refreshed(from: library)
+        openNote = openNote.flatMap { library.note(at: $0.path) }
+        history = withoutRepeats(history.compactMap { library.note(at: $0.path) })
+        forward = withoutRepeats(forward.compactMap { library.note(at: $0.path) })
+    }
+
     /// A library that has been replaced takes its selection and history with it.
     func clear() {
         sidebar = .allNotes
@@ -86,6 +98,14 @@ final class NotesSelection {
         forward = []
         guard history.last != note else { return }
         history.append(note)
+    }
+
+    /// `notes` with a note that follows itself entered once, as `push`
+    /// keeps them.
+    private func withoutRepeats(_ notes: [Note]) -> [Note] {
+        notes.reduce(into: []) { kept, note in
+            if kept.last != note { kept.append(note) }
+        }
     }
 
     private func show(_ note: Note) {

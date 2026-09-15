@@ -1,6 +1,7 @@
 import Foundation
 import Index
 import Library
+import NoteParsing
 import Observation
 
 /// The one library open in the window (ADR 0007), its Index, and the rule
@@ -39,6 +40,21 @@ final class CurrentLibrary {
         } catch {
             openFailure = error
         }
+    }
+
+    /// Writes `parsed.text` to `note` in place and folds the parse into
+    /// the Index (ADR 0014, ADR 0017): the library and Index on screen are
+    /// replaced together, and the note comes back as the library holds it
+    /// now, with its new modification date. Throws what `Library.write`
+    /// throws — and `noteMissing` with no library open — and then nothing
+    /// has changed.
+    func save(_ parsed: ParsedNote, to note: Note) throws(LibraryError) -> Note {
+        guard var library, let index else { throw .noteMissing }
+        try library.write(parsed.text, to: note)
+        guard let saved = library.note(at: note.path) else { throw .noteMissing }
+        self.index = index.updating(saved, parsed: parsed)
+        self.library = library
+        return saved
     }
 
     // ADR 0012: the Index is built here, synchronously, so a library is never

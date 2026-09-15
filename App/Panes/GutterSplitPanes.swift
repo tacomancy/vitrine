@@ -8,6 +8,7 @@ import SwiftUI
 struct GutterSplitPanes: NSViewRepresentable {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
+    let buffer: NoteBuffer
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -20,7 +21,7 @@ struct GutterSplitPanes: NSViewRepresentable {
         let panes = [
             host(Sidebar(currentLibrary: currentLibrary, selection: selection)),
             host(NoteList(currentLibrary: currentLibrary, selection: selection)),
-            host(Editor(currentLibrary: currentLibrary, selection: selection)),
+            host(Editor(currentLibrary: currentLibrary, selection: selection, buffer: buffer)),
             host(Rail(currentLibrary: currentLibrary, selection: selection)),
         ]
         for pane in panes {
