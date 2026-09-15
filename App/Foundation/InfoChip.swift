@@ -11,7 +11,7 @@ struct InfoChip: View {
 
     @FocusState private var isFocused: Bool
 
-    static let height: CGFloat = 21
+    private static let height: CGFloat = 21
     private static let paddingHorizontal: CGFloat = 8
     private static let borderWidth: CGFloat = 1
 

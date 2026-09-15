@@ -16,6 +16,14 @@ struct TagPage: View {
     /// *Open in Notes*: the Notes tab, scoped to the page's subject.
     let openInNotes: (TagsSidebarSelection) -> Void
 
+    /// What the page is about, as the Index has it now.
+    private enum Subject {
+        /// A selected tag still in the tree: the nodes from its root down,
+        /// the last its own.
+        case tag(ancestry: [TagTreeNode])
+        case untagged
+    }
+
     var body: some View {
         ScrollView {
             content
@@ -31,21 +39,23 @@ struct TagPage: View {
         .floatingSurface()
     }
 
-    /// What the page is about, as the Index has it now: a selected tag
-    /// that is still in the tree, or Untagged. A tag the last edit removed
-    /// leaves the page with nothing to say about it.
-    private var subject: TagsSidebarSelection? {
+    /// The selected tag found in the tree, or Untagged; `nil` with nothing
+    /// selected — or a selected tag the last edit removed, which leaves the
+    /// page with nothing to say about it.
+    private var subject: Subject? {
         guard let index = currentLibrary.index, let sidebar = selection.sidebar else { return nil }
-        if case .tag(let path) = sidebar, index.tagTree.ancestry(of: path) == nil { return nil }
-        return sidebar
+        switch sidebar {
+        case .tag(let path): return index.tagTree.ancestry(of: path).map(Subject.tag)
+        case .untagged: return .untagged
+        }
     }
 
     @ViewBuilder
     private var content: some View {
         if let index = currentLibrary.index, let subject {
             switch subject {
-            case .tag(let path):
-                if let ancestry = index.tagTree.ancestry(of: path), let node = ancestry.last {
+            case .tag(let ancestry):
+                if let node = ancestry.last {
                     page(for: node, spelled: ancestry.map(\.name).joined(separator: "/"), in: index)
                 }
             case .untagged:
@@ -62,9 +72,10 @@ struct TagPage: View {
 
     private func page(for node: TagTreeNode, spelled name: String, in index: Index) -> some View {
         VStack(alignment: .leading, spacing: TagPageMetrics.headerSpacing) {
-            heading(hash: true, name)
+            heading(name, isTag: true)
             statLine(
-                "\(node.count.formatted()) notes · \(node.children.count.formatted()) child tags",
+                text:
+                    "\(node.count.formatted()) notes · \(node.children.count.formatted()) child tags",
                 openInNotes: .tag(path: node.path))
             if !node.children.isEmpty {
                 WrappingRow(spacing: TagPageMetrics.chipSpacing) {
@@ -76,32 +87,33 @@ struct TagPage: View {
                 }
             }
             coOccurrence(of: node, in: index)
-                .padding(.top, TagPageMetrics.sectionSpacing - TagPageMetrics.headerSpacing)
+                .padding(.top, TagPageMetrics.coOccurrenceTopPadding)
         }
     }
 
     private func untaggedPage(count: Int) -> some View {
         VStack(alignment: .leading, spacing: TagPageMetrics.headerSpacing) {
-            heading(hash: false, "Untagged")
-            statLine("\(count.formatted()) notes", openInNotes: .untagged)
+            heading("Untagged", isTag: false)
+            statLine(text: "\(count.formatted()) notes", openInNotes: .untagged)
         }
     }
 
-    /// `#` in mono `link`, as the sidebar's tag glyph and the tag row spell
-    /// it, then the name at `heading` in `fg` (screen 09).
-    private func heading(hash: Bool, _ name: String) -> some View {
+    /// The name at `heading` in `fg` — led, for a tag, by `#` in mono
+    /// `link`, as the sidebar's tag glyph and the tag row spell it
+    /// (screen 09).
+    private func heading(_ name: String, isTag: Bool) -> some View {
         let name = Text(name).font(.sans(.heading, weight: .regular)).foregroundStyle(Color(.fg))
         let hashSign = Text("#").font(.mono(.heading, weight: .regular)).foregroundStyle(
             Color(.link))
-        return Text("\(hash ? hashSign : Text(""))\(name)")
+        return Text("\(isTag ? hashSign : Text(""))\(name)")
             .accessibilityAddTraits(.isHeader)
     }
 
     /// The caps stat line, and after it the one action on the page: *Open
     /// in Notes* in `link` (rule 2), a plain button with the brass ring.
-    private func statLine(_ stat: String, openInNotes subject: TagsSidebarSelection) -> some View {
+    private func statLine(text: String, openInNotes subject: TagsSidebarSelection) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: TagPageMetrics.statSpacing) {
-            CapsLabel(text: stat, color: Color(.fgMuted))
+            CapsLabel(text: text, color: Color(.fgMuted))
             OpenInNotesLink { openInNotes(subject) }
         }
     }

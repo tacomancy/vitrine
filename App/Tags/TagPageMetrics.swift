@@ -9,12 +9,13 @@ enum TagPageMetrics {
     /// Between the stat line's count and its link.
     static let statSpacing: CGFloat = 12
     static let chipSpacing: CGFloat = 5
-    /// Above the CO-OCCURS WITH label.
-    static let sectionSpacing: CGFloat = 20
-    /// Between the label and the first row.
-    static let labelGap: CGFloat = 12
-    /// Between co-occurrence rows.
+    /// Above the CO-OCCURS WITH label, on top of `headerSpacing`: 20 px
+    /// in all from what is above it.
+    static let coOccurrenceTopPadding: CGFloat = 11
+    /// Between the CO-OCCURS WITH label and its rows, and between rows.
     static let rowSpacing: CGFloat = 12
+    /// Between a row's tag and its fraction, at the least.
+    static let fractionSpacing: CGFloat = 12
     /// Between a row's name line and its bar.
     static let barSpacing: CGFloat = 4
     static let barHeight: CGFloat = 4

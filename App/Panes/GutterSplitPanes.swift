@@ -20,7 +20,11 @@ struct GutterSplitPanes: NSViewRepresentable {
     func makeNSView(context: Context) -> GutterSplitView {
         let split = GutterSplitView(gutter: ShellMetrics.gutter, initialWidths: widths.map(\.ideal))
         split.delegate = context.coordinator
-        for pane in makePanes() {
+        let panes = makePanes()
+        // The delegate indexes the width table by pane; a table of the
+        // wrong length would fail there, later and less clearly.
+        precondition(panes.count == widths.count, "One PaneWidth per pane")
+        for pane in panes {
             split.addArrangedSubview(pane)
         }
         return split

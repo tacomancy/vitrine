@@ -17,7 +17,7 @@ struct CoOccurrenceRow: View {
                     .font(.mono(.caption, weight: .regular))
                     .foregroundStyle(Color(.fgSecondary))
                     .lineLimit(1)
-                Spacer(minLength: TagPageMetrics.statSpacing)
+                Spacer(minLength: TagPageMetrics.fractionSpacing)
                 Text("\(entry.count)/\(entry.outOf) · \(percent) %")
                     .font(.mono(.label, weight: .regular))
                     .foregroundStyle(Color(.fgMuted))

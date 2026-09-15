@@ -5,7 +5,7 @@ import SwiftUI
 /// fixed and never cycled (rule 6): a row past the sixth takes the lightest
 /// step and stays there, so a list only ever gets lighter down its length.
 enum SequentialRamp {
-    static let steps = [
+    private static let steps = [
         Color(.seq1), Color(.seq2), Color(.seq3), Color(.seq4), Color(.seq5), Color(.seq6),
     ]
 
