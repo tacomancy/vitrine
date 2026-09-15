@@ -176,7 +176,12 @@ struct BodyScanner {
             embeds.append(Embed(filename: filename, range: range))
             return
         }
-        let targetEnd = inner.firstIndex { $0 == "#" || $0 == "^" || $0 == "|" } ?? inner.endIndex
+        var targetEnd = inner.firstIndex { $0 == "#" || $0 == "^" || $0 == "|" } ?? inner.endIndex
+        // Obsidian writes the pipe as `\|` inside a table cell so it does not
+        // end the cell; the backslash is table escaping, not part of the target.
+        if targetEnd == pipe, targetEnd > inner.startIndex, inner[targetEnd - 1] == "\\" {
+            targetEnd -= 1
+        }
         let target = string(inner[inner.startIndex..<targetEnd]).trimmingCharacters(
             in: .whitespaces)
         // `[[#Heading]]` points into this note and `[[]]` at nothing; neither

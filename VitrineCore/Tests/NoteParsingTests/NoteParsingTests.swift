@@ -303,6 +303,23 @@ import Testing
             ])
     }
 
+    @Test func an_escaped_pipe_in_a_table_cell_ends_the_target_without_the_backslash() {
+        // Obsidian writes `\|` inside a table cell so the pipe does not end
+        // the cell; the backslash is table escaping, not part of the target.
+        let text = "| [[C1_W2_Linear_Regression.ipynb\\|Linear Regression]] |"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.links == [
+                .wikilink(
+                    Wikilink(
+                        target: "C1_W2_Linear_Regression.ipynb", displayText: "Linear Regression",
+                        range: 2..<54))
+            ])
+        #expect(slice(text, 2..<54) == "[[C1_W2_Linear_Regression.ipynb\\|Linear Regression]]")
+    }
+
     @Test func a_wikilink_target_is_trimmed() {
         let note = ParsedNote.parse("[[ Note ]]")
 
