@@ -7,7 +7,7 @@ import SwiftUI
 /// breadcrumb bar, its title in a field that renames it, and its source
 /// in the text view — editable, its links live: a note link opens in
 /// place, an unresolved one creates its note, an attachment or external
-/// link opens with the system. Between title and text, a bar when the
+/// link opens with the system; a tag clicked adds a filter chip. Between title and text, a bar when the
 /// file changed or went under the buffer (ADR 0014). A note that cannot
 /// be read shows the reason in place of its text. Empty until a note is
 /// open.
@@ -82,6 +82,7 @@ struct Editor: View {
                     height: Self.pagePadding.bottom - Self.ringInset),
                 onEdit: buffer.edit,
                 follow: { destination in follow(destination, in: library) },
+                addChip: selection.addChip(forTag:),
                 onFocusChange: { isFocused in
                     isTextFocused = isFocused
                     // ADR 0014: a save at once on focus loss.

@@ -11,7 +11,9 @@ struct StyledRange {
         case heading(level: Int)
         case fencedCode
         case inlineCode
-        case tag
+        /// The tag at this index of the parse's `bodyTags`; clicking it adds
+        /// a filter chip.
+        case tag(index: Int)
         /// The link at this index of the `BodyLink`s the ranges were built
         /// with; unresolved, it is drawn as no link at all.
         case link(index: Int, isResolved: Bool)
@@ -52,7 +54,9 @@ struct StyledRange {
         ranges += parsed.structure.headings.map {
             StyledRange(range: converted($0.range), kind: .heading(level: $0.level))
         }
-        ranges += parsed.bodyTags.map { StyledRange(range: converted($0.range), kind: .tag) }
+        ranges += parsed.bodyTags.enumerated().map { index, tag in
+            StyledRange(range: converted(tag.range), kind: .tag(index: index))
+        }
         ranges += links.enumerated().map { index, link in
             let isResolved =
                 if case .unresolved = link.destination { false } else { true }

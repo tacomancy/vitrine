@@ -88,6 +88,9 @@ the caller names — `fg-muted` for section labels, `accent` for SOON).
 `Radius.small` (2), `.medium` (3), `.large` (5). Five is the maximum
 anywhere (brief, rule 4). Floating panes use `large`; the active tab's top
 corners and the SOON badge use `medium`; square tab markers use `small`.
+Every drawn border is `LineWidth.border`, 1 px, in whichever token it
+takes — `line-control` on a control, `info-line` on a chip,
+`accent-quiet` on the badge, `primary` on the first-run card.
 
 ## Focus
 
@@ -225,24 +228,33 @@ when the same one is replaced by a save or another tool's change.
 
 ### The note list
 
-`NoteList` is a floating surface holding the `N NOTES · MODIFIED ↓` header
-and one `NoteRow` per note in the sidebar's scope — All Notes, Untagged, a
-folder, or a tag with its descendants, the last two answered by the
-`Index` — newest first (notes modified at the same instant keep library
-display order). The header is a `CapsLabel`
+`NoteList` is a floating surface holding the chip row (§ Filter chips),
+the `N NOTES · MODIFIED ↓` header, and one `NoteRow` per note in the
+sidebar's scope — All Notes, Untagged, a folder, or a tag with its
+descendants, the last two answered by the `Index` — that carries every
+chip's tag or a descendant of each (`Index.notes(taggedAll:)`, the
+scope's notes kept to those it lists; no chips keep every note), newest
+first (notes modified at the same instant keep library display order).
+The header counts what is listed. It is a `CapsLabel`
 in `fg-muted` — the one caps treatment, tracked like LIBRARY and FILES
 even though the mockup leaves this line untracked — padded 7 px above and
 below and inset to where the rows' titles start.
 
 A row is a `Button`: the title at `compact` (the mockup's 12.5 px taken to
 the nearest step) and the modification date in mono `label`, `fg-muted`,
-on a shared baseline, then 3 px below, the **tag row** — the note's tags
-from `Index.tags(of:)`, each with its `#`, space-separated, in mono
-`label` and `link` (the mockup's tag-row blue is the link token), one line
-truncated with an ellipsis; content padded 7 × 11 px (compact density,
-`NoteListMetrics`). A note with no tags keeps the empty line, so every row
-is one height. The tag row is text, not a control: nothing in it
-navigates in this spec. The date reads as the mockup's column: the time
+on a shared baseline, then 3 px below, the **tag row** (`TagRow`) — the
+note's tags from `Index.tags(of:)`, each with its `#`, space-separated,
+in mono `label` and `link` (the mockup's tag-row blue is the link token),
+one line truncated with an ellipsis; content padded 7 × 11 px (compact
+density, `NoteListMetrics`). A note with no tags keeps the empty line, so
+every row is one height. Each tag in the row is a click that adds it as
+a filter chip (§ Filter chips): the row is one attributed `Text` whose
+tag runs carry a `vitrine-tag://N` link, `N` the tag's index in the row,
+over an `openURL` action that adds the chip — one `Text`, so the line
+stays one ellipsised line, and `.tint(link)`, since `Text` colors a link
+from the tint. Nothing in it navigates. `TokenURL` is the one place a
+token's URL — its kind as the scheme, its index as the host — is built
+and read, for the tag row and the editor alike. The date reads as the mockup's column: the time
 for a note modified today, `Aug 28` for one modified this year, the full
 date for anything older. Selected, the row is the selected-row pill and
 its title steps up from `fg-secondary`, regular, to `fg`, semibold; the
@@ -251,6 +263,72 @@ highlights a different note moves that highlight to the note's folder:
 the scope is unchanged, and the tree never points at one note while the
 list and editor show another. A tag or Untagged scope stays as it is when
 a row opens.
+
+### Filter chips
+
+The **chip row** (`FilterChipRow`) sits above the note list's header,
+inset with it and padded 7 px above, so the header's own 7 px is the
+mockup's gap between the two. It is a `WrappingRow` — a `Layout` that
+places its subviews leading to trailing at their own sizes, 5 px apart,
+and starts a new line when the next would not fit the pane's width, so
+many chips never push the list off screen — holding one `FilterChip`
+per chip in `NotesSelection.chips`, in the order they were added, then
+`+ filter`; with no chips, `+ filter` alone.
+
+A **chip** is the brief's info chip (CONTEXT.md § Note list; screen 01
+at 20 px): `info-bg` filled, a 1 px `info-line` border, `Radius.medium`
+(the mockup's 2 px is the spec's 3), `#tag` in mono `label` and its `×`
+at `caption`/medium, both in `info`, padded 7 px each side, the `×`
+5 px after the tag. The `×` is the chip's one control —
+`NotesSelection.removeChip(at:)` — and the brass ring around the whole
+chip when it is focused (rule 7); its accessibility label is
+*Remove #tag*. The chip shows its tag as the tag tree spells it — a
+`TagTreeNode`'s `displaySpelling`, found in `FilterChipRow.everyTag`,
+the tree flattened to every node in tree order — or, for a path the
+tree no longer has, the path itself. A chip's identity is the tag's
+path: `NotesSelection.addChip(forTag:)` takes a tag as displayed, as
+written, or as a node's path and asks `Index.tagPath(of:)` for it
+(CONTEXT.md § Tags: lowercased, empty segments dropped), so a click on
+`#Reading/Notes` in a row and a pick of `reading/notes` in the popover
+are one chip, and adding it again is nothing. Chips stay through every
+scope change — selecting the same tag in the sidebar included — and go
+with the library (`NotesSelection.clear`).
+
+**`+ filter`** is a plain button: `+ filter` at `caption` in `fg-muted`
+inside a 1 px `line-strong` border dashed 3 on, 2 off (screen 01), at
+`Radius.medium`, 20 px tall, padded 6 px each side, with the brass ring
+when focused; *Add filter* to accessibility. It presents the
+**popover** (`FilterPopover`, a SwiftUI `popover` anchored under it, its
+background `bg-raised` — the mockups' popover ground): 240 px wide,
+padded 8 px, a field over a list. The field is a plain `TextField`
+placeholdered *Tag* at `compact` in `fg`, padded 4 × 8 px on
+`bg-surface` inside a 1 px `line-control` border (the brief's control
+border) at `Radius.medium`, focused on appearance with the brass ring
+around it. The list is the library's tags in tag tree order, kept to
+those whose path contains what is typed, case-insensitively — a path is
+lowercase — each a `SidebarRow` with the `#` glyph and the tag's whole
+display spelling (the spec's "tag paths" shown as the sidebar spells
+them) and no count, the list as tall as its rows up to ten before it
+scrolls (a popover takes the height its content asks for, so a cap
+alone left a short list over empty ground), or *No tags match.* at
+`caption` in `fg-muted`, padded 6 × 12 px, when nothing does. ↑ and ↓ move a **highlight** over the rows not yet chipped —
+`SidebarRow.Emphasis.highlighted`: the selected-row pill, its text
+`fg`, its glyph muted rather than brass, since it is the keyboard's
+place in the list and not a nav item, as the palette's highlighted note
+will be; on the popover's raised ground the pill's fill is the ground's,
+and its sapphire rule is what marks the row — stopping at either end, and the list scrolls to keep it in
+view; it starts on the first such row and returns there as the query
+changes. ↩ adds the highlighted
+tag and closes; a click on a row adds that one and closes; Esc closes.
+A tag already chipped is `fg-disabled` throughout and inert, and the
+highlight passes over it. No counts, no fuzzy matching, and nothing
+from the `Search` seam.
+
+**Tag clicks** add a chip wherever a tag shows on the Notes tab: the
+note list's tag row and the rail's INFO tags are both `TagRow`
+(§ The note list), and the editor's body tags are links to a scheme of
+their own (§ The editor). None of them navigates; the Tags tab is never
+opened by a tag.
 
 ### The editor
 
@@ -318,8 +396,8 @@ not announce, such as an undo (ADR 0013, Update).
 | frontmatter (`rawRange`) | mono | `fg-muted` |
 | heading (line) | semibold at its level's size | — (`fg`) |
 | fenced code block, inline code span | mono | `fg-secondary` on `bg-sunken` |
-| body tag | — | `link` |
-| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N`, `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
+| body tag | — | `link`; the `.link` attribute is `vitrine-tag://N`, `N` its index in the parse's `bodyTags` — a tag inside a link's own token keeps the link's |
+| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N` (`TokenURL`), `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
 | unresolved link or embed | — | `fg-muted`; a single dashed `.underlineStyle` in the storage, and the same `.link` — following it creates the note |
 
 Later rows win inside earlier ones: a link in frontmatter is `link`, code
@@ -330,8 +408,11 @@ attachment or external link opens through `NSWorkspace` — and an
 unresolved link creates its note: titled by the target's last path
 component without any `.md`, in the folder a new note goes in
 (§ Creating), and opened, so the link resolves as the tree and Index
-follow; a title the folder refuses creates nothing. Tags are colored and
-inert.
+follow; a title the folder refuses creates nothing. A click on a tag
+reaches the same delegate method, told apart by its scheme, and adds
+the tag as written as a filter chip (§ Filter chips): a link attribute
+because that is the one click the text view tracks without moving the
+caret or the selection, so the edit is undisturbed.
 
 **Focus.** The brass ring is `BrassFocusRing` around the scroll view, at
 `Radius.medium`, driven by `EditorTextView` reporting when it becomes and
@@ -485,10 +566,10 @@ drawn selected, that opens its note — scope unchanged, history pushed.
 With none, one line of `caption` in `fg-muted`: *No notes link here.*
 **INFO** — the note's path in mono `label`, `fg-secondary`, truncated in
 the middle; its modification date at `caption` in `fg-secondary`, as
-`Sep 12, 2026 at 3:04 PM`; its tags as the note list's tag row (mono
-`label`, `link`), absent when it has none; and `N links · N backlinks ·
-N unresolved` in mono `label`, `fg-muted`, counted from `links(from:)`
-and `backlinks(to:)`. No ANCHORS, and note-list rows are unchanged
+`Sep 12, 2026 at 3:04 PM`; its tags as the note list's tag row (`TagRow`:
+mono `label`, `link`, each a click that adds a filter chip), absent when
+it has none; and `N links · N backlinks · N unresolved` in mono `label`,
+`fg-muted`, counted from `links(from:)` and `backlinks(to:)`. No ANCHORS
 (spec #25).
 
 ### First run

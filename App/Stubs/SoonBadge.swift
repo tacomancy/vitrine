@@ -3,7 +3,6 @@ import SwiftUI
 /// The brief's SOON treatment: a caps label in brass with a quiet brass
 /// border. Brass as punctuation (rule 3), never a fill.
 struct SoonBadge: View {
-    private static let borderWidth: CGFloat = 1
     private static let horizontalPadding: CGFloat = 4
     private static let verticalPadding: CGFloat = 1
 
@@ -13,7 +12,7 @@ struct SoonBadge: View {
             .padding(.vertical, Self.verticalPadding)
             .overlay {
                 RoundedRectangle(cornerRadius: Radius.medium)
-                    .stroke(Color(.accentQuiet), lineWidth: Self.borderWidth)
+                    .stroke(Color(.accentQuiet), lineWidth: LineWidth.border)
             }
     }
 }
