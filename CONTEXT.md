@@ -200,7 +200,10 @@ so they aren't accidentally reused for something else.
   their tags, their links and backlinks, and search content. The index is
   built from the library and can always be rebuilt from it; it never holds
   anything the library doesn't (ADR 0002). It lives in memory and is rebuilt
-  every time a library opens (ADR 0012). Building it never fails: a note
+  every time a library opens (ADR 0012), and while the library is open it
+  is kept **current** one note at a time — a note updated, added, removed,
+  or renamed is folded in from its parse alone, no other note re-read or
+  re-parsed (ADR 0017). Building it never fails: a note
   whose text cannot be read is **skipped** — recorded as such, and neither
   tagged nor untagged. Notes come out of the index in **library display
   order**: a folder's own notes, then each subfolder's in turn, every list
@@ -210,10 +213,16 @@ so they aren't accidentally reused for something else.
   embeds, and **structure** — the headings, fenced code blocks, and inline
   code spans the editor colors — without reference to any other note. Parsing is pure; what a
   link *resolves to* is the Index's business, not the parser's. Its result
-  is a **parsed note**: the frontmatter (if any), the **body tags** in order
-  of appearance, the links, the embeds, and the body's range. Every token
-  carries its **range** as UTF-8 offsets into the note's text, so the
-  editor can point at it without a second parser.
+  is a **parsed note**: the text it was read from, the frontmatter (if
+  any), the **body tags** in order of appearance, the links, the embeds,
+  the body's range, and the structure. Every token carries its **range**
+  as UTF-8 offsets into that text, so the editor can point at it without
+  a second parser, and a parsed note is complete on its own (ADR 0017). A
+  **heading** is an ATX line — one to six `#` and a space — with its level
+  and the whole line's range; a fenced code block's range runs from its
+  opening fence to the end of its closing fence's line (or of the text,
+  unclosed); an inline code span's covers both backtick runs. Emphasis,
+  lists, block quotes, and tables are not structure in v1.
 
 ## Reserved
 

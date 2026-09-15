@@ -3,7 +3,10 @@ import NoteParsing
 
 /// The library's tags and links, aggregated: a value built once when a
 /// library opens, in memory only, and rebuilt on every open (ADR 0012). It
-/// holds nothing the library doesn't (ADR 0002).
+/// holds nothing the library doesn't (ADR 0002). Between opens it keeps
+/// each note's parse, so one note's change is folded in without reading
+/// or parsing any other (ADR 0017): `updating`, `adding`, `removing`, and
+/// `renaming` each answer with a new Index whose every table is recomputed.
 public struct Index: Sendable {
     /// Every tag in the library arranged by hierarchy: the roots, in
     /// case-insensitive natural order by name, each with its descendants. A
@@ -24,42 +27,84 @@ public struct Index: Sendable {
     /// Every note that was read, with its tags and links, in library
     /// display order.
     private let notes: [IndexedNote]
+    /// What every table above was computed from, kept for the next change.
+    private let library: ParsedLibrary
 
     /// Reads every note through `library`, parses it, aggregates its tags,
     /// and resolves its links. Never throws: a note that cannot be read
     /// lands in `skipped`.
     public static func build(from library: Library) -> Index {
-        var read: [ReadNote] = []
-        var skipped: [Note] = []
-        for note in library.allNotes {
-            guard let text = try? library.read(note) else {
-                skipped.append(note)
-                continue
-            }
-            read.append(ReadNote(note: note, text: text, parsed: ParsedNote.parse(text)))
-        }
-        let resolver = LinkResolver(library: library, notes: read)
+        Index(ParsedLibrary(reading: library))
+    }
+
+    /// This index with `note` — as the library holds it now — read as
+    /// `parsed` instead: its tags, links, and backlinks on other notes
+    /// follow, and nothing on disk is touched.
+    public func updating(_ note: Note, parsed: ParsedNote) -> Index {
+        var library = library
+        library.update(note, parsed: parsed)
+        return Index(library)
+    }
+
+    /// This index with `note`, read as `parsed`, placed in library display
+    /// order: links elsewhere that its title, alias, or path now satisfies
+    /// resolve to it, and nothing on disk is touched.
+    public func adding(_ note: Note, parsed: ParsedNote) -> Index {
+        var library = library
+        library.add(note, parsed: parsed)
+        return Index(library)
+    }
+
+    /// This index without `note`: its tags leave the tree, links to it
+    /// become unresolved, and nothing on disk is touched. A note the index
+    /// does not hold changes nothing.
+    public func removing(_ note: Note) -> Index {
+        var library = library
+        library.remove(note)
+        return Index(library)
+    }
+
+    /// This index with `note` known as `renamed` — its parse kept, its
+    /// place in library display order taken afresh — so links by the old
+    /// title come loose and links by the new one land, without touching
+    /// the disk. A note whose text was never read stays unread — skipped —
+    /// under its new path.
+    public func renaming(_ note: Note, to renamed: Note) -> Index {
+        var library = library
+        library.rename(note, to: renamed)
+        return Index(library)
+    }
+
+    /// Every table, computed from `library` alone.
+    private init(_ library: ParsedLibrary) {
+        let resolver = LinkResolver(library)
         var spellings = SegmentSpellings()
         var tree = TagTreeBuilder()
         var notes: [IndexedNote] = []
-        for note in read {
-            let tags = tags(in: note.parsed, spellings: &spellings)
-            for tag in tags { tree.insert(tag, carriedBy: note.note) }
+        for (note, parsed) in library.parsed {
+            let tags = Self.tags(in: parsed, spellings: &spellings)
+            for tag in tags { tree.insert(tag, carriedBy: note) }
             notes.append(
-                IndexedNote(note: note.note, tags: tags, links: links(in: note, resolver: resolver))
-            )
+                IndexedNote(
+                    note: note, tags: tags,
+                    links: Self.links(in: parsed, of: note, resolver: resolver)))
         }
-        return Index(tagTree: tree.nodes(), skipped: skipped, notes: notes)
+        tagTree = tree.nodes()
+        skipped = library.skipped
+        self.notes = notes
+        self.library = library
     }
 
-    /// A read note's links and embeds resolved, in one document order —
-    /// the parser keeps the two apart; their ranges put them back — each
-    /// with the line it sits on, sliced now, while the text is at hand.
-    private static func links(in note: ReadNote, resolver: LinkResolver) -> [LinkInContext] {
-        let text = Array(note.text.utf8)
+    /// A note's links and embeds resolved, in one document order — the
+    /// parser keeps the two apart; their ranges put them back — each with
+    /// the line it sits on.
+    private static func links(in parsed: ParsedNote, of note: Note, resolver: LinkResolver)
+        -> [LinkInContext]
+    {
+        let text = Array(parsed.text.utf8)
         let links =
-            note.parsed.links.compactMap { resolver.resolve($0, from: note.note) }
-            + note.parsed.embeds.compactMap { resolver.resolve($0, from: note.note) }
+            parsed.links.compactMap { resolver.resolve($0, from: note) }
+            + parsed.embeds.compactMap { resolver.resolve($0, from: note) }
         return
             links
             .sorted { $0.range.lowerBound < $1.range.lowerBound }

@@ -1,6 +1,9 @@
 /// One note's text read into its frontmatter, tags, links, and embeds,
 /// without reference to any other note (CONTEXT.md, Parsing).
 public struct ParsedNote: Sendable, Equatable {
+    /// The text this was parsed from — what every range below is an offset
+    /// into, so a parse is complete on its own (ADR 0017).
+    public let text: String
     /// The YAML block at the top of the note, when there is one.
     public let frontmatter: Frontmatter?
     /// Where the body is, as UTF-8 offsets: everything after the frontmatter,
@@ -15,6 +18,8 @@ public struct ParsedNote: Sendable, Equatable {
     public let links: [Link]
     /// Every embed in the body, in order of appearance.
     public let embeds: [Embed]
+    /// The body's headings, fenced code blocks, and inline code spans.
+    public let structure: Structure
 
     /// Reads `text` into a `ParsedNote`. Never fails: text that is not a note
     /// in any recognisable way is a note whose whole text is body.
@@ -26,9 +31,13 @@ public struct ParsedNote: Sendable, Equatable {
         var scanner = BodyScanner(text, from: bodyStart)
         scanner.scan()
         return ParsedNote(
-            frontmatter: frontmatter, bodyRange: bodyStart..<end, bodyTags: scanner.tags,
+            text: text, frontmatter: frontmatter, bodyRange: bodyStart..<end,
+            bodyTags: scanner.tags,
             links: (frontmatter?.links ?? []).map(Link.wikilink) + scanner.links,
-            embeds: scanner.embeds)
+            embeds: scanner.embeds,
+            structure: Structure(
+                headings: scanner.headings, fencedCodeBlocks: scanner.fencedCodeBlocks,
+                inlineCodeSpans: scanner.inlineCodeSpans))
     }
 
     /// The body starts on the line after the closing `---`; the line ending
