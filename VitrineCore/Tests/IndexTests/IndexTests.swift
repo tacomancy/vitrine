@@ -882,6 +882,7 @@ import Testing
         let index = built.applying(.folderChanged("Topics"), in: changed)
 
         #expect(index.tags(of: scratch) == ["daily"])
+        #expect(index.tags(of: circuits) == ["interp/circuits"])
         #expect(index.tagTree.contains { $0.path == "agents" } == false)
         #expect(
             index.notes(tagged: "interp/circuits").map(\.path) == [
