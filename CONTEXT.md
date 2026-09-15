@@ -261,6 +261,18 @@ so they aren't accidentally reused for something else.
   opening fence to the end of its closing fence's line (or of the text,
   unclosed); an inline code span's covers both backtick runs. Emphasis,
   lists, block quotes, and tables are not structure in v1.
+- **Rendering** — turning one parsed note into what Preview draws: a
+  **rendered note**, the list of its **blocks** in order — heading,
+  paragraph, list, task list, code block, quote, table, thematic break,
+  and image — each paragraph, heading, and table cell made of **inlines**:
+  text, emphasis, strong, code, strikethrough, link, wikilink, tag, and
+  line breaks. Every block carries its **source range**, the UTF-8 offsets
+  of exactly the text it was rendered from, trailing whitespace excluded,
+  so a block can point back at the source without a second parser. The
+  frontmatter is cut, and wikilinks, embeds, and tags are turned into
+  standard syntax by a **pre-pass** over the parser's ranges before the
+  CommonMark grammar sees the text (ADR 0019). Rendering is pure and never
+  fails; a note that is not Markdown in any recognisable way is paragraphs.
 
 ## Reserved
 

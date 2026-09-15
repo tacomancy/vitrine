@@ -215,9 +215,34 @@ debug, once the byte search moved to `memmem` (ADR 0018, Update).
 Nothing on screen consumes it yet; ② is the palette, the title-bar
 field, and the *Recent* row.
 
+**The seventh and last v1 feature is under way (issue #77, Preview —
+render a note; tickets #78 and its screen ticket): ① built.** The
+`Rendering` seam (issue #78) is `RenderedNote.render(_ parsed:)`: the
+frontmatter cut, the body's wikilinks, `![[embeds]]`, and `#tags`
+rewritten over the parser's ranges into standard syntax with a
+`vitrine:` destination that never leaves the seam, swift-markdown 0.8.0
+(pinned, `.disableSmartOpts`, ADR 0019) parsing the result, and a walk
+into the `Sendable` block model — `Block` with its `Kind` and
+`sourceRange`, `Inline`, `TaskItem`, `ColumnAlignment`, `ImageSource` —
+every block's range mapped back through the pre-pass into the note's
+own UTF-8 offsets and trimmed to exactly its source. The pre-pass first
+parses the body as written to find the code and HTML blocks the scanner
+does not skip, and rewrites nothing inside them; a paragraph splits
+around its images; HTML reduces to its text; a list is a task list when
+every item has a checkbox (ADR 0019, Update). One additive parser
+change, red-first: `Embed.width`. 26 `RenderingTests`, string literal
+in and `[Block]` literal out, plus the Obsidian fixture rendered whole;
+the real vault (79 notes) renders in under 100 ms. The dependency's Swift 5-mode
+warnings are exempt from warnings-as-errors per target in
+`Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
+yet.
+
 Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
 (issue #75), in parallel; ticket #69 — the palette, the title-bar field,
-and the *Recent* row; then Preview (issue #77).
+and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
+toggle and ⌘E, the remembered setting, block views over `[Block]`, click
+routing through `Index`, re-render timing — with
+`docs/visual-implementation.md` recording the typography.
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh

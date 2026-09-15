@@ -18,11 +18,15 @@ let package = Package(
         .library(name: "Index", targets: ["Index"]),
         .library(name: "LibraryWatcher", targets: ["LibraryWatcher"]),
         .library(name: "Search", targets: ["Search"]),
+        .library(name: "Rendering", targets: ["Rendering"]),
     ],
     dependencies: [
         // ADR 0011: Yams parses frontmatter, pinned exactly; a dependency is
         // taken only for an externally specified format we must match.
-        .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2")
+        .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2"),
+        // ADR 0019: swift-markdown renders Preview, pinned exactly and used
+        // only inside the Rendering seam; the block model is the contract.
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.8.0"),
     ],
     targets: [
         .target(
@@ -103,6 +107,20 @@ let package = Package(
         .testTarget(
             name: "SearchTests",
             dependencies: ["Search", "Index", "Library", "NoteParsing", "Fixtures"],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .target(
+            name: "Rendering",
+            dependencies: ["NoteParsing", .product(name: "Markdown", package: "swift-markdown")],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .testTarget(
+            name: "RenderingTests",
+            dependencies: ["Rendering", "NoteParsing", "Library", "Fixtures"],
             swiftSettings: [
                 .defaultIsolation(nil)
             ]

@@ -52,3 +52,29 @@ MarkdownUI and similar (UI libraries, excluded by ADR 0011).
   Preview. Accepted; a web view is the only faithful alternative.
 - The block model is kept minimal on purpose: adding kinds is additive;
   changing a kind's shape ripples into views.
+
+## Update (2026-09-15, from the Rendering seam)
+
+Four things the seam settled that the decision above left open:
+
+- **The parser's ranges do not skip everything cmark reads as code.**
+  `NoteParsing` knows inline code and fences at the start of a line; a
+  `~~~` fence indented inside a list item or quote, indented code, and an
+  HTML block are code to cmark but text to the scanner, and a `[[link]]`
+  or `#tag` inside one was rewritten and then shown as its `vitrine:`
+  form. The pre-pass now parses the body as written first, takes every
+  code and HTML block's range from that tree, and rewrites no token inside
+  one. Two cmark parses per render; the real vault still renders whole in
+  under 100 ms.
+- **A paragraph splits around its images.** The model has no inline
+  image — an embed stands on its own line in every note seen — so an
+  image inside a paragraph becomes an image block, and the runs of text
+  around it paragraphs of their own, one that is only whitespace dropped.
+- **A list is a task list only when every item has a checkbox.** cmark
+  strips the `[ ]` from an item's text, so in a list that mixes checkbox
+  items with plain ones the checkboxes are not drawn. Obsidian draws them;
+  the mixed list has not appeared in a real note, and the honest model for
+  it — a checkbox per list item — is additive if it does.
+- **The `vitrine:` destination is the seam's own, not a reserved word in
+  notes.** A note that writes `[x](vitrine:note?target=y)` itself renders
+  it as a wikilink. Harmless, and not worth an escape.

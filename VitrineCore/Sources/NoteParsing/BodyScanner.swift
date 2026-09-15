@@ -228,7 +228,8 @@ struct BodyScanner {
             let filename = string(inner[inner.startIndex..<(beforePipe ?? inner.endIndex)])
                 .trimmingCharacters(in: .whitespaces)
             guard !filename.isEmpty else { return }
-            embeds.append(Embed(filename: filename, range: range))
+            let width = inner.lastIndex(of: "|").flatMap { Int(string(inner[($0 + 1)...])) }
+            embeds.append(Embed(filename: filename, width: width, range: range))
             return
         }
         let beforeDisplayText = inner[inner.startIndex..<(beforePipe ?? inner.endIndex)]
