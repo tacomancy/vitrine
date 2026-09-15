@@ -327,6 +327,107 @@ import Testing
         #expect(results.map(\.matchedInTitle) == [true, true, false])
     }
 
+    @Test func applying_a_modified_note_makes_its_new_text_findable_and_its_old_not() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let indexed = Index.build(from: library)
+        let built = Search.build(from: indexed)
+        try "# Scratch\n\nNow filed under quokka.\n".write(
+            to: copy.appending(path: "Topics/Scratch.md"), atomically: true, encoding: .utf8)
+        let changed = library.applying(.noteModified("Topics/Scratch.md"))
+        let index = indexed.applying(.noteModified("Topics/Scratch.md"), in: changed)
+
+        let search = built.applying(.noteModified("Topics/Scratch.md"), in: index)
+
+        #expect(search.results(for: "quokka").map(\.note.path) == ["Topics/Scratch.md"])
+        // "deeper" was the old text's word.
+        #expect(search.results(for: "deeper").isEmpty)
+    }
+
+    @Test func applying_a_removed_note_drops_it() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let indexed = Index.build(from: library)
+        let built = Search.build(from: indexed)
+        try FileManager.default.removeItem(at: copy.appending(path: "Welcome.md"))
+        let changed = library.applying(.entryRemoved("Welcome.md"))
+        let index = indexed.applying(.entryRemoved("Welcome.md"), in: changed)
+
+        let search = built.applying(.entryRemoved("Welcome.md"), in: index)
+
+        // "opened once" is in Welcome's text alone.
+        #expect(search.results(for: "opened once").isEmpty)
+        #expect(search.results(for: "welcome").contains { $0.note.path == "Welcome.md" } == false)
+    }
+
+    @Test func applying_a_renamed_note_keeps_its_text_under_its_new_title() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let indexed = Index.build(from: library)
+        let built = Search.build(from: indexed)
+        try FileManager.default.moveItem(
+            at: copy.appending(path: "Welcome.md"), to: copy.appending(path: "Nowhere.md"))
+        let change = LibraryChange.entryRenamed(from: "Welcome.md", to: "Nowhere.md")
+        let changed = library.applying(change)
+        let index = indexed.applying(change, in: changed)
+        // Nothing is left to read: the text is the one the Index already held.
+        try FileManager.default.removeItem(at: copy.appending(path: "Nowhere.md"))
+
+        let search = built.applying(change, in: index)
+
+        let nowhere = try #require(search.results(for: "nowhere").first)
+        #expect(nowhere.note.path == "Nowhere.md")
+        #expect(nowhere.matchedInTitle)
+        // "opened once" is Welcome's text, now Nowhere's.
+        #expect(search.results(for: "opened once").map(\.note.path) == ["Nowhere.md"])
+        #expect(search.results(for: "welcome").contains { $0.note.path == "Welcome.md" } == false)
+    }
+
+    @Test func applying_a_changed_folder_takes_its_notes_as_the_index_holds_them() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let indexed = Index.build(from: library)
+        let built = Search.build(from: indexed)
+        let topics = copy.appending(path: "Topics")
+        try "# Circuits\n\nA quokka in every circuit.\n".write(
+            to: topics.appending(path: "Circuits.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: topics.appending(path: "Agents.md"))
+        let changed = library.applying(.folderChanged("Topics"))
+        let index = indexed.applying(.folderChanged("Topics"), in: changed)
+
+        let search = built.applying(.folderChanged("Topics"), in: index)
+
+        #expect(search.results(for: "quokka").map(\.note.path) == ["Topics/Circuits.md"])
+        #expect(
+            search.results(for: "agents").contains { $0.note.path == "Topics/Agents.md" } == false)
+        // A note in the folder the change did not touch is still there.
+        #expect(search.results(for: "cafe").map(\.note.path) == ["Topics/Café.md"])
+    }
+
+    @Test func applying_a_change_to_a_note_that_cannot_be_read_leaves_it_absent() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let indexed = Index.build(from: library)
+        let built = Search.build(from: indexed)
+        let welcome = copy.appending(path: "Welcome.md")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: welcome.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o644], ofItemAtPath: welcome.path)
+        }
+        let changed = library.applying(.noteModified("Welcome.md"))
+        let index = indexed.applying(.noteModified("Welcome.md"), in: changed)
+
+        let search = built.applying(.noteModified("Welcome.md"), in: index)
+
+        #expect(search.results(for: "opened once").isEmpty)
+    }
+
     /// The text a UTF-8 offset range points at.
     private func slice(_ text: String, _ range: Range<Int>) -> String {
         String(decoding: Array(text.utf8)[range], as: UTF8.self)

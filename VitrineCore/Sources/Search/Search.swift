@@ -53,6 +53,31 @@ public struct Search: Sendable {
         return removing(note).adding(renamed, parsed: held.parsed)
     }
 
+    /// This search with `change` — something another tool did on disk
+    /// (ADR 0014) — folded in, through `index`, which already reflects it
+    /// (`Index.applying`): every note the change touched is dropped and
+    /// taken again as the Index now holds it, folded from the parse the
+    /// Index read, and no other. Nothing here touches the disk
+    /// (ADR 0018, Update).
+    public func applying(_ change: LibraryChange, in index: Index) -> Search {
+        let paths: [String]
+        switch change {
+        case .attachmentModified: return self
+        case .noteModified(let path), .entryAdded(let path), .entryRemoved(let path),
+            .folderChanged(let path):
+            paths = [path]
+        case .entryRenamed(let from, let to): paths = [from, to]
+        }
+        let isTouched = { (path: String) in
+            paths.contains { path == $0 || path.hasPrefix($0 + "/") }
+        }
+        var search = Search(notes: notes.filter { !isTouched($0.note.path) })
+        for (note, parsed) in index.parsedNotes where isTouched(note.path) {
+            search = search.adding(note, parsed: parsed)
+        }
+        return search
+    }
+
     /// The notes matching `query`, ranked (CONTEXT.md § Search): the query
     /// splits on whitespace into terms; a note matches when every term is
     /// a substring — case and diacritics ignored — of its title, an alias,
