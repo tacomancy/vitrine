@@ -98,8 +98,13 @@ struct NoteTextView: NSViewRepresentable {
         coordinator.index = index
         coordinator.onEdit = onEdit
         coordinator.follow = follow
-        // The app's parse is the view's own, echoed back: nothing to write.
-        guard parsed != coordinator.presented else { return }
+        // The app's parse is the view's own, echoed back: nothing to write —
+        // though under a new path it is the note on show renamed, which a
+        // later reload must not take for a different note.
+        guard parsed != coordinator.presented else {
+            coordinator.renamed(to: note.path)
+            return
+        }
         coordinator.show(parsed, in: scrollView)
     }
 
@@ -153,6 +158,12 @@ struct NoteTextView: NSViewRepresentable {
             self.index = index
             self.onEdit = onEdit
             self.follow = follow
+        }
+
+        /// The note on show is now at `path` — the title field renamed it —
+        /// so a reload of it keeps the caret, scroll, and undo stack.
+        func renamed(to path: String) {
+            presentedPath = path
         }
 
         /// Writes `parsed` into the view in one editing block. A different
@@ -275,6 +286,7 @@ struct NoteTextView: NSViewRepresentable {
         /// Fonts, links, and the unresolved underline — the storage's
         /// attributes — set only where what is in place differs, so an edit
         /// invalidates the layout of the lines it changed and not the whole
+        /// note. An unresolved link is a link too: following it creates its
         /// note. The color and paragraph style are uniform: loaded with the
         /// text, typed with the typing attributes.
         private func applyStorageAttributes(to storage: NSTextStorage) {
@@ -288,9 +300,8 @@ struct NoteTextView: NSViewRepresentable {
             var underlines: [NSRange: Int] = [:]
             for styled in styledRanges {
                 if case .link(let index, let isResolved) = styled.kind {
-                    if isResolved {
-                        links[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
-                    } else {
+                    links[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                    if !isResolved {
                         underlines[styled.range] = StyledRange.unresolvedUnderline
                     }
                 }
