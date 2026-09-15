@@ -166,7 +166,10 @@ so they aren't accidentally reused for something else.
 - **Tag page** — the Tags tab's main pane for one tag: the tag, how many
   notes carry it (a link that opens the Notes tab scoped to it), its
   child-tag chips, and what it **co-occurs with** — the other tags carried
-  by its notes, each as a share of those notes. In v1 the page holds no note
+  by its notes, each as a share of those notes: a note counts once per
+  other tag even if it carries both a parent and a child, and the tag's own
+  ancestors and descendants are left out, since they co-occur by
+  construction. In v1 the page holds no note
   list of its own; the Notes tab is where notes are listed and opened. A
   tag's description is parked (`BACKLOG.md`).
 - **Search** — full-text lookup across note titles, aliases, and full text
