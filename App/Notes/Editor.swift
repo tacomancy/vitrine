@@ -4,16 +4,20 @@ import Library
 import SwiftUI
 
 /// The editor pane (CONTEXT.md § Editor): the open note's path in a
-/// breadcrumb bar, its title, and its source in the text view — editable,
-/// its links live: a note link opens in place, an attachment or external
-/// link opens with the system. A note that cannot be read shows the reason
-/// in place of its text. Empty until a note is open.
+/// breadcrumb bar, its title in a field that renames it, and its source
+/// in the text view — editable, its links live: a note link opens in
+/// place, an unresolved one creates its note, an attachment or external
+/// link opens with the system. Between title and text, a bar when the
+/// file changed or went under the buffer (ADR 0014). A note that cannot
+/// be read shows the reason in place of its text. Empty until a note is
+/// open.
 struct Editor: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
     let buffer: NoteBuffer
 
     @State private var isTextFocused = false
+    @FocusState private var isTitleFocused: Bool
 
     private static let breadcrumbHeight: CGFloat = 34
     private static let breadcrumbInset: CGFloat = 16
@@ -30,11 +34,14 @@ struct Editor: View {
                 let note = buffer.note
             {
                 breadcrumb(for: note)
-                Text(note.title)
-                    .font(.sans(.title, weight: .semibold))
-                    .foregroundStyle(Color(.fg))
+                TitleField(note: note, rename: rename, isFocused: $isTitleFocused)
                     .padding(.top, Self.pagePadding.top)
                     .padding(.horizontal, Self.pagePadding.leading)
+                if let conflict = buffer.conflict {
+                    ConflictBar(conflict: conflict, buffer: buffer, selection: selection)
+                        .padding(.top, Self.titleSpacing)
+                        .padding(.horizontal, Self.pagePadding.leading)
+                }
                 if let failure = buffer.saveFailure {
                     // The one thing the buffer says about itself: a save that
                     // could not write, so the text on screen is not on disk.
@@ -49,6 +56,10 @@ struct Editor: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .floatingSurface()
+        // A note ⌘N just created opens with the caret in its title.
+        .onChange(of: buffer.note?.path) {
+            if selection.takeTitleFocusRequest() { isTitleFocused = true }
+        }
     }
 
     private func breadcrumb(for note: Note) -> some View {
@@ -95,7 +106,7 @@ struct Editor: View {
     /// Following a link (CONTEXT.md § Links): a note opens here and pushes
     /// history, scope untouched; an attachment opens with its default app;
     /// an external link with the system's handler; an unresolved link
-    /// leads nowhere yet.
+    /// creates its note in the folder a new note goes in and opens it.
     private func follow(_ destination: BodyLink.Destination, in library: Library) {
         switch destination {
         case .note(let note): selection.open(note)
@@ -105,7 +116,24 @@ struct Editor: View {
         case .attachment(let attachment):
             _ = NSWorkspace.shared.open(library.rootURL.appending(path: attachment.path))
         case .external(let url): _ = NSWorkspace.shared.open(url)
-        case .unresolved: break
+        case .unresolved(let title):
+            let folder = selection.sidebar.folderForNewNotes(in: library)
+            do {
+                selection.open(try currentLibrary.createNote(named: title, in: folder))
+            } catch {
+                currentLibrary.createFailure = error
+            }
         }
+    }
+
+    /// The title field's rename: the note's path changes under the buffer
+    /// and the selection, so both follow before the library's change
+    /// reaches the panes — where they still hold it; a note already left
+    /// is found again by its new path when that change arrives. Throws
+    /// why the rename was refused.
+    private func rename(_ note: Note, to title: String) throws(LibraryError) {
+        let renamed = try currentLibrary.renameNote(note, to: title)
+        if buffer.note?.path == note.path { buffer.renamed(to: renamed) }
+        selection.renamed(note, to: renamed)
     }
 }

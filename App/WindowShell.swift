@@ -35,9 +35,12 @@ struct WindowShell: View {
         .focusedSceneValue(\.notesSelection, selection)
         .focusedSceneValue(\.noteBuffer, buffer)
         // A different library takes the selection with it; the same one
-        // changed by a save keeps it, found again by path.
+        // changed by a save or by another tool keeps it, found again by
+        // path — the buffer first, since it decides whether the open note
+        // stays open (ADR 0014).
         .onChange(of: currentLibrary.library) { old, new in
             if let new, old?.rootURL == new.rootURL {
+                buffer.reconcile(with: new)
                 selection.refresh(from: new)
             } else {
                 selection.clear()
@@ -55,6 +58,14 @@ struct WindowShell: View {
         } message: { failure in
             Text(failure.localizedDescription)
         }
+        .alert(
+            "Vitrine couldn’t create the note", isPresented: isShowingCreateFailure,
+            presenting: currentLibrary.createFailure
+        ) { _ in
+            Button("OK") {}
+        } message: { failure in
+            Text(failure.localizedDescription)
+        }
     }
 
     @ViewBuilder
@@ -67,6 +78,14 @@ struct WindowShell: View {
         case .tags: TagsTab()
         case .sources, .ideas, .dashboard: SoonSurface(tab: tab)
         }
+    }
+
+    private var isShowingCreateFailure: Binding<Bool> {
+        Binding(
+            get: { currentLibrary.createFailure != nil },
+            set: { isShowing in
+                if !isShowing { currentLibrary.createFailure = nil }
+            })
     }
 
     private var isShowingOpenFailure: Binding<Bool> {

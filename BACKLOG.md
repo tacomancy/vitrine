@@ -81,3 +81,9 @@ it blocks is next up.
   grows branch regions.
 - **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
   candidate. Fix it when something first needs to go there.
+- **Leaving a conflict unanswered.** While the editor's bar is up
+  (ADR 0014), every save waits — so switching notes, switching libraries,
+  or quitting drops the kept text with the bar (#42 documents it in
+  `docs/visual-implementation.md`). Spec #38 is silent. The candidates:
+  refuse the boundary until the bar is answered, or carry the conflicted
+  buffer aside so it can be answered later. Decide when it first bites.
