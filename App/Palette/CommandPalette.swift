@@ -44,6 +44,7 @@ struct CommandPalette: View {
             }
         }
         .ignoresSafeArea()
+        .defaultFocus($isQueryFocused, true)
         .task { isQueryFocused = true }
         // A save or another tool's change while the palette is open: the
         // results are answered again by the Search that replaced the one

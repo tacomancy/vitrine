@@ -126,8 +126,15 @@ at the window's top edge:
   full screen. The mark (`Mark.imageset`, the 17–32 px cut from
   `design/icons/svg/vitrine-mark-small.svg`, at the spec's 22 px), "Vitrine"
   at `compact`/semibold in `fg-secondary`, and — once a library is open —
-  "— " and its name at `caption` in `fg-muted` follow. The whole bar drags
-  the window (`WindowDragGesture`).
+  "— " and its name at `caption` in `fg-muted` follow. At the trailing
+  end, inset 12 px, the **search field** (`SearchField`, spec #67): the
+  mockup's 24 px control, 180 px wide, on `line` with a 1 px
+  `line-strong` edge at `Radius.medium`, holding an 11 px
+  `magnifyingglass` in `fg-muted`, *Search* at `caption` in `fg-muted`,
+  and `⌘K` in mono `label`. It is a plain button, not a field: it opens
+  the command palette (§ The command palette), which holds the query. It
+  takes the brass ring when focused. The whole bar drags the window
+  (`WindowDragGesture`).
 - **`TabStrip`**, 31 px, `bg`. One `TabButton` per `Tab` plus a muted `+`.
   The active tab is `bg-raised` with 3 px top radii, a 2 px `primary` rule
   along its bottom edge, and a brass marker; inactive tabs are `fg-muted`
@@ -191,18 +198,24 @@ only what differs: its content and its colors.
 `Sidebar` is LIBRARY, FILES, and TOPICS in one scroll view, with the SCOUTS
 stub pinned below it, on `bg`. Every row is a `SidebarRow`: 24 px,
 `compact` text, an 11 px SF Symbol glyph (`books.vertical` for All Notes,
-`tray` for Untagged — the mockup's open-box glyph — `folder`, `doc.text`,
-`paperclip`, and `number` for a tag's `#`), and a mono `label` count on the
-right. Selected, a row is the selected-row pill with its glyph in `accent`
+`clock` for Recent, `tray` for Untagged — the mockup's open-box glyph —
+`folder`, `doc.text`, `paperclip`, and `number` for a tag's `#`), and a
+mono `label` count on the right. **Recent** (spec #67) sits between All
+Notes and Untagged, counting `NotesSelection.recent` — every note opened
+this session, last opened first, each once (CONTEXT.md, Recent): every
+route that opens a note moves it to the front, Back and Forward included;
+Close drops it; a library switch empties it. Selecting the row scopes the
+note list to that list in that order, under a `N NOTES · OPENED ↓` header
+instead of `MODIFIED ↓`; a new note under it goes in the root. Selected, a row is the selected-row pill with its glyph in `accent`
 (`SidebarRow.Emphasis`) — brass for the active nav item (rule 3); its text
 is `fg`, an unselected row's `fg-secondary`, glyph `fg-muted`. Row content
 starts 6 px inside the pill so it lines up with the labels at 12 px. With
 no library, All Notes is `fg-disabled` throughout and inert, and Untagged,
 FILES, and TOPICS are absent.
 
-The sidebar is one scope (`SidebarSelection`): All Notes, Untagged, a
-folder, a note, or a tag — selecting any row deselects every other, in
-every section. The scroll content ends with one section spacing so the
+The sidebar is one scope (`SidebarSelection`): All Notes, Recent,
+Untagged, a folder, a note, or a tag — selecting any row deselects every
+other, in every section. The scroll content ends with one section spacing so the
 last row sits clear of SCOUTS.
 
 `FileTree` flattens the library's tree to the rows on screen — a folder's
@@ -229,7 +242,9 @@ when the same one is replaced by a save or another tool's change.
 and one `NoteRow` per note in the sidebar's scope — All Notes, Untagged, a
 folder, or a tag with its descendants, the last two answered by the
 `Index` — newest first (notes modified at the same instant keep library
-display order). The header is a `CapsLabel`
+display order), or Recent in recency order under `OPENED ↓`; the order is
+`SidebarSelection.notes(in:index:recent:)`'s, so the pane sorts nothing.
+The header is a `CapsLabel`
 in `fg-muted` — the one caps treatment, tracked like LIBRARY and FILES
 even though the mockup leaves this line untracked — padded 7 px above and
 below and inset to where the rows' titles start.
@@ -242,7 +257,8 @@ from `Index.tags(of:)`, each with its `#`, space-separated, in mono
 truncated with an ellipsis; content padded 7 × 11 px (compact density,
 `NoteListMetrics`). A note with no tags keeps the empty line, so every row
 is one height. The tag row is text, not a control: nothing in it
-navigates in this spec. The date reads as the mockup's column: the time
+navigates in this spec. The date reads as the mockup's column
+(`Note.modifiedLabel`, which the command palette's rows share): the time
 for a note modified today, `Aug 28` for one modified this year, the full
 date for anything older. Selected, the row is the selected-row pill and
 its title steps up from `fg-secondary`, regular, to `fg`, semibold; the
@@ -349,9 +365,12 @@ up focus, when the window resigns key or the app resigns active, on
 quit, and on ⌘S (File › Save, a no-op when clean; Open Library… saves
 before it replaces the library). A save
 is `CurrentLibrary.save`: `Library.write` in place, then
-`Index.updating` with the buffer's own parse, the library and Index on
-screen replaced together (ADR 0014, ADR 0017); the note list's date and
-the rail's tags, links, and backlinks follow. The buffer remembers the
+`Index.updating` and `Search.updating` with the buffer's own parse, the
+library, Index, and Search on screen replaced together (ADR 0014,
+ADR 0017, ADR 0018); the note list's date, the rail's tags, links, and
+backlinks, and what the command palette finds follow. Creating and
+renaming likewise reach `Search.adding` and `renaming` beside the
+Index's. The buffer remembers the
 library it read from and writes to no other. There is no dirty
 indicator; the one thing the editor says about the buffer is a save that
 could not write — `LibraryError`'s sentence at `caption` in `danger`
@@ -394,7 +413,10 @@ the brief's sapphire wash (rule 8): SwiftUI's `TextField` exposes no
 selection color — the one place the two differ.
 
 **Creating** (spec #38 § Creating). File › New Note, ⌘N (the command
-group that replaces the system's New), creates
+group that replaces the system's New), runs
+`WindowCommands.newUntitledNote` — `WindowCommands` being the commands
+the menu bar and the command palette both run on the key window, so the
+two routes cannot drift — which creates
 `CurrentLibrary.createUntitledNote` in `SidebarSelection.folderForNewNotes`
 — the selected folder, a selected note's folder, or the root for All
 Notes, Untagged, and a tag — `Library.createNote` with
@@ -454,10 +476,11 @@ Save as new recreates it at the old path.
 **The watcher** (ADR 0014) is `CurrentLibrary`'s: `replace(with:)`
 starts a task over `LibraryWatcher.watch` for every successful open and
 cancels the one before it, and every `LibraryChange` becomes
-`Library.applying` then `Index.applying(_:in:)` (ADR 0017, Update), the
-library and Index replaced together — so the file tree, note list,
-TOPICS counts, backlinks, and rail follow whatever Obsidian, Finder, or
-a sync client does, and a change the old watch had in hand as a library
+`Library.applying`, then `Index.applying(_:in:)` (ADR 0017, Update),
+then `Search.applying(_:in:)` over that Index (ADR 0018, Update), the
+three replaced together — so the file tree, note list, TOPICS counts,
+backlinks, rail, and search follow whatever Obsidian, Finder, or a sync
+client does, and a change the old watch had in hand as a library
 switched is dropped. `NotesSelection.refresh(from:)` then finds every
 note and folder again by path, keeping the open note even when it is
 gone (that is the buffer's call, above). Nothing under a dot-entry
@@ -490,6 +513,96 @@ the middle; its modification date at `caption` in `fg-secondary`, as
 N unresolved` in mono `label`, `fg-muted`, counted from `links(from:)`
 and `backlinks(to:)`. No ANCHORS, and note-list rows are unchanged
 (spec #25).
+
+### The command palette
+
+`CommandPalette` (screen 08's v1 subset; spec #67) is the first
+**overlay**: while `PaletteState.isOpen` — one state per window beside
+`NotesSelection` and `NoteBuffer` — the window shell overlays its whole
+body with a `bg-overlay` **scrim** and, 110 px from the top, the
+760 px **panel** on `bg-surface` at `Radius.large`, no border, no
+shadow. The overlay is hosted in its own `NSHostingView`
+(`HostedOverlay`): SwiftUI paints its own views beneath every platform
+view in the same host, so a plain `.overlay` would sit under the gutter
+split view's panes, while platform views keep tree order among
+themselves. That hosting view (`KeyHostingView`) takes the window's
+first responder as it appears, so the palette's focus starts inside it;
+the scrim takes every click that misses the panel (and closes the
+palette on one), so the window beneath is inert. Opened by ⌘K — Go ›
+Search…, reaching the key window's state through a focused scene value
+(`FocusedPaletteState`), and closing the palette when it is already
+open — or by the title bar's search field.
+
+The panel stacks the **header** — a 15 px `magnifyingglass` in `link`,
+then the query as a plain `TextField` at `lead`/regular in `fg`,
+placeholder *Search*, padded 14 × 16 px, the system focus ring off —
+over the **body**, 440 px tall (less in a short window, never under
+160), split into the results column and the 268 px **preview rail**,
+over the **footer**: `↑↓ navigate · ↩ open · esc close · ⌘⌫ clear`,
+each key in mono `label` `accent` — brass as punctuation (rule 3) — and
+its word at sans `label` in `fg-muted`, 16 px apart, and `N notes` in
+mono `label` `fg-muted` at the trailing end, padded 8 × 16 px. The query
+resets to empty on every open; each keystroke restarts
+`PaletteState.debounce` (50 ms), after which `Search.results(for:)` runs
+on the main actor (ADR 0018) and the highlight returns to the first row.
+
+**The results column** is a lazy stack in a scroll view, padded 8 px
+above and below: the group label — `NOTES · N`, or `RECENT · N` while
+the query is empty — as a `CapsLabel` in `fg-muted` padded 4 / 6 px at
+the 16 px inset, one `PaletteResultRow` per row, then `ACTIONS` and its
+rows. A row is the selected-row pill (§ List rows) inset 4 px, its
+content padded 7 px vertically and to the 16 px inset: the mono `label`
+**kind tag** — `NOTE`, or `DO` for an action — in `fg-muted`, the label
+at `compact` in `fg-secondary`, one line, and the meta — a note's
+`modifiedLabel` — right-aligned in mono `label` `fg-muted`. Highlighted,
+the tag steps to `link` and the label to `fg`. ↑ and ↓ move the
+highlight over NOTES and ACTIONS as one list (`PaletteRow`), stopping at
+either end; the pointer over a row highlights it too; the highlighted
+row scrolls into view. With nothing to list, one line of `caption` in
+`fg-muted`: *No notes match.* or *No notes opened yet.*
+
+**NOTES** is one row per `SearchResult`, in the seam's order — or, while
+the query is empty, `NotesSelection.recent` with the open note left out,
+so ↩ on the first row returns to the note before it. **ACTIONS** is
+`PaletteAction`: *New note* (⌘N's `WindowCommands.newUntitledNote`),
+*New note titled "<query>"* — present only with a library open, a
+non-empty query, and no note whose title is the query already, compared
+case-insensitively as the file system does; it creates that note in the
+folder ⌘N would use (`WindowCommands.newNote(titled:)`) and opens it with
+the caret in the body — *Open Library…* (`WindowCommands.openLibrary`),
+*Back* and *Forward* only while `NotesSelection` allows, *Go to Notes*,
+*Go to Tags* (the window's tab); with a query, only those whose label
+contains it, case-insensitively. *New note* and *New note titled* are
+absent on First run.
+
+**The brass highlight wash** (`HighlightWash`) is the one way matched
+terms are marked: `accent-quiet` as the background of exactly the
+characters `Search` ranged — `titleRanges` in a result row's label, the
+excerpt's `ranges` in the rail — drawn through `AttributedString`'s
+`backgroundColor`, the text left in the row's own color; a UTF-8 range
+becomes a `String.Index` pair and then attributed indices, so a
+diacritic's two bytes wash one character.
+
+**The preview rail** (`PreviewRail`) is padded 14 × 16 px and stacks,
+10 px apart, the `PREVIEW` caps label; for a highlighted note, its title
+at `lead` in `fg`; for a result, its `excerpt` at `compact` in
+`fg-secondary`, up to four lines with 5 px line spacing (the mockup's
+1.6), washed — a Recent row has no excerpt, since nothing was matched;
+the note's tags as the note list's tag row (mono `label`, `link`), absent
+when it has none; `N links · N backlinks` in mono `label` `fg-muted`,
+counted from `Index.links(from:)` and `backlinks(to:)`; and the
+modification date at `caption` in `fg-secondary`, as the editor's rail
+shows it. An action highlighted leaves the rail at its label alone.
+
+**Opening.** ↩ or a click opens the highlighted note through
+`NotesSelection.open` — exactly as following a link: history pushed,
+scope unchanged, the note-list selection gone when the note is out of
+scope — and closes the palette; an action runs and closes it. Esc
+closes; ⌘⌫ clears the query and, with it, the results. The keys reach
+the field through `onKeyPress` on the query field, ahead of the field's
+own handling. A save or another tool's change while the palette is open
+runs the query again against the `Search` that replaced the one the
+results came from.
 
 ### First run
 
