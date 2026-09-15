@@ -10,6 +10,16 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+# The job builds and runs a third party's code (Muter, from a pull-request
+# head — ADR 0015, Update), so it gets a read-only token and the checkout
+# keeps no credentials for that code to find.
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+
 jobs:
   mutate:
     runs-on: macos-26
@@ -19,6 +29,8 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Restore the pinned Muter build
         # Building Muter from source is most of a cold run. The key changes
