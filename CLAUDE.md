@@ -70,8 +70,8 @@ scope, `TagTree` draws TOPICS the way `FileTree` draws FILES, and every
 `NoteRow` carries its tag row — nothing in the app target parses or
 aggregates, and `docs/visual-implementation.md` records the translation.
 
-**The third feature's seam work is built (issue #25, follow links and
-see backlinks; ticket #26).** `NoteParsing` reads wikilinks out of every
+**The third feature is built (issue #25, follow links and see
+backlinks; tickets #26 and #27).** `NoteParsing` reads wikilinks out of every
 frontmatter string value — each a `Link` flagged `isFromFrontmatter`,
 placed by Yams' scalar marks — five additive tests, none existing
 touched. `Index.build` resolves every link and embed per `CONTEXT.md`
@@ -86,7 +86,17 @@ table-cell escape, `[[x.ipynb\|shown]]`: the target and an embed's
 filename end before the backslash, `CONTEXT.md` § Links names the form,
 and three more `NoteParsingTests` pin it. Against the real vault: 304
 links, 31 from frontmatter, 65 to attachments, 9 unresolved — every one
-a note that does not exist.
+a note that does not exist. The screen (issue #27) is glue at the seam,
+untested by decision and verified by `/run`: `NoteBody` draws the open
+note as attributed `Text` assembled from the parser's ranges — every
+link token styled for what `Index.links(from:)` says it is, unresolved
+ones `fg-muted` and dashed, external ones from the parser's
+`isExternal` — over a `vitrine-link://` scheme the view intercepts, no
+`NSTextView` (ADR 0013 stays open); `NotesSelection` grew back / forward
+history (⌘[ / ⌘] in a Go menu, through a focused scene value), every
+way of opening pushing; `Rail` is the fourth floating surface with
+BACKLINKS and INFO from the Index; `docs/visual-implementation.md`
+records all three.
 
 **The fourth feature is under way (issue #38, edit notes, create notes,
 and follow external changes): ① built.** `Library` now writes (issue
@@ -116,9 +126,8 @@ tree was scanned without is placed by `LibraryDisplayOrder`, the display
 rule read off two paths. Seven `IndexTests` and five `NoteParsingTests`
 cover it; the no-I/O test deletes the library copy before operating.
 
-Next: #27 the clickable body, rail, and history — the last ticket of
-#25 — then #38's ③ (the TextKit 2 editor, blocked by ② and #27) and ④
-(create, title rename, external changes on screen, blocked by ① and ③).
+Next: #41 the TextKit 2 editor (#38's ③, blocked by ② and #27) and #42
+the screen glue that wires `LibraryWatcher` (④, blocked by ① and ③).
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh

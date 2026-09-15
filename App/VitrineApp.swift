@@ -9,6 +9,8 @@ struct VitrineApp: App {
 
     @State private var currentLibrary: CurrentLibrary
     @Environment(\.openWindow) private var openWindow
+    /// The key window's selection, for Back and Forward; nil with no window.
+    @FocusedValue(\.notesSelection) private var selection
 
     init() {
         BundledFonts.register()
@@ -39,6 +41,20 @@ struct VitrineApp: App {
                     }
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
+            // Back and forward walk the notes opened this session
+            // (CONTEXT.md § Editor), disabled at either end of the history.
+            CommandMenu("Go") {
+                Button("Back") {
+                    selection?.goBack()
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(selection?.canGoBack != true)
+                Button("Forward") {
+                    selection?.goForward()
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(selection?.canGoForward != true)
             }
         }
     }

@@ -25,6 +25,7 @@ struct WindowShell: View {
         .background(Color(.bg))
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: Self.minimumWidth, minHeight: Self.minimumHeight)
+        .focusedSceneValue(\.notesSelection, selection)
         .onChange(of: currentLibrary.library) {
             selection.clear()
         }
