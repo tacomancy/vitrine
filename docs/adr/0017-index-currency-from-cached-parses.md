@@ -36,6 +36,15 @@ link at any time — which is what makes "a parse, not text" a sufficient
 input. The Index therefore holds every note's text in memory, once, shared
 by copy-on-write with whoever parsed it.
 
+**Each operation takes `Note` values, not paths.** The ticket wrote
+`updating(note: path, …)` and `renaming(from:to:)`; the Index answers
+with `Note`s — in `untagged`, `notes(tagged:)`, `backlinks(to:)`, and
+every resolved target — and a `Note` carries the modification date the
+library reports now, which only the library can supply. So the caller
+hands over the note as the `Library` holds it after the change:
+`updating(_:parsed:)`, `adding(_:parsed:)`, `removing(_:)`,
+`renaming(_:to:)`.
+
 **Library display order is read off paths** when the Index places a note
 the tree was scanned without: a folder's own notes before its subfolders',
 every list in the file tree's case-insensitive natural order — the same

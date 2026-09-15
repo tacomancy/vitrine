@@ -1,5 +1,6 @@
-/// One note's text read into its frontmatter, tags, links, and embeds,
-/// without reference to any other note (CONTEXT.md, Parsing).
+/// One note's text read into its frontmatter, tags, links, embeds, and
+/// structure, without reference to any other note (CONTEXT.md, Parsing),
+/// the text kept alongside.
 public struct ParsedNote: Sendable, Equatable {
     /// The text this was parsed from — what every range below is an offset
     /// into, so a parse is complete on its own (ADR 0017).

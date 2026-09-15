@@ -674,6 +674,9 @@ import Testing
 
     @Test func no_operation_reads_the_file_system() throws {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        // Discarded early below, once the library has named every note; the
+        // defer covers a `try` failing before that.
+        defer { Fixtures.discard(copy) }
         var library = try Library.open(at: copy)
         let built = Index.build(from: library)
         let alignment = try note(at: "Topics/Alignment.md", in: library)

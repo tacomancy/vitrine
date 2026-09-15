@@ -1,8 +1,10 @@
 import Foundation
 
-/// A single pass over a note's body that finds tags, links, and embeds by
-/// their syntax alone — no Markdown tree, just the delimiters that matter.
-/// Fenced code, inline code, and HTML tags are stepped over whole.
+/// A single pass over a note's body that finds tags, links, embeds, and
+/// structure by their syntax alone — no Markdown tree, just the delimiters
+/// that matter. Fenced code and inline code are recorded as structure and
+/// stepped over whole, so nothing inside them is a tag or a link; HTML
+/// tags are stepped over the same way and not recorded.
 struct BodyScanner {
     private let scalars: [Unicode.Scalar]
     /// `offsets[i]` is the UTF-8 offset of `scalars[i]`; the last entry is
@@ -35,11 +37,11 @@ struct BodyScanner {
         while position < scalars.count {
             let scalar = scalars[position]
             if isAtLineStart, let fence = fenceOpening(at: position) {
-                skipFencedBlock(openedBy: fence)
+                scanFencedBlock(openedBy: fence)
             } else if isAtLineStart, let level = headingLevel(at: position) {
                 scanHeading(level: level)
             } else if scalar == "`" {
-                skipInlineCode()
+                scanInlineCode()
             } else if scalar == "<", isAtHTMLTagStart {
                 skipHTMLTag()
             } else if scalar == "#", isAtTagStart {
@@ -62,7 +64,9 @@ struct BodyScanner {
 
     /// CommonMark: one to six `#` at the start of a line, followed by a
     /// space or a tab, open an ATX heading; seven are text, and `#tag` is
-    /// a tag, with no space. Nil when the line is not a heading.
+    /// a tag, with no space. A `#` alone on a line is text — CommonMark
+    /// calls it an empty heading; Vitrine has nothing to color in one
+    /// (CONTEXT.md, Parsing). Nil when the line is not a heading.
     private func headingLevel(at index: Int) -> Int? {
         let maximumLevel = 6
         var end = index
@@ -121,7 +125,7 @@ struct BodyScanner {
     /// Records the block from the opening fence to the end of the closing
     /// fence's line — the same character, at least as long — or to the end
     /// of the text when the block never closes, and skips past it.
-    private mutating func skipFencedBlock(openedBy fence: Fence) {
+    private mutating func scanFencedBlock(openedBy fence: Fence) {
         let start = position
         var end = endOfLine(from: position)
         skipToNextLine()
@@ -148,7 +152,7 @@ struct BodyScanner {
 
     /// CommonMark: a run of backticks opens a code span that the next run of
     /// exactly the same length closes; an unmatched run is literal text.
-    private mutating func skipInlineCode() {
+    private mutating func scanInlineCode() {
         let opening = position
         while position < scalars.count, scalars[position] == "`" {
             position += 1

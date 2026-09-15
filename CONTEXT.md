@@ -203,7 +203,9 @@ so they aren't accidentally reused for something else.
   every time a library opens (ADR 0012), and while the library is open it
   is kept **current** one note at a time — a note updated, added, removed,
   or renamed is folded in from its parse alone, no other note re-read or
-  re-parsed (ADR 0017). Building it never fails: a note
+  re-parsed (ADR 0017). What it folds into is the **parsed library**:
+  every note in display order, each read note's parse, and the
+  attachments — the one thing every table is derived from. Building it never fails: a note
   whose text cannot be read is **skipped** — recorded as such, and neither
   tagged nor untagged. Notes come out of the index in **library display
   order**: a folder's own notes, then each subfolder's in turn, every list
@@ -219,7 +221,8 @@ so they aren't accidentally reused for something else.
   as UTF-8 offsets into that text, so the editor can point at it without
   a second parser, and a parsed note is complete on its own (ADR 0017). A
   **heading** is an ATX line — one to six `#` and a space — with its level
-  and the whole line's range; a fenced code block's range runs from its
+  and the whole line's range (a `#` alone on a line is text: CommonMark's
+  empty heading has nothing to color); a fenced code block's range runs from its
   opening fence to the end of its closing fence's line (or of the text,
   unclosed); an inline code span's covers both backtick runs. Emphasis,
   lists, block quotes, and tables are not structure in v1.

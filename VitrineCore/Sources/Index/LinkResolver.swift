@@ -18,26 +18,26 @@ struct LinkResolver {
     /// Attachments by lowercased path.
     private let attachmentsByPath: [String: Attachment]
 
-    /// Every note in `library` is a target, a skipped one included; only a
+    /// Every note in `parsedLibrary` is a target, a skipped one included; only a
     /// read note's frontmatter can declare an alias.
-    init(_ library: ParsedLibrary) {
+    init(_ parsedLibrary: ParsedLibrary) {
         var notesByPath: [String: Note] = [:]
-        for note in library.notes {
+        for note in parsedLibrary.notes {
             let path = note.path.lowercased()
             notesByPath[path] = note
             notesByPath[String(path.dropLast(Self.noteExtension.count))] = note
         }
         self.notesByPath = notesByPath
-        notesByTitle = Dictionary(grouping: library.notes) { $0.title.lowercased() }
-        let aliases = library.parsed.flatMap { note in
+        notesByTitle = Dictionary(grouping: parsedLibrary.notes) { $0.title.lowercased() }
+        let aliases = parsedLibrary.parsed.flatMap { note in
             (note.parsed.frontmatter?.aliases ?? []).map {
                 (alias: $0.lowercased(), note: note.note)
             }
         }
         notesByAlias = Dictionary(grouping: aliases, by: \.alias).mapValues { $0.map(\.note) }
-        attachmentsByName = Dictionary(grouping: library.attachments) { $0.name.lowercased() }
+        attachmentsByName = Dictionary(grouping: parsedLibrary.attachments) { $0.name.lowercased() }
         attachmentsByPath = Dictionary(
-            uniqueKeysWithValues: library.attachments.map { ($0.path.lowercased(), $0) })
+            uniqueKeysWithValues: parsedLibrary.attachments.map { ($0.path.lowercased(), $0) })
     }
 
     /// `link`, as written in `note`, with its target resolved — or nil for

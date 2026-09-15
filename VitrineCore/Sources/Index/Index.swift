@@ -28,7 +28,7 @@ public struct Index: Sendable {
     /// display order.
     private let notes: [IndexedNote]
     /// What every table above was computed from, kept for the next change.
-    private let library: ParsedLibrary
+    private let parsedLibrary: ParsedLibrary
 
     /// Reads every note through `library`, parses it, aggregates its tags,
     /// and resolves its links. Never throws: a note that cannot be read
@@ -39,29 +39,31 @@ public struct Index: Sendable {
 
     /// This index with `note` — as the library holds it now — read as
     /// `parsed` instead: its tags, links, and backlinks on other notes
-    /// follow, and nothing on disk is touched.
+    /// follow, and nothing on disk is touched. A skipped note gains its
+    /// parse and is skipped no more; a note the index has never held is
+    /// added, as `adding` would.
     public func updating(_ note: Note, parsed: ParsedNote) -> Index {
-        var library = library
-        library.update(note, parsed: parsed)
-        return Index(library)
+        var parsedLibrary = parsedLibrary
+        parsedLibrary.update(note, parsed: parsed)
+        return Index(parsedLibrary)
     }
 
     /// This index with `note`, read as `parsed`, placed in library display
     /// order: links elsewhere that its title, alias, or path now satisfies
     /// resolve to it, and nothing on disk is touched.
     public func adding(_ note: Note, parsed: ParsedNote) -> Index {
-        var library = library
-        library.add(note, parsed: parsed)
-        return Index(library)
+        var parsedLibrary = parsedLibrary
+        parsedLibrary.add(note, parsed: parsed)
+        return Index(parsedLibrary)
     }
 
     /// This index without `note`: its tags leave the tree, links to it
     /// become unresolved, and nothing on disk is touched. A note the index
     /// does not hold changes nothing.
     public func removing(_ note: Note) -> Index {
-        var library = library
-        library.remove(note)
-        return Index(library)
+        var parsedLibrary = parsedLibrary
+        parsedLibrary.remove(note)
+        return Index(parsedLibrary)
     }
 
     /// This index with `note` known as `renamed` — its parse kept, its
@@ -70,18 +72,18 @@ public struct Index: Sendable {
     /// the disk. A note whose text was never read stays unread — skipped —
     /// under its new path.
     public func renaming(_ note: Note, to renamed: Note) -> Index {
-        var library = library
-        library.rename(note, to: renamed)
-        return Index(library)
+        var parsedLibrary = parsedLibrary
+        parsedLibrary.rename(note, to: renamed)
+        return Index(parsedLibrary)
     }
 
-    /// Every table, computed from `library` alone.
-    private init(_ library: ParsedLibrary) {
-        let resolver = LinkResolver(library)
+    /// Every table, computed from `parsedLibrary` alone.
+    private init(_ parsedLibrary: ParsedLibrary) {
+        let resolver = LinkResolver(parsedLibrary)
         var spellings = SegmentSpellings()
         var tree = TagTreeBuilder()
         var notes: [IndexedNote] = []
-        for (note, parsed) in library.parsed {
+        for (note, parsed) in parsedLibrary.parsed {
             let tags = Self.tags(in: parsed, spellings: &spellings)
             for tag in tags { tree.insert(tag, carriedBy: note) }
             notes.append(
@@ -90,9 +92,9 @@ public struct Index: Sendable {
                     links: Self.links(in: parsed, of: note, resolver: resolver)))
         }
         tagTree = tree.nodes()
-        skipped = library.skipped
+        skipped = parsedLibrary.skipped
         self.notes = notes
-        self.library = library
+        self.parsedLibrary = parsedLibrary
     }
 
     /// A note's links and embeds resolved, in one document order — the
