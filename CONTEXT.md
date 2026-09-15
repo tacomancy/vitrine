@@ -100,9 +100,9 @@ so they aren't accidentally reused for something else.
 - **Backlink** — the reverse of a link: from the target's point of view, every
   note that links to it. Backlinks are derived, never stored in the note.
 - **Unresolved link** — a link whose target matches no note, alias, or
-  attachment in the library. Rendered distinctly; following it offers to
-  create the note (that offer arrives with editing; until then following
-  one does nothing).
+  attachment in the library. Rendered distinctly; following it creates
+  the note — titled by the target's last path component, in the folder
+  a new note goes in — and opens it.
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
 - **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
@@ -159,21 +159,51 @@ so they aren't accidentally reused for something else.
   in — selecting a tag deselects a folder and vice versa. Narrowing a scope
   further is what **filter chips** are for.
 - **Note list** — the middle pane: the notes matching the current sidebar
-  selection and any active **filter chips** (tags added or removed by the
-  user), sorted by a chosen key.
-- **Tag page** — the Tags tab's main pane for one tag: its description (if
-  any), child-tag chips, and the notes under it.
-- **Search** — full-text lookup across note titles and bodies. v1 is plain
-  term matching, case-insensitive; no query language. Surfaced through the
-  **command palette** (`⌘K`), which also lists actions.
+  selection and every active **filter chip** — a tag the user has added to
+  narrow the scope; a note must carry each chip's tag (or a descendant).
+  Chips stack, survive a change of scope, and are cleared when the library
+  changes. Clicking a tag anywhere on the Notes tab adds a chip.
+- **Tag page** — the Tags tab's main pane for one tag: the tag, how many
+  notes carry it (a link that opens the Notes tab scoped to it), its
+  child-tag chips, and what it **co-occurs with** — the other tags carried
+  by its notes, each as a share of those notes: a note counts once per
+  other tag even if it carries both a parent and a child, and the tag's own
+  ancestors and descendants are left out, since they co-occur by
+  construction. In v1 the page holds no note
+  list of its own; the Notes tab is where notes are listed and opened. A
+  tag's description is parked (`BACKLOG.md`).
+- **Search** — full-text lookup across note titles, aliases, and full text
+  (frontmatter included). A query splits on whitespace into **terms**; a note
+  **matches** when every term occurs as a substring, case- and
+  diacritic-insensitively, anywhere in its title, aliases, or text. No
+  phrases, operators, or field syntax — `#todo` is the text `#todo`.
+  **Results** list notes whose title or alias contains every term first,
+  then the rest, each group newest-modified first (ADR 0018). Surfaced
+  through the command palette.
+- **Command palette** — the overlay opened by `⌘K` or the title bar's search
+  field. It shows search results as **NOTES** and the app's commands as
+  **ACTIONS**, both filtered by the query; beside them a **preview rail**
+  shows the highlighted note's title, the first matching line as its
+  **excerpt**, its tags, and its link counts. With an empty query it lists
+  **recent** notes. ↩ opens the highlighted note as following a link does;
+  matched terms carry the brass highlight wash.
+- **Recent** — the notes opened this session, most recently opened first:
+  the same list the editor's back/forward history walks. Not persisted.
 - **Editor** — the pane where one note is edited as **source** Markdown,
   frontmatter included, with the parser's ranges colored (ADR 0013). Source
   is always what's on disk: a note **autosaves** shortly after each pause in
   typing and whenever it leaves view, written back in place exactly as typed
-  (ADR 0014). Any rendering (**Preview**) is a separate view over it. When
+  (ADR 0014). The **buffer** is the open note's text as the editor holds
+  it: **clean** while it is what's on disk, **dirty** from an edit until the
+  save that follows. Any rendering (**Preview**) is a separate view over it. When
   another tool changes the open note, a clean editor reloads it; an editor
   with unsaved edits keeps them, shows *changed on disk*, and asks at the
-  next save whether to overwrite or discard.
+  next save whether to overwrite or discard. When another tool removes
+  the open note, the editor keeps its text, shows *removed from disk*,
+  and offers to save it as a new note at the same path or to close it.
+  Either is a **conflict**: the disk and the buffer disagree about the
+  note, the editor's **bar** asks which wins, and no save runs until it
+  is answered.
   Above the note, the **breadcrumb** is the bar showing the note's path
   relative to the library root. Beside the editor, the **rail** shows the
   note's **backlinks** — one entry per linking note, sorted by title, with

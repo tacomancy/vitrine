@@ -69,3 +69,30 @@ is ever wanted. Recorded in `BACKLOG.md`.
   with it.
 - Saving and external edits are decided separately in ADR 0014. Preview's
   renderer is its own ADR when its spec is written.
+
+## Update (2026-09-15, from the editor ticket, #41)
+
+Building it fixed which text-storage delegate hook carries the fonts, and
+found that the two hooks do not cover the same changes:
+
+- **Fonts and links go in after the storage has processed an edit**
+  (`textStorage(_:didProcessEditing:…)`), not before. An attribute set
+  during `willProcessEditing` widens the storage's edited range, and
+  `NSTextView` then places the caret at that range's end: typing `# ` at
+  the start of a line sent the caret to the end of the line. Measured in a
+  headless harness on the vault's largest note (52 KB), the pass costs
+  about 2.5 ms per keystroke either way; the attributes are set only where
+  the one in place differs, so a keystroke invalidates the layout of the
+  lines it changed and not the whole note.
+- **An undo changes the storage without telling the view's delegate**
+  (`textDidChange` is not sent), so the storage delegate is the one hook
+  that sees every change, and the parse is reported to the app from there.
+  The layout manager has not caught up with the text at that point, so
+  the rendering attributes — the colors — are set from `textDidChange`,
+  where it has, or on the next turn of the run loop for a change that
+  arrives without one.
+- **The undo manager is the coordinator's own**, handed to the view through
+  `undoManager(for:)`, so "cleared when a different note opens" is one
+  `removeAllActions()` and the window's undo stack is never involved.
+
+Nothing above changes the decision; it records the shape the hooks took.

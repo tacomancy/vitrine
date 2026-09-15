@@ -18,16 +18,28 @@ final class ChangeTranslator: @unchecked Sendable {
     }
 
     /// The changes one batch of events amounts to, each path once, in the
-    /// order the events came. The two halves of a rename are one change
-    /// when the batch holds exactly one known entry departing and one
-    /// unknown arriving; any other arrival at a known path is a
-    /// modification — an editor that saves by writing a sibling and
-    /// renaming it over the note has modified the note, not renamed it.
+    /// order the events came. The library's own doing is never among them
+    /// (ADR 0014), but what it left on disk is remembered first, so another
+    /// tool's later change to a note the library created or renamed reads
+    /// as what it is.
     func changes(for events: [FileEvent]) -> [LibraryChange] {
+        for change in translate(events.filter { $0.isOwn && $0.isInLibrary }) { remember(change) }
+        let changes = translate(events.filter(\.isVisible))
+        for change in changes { remember(change) }
+        return changes
+    }
+
+    /// The changes `events` amount to against what is known now. The two
+    /// halves of a rename are one change when the batch holds exactly one
+    /// known entry departing and one unknown arriving; any other arrival at
+    /// a known path is a modification — an editor that saves by writing a
+    /// sibling and renaming it over the note has modified the note, not
+    /// renamed it.
+    private func translate(_ events: [FileEvent]) -> [LibraryChange] {
         var changes: [LibraryChange] = []
         var departed: [String] = []
         var arrived: [String] = []
-        for event in events where event.isVisible {
+        for event in events {
             if event.mustScanFolder {
                 changes.append(.folderChanged(event.path))
             } else if event.wasRenamed {
@@ -43,11 +55,9 @@ final class ChangeTranslator: @unchecked Sendable {
             changes += departed.map(LibraryChange.entryRemoved)
             changes += arrived.map { knownPaths.contains($0) ? modified($0) : .entryAdded($0) }
         }
-        let distinct = changes.reduce(into: [LibraryChange]()) { distinct, change in
+        return changes.reduce(into: [LibraryChange]()) { distinct, change in
             if !distinct.contains(change) { distinct.append(change) }
         }
-        for change in distinct { remember(change) }
-        return distinct
     }
 
     private func change(for event: FileEvent) -> LibraryChange? {

@@ -96,8 +96,13 @@ to suppress the system's accent-colored ring, then a 2 px stroke of the
 `focus` token drawn 2 px outside the control's own rounded rectangle. Every
 focusable custom control applies `.brassFocusRing(isFocused:cornerRadius:)`
 and reports its focus from a `@FocusState`; the tab strip is the first.
-Native AppKit controls (text fields, later) apply the same modifier so the
-ring is one treatment app-wide.
+A native AppKit control applies the same modifier around its bridge,
+reporting focus from its own first-responder changes — the editor's text
+view is the first (§ The editor) — so the ring is one treatment app-wide.
+`PrimaryButton` — the brief's action button (rule 2): `primary` filled,
+`on-primary` text at `caption`/medium, padded 3 × 9 px, `Radius.medium`,
+`primary-hover` under the pointer — takes it too; the bars in the editor
+are its first use.
 
 ## Density
 
@@ -215,7 +220,8 @@ level), its name in display spelling and its descendant-inclusive count,
 each depth inset 14 px more. A node with children carries the chevron and
 one click both selects it and toggles it, as a folder does; a leaf only
 selects. Expanded folders and tags are the sidebar's own state, by path,
-and both reset when the library changes.
+and both reset when a different library opens (its root changes) — not
+when the same one is replaced by a save or another tool's change.
 
 ### The note list
 
@@ -251,42 +257,211 @@ a row opens.
 `Editor` is a floating surface that is empty until a note is open. With
 one, it stacks the 34 px breadcrumb — the note's path relative to the
 library root in mono `label`, `fg-muted`, inset 16 px, its separators
-spaced as ` / `, truncated in the middle when the pane is narrow — over a
-scrolling page padded 20 × 36 px: the title at `title` (25 px), semibold, `fg`, then
-11 px below it the note's text exactly as it is on disk, frontmatter
-delimiters included, as a `Text(verbatim:)` at `body` (14 px — the spec's
-15 px is off the scale, and story 28 asks for the brief's body size) with
-6 px line spacing for the mockup's 1.65 line height, in `fg`, selectable
-and copyable, in a measure of at most 720 px aligned to the leading edge.
-The text view is keyed by the note's path, so a selection made in one
-note is not carried, clamped, over the next.
-A note that cannot be read shows `LibraryError`'s sentence in `danger` at
-the same size in place of the text. The read happens each time the pane
-draws, so selecting a note again after it has changed on disk shows what
-is there now. No SOURCE/PREVIEW toggle or property line.
+spaced as ` / `, truncated in the middle when the pane is narrow — over
+the **title field** at `title` (25 px), semibold, `fg`, padded 20 × 36 px
+(§ The title field), over — when one is up — a bar (§ The two bars),
+over the note's text in `NoteTextView`, which scrolls under the title
+(ADR 0013: the text view's own scroll view is what makes layout
+viewport-only). The
+text is inset to the same 36 px and runs in a measure of at most 720 px
+aligned to the leading edge, capped by `EditorTextView` (the container
+follows the view's width only up to the measure). No SOURCE/PREVIEW
+toggle or property line. A note that cannot be read shows `LibraryError`'s
+sentence in `danger` in place of its text.
 
-The text is `NoteBody`: one `Text` over an `AttributedString` assembled
-from the parser's ranges, so the whole `[[…]]`, `[…](…)`, or `![[…]]`
-token is styled and clickable and nothing is hidden or substituted
-(`CONTEXT.md` § Editor). `BodyLink.all` pairs the tokens of the text on
-screen with `Index.links(from:)` by range — a token the Index does not
-know, because the file changed after the library opened, stays plain
-text — and takes external links, which the Index keeps in no table, from
-the parser's `isExternal`. A link to a note, an attachment, or the
-outside is the `link` token (the mockup's wikilink blue; rule 2 —
-sapphire is every action) — set as the `Text`'s tint, since `Text` colors
-a link run from the tint and not from the run's own color — and carries a
-`vitrine-link://N` URL, `N` its index in the body's links, that the view's
-own `OpenURLAction` intercepts: a note opens in the editor and pushes
-history, an attachment opens with its default app and an external link
-with the system's handler, both through `NSWorkspace.open` — the
-`openURL` environment refuses a file URL. **An unresolved link is `fg-muted` with a dashed
-underline** (`Text.LineStyle(pattern: .dash)`) and carries no URL: it is
-not a link to anywhere, so clicking it does nothing until editing offers
-to create the note. Tags in the body are neither styled nor clickable.
-This is deliberately disposable — attributed `Text` and a URL scheme, no
-`NSTextView` — replaced wholesale when the editor lands (ADR 0013); the
-unresolved treatment is what the editor spec inherits.
+**What the text view is.** An `NSTextView` on TextKit 2
+(`usingTextLayoutManager: true`) in an `NSScrollView`, bridged by
+`NoteTextView` (`NSViewRepresentable`) with a `Coordinator` that is the
+view's delegate and its storage's. Fixed settings, each a decision of
+ADR 0013: plain text (`isRichText` off, no graphics, no font panel, no
+ruler); automatic quote and dash substitution, text replacement, link
+detection, spelling correction, data detection, text completion, and
+smart insert/delete **off**; the find bar, incremental search, and
+continuous spell checking **on** — ⌘F reaches the bar through the Edit
+menu's Find submenu, which `TextEditingCommands` adds to the app, since a
+`Window` scene has none of its own; `allowsUndo` on with the coordinator's
+own `UndoManager`, emptied when a different note opens; the system focus
+ring off on both the text view and its scroll view. Neither draws a
+background: the floating surface shows through. The text color and
+insertion point are `fg`; the selection is the brief's wash (rule 8),
+`primary` at 42 % (`EditorColor.selection`); a link's only text
+attribute is the pointing-hand cursor, since its color comes with the rest.
+
+**Fonts** are the registered faces by PostScript name
+(`BundledFonts.PostScriptName`, `NSFont.bundled`; `EditorFont`): Inter
+Regular at `body` (14) for the text — the spec's 15 px is off the scale —
+with 6 px line spacing for the mockup's 1.65 line height; Inter SemiBold
+for a heading line, level 1 at `title` (25), 2 at `heading` (21), 3 at
+`subheading` (18), 4 at `lead` (16), 5 and 6 at `body`; IBM Plex Mono
+Regular at `compact` (13) for frontmatter, fenced code, and inline code,
+one step under the body so a mono run sits in a line of Inter.
+
+**Range → attribute.** On every change to the characters the coordinator
+parses the whole text (`ParsedNote.parse`, on one native-storage
+snapshot), resolves each link and embed through `Index.resolve` (a link
+typed a moment ago is colored for what it points at before any save), and
+converts every range from the parser's UTF-8 offsets to UTF-16 once
+(`StyledRange.all` — a **styled range** is a token or structure with the
+font and colors it takes). Fonts and links are storage attributes, set
+in `textStorage(_:didProcessEditing:)` only where the one in place
+differs (`StyledRange.fontSpans`), as is the unresolved link's dashed
+underline — TextKit 2 draws underlines from the storage alone; the `fg`
+color and the paragraph style are uniform, loaded with the text and
+inherited by typing; colors and backgrounds are rendering attributes on
+the layout manager — the editor's two keys removed over the document and
+set afresh, the view's own (spelling, marked text) untouched — in
+`textDidChange`, or on the next run-loop turn for a change the view does
+not announce, such as an undo (ADR 0013, Update).
+
+| Range | Font | Color |
+|---|---|---|
+| frontmatter (`rawRange`) | mono | `fg-muted` |
+| heading (line) | semibold at its level's size | — (`fg`) |
+| fenced code block, inline code span | mono | `fg-secondary` on `bg-sunken` |
+| body tag | — | `link` |
+| link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N`, `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
+| unresolved link or embed | — | `fg-muted`; a single dashed `.underlineStyle` in the storage, and the same `.link` — following it creates the note |
+
+Later rows win inside earlier ones: a link in frontmatter is `link`, code
+in a heading is mono. Clicking a link reaches
+`textView(_:clickedOnLink:at:)`, which follows the `BodyLink`'s
+destination as #27 did — a note opens in place and pushes history, an
+attachment or external link opens through `NSWorkspace` — and an
+unresolved link creates its note: titled by the target's last path
+component without any `.md`, in the folder a new note goes in
+(§ Creating), and opened, so the link resolves as the tree and Index
+follow; a title the folder refuses creates nothing. Tags are colored and
+inert.
+
+**Focus.** The brass ring is `BrassFocusRing` around the scroll view, at
+`Radius.medium`, driven by `EditorTextView` reporting when it becomes and
+resigns first responder; the scroll view is inset 4 px inside the surface
+so the ring (2 px out, 2 px wide) stays on it. The text view is the
+standard text area to accessibility, labelled "Note text".
+
+**The buffer** (`NoteBuffer`, one per window beside `NotesSelection`) is
+the text as the editor holds it, with its parse, and whether it is dirty
+(CONTEXT.md § Editor). The window shell opens it on every change of the
+open note's path; opening saves what was there. Each edit's parse comes
+up from the coordinator; a save fires `NoteBuffer.autosaveDelay` (1 s)
+after the last one, at once on a note switch, when the text view gives
+up focus, when the window resigns key or the app resigns active, on
+quit, and on ⌘S (File › Save, a no-op when clean; Open Library… saves
+before it replaces the library). A save
+is `CurrentLibrary.save`: `Library.write` in place, then
+`Index.updating` with the buffer's own parse, the library and Index on
+screen replaced together (ADR 0014, ADR 0017); the note list's date and
+the rail's tags, links, and backlinks follow. The buffer remembers the
+library it read from and writes to no other. There is no dirty
+indicator; the one thing the editor says about the buffer is a save that
+could not write — `LibraryError`'s sentence at `caption` in `danger`
+under the title, until a save does, and the text stays ahead of the disk
+until then (or goes with the buffer when the note changes; the spec
+designs nothing further for a file that cannot be written).
+The view writes text into the storage only when the app's parse is not
+the one it showed or reported — a note switch, or a reload — in one
+editing block: a different note starts at the top with a fresh undo
+stack; the same note keeps the caret and scroll where the new text
+allows, and its undo stack — the same note under a new path, renamed by
+the title field, counts as the same.
+
+**Selection follows a save.** A `Note` carries its modification date and
+a `Folder` its notes, and every pane compares by value, so after a write
+`NotesSelection.refresh(from:)` finds the open note, the history, and the
+sidebar's folder or note again by path (`Library.note(at:)`,
+`folder(at:)`); the window shell tells a save (same root) from a library
+switch (different root), which clears the selection as before.
+
+### The title field
+
+`TitleField` is the note's title as a plain `TextField` (no border, the
+system focus ring off) at `title`/semibold in `fg`, with the brass ring
+around it at `Radius.medium` — the field is padded 4 px each side for
+the ring and pulled back 4 px so the text sits at the page's 36 px. Its
+placeholder is *Untitled*. Return, focus loss, or another note opening
+under the field commits — for the note the title was typed for: the text
+trimmed of surrounding whitespace, unchanged is nothing, otherwise
+`CurrentLibrary.renameNote` — `Library.renameNote` in the note's folder,
+then `Index.renaming` — and the buffer and selection take the renamed
+note before the library's change reaches the panes, so the tree,
+breadcrumb, list, and rail follow without the note reopening. A refusal
+(`invalidName`, `nameTaken`) keeps the file's name, leaves the typed
+text in the field, and shows `LibraryError`'s sentence at `caption` in
+`danger` 6 px under it; Escape reverts the field and clears the sentence.
+Links elsewhere are not rewritten, and nothing on screen suggests they
+are (`CONTEXT.md` § Note). Selection in the field is the system's, not
+the brief's sapphire wash (rule 8): SwiftUI's `TextField` exposes no
+selection color — the one place the two differ.
+
+**Creating** (spec #38 § Creating). File › New Note, ⌘N (the command
+group that replaces the system's New), creates
+`CurrentLibrary.createUntitledNote` in `SidebarSelection.folderForNewNotes`
+— the selected folder, a selected note's folder, or the root for All
+Notes, Untagged, and a tag — `Library.createNote` with
+`uniqueUntitledName` then `Index.adding` with an empty parse, so the
+tree, *All Notes N*, and the note list show it at once; then
+`NotesSelection.requestTitleFocus` and `open`, and `Editor` takes the
+request when the buffer shows the new note and focuses the field, whose
+text AppKit selects whole on focus, so typing names it. A note created
+from an unresolved link (§ The editor) opens with the caret in the body
+instead. The menu item is disabled with no library open. A creation the
+library refuses — the folder unwritable, or a link's title already taken
+there — is `CurrentLibrary.createFailure`, shown by the window shell as
+an alert like a failed open: *Vitrine couldn't create the note*, with
+`LibraryError`'s sentence.
+
+### The two bars
+
+`ConflictBar` sits between the title and the text, 11 px under the
+title and inset to the page's 36 px, while `NoteBuffer.conflict` is set
+— a conflict as `CONTEXT.md` § Editor defines it (ADR 0014): a status with its icon and label (rule 5) — an 11 px
+`exclamationmark.triangle` and the label at `caption`/medium, both in
+`warning` — on `warning-bg` at `Radius.medium`, padded 6 × 12 px (8 px at
+the trailing end), and its two actions as `PrimaryButton`s at the
+trailing end. It is one accessibility element, labelled with its status.
+
+- **Changed on disk** · **Overwrite** · **Reload** — another tool wrote
+  the file while the buffer was dirty. Overwrite is `NoteBuffer.overwrite`:
+  the bar clears and the buffer saves at once. Reload is
+  `NoteBuffer.reload`: the bar and the dirty flag clear and the disk's
+  text replaces the buffer's, the text view keeping caret and scroll
+  where the new text allows.
+- **Removed from disk** · **Save as new** · **Close** — the file is gone
+  from under the buffer, dirty or clean. Save as new is
+  `NoteBuffer.saveAsNew`: `CurrentLibrary.createNote` at the note's own
+  title in its folder (`Note.folderPath`), then a save of the buffer's
+  text; the bar clears, and the tree row, list row, and Index entry come
+  back — or, the folder gone too, the bar stays with `saveFailure`'s
+  sentence under the title. Close is `NotesSelection.close`: the open
+  note leaves the selection and its history, and the buffer empties as it
+  follows. A removed note that comes back on its own — a sync client's
+  restore, Finder's undo — is a note again: a clean buffer takes its
+  text and the bar comes down; a dirty one gets *Changed on disk*.
+
+The buffer decides which bar from the library alone, each time the
+window shell hands it the replaced library (before the selection is
+refreshed): its note gone from the tree is *removed*; its note carrying
+a modification date other than the one it holds is *changed* — a
+clean buffer takes the disk's text silently instead, and its own save
+leaves the two dates equal, so a save raises nothing. While a bar is
+up, every save — the autosave, the boundary saves, ⌘S — does nothing;
+the bar is the answer (ADR 0014). A note switch while a bar is up drops
+the buffer with the bar, as any switch drops an unsaved buffer that
+cannot write. A note renamed by another tool while open is, to the
+buffer, removed at its path: it shows the *Removed from disk* bar, and
+Save as new recreates it at the old path.
+
+**The watcher** (ADR 0014) is `CurrentLibrary`'s: `replace(with:)`
+starts a task over `LibraryWatcher.watch` for every successful open and
+cancels the one before it, and every `LibraryChange` becomes
+`Library.applying` then `Index.applying(_:in:)` (ADR 0017, Update), the
+library and Index replaced together — so the file tree, note list,
+TOPICS counts, backlinks, and rail follow whatever Obsidian, Finder, or
+a sync client does, and a change the old watch had in hand as a library
+switched is dropped. `NotesSelection.refresh(from:)` then finds every
+note and folder again by path, keeping the open note even when it is
+gone (that is the buffer's call, above). Nothing under a dot-entry
+reaches any of this: `.obsidian/` churn costs nothing on screen.
 
 Back and Forward are the Go menu, ⌘[ and ⌘], reaching the key window's
 `NotesSelection` through a focused scene value (`FocusedNotesSelection`)

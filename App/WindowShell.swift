@@ -9,6 +9,13 @@ struct WindowShell: View {
     @State private var selectedTab: Tab = .notes
     /// The window's Notes selection, one per window like its library.
     @State private var selection = NotesSelection()
+    /// The open note's text, one per window like the selection it follows.
+    @State private var buffer: NoteBuffer
+
+    init(currentLibrary: CurrentLibrary) {
+        self.currentLibrary = currentLibrary
+        _buffer = State(initialValue: NoteBuffer(currentLibrary: currentLibrary))
+    }
 
     /// Every pane at its minimum, with a gutter around each.
     private static let minimumWidth =
@@ -26,12 +33,34 @@ struct WindowShell: View {
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: Self.minimumWidth, minHeight: Self.minimumHeight)
         .focusedSceneValue(\.notesSelection, selection)
-        .onChange(of: currentLibrary.library) {
-            selection.clear()
+        .focusedSceneValue(\.noteBuffer, buffer)
+        // A different library takes the selection with it; the same one
+        // changed by a save or by another tool keeps it, found again by
+        // path — the buffer first, since it decides whether the open note
+        // stays open (ADR 0014).
+        .onChange(of: currentLibrary.library) { old, new in
+            if let new, old?.rootURL == new.rootURL {
+                buffer.reconcile(with: new)
+                selection.refresh(from: new)
+            } else {
+                selection.clear()
+            }
+        }
+        // The buffer follows the open note, saving what it held first.
+        .onChange(of: selection.openNote?.path) {
+            buffer.open(selection.openNote)
         }
         .alert(
             "Vitrine couldn’t open that folder", isPresented: isShowingOpenFailure,
             presenting: currentLibrary.openFailure
+        ) { _ in
+            Button("OK") {}
+        } message: { failure in
+            Text(failure.localizedDescription)
+        }
+        .alert(
+            "Vitrine couldn’t create the note", isPresented: isShowingCreateFailure,
+            presenting: currentLibrary.createFailure
         ) { _ in
             Button("OK") {}
         } message: { failure in
@@ -44,10 +73,19 @@ struct WindowShell: View {
         switch tab {
         case .notes where currentLibrary.library == nil:
             FirstRun(currentLibrary: currentLibrary, selection: selection)
-        case .notes: NotesTab(currentLibrary: currentLibrary, selection: selection)
+        case .notes:
+            NotesTab(currentLibrary: currentLibrary, selection: selection, buffer: buffer)
         case .tags: TagsTab()
         case .sources, .ideas, .dashboard: SoonSurface(tab: tab)
         }
+    }
+
+    private var isShowingCreateFailure: Binding<Bool> {
+        Binding(
+            get: { currentLibrary.createFailure != nil },
+            set: { isShowing in
+                if !isShowing { currentLibrary.createFailure = nil }
+            })
     }
 
     private var isShowingOpenFailure: Binding<Bool> {

@@ -21,6 +21,12 @@ extension FileEvent {
     /// and not a symbolic link — the scan rules, applied to events
     /// (CONTEXT.md § The library).
     var isVisible: Bool {
-        !isOwn && !isSymbolicLink && !path.split(separator: "/").contains { $0.hasPrefix(".") }
+        !isOwn && isInLibrary
+    }
+
+    /// Whether the entry is one the library holds, whoever changed it: not
+    /// a dot-entry at any depth and not a symbolic link.
+    var isInLibrary: Bool {
+        !isSymbolicLink && !path.split(separator: "/").contains { $0.hasPrefix(".") }
     }
 }

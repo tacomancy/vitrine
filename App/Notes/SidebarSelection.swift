@@ -23,4 +23,33 @@ enum SidebarSelection: Equatable {
         case .tag(let path): index.notes(tagged: path)
         }
     }
+
+    /// The folder a note created now goes in (spec #38 § Creating): the
+    /// selected folder, or a selected note's; the root for All Notes,
+    /// Untagged, or a tag — found in `library` as it is now.
+    func folderForNewNotes(in library: Library) -> Folder {
+        switch self {
+        case .allNotes, .untagged, .tag: library.root
+        case .folder(let folder), .note(_, let folder):
+            library.folder(at: folder.path) ?? library.root
+        }
+    }
+
+    /// This selection over `library` as it is now: a folder or note found
+    /// again by path, or — when it has gone — the folder that held the
+    /// note, or All Notes.
+    func refreshed(from library: Library) -> SidebarSelection {
+        switch self {
+        case .allNotes, .untagged, .tag:
+            self
+        case .folder(let folder):
+            library.folder(at: folder.path).map(SidebarSelection.folder) ?? .allNotes
+        case .note(let note, let folder):
+            if let folder = library.folder(at: folder.path) {
+                library.note(at: note.path).map { .note($0, in: folder) } ?? .folder(folder)
+            } else {
+                .allNotes
+            }
+        }
+    }
 }

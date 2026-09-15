@@ -129,8 +129,55 @@ tree was scanned without is placed by `LibraryDisplayOrder`, the display
 rule read off two paths. Seven `IndexTests` and five `NoteParsingTests`
 cover it; the no-I/O test deletes the library copy before operating.
 
-Next: #41 the TextKit 2 editor (#38's ③, blocked by ② and #27) and #42
-the screen glue that wires `LibraryWatcher` (④, blocked by ① and ③).
+**③ is built (issue #41): the editor edits.** `NoteBody` is gone;
+`NoteTextView` bridges an `NSTextView` on TextKit 2 (ADR 0013) whose
+`Coordinator` parses the whole text after every change to its characters
+— an undo included, which only the storage delegate sees — sets fonts and
+links in the storage where they differ (`StyledRange.fontSpans`) and colors
+as rendering attributes, and reports the parse up (ADR 0013, Update, for
+why the hook is `didProcessEditing`). Two seam additions, red-first:
+`Index.resolve(_:from:)` answers what a link or embed the tables have not
+seen points at, so a link is colored as it is typed; `Library.note(at:)`
+and `folder(at:)` find the tree's current copy by path. The glue:
+`NoteBuffer` is the buffer (`CONTEXT.md` § Editor) — one per window,
+dirty from an edit to the save 1 s later, or at once on note switch,
+window or app deactivation, quit, ⌘S, and before Open Library… —
+`CurrentLibrary.save` writes in place and folds the parse into the Index
+(ADR 0014, ADR 0017), and `NotesSelection.refresh(from:)` finds what it
+holds again by path after the write, since panes compare `Note` and
+`Folder` by value; the window shell tells a save from a library switch by
+root URL. `docs/visual-implementation.md` records the fixed settings, the
+range → attribute table, and the ring.
+
+**④ is built (issue #42), and with it the fourth feature.** One seam
+addition, red-first: `Index.applying(_:in:)` folds a `LibraryChange`
+into the Index through the library that already reflects it — a
+modified or added note read and parsed, a removed one dropped, a
+renamed one keeping its parse, a folder's notes likewise, a changed
+folder reconciled by modification date, attachments taken whole from
+the tree (ADR 0017, Update; ten `IndexTests` on temporary copies). Two
+smaller ones: `Note.folderPath`, and the watcher's translator now
+remembers Vitrine's own creates and renames — still never reported —
+so Finder deleting a note ⌘N made yields its change (one more
+`LibraryWatcherTests` test). The glue: `CurrentLibrary` starts a
+`LibraryWatcher` with every open, cancels it on switch, and applies
+each change to library and Index together; `NoteBuffer` reconciles the
+open note against every replaced library — clean reloads silently,
+dirty keeps its text behind *Changed on disk* · Overwrite · Reload,
+gone keeps it behind *Removed from disk* · Save as new · Close, and
+every save waits while a bar is up (ADR 0014); ⌘N creates `Untitled`
+in the sidebar's folder and opens it with the title field focused,
+following an unresolved link creates its note, and `TitleField` renames
+on Return or focus loss, refuses inline, and reverts on Escape.
+`ConflictBar` and `PrimaryButton` are the brief's status and action
+treatments; `docs/visual-implementation.md` records all of it. Verified
+by a 70-check headless harness over the real glue and on screen against
+the vault snapshot; the two-app scenario with Obsidian on the live vault
+is the owner's to confirm.
+
+Next: the Preview spec — the rendered view behind the mockup's
+SOURCE / PREVIEW toggle, its own renderer under ADR 0011's policy (ADR
+0013) — through `/grill-with-docs` and `/to-spec` first.
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh

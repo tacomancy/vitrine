@@ -29,6 +29,9 @@ public struct Index: Sendable {
     private let notes: [IndexedNote]
     /// What every table above was computed from, kept for the next change.
     private let parsedLibrary: ParsedLibrary
+    /// The link rules over this library, kept for a link the tables have
+    /// not seen: one the editor has just parsed out of unsaved text.
+    private let resolver: LinkResolver
 
     /// Reads every note through `library`, parses it, aggregates its tags,
     /// and resolves its links. Never throws: a note that cannot be read
@@ -77,6 +80,85 @@ public struct Index: Sendable {
         return Index(parsedLibrary)
     }
 
+    /// This index with `change` — something another tool did on disk
+    /// (ADR 0014) — folded in, through `library`, which already reflects
+    /// it (`Library.applying`): the notes the change touched are read
+    /// again and parsed, and no other; a renamed note keeps its parse. A
+    /// note that cannot be read is skipped, as `build` skips it. The
+    /// attachments are taken whole from the tree, since links to one
+    /// resolve by name alone (ADR 0017, Update).
+    public func applying(_ change: LibraryChange, in library: Library) -> Index {
+        var parsedLibrary = parsedLibrary
+        switch change {
+        case .noteModified(let path):
+            guard let note = library.note(at: path) else { return self }
+            parsedLibrary.update(note, parsed: Self.parse(note, in: library))
+        case .attachmentModified:
+            return self
+        case .entryAdded(let path):
+            for note in Self.notesOnDisk(at: path, in: library) {
+                parsedLibrary.add(note, parsed: Self.parse(note, in: library))
+            }
+        case .entryRemoved(let path):
+            for note in heldNotes(at: path) { parsedLibrary.remove(note) }
+        case .entryRenamed(let from, let to):
+            for note in heldNotes(at: from) {
+                let path = to + note.path.dropFirst(from.count)
+                if let renamed = library.note(at: path) {
+                    parsedLibrary.rename(note, to: renamed)
+                } else {
+                    parsedLibrary.remove(note)
+                }
+            }
+            // What arrived is not always what left: an attachment renamed
+            // `.md` is a note the index has never read.
+            for note in Self.notesOnDisk(at: to, in: library)
+            where !parsedLibrary.notes.contains(where: { $0.path == note.path }) {
+                parsedLibrary.add(note, parsed: Self.parse(note, in: library))
+            }
+        case .folderChanged(let path):
+            reconcile(&parsedLibrary, under: path, with: library)
+        }
+        parsedLibrary.attachments = library.root.allAttachments
+        return Index(parsedLibrary)
+    }
+
+    /// Which entries under the folder at `path` changed is not known: every
+    /// note the index holds there that the tree no longer does leaves, and
+    /// every note the tree holds that is new or carries a modification date
+    /// the index has not seen is read.
+    private func reconcile(
+        _ parsedLibrary: inout ParsedLibrary, under path: String, with library: Library
+    ) {
+        let held = Dictionary(uniqueKeysWithValues: heldNotes(at: path).map { ($0.path, $0) })
+        let onDisk = Self.notesOnDisk(at: path, in: library)
+        for note in held.values where !onDisk.contains(where: { $0.path == note.path }) {
+            parsedLibrary.remove(note)
+        }
+        for note in onDisk where held[note.path]?.modifiedAt != note.modifiedAt {
+            parsedLibrary.update(note, parsed: Self.parse(note, in: library))
+        }
+    }
+
+    /// `note`'s text read through `library` and parsed, or nil when it
+    /// cannot be read — the one place `applying` touches the disk.
+    private static func parse(_ note: Note, in library: Library) -> ParsedNote? {
+        (try? library.read(note)).map(ParsedNote.parse)
+    }
+
+    /// The notes this index holds at `path`: the one note there, or every
+    /// note under the folder there, or none.
+    private func heldNotes(at path: String) -> [Note] {
+        parsedLibrary.notes.filter { $0.path == path || $0.path.hasPrefix(path + "/") }
+    }
+
+    /// The notes `library` holds at `path`: the one note there, or every
+    /// note under the folder there, or none.
+    private static func notesOnDisk(at path: String, in library: Library) -> [Note] {
+        if let note = library.note(at: path) { return [note] }
+        return library.folder(at: path)?.allNotes ?? []
+    }
+
     /// Every table, computed from `parsedLibrary` alone.
     private init(_ parsedLibrary: ParsedLibrary) {
         let resolver = LinkResolver(parsedLibrary)
@@ -95,6 +177,7 @@ public struct Index: Sendable {
         skipped = parsedLibrary.skipped
         self.notes = notes
         self.parsedLibrary = parsedLibrary
+        self.resolver = resolver
     }
 
     /// A note's links and embeds resolved, in one document order — the
@@ -124,6 +207,21 @@ public struct Index: Sendable {
     /// link is not (CONTEXT.md § Links). A skipped note has none.
     public func links(from note: Note) -> [ResolvedLink] {
         indexed(note)?.links.map(\.link) ?? []
+    }
+
+    /// `link`, as written in `note`, resolved by the same rules as
+    /// `links(from:)` — for a link parsed out of text the Index has not
+    /// been given, such as the editor's unsaved buffer; the tables are not
+    /// consulted for `note` itself and nothing changes. Nil for an external
+    /// link (CONTEXT.md § Links).
+    public func resolve(_ link: Link, from note: Note) -> ResolvedLink? {
+        resolver.resolve(link, from: note)
+    }
+
+    /// `embed`, as written in `note`, resolved as `links(from:)` would; nil
+    /// for an embed of a URL.
+    public func resolve(_ embed: Embed, from note: Note) -> ResolvedLink? {
+        resolver.resolve(embed, from: note)
     }
 
     /// Every note that links to `note`, sorted by title — by path where two
