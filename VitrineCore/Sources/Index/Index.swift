@@ -24,6 +24,13 @@ public struct Index: Sendable {
         notes.filter { $0.tags.isEmpty }.map(\.note)
     }
 
+    /// Every note that was read, with its parse, in library display order —
+    /// the texts the Index caches (ADR 0017), for a seam built on them
+    /// rather than on the disk (ADR 0018). A skipped note is absent.
+    public var parsedNotes: [(note: Note, parsed: ParsedNote)] {
+        parsedLibrary.parsed
+    }
+
     /// Every note that was read, with its tags and links, in library
     /// display order.
     private let notes: [IndexedNote]

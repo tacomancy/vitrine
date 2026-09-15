@@ -68,7 +68,7 @@ import Testing
         #expect(
             index.tagTree.map(\.name) == [
                 "agents", "Alignment", "daily", "data", "fixture", "interp", "learning",
-                "project", "reading", "stats", "vitrine",
+                "project", "reading", "stats", "todo", "vitrine",
             ])
         let reading = try #require(index.tagTree.first { $0.path == "reading" })
         #expect(reading.children.map(\.name) == ["Notes", "paper"])
@@ -218,8 +218,8 @@ import Testing
                 "Projects/Vitrine.md",
                 "Research/Bayesian Inference.md", "Research/Linear Regression.md",
                 "Research/Survey Sampling.md",
-                "Topics/Agents.md", "Topics/Alignment.md", "Topics/Interpretability.md",
-                "Topics/Journal.md", "Topics/Scratch.md",
+                "Topics/Agents.md", "Topics/Alignment.md", "Topics/Café.md",
+                "Topics/Interpretability.md", "Topics/Journal.md", "Topics/Scratch.md",
             ])
     }
 
@@ -716,7 +716,7 @@ import Testing
         #expect(
             index.tagTree.map(\.name) == [
                 "agents", "Alignment", "daily", "data", "interp", "learning", "project",
-                "reading", "stats",
+                "reading", "stats", "todo",
             ])
         #expect(index.notes(tagged: "vitrine").isEmpty)
         #expect(index.untagged == built.untagged)
@@ -1152,6 +1152,34 @@ import Testing
 
         #expect(index.resolve(link, from: alignment) == nil)
         #expect(index.resolve(embed, from: alignment) == nil)
+    }
+
+    // MARK: - The cached parses
+
+    @Test func parsedNotes_are_every_read_note_with_its_parse_in_display_order_skipped_absent()
+        throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let noPermissions = 0o000
+        try FileManager.default.setAttributes(
+            [.posixPermissions: noPermissions],
+            ofItemAtPath: copy.appending(path: "Topics/Interpretability.md").path)
+        let library = try Library.open(at: copy)
+
+        let index = Index.build(from: library)
+
+        // ADR 0018: what a seam built on the Index's cached texts reads.
+        #expect(
+            index.parsedNotes.map(\.note.path) == [
+                "Reading List.md", "Scratch.md", "Welcome.md", "Daily/2026-09-13.md",
+                "Daily/Journal.md", "Projects/Vitrine.md", "Research/Bayesian Inference.md",
+                "Research/Linear Regression.md", "Research/Survey Sampling.md",
+                "Topics/Agents.md", "Topics/Alignment.md", "Topics/Café.md",
+                "Topics/Journal.md", "Topics/Scratch.md",
+            ])
+        let agents = try #require(index.parsedNotes.first { $0.note.path == "Topics/Agents.md" })
+        #expect(agents.parsed.text.hasPrefix("# Agents\n"))
     }
 
     /// The note at `path`, which the fixture is expected to contain.

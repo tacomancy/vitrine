@@ -50,3 +50,16 @@ refinement of substring is an addition, not a change users feel).
   — roughly doubling text memory. Accepted at v1 scale.
 - **−** No relevance scoring beyond title-first and recency. Accepted; the
   palette shows meta and an excerpt, which is how a user disambiguates.
+
+## Update (2026-09-15, from the Search seam, #68)
+
+The first measurement against the revisit trigger, on the real vault
+(79 notes, 460 KB of text): building the folded copies takes ~4 ms, and
+every query — including one matching nothing, which scans every byte —
+returns in under 3 ms in a release build and under 10 ms in debug. That
+is with the scan done by libc's `memmem`; the standard library's generic
+`Collection` search over `[UInt8]` read the same text at about five
+megabytes a second, ~100 ms per empty query, and would have tripped the
+trigger on the very first library. The decision stands: the cost of a
+linear scan is the byte search, not the design, and at this rate the
+~50 ms debounce holds to a library some twenty times this size.

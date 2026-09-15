@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "NoteParsing", targets: ["NoteParsing"]),
         .library(name: "Index", targets: ["Index"]),
         .library(name: "LibraryWatcher", targets: ["LibraryWatcher"]),
+        .library(name: "Search", targets: ["Search"]),
     ],
     dependencies: [
         // ADR 0011: Yams parses frontmatter, pinned exactly; a dependency is
@@ -88,6 +89,20 @@ let package = Package(
         .testTarget(
             name: "LibraryWatcherTests",
             dependencies: ["LibraryWatcher", "Library", "Fixtures"],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .target(
+            name: "Search",
+            dependencies: ["Index", "Library", "NoteParsing"],
+            swiftSettings: [
+                .defaultIsolation(nil)
+            ]
+        ),
+        .testTarget(
+            name: "SearchTests",
+            dependencies: ["Search", "Index", "Library", "NoteParsing", "Fixtures"],
             swiftSettings: [
                 .defaultIsolation(nil)
             ]
