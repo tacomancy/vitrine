@@ -191,7 +191,28 @@ The fixture grew `Research/` — three plain notes under fresh roots
 distinct counts and ties for the sort to break; seven `IndexTests`
 assert hand-counted tuples, and on the vault snapshot `data_science`
 answers `14` notes with `machine_learning 6/14`, matching a grep count.
-Nothing on screen consumes either yet.
+
+**② is built (issue #74): filter chips on the Notes tab.** Glue at the
+seam, untested by decision and verified by `/run`: `NotesSelection`
+grew `chips` — tag paths in order of addition, a tag lowercased being
+its path (`CONTEXT.md` § Tags), so a click anywhere and a pick in the
+popover are one chip; `addChip(for:)` is a no-op for one present,
+`removeChip(at:)` is the `×`, `clear()` takes them with the library and
+a scope change leaves them. `NoteList` keeps the scope's notes to
+`Index.notes(taggedAll: chips)` and counts what it lists; above its
+header `FilterChipRow` draws each `FilterChip` — the brief's info chip
+with `×` — then `+ filter` in a `WrappingRow` (`Layout`), and `+ filter`
+opens `FilterPopover`: a field over `TagChoice.all(in: index.tagTree)`
+(every tag's path and display spelling, tree order) filtered by
+substring on the path, ↑↓ over the unchipped rows, ↩ or click adds and
+closes, Esc closes, chipped rows disabled. Tag clicks add chips in three
+places: `TagRow` — one attributed `Text` over a `vitrine-tag://N` scheme,
+so the line stays one ellipsised line — replaces the inert tag text in
+`NoteRow` and the rail's INFO, and the editor gives every body tag a
+`.link` attribute of the same scheme, told from a note link's in
+`clickedOnLink` by scheme, since a link click is the one the text view
+tracks without moving the caret. `docs/visual-implementation.md`
+records the chip, the row, the popover, and the editor's new table row.
 
 **The sixth feature is under way (issue #67, search and the command
 palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
@@ -237,8 +258,7 @@ warnings are exempt from warnings-as-errors per target in
 `Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
 yet.
 
-Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
-(issue #75), in parallel; ticket #69 — the palette, the title-bar field,
+Next: ③ the Tags tab (issue #75); ticket #69 — the palette, the title-bar field,
 and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
 toggle and ⌘E, the remembered setting, block views over `[Block]`, click
 routing through `Index`, re-render timing — with

@@ -2,13 +2,18 @@ import Library
 import Observation
 
 /// What the Notes tab has selected: the sidebar row, which scopes the note
-/// list, the note open in the editor, and the back / forward history of
-/// notes opened this session. Plain view state, shared by the panes because
-/// each is hosted on its own (spec #8 § Selection state); the note list,
-/// editor, and rail derive everything from it, `Library`, and `Index`.
+/// list, the filter chips that narrow that scope, the note open in the
+/// editor, and the back / forward history of notes opened this session.
+/// Plain view state, shared by the panes because each is hosted on its own
+/// (spec #8 § Selection state); the note list, editor, and rail derive
+/// everything from it, `Library`, and `Index`.
 @Observable
 final class NotesSelection {
     private(set) var sidebar: SidebarSelection = .allNotes
+    /// The filter chips (CONTEXT.md § Note list): tag paths in the order
+    /// they were added. A scope change leaves them; a library switch
+    /// clears them.
+    private(set) var chips: [String] = []
     /// The note open in the editor; `nil` leaves the editor empty.
     private(set) var openNote: Note?
     /// The notes opened this session up to and including the open one, as
@@ -40,6 +45,21 @@ final class NotesSelection {
 
     func select(_ folder: Folder) {
         sidebar = .folder(folder)
+    }
+
+    /// Adds a chip for `tag` — a tag without its `#`, as displayed or as
+    /// written — by its path, the tag lowercased (CONTEXT.md § Tags), so a
+    /// click on `Reading/Notes` and a pick of `reading/notes` are one chip.
+    /// A tag already chipped adds nothing.
+    func addChip(for tag: String) {
+        let path = tag.lowercased()
+        guard !chips.contains(path) else { return }
+        chips.append(path)
+    }
+
+    /// The chip's `×`: the list widens by that one tag.
+    func removeChip(at path: String) {
+        chips.removeAll { $0 == path }
     }
 
     /// Selecting a note in the file tree scopes the list to its folder and
@@ -130,6 +150,7 @@ final class NotesSelection {
     /// A library that has been replaced takes its selection and history with it.
     func clear() {
         sidebar = .allNotes
+        chips = []
         openNote = nil
         history = []
         forward = []
