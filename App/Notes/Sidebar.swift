@@ -31,8 +31,11 @@ struct Sidebar: View {
                         sectionLabel("Topics")
                             .padding(.top, SidebarMetrics.sectionSpacing)
                         TagTree(
-                            roots: index.tagTree, selection: selection,
-                            expandedTags: $expandedTags)
+                            roots: index.tagTree, selectedPath: selectedTagPath,
+                            expandedTags: $expandedTags
+                        ) { path in
+                            selection.select(tagAt: path)
+                        }
                     }
                 }
                 .padding(.bottom, SidebarMetrics.sectionSpacing)
@@ -48,6 +51,11 @@ struct Sidebar: View {
             expandedFolders = []
             expandedTags = []
         }
+    }
+
+    /// The tag TOPICS draws selected: the scope, when it is a tag.
+    private var selectedTagPath: String? {
+        if case .tag(let path) = selection.sidebar { path } else { nil }
     }
 
     private func sectionLabel(_ text: String) -> some View {
