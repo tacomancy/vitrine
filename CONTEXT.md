@@ -163,9 +163,23 @@ so they aren't accidentally reused for something else.
   user), sorted by a chosen key.
 - **Tag page** — the Tags tab's main pane for one tag: its description (if
   any), child-tag chips, and the notes under it.
-- **Search** — full-text lookup across note titles and bodies. v1 is plain
-  term matching, case-insensitive; no query language. Surfaced through the
-  **command palette** (`⌘K`), which also lists actions.
+- **Search** — full-text lookup across note titles, aliases, and full text
+  (frontmatter included). A query splits on whitespace into **terms**; a note
+  **matches** when every term occurs as a substring, case- and
+  diacritic-insensitively, anywhere in its title, aliases, or text. No
+  phrases, operators, or field syntax — `#todo` is the text `#todo`.
+  **Results** list notes whose title or alias contains every term first,
+  then the rest, each group newest-modified first (ADR 0018). Surfaced
+  through the command palette.
+- **Command palette** — the overlay opened by `⌘K` or the title bar's search
+  field. It shows search results as **NOTES** and the app's commands as
+  **ACTIONS**, both filtered by the query; beside them a **preview rail**
+  shows the highlighted note's title, the first matching line as its
+  **excerpt**, its tags, and its link counts. With an empty query it lists
+  **recent** notes. ↩ opens the highlighted note as following a link does;
+  matched terms carry the brass highlight wash.
+- **Recent** — the notes opened this session, most recently opened first:
+  the same list the editor's back/forward history walks. Not persisted.
 - **Editor** — the pane where one note is edited as **source** Markdown,
   frontmatter included, with the parser's ranges colored (ADR 0013). Source
   is always what's on disk: a note **autosaves** shortly after each pause in
