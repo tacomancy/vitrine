@@ -176,7 +176,8 @@ the vault snapshot; the two-app scenario with Obsidian on the live vault
 is the owner's to confirm.
 
 **The fifth feature is under way (issue #72, filter chips and the Tags
-tab): ① built (issue #73).** Two `Index` additions, pure over the
+tab): ① and ③ built (issues #73 and #75), ② in flight (issue #74).**
+Two `Index` additions, pure over the
 cached parses and red-first against the Obsidian fixture:
 `coOccurringTags(with:)` answers the tag page's CO-OCCURS WITH — for
 the notes tagged a tag or a descendant, every other tag they carry or
@@ -191,7 +192,26 @@ The fixture grew `Research/` — three plain notes under fresh roots
 distinct counts and ties for the sort to break; seven `IndexTests`
 assert hand-counted tuples, and on the vault snapshot `data_science`
 answers `14` notes with `machine_learning 6/14`, matching a grep count.
-Nothing on screen consumes either yet.
+
+**③ is built (issue #75): the Tags tab.** Glue at the seam, untested by
+decision and verified by a headless harness over the real glue rendered
+offscreen (the screen was locked): `TagsSelection` is the tab's own view
+state beside `NotesSelection` — the sidebar row whose page is shown (a
+tag by path, or Untagged) and the tree's expanded tags — kept across tab
+switches and cleared with the library. `GutterSplitPanes` now takes a
+`PaneWidth` table and a pane builder, so `TagsTab` is two panes:
+`TagsSidebar` (TAG TREE over the one `TagTree`, which takes the selected
+path and a select closure so both tabs share it, then UNTAGGED → *Notes
+with no tag N*) and `TagPage` — `#tag` at `heading` in the tree's
+display spelling, `N NOTES · N CHILD TAGS` with *Open in Notes* (the
+shell sets the Notes scope and switches tabs, chips untouched), child
+chips (`InfoChip` in a `WrappingRow`; a click reveals the child's row and
+opens its page), and CO-OCCURS WITH — ten `CoOccurrenceRow`s in
+`SequentialRamp` slot order, `count/outOf · P %`, *and N more*, or the
+*needs at least 3 notes* line — plus the Untagged page and the *Select a
+tag* prompt. `docs/visual-implementation.md` records all of it, the bar
+ramp included. ② (issue #74) — filter chips on the Notes tab — will
+reuse `InfoChip` and `WrappingRow`.
 
 **The sixth feature is under way (issue #67, search and the command
 palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
@@ -237,8 +257,8 @@ warnings are exempt from warnings-as-errors per target in
 `Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
 yet.
 
-Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
-(issue #75), in parallel; ticket #69 — the palette, the title-bar field,
+Next: ② filter chips on the Notes tab (issue #74), which completes the
+fifth feature; ticket #69 — the palette, the title-bar field,
 and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
 toggle and ⌘E, the remembered setting, block views over `[Block]`, click
 routing through `Index`, re-render timing — with
