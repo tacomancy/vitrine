@@ -77,7 +77,8 @@ it blocks is next up.
 
 - **MC/DC coverage.** Wanted in CI, unavailable: `swiftc` emits no branch
   coverage regions (ADR 0006). Mutation testing with Muter is the substitute
-  (ADR 0015, Proposed pending the chore ticket). Revisit if the toolchain
-  grows branch regions.
+  (ADR 0015, Accepted: `Scripts/mutate.sh`, weekly and by hand, non-gating;
+  first run 154 of 176 killed). Revisit if the toolchain grows branch
+  regions, or if Muter's upstream merges the fix the pin waits on.
 - **Sidecar folder name.** ADR 0002 reserves one; `.vitrine/` is the obvious
   candidate. Fix it when something first needs to go there.

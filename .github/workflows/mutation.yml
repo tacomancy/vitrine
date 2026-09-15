@@ -1,0 +1,39 @@
+# ADR 0015: mutation testing runs weekly and by hand, never per pull request
+# (ADR 0006's runner budget), and is not a required status — a survived
+# mutant is a finding to triage, not a red build. Separate from ci.yml so
+# ADR 0006's "one job, pull requests only" still describes CI.
+name: Mutation
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  mutate:
+    runs-on: macos-26
+    # ADR 0015 (Update): a full run is about fifteen minutes; a hung one
+    # must not spend the month's macOS minutes.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore the pinned Muter build
+        # Building Muter from source is most of a cold run. The key changes
+        # with the script, which is where the pin lives.
+        uses: actions/cache@v4
+        with:
+          path: build/muter/bin
+          key: muter-${{ hashFiles('Scripts/mutate.sh') }}
+
+      - name: Mutation-test the package
+        run: Scripts/mutate.sh build/mutation/report.json
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: build/mutation/report.json
+          if-no-files-found: ignore

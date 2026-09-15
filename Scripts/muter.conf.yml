@@ -1,0 +1,37 @@
+# Muter's configuration (ADR 0015). Scripts/mutate.sh passes it with
+# --configuration; Muter's own convention is the repo root, but a tool
+# config belongs next to the script that owns it.
+#
+# The test command is Scripts/test.sh's, with one override reversed:
+# warnings stay warnings. A mutant is code with something removed or
+# flipped, and the compiler warns about what it leaves behind — a `var`
+# that is never mutated once its only mutating call is gone — so a schemata
+# build under warnings-as-errors cannot compile at all (ADR 0015, Update).
+# The code being mutated already passed that bar on its own PR.
+#
+# Muter rewrites the command for its own stages: it drops `test` and adds
+# `-derivedDataPath DerivedData clean build-for-testing` for the one
+# schemata build, then runs each mutant with `test-without-building`
+# against that build, keeping only `-destination`.
+executable: /usr/bin/xcodebuild
+arguments:
+  - test
+  - -scheme
+  - Vitrine
+  - -destination
+  - platform=macOS,arch=arm64
+  - SWIFT_TREAT_WARNINGS_AS_ERRORS=NO
+
+# Substring matches against paths in the copy. /Tests/ (and so Fixtures)
+# and Package.swift are excluded by Muter itself; the app target is thin
+# SwiftUI outside the coverage gate for the same reason (ADR 0006).
+exclude:
+  - /App/
+
+# Seconds per mutant test run before Muter records a timeout instead of
+# waiting forever: a relational mutant in a scanner loop runs it forever.
+# A run that finishes takes about twelve seconds here, twenty at worst, so
+# this is four times the worst case, with room for a slower runner. A
+# timeout is not counted as killed in Muter's score, so it is listed on its
+# own in Scripts/mutate.sh's summary.
+mutationTestTimeout: 90
