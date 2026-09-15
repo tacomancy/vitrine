@@ -139,8 +139,8 @@ at the window's top edge:
   select with Space or Return, carry the brass ring, and are exposed as a
   tab bar with the selected tab marked selected.
 - **The body** is the selected tab's view. Notes is `NotesTab`, or
-  `FirstRun` while no library is open; Tags an empty floating surface;
-  Sources, Ideas, and Dashboard one `SoonSurface` each (ADR 0005).
+  `FirstRun` while no library is open; Tags is `TagsTab` (§ The Tags
+  tab); Sources, Ideas, and Dashboard one `SoonSurface` each (ADR 0005).
 
 No hairline is drawn anywhere in the shell: `bg` / `bg-surface` /
 `bg-raised` contrast does that work (ADR 0008, Update).
@@ -153,25 +153,31 @@ transparent, draggable gap. Initial widths are placed as frames in
 `layout()` the first time the view has a real width — nothing sticks
 before that — and never again.
 
-`GutterSplitPanes` bridges it into SwiftUI with `NSViewRepresentable`,
-hosting the four panes in `NSHostingView`s with `sizingOptions = []` (a
-pane's content must not size the split view, and so the window, upward)
-and answering `sizeThatFits` with the proposal for the same reason. The
+`GutterSplitPanes` bridges it into SwiftUI with `NSViewRepresentable`:
+a tab hands it its `PaneWidth` table and a closure that builds its panes,
+each hosted in an `NSHostingView` with `sizingOptions = []` (a pane's
+content must not size the split view, and so the window, upward), and it
+answers `sizeThatFits` with the proposal for the same reason. The panes
+are built once, when the split view is made, and follow the observable
+state they were given — the window's selection objects — not the
+representable's own updates. The
 panes are laid out the classic way, by the split view's delegate, because
 Auto Layout constraints and holding priorities on the hosted panes fought
 the initial widths (the panes settled at min / max instead of ideal). The
 delegate clamps each drag to the tighter of its two neighbours' limits —
 the leading pane's minimum or the trailing pane's maximum on the left, the
 leading pane's maximum or the trailing pane's minimum on the right — and
-distributes every resize: the editor, the one pane with no ideal width,
-takes the rest, and only when the rest would drop below its minimum do the
-rail, then the note list, then the sidebar, give up width down to theirs.
-`PaneWidth` holds the spec's numbers: sidebar 196–280 (ideal 212), note
-list 260–404 (ideal 300), editor at least 320, rail 220–360 (ideal 260).
-The editor minimum is not in the spec; it is what makes the window's
-minimum size mean something.
+distributes every resize: the one pane with no ideal width — the editor,
+or the tag page — takes the rest, and only when the rest would drop below
+its minimum do the other panes, trailing first, give up width down to
+theirs. `PaneWidth` holds the spec's numbers: sidebar 196–280 (ideal
+212), note list 260–404 (ideal 300), editor at least 320, rail 220–360
+(ideal 260), and the tag page at least 320 like the editor; `notesTab`
+and `tagsTab` are the two tables, and the Notes one, the wider, sets the
+window's minimum. The editor minimum is not in the spec; it is what makes
+the window's minimum size mean something.
 
-`FloatingSurface` is the note list, editor, and rail's look: `bg-surface`
+`FloatingSurface` is the note list, editor, rail, and tag page's look: `bg-surface`
 at `Radius.large`, filling its pane. The sidebar sits directly on `bg`.
 The split view is padded by one gutter on every side.
 
@@ -219,7 +225,10 @@ node, in the order the seam gives (case-insensitive natural, at every
 level), its name in display spelling and its descendant-inclusive count,
 each depth inset 14 px more. A node with children carries the chevron and
 one click both selects it and toggles it, as a folder does; a leaf only
-selects. Expanded folders and tags are the sidebar's own state, by path,
+selects. It is one tree for both tabs (spec #72): it takes the path to
+draw selected and a closure to call with the path clicked, so TOPICS
+selects the Notes scope and TAG TREE (§ The Tags tab) the tag page's
+subject. Expanded folders and tags are the sidebar's own state, by path,
 and both reset when a different library opens (its root changes) — not
 when the same one is replaced by a save or another tool's change.
 
@@ -490,6 +499,87 @@ the middle; its modification date at `caption` in `fg-secondary`, as
 N unresolved` in mono `label`, `fg-muted`, counted from `links(from:)`
 and `backlinks(to:)`. No ANCHORS, and note-list rows are unchanged
 (spec #25).
+
+### The Tags tab
+
+`TagsTab` is two floating panes in the gutter split view — the sidebar at
+the Notes tab's width, then the tag page taking the rest — sharing
+`TagsSelection`: the window's Tags state, held by the shell beside
+`NotesSelection` so it survives a tab switch, and cleared with the Notes
+one when a different library opens. It holds the sidebar row whose page
+is shown (`TagsSidebarSelection`: a tag by path, or Untagged — nothing at
+first) and the tree's expanded tags, which live here rather than in the
+sidebar so a chip on the page can reveal the row it opens.
+
+**`TagsSidebar`** is TAG TREE — `TagTree` over the whole tree, full
+height in one scroll view — and UNTAGGED with one `SidebarRow`, *Notes
+with no tag N* from `Index.untagged`, carrying the `tray` glyph the Notes
+tab's Untagged row does (the mockup draws it bare; one row treatment
+wins). Same labels, insets, and row density as the Notes sidebar
+(`SidebarMetrics`); no LIBRARY, FILES, or SCOUTS.
+
+**`TagPage`** (screen 09, the v1 subset on record in ADR 0004's Update)
+is a floating surface with its content in a scroll view, padded 16 × 22
+px (`TagPageMetrics`), everything read from the `Index` as it is now so a
+save or another tool's change shows as the Index has it. For a tag:
+
+- the tag at `heading` (21 px) in `fg`, its `#` in mono `link` as the
+  tree's glyph and the tag row spell it; the name is the display spelling
+  — the names of the nodes from the root down, joined by `/`
+  (`[TagTreeNode].ancestry(of:)`), so `#learning/probabilistic` reads as
+  the tree spells it;
+- 9 px under it the stat line: `N NOTES · N CHILD TAGS` as a `CapsLabel`
+  in `fg-muted` — the node's descendant-inclusive count and its
+  children's count — then, 12 px on, **Open in Notes** (`OpenInNotesLink`):
+  the page's one action, caps `label` in `link` (rule 2), a plain button
+  with the hand pointer and the brass ring at `Radius.small`. It hands the
+  subject to the shell, which sets the Notes scope (`select(tagAt:)` or
+  `selectUntagged`) and switches tabs; filter chips are untouched;
+- the child tags as `InfoChip`s in a `WrappingRow` 5 px apart, each
+  labelled `#` and the child's *name* — its last segment, as the mockup
+  labels them under their parent — and clicking one is
+  `TagsSelection.reveal(tagAt:)`: the child's page, with every tag above
+  it expanded so its row is on screen;
+- 20 px under, **CO-OCCURS WITH** as a `CapsLabel`, then up to 10
+  `CoOccurrenceRow`s (`TagPageMetrics.rowLimit`) from
+  `Index.coOccurringTags(with:)`, 12 px apart, in a column no wider than
+  480 px (the rail's width on screen 09, so a bar stays a bar on a wide
+  page), then *and N more* at `caption` in `fg-muted` when there were
+  more. Fewer than 3 notes (`minimumNotesForCoOccurrence`) and the section
+  is one line instead, *Co-occurrence needs at least 3 notes.*, at
+  `caption` in `fg-muted`.
+
+Untagged's page is the word at `heading`, `N NOTES`, and *Open in Notes*
+scoped to Untagged; nothing else. With nothing selected — or a selected
+tag the last edit removed from the tree — the surface shows *Select a
+tag* centred at `body` in `fg-muted`; with no library it is empty, as the
+Notes tab's panes are. No note list, rail, description, segmented row,
+or toolbar (ADR 0004, Update).
+
+**A co-occurrence row** is the other tag, `#` and its display spelling
+in mono `caption` (12) and `fg-secondary`, with `count/outOf · P %` in
+mono `label` and `fg-muted` at the trailing end — `P` the share rounded
+to the nearest whole percent, so `6/14` reads `43 %` — and 4 px under
+them the **bar**: a 4 px track in `line` at `Radius.small`, filled from
+the leading edge to `count / outOf` of its width. The row is one
+accessibility element reading its text; the bar is hidden from it.
+
+**The bar ramp** is the brief's sequential sapphire ramp (§ Chart
+colour), the first chart in Vitrine: `SequentialRamp.color(atSlot:)`
+gives row 1 `seq-1`, the darkest on dark, down to row 6 `seq-6`, the
+lightest; rows 7 to 10 stay at `seq-6`. Slots are by position in the
+list, fixed and never cycled (rule 6), so a list only ever gets lighter
+down its length — magnitude is the bar's width, the ramp only says which
+row is which. Colors come from the `seq-N` assets like every other token.
+
+**`InfoChip`** is the brief's info chip, the treatment filter chips
+(#74) share: `info-bg` filled, a 1 px `info-line` border, the text in
+mono `label` and `info`, 21 px tall, 8 px of horizontal padding,
+`Radius.medium`. With an action it is a plain button with the hand
+pointer and the brass ring; without, it reads only. **`WrappingRow`** is
+the `Layout` a row of chips sits in: leading to trailing at each chip's
+own size, wrapping to a new line when the next would not fit the width
+proposed, so many chips never push what is below them off screen.
 
 ### First run
 
