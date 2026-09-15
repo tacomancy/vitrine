@@ -119,6 +119,24 @@ import Testing
         #expect(await changes(from: stream) == [])
     }
 
+    @Test func deleting_with_another_tool_a_note_the_library_created_yields_entryRemoved()
+        async throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let stream = LibraryWatcher.watch(library)
+        let untitled = try library.createNote(named: "Untitled", in: library.root)
+        let named = try library.renameNote(untitled, to: "Named")
+        // Long enough that the library's own doing has been reported and
+        // dropped before another tool's is reported.
+        try await Task.sleep(for: Self.settling)
+
+        try OtherTool.remove(copy.appending(path: named.path))
+
+        #expect(await changes(from: stream) == [.entryRemoved("Named.md")])
+    }
+
     @Test func writes_under_dot_entries_yield_no_change() async throws {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
