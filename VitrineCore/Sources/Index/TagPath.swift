@@ -43,9 +43,10 @@ struct TagPath: Hashable, Sendable {
     }
 
     /// Whether this tag is the one whose segment identities are `ancestry`,
-    /// or an ancestor or descendant of it — the tags that co-occur with it
-    /// by construction (CONTEXT.md § Tag page).
-    func isRelated(to ancestry: [String]) -> Bool {
+    /// or an ancestor or descendant of it — so that every note under one
+    /// is under the other, and the two co-occur by construction (CONTEXT.md
+    /// § Tag page).
+    func coOccursByConstruction(with ancestry: [String]) -> Bool {
         let identities = segments.map(\.identity)
         return identities.starts(with: ancestry) || ancestry.starts(with: identities)
     }

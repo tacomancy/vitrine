@@ -234,7 +234,10 @@ public struct Index: Sendable {
                 guard !contexts.isEmpty else { return nil }
                 return Backlink(note: linking.note, contexts: contexts)
             }
-            .sorted(by: Self.isInTitleOrder)
+            .sorted {
+                LibraryDisplayOrder.precedes(
+                    $0.note.title, $1.note.title, thenBy: $0.note.path, $1.note.path)
+            }
     }
 
     /// The lines of `links` that point at `target`, each line once
@@ -267,22 +270,12 @@ public struct Index: Sendable {
         notes.first { $0.note == note }
     }
 
-    /// The file tree's order by title (CONTEXT.md, Library), falling back
-    /// to the path so two notes with one title order the same every build.
-    private static func isInTitleOrder(_ backlink: Backlink, _ other: Backlink) -> Bool {
-        switch backlink.note.title.localizedStandardCompare(other.note.title) {
-        case .orderedAscending: true
-        case .orderedDescending: false
-        case .orderedSame: backlink.note.path < other.note.path
-        }
-    }
-
     /// The notes carrying `tag` or any tag under it, in library display
     /// order. `tag` is a tag without its `#`, matched case-insensitively; a
     /// tag no note carries yields none.
     public func notes(tagged tag: String) -> [Note] {
         let ancestry = TagPath.segmentIdentities(of: tag)
-        return notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }.map(\.note)
+        return notes.filter { $0.isTagged(under: ancestry) }.map(\.note)
     }
 
     /// The notes carrying every tag in `tags` or a tag under each — what
@@ -294,49 +287,41 @@ public struct Index: Sendable {
         let ancestries = tags.map(TagPath.segmentIdentities(of:))
         return
             notes
-            .filter { note in
-                ancestries.allSatisfy { ancestry in
-                    note.tags.contains { $0.isCounted(under: ancestry) }
-                }
-            }
+            .filter { note in ancestries.allSatisfy { note.isTagged(under: $0) } }
             .map(\.note)
     }
 
     /// The other tags carried by the notes tagged `tag` (or a tag under it),
     /// each with how many of those notes carry it, sorted by count
-    /// descending and then by name (CONTEXT.md § Tag page). A note counts
-    /// once per other tag — carrying `#a/b` and `#a/c` is one note under
-    /// `a`, and one each under `a/b` and `a/c` — and `tag`'s own ancestors
-    /// and descendants are left out, since they co-occur by construction.
-    /// Every entry is here; a tag no note carries yields none.
+    /// descending and then by the tag as spelled — the whole path, not its
+    /// last segment — in the file tree's order (CONTEXT.md § Tag page). A
+    /// note counts once per other tag — carrying `#a/b` and `#a/c` is one
+    /// note under `a`, and one each under `a/b` and `a/c` — and `tag`'s own
+    /// ancestors and descendants are left out, since they co-occur by
+    /// construction. Every entry is here; a tag no note carries yields none.
     public func coOccurringTags(with tag: String) -> [TagCoOccurrence] {
         let ancestry = TagPath.segmentIdentities(of: tag)
-        let carriers = notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }
+        let tagged = notes.filter { $0.isTagged(under: ancestry) }
         var counts: [TagPath: Int] = [:]
-        for carrier in carriers {
-            let carried = Set(carrier.tags.flatMap(\.ancestorsAndSelf))
-            for other in carried where !other.isRelated(to: ancestry) {
+        for note in tagged {
+            let carried = Set(note.tags.flatMap(\.ancestorsAndSelf))
+            for other in carried where !other.coOccursByConstruction(with: ancestry) {
                 counts[other, default: 0] += 1
             }
         }
         return counts.map { other, count in
-            TagCoOccurrence(tag: other.displaySpelling, count: count, outOf: carriers.count)
+            TagCoOccurrence(tag: other.displaySpelling, count: count, outOf: tagged.count)
         }
         .sorted(by: Self.isInCoOccurrenceOrder)
     }
 
-    /// More carriers first; then the file tree's order by tag, falling back
-    /// to the spelling itself so two tags that order the same (`01`, `1`)
-    /// come out the same every build.
+    /// Higher count first; then the tag's own spelling in the file tree's
+    /// order.
     private static func isInCoOccurrenceOrder(_ entry: TagCoOccurrence, _ other: TagCoOccurrence)
         -> Bool
     {
         guard entry.count == other.count else { return entry.count > other.count }
-        return switch entry.tag.localizedStandardCompare(other.tag) {
-        case .orderedAscending: true
-        case .orderedDescending: false
-        case .orderedSame: entry.tag < other.tag
-        }
+        return LibraryDisplayOrder.precedes(entry.tag, other.tag, thenBy: entry.tag, other.tag)
     }
 
     /// A parsed note's tags: frontmatter first, then the body in order of

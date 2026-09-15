@@ -53,17 +53,6 @@ struct TagTreeBuilder {
                 count: child.carriers.count,
                 children: child.nodes(under: path))
         }
-        .sorted(by: Self.isInDisplayOrder)
-    }
-
-    /// The file tree's order (CONTEXT.md § Tags): case-insensitive, with
-    /// digit runs compared as numbers. Names that order the same (`01`,
-    /// `1`) fall back to their paths, so the tree is deterministic.
-    private static func isInDisplayOrder(_ node: TagTreeNode, _ other: TagTreeNode) -> Bool {
-        switch node.name.localizedStandardCompare(other.name) {
-        case .orderedAscending: true
-        case .orderedDescending: false
-        case .orderedSame: node.path < other.path
-        }
+        .sorted { LibraryDisplayOrder.precedes($0.name, $1.name, thenBy: $0.path, $1.path) }
     }
 }

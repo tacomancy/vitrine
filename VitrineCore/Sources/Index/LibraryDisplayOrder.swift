@@ -21,6 +21,19 @@ enum LibraryDisplayOrder {
         return isInNaturalOrder(segments[segments.count - 1], otherSegments[segments.count - 1])
     }
 
+    /// Whether `name` comes before `other` in the file tree's order — and,
+    /// where the two names order the same (`01`, `1`), whether `path`
+    /// comes before `otherPath`, so every list is the same every build.
+    static func precedes(_ name: String, _ other: String, thenBy path: String, _ otherPath: String)
+        -> Bool
+    {
+        switch name.localizedStandardCompare(other) {
+        case .orderedAscending: true
+        case .orderedDescending: false
+        case .orderedSame: path < otherPath
+        }
+    }
+
     /// Finder's and Obsidian's file order: case-insensitive, with digit runs
     /// compared as numbers, so `Note 2` precedes `Note 10`.
     private static func isInNaturalOrder(_ name: Substring, _ other: Substring) -> Bool {

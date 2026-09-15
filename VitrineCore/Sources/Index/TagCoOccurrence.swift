@@ -11,6 +11,7 @@ public struct TagCoOccurrence: Sendable, Equatable {
     /// full width.
     public let outOf: Int
 
+    /// Memberwise, so a test's expected value can build one directly.
     public init(tag: String, count: Int, outOf: Int) {
         self.tag = tag
         self.count = count

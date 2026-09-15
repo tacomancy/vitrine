@@ -10,4 +10,11 @@ struct IndexedNote: Sendable {
     /// Every link and embed in document order, frontmatter links first,
     /// each with its line.
     let links: [LinkInContext]
+
+    /// Whether this note is counted under the tag whose segment identities
+    /// are `ancestry`: it carries that tag or one under it (CONTEXT.md
+    /// § Tags).
+    func isTagged(under ancestry: [String]) -> Bool {
+        tags.contains { $0.isCounted(under: ancestry) }
+    }
 }
