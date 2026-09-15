@@ -30,7 +30,10 @@ struct BlockConverter {
         case let paragraph as Paragraph:
             return blocks(of: paragraph, within: range)
         case let list as UnorderedList:
-            return [Block(self.list(list, isOrdered: false, start: 1, within: range), sourceRange: range)]
+            return [
+                Block(
+                    self.list(list, isOrdered: false, start: 1, within: range), sourceRange: range)
+            ]
         case let list as OrderedList:
             return [
                 Block(
@@ -40,7 +43,8 @@ struct BlockConverter {
         case let code as CodeBlock:
             return [
                 Block(
-                    .codeBlock(language: code.language?.firstWord, text: code.code.trimmingTrailingNewline),
+                    .codeBlock(
+                        language: code.language?.firstWord, text: code.code.trimmingTrailingNewline),
                     sourceRange: range)
             ]
         case let quote as BlockQuote:
@@ -59,7 +63,8 @@ struct BlockConverter {
         case let html as HTMLBlock:
             // ADR 0019: HTML is reduced to its text; a block that is only
             // tags — a comment, a `<br>` — draws nothing.
-            let text = html.rawHTML.strippingHTMLTags.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = html.rawHTML.strippingHTMLTags.trimmingCharacters(
+                in: .whitespacesAndNewlines)
             return text.isEmpty ? [] : [Block(.paragraph([.text(text)]), sourceRange: range)]
         default:
             return []
@@ -85,7 +90,9 @@ struct BlockConverter {
             if let image = child as? Markdown.Image {
                 flushRun()
                 blocks.append(
-                    Block(self.image(image), sourceRange: prePass.sourceRange(of: image, within: range)))
+                    Block(
+                        self.image(image),
+                        sourceRange: prePass.sourceRange(of: image, within: range)))
             } else {
                 run.append(child)
             }
@@ -127,7 +134,9 @@ struct BlockConverter {
 
     /// A list whose every item has a checkbox is a task list; one that mixes
     /// checkboxes with plain items is a plain list, its checkboxes not drawn.
-    private func list(_ list: ListItemContainer, isOrdered: Bool, start: Int, within range: Range<Int>)
+    private func list(
+        _ list: ListItemContainer, isOrdered: Bool, start: Int, within range: Range<Int>
+    )
         -> Block.Kind
     {
         let items = Array(list.listItems)

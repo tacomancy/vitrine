@@ -50,7 +50,10 @@ struct PrePass {
                 return nil
             }
             let shown = wikilink.displayText ?? wikilink.target
-            return (wikilink.range, "[\(shown)](\(VitrineDestination.note(target: wikilink.target).url))")
+            return (
+                wikilink.range,
+                "[\(shown)](\(VitrineDestination.note(target: wikilink.target).url))"
+            )
         }
         let embeds = parsed.embeds.compactMap { embed -> (Range<Int>, String)? in
             guard let width = embedWidth(of: embed, in: parsed.text) else { return nil }

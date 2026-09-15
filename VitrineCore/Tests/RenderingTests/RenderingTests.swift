@@ -181,8 +181,12 @@ import Testing
             blocks == [
                 Block(
                     .table(
-                        header: [[.text("Left")], [.text("Center")], [.text("Right")], [.text("None")]],
-                        rows: [[[.text("1")], [.emphasis([.text("2")])], [.text("3")], [.text("4")]]],
+                        header: [
+                            [.text("Left")], [.text("Center")], [.text("Right")], [.text("None")],
+                        ],
+                        rows: [
+                            [[.text("1")], [.emphasis([.text("2")])], [.text("3")], [.text("4")]]
+                        ],
                         alignments: [.left, .center, .right, nil]),
                     sourceRange: 0..<85)
             ])
@@ -291,12 +295,14 @@ import Testing
         #expect(
             blocks == [
                 Block(
-                    .image(source: .attachment("img.png"), alt: "", width: 800), sourceRange: 0..<16),
+                    .image(source: .attachment("img.png"), alt: "", width: 800), sourceRange: 0..<16
+                ),
                 Block(
                     .image(source: .attachment("My Image.png"), alt: "alt", width: nil),
                     sourceRange: 18..<40),
                 Block(
-                    .image(source: .external("https://example.com/x.png"), alt: "remote", width: nil),
+                    .image(
+                        source: .external("https://example.com/x.png"), alt: "remote", width: nil),
                     sourceRange: 42..<78),
             ])
     }
@@ -312,7 +318,8 @@ import Testing
         #expect(
             blocks == [
                 Block(.paragraph([.text("Before")]), sourceRange: 0..<6),
-                Block(.image(source: .attachment("a.png"), alt: "", width: nil), sourceRange: 7..<17),
+                Block(
+                    .image(source: .attachment("a.png"), alt: "", width: nil), sourceRange: 7..<17),
                 Block(.paragraph([.text("after")]), sourceRange: 18..<23),
             ])
     }
@@ -326,7 +333,8 @@ import Testing
             blocks == [
                 Block(
                     .paragraph([
-                        .link(destination: "https://example.com/?a=1&b=2", inlines: [.text("site")]),
+                        .link(
+                            destination: "https://example.com/?a=1&b=2", inlines: [.text("site")]),
                         .text(" "),
                         .link(destination: "../My Note.md", inlines: [.text("note")]),
                     ]),
@@ -423,7 +431,10 @@ import Testing
             Issue.record("expected a list and a quote")
             return
         }
-        #expect(items.map { $0.map { slice(text, $0.sourceRange) } } == [["[[C]] item"], ["![[i.png|800]]"]])
+        #expect(
+            items.map { $0.map { slice(text, $0.sourceRange) } } == [
+                ["[[C]] item"], ["![[i.png|800]]"],
+            ])
         #expect(quoted.map { slice(text, $0.sourceRange) } == ["[[D]] quoted"])
     }
 
