@@ -285,6 +285,23 @@ public struct Index: Sendable {
         return notes.filter { $0.tags.contains { $0.isCounted(under: ancestry) } }.map(\.note)
     }
 
+    /// The notes carrying every tag in `tags` or a tag under each — what
+    /// the note list shows behind its filter chips (CONTEXT.md § Note
+    /// list) — in library display order. Each tag is matched as
+    /// `notes(tagged:)` matches it; no tags at all narrows nothing, so
+    /// every read note is here.
+    public func notes(taggedAll tags: [String]) -> [Note] {
+        let ancestries = tags.map(TagPath.segmentIdentities(of:))
+        return
+            notes
+            .filter { note in
+                ancestries.allSatisfy { ancestry in
+                    note.tags.contains { $0.isCounted(under: ancestry) }
+                }
+            }
+            .map(\.note)
+    }
+
     /// The other tags carried by the notes tagged `tag` (or a tag under it),
     /// each with how many of those notes carry it, sorted by count
     /// descending and then by name (CONTEXT.md § Tag page). A note counts

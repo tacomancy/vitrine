@@ -182,6 +182,40 @@ import Testing
         #expect(index.coOccurringTags(with: "nowhere").isEmpty)
     }
 
+    @Test func notes_tagged_all_returns_the_notes_carrying_every_tag_or_a_descendant_of_each()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Linear Regression carries stats bare; Survey Sampling carries
+        // stats/frequentist. Bayesian Inference carries no data tag.
+        #expect(
+            index.notes(taggedAll: ["stats", "data"]).map(\.path) == [
+                "Research/Linear Regression.md", "Research/Survey Sampling.md",
+            ])
+        // Topics/Alignment carries interp/saes and interp/circuits, and Alignment.
+        #expect(index.notes(taggedAll: ["interp", "Alignment"]).map(\.path) == ["Topics/Alignment.md"])
+        #expect(index.notes(taggedAll: ["stats/bayesian", "data"]).isEmpty)
+    }
+
+    @Test func notes_tagged_all_with_no_tags_returns_every_note_in_display_order() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // The root's notes, then each folder's in turn — untagged ones included.
+        #expect(
+            index.notes(taggedAll: []).map(\.path) == [
+                "Reading List.md", "Scratch.md", "Welcome.md",
+                "Daily/2026-09-13.md", "Daily/Journal.md",
+                "Projects/Vitrine.md",
+                "Research/Bayesian Inference.md", "Research/Linear Regression.md",
+                "Research/Survey Sampling.md",
+                "Topics/Agents.md", "Topics/Alignment.md", "Topics/Interpretability.md",
+                "Topics/Journal.md", "Topics/Scratch.md",
+            ])
+    }
+
     @Test func untagged_is_exactly_the_notes_with_no_tag_in_frontmatter_or_body() throws {
         let library = try Library.open(at: Fixtures.library("obsidian-vault"))
         let index = Index.build(from: library)
