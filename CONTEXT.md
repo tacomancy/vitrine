@@ -100,9 +100,9 @@ so they aren't accidentally reused for something else.
 - **Backlink** — the reverse of a link: from the target's point of view, every
   note that links to it. Backlinks are derived, never stored in the note.
 - **Unresolved link** — a link whose target matches no note, alias, or
-  attachment in the library. Rendered distinctly; following it offers to
-  create the note (that offer arrives with editing; until then following
-  one does nothing).
+  attachment in the library. Rendered distinctly; following it creates
+  the note — titled by the target's last path component, in the folder
+  a new note goes in — and opens it.
 - **Alias** — an alternate title for a note, declared in frontmatter
   `aliases`. A wikilink to an alias resolves to the note that declares it.
 - **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
@@ -175,7 +175,9 @@ so they aren't accidentally reused for something else.
   save that follows. Any rendering (**Preview**) is a separate view over it. When
   another tool changes the open note, a clean editor reloads it; an editor
   with unsaved edits keeps them, shows *changed on disk*, and asks at the
-  next save whether to overwrite or discard.
+  next save whether to overwrite or discard. When another tool removes
+  the open note, the editor keeps its text, shows *removed from disk*,
+  and offers to save it as a new note at the same path or to close it.
   Above the note, the **breadcrumb** is the bar showing the note's path
   relative to the library root. Beside the editor, the **rail** shows the
   note's **backlinks** — one entry per linking note, sorted by title, with
