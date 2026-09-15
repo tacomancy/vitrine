@@ -2,7 +2,7 @@ import Index
 import Library
 import SwiftUI
 
-/// The sidebar, directly on `bg`: LIBRARY with All Notes and Untagged, FILES
+/// The sidebar, directly on `bg`: LIBRARY with All Notes, Recent, and Untagged, FILES
 /// with the file tree, TOPICS with the tag tree — scrolling as one — and the
 /// SCOUTS stub pinned at the bottom (ADR 0005). With no library open it
 /// shows All Notes 0, disabled — the one place that color is right, because
@@ -22,6 +22,7 @@ struct Sidebar: View {
                         .padding(.top, SidebarMetrics.topInset)
                     allNotes
                     if let library = currentLibrary.library, let index = currentLibrary.index {
+                        recent
                         untagged(in: index)
                         sectionLabel("Files")
                             .padding(.top, SidebarMetrics.sectionSpacing)
@@ -70,6 +71,18 @@ struct Sidebar: View {
             SidebarRow(
                 glyph: "books.vertical", name: "All Notes", count: 0, depth: 0,
                 disclosure: .none, emphasis: .disabled, select: nil)
+        }
+    }
+
+    /// The notes opened this session (CONTEXT.md, Recent), counted from the
+    /// selection: the one list the command palette shows for an empty query.
+    private var recent: some View {
+        SidebarRow(
+            glyph: "clock", name: "Recent", count: selection.recent.count, depth: 0,
+            disclosure: .none,
+            emphasis: selection.sidebar == .recent ? .selected : .normal
+        ) {
+            selection.selectRecent()
         }
     }
 

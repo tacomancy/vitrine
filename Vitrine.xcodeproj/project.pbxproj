@@ -13,6 +13,7 @@
 		A00000000000000000000001 /* Library in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000001 /* Library */; };
 		A00000000000000000000002 /* Index in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000003 /* Index */; };
 		A00000000000000000000003 /* LibraryWatcher in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000004 /* LibraryWatcher */; };
+		A00000000000000000000004 /* Search in Frameworks */ = {isa = PBXBuildFile; productRef = E00000000000000000000005 /* Search */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 				A00000000000000000000001 /* Library in Frameworks */,
 				A00000000000000000000002 /* Index in Frameworks */,
 				A00000000000000000000003 /* LibraryWatcher in Frameworks */,
+				A00000000000000000000004 /* Search in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,6 +102,7 @@
 				E00000000000000000000001 /* Library */,
 				E00000000000000000000003 /* Index */,
 				E00000000000000000000004 /* LibraryWatcher */,
+				E00000000000000000000005 /* Search */,
 			);
 			productName = Vitrine;
 			productReference = B00000000000000000000001 /* Vitrine.app */;
@@ -223,6 +226,10 @@
 		E00000000000000000000004 /* LibraryWatcher */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LibraryWatcher;
+		};
+		E00000000000000000000005 /* Search */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Search;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -3,8 +3,9 @@ import Library
 import SwiftUI
 
 /// The note list pane: the notes the sidebar selection scopes to, newest
-/// first, under a `N NOTES · MODIFIED ↓` header. Selecting a row opens the
-/// note in the editor.
+/// first — or, for Recent, last opened first — under a `N NOTES ·
+/// MODIFIED ↓` (or `OPENED ↓`) header. Selecting a row opens the note in
+/// the editor.
 struct NoteList: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
@@ -12,9 +13,11 @@ struct NoteList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let library = currentLibrary.library, let index = currentLibrary.index {
-                let notes = notes(in: library, index: index)
+                let notes = selection.sidebar.notes(
+                    in: library, index: index, recent: selection.recent)
                 CapsLabel(
-                    text: "\(notes.count.formatted()) notes · modified ↓", color: Color(.fgMuted)
+                    text: "\(notes.count.formatted()) notes · \(selection.sidebar.ordering)",
+                    color: Color(.fgMuted)
                 )
                 .padding(.vertical, NoteListMetrics.headerPaddingVertical)
                 .padding(.horizontal, NoteListMetrics.headerInset)
@@ -34,10 +37,5 @@ struct NoteList: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .floatingSurface()
-    }
-
-    /// Newest first; notes modified at the same instant keep tree order.
-    private func notes(in library: Library, index: Index) -> [Note] {
-        selection.sidebar.notes(in: library, index: index).sorted { $0.modifiedAt > $1.modifiedAt }
     }
 }
