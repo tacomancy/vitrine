@@ -75,3 +75,30 @@ recompute is slow enough to notice; none has been.
   folded in; links to it resolve at the next open. The ticket that
   consumes the watcher on screen decides whether the Index needs
   `adding(attachment:)` or a fresh build.
+
+## Update (2026-09-15, from the screen ticket, #42)
+
+The ticket that consumes the watcher decided the two things left open
+above, as one addition to the seam: `Index.applying(_ change:
+LibraryChange, in library: Library)`, where `library` already reflects
+the change (`Library.applying`).
+
+- **The Index reads the disk for a change another tool made** — through
+  `Library.read`, as `build` does — and only for the notes the change
+  touched: a modified or added note is read and parsed; a removed one
+  leaves; a renamed one keeps its parse under its new path (proved by a
+  test that deletes the file first); a folder added, removed, or renamed
+  does the same for every note under it; a `folderChanged` reconciles
+  the folder's notes with the tree, reading a note only when it is new
+  or its modification date is not the one held. The four operations
+  above stay the surface for a change Vitrine itself made, where the
+  parse is already in hand.
+- **Attachments are taken whole from the tree** on every structural
+  change, rather than added and removed one by one: a link to an
+  attachment resolves by name or path alone, the tree already holds the
+  list in display order, and copying it is cheaper than the bookkeeping.
+  No `adding(attachment:)`.
+
+The `noteModified` case reads the note even when its modification date
+is unchanged: a tool that writes and restores the date is rare, and the
+one read is cheap.

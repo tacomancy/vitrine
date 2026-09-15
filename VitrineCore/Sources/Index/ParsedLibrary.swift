@@ -9,8 +9,10 @@ import NoteParsing
 struct ParsedLibrary: Sendable {
     /// Every note, skipped ones included, in library display order.
     private(set) var notes: [Note]
-    /// Every attachment, in library display order.
-    let attachments: [Attachment]
+    /// Every attachment, in library display order — taken whole from the
+    /// tree whenever entries come or go, since the tree holds nothing about
+    /// an attachment that a scan does not.
+    var attachments: [Attachment]
     /// Each read note's parse, by path.
     private var parses: [String: ParsedNote]
 

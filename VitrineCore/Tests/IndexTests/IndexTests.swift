@@ -711,6 +711,220 @@ import Testing
         #expect(index.skipped.isEmpty)
     }
 
+    // MARK: - Following another tool's changes
+
+    @Test func applying_a_modified_note_reads_it_again_and_updates_its_tags() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try "# Scratch\n\nNow filed. #daily\n".write(
+            to: copy.appending(path: "Topics/Scratch.md"), atomically: true, encoding: .utf8)
+        let changed = library.applying(.noteModified("Topics/Scratch.md"))
+        let scratch = try note(at: "Topics/Scratch.md", in: changed)
+
+        let index = built.applying(.noteModified("Topics/Scratch.md"), in: changed)
+
+        #expect(index.tags(of: scratch) == ["daily"])
+        #expect(
+            index.notes(tagged: "daily").map(\.path) == [
+                "Daily/2026-09-13.md", "Daily/Journal.md", "Topics/Journal.md", "Topics/Scratch.md",
+            ])
+        #expect(index.untagged.map(\.path) == ["Scratch.md", "Projects/Vitrine.md"])
+    }
+
+    @Test func applying_an_added_note_reads_it_and_resolves_links_to_its_title() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try "# Nowhere\n\nFound. #daily\n".write(
+            to: copy.appending(path: "Nowhere.md"), atomically: true, encoding: .utf8)
+        let changed = library.applying(.entryAdded("Nowhere.md"))
+        let nowhere = try note(at: "Nowhere.md", in: changed)
+        let alignment = try note(at: "Topics/Alignment.md", in: changed)
+
+        let index = built.applying(.entryAdded("Nowhere.md"), in: changed)
+
+        #expect(index.tags(of: nowhere) == ["daily"])
+        #expect(index.links(from: alignment).map(\.target).contains(.note(nowhere)))
+        #expect(index.unresolvedLinks["Nowhere"] == nil)
+        #expect(index.backlinks(to: nowhere).map(\.note) == [alignment])
+    }
+
+    @Test func applying_a_removed_note_unresolves_links_to_it_and_drops_its_tags() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        try FileManager.default.removeItem(at: copy.appending(path: "Welcome.md"))
+        let changed = library.applying(.entryRemoved("Welcome.md"))
+        let vitrine = try note(at: "Projects/Vitrine.md", in: changed)
+
+        let index = built.applying(.entryRemoved("Welcome.md"), in: changed)
+
+        #expect(index.backlinks(to: welcome).isEmpty)
+        #expect(index.unresolvedLinks["Welcome"]?.contains(vitrine) == true)
+        #expect(index.tagTree.contains { $0.path == "vitrine" } == false)
+        #expect(index.notes(tagged: "fixture").isEmpty)
+    }
+
+    @Test func applying_a_renamed_note_keeps_its_parse_and_re_resolves_links_by_title() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try FileManager.default.moveItem(
+            at: copy.appending(path: "Welcome.md"), to: copy.appending(path: "Nowhere.md"))
+        let change = LibraryChange.entryRenamed(from: "Welcome.md", to: "Nowhere.md")
+        let changed = library.applying(change)
+        let nowhere = try note(at: "Nowhere.md", in: changed)
+        let alignment = try note(at: "Topics/Alignment.md", in: changed)
+        // Nothing is left to read: the renamed note's parse is the one already held.
+        try FileManager.default.removeItem(at: copy.appending(path: "Nowhere.md"))
+
+        let index = built.applying(change, in: changed)
+
+        #expect(index.tags(of: nowhere) == ["vitrine", "fixture"])
+        let targets = index.links(from: alignment).map(\.target)
+        #expect(targets.contains(.note(nowhere)))
+        #expect(targets.contains(.unresolved("welcome")))
+        // `[[Start here]]` still reaches it by the alias in its kept frontmatter.
+        #expect(index.backlinks(to: nowhere).map(\.note) == [alignment])
+    }
+
+    @Test func applying_an_added_folder_reads_every_note_under_it() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let deep = copy.appending(path: "Archive/Deep")
+        try FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
+        try "# Nowhere\n\nFound. #daily\n".write(
+            to: copy.appending(path: "Archive/Nowhere.md"), atomically: true, encoding: .utf8)
+        try "# Circuits\n".write(
+            to: deep.appending(path: "Circuits.md"), atomically: true, encoding: .utf8)
+        let changed = library.applying(.entryAdded("Archive"))
+        let nowhere = try note(at: "Archive/Nowhere.md", in: changed)
+        let circuits = try note(at: "Archive/Deep/Circuits.md", in: changed)
+        let alignment = try note(at: "Topics/Alignment.md", in: changed)
+
+        let index = built.applying(.entryAdded("Archive"), in: changed)
+
+        #expect(index.tags(of: nowhere) == ["daily"])
+        #expect(index.untagged.contains(circuits))
+        #expect(index.backlinks(to: nowhere).map(\.note) == [alignment])
+    }
+
+    @Test func applying_a_removed_folder_takes_every_note_under_it_out() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let journal = try note(at: "Daily/Journal.md", in: library)
+        try FileManager.default.removeItem(at: copy.appending(path: "Daily"))
+        let changed = library.applying(.entryRemoved("Daily"))
+        let alignment = try note(at: "Topics/Alignment.md", in: changed)
+        let welcome = try note(at: "Welcome.md", in: changed)
+
+        let index = built.applying(.entryRemoved("Daily"), in: changed)
+
+        #expect(index.notes(tagged: "daily").map(\.path) == ["Topics/Journal.md"])
+        // Welcome's `[[Daily/2026-09-13]]` and Alignment's `[[Daily/2026-09-13.md]]` come loose;
+        // a bare `[[Journal]]` now reaches the one in Topics.
+        #expect(index.unresolvedLinks["Daily/2026-09-13"] == [welcome])
+        #expect(index.unresolvedLinks["Daily/2026-09-13.md"] == [alignment])
+        #expect(index.backlinks(to: journal).isEmpty)
+        let topicsJournal = try note(at: "Topics/Journal.md", in: changed)
+        #expect(index.backlinks(to: topicsJournal).map(\.note) == [alignment])
+    }
+
+    @Test func applying_a_renamed_folder_moves_every_note_under_it_with_its_parse() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try FileManager.default.moveItem(
+            at: copy.appending(path: "Daily"), to: copy.appending(path: "Archive"))
+        let change = LibraryChange.entryRenamed(from: "Daily", to: "Archive")
+        let changed = library.applying(change)
+        let journal = try note(at: "Archive/Journal.md", in: changed)
+        let welcome = try note(at: "Welcome.md", in: changed)
+        // Nothing is left to read: the moved notes' parses are the ones already held.
+        try FileManager.default.removeItem(at: copy.appending(path: "Archive"))
+
+        let index = built.applying(change, in: changed)
+
+        #expect(index.tags(of: journal) == ["daily"])
+        #expect(
+            index.notes(tagged: "daily").map(\.path) == [
+                "Archive/2026-09-13.md", "Archive/Journal.md", "Topics/Journal.md",
+            ])
+        #expect(index.unresolvedLinks["Daily/2026-09-13"] == [welcome])
+    }
+
+    @Test func applying_a_changed_folder_reconciles_the_notes_under_it_with_the_disk() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let topics = copy.appending(path: "Topics")
+        try "# Scratch\n\nNow filed. #daily\n".write(
+            to: topics.appending(path: "Scratch.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: topics.appending(path: "Agents.md"))
+        try "# Circuits\n\n#interp/circuits\n".write(
+            to: topics.appending(path: "Circuits.md"), atomically: true, encoding: .utf8)
+        let changed = library.applying(.folderChanged("Topics"))
+        let scratch = try note(at: "Topics/Scratch.md", in: changed)
+        let circuits = try note(at: "Topics/Circuits.md", in: changed)
+
+        let index = built.applying(.folderChanged("Topics"), in: changed)
+
+        #expect(index.tags(of: scratch) == ["daily"])
+        #expect(index.tagTree.contains { $0.path == "agents" } == false)
+        #expect(
+            index.notes(tagged: "interp/circuits").map(\.path) == [
+                "Topics/Alignment.md", "Topics/Circuits.md",
+            ])
+    }
+
+    @Test func applying_a_removed_attachment_unresolves_the_embeds_and_links_to_it() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try FileManager.default.removeItem(at: copy.appending(path: "Projects/sketch.png"))
+        let changed = library.applying(.entryRemoved("Projects/sketch.png"))
+        let vitrine = try note(at: "Projects/Vitrine.md", in: changed)
+        let alignment = try note(at: "Topics/Alignment.md", in: changed)
+
+        let index = built.applying(.entryRemoved("Projects/sketch.png"), in: changed)
+
+        #expect(index.links(from: vitrine).map(\.target).contains(.unresolved("sketch.png")))
+        #expect(index.unresolvedLinks["sketch.png"] == [vitrine, alignment])
+    }
+
+    @Test func applying_an_added_attachment_resolves_the_embeds_and_links_to_it() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let sketch = copy.appending(path: "Projects/sketch.png")
+        let elsewhere = copy.deletingLastPathComponent().appending(path: "sketch.png")
+        try FileManager.default.moveItem(at: sketch, to: elsewhere)
+        let library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        try FileManager.default.moveItem(at: elsewhere, to: sketch)
+        let changed = library.applying(.entryAdded("Projects/sketch.png"))
+        let vitrine = try note(at: "Projects/Vitrine.md", in: changed)
+        let attachment = try #require(changed.root.allAttachments.first { $0.name == "sketch.png" })
+
+        let index = built.applying(.entryAdded("Projects/sketch.png"), in: changed)
+
+        #expect(built.unresolvedLinks["sketch.png"]?.isEmpty == false)
+        #expect(index.links(from: vitrine).map(\.target).contains(.attachment(attachment)))
+        #expect(index.unresolvedLinks["sketch.png"] == nil)
+    }
+
     // MARK: - Resolving a link the Index has not seen
 
     @Test func resolve_answers_a_link_in_unsaved_text_from_the_indexs_tables() throws {
