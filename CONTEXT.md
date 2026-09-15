@@ -107,7 +107,8 @@ so they aren't accidentally reused for something else.
   `aliases`. A wikilink to an alias resolves to the note that declares it.
 - **Embed** — `![[filename]]`, or the Markdown image form `![alt](filename)`.
   In v1, only images embed; embedding a note is parked. A display-width
-  suffix (`![[image.png|800]]`) is parsed and ignored.
+  suffix (`![[image.png|800]]`) is parsed; Preview honors it as the image's
+  width, as Obsidian does.
 
 ## Tags
 
@@ -195,7 +196,11 @@ so they aren't accidentally reused for something else.
   typing and whenever it leaves view, written back in place exactly as typed
   (ADR 0014). The **buffer** is the open note's text as the editor holds
   it: **clean** while it is what's on disk, **dirty** from an edit until the
-  save that follows. Any rendering (**Preview**) is a separate view over it. When
+  save that follows. **Preview** is a separate, read-only rendering of the
+  same source — CommonMark with tables, task lists, and strikethrough;
+  wikilinks, embeds, and tags rendered as what they resolve to; frontmatter
+  hidden; raw HTML reduced to its text. SOURCE and PREVIEW are one setting
+  for the editor pane, switched with ⌘E (ADR 0019). When
   another tool changes the open note, a clean editor reloads it; an editor
   with unsaved edits keeps them, shows *changed on disk*, and asks at the
   next save whether to overwrite or discard. When another tool removes
