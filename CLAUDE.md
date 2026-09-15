@@ -81,9 +81,12 @@ by depth then display order, ADR 0016) and answers `links(from:)`,
 `backlinks(to:)` — one per linking note, sorted by title, with one
 context line per linking line — and `unresolvedLinks`; 18 tests in
 `IndexTests`, 15 against the Obsidian fixture as blessed and 3 on
-temporary copies of it. Against the real vault: 304 links, 31 from
-frontmatter, 20 to attachments, 57 unresolved — 45 of those are
-`[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
+temporary copies of it. Fix #47 (PR #50) taught the scanner Obsidian's
+table-cell escape, `[[x.ipynb\|shown]]`: the target and an embed's
+filename end before the backslash, `CONTEXT.md` § Links names the form,
+and three more `NoteParsingTests` pin it. Against the real vault: 304
+links, 31 from frontmatter, 65 to attachments, 9 unresolved — every one
+a note that does not exist.
 
 **The fourth feature is under way (issue #38, edit notes, create notes,
 and follow external changes): ① built.** `Library` now writes (issue
