@@ -45,7 +45,34 @@ struct PrePass {
     /// replacement. Only the body's: a frontmatter link is cut with the
     /// frontmatter.
     private static func rewrites(in parsed: ParsedNote) -> [(Range<Int>, String)] {
-        []
+        let wikilinks = parsed.links.compactMap { link -> (Range<Int>, String)? in
+            guard case .wikilink(let wikilink) = link, !wikilink.isFromFrontmatter else {
+                return nil
+            }
+            let shown = wikilink.displayText ?? wikilink.target
+            return (wikilink.range, "[\(shown)](\(VitrineDestination.note(target: wikilink.target).url))")
+        }
+        let embeds = parsed.embeds.compactMap { embed -> (Range<Int>, String)? in
+            guard let width = embedWidth(of: embed, in: parsed.text) else { return nil }
+            let destination = VitrineDestination.attachment(path: embed.filename, width: width)
+            return (embed.range, "![](\(destination.url))")
+        }
+        let tags = parsed.bodyTags.map { tag in
+            (tag.range, "[#\(tag.name)](\(VitrineDestination.tag(name: tag.name).url))")
+        }
+        return (wikilinks + embeds + tags).sorted { $0.0.lowerBound < $1.0.lowerBound }
+    }
+
+    /// The width of an `![[image.png|800]]` embed, or nil for a Markdown
+    /// image, which cmark reads itself. The parser drops the suffix, so it
+    /// is read again from the token: digits after the last `|`, as
+    /// Obsidian writes a display width. An embed without one is `.some(nil)`.
+    private static func embedWidth(of embed: Embed, in text: String) -> Int?? {
+        let token = String(decoding: Array(text.utf8)[embed.range], as: UTF8.self)
+        guard token.hasPrefix("![[") else { return nil }
+        guard let pipe = token.lastIndex(of: "|") else { return .some(nil) }
+        let suffix = token[token.index(after: pipe)...].dropLast(2)
+        return .some(Int(suffix))
     }
 
     /// Where a line begins in the rewritten text, one entry per line; cmark
@@ -91,7 +118,7 @@ struct PrePass {
                     edit.original.lowerBound + (rewritten - edit.rewritten.lowerBound),
                     edit.original.upperBound)
             }
-            shift += edit.original.upperBound - edit.rewritten.upperBound
+            shift = edit.original.upperBound - edit.rewritten.upperBound
         }
         return rewritten + shift
     }

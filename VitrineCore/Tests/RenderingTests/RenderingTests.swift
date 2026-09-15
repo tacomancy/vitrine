@@ -205,6 +205,116 @@ import Testing
             ])
     }
 
+    // MARK: - Wikilinks, embeds, and tags
+
+    @Test func a_wikilink_shows_its_target_or_its_display_text_and_drops_a_fragment() {
+        let text = "See [[Note]], [[Note|shown]], and [[Note#Heading]]."
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .paragraph([
+                        .text("See "), .wikilink(target: "Note", inlines: [.text("Note")]),
+                        .text(", "), .wikilink(target: "Note", inlines: [.text("shown")]),
+                        .text(", and "), .wikilink(target: "Note", inlines: [.text("Note")]),
+                        .text("."),
+                    ]),
+                    sourceRange: 0..<51)
+            ])
+    }
+
+    @Test func a_wikilink_keeps_emphasis_in_its_shown_text() {
+        let text = "[[a *b* c]]"
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .paragraph([
+                        .wikilink(
+                            target: "a *b* c",
+                            inlines: [.text("a "), .emphasis([.text("b")]), .text(" c")])
+                    ]),
+                    sourceRange: 0..<11)
+            ])
+    }
+
+    @Test func a_reference_definition_elsewhere_does_not_hijack_a_wikilink() {
+        let text = """
+            [[a]]
+
+            [a]: https://example.com
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .paragraph([.wikilink(target: "a", inlines: [.text("a")])]), sourceRange: 0..<5)
+            ])
+    }
+
+    @Test func a_hash_with_a_space_is_a_heading_and_without_one_a_tag_run() {
+        let text = """
+            # Heading
+            #tag and #nested/tag.
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.heading(level: 1, inlines: [.text("Heading")]), sourceRange: 0..<9),
+                Block(
+                    .paragraph([.tag("tag"), .text(" and "), .tag("nested/tag"), .text(".")]),
+                    sourceRange: 10..<31),
+            ])
+    }
+
+    @Test func an_embed_and_a_markdown_image_are_image_blocks_by_their_source() {
+        let text = """
+            ![[img.png|800]]
+
+            ![alt](My%20Image.png)
+
+            ![remote](https://example.com/x.png)
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .image(source: .attachment("img.png"), alt: "", width: 800), sourceRange: 0..<16),
+                Block(
+                    .image(source: .attachment("My Image.png"), alt: "alt", width: nil),
+                    sourceRange: 18..<40),
+                Block(
+                    .image(source: .external("https://example.com/x.png"), alt: "remote", width: nil),
+                    sourceRange: 42..<78),
+            ])
+    }
+
+    @Test func an_image_within_a_paragraph_splits_it_around_the_image() {
+        let text = """
+            Before ![[a.png]]
+            after
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.paragraph([.text("Before")]), sourceRange: 0..<6),
+                Block(.image(source: .attachment("a.png"), alt: "", width: nil), sourceRange: 7..<17),
+                Block(.paragraph([.text("after")]), sourceRange: 18..<23),
+            ])
+    }
+
     // MARK: - Helpers
 
     private func render(_ text: String) -> [Block] {
