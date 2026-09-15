@@ -38,6 +38,12 @@ struct SearchableNote: Sendable {
         }
     }
 
+    /// Every term occurrence in the original title, for the wash — whether
+    /// or not the match was there.
+    func titleRanges(for terms: [[UInt8]]) -> [Range<Int>] {
+        TextFolding.ranges(of: terms, in: note.title)
+    }
+
     /// The first line of the text containing any term, with every term
     /// occurrence on it; the first non-empty line, with none, when no term
     /// is in the text at all.

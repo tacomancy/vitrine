@@ -63,6 +63,28 @@ import Testing
         #expect(slice(cafe.excerpt.text, 2..<7) == "Café")
     }
 
+    @Test func a_character_that_folds_to_more_than_one_is_ranged_whole_and_once() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        // `ß` folds to `ss`: two folded bytes from one two-byte character.
+        try "Weißbier.\n".write(
+            to: copy.appending(path: "Straße.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let search = Search.build(from: Index.build(from: library))
+
+        let strasse = try #require(
+            search.results(for: "strasse").first { $0.note.path == "Straße.md" })
+        let s = try #require(search.results(for: "s").first { $0.note.path == "Straße.md" })
+
+        #expect(strasse.matchedInTitle)
+        #expect(strasse.titleRanges == [0..<7])
+        // `S` at 0, then the `ß` at 4..<6 — once, though `s` hits it twice.
+        #expect(s.titleRanges == [0..<1, 4..<6])
+        #expect(slice(s.note.title, 4..<6) == "ß")
+        #expect(s.excerpt.text == "Weißbier.")
+        #expect(s.excerpt.ranges == [3..<5])
+    }
+
     @Test func matching_ignores_case() throws {
         let copy = try uniformlyDatedCopy()
         defer { Fixtures.discard(copy) }
@@ -131,17 +153,24 @@ import Testing
         let results = search.results(for: "reading list")
         let interpretability = try #require(
             results.first { $0.note.path == "Topics/Interpretability.md" })
+        let readingList = try #require(results.first { $0.note.path == "Reading List.md" })
 
-        // Line 4 has "reading" twice and no "list"; the line with both comes later.
+        // Interpretability's body opens "Reading #Reading/Notes …", one term
+        // twice and the other absent; the line holding both comes later.
         #expect(!interpretability.matchedInTitle)
         #expect(
             interpretability.excerpt.text
                 == "Reading #Reading/Notes on the [circuits thread](https://transformer-circuits.pub/#toc)"
         )
         #expect(interpretability.excerpt.ranges == [0..<7, 9..<16])
+        // Reading List's heading holds both terms, once each.
+        #expect(readingList.excerpt.text == "# Reading List")
+        #expect(readingList.excerpt.ranges == [2..<9, 10..<14])
     }
 
-    @Test func a_title_only_matchs_excerpt_is_the_first_non_empty_line_with_no_ranges() throws {
+    @Test func the_excerpt_of_a_title_only_match_is_the_first_non_empty_line_with_no_ranges()
+        throws
+    {
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         try "\n\nFirst real line.\nSecond.\n".write(
@@ -277,6 +306,25 @@ import Testing
     /// The note at `path`, which the library is expected to hold.
     private func note(at path: String, in library: Library) throws -> Note {
         try #require(library.allNotes.first { $0.path == path })
+    }
+
+    @Test func within_the_title_group_the_newest_modified_comes_first() throws {
+        let copy = try uniformlyDatedCopy()
+        defer { Fixtures.discard(copy) }
+        // Two notes titled Journal; Topics/Alignment links to one in its body.
+        try setModificationDate(oneDay, of: "Daily/Journal.md", in: copy)
+        try setModificationDate(threeDays, of: "Topics/Journal.md", in: copy)
+        let library = try Library.open(at: copy)
+        let search = Search.build(from: Index.build(from: library))
+
+        let results = search.results(for: "journal")
+
+        #expect(
+            results.map(\.note.path) == [
+                "Topics/Journal.md", "Daily/Journal.md", "Topics/Alignment.md",
+            ]
+        )
+        #expect(results.map(\.matchedInTitle) == [true, true, false])
     }
 
     /// The text a UTF-8 offset range points at.

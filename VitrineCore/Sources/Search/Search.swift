@@ -68,7 +68,7 @@ public struct Search: Sendable {
                 SearchResult(
                     note: note.note,
                     matchedInTitle: note.matchesInTitle(terms),
-                    titleRanges: TextFolding.ranges(of: terms, in: note.note.title),
+                    titleRanges: note.titleRanges(for: terms),
                     excerpt: note.excerpt(for: terms))
             }
             .enumerated()
