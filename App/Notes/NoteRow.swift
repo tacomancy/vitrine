@@ -22,7 +22,7 @@ struct NoteRow: View {
                         .foregroundStyle(isSelected ? Color(.fg) : Color(.fgSecondary))
                         .lineLimit(1)
                     Spacer(minLength: NoteListMetrics.dateSpacing)
-                    Text(modifiedLabel)
+                    Text(note.modifiedLabel)
                         .font(.mono(.label, weight: .regular))
                         .foregroundStyle(Color(.fgMuted))
                 }
@@ -31,7 +31,7 @@ struct NoteRow: View {
             .padding(.vertical, NoteListMetrics.rowPaddingVertical)
             .padding(.horizontal, NoteListMetrics.rowPaddingHorizontal)
         }
-        .accessibilityValue(modifiedLabel)
+        .accessibilityValue(note.modifiedLabel)
     }
 
     /// Not a control in this spec: the tags read, they do not navigate. A
@@ -42,18 +42,5 @@ struct NoteRow: View {
             .foregroundStyle(Color(.link))
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// The mockup's date column: the time for a note modified today, the
-    /// day for one modified this year, and the full date for anything older.
-    private var modifiedLabel: String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(note.modifiedAt) {
-            return note.modifiedAt.formatted(date: .omitted, time: .shortened)
-        }
-        if calendar.isDate(note.modifiedAt, equalTo: .now, toGranularity: .year) {
-            return note.modifiedAt.formatted(.dateTime.month(.abbreviated).day())
-        }
-        return note.modifiedAt.formatted(date: .abbreviated, time: .omitted)
     }
 }

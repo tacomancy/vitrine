@@ -14,6 +14,8 @@ struct VitrineApp: App {
     @FocusedValue(\.notesSelection) private var selection
     /// The key window's open note, for Save; nil with no window.
     @FocusedValue(\.noteBuffer) private var buffer
+    /// The key window's command palette, for ⌘K; nil with no window.
+    @FocusedValue(\.paletteState) private var palette
 
     init() {
         BundledFonts.register()
@@ -44,26 +46,14 @@ struct VitrineApp: App {
                 // or the root, opened with the caret in its title
                 // (spec #38 § Creating).
                 Button("New Note") {
-                    guard let library = currentLibrary.library, let selection else { return }
-                    let folder = selection.sidebar.folderForNewNotes(in: library)
-                    do throws(LibraryError) {
-                        let note = try currentLibrary.createUntitledNote(in: folder)
-                        selection.requestTitleFocus()
-                        selection.open(note)
-                    } catch {
-                        currentLibrary.createFailure = error
-                    }
+                    commands.newUntitledNote()
                 }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(currentLibrary.library == nil || selection == nil)
                 Button("Open Library…") {
                     // The window first, so a failure has somewhere to show its alert.
                     openWindow(id: Self.mainWindowID)
-                    if let folder = LibraryOpenPanel.chooseFolder() {
-                        // ADR 0014: a library switch saves the open note first.
-                        buffer?.save()
-                        currentLibrary.open(folderAt: folder)
-                    }
+                    commands.openLibrary()
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             }
@@ -90,7 +80,20 @@ struct VitrineApp: App {
                 }
                 .keyboardShortcut("]", modifiers: .command)
                 .disabled(selection?.canGoForward != true)
+                Divider()
+                // ⌘K from any focus opens the command palette, and closes it
+                // while it is open (CONTEXT.md § Command palette).
+                Button("Search…") {
+                    palette?.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(palette == nil)
             }
         }
+    }
+
+    /// The key window's commands the menu shares with the command palette.
+    private var commands: WindowCommands {
+        WindowCommands(currentLibrary: currentLibrary, selection: selection, buffer: buffer)
     }
 }
