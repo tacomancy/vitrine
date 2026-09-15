@@ -210,6 +210,28 @@ import Testing
         }
     }
 
+    // MARK: Looking up by path
+
+    @Test func note_at_answers_the_note_at_a_path_at_any_depth_or_nil() throws {
+        let library = try Library.open(at: Fixtures.library("scan-rules"))
+
+        #expect(try #require(library.note(at: "alpha/Same Title.md")).title == "Same Title")
+        #expect(try #require(library.note(at: "Same Title.md")).path == "Same Title.md")
+        #expect(library.note(at: "alpha/Missing.md") == nil)
+        #expect(library.note(at: "alpha") == nil)
+    }
+
+    @Test func folder_at_answers_the_folder_at_a_path_the_root_for_the_empty_path_or_nil()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("scan-rules"))
+
+        #expect(try #require(library.folder(at: "alpha")).name == "alpha")
+        #expect(try #require(library.folder(at: "")) == library.root)
+        #expect(library.folder(at: "alpha/Same Title.md") == nil)
+        #expect(library.folder(at: "missing") == nil)
+    }
+
     // MARK: Writing
 
     @Test func write_then_read_returns_the_same_bytes_and_the_file_keeps_its_inode() throws {

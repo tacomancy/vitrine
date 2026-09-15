@@ -153,7 +153,7 @@ public struct Library: Sendable, Equatable {
         throws(LibraryError) -> Note
     {
         self = try rescanning(folderAt: folderPath)
-        guard let note = allNotes.first(where: { $0.path == path }) else { throw .noteMissing }
+        guard let note = note(at: path) else { throw .noteMissing }
         return note
     }
 
@@ -169,14 +169,24 @@ public struct Library: Sendable, Equatable {
         return "\(untitled) \(counter)"
     }
 
-    /// The folder at `path` as it is in the tree now; nil once it's gone.
-    private func folder(at path: String) -> Folder? {
+    /// The folder at `path` — relative to the root; empty for the root
+    /// itself — as the tree holds it now, or nil when nothing is there. A
+    /// folder is a snapshot: after a write, the tree's copy is the current
+    /// one, and this is how a holder of an old copy finds it.
+    public func folder(at path: String) -> Folder? {
         var folder = root
         for name in path.split(separator: "/") {
             guard let child = folder.folders.first(where: { $0.name == name }) else { return nil }
             folder = child
         }
         return folder
+    }
+
+    /// The note at `path` — relative to the root — as the tree holds it now,
+    /// or nil when nothing is there. A note carries its modification date,
+    /// so after a write the tree's copy is the current one (CONTEXT.md, Note).
+    public func note(at path: String) -> Note? {
+        folder(at: Self.parentPath(of: path))?.notes.first { $0.path == path }
     }
 
     /// The tree with the folder at `path` scanned afresh, by the same rules
