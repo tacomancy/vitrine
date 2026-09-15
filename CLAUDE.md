@@ -114,9 +114,21 @@ when its consumer is cancelled. FSEvents is named only there. Every
 (`OtherTool`, in `Fixtures`), since the own-write mark is per process.
 Nothing on screen consumes any of this yet.
 
-Next: #40, #38's ② (`Index` incremental currency and `NoteParsing`
-structure), which needs only #20; then #41 the TextKit 2 editor and #42
-the screen glue that wires `LibraryWatcher`. `/implement` per ticket on its own
+**② is built (issue #40).** `ParsedNote` gains `structure` — headings
+(level and whole-line range), fenced code blocks (both fences), inline
+code spans (both backtick runs) — from the one fence-aware scanner, and
+carries the `text` it was parsed from, so a parse is complete on its own
+(ADR 0017). `Index` keeps the library as parsed (`ParsedLibrary`: notes
+in display order, each parse by path, the attachments) and `updating`,
+`adding`, `removing`, and `renaming` each fold one note into it and
+recompute every table — no I/O, no other note re-parsed; a note the
+tree was scanned without is placed by `LibraryDisplayOrder`, the display
+rule read off two paths. Seven `IndexTests` and five `NoteParsingTests`
+cover it; the no-I/O test deletes the library copy before operating.
+
+Next: #41 the TextKit 2 editor (#38's ③, blocked by ② and #27) and #42
+the screen glue that wires `LibraryWatcher` (④, blocked by ① and ③).
+`/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh
 agent reads.

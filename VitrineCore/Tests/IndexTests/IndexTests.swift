@@ -477,6 +477,240 @@ import Testing
         #expect(index.links(from: fragment).map(\.target) == [.note(welcome)])
     }
 
+    // MARK: - Currency
+
+    @Test func updating_a_note_that_gained_a_tag_changes_its_tags_and_the_trees_counts_only()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let built = Index.build(from: library)
+        let scratch = try note(at: "Topics/Scratch.md", in: library)
+
+        // The parse alone, not the file: on disk Topics/Scratch still has no tag.
+        let index = built.updating(
+            scratch, parsed: ParsedNote.parse("# Scratch\n\nNow filed. #daily #reading/paper\n"))
+
+        #expect(index.tags(of: scratch) == ["daily", "reading/paper"])
+        let daily = try #require(index.tagTree.first { $0.path == "daily" })
+        #expect(daily.count == 4)
+        let reading = try #require(index.tagTree.first { $0.path == "reading" })
+        #expect(reading.count == 3)
+        #expect(reading.children.map(\.count) == [1, 2])
+        #expect(
+            index.tagTree.filter { !["daily", "reading"].contains($0.path) }
+                == built.tagTree.filter { !["daily", "reading"].contains($0.path) })
+        #expect(index.untagged.map(\.path) == ["Scratch.md", "Projects/Vitrine.md"])
+        #expect(
+            index.notes(tagged: "daily").map(\.path) == [
+                "Daily/2026-09-13.md", "Daily/Journal.md", "Topics/Journal.md", "Topics/Scratch.md",
+            ])
+        #expect(index.unresolvedLinks == built.unresolvedLinks)
+    }
+
+    @Test func updating_a_note_that_dropped_its_only_link_to_a_target_removes_that_backlink_only()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let built = Index.build(from: library)
+        let vitrine = try note(at: "Projects/Vitrine.md", in: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        let readingList = try note(at: "Reading List.md", in: library)
+
+        // Projects/Vitrine's `Back to [[Welcome]].` becomes a link to Reading List.
+        let index = built.updating(
+            vitrine,
+            parsed: ParsedNote.parse(
+                "---\nstatus: active\n---\n# Vitrine\n\n![[sketch.png]]\n\nOn to [[Reading List]].\n"
+            ))
+
+        #expect(
+            index.backlinks(to: welcome).map(\.note.path) == [
+                "Topics/Alignment.md", "Topics/Interpretability.md", "Reading List.md",
+            ])
+        #expect(
+            index.backlinks(to: welcome)
+                == built.backlinks(to: welcome).filter { $0.note != vitrine })
+        let gained = try #require(index.backlinks(to: readingList).first { $0.note == vitrine })
+        #expect(gained.contexts == ["On to [[Reading List]]."])
+        #expect(index.links(from: vitrine).map(\.displayText) == ["sketch.png", "Reading List"])
+    }
+
+    @Test func adding_a_note_titled_like_an_unresolved_target_resolves_those_links() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        // The file exists so the library can name it; its text is the parse's
+        // business, and on disk it stays empty.
+        let nowhere = try library.createNote(named: "Nowhere", in: library.root)
+
+        let index = built.adding(nowhere, parsed: ParsedNote.parse("# Nowhere\n\nFound. #daily\n"))
+
+        #expect(index.unresolvedLinks.isEmpty)
+        #expect(index.links(from: alignment).map(\.target).contains(.note(nowhere)))
+        #expect(
+            index.backlinks(to: nowhere) == [
+                Backlink(
+                    note: alignment,
+                    contexts: ["[[Alignment]] links to itself; [[Nowhere]] goes nowhere."])
+            ])
+        #expect(index.tags(of: nowhere) == ["daily"])
+        #expect(
+            index.notes(tagged: "daily").map(\.path) == [
+                "Nowhere.md", "Daily/2026-09-13.md", "Daily/Journal.md", "Topics/Journal.md",
+            ])
+        #expect(index.untagged == built.untagged)
+    }
+
+    @Test func removing_a_note_unresolves_links_to_it_and_takes_its_tags_out_of_the_tree() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let built = Index.build(from: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let interpretability = try note(at: "Topics/Interpretability.md", in: library)
+        let readingList = try note(at: "Reading List.md", in: library)
+        let vitrine = try note(at: "Projects/Vitrine.md", in: library)
+
+        // Welcome.md stays on disk; the Index is told it is gone.
+        let index = built.removing(welcome)
+
+        // Welcome was reached by title, by its alias `Start here`, and by path.
+        #expect(
+            index.unresolvedLinks == [
+                "Nowhere": [alignment],
+                "welcome": [alignment],
+                "Start here": [alignment],
+                "Welcome": [vitrine, interpretability],
+                "Welcome.md": [readingList],
+            ])
+        #expect(index.backlinks(to: welcome).isEmpty)
+        #expect(index.links(from: welcome).isEmpty)
+        #expect(index.tags(of: welcome).isEmpty)
+        // Only Welcome carried `vitrine` and `fixture`.
+        #expect(
+            index.tagTree.map(\.name) == [
+                "agents", "Alignment", "daily", "interp", "project", "reading",
+            ])
+        #expect(index.notes(tagged: "vitrine").isEmpty)
+        #expect(index.untagged == built.untagged)
+        #expect(index.skipped.isEmpty)
+    }
+
+    @Test func renaming_a_note_re_resolves_links_by_title_and_keeps_its_backlinks_by_alias()
+        throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let interpretability = try note(at: "Topics/Interpretability.md", in: library)
+        let readingList = try note(at: "Reading List.md", in: library)
+        let vitrine = try note(at: "Projects/Vitrine.md", in: library)
+        let nowhere = try library.renameNote(welcome, to: "Nowhere")
+
+        let index = built.renaming(welcome, to: nowhere)
+
+        // `[[Nowhere]]` now lands; `[[welcome]]`, `[[Welcome#…]]`, `[[Welcome]]`,
+        // and `[A markdown link](Welcome.md)` no longer do.
+        #expect(
+            index.unresolvedLinks == [
+                "welcome": [alignment],
+                "Welcome": [vitrine, interpretability],
+                "Welcome.md": [readingList],
+            ])
+        // Alignment still reaches the note by its alias, twice, and now by title.
+        #expect(
+            index.backlinks(to: nowhere) == [
+                Backlink(
+                    note: alignment,
+                    contexts: [
+                        "  - \"[[Start here|the welcome note]]\"",
+                        "[[Alignment]] links to itself; [[Nowhere]] goes nowhere.",
+                        "Or simply [[Start here]].",
+                    ])
+            ])
+        #expect(index.backlinks(to: welcome).isEmpty)
+        // The note's own parse moved with it.
+        #expect(
+            index.links(from: nowhere).map(\.displayText) == ["Reading List", "Daily/2026-09-13"])
+        #expect(index.tags(of: nowhere) == ["vitrine", "fixture"])
+        #expect(index.notes(tagged: "vitrine") == [nowhere])
+        #expect(index.untagged == built.untagged)
+    }
+
+    @Test func untagged_and_notes_tagged_follow_every_operation_in_library_display_order() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        var index = Index.build(from: library)
+        let scratch = try note(at: "Scratch.md", in: library)
+        let topicsScratch = try note(at: "Topics/Scratch.md", in: library)
+        let vitrine = try note(at: "Projects/Vitrine.md", in: library)
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+        // The library names the notes the index will be told about.
+        let aardvark = try library.createNote(named: "Aardvark", in: topics)
+        let untitled = try library.renameNote(vitrine, to: "Untitled")
+
+        index = index.updating(topicsScratch, parsed: ParsedNote.parse("Filed. #daily\n"))
+        #expect(index.untagged.map(\.path) == ["Scratch.md", "Projects/Vitrine.md"])
+        #expect(index.notes(tagged: "daily").map(\.path).last == "Topics/Scratch.md")
+
+        index = index.adding(aardvark, parsed: ParsedNote.parse("Nothing here.\n"))
+        #expect(
+            index.untagged.map(\.path) == [
+                "Scratch.md", "Projects/Vitrine.md", "Topics/Aardvark.md",
+            ])
+
+        index = index.removing(scratch)
+        #expect(index.untagged.map(\.path) == ["Projects/Vitrine.md", "Topics/Aardvark.md"])
+
+        index = index.renaming(vitrine, to: untitled)
+        #expect(index.untagged.map(\.path) == ["Projects/Untitled.md", "Topics/Aardvark.md"])
+        #expect(index.untagged.map(\.title) == ["Untitled", "Aardvark"])
+    }
+
+    @Test func no_operation_reads_the_file_system() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        // Discarded early below, once the library has named every note; the
+        // defer covers a `try` failing before that.
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let built = Index.build(from: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        let interpretability = try note(at: "Topics/Interpretability.md", in: library)
+        let readingList = try note(at: "Reading List.md", in: library)
+        let vitrine = try note(at: "Projects/Vitrine.md", in: library)
+        let nowhere = try library.createNote(named: "Nowhere", in: library.root)
+        let journal = try note(at: "Daily/Journal.md", in: library)
+        let morning = try library.renameNote(journal, to: "Morning")
+        // Nothing is left to read: every answer below comes from the parses.
+        Fixtures.discard(copy)
+
+        let index =
+            built
+            .updating(alignment, parsed: ParsedNote.parse("Only [[Nowhere]] now. #alignment\n"))
+            .adding(nowhere, parsed: ParsedNote.parse("Here. #daily\n"))
+            .removing(welcome)
+            .renaming(journal, to: morning)
+
+        #expect(index.links(from: alignment).map(\.target) == [.note(nowhere)])
+        #expect(
+            index.backlinks(to: nowhere) == [
+                Backlink(note: alignment, contexts: ["Only [[Nowhere]] now. #alignment"])
+            ])
+        #expect(
+            index.unresolvedLinks == [
+                "Welcome": [vitrine, interpretability], "Welcome.md": [readingList],
+            ])
+        #expect(index.tags(of: morning) == ["daily"])
+        #expect(index.notes(tagged: "daily").map(\.path).contains("Daily/Morning.md"))
+        #expect(index.skipped.isEmpty)
+    }
+
     /// The note at `path`, which the fixture is expected to contain.
     private func note(at path: String, in library: Library) throws -> Note {
         try #require(library.allNotes.first { $0.path == path })

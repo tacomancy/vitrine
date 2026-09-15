@@ -2,8 +2,9 @@ import Library
 import NoteParsing
 
 /// Resolves what each link and embed in the library points at, by the rules
-/// in CONTEXT.md § Links. Pure over the library's tree and the notes'
-/// parsed frontmatter: rebuilt with the Index, never stored (ADR 0012).
+/// in CONTEXT.md § Links. Pure over the notes, attachments, and parsed
+/// frontmatter the Index keeps: rebuilt with the Index's tables, never
+/// stored (ADR 0012).
 struct LinkResolver {
     /// Notes by lowercased path, with and without the `.md`.
     private let notesByPath: [String: Note]
@@ -17,27 +18,26 @@ struct LinkResolver {
     /// Attachments by lowercased path.
     private let attachmentsByPath: [String: Attachment]
 
-    /// `notes` are the ones whose text could be read, in library display
-    /// order — the only place aliases come from.
-    init(library: Library, notes: [ReadNote]) {
+    /// Every note in `parsedLibrary` is a target, a skipped one included; only a
+    /// read note's frontmatter can declare an alias.
+    init(_ parsedLibrary: ParsedLibrary) {
         var notesByPath: [String: Note] = [:]
-        for note in library.allNotes {
+        for note in parsedLibrary.notes {
             let path = note.path.lowercased()
             notesByPath[path] = note
             notesByPath[String(path.dropLast(Self.noteExtension.count))] = note
         }
         self.notesByPath = notesByPath
-        notesByTitle = Dictionary(grouping: library.allNotes) { $0.title.lowercased() }
-        let aliases = notes.flatMap { note in
+        notesByTitle = Dictionary(grouping: parsedLibrary.notes) { $0.title.lowercased() }
+        let aliases = parsedLibrary.parsed.flatMap { note in
             (note.parsed.frontmatter?.aliases ?? []).map {
                 (alias: $0.lowercased(), note: note.note)
             }
         }
         notesByAlias = Dictionary(grouping: aliases, by: \.alias).mapValues { $0.map(\.note) }
-        let attachments = library.root.allAttachments
-        attachmentsByName = Dictionary(grouping: attachments) { $0.name.lowercased() }
+        attachmentsByName = Dictionary(grouping: parsedLibrary.attachments) { $0.name.lowercased() }
         attachmentsByPath = Dictionary(
-            uniqueKeysWithValues: attachments.map { ($0.path.lowercased(), $0) })
+            uniqueKeysWithValues: parsedLibrary.attachments.map { ($0.path.lowercased(), $0) })
     }
 
     /// `link`, as written in `note`, with its target resolved — or nil for

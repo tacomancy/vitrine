@@ -498,6 +498,15 @@ import Testing
 
     // MARK: - Ranges
 
+    @Test func a_parsed_note_carries_the_text_its_ranges_point_into() {
+        let text = "---\ntags: [a]\n---\nBody #tag\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.text == text)
+        #expect(note.bodyTags.map { slice(note.text, $0.range) } == ["#tag"])
+    }
+
     @Test func every_tokens_range_points_at_exactly_its_text_in_the_input() {
         let text = """
             ---
@@ -517,6 +526,78 @@ import Testing
             slice(text, note.bodyRange)
                 == "Ünïcödé before #tag and [[Nöte|shown]] then [lïnk](Nöte%20Two.md) and ![[ïmage.png|300]]."
         )
+    }
+
+    // MARK: - Structure
+
+    @Test func an_atx_heading_yields_its_level_and_the_range_of_the_whole_line() {
+        let text = """
+            # H1
+            ## H2 with #tag
+            ###### H6
+            ####### seven is text
+            #tag at line start
+            #
+            """
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.structure.headings.map(\.level) == [1, 2, 6])
+        #expect(
+            note.structure.headings.map { slice(text, $0.range) } == [
+                "# H1", "## H2 with #tag", "###### H6",
+            ])
+        #expect(note.bodyTags.map(\.name) == ["tag", "tag"])
+    }
+
+    @Test func a_fenced_block_in_either_fence_character_covers_both_fences() {
+        let text = """
+            Before
+            ```python
+            # not a heading #notatag
+            ```
+            ~~~
+            ```
+            ~~~
+            After
+            ````
+            unclosed
+            """
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.structure.fencedCodeBlocks.map { slice(text, $0) } == [
+                "```python\n# not a heading #notatag\n```",
+                "~~~\n```\n~~~",
+                "````\nunclosed",
+            ])
+        #expect(note.structure.headings.isEmpty)
+        #expect(note.bodyTags.isEmpty)
+    }
+
+    @Test func an_inline_code_span_covers_its_backticks_and_hides_links_and_tags() {
+        let text = "Use `code #notatag` and `` [[Not a link]] `` but `unclosed #tag"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.structure.inlineCodeSpans.map { slice(text, $0) } == [
+                "`code #notatag`", "`` [[Not a link]] ``",
+            ])
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+        #expect(note.links.isEmpty)
+    }
+
+    @Test func every_structure_range_points_at_exactly_its_text_whatever_the_line_ending() {
+        let text = "---\r\ntags: [a]\r\n---\r\n## Ünïcödé\r\n```\r\ncöde\r\n```\r\n`spän` #tag\r\n"
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.structure.headings.map { slice(text, $0.range) } == ["## Ünïcödé"])
+        #expect(note.structure.fencedCodeBlocks.map { slice(text, $0) } == ["```\r\ncöde\r\n```"])
+        #expect(note.structure.inlineCodeSpans.map { slice(text, $0) } == ["`spän`"])
+        #expect(note.bodyTags.map { slice(text, $0.range) } == ["#tag"])
     }
 
     // MARK: - Helpers
