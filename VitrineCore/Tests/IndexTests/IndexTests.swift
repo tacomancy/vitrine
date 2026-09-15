@@ -119,6 +119,69 @@ import Testing
             ])
     }
 
+    @Test func a_note_carrying_a_parent_and_two_of_its_children_counts_once_for_the_parent()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Only Topics/Alignment carries alignment; it carries interp/saes and
+        // interp/circuits, so it is one note under interp — not two.
+        #expect(
+            index.coOccurringTags(with: "alignment") == [
+                TagCoOccurrence(tag: "interp", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "interp/circuits", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "interp/saes", count: 1, outOf: 1),
+            ])
+    }
+
+    @Test func a_tags_own_ancestors_and_descendants_are_left_out_of_its_co_occurrence() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Every learning note carries learning/supervised, and one carries
+        // learning/probabilistic; neither is listed, nor learning itself.
+        #expect(
+            index.coOccurringTags(with: "learning").map(\.tag) == [
+                "stats", "data", "data/tabular", "data/survey", "stats/bayesian",
+                "stats/frequentist",
+            ])
+        // From below, the parent every learning/supervised note sits under.
+        #expect(!index.coOccurringTags(with: "learning/supervised").map(\.tag).contains("learning"))
+    }
+
+    @Test func co_occurring_tags_sort_by_count_descending_then_by_tag_name() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Among the single-note entries, data/survey was seen last in library
+        // order and learning/probabilistic first; the name decides.
+        #expect(
+            index.coOccurringTags(with: "learning/supervised") == [
+                TagCoOccurrence(tag: "stats", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "data", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/tabular", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/survey", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "stats/bayesian", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "stats/frequentist", count: 1, outOf: 3),
+            ])
+    }
+
+    @Test func a_tag_carried_by_one_note_co_occurs_out_of_one() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Research/Bayesian Inference alone carries stats/bayesian.
+        #expect(
+            index.coOccurringTags(with: "stats/bayesian") == [
+                TagCoOccurrence(tag: "learning", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "learning/supervised", count: 1, outOf: 1),
+            ])
+        #expect(index.coOccurringTags(with: "nowhere").isEmpty)
+    }
+
     @Test func untagged_is_exactly_the_notes_with_no_tag_in_frontmatter_or_body() throws {
         let library = try Library.open(at: Fixtures.library("obsidian-vault"))
         let index = Index.build(from: library)
