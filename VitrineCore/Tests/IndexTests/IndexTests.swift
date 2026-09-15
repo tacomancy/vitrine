@@ -179,6 +179,12 @@ import Testing
                 TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 1),
                 TagCoOccurrence(tag: "learning/supervised", count: 1, outOf: 1),
             ])
+    }
+
+    @Test func a_tag_no_note_carries_co_occurs_with_nothing() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
         #expect(index.coOccurringTags(with: "nowhere").isEmpty)
     }
 
