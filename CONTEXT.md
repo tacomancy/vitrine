@@ -159,10 +159,19 @@ so they aren't accidentally reused for something else.
   in — selecting a tag deselects a folder and vice versa. Narrowing a scope
   further is what **filter chips** are for.
 - **Note list** — the middle pane: the notes matching the current sidebar
-  selection and any active **filter chips** (tags added or removed by the
-  user), sorted by a chosen key.
-- **Tag page** — the Tags tab's main pane for one tag: its description (if
-  any), child-tag chips, and the notes under it.
+  selection and every active **filter chip** — a tag the user has added to
+  narrow the scope; a note must carry each chip's tag (or a descendant).
+  Chips stack, survive a change of scope, and are cleared when the library
+  changes. Clicking a tag anywhere on the Notes tab adds a chip.
+- **Tag page** — the Tags tab's main pane for one tag: the tag, how many
+  notes carry it (a link that opens the Notes tab scoped to it), its
+  child-tag chips, and what it **co-occurs with** — the other tags carried
+  by its notes, each as a share of those notes: a note counts once per
+  other tag even if it carries both a parent and a child, and the tag's own
+  ancestors and descendants are left out, since they co-occur by
+  construction. In v1 the page holds no note
+  list of its own; the Notes tab is where notes are listed and opened. A
+  tag's description is parked (`BACKLOG.md`).
 - **Search** — full-text lookup across note titles, aliases, and full text
   (frontmatter included). A query splits on whitespace into **terms**; a note
   **matches** when every term occurs as a substring, case- and
