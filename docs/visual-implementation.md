@@ -289,9 +289,9 @@ unresolved treatment is what the editor spec inherits.
 Back and Forward are the Go menu, ⌘[ and ⌘], reaching the key window's
 `NotesSelection` through a focused scene value (`FocusedNotesSelection`)
 and disabled at either end of the history. Every way of opening a note —
-a tree row, a list row, a link, a backlink — pushes; opening the note
-already open pushes nothing; going back keeps the note for Forward until
-anything else opens.
+a tree row, a list row, a link, a backlink — pushes and discards whatever
+was ahead, as browsers do; the note already open is not entered twice, so
+Back always leads somewhere else.
 
 ### The rail
 

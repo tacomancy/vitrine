@@ -5,7 +5,7 @@ import Observation
 /// list, the note open in the editor, and the back / forward history of
 /// notes opened this session. Plain view state, shared by the panes because
 /// each is hosted on its own (spec #8 § Selection state); the note list,
-/// editor, and rail derive everything from it and `Library`.
+/// editor, and rail derive everything from it, `Library`, and `Index`.
 @Observable
 final class NotesSelection {
     private(set) var sidebar: SidebarSelection = .allNotes
@@ -14,12 +14,11 @@ final class NotesSelection {
     /// The notes opened this session up to and including the open one, as
     /// browsers keep them: never persisted, cleared with the library
     /// (spec #25 § History).
-    private var opened: [Note] = []
-    /// The notes gone back from, nearest first; opening anything else
-    /// discards them.
+    private var history: [Note] = []
+    /// The notes gone back from, nearest last; opening anything discards them.
     private var forward: [Note] = []
 
-    var canGoBack: Bool { opened.count > 1 }
+    var canGoBack: Bool { history.count > 1 }
     var canGoForward: Bool { !forward.isEmpty }
 
     func selectAllNotes() {
@@ -59,7 +58,9 @@ final class NotesSelection {
 
     /// Back (⌘[): the note opened before this one, scope untouched.
     func goBack() {
-        guard canGoBack, let current = opened.popLast(), let previous = opened.last else { return }
+        guard canGoBack, let current = history.popLast(), let previous = history.last else {
+            return
+        }
         forward.append(current)
         show(previous)
     }
@@ -67,7 +68,7 @@ final class NotesSelection {
     /// Forward (⌘]): the note gone back from, scope untouched.
     func goForward() {
         guard let next = forward.popLast() else { return }
-        opened.append(next)
+        history.append(next)
         show(next)
     }
 
@@ -75,17 +76,16 @@ final class NotesSelection {
     func clear() {
         sidebar = .allNotes
         openNote = nil
-        opened = []
+        history = []
         forward = []
     }
 
-    /// Opening from mid-history truncates what was ahead, as browsers do.
-    /// Opening the note already open pushes nothing, so back still leads
-    /// somewhere else.
+    /// Every opening truncates what was ahead, as browsers do. The note
+    /// already open is not entered twice, so back always leads somewhere else.
     private func push(_ note: Note) {
-        guard opened.last != note else { return }
-        opened.append(note)
         forward = []
+        guard history.last != note else { return }
+        history.append(note)
     }
 
     private func show(_ note: Note) {

@@ -23,10 +23,11 @@ struct BodyLink {
     let range: Range<Int>
     let destination: Destination
 
-    /// Every link and embed in `text` in document order, non-overlapping.
-    /// `resolved` is `Index.links(from:)` for the same note; a token the
-    /// Index does not know by range — the file changed after the library
-    /// opened — is left out, and reads as plain text.
+    /// Every link and embed in `text` that the Index knows, plus every
+    /// external one, in document order, non-overlapping. `resolved` is
+    /// `Index.links(from:)` for the same note; a token it does not know by
+    /// range — the file changed after the library opened — is left out,
+    /// and reads as plain text.
     static func all(in text: String, resolved: [ResolvedLink]) -> [BodyLink] {
         let parsed = ParsedNote.parse(text)
         let targets = Dictionary(

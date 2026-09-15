@@ -4,9 +4,9 @@ import SwiftUI
 
 /// The rail beside the editor (CONTEXT.md § Editor): BACKLINKS — one entry
 /// per note that links to the open one, sorted by title, with the line
-/// around each link — and INFO — the note's path, modification date, tags,
-/// and link counts, all from the `Index`. Clicking a backlink opens that
-/// note, scope unchanged. Empty until a note is open.
+/// around each link — and INFO — the note's path and modification date,
+/// and its tags and link counts from the `Index`. Clicking a backlink
+/// opens that note, scope unchanged. Empty until a note is open.
 struct Rail: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection

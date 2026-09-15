@@ -53,8 +53,7 @@ struct GutterSplitPanes: NSViewRepresentable {
     /// of the two panes' limits.
     final class Coordinator: NSObject, NSSplitViewDelegate {
         private let widths = PaneWidth.all
-        /// The pane that takes whatever the others leave: the editor.
-        private let flexible = PaneWidth.all.firstIndex { $0.ideal == nil } ?? 0
+        private let flexible = PaneWidth.flexible
 
         func splitView(
             _ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat,
@@ -87,9 +86,10 @@ struct GutterSplitPanes: NSViewRepresentable {
             let panes = splitView.arrangedSubviews
             var paneWidths = panes.map(\.frame.width)
             let gutters = splitView.dividerThickness * CGFloat(panes.count - 1)
-            paneWidths[flexible] = 0
-            paneWidths[flexible] = splitView.bounds.width - gutters - paneWidths.reduce(0, +)
-            for index in panes.indices.reversed() where index != flexible {
+            let others = panes.indices.filter { $0 != flexible }
+            paneWidths[flexible] =
+                splitView.bounds.width - gutters - others.map { paneWidths[$0] }.reduce(0, +)
+            for index in others.reversed() {
                 let shortfall = widths[flexible].minimum - paneWidths[flexible]
                 guard shortfall > 0 else { break }
                 let surrender = min(shortfall, paneWidths[index] - widths[index].minimum)

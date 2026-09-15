@@ -15,4 +15,14 @@ struct PaneWidth {
 
     /// In pane order, leading to trailing.
     static let all = [sidebar, noteList, editor, rail]
+
+    /// The index in `all` of the pane that takes the rest — the one with no
+    /// ideal width, the editor. Exactly one pane must, or the split view
+    /// could not lay the others out; a table without one stops the launch.
+    static let flexible: Int = {
+        guard let index = all.firstIndex(where: { $0.ideal == nil }) else {
+            preconditionFailure("PaneWidth.all needs one pane with no ideal width")
+        }
+        return index
+    }()
 }
