@@ -45,6 +45,15 @@ import Testing
         #expect(
             LibraryError.noteMissing.localizedDescription
                 == "The note is no longer where it was on disk.")
+        #expect(
+            LibraryError.unwritable.localizedDescription
+                == "Vitrine can’t write it. Check its permissions and try again.")
+        #expect(
+            LibraryError.invalidName.localizedDescription
+                == "A note’s title can’t be empty, start with a dot, or contain a slash.")
+        #expect(
+            LibraryError.nameTaken.localizedDescription
+                == "A note with that title is already in this folder.")
     }
 
     @Test func two_scans_of_the_same_folder_are_equal_and_of_different_folders_are_not() throws {
@@ -199,6 +208,292 @@ import Testing
         #expect(throws: LibraryError.unreadable) {
             try library.read(banana)
         }
+    }
+
+    // MARK: Writing
+
+    @Test func write_then_read_returns_the_same_bytes_and_the_file_keeps_its_inode() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let welcome = try #require(library.root.notes.first { $0.title == "Welcome" })
+        let file = copy.appending(path: "Welcome.md")
+        let inodeBefore = try #require(
+            file.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier)
+        let text = "---\ntitle: Welcome\n---\n# Welcome\n\nRewritten, ünïcödé and all. 🎉\n"
+
+        try library.write(text, to: welcome)
+
+        #expect(try library.read(welcome) == text)
+        let inodeAfter = try #require(
+            file.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier)
+        #expect(inodeAfter.isEqual(inodeBefore))
+    }
+
+    @Test func a_note_with_crlf_line_endings_keeps_them_after_a_write_of_the_same_text() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let scratch = try #require(library.root.notes.first { $0.title == "Scratch" })
+        let windowsText = "# Scratch\r\n\r\nWritten on Windows.\r\n"
+        try library.write(windowsText, to: scratch)
+
+        try library.write(try library.read(scratch), to: scratch)
+
+        #expect(try library.read(scratch) == windowsText)
+        #expect(try Array(library.read(scratch).utf8) == Array(windowsText.utf8))
+    }
+
+    @Test func write_refreshes_the_notes_modifiedAt_in_the_tree() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let welcome = try #require(library.root.notes.first { $0.title == "Welcome" })
+
+        try library.write("# Welcome\n", to: welcome)
+
+        let refreshed = try #require(library.root.notes.first { $0.title == "Welcome" })
+        #expect(refreshed.modifiedAt > welcome.modifiedAt)
+        #expect(refreshed.path == welcome.path)
+        #expect(library.allNotes.count == 11)
+    }
+
+    // MARK: Creating
+
+    @Test func createNote_creates_an_empty_md_in_the_folder_and_places_it_in_display_order() throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+
+        let created = try library.createNote(named: "Circuits", in: topics)
+
+        #expect(created.name == "Circuits.md")
+        #expect(created.path == "Topics/Circuits.md")
+        #expect(created.title == "Circuits")
+        #expect(try library.read(created) == "")
+        let refreshed = try #require(library.root.folders.first { $0.name == "Topics" })
+        #expect(
+            refreshed.notes.map(\.title)
+                == ["Agents", "Alignment", "Circuits", "Interpretability", "Journal", "Scratch"])
+        #expect(refreshed.notes.contains(created))
+        #expect(library.allNotes.count == 12)
+    }
+
+    @Test func uniqueUntitledName_yields_Untitled_then_Untitled_1_then_Untitled_2() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+
+        #expect(library.uniqueUntitledName(in: library.root) == "Untitled")
+        _ = try library.createNote(named: "Untitled", in: library.root)
+        #expect(library.uniqueUntitledName(in: library.root) == "Untitled 1")
+        _ = try library.createNote(named: "Untitled 1", in: library.root)
+        #expect(library.uniqueUntitledName(in: library.root) == "Untitled 2")
+        // The folder is what counts: Topics has no Untitled yet.
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+        #expect(library.uniqueUntitledName(in: topics) == "Untitled")
+    }
+
+    @Test func createNote_refuses_an_empty_name_with_invalidName() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+
+        #expect(throws: LibraryError.invalidName) {
+            try library.createNote(named: "", in: library.root)
+        }
+        #expect(library.allNotes.count == 11)
+    }
+
+    @Test func createNote_refuses_a_name_containing_a_slash_with_invalidName() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+
+        #expect(throws: LibraryError.invalidName) {
+            try library.createNote(named: "Topics/Circuits", in: library.root)
+        }
+        #expect(library.allNotes.count == 11)
+    }
+
+    @Test func createNote_refuses_a_name_beginning_with_a_dot_with_invalidName() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+
+        // A dot-entry is skipped by the scan: the note would vanish as it was made.
+        #expect(throws: LibraryError.invalidName) {
+            try library.createNote(named: ".hidden", in: library.root)
+        }
+        #expect(library.applying(.folderChanged("")).allNotes.count == 11)
+        #expect(library.root.attachments.isEmpty)
+    }
+
+    @Test func createNote_refuses_an_existing_title_case_insensitively_with_nameTaken() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+
+        #expect(throws: LibraryError.nameTaken) {
+            try library.createNote(named: "agents", in: topics)
+        }
+        // A title is taken per folder: the root has no Agents.
+        #expect(throws: Never.self) {
+            try library.createNote(named: "agents", in: library.root)
+        }
+    }
+
+    // MARK: Renaming
+
+    @Test func renameNote_renames_the_file_within_its_folder() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let agents = try #require(library.allNotes.first { $0.path == "Topics/Agents.md" })
+        let textBefore = try library.read(agents)
+
+        let renamed = try library.renameNote(agents, to: "Multi-agent systems")
+
+        #expect(renamed.path == "Topics/Multi-agent systems.md")
+        #expect(renamed.name == "Multi-agent systems.md")
+        #expect(renamed.title == "Multi-agent systems")
+        #expect(try library.read(renamed) == textBefore)
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title)
+                == ["Alignment", "Interpretability", "Journal", "Multi-agent systems", "Scratch"])
+        #expect(throws: LibraryError.noteMissing) { try library.read(agents) }
+    }
+
+    @Test func renameNote_refuses_the_same_titles_createNote_does() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let agents = try #require(library.allNotes.first { $0.path == "Topics/Agents.md" })
+
+        #expect(throws: LibraryError.invalidName) { try library.renameNote(agents, to: "") }
+        #expect(throws: LibraryError.invalidName) { try library.renameNote(agents, to: "a/b") }
+        #expect(throws: LibraryError.nameTaken) { try library.renameNote(agents, to: "ALIGNMENT") }
+        #expect(library.allNotes.map(\.path).contains("Topics/Agents.md"))
+    }
+
+    @Test func renameNote_lets_a_note_change_only_the_case_of_its_own_title() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let agents = try #require(library.allNotes.first { $0.path == "Topics/Agents.md" })
+
+        let renamed = try library.renameNote(agents, to: "AGENTS")
+
+        #expect(renamed.title == "AGENTS")
+        #expect(renamed.path == "Topics/AGENTS.md")
+        let topics = try #require(library.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title)
+                == ["AGENTS", "Alignment", "Interpretability", "Journal", "Scratch"])
+    }
+
+    @Test func renameNote_leaves_the_text_of_notes_linking_to_it_untouched() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        var library = try Library.open(at: copy)
+        let welcome = try #require(library.root.notes.first { $0.title == "Welcome" })
+        let linking = try #require(library.allNotes.first { $0.path == "Projects/Vitrine.md" })
+        let linkingTextBefore = try library.read(linking)
+
+        _ = try library.renameNote(welcome, to: "Start here")
+
+        // The parked rename feature would rewrite [[Welcome]]; this one must not.
+        #expect(try library.read(linking) == linkingTextBefore)
+        #expect(linkingTextBefore.contains("[[Welcome]]"))
+    }
+
+    // MARK: Applying changes made by another tool
+
+    @Test func applying_entryAdded_shows_a_note_another_tool_created() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        try OtherTool.write("# Circuits\n", to: copy.appending(path: "Topics/Circuits.md"))
+
+        let applied = library.applying(.entryAdded("Topics/Circuits.md"))
+
+        let topics = try #require(applied.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title)
+                == ["Agents", "Alignment", "Circuits", "Interpretability", "Journal", "Scratch"])
+        #expect(applied.allNotes.count == 12)
+        #expect(library.allNotes.count == 11)
+    }
+
+    @Test func applying_entryRemoved_drops_a_note_another_tool_removed() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        try OtherTool.remove(copy.appending(path: "Topics/Agents.md"))
+
+        let applied = library.applying(.entryRemoved("Topics/Agents.md"))
+
+        let topics = try #require(applied.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title) == ["Alignment", "Interpretability", "Journal", "Scratch"])
+        #expect(applied.allNotes.count == 10)
+    }
+
+    @Test func applying_entryRenamed_moves_a_note_another_tool_renamed_across_folders() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        try OtherTool.rename(
+            copy.appending(path: "Topics/Agents.md"), to: copy.appending(path: "Daily/Agents.md"))
+
+        let applied = library.applying(
+            .entryRenamed(from: "Topics/Agents.md", to: "Daily/Agents.md"))
+
+        let topics = try #require(applied.root.folders.first { $0.name == "Topics" })
+        let daily = try #require(applied.root.folders.first { $0.name == "Daily" })
+        #expect(
+            topics.notes.map(\.title) == ["Alignment", "Interpretability", "Journal", "Scratch"])
+        #expect(daily.notes.map(\.title) == ["2026-09-13", "Agents", "Journal"])
+        #expect(applied.allNotes.count == 11)
+    }
+
+    @Test func applying_noteModified_refreshes_the_notes_modifiedAt() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        let welcome = try #require(library.root.notes.first { $0.title == "Welcome" })
+        try OtherTool.append("\nA line from Obsidian.\n", to: copy.appending(path: "Welcome.md"))
+
+        let applied = library.applying(.noteModified("Welcome.md"))
+
+        let refreshed = try #require(applied.root.notes.first { $0.title == "Welcome" })
+        #expect(refreshed.modifiedAt > welcome.modifiedAt)
+        #expect(applied.root.notes.map(\.title) == ["Reading List", "Scratch", "Welcome"])
+    }
+
+    @Test func applying_folderChanged_scans_that_folder_again() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        let library = try Library.open(at: copy)
+        try OtherTool.write("", to: copy.appending(path: "Topics/Circuits.md"))
+        try OtherTool.remove(copy.appending(path: "Topics/Agents.md"))
+        try OtherTool.write("", to: copy.appending(path: "Untitled.md"))
+
+        let applied = library.applying(.folderChanged("Topics"))
+
+        let topics = try #require(applied.root.folders.first { $0.name == "Topics" })
+        #expect(
+            topics.notes.map(\.title) == [
+                "Alignment", "Circuits", "Interpretability", "Journal", "Scratch",
+            ]
+        )
+        // Only Topics was scanned; the root's new note waits for its own change.
+        #expect(applied.root.notes.map(\.title) == ["Reading List", "Scratch", "Welcome"])
+        #expect(applied.applying(.folderChanged("")).allNotes.count == 12)
     }
 
     @Test func an_obsidian_vault_opens_as_it_is_on_disk() throws {

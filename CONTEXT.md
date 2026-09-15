@@ -43,6 +43,13 @@ so they aren't accidentally reused for something else.
   in different folders may share a title. A note carries its **modification
   date** as the file system reports it. Notes may be nested in **folders**; a
   folder is just a filesystem directory and carries no semantics of its own.
+  A note is **created** empty, titled `Untitled` — or `Untitled 1`,
+  `Untitled 2`, … when that is taken — and may be **renamed** within its
+  folder. A title is refused when it is empty, begins with `.` (the scan
+  would hide it), contains `/`, or is already another note's title in the
+  same folder, compared case-insensitively as the file system does. Renaming rewrites no link elsewhere: rename as a
+  feature is parked (`BACKLOG.md`); this one exists for the new note's
+  title.
 - **Frontmatter** — an optional YAML block at the very top of a note: the
   first line is `---` and the block ends at the next `---` line. A `---`
   anywhere later is body text, as in Obsidian. Vitrine reads `tags` and

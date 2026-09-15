@@ -27,4 +27,27 @@ extension Folder {
     public var allAttachments: [Attachment] {
         attachments + folders.flatMap(\.allAttachments)
     }
+
+    /// This tree with the folder at `path` (this one, for its own path)
+    /// replaced by what `transform` makes of it. A path outside the tree
+    /// changes nothing.
+    func replacingFolder(at path: String, _ transform: (Folder) -> Folder) -> Folder {
+        if path == self.path { return transform(self) }
+        return Folder(
+            name: name,
+            path: self.path,
+            folders: folders.map { folder in
+                guard path == folder.path || path.hasPrefix(folder.path + "/") else {
+                    return folder
+                }
+                return folder.replacingFolder(at: path, transform)
+            },
+            notes: notes,
+            attachments: attachments)
+    }
+
+    /// This folder with its notes swapped for `notes`; the rest untouched.
+    func with(notes: [Note]) -> Folder {
+        Folder(name: name, path: path, folders: folders, notes: notes, attachments: attachments)
+    }
 }

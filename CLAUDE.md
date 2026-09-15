@@ -85,10 +85,28 @@ temporary copies of it. Against the real vault: 304 links, 31 from
 frontmatter, 20 to attachments, 57 unresolved — 45 of those are
 `[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
 
+**The fourth feature is under way (issue #38, edit notes, create notes,
+and follow external changes): ① built.** `Library` now writes (issue
+#39): `write(_:to:)` overwrites a note in place — same inode, bytes as
+given, line endings included (ADR 0014); `createNote(named:in:)`,
+`uniqueUntitledName(in:)`, and `renameNote(_:to:)` create and rename
+within a folder with the title rule in `CONTEXT.md` § Note and no link
+rewriting; `applying(_:)` folds a `LibraryChange` into the tree by
+rescanning the folder around it. `LibraryWatcher.watch(_:)` is the new
+seam and target: an `AsyncStream<LibraryChange>` from an FSEvents stream
+on the root — file-level, coalesced within 100 ms, this process's own
+writes marked and dropped, dot-entries and symlinks invisible — ending
+when its consumer is cancelled. FSEvents is named only there. Every
+"another tool changed a file" test drives a real second process
+(`OtherTool`, in `Fixtures`), since the own-write mark is per process.
+Nothing on screen consumes any of this yet.
+
 Next: #27 the clickable body, rail, and history — the last ticket of
-#25, now unblocked. `/implement` per ticket on its own branch, clearing
-context between tickets. Update this section whenever the answer to
-"where are we?" changes — it's the first thing a fresh agent reads.
+#25 — and #38's ② (`Index` incremental API and `NoteParsing`
+structure), which needs only #20. `/implement` per ticket on its own
+branch, clearing context between tickets. Update this section whenever
+the answer to "where are we?" changes — it's the first thing a fresh
+agent reads.
 
 ## Engineering discipline
 
