@@ -11,6 +11,8 @@ struct VitrineApp: App {
     @Environment(\.openWindow) private var openWindow
     /// The key window's selection, for Back and Forward; nil with no window.
     @FocusedValue(\.notesSelection) private var selection
+    /// The key window's open note, for Save; nil with no window.
+    @FocusedValue(\.noteBuffer) private var buffer
 
     init() {
         BundledFonts.register()
@@ -31,16 +33,31 @@ struct VitrineApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(Self.defaultWindowSize)
         .commands {
+            // The Edit menu's Find submenu, which the editor's find bar answers
+            // (ADR 0013); a Window scene has no Find of its own.
+            TextEditingCommands()
             // New replaces the system's New and Open: nothing on the menu is inert.
             CommandGroup(replacing: .newItem) {
                 Button("Open Library…") {
                     // The window first, so a failure has somewhere to show its alert.
                     openWindow(id: Self.mainWindowID)
                     if let folder = LibraryOpenPanel.chooseFolder() {
+                        // ADR 0014: a library switch saves the open note first.
+                        buffer?.save()
                         currentLibrary.open(folderAt: folder)
                     }
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
+            // ⌘S saves the open note at once; with nothing to save it does
+            // nothing (ADR 0014).
+            CommandGroup(after: .newItem) {
+                Divider()
+                Button("Save") {
+                    buffer?.save()
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(buffer == nil)
             }
             // Back and forward walk the notes opened this session
             // (CONTEXT.md § Editor), disabled at either end of the history.

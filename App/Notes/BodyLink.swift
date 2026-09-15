@@ -3,19 +3,20 @@ import Index
 import Library
 import NoteParsing
 
-/// One link or embed in the open note's text as the body draws it: the
+/// One link or embed in the open note's text as the editor draws it: the
 /// whole token's range, and where following it leads. The tokens come from
-/// parsing the text on screen, so every range is in it; what each points
-/// at comes from the `Index`, which keeps external links in no table
-/// (CONTEXT.md § Links) — those the parser alone identifies.
+/// the parse of the text on screen — ahead of the save that will give it
+/// to the Index — so each is resolved as it stands, by the Index's rules
+/// (CONTEXT.md § Links); an external link, which the Index keeps in no
+/// table, the parser alone identifies.
 struct BodyLink {
     enum Destination {
         case note(Note)
         case attachment(Attachment)
         /// A Markdown link or embed whose destination has a URL scheme.
         case external(URL)
-        /// Nothing in the library; following it does nothing until editing
-        /// exists (CONTEXT.md, Unresolved link).
+        /// Nothing in the library; following it does nothing until creating
+        /// a note from a link exists (CONTEXT.md, Unresolved link).
         case unresolved
     }
 
@@ -23,28 +24,33 @@ struct BodyLink {
     let range: Range<Int>
     let destination: Destination
 
-    /// Every link and embed in `text` that the Index knows, plus every
-    /// external one, in document order, non-overlapping. `resolved` is
-    /// `Index.links(from:)` for the same note; a token it does not know by
-    /// range — the file changed after the library opened — is left out,
-    /// and reads as plain text.
-    static func all(in text: String, resolved: [ResolvedLink]) -> [BodyLink] {
-        let parsed = ParsedNote.parse(text)
-        let targets = Dictionary(
-            resolved.map { ($0.range, $0.target) }, uniquingKeysWith: { first, _ in first })
+    /// Every link and embed in `parsed`, in document order, non-overlapping;
+    /// `note` is the one the text belongs to, which a Markdown link's path
+    /// is relative to.
+    static func all(in parsed: ParsedNote, of note: Note, index: Index) -> [BodyLink] {
         let links = parsed.links.compactMap { link -> BodyLink? in
             if case .markdown(let markdown) = link, markdown.isExternal {
                 return external(markdown.destination, at: markdown.range)
             }
-            return targets[link.range].map { BodyLink(range: link.range, destination: .init($0)) }
+            return index.resolve(link, from: note).map(BodyLink.init)
         }
         let embeds = parsed.embeds.compactMap { embed -> BodyLink? in
             if MarkdownLink.hasURLScheme(embed.filename) {
                 return external(embed.filename, at: embed.range)
             }
-            return targets[embed.range].map { BodyLink(range: embed.range, destination: .init($0)) }
+            return index.resolve(embed, from: note).map(BodyLink.init)
         }
         return (links + embeds).sorted { $0.range.lowerBound < $1.range.lowerBound }
+    }
+
+    private init(_ resolved: ResolvedLink) {
+        range = resolved.range
+        destination = Destination(resolved.target)
+    }
+
+    private init(range: Range<Int>, destination: Destination) {
+        self.range = range
+        self.destination = destination
     }
 
     /// A destination the system cannot open as a URL is not a link to anywhere.

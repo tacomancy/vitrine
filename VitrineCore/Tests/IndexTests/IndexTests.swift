@@ -711,6 +711,57 @@ import Testing
         #expect(index.skipped.isEmpty)
     }
 
+    // MARK: - Resolving a link the Index has not seen
+
+    @Test func resolve_answers_a_link_in_unsaved_text_from_the_indexs_tables() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        // Typed, not saved: the Index holds Alignment as it is on disk.
+        let typed = ParsedNote.parse("See [[welcome]] and [[Nowhere]].\n")
+
+        let resolved = typed.links.compactMap { index.resolve($0, from: alignment) }
+
+        #expect(resolved.map(\.target) == [.note(welcome), .unresolved("Nowhere")])
+        #expect(resolved.map(\.range) == typed.links.map(\.range))
+        #expect(resolved.map(\.displayText) == ["welcome", "Nowhere"])
+        #expect(index.links(from: alignment).map(\.target) != resolved.map(\.target))
+    }
+
+    @Test func resolve_places_a_markdown_link_relative_to_the_note_and_an_embed_by_filename()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+        let projects = try #require(library.root.folders.first { $0.name == "Projects" })
+        let sketch = try #require(projects.attachments.first { $0.path == "Projects/sketch.png" })
+        let typed = ParsedNote.parse("[up](../Welcome.md) ![[sketch.png]] ![[gone.png]]\n")
+        let markdownLink = try #require(typed.links.first)
+
+        let link = try #require(index.resolve(markdownLink, from: alignment))
+        let embeds = typed.embeds.compactMap { index.resolve($0, from: alignment) }
+
+        #expect(link.target == .note(welcome))
+        #expect(embeds.map(\.target) == [.attachment(sketch), .unresolved("gone.png")])
+        #expect(embeds.map(\.range) == typed.embeds.map(\.range))
+    }
+
+    @Test func resolve_answers_nil_for_an_external_link_or_embed() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+        let alignment = try note(at: "Topics/Alignment.md", in: library)
+        let typed = ParsedNote.parse("[site](https://example.com) ![[https://example.com/a.png]]\n")
+
+        let link = try #require(typed.links.first)
+        let embed = try #require(typed.embeds.first)
+
+        #expect(index.resolve(link, from: alignment) == nil)
+        #expect(index.resolve(embed, from: alignment) == nil)
+    }
+
     /// The note at `path`, which the fixture is expected to contain.
     private func note(at path: String, in library: Library) throws -> Note {
         try #require(library.allNotes.first { $0.path == path })

@@ -29,6 +29,9 @@ public struct Index: Sendable {
     private let notes: [IndexedNote]
     /// What every table above was computed from, kept for the next change.
     private let parsedLibrary: ParsedLibrary
+    /// The link rules over this library, kept for a link the tables have
+    /// not seen: one the editor has just parsed out of unsaved text.
+    private let resolver: LinkResolver
 
     /// Reads every note through `library`, parses it, aggregates its tags,
     /// and resolves its links. Never throws: a note that cannot be read
@@ -95,6 +98,7 @@ public struct Index: Sendable {
         skipped = parsedLibrary.skipped
         self.notes = notes
         self.parsedLibrary = parsedLibrary
+        self.resolver = resolver
     }
 
     /// A note's links and embeds resolved, in one document order — the
@@ -124,6 +128,21 @@ public struct Index: Sendable {
     /// link is not (CONTEXT.md § Links). A skipped note has none.
     public func links(from note: Note) -> [ResolvedLink] {
         indexed(note)?.links.map(\.link) ?? []
+    }
+
+    /// `link`, as written in `note`, resolved by the same rules as
+    /// `links(from:)` — for a link parsed out of text the Index has not
+    /// been given, such as the editor's unsaved buffer; the tables are not
+    /// consulted for `note` itself and nothing changes. Nil for an external
+    /// link (CONTEXT.md § Links).
+    public func resolve(_ link: Link, from note: Note) -> ResolvedLink? {
+        resolver.resolve(link, from: note)
+    }
+
+    /// `embed`, as written in `note`, resolved as `links(from:)` would; nil
+    /// for an embed of a URL.
+    public func resolve(_ embed: Embed, from note: Note) -> ResolvedLink? {
+        resolver.resolve(embed, from: note)
     }
 
     /// Every note that links to `note`, sorted by title — by path where two

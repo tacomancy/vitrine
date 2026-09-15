@@ -23,4 +23,22 @@ enum SidebarSelection: Equatable {
         case .tag(let path): index.notes(tagged: path)
         }
     }
+
+    /// This selection over `library` as it is now: a folder or note found
+    /// again by path, or — when it has gone — the folder that held the
+    /// note, or All Notes.
+    func refreshed(from library: Library) -> SidebarSelection {
+        switch self {
+        case .allNotes, .untagged, .tag:
+            self
+        case .folder(let folder):
+            library.folder(at: folder.path).map(SidebarSelection.folder) ?? .allNotes
+        case .note(let note, let folder):
+            if let folder = library.folder(at: folder.path) {
+                library.note(at: note.path).map { .note($0, in: folder) } ?? .folder(folder)
+            } else {
+                .allNotes
+            }
+        }
+    }
 }

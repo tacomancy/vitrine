@@ -6,6 +6,14 @@ enum BundledFonts {
     static let sansFamily = "Inter"
     static let monoFamily = "IBM Plex Mono"
 
+    /// The PostScript names AppKit resolves a registered face by — the
+    /// editor's fonts (ADR 0013). Plex Mono's are not its file names.
+    enum PostScriptName {
+        static let sansRegular = "Inter-Regular"
+        static let sansSemiBold = "Inter-SemiBold"
+        static let monoRegular = "IBMPlexMono"
+    }
+
     /// Static weights: Inter 400–700 and Plex Mono 400–500, and nothing else.
     private static let files = [
         "Inter-Regular", "Inter-Medium", "Inter-SemiBold", "Inter-Bold",
