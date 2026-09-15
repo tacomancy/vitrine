@@ -49,7 +49,7 @@ private struct FoldedCharacters {
 
     /// The original ranges of every occurrence of `term`, in order.
     func ranges(of term: [UInt8]) -> [Range<Int>] {
-        folded.ranges(of: term).map { range in
+        folded.occurrences(of: term).map { range in
             origins[range.lowerBound]..<endOfCharacter(at: range.upperBound - 1)
         }
     }

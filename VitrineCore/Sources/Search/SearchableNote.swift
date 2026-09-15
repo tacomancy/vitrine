@@ -24,8 +24,9 @@ struct SearchableNote: Sendable {
     /// text (CONTEXT.md § Search).
     func matches(_ terms: [[UInt8]]) -> Bool {
         terms.allSatisfy { term in
-            foldedTitle.contains(term) || foldedText.contains(term)
-                || foldedAliases.contains { $0.contains(term) }
+            foldedTitle.firstOccurrence(of: term) != nil
+                || foldedText.firstOccurrence(of: term) != nil
+                || foldedAliases.contains { $0.firstOccurrence(of: term) != nil }
         }
     }
 
@@ -33,7 +34,7 @@ struct SearchableNote: Sendable {
     /// note in the first group of results (ADR 0018).
     func matchesInTitle(_ terms: [[UInt8]]) -> Bool {
         ([foldedTitle] + foldedAliases).contains { name in
-            terms.allSatisfy { name.contains($0) }
+            terms.allSatisfy { name.firstOccurrence(of: $0) != nil }
         }
     }
 
@@ -47,7 +48,7 @@ struct SearchableNote: Sendable {
         // A term holds no whitespace, so no match spans a line break, and
         // folding keeps every line break: the folded text's line is the
         // original's.
-        guard let first = terms.compactMap({ foldedText.firstRange(of: $0)?.lowerBound }).min()
+        guard let first = terms.compactMap({ foldedText.firstOccurrence(of: $0)?.lowerBound }).min()
         else {
             return Excerpt(text: lines.first { !$0.isEmpty } ?? "", ranges: [])
         }
