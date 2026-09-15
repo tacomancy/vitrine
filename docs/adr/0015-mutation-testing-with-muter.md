@@ -57,8 +57,10 @@ weekly `Mutation` workflow embody them.
   mutant is code with something removed, and the compiler warns about what
   is left — a `var` never mutated once its only mutating call is gone —
   so `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` fails the one build every run
-  depends on. The mutation config reverses that one override and keeps the
-  rest; the code under mutation already passed the bar on its own PR.
+  depends on. The mutation config drops both of `test.sh`'s warning
+  overrides (unhidden warnings that are not errors would only lengthen
+  the log) and keeps the scheme and destination; the code under mutation
+  already passed the bar on its own PR.
 - **Kills are read from the exit status.** Under `test-without-building`
   xcodebuild ends a failed run with `** TEST EXECUTE FAILED **`, which
   Muter's regex does not know, so every kill is labelled "runtime error"
@@ -90,7 +92,10 @@ naming: the depth tie-break in link resolution (ADR 0016) has a test that
 passes for another reason (#57), and `ChangeTranslator`'s memory across
 batches — the reason the class exists — is never consulted twice (#60).
 
-**Budget.** A run is about fifty minutes of macOS runner time, weekly —
-most of the free allowance ADR 0006 counts on. The workflow caches the
-Muter binary, caps the job at sixty minutes, and runs only on schedule and
-by hand; if the allowance is felt, the schedule is the first knob.
+**Budget.** A run is about fifty minutes of macOS runner time, weekly.
+The repository is public, so those minutes are free — ADR 0006's budget
+arithmetic was for a private one — and the constraint is a runner
+occupied, not minutes spent. The workflow caches the Muter binary, caps
+the job at 150 minutes so a hung run cannot hold a runner for hours, and
+runs only on schedule and by hand; the schedule is the first knob if the
+repository ever goes private again.

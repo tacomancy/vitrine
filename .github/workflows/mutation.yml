@@ -13,9 +13,10 @@ on:
 jobs:
   mutate:
     runs-on: macos-26
-    # ADR 0015 (Update): a full run is about fifteen minutes; a hung one
-    # must not spend the month's macOS minutes.
-    timeout-minutes: 60
+    # ADR 0015 (Update): the first run took 52 minutes on the development
+    # machine, before a runner's slower disks and a cold Muter build. The
+    # cap is for a hung run, not a slow one.
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 

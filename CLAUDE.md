@@ -48,7 +48,7 @@ target or its test target depending on the run (ADR 0006, second Update).
 `Scripts/mutate.sh` is the non-gating mutation run — Muter, pinned to a
 pull-request head because upstream master applies no mutants (ADR 0015,
 Update) — weekly and by hand, its survivors triaged into issues #56–#63.
-ADRs 0001–0012 are Accepted.
+ADRs 0001–0017 are Accepted.
 
 **The second feature is built (issue #18, parse notes and browse by
 tag).** The `NoteParsing` seam (issue #19) is `ParsedNote.parse(text)`:
