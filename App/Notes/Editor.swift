@@ -77,10 +77,12 @@ struct Editor: View {
                     if !isFocused { buffer.save() }
                 }
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The ring hugs the scroll view, inside the inset that keeps it on the surface.
+            .brassFocusRing(isFocused: isTextFocused, cornerRadius: Radius.medium)
             .padding(.horizontal, Self.ringInset)
             .padding(.top, Self.titleSpacing - Self.ringInset)
             .padding(.bottom, Self.ringInset)
-            .brassFocusRing(isFocused: isTextFocused, cornerRadius: Radius.medium)
         } else if let failure = buffer.readFailure {
             Text(failure.localizedDescription)
                 .font(.sans(.body, weight: .regular))

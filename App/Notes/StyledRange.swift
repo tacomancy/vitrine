@@ -72,13 +72,12 @@ struct StyledRange {
     }
 
     /// The colors this range draws in (docs/visual-implementation.md, The
-    /// editor): links and tags `link`, an unresolved link `fg-muted` with a
-    /// dashed underline, frontmatter `fg-muted`, code `fg-secondary` on
-    /// `bg-sunken`; a heading keeps `fg`. Every key is one of
-    /// `renderingKeys`.
+    /// editor): links and tags `link`, an unresolved link `fg-muted`,
+    /// frontmatter `fg-muted`, code `fg-secondary` on `bg-sunken`; a
+    /// heading keeps `fg`. Every key is one of `renderingKeys`.
     var renderingAttributes: [NSAttributedString.Key: Any] {
         switch kind {
-        case .frontmatter:
+        case .frontmatter, .link(_, isResolved: false):
             [.foregroundColor: NSColor(resource: .fgMuted)]
         case .fencedCode, .inlineCode:
             [
@@ -89,19 +88,21 @@ struct StyledRange {
             [:]
         case .tag, .link(_, isResolved: true):
             [.foregroundColor: NSColor(resource: .link)]
-        case .link(_, isResolved: false):
-            [
-                .foregroundColor: NSColor(resource: .fgMuted),
-                .underlineStyle: NSUnderlineStyle([.single, .patternDash]).rawValue,
-            ]
         }
     }
 
     /// The rendering attributes the editor owns — the ones it clears before
     /// setting afresh, leaving the view's own (spelling, marked text) alone.
-    static let renderingKeys: [NSAttributedString.Key] = [
-        .foregroundColor, .backgroundColor, .underlineStyle,
-    ]
+    static let renderingKeys: [NSAttributedString.Key] = [.foregroundColor, .backgroundColor]
+
+    /// The unresolved link's dashed underline. A storage attribute, not a
+    /// rendering one: TextKit 2 draws underlines from the storage alone.
+    static let unresolvedUnderline = NSUnderlineStyle([.single, .patternDash]).rawValue
+
+    /// Whether this range is an unresolved link, drawn as no link at all.
+    var isUnresolvedLink: Bool {
+        if case .link(_, isResolved: false) = kind { true } else { false }
+    }
 
     /// The text's fonts as contiguous spans over `length`: the body's, a
     /// heading's over its line, mono over code and frontmatter — the last

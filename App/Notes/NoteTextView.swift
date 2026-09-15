@@ -84,6 +84,14 @@ struct NoteTextView: NSViewRepresentable {
         return scrollView
     }
 
+    // The scroll view takes what it is offered; its own fitting size is
+    // the document's, which would size the pane to the note.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize, nsView: NSScrollView, context: Context
+    ) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: .zero)
+    }
+
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let coordinator = context.coordinator
         coordinator.note = note
@@ -159,8 +167,11 @@ struct NoteTextView: NSViewRepresentable {
             presentedPath = note.path
             beingShown = parsed
             storage.beginEditing()
+            // Attributed, since text put into an empty storage carries none,
+            // and the color and paragraph style are set nowhere else.
             storage.replaceCharacters(
-                in: NSRange(location: 0, length: storage.length), with: parsed.text)
+                in: NSRange(location: 0, length: storage.length),
+                with: NSAttributedString(string: parsed.text, attributes: Self.baseAttributes))
             storage.endEditing()
             beingShown = nil
             renderIfNeeded()
@@ -261,40 +272,50 @@ struct NoteTextView: NSViewRepresentable {
             applyRenderingAttributes()
         }
 
-        /// Fonts, links, and the paragraph style — the attributes that
-        /// affect layout — set only where what is in place differs, so an
-        /// edit invalidates the layout of the lines it changed and not the
-        /// whole note.
+        /// Fonts, links, and the unresolved underline — the storage's
+        /// attributes — set only where what is in place differs, so an edit
+        /// invalidates the layout of the lines it changed and not the whole
+        /// note. The color and paragraph style are uniform: loaded with the
+        /// text, typed with the typing attributes.
         private func applyStorageAttributes(to storage: NSTextStorage) {
-            let all = NSRange(location: 0, length: storage.length)
             for span in StyledRange.fontSpans(of: styledRanges, length: storage.length) {
                 storage.enumerateAttribute(.font, in: span.range) { current, range, _ in
                     guard (current as? NSFont) != span.font else { return }
                     storage.addAttribute(.font, value: span.font, range: range)
                 }
             }
-            storage.enumerateAttribute(.paragraphStyle, in: all) { current, range, _ in
-                guard current == nil else { return }
-                storage.addAttribute(
-                    .paragraphStyle, value: EditorFont.paragraphStyle, range: range)
-            }
-            var wanted: [NSRange: URL] = [:]
+            var links: [NSRange: URL] = [:]
+            var underlines: [NSRange: Int] = [:]
             for styled in styledRanges {
-                if case .link(let index, isResolved: true) = styled.kind {
-                    wanted[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                if case .link(let index, let isResolved) = styled.kind {
+                    if isResolved {
+                        links[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                    } else {
+                        underlines[styled.range] = StyledRange.unresolvedUnderline
+                    }
                 }
             }
-            var inPlace: [NSRange: URL] = [:]
-            storage.enumerateAttribute(.link, in: all) { current, range, _ in
-                guard let url = current as? URL else { return }
-                if wanted[range] == url {
-                    inPlace[range] = url
+            reconcile(.link, to: links, in: storage)
+            reconcile(.underlineStyle, to: underlines, in: storage)
+        }
+
+        /// `key` set over exactly the ranges in `wanted`, touching only the
+        /// runs that differ.
+        private func reconcile<Value: Equatable>(
+            _ key: NSAttributedString.Key, to wanted: [NSRange: Value], in storage: NSTextStorage
+        ) {
+            var inPlace: [NSRange: Value] = [:]
+            storage.enumerateAttribute(key, in: NSRange(location: 0, length: storage.length)) {
+                current, range, _ in
+                guard let value = current as? Value else { return }
+                if wanted[range] == value {
+                    inPlace[range] = value
                 } else {
-                    storage.removeAttribute(.link, range: range)
+                    storage.removeAttribute(key, range: range)
                 }
             }
-            for (range, url) in wanted where inPlace[range] != url {
-                storage.addAttribute(.link, value: url, range: range)
+            for (range, value) in wanted where inPlace[range] != value {
+                storage.addAttribute(key, value: value, range: range)
             }
         }
 

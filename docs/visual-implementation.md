@@ -270,7 +270,9 @@ ADR 0013: plain text (`isRichText` off, no graphics, no font panel, no
 ruler); automatic quote and dash substitution, text replacement, link
 detection, spelling correction, data detection, text completion, and
 smart insert/delete **off**; the find bar, incremental search, and
-continuous spell checking **on**; `allowsUndo` on with the coordinator's
+continuous spell checking **on** — ⌘F reaches the bar through the Edit
+menu's Find submenu, which `TextEditingCommands` adds to the app, since a
+`Window` scene has none of its own; `allowsUndo` on with the coordinator's
 own `UndoManager`, emptied when a different note opens; the system focus
 ring off on both the text view and its scroll view. Neither draws a
 background: the floating surface shows through. The text color and
@@ -293,23 +295,25 @@ snapshot), resolves each link and embed through `Index.resolve` (a link
 typed a moment ago is colored for what it points at before any save), and
 converts every range from the parser's UTF-8 offsets to UTF-16 once
 (`StyledRange.all` — a **styled range** is a token or structure with the
-font and colors it takes). Fonts, the paragraph style, and links are
-storage attributes, set in `textStorage(_:didProcessEditing:)` only
-where the one in place differs (`StyledRange.fontSpans`); colors,
-underlines, and backgrounds are rendering attributes on the layout
-manager — the editor's three keys removed over the document and set
-afresh, the view's own (spelling, marked text) untouched — in
+font and colors it takes). Fonts and links are storage attributes, set
+in `textStorage(_:didProcessEditing:)` only where the one in place
+differs (`StyledRange.fontSpans`), as is the unresolved link's dashed
+underline — TextKit 2 draws underlines from the storage alone; the `fg`
+color and the paragraph style are uniform, loaded with the text and
+inherited by typing; colors and backgrounds are rendering attributes on
+the layout manager — the editor's two keys removed over the document and
+set afresh, the view's own (spelling, marked text) untouched — in
 `textDidChange`, or on the next run-loop turn for a change the view does
 not announce, such as an undo (ADR 0013, Update).
 
-| Range | Font | Rendering attributes |
+| Range | Font | Color |
 |---|---|---|
 | frontmatter (`rawRange`) | mono | `fg-muted` |
 | heading (line) | semibold at its level's size | — (`fg`) |
 | fenced code block, inline code span | mono | `fg-secondary` on `bg-sunken` |
 | body tag | — | `link` |
 | link or embed to a note, attachment, or the outside | — | `link`; the `.link` attribute is `vitrine-link://N`, `N` its index in `BodyLink.all` — a URL because AppKit expects one there, a scheme nothing opens |
-| unresolved link or embed | — | `fg-muted`, single dashed underline; no `.link` |
+| unresolved link or embed | — | `fg-muted`; a single dashed `.underlineStyle` in the storage; no `.link` |
 
 Later rows win inside earlier ones: a link in frontmatter is `link`, code
 in a heading is mono. Clicking a link reaches

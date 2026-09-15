@@ -33,6 +33,9 @@ struct VitrineApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(Self.defaultWindowSize)
         .commands {
+            // The Edit menu's Find submenu, which the editor's find bar answers
+            // (ADR 0013); a Window scene has no Find of its own.
+            TextEditingCommands()
             // New replaces the system's New and Open: nothing on the menu is inert.
             CommandGroup(replacing: .newItem) {
                 Button("Open Library…") {
