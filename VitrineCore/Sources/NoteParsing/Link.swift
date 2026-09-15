@@ -13,4 +13,13 @@ public enum Link: Sendable, Equatable {
         case .markdown(let link): link.range
         }
     }
+
+    /// Whether the link was written inside a frontmatter value. Only a
+    /// wikilink can be: Obsidian reads no Markdown link out of frontmatter.
+    public var isFromFrontmatter: Bool {
+        switch self {
+        case .wikilink(let link): link.isFromFrontmatter
+        case .markdown: false
+        }
+    }
 }

@@ -20,4 +20,11 @@ extension Folder {
     public var allNotes: [Note] {
         notes + folders.flatMap(\.allNotes)
     }
+
+    /// This folder's attachments followed by each subfolder's, recursively,
+    /// in the same tree order — what a link to an attachment's filename is
+    /// resolved against.
+    public var allAttachments: [Attachment] {
+        attachments + folders.flatMap(\.allAttachments)
+    }
 }

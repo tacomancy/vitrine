@@ -65,7 +65,23 @@ assert counts written by hand (PR #34, plus `Topics/Agents.md` from
 #20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
 Index-seam Update).
 
-Next: #21 the Tags tab. `/implement` per ticket on
+**The third feature's seam work is built (issue #25, follow links and
+see backlinks; ticket #26).** `NoteParsing` reads wikilinks out of every
+frontmatter string value — each a `Link` flagged `isFromFrontmatter`,
+placed by Yams' scalar marks — five additive tests, none existing
+touched. `Index.build` resolves every link and embed per `CONTEXT.md`
+§ Links (path → title → alias → attachment name, case-insensitively;
+Markdown links relative to the note; external excluded; same-title ties
+by depth then display order, ADR 0016) and answers `links(from:)`,
+`backlinks(to:)` — one per linking note, sorted by title, with one
+context line per linking line — and `unresolvedLinks`; 18 tests in
+`IndexTests`, 15 against the Obsidian fixture as blessed and 3 on
+temporary copies of it. Against the real vault: 304 links, 31 from
+frontmatter, 20 to attachments, 57 unresolved — 45 of those are
+`[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
+
+Next: #21 the Tags tab, then #27 the clickable body, rail, and history
+(blocked by #21 and #26). `/implement` per ticket on
 its own branch, clearing context between tickets. Update this section
 whenever the answer to "where are we?" changes — it's the first thing a
 fresh agent reads.
