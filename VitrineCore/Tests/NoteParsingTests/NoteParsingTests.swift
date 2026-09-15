@@ -261,6 +261,18 @@ import Testing
         #expect(note.bodyTags.map(\.name) == ["tag"])
     }
 
+    @Test func a_less_than_sign_before_a_space_is_a_comparison_and_hides_nothing() {
+        let note = ParsedNote.parse("a < b #tag > c")
+
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
+    @Test func a_closing_html_tag_is_stepped_over_like_an_opening_one() {
+        let note = ParsedNote.parse("</b #notatag> #tag")
+
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
     @Test func an_unclosed_delimiter_is_literal_text_and_scanning_continues_after_it() {
         let note = ParsedNote.parse(
             """
