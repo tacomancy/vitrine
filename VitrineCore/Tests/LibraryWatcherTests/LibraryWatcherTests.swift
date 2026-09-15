@@ -12,9 +12,24 @@ import Testing
     /// How long after a change the rest of its batch is given to arrive.
     /// The watcher coalesces within 100 ms (ADR 0014), so this is ample.
     private static let quiet: Duration = .milliseconds(300)
-    /// The period in which a test that expects no change must see none.
-    /// There is nothing to wait for, so this is the whole of its wait.
+    /// The period in which a test that expects no change must see none —
+    /// there is nothing to wait for, so this is the whole of its wait — and
+    /// the time this process's own events are given to be reported and
+    /// dropped before another tool touches the same file.
     private static let settling: Duration = .seconds(1)
+
+    /// A watch on `library` under which another tool's first change will be
+    /// seen. The fixture copy was made by this process, so the file system
+    /// holds an own-marked event for every file in it; reported together
+    /// with a foreign change to the same file — one event, both doings —
+    /// the change would be dropped as Vitrine's own (ADR 0014). Settling
+    /// lets those be reported first. A busy machine holds them longer,
+    /// which is how this showed up on CI and not here.
+    private func settledWatch(on library: Library) async -> AsyncStream<LibraryChange> {
+        let stream = LibraryWatcher.watch(library)
+        try? await Task.sleep(for: Self.settling)
+        return stream
+    }
 
     /// The changes the watcher reports for what the test just did: the
     /// first within `deadline`, then whatever else lands in the `quiet`
@@ -64,7 +79,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.append("\nA line from Obsidian.\n", to: copy.appending(path: "Welcome.md"))
 
@@ -75,7 +90,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.write("# Circuits\n", to: copy.appending(path: "Topics/Circuits.md"))
 
@@ -86,7 +101,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.remove(copy.appending(path: "Topics/Agents.md"))
 
@@ -97,7 +112,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.rename(
             copy.appending(path: "Topics/Agents.md"), to: copy.appending(path: "Daily/Agents.md"))
@@ -114,7 +129,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.replace(copy.appending(path: "Welcome.md"), with: "# Saved by TextEdit\n")
 
@@ -125,7 +140,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.replace(copy.appending(path: "Projects/sketch.png"), with: "new bytes")
 
@@ -136,7 +151,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.append("not really PNG", to: copy.appending(path: "Projects/sketch.png"))
 
@@ -179,7 +194,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.write("{}", to: copy.appending(path: ".obsidian/workspace.json"))
         try OtherTool.write("", to: copy.appending(path: ".DS_Store"))
@@ -192,7 +207,7 @@ import Testing
         let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
         defer { Fixtures.discard(copy) }
         let library = try Library.open(at: copy)
-        let stream = LibraryWatcher.watch(library)
+        let stream = await settledWatch(on: library)
 
         try OtherTool.append("x", to: copy.appending(path: "Welcome.md"), times: 20)
 
