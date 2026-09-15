@@ -86,7 +86,9 @@ import Testing
         private var unread: [LibraryChange] = []
         private var consumer: Task<Void, Never>?
 
-        /// Async so the actor can hand itself to the consumer it starts.
+        /// Async, so isolated: the consumer captures `self` before `consumer`
+        /// is set, and only an isolated initializer may touch actor state
+        /// once `self` has escaped — weakly or not.
         init(_ stream: AsyncStream<LibraryChange>) async {
             consumer = Task { [weak self] in
                 for await change in stream { await self?.record(change) }
@@ -143,7 +145,7 @@ import Testing
         let watch = await SteppedWatch(settledWatch(on: library))
         let circuits = copy.appending(path: "Topics/Circuits.md")
         try OtherTool.write("# Circuits\n", to: circuits)
-        #expect(await watch.next() == [.entryAdded("Topics/Circuits.md")])
+        try #require(await watch.next() == [.entryAdded("Topics/Circuits.md")])
 
         try OtherTool.append("\nA line from Obsidian.\n", to: circuits)
 
@@ -158,7 +160,7 @@ import Testing
         let library = try Library.open(at: copy)
         let watch = await SteppedWatch(settledWatch(on: library))
         try OtherTool.remove(copy.appending(path: "Topics/Agents.md"))
-        #expect(await watch.next() == [.entryRemoved("Topics/Agents.md")])
+        try #require(await watch.next() == [.entryRemoved("Topics/Agents.md")])
 
         try OtherTool.append("\nA line from Obsidian.\n", to: copy.appending(path: "Welcome.md"))
 
@@ -177,8 +179,8 @@ import Testing
             "Topics", "Topics/Agents.md", "Topics/Alignment.md", "Topics/Interpretability.md",
             "Topics/Journal.md", "Topics/Scratch.md",
         ]
-        #expect(removed.count == entries.count)
-        #expect(entries.allSatisfy { removed.contains(.entryRemoved($0)) })
+        try #require(removed.count == entries.count)
+        for entry in entries { try #require(removed.contains(.entryRemoved(entry))) }
 
         try OtherTool.createFolder(copy.appending(path: "Topics"))
         try OtherTool.write("# Agents\n", to: copy.appending(path: "Topics/Agents.md"))
@@ -196,7 +198,7 @@ import Testing
         try OtherTool.rename(
             copy.appending(path: "Topics"),
             to: copy.deletingLastPathComponent().appending(path: "Topics"))
-        #expect(await watch.next() == [.entryRemoved("Topics")])
+        try #require(await watch.next() == [.entryRemoved("Topics")])
 
         try OtherTool.createFolder(copy.appending(path: "Topics"))
         try OtherTool.write("# Agents\n", to: copy.appending(path: "Topics/Agents.md"))

@@ -50,7 +50,7 @@ public enum OtherTool {
         try run("mkdir \"$1\"", url.path)
     }
 
-    /// Renames the file at `url` to `destination`.
+    /// Renames the file or folder at `url` to `destination`.
     public static func rename(_ url: URL, to destination: URL) throws {
         try run("mv \"$1\" \"$2\"", url.path, destination.path)
     }
