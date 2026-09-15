@@ -456,6 +456,34 @@ import Testing
         #expect(bare.map(\.target) == [.note(scratch), .note(morningJournal)])
     }
 
+    @Test func a_bare_title_matching_no_path_resolves_to_the_note_with_fewer_folders_above_it()
+        throws
+    {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        // Neither Shared.md sits at the root, so `[[Shared]]` is no path. The
+        // deeper one comes first in display order (Daily before Reading Notes)
+        // and has the shorter path, so only the depth rule (ADR 0016) picks the
+        // shallower.
+        try FileManager.default.createDirectory(
+            at: copy.appending(path: "Daily/Old"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: copy.appending(path: "Reading Notes"), withIntermediateDirectories: true)
+        try "Deep.\n".write(
+            to: copy.appending(path: "Daily/Old/Shared.md"), atomically: true, encoding: .utf8)
+        try "Shallow.\n".write(
+            to: copy.appending(path: "Reading Notes/Shared.md"), atomically: true, encoding: .utf8)
+        try "Which [[Shared]]?\n".write(
+            to: copy.appending(path: "Linker.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let linker = try note(at: "Linker.md", in: library)
+        let shallow = try note(at: "Reading Notes/Shared.md", in: library)
+
+        let index = Index.build(from: library)
+
+        #expect(index.links(from: linker).map(\.target) == [.note(shallow)])
+    }
+
     @Test func a_link_to_a_missing_target_is_unresolved_and_listed_with_its_linking_note() throws {
         let library = try Library.open(at: Fixtures.library("obsidian-vault"))
         let index = Index.build(from: library)
@@ -522,6 +550,27 @@ import Testing
             ])
     }
 
+    @Test func backlinks_whose_notes_share_a_title_are_sorted_by_path() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        // Display order would put `archive` before `Topics`; the fallback is
+        // the path's own order, which puts a capital first.
+        try FileManager.default.createDirectory(
+            at: copy.appending(path: "archive"), withIntermediateDirectories: true)
+        try "Hub.\n".write(
+            to: copy.appending(path: "Hub.md"), atomically: true, encoding: .utf8)
+        try "To [[Hub]].\n".write(
+            to: copy.appending(path: "Topics/Twin.md"), atomically: true, encoding: .utf8)
+        try "To [[Hub]].\n".write(
+            to: copy.appending(path: "archive/Twin.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let hub = try note(at: "Hub.md", in: library)
+
+        let index = Index.build(from: library)
+
+        #expect(index.backlinks(to: hub).map(\.note.path) == ["Topics/Twin.md", "archive/Twin.md"])
+    }
+
     @Test func a_backlinks_contexts_are_its_linking_lines_in_document_order_frontmatter_first()
         throws
     {
@@ -556,6 +605,21 @@ import Testing
         let backlink = try #require(index.backlinks(to: welcome).first { $0.note == twice })
         #expect(
             backlink.contexts == ["Twice: [[Welcome]] and [[welcome]].", "Once more: [[Welcome]]."])
+    }
+
+    @Test func a_context_line_in_a_note_with_windows_line_endings_ends_before_the_return() throws {
+        let copy = try Fixtures.temporaryCopy(of: "obsidian-vault")
+        defer { Fixtures.discard(copy) }
+        try "# Windows\r\n\r\nSee [[Welcome]] first.\r\nThen more.\r\n".write(
+            to: copy.appending(path: "Windows.md"), atomically: true, encoding: .utf8)
+        let library = try Library.open(at: copy)
+        let windows = try note(at: "Windows.md", in: library)
+        let welcome = try note(at: "Welcome.md", in: library)
+
+        let index = Index.build(from: library)
+
+        let backlink = try #require(index.backlinks(to: welcome).first { $0.note == windows })
+        #expect(backlink.contexts == ["See [[Welcome]] first."])
     }
 
     @Test func a_markdown_form_embed_resolves_relative_to_the_note() throws {
@@ -686,6 +750,22 @@ import Testing
                 "Nowhere.md", "Daily/2026-09-13.md", "Daily/Journal.md", "Topics/Journal.md",
             ])
         #expect(index.untagged == built.untagged)
+    }
+
+    @Test func adding_a_note_at_a_path_the_index_holds_replaces_it_with_the_new_parse() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let built = Index.build(from: library)
+        let scratch = try note(at: "Topics/Scratch.md", in: library)
+
+        // Topics/Scratch.md is untagged in the fixture; the new parse tags it.
+        let index = built.adding(scratch, parsed: ParsedNote.parse("# Scratch\n\nFiled. #daily\n"))
+
+        #expect(index.tags(of: scratch) == ["daily"])
+        #expect(
+            index.notes(tagged: "daily").map(\.path) == [
+                "Daily/2026-09-13.md", "Daily/Journal.md", "Topics/Journal.md", "Topics/Scratch.md",
+            ])
+        #expect(index.untagged.map(\.path) == ["Scratch.md", "Projects/Vitrine.md"])
     }
 
     @Test func removing_a_note_unresolves_links_to_it_and_takes_its_tags_out_of_the_tree() throws {
