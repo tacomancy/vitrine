@@ -428,6 +428,17 @@ import Testing
         #expect(search.results(for: "opened once").isEmpty)
     }
 
+    @Test func the_excerpt_of_a_note_outside_any_query_is_its_first_non_empty_line() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let search = Search.build(from: Index.build(from: library))
+        let welcome = try #require(library.note(at: "Welcome.md"))
+
+        // Welcome's first line is its frontmatter fence.
+        #expect(search.excerpt(of: welcome)?.text == "---")
+        #expect(search.excerpt(of: welcome)?.ranges == [])
+        #expect(search.removing(welcome).excerpt(of: welcome) == nil)
+    }
+
     /// The text a UTF-8 offset range points at.
     private func slice(_ text: String, _ range: Range<Int>) -> String {
         String(decoding: Array(text.utf8)[range], as: UTF8.self)

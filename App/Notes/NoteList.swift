@@ -16,8 +16,7 @@ struct NoteList: View {
                 let notes = selection.sidebar.notes(
                     in: library, index: index, recent: selection.recent)
                 CapsLabel(
-                    text: "\(notes.count.formatted()) notes · \(selection.sidebar.ordering)",
-                    color: Color(.fgMuted)
+                    text: "\(notes.count.formatted()) notes · \(ordering)", color: Color(.fgMuted)
                 )
                 .padding(.vertical, NoteListMetrics.headerPaddingVertical)
                 .padding(.horizontal, NoteListMetrics.headerInset)
@@ -37,5 +36,10 @@ struct NoteList: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .floatingSurface()
+    }
+
+    /// The header's word for the order the rows come in.
+    private var ordering: String {
+        selection.sidebar == .recent ? "opened ↓" : "modified ↓"
     }
 }

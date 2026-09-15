@@ -34,13 +34,9 @@ struct NoteRow: View {
         .accessibilityValue(note.modifiedLabel)
     }
 
-    /// Not a control in this spec: the tags read, they do not navigate. A
-    /// note with none keeps the line, so rows stay one height.
+    /// A note with no tags keeps the line, so rows stay one height.
     private var tagRow: some View {
-        Text(tags.map { "#" + $0 }.joined(separator: " "))
-            .font(.mono(.label, weight: .regular))
-            .foregroundStyle(Color(.link))
-            .lineLimit(1)
+        TagRow(tags: tags)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

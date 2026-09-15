@@ -11,7 +11,7 @@ struct SearchField: View {
     @FocusState private var isFocused: Bool
 
     private static let height: CGFloat = 24
-    private static let minimumWidth: CGFloat = 180
+    private static let width: CGFloat = 180
     private static let paddingHorizontal: CGFloat = 9
     private static let spacing: CGFloat = 7
     private static let glyphSize: CGFloat = 11
@@ -33,12 +33,12 @@ struct SearchField: View {
                     .foregroundStyle(Color(.fgMuted))
             }
             .padding(.horizontal, Self.paddingHorizontal)
-            .frame(minWidth: Self.minimumWidth, maxWidth: Self.minimumWidth)
+            .frame(width: Self.width)
             .frame(height: Self.height)
             .background(Color(.line), in: RoundedRectangle(cornerRadius: Radius.medium))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.medium)
-                    .stroke(Color(.lineStrong), lineWidth: Self.edgeWidth)
+                    .stroke(Color(.lineControl), lineWidth: Self.edgeWidth)
             )
             .contentShape(Rectangle())
         }

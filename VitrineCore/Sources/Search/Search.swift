@@ -101,6 +101,13 @@ public struct Search: Sendable {
             .map(\.element)
     }
 
+    /// The line the preview rail shows for `note` outside any query — the
+    /// first non-empty line of its text, nothing on it marked — or nil for
+    /// a note the search does not hold.
+    public func excerpt(of note: Note) -> Excerpt? {
+        notes.first { $0.note.path == note.path }?.excerpt(for: [])
+    }
+
     /// ADR 0018's ranking. The offset is the note's place in library
     /// display order, which breaks ties, so the sort need not be stable.
     private static func isInRankOrder(

@@ -11,29 +11,22 @@ import SwiftUI
 struct HostedOverlay<Content: View>: NSViewRepresentable {
     @ViewBuilder let content: () -> Content
 
-    func makeNSView(context: Context) -> KeyHostingView<Content> {
-        let hosting = KeyHostingView(rootView: content())
+    func makeNSView(context: Context) -> FirstResponderHostingView<Content> {
+        let hosting = FirstResponderHostingView(rootView: content())
         // The overlay takes the size it is given; its content must not size
         // the window.
         hosting.sizingOptions = []
         return hosting
     }
 
-    func updateNSView(_ hosting: KeyHostingView<Content>, context: Context) {
+    func updateNSView(_ hosting: FirstResponderHostingView<Content>, context: Context) {
         hosting.rootView = content()
     }
 
     func sizeThatFits(
-        _ proposal: ProposedViewSize, nsView: KeyHostingView<Content>, context: Context
+        _ proposal: ProposedViewSize, nsView: FirstResponderHostingView<Content>,
+        context: Context
     ) -> CGSize? {
         proposal.replacingUnspecifiedDimensions(by: .zero)
-    }
-}
-
-/// An `NSHostingView` that becomes its window's first responder on arrival.
-final class KeyHostingView<Content: View>: NSHostingView<Content> {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        window?.makeFirstResponder(self)
     }
 }

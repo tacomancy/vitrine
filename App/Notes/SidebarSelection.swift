@@ -29,11 +29,6 @@ enum SidebarSelection: Equatable {
         }
     }
 
-    /// The note list header's word for the order `notes` come in.
-    var ordering: String {
-        self == .recent ? "opened ↓" : "modified ↓"
-    }
-
     /// The folder a note created now goes in (spec #38 § Creating): the
     /// selected folder, or a selected note's; the root for All Notes,
     /// Recent, Untagged, or a tag — found in `library` as it is now.

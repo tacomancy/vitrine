@@ -54,7 +54,7 @@ final class PaletteState {
         pendingSearch = Task {
             try? await Task.sleep(for: Self.debounce)
             guard !Task.isCancelled else { return }
-            search()
+            runQuery()
         }
     }
 
@@ -65,7 +65,7 @@ final class PaletteState {
 
     /// The results for the query as the library is now — after a save or
     /// a watcher change replaced the `Search` while the palette was open.
-    func search() {
+    func runQuery() {
         results = currentLibrary.search?.results(for: query) ?? []
     }
 

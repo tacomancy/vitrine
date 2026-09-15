@@ -33,7 +33,8 @@ struct CommandPalette: View {
                     HStack(alignment: .top, spacing: 0) {
                         column(rows: rows, highlighted: highlighted)
                         PreviewRail(
-                            row: highlighted.map { rows[$0] }, index: currentLibrary.index)
+                            row: highlighted.map { rows[$0] }, index: currentLibrary.index,
+                            search: currentLibrary.search)
                     }
                     .frame(height: bodyHeight(in: geometry.size.height))
                     footer
@@ -49,7 +50,7 @@ struct CommandPalette: View {
         // A save or another tool's change while the palette is open: the
         // results are answered again by the Search that replaced the one
         // they came from.
-        .onChange(of: currentLibrary.library) { palette.search() }
+        .onChange(of: currentLibrary.library) { palette.runQuery() }
     }
 
     // MARK: Rows

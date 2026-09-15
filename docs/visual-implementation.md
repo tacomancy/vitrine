@@ -129,7 +129,9 @@ at the window's top edge:
   "— " and its name at `caption` in `fg-muted` follow. At the trailing
   end, inset 12 px, the **search field** (`SearchField`, spec #67): the
   mockup's 24 px control, 180 px wide, on `line` with a 1 px
-  `line-strong` edge at `Radius.medium`, holding an 11 px
+  `line-control` edge at `Radius.medium` — the mockup draws
+  `line-strong`, but the brief's accessibility contract gives a control's
+  border `line-control`, and the brief wins (ADR 0004) — holding an 11 px
   `magnifyingglass` in `fg-muted`, *Search* at `caption` in `fg-muted`,
   and `⌘K` in mono `label`. It is a plain button, not a field: it opens
   the command palette (§ The command palette), which holds the query. It
@@ -508,8 +510,10 @@ drawn selected, that opens its note — scope unchanged, history pushed.
 With none, one line of `caption` in `fg-muted`: *No notes link here.*
 **INFO** — the note's path in mono `label`, `fg-secondary`, truncated in
 the middle; its modification date at `caption` in `fg-secondary`, as
-`Sep 12, 2026 at 3:04 PM`; its tags as the note list's tag row (mono
-`label`, `link`), absent when it has none; and `N links · N backlinks ·
+`Sep 12, 2026 at 3:04 PM`; its tags as `TagRow` — the note list's tag
+row, mono `label` in `link`, one line, the one view the list, this rail,
+and the palette's preview rail share — absent when it has none; and
+`N links · N backlinks ·
 N unresolved` in mono `label`, `fg-muted`, counted from `links(from:)`
 and `backlinks(to:)`. No ANCHORS, and note-list rows are unchanged
 (spec #25).
@@ -525,7 +529,7 @@ shadow. The overlay is hosted in its own `NSHostingView`
 (`HostedOverlay`): SwiftUI paints its own views beneath every platform
 view in the same host, so a plain `.overlay` would sit under the gutter
 split view's panes, while platform views keep tree order among
-themselves. That hosting view (`KeyHostingView`) takes the window's
+themselves. That hosting view (`FirstResponderHostingView`) takes the window's
 first responder as it appears, so the palette's focus starts inside it;
 the scrim takes every click that misses the panel (and closes the
 palette on one), so the window beneath is inert. Opened by ⌘K — Go ›
@@ -535,7 +539,9 @@ open — or by the title bar's search field.
 
 The panel stacks the **header** — a 15 px `magnifyingglass` in `link`,
 then the query as a plain `TextField` at `lead`/regular in `fg`,
-placeholder *Search*, padded 14 × 16 px, the system focus ring off —
+placeholder *Search*, padded 14 × 16 px, the system focus ring off and
+no brass ring in its place (the brief's rule 7 names this one exception:
+the open palette is the focus) —
 over the **body**, 440 px tall (less in a short window, never under
 160), split into the results column and the 268 px **preview rail**,
 over the **footer**: `↑↓ navigate · ↩ open · esc close · ⌘⌫ clear`,
@@ -587,8 +593,9 @@ diacritic's two bytes wash one character.
 10 px apart, the `PREVIEW` caps label; for a highlighted note, its title
 at `lead` in `fg`; for a result, its `excerpt` at `compact` in
 `fg-secondary`, up to four lines with 5 px line spacing (the mockup's
-1.6), washed — a Recent row has no excerpt, since nothing was matched;
-the note's tags as the note list's tag row (mono `label`, `link`), absent
+1.6), washed — for a Recent row, `Search.excerpt(of:)`, the first
+non-empty line with nothing marked, since nothing was matched; the
+note's tags as `TagRow` (the note list's and the rail's line), absent
 when it has none; `N links · N backlinks` in mono `label` `fg-muted`,
 counted from `Index.links(from:)` and `backlinks(to:)`; and the
 modification date at `caption` in `fg-secondary`, as the editor's rail
