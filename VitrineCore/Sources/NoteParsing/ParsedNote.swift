@@ -9,8 +9,9 @@ public struct ParsedNote: Sendable, Equatable {
     /// Every `#tag` in the body in order of appearance, repeats included —
     /// deduplication is the Index's job, not the parser's.
     public let bodyTags: [Tag]
-    /// Every link in the body, wikilinks and Markdown links together, in
-    /// order of appearance. None is resolved (CONTEXT.md, Parsing).
+    /// Every link in the note in order of appearance: the wikilinks in
+    /// frontmatter values first, then the body's wikilinks and Markdown links
+    /// together. None is resolved (CONTEXT.md, Parsing).
     public let links: [Link]
     /// Every embed in the body, in order of appearance.
     public let embeds: [Embed]
@@ -26,7 +27,8 @@ public struct ParsedNote: Sendable, Equatable {
         scanner.scan()
         return ParsedNote(
             frontmatter: frontmatter, bodyRange: bodyStart..<end, bodyTags: scanner.tags,
-            links: scanner.links, embeds: scanner.embeds)
+            links: (frontmatter?.links ?? []).map(Link.wikilink) + scanner.links,
+            embeds: scanner.embeds)
     }
 
     /// The body starts on the line after the closing `---`; the line ending

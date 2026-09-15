@@ -215,7 +215,7 @@ struct BodyScanner {
             .markdown(
                 MarkdownLink(
                     destination: destination, displayText: displayText,
-                    isExternal: hasURLScheme(rawDestination), range: range)))
+                    isExternal: MarkdownLink.hasURLScheme(rawDestination), range: range)))
     }
 
     /// CommonMark lets a destination hold balanced parentheses, as in
@@ -233,26 +233,6 @@ struct BodyScanner {
             index += 1
         }
         return nil
-    }
-
-    /// RFC 3986: a scheme is a letter, then letters, digits, `+`, `-`, or
-    /// `.`, then `:` — so `https://…` and `mailto:…` are external and a
-    /// relative path is not.
-    private func hasURLScheme(_ destination: String) -> Bool {
-        var scalars = destination.unicodeScalars[...]
-        guard let first = scalars.popFirst(), isASCIILetter(first) else { return false }
-        for scalar in scalars {
-            if scalar == ":" { return true }
-            guard
-                isASCIILetter(scalar) || ("0"..."9").contains(scalar)
-                    || "+-.".unicodeScalars.contains(scalar)
-            else { return false }
-        }
-        return false
-    }
-
-    private func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {
-        ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
     }
 
     /// The index where `delimiter` next begins on the current line, or nil.

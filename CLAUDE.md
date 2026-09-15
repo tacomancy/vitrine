@@ -59,10 +59,10 @@ does (issue #36). The `Index` seam (issue #20) is
 aggregated per segment with the display spelling first seen in library
 display order (`CONTEXT.md` § Tags), answering `tags(of:)`, `tagTree`,
 `notes(tagged:)`, `untagged`, and `skipped` — a value, in memory only
-(ADR 0012), holding nothing about links or embeds (ADR 0003). Its 12
-tests in `IndexTests` open the Obsidian fixture through `Library` and
-assert counts written by hand (PR #34, plus `Topics/Agents.md` from
-#20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
+(ADR 0012); links and embeds waited for the spec that needed them
+(ADR 0003, then #26 below). Its 12 tag tests in `IndexTests` open the
+Obsidian fixture through `Library` and assert counts written by hand
+(PR #34, plus `Topics/Agents.md` from #20). The fixture lives in the `Fixtures` test-support target (ADR 0006,
 Index-seam Update). The screen (issue #21) is glue at the seam:
 `CurrentLibrary` builds the Index synchronously with every successful
 open, `SidebarSelection` grew Untagged and a tag so the sidebar stays one
@@ -70,11 +70,25 @@ scope, `TagTree` draws TOPICS the way `FileTree` draws FILES, and every
 `NoteRow` carries its tag row — nothing in the app target parses or
 aggregates, and `docs/visual-implementation.md` records the translation.
 
-Next: #25 follow links and see backlinks, whose tickets are #26 (the
-Index resolves links) and #27 (the Notes tab follows them). `/implement`
-per ticket on its own branch, clearing context between tickets. Update
-this section whenever the answer to "where are we?" changes — it's the
-first thing a fresh agent reads.
+**The third feature's seam work is built (issue #25, follow links and
+see backlinks; ticket #26).** `NoteParsing` reads wikilinks out of every
+frontmatter string value — each a `Link` flagged `isFromFrontmatter`,
+placed by Yams' scalar marks — five additive tests, none existing
+touched. `Index.build` resolves every link and embed per `CONTEXT.md`
+§ Links (path → title → alias → attachment name, case-insensitively;
+Markdown links relative to the note; external excluded; same-title ties
+by depth then display order, ADR 0016) and answers `links(from:)`,
+`backlinks(to:)` — one per linking note, sorted by title, with one
+context line per linking line — and `unresolvedLinks`; 18 tests in
+`IndexTests`, 15 against the Obsidian fixture as blessed and 3 on
+temporary copies of it. Against the real vault: 304 links, 31 from
+frontmatter, 20 to attachments, 57 unresolved — 45 of those are
+`[[x.ipynb\|shown]]` table escapes the parser does not yet read (#47).
+
+Next: #27 the clickable body, rail, and history — the last ticket of
+#25, now unblocked. `/implement` per ticket on its own branch, clearing
+context between tickets. Update this section whenever the answer to
+"where are we?" changes — it's the first thing a fresh agent reads.
 
 ## Engineering discipline
 
