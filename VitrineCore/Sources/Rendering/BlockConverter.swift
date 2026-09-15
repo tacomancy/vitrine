@@ -56,6 +56,11 @@ struct BlockConverter {
             ]
         case is ThematicBreak:
             return [Block(.thematicBreak, sourceRange: range)]
+        case let html as HTMLBlock:
+            // ADR 0019: HTML is reduced to its text; a block that is only
+            // tags — a comment, a `<br>` — draws nothing.
+            let text = html.rawHTML.strippingHTMLTags.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? [] : [Block(.paragraph([.text(text)]), sourceRange: range)]
         default:
             return []
         }
@@ -160,8 +165,16 @@ struct BlockConverter {
         }
     }
 
+    /// Adjacent text runs are one: dropping an HTML tag leaves the text on
+    /// either side of it, which reads as one run.
     private func children(of container: Markup) -> [Inline] {
-        container.children.flatMap { inlines(of: $0) }
+        container.children.flatMap { inlines(of: $0) }.reduce(into: []) { inlines, inline in
+            if case .text(let next) = inline, case .text(let previous)? = inlines.last {
+                inlines[inlines.endIndex - 1] = .text(previous + next)
+            } else {
+                inlines.append(inline)
+            }
+        }
     }
 
     /// The inlines one child becomes: none for markup with nothing to draw.
@@ -183,8 +196,11 @@ struct BlockConverter {
             return [.softBreak]
         case is LineBreak:
             return [.lineBreak]
-        default:
+        case is InlineHTML:
+            // ADR 0019: the tag itself is nothing; the text around it stays.
             return []
+        default:
+            return children(of: markup)
         }
     }
 }
@@ -218,6 +234,24 @@ extension Inline {
 }
 
 extension String {
+    /// The text with every `<…>` removed — an HTML comment whole, since it
+    /// may contain `>` — leaving what was between the tags (ADR 0019).
+    fileprivate var strippingHTMLTags: String {
+        var text = ""
+        var rest = self[...]
+        while let open = rest.firstIndex(of: "<") {
+            text += rest[..<open]
+            let tag = rest[open...]
+            let close =
+                tag.hasPrefix("<!--")
+                ? tag.range(of: "-->").map(\.upperBound)
+                : tag.firstIndex(of: ">").map(tag.index(after:))
+            guard let close else { return text }
+            rest = rest[close...]
+        }
+        return text + rest
+    }
+
     /// cmark reports a code block's every line with its ending, the last
     /// included; the block's text is the lines between the fences.
     fileprivate var trimmingTrailingNewline: String {

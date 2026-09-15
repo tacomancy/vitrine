@@ -1,3 +1,5 @@
+import Fixtures
+import Library
 import NoteParsing
 import Rendering
 import Testing
@@ -313,6 +315,137 @@ import Testing
                 Block(.image(source: .attachment("a.png"), alt: "", width: nil), sourceRange: 7..<17),
                 Block(.paragraph([.text("after")]), sourceRange: 18..<23),
             ])
+    }
+
+    @Test func a_markdown_link_keeps_a_url_as_written_and_decodes_a_relative_path() {
+        let text = "[site](https://example.com/?a=1&b=2) [note](../My%20Note.md)"
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(
+                    .paragraph([
+                        .link(destination: "https://example.com/?a=1&b=2", inlines: [.text("site")]),
+                        .text(" "),
+                        .link(destination: "../My Note.md", inlines: [.text("note")]),
+                    ]),
+                    sourceRange: 0..<60)
+            ])
+    }
+
+    @Test func a_wikilink_or_tag_inside_a_fence_or_inline_code_stays_text() {
+        let text = """
+            ```
+            [[x]] #tag
+            ```
+            Inline `[[x]] #tag` too.
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.codeBlock(language: nil, text: "[[x]] #tag"), sourceRange: 0..<18),
+                Block(
+                    .paragraph([.text("Inline "), .code("[[x]] #tag"), .text(" too.")]),
+                    sourceRange: 19..<43),
+            ])
+    }
+
+    @Test func quotes_and_dashes_stay_as_typed() {
+        let text = "\"quoted\" -- and 'single'..."
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.paragraph([.text("\"quoted\" -- and 'single'...")]), sourceRange: 0..<27)
+            ])
+    }
+
+    @Test func frontmatter_is_cut_and_the_first_block_starts_after_it() {
+        let text = """
+            ---
+            tags: [a]
+            ---
+            Body
+            """
+
+        let blocks = render(text)
+
+        #expect(blocks == [Block(.paragraph([.text("Body")]), sourceRange: 18..<22)])
+    }
+
+    @Test func inline_and_block_html_reduce_to_their_text() {
+        let text = """
+            Say <mark>hi</mark> there.
+
+            <div>
+            block html
+            </div>
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks == [
+                Block(.paragraph([.text("Say hi there.")]), sourceRange: 0..<26),
+                Block(.paragraph([.text("block html")]), sourceRange: 28..<51),
+            ])
+    }
+
+    @Test func every_blocks_source_range_slices_the_original_text_after_rewrites() {
+        let text = """
+            ---
+            title: x
+            ---
+            # [[Note|Intro]] #tag
+
+            Text with [[A]] and [[B|bee]] and #t1.
+            - [[C]] item
+            - ![[i.png|800]]
+
+            > [[D]] quoted
+            """
+
+        let blocks = render(text)
+
+        #expect(
+            blocks.map { slice(text, $0.sourceRange) } == [
+                "# [[Note|Intro]] #tag",
+                "Text with [[A]] and [[B|bee]] and #t1.",
+                "- [[C]] item\n- ![[i.png|800]]",
+                "> [[D]] quoted",
+            ])
+        guard case .list(_, _, let items) = blocks[2].kind, case .quote(let quoted) = blocks[3].kind
+        else {
+            Issue.record("expected a list and a quote")
+            return
+        }
+        #expect(items.map { $0.map { slice(text, $0.sourceRange) } } == [["[[C]] item"], ["![[i.png|800]]"]])
+        #expect(quoted.map { slice(text, $0.sourceRange) } == ["[[D]] quoted"])
+    }
+
+    // MARK: - The seam as a whole
+
+    @Test func every_note_in_the_obsidian_fixture_renders_to_at_least_one_block() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+
+        let empty = try library.allNotes.filter { note in
+            RenderedNote.render(ParsedNote.parse(try library.read(note))).isEmpty
+        }
+
+        #expect(!library.allNotes.isEmpty)
+        #expect(empty.map(\.path) == [])
+    }
+
+    @Test func blocks_cross_an_isolation_boundary() async {
+        let blocks = render("# Sent")
+
+        let received = await Task.detached { blocks }.value
+
+        #expect(received == blocks)
     }
 
     // MARK: - Helpers
