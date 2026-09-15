@@ -1,7 +1,8 @@
 /// `[shown](destination)`, resolved later by path relative to this note.
 public struct MarkdownLink: Sendable, Equatable {
-    /// The destination as a path or URL, percent-decoded, so Obsidian's
-    /// `My%20Note.md` is `My Note.md`.
+    /// The destination: a path percent-decoded, so Obsidian's `My%20Note.md`
+    /// is `My Note.md`; a URL exactly as written, since decoding one alters
+    /// it.
     public let destination: String
     /// The text between the square brackets.
     public let displayText: String

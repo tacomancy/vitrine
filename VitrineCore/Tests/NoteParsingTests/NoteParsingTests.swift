@@ -374,6 +374,24 @@ import Testing
             ])
     }
 
+    @Test func an_external_markdown_link_keeps_its_destination_as_written() {
+        let note = ParsedNote.parse("[shown](https://example.com/a%20b?q=1%262#frag)")
+
+        #expect(
+            note.links == [
+                .markdown(
+                    MarkdownLink(
+                        destination: "https://example.com/a%20b?q=1%262#frag", displayText: "shown",
+                        isExternal: true, range: 0..<47))
+            ])
+    }
+
+    @Test func an_embed_of_a_url_keeps_its_destination_as_written() {
+        let note = ParsedNote.parse("![alt](https://example.com/a%20b.png)")
+
+        #expect(note.embeds == [Embed(filename: "https://example.com/a%20b.png", range: 0..<37)])
+    }
+
     @Test func a_markdown_link_destination_may_contain_balanced_parentheses() {
         let note = ParsedNote.parse("[shown](Notes/Paper%20(2019).md) tail")
 

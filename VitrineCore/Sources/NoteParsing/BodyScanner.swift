@@ -208,9 +208,12 @@ struct BodyScanner {
         }
         let displayText = string(scalars[(position + 1)..<textEnd])
         let rawDestination = string(scalars[(textEnd + delimiterWidth)..<destinationEnd])
+        let isExternal = MarkdownLink.hasURLScheme(rawDestination)
         // Obsidian writes spaces in paths as %20; an undecodable destination
-        // is kept as written rather than lost.
-        let destination = rawDestination.removingPercentEncoding ?? rawDestination
+        // is kept as written rather than lost. A URL is kept as written too:
+        // decoding would turn its %26 into an `&` that splits the query.
+        let destination =
+            isExternal ? rawDestination : rawDestination.removingPercentEncoding ?? rawDestination
         position = destinationEnd + 1
         let range = offsets[start]..<offsets[position]
         if isEmbed {
@@ -220,8 +223,8 @@ struct BodyScanner {
         links.append(
             .markdown(
                 MarkdownLink(
-                    destination: destination, displayText: displayText,
-                    isExternal: MarkdownLink.hasURLScheme(rawDestination), range: range)))
+                    destination: destination, displayText: displayText, isExternal: isExternal,
+                    range: range)))
     }
 
     /// CommonMark lets a destination hold balanced parentheses, as in
