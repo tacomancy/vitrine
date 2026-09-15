@@ -261,6 +261,18 @@ import Testing
         #expect(note.bodyTags.map(\.name) == ["tag"])
     }
 
+    @Test func a_less_than_sign_before_a_space_is_a_comparison_and_hides_nothing() {
+        let note = ParsedNote.parse("a < b #tag > c")
+
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
+    @Test func a_closing_html_tag_is_stepped_over_like_an_opening_one() {
+        let note = ParsedNote.parse("</b #notatag> #tag")
+
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
     @Test func an_unclosed_delimiter_is_literal_text_and_scanning_continues_after_it() {
         let note = ParsedNote.parse(
             """
@@ -582,6 +594,52 @@ import Testing
             ])
         #expect(note.structure.headings.isEmpty)
         #expect(note.bodyTags.isEmpty)
+    }
+
+    @Test func a_closing_fence_may_be_longer_than_its_opener() {
+        let text = """
+            ```
+            #notatag
+            ````
+            #tag
+            """
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.structure.fencedCodeBlocks.map { slice(text, $0) } == ["```\n#notatag\n````"])
+        #expect(note.bodyTags.map(\.name) == ["tag"])
+    }
+
+    @Test func a_closing_fence_shorter_than_its_opener_does_not_close_the_block() {
+        let text = """
+            ~~~~
+            #notatag
+            ~~~
+            #still-inside
+            """
+
+        let note = ParsedNote.parse(text)
+
+        #expect(note.structure.fencedCodeBlocks.map { slice(text, $0) } == [text])
+        #expect(note.bodyTags.isEmpty)
+    }
+
+    @Test func a_fence_run_inside_a_line_does_not_close_the_block() {
+        let text = """
+            ```swift
+            let x = "```"
+            #notatag
+            ```
+            #tag
+            """
+
+        let note = ParsedNote.parse(text)
+
+        #expect(
+            note.structure.fencedCodeBlocks.map { slice(text, $0) } == [
+                "```swift\nlet x = \"```\"\n#notatag\n```"
+            ])
+        #expect(note.bodyTags.map(\.name) == ["tag"])
     }
 
     @Test func an_inline_code_span_covers_its_backticks_and_hides_links_and_tags() {
