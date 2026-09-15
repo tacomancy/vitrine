@@ -5,6 +5,11 @@
 # The two overrides exist because Xcode compiles local package targets with
 # -suppress-warnings and rejects treatAllWarnings(as:) in Package.swift;
 # passing them on the command line is the only way that reaches every target.
+# Every target includes the dependencies, and swift-markdown builds in the
+# Swift 5 language mode with Sendable warnings of its own (ADR 0019), so the
+# warnings-as-errors override is resolved per target: YES unless a
+# VITRINE_WARNINGS_AS_ERRORS_<target> setting says otherwise, and it does for
+# swift-markdown's one Swift target. Its warnings still print.
 #
 # The destination names arm64 because both the development machine and the
 # macos-26 runner are Apple silicon; without it xcodebuild warns about
@@ -22,4 +27,5 @@ xcodebuild test \
     -enableCodeCoverage YES \
     -resultBundlePath "$result_bundle" \
     SWIFT_SUPPRESS_WARNINGS=NO \
-    SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+    'SWIFT_TREAT_WARNINGS_AS_ERRORS=$(VITRINE_WARNINGS_AS_ERRORS_$(TARGET_NAME):default=YES)' \
+    VITRINE_WARNINGS_AS_ERRORS_Markdown=NO

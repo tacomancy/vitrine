@@ -12,6 +12,7 @@ xcodebuild build \
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$build_dir" \
     SWIFT_SUPPRESS_WARNINGS=NO \
-    SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+    'SWIFT_TREAT_WARNINGS_AS_ERRORS=$(VITRINE_WARNINGS_AS_ERRORS_$(TARGET_NAME):default=YES)' \
+    VITRINE_WARNINGS_AS_ERRORS_Markdown=NO
 
 open "$build_dir/Build/Products/Debug/Vitrine.app"

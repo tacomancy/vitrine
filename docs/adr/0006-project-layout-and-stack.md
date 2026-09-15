@@ -227,3 +227,22 @@ real sources:
   and its `PBXBuildFile` for each — the same two objects, once per product
   the app imports. Nothing else in the set changes; a seam the app does not
   read (`NoteParsing`, reached only through `Index`) is not linked.
+
+## Update (2026-09-15, from the Rendering seam)
+
+- **Warnings-as-errors is resolved per target, and swift-markdown is
+  exempt.** The command-line override above reaches every target, and
+  "every target" includes the dependencies. swift-markdown (ADR 0019)
+  builds in the Swift 5 language mode and carries `Sendable` warnings of
+  its own — three, in types Vitrine never touches — which the override
+  turned into errors and a red build. The diagnostic belongs to no group,
+  so SE-0443's `-Wwarning` cannot single it out. `Scripts/test.sh` and
+  `Scripts/run.sh` now pass
+  `SWIFT_TREAT_WARNINGS_AS_ERRORS=$(VITRINE_WARNINGS_AS_ERRORS_$(TARGET_NAME):default=YES)`
+  with `VITRINE_WARNINGS_AS_ERRORS_Markdown=NO`: YES for every target
+  unless a setting names it, and one does for swift-markdown's Swift
+  target. Its warnings still print; Vitrine's own targets are in the
+  Swift 6 language mode, where the same diagnostics are errors regardless.
+  The decision — zero warnings in Vitrine's code, enforced by the one
+  verification command — is unchanged; what changed is that a third
+  party's warnings are not Vitrine's to fix.
