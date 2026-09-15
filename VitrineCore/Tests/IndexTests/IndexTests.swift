@@ -67,8 +67,8 @@ import Testing
         // `agents` before `Alignment`: ASCII would put the capital first.
         #expect(
             index.tagTree.map(\.name) == [
-                "agents", "Alignment", "daily", "fixture", "interp", "project", "reading",
-                "vitrine",
+                "agents", "Alignment", "daily", "data", "fixture", "interp", "learning",
+                "project", "reading", "stats", "vitrine",
             ])
         let reading = try #require(index.tagTree.first { $0.path == "reading" })
         #expect(reading.children.map(\.name) == ["Notes", "paper"])
@@ -96,6 +96,131 @@ import Testing
         // The identity is case-insensitive, like the tag.
         #expect(index.notes(tagged: "Reading/NOTES").map(\.path) == ["Topics/Interpretability.md"])
         #expect(index.notes(tagged: "nowhere").isEmpty)
+    }
+
+    @Test func co_occurring_tags_count_each_note_once_per_other_tag_out_of_the_tags_notes()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Three notes carry stats or a tag under it: Bayesian Inference
+        // (stats/bayesian, learning/probabilistic, learning/supervised), Linear
+        // Regression (stats, learning/supervised, data/tabular), Survey Sampling
+        // (stats/frequentist, data/tabular, data/survey, learning/supervised).
+        #expect(
+            index.coOccurringTags(with: "stats") == [
+                TagCoOccurrence(tag: "learning", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "learning/supervised", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "data", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/tabular", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/survey", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 3),
+            ])
+    }
+
+    @Test func a_note_carrying_a_parent_and_two_of_its_children_counts_once_for_the_parent()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Only Topics/Alignment carries alignment; it carries interp/saes and
+        // interp/circuits, so it is one note under interp — not two.
+        #expect(
+            index.coOccurringTags(with: "alignment") == [
+                TagCoOccurrence(tag: "interp", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "interp/circuits", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "interp/saes", count: 1, outOf: 1),
+            ])
+    }
+
+    @Test func a_tags_own_ancestors_and_descendants_are_left_out_of_its_co_occurrence() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Every learning note carries learning/supervised, and one carries
+        // learning/probabilistic; neither is listed, nor learning itself.
+        #expect(
+            index.coOccurringTags(with: "learning").map(\.tag) == [
+                "stats", "data", "data/tabular", "data/survey", "stats/bayesian",
+                "stats/frequentist",
+            ])
+        // From below, the parent every learning/supervised note sits under.
+        #expect(!index.coOccurringTags(with: "learning/supervised").map(\.tag).contains("learning"))
+    }
+
+    @Test func co_occurring_tags_sort_by_count_descending_then_by_tag_name() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Among the single-note entries, data/survey was seen last in library
+        // order and learning/probabilistic first; the name decides.
+        #expect(
+            index.coOccurringTags(with: "learning/supervised") == [
+                TagCoOccurrence(tag: "stats", count: 3, outOf: 3),
+                TagCoOccurrence(tag: "data", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/tabular", count: 2, outOf: 3),
+                TagCoOccurrence(tag: "data/survey", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "stats/bayesian", count: 1, outOf: 3),
+                TagCoOccurrence(tag: "stats/frequentist", count: 1, outOf: 3),
+            ])
+    }
+
+    @Test func a_tag_carried_by_one_note_co_occurs_out_of_one() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Research/Bayesian Inference alone carries stats/bayesian.
+        #expect(
+            index.coOccurringTags(with: "stats/bayesian") == [
+                TagCoOccurrence(tag: "learning", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "learning/probabilistic", count: 1, outOf: 1),
+                TagCoOccurrence(tag: "learning/supervised", count: 1, outOf: 1),
+            ])
+    }
+
+    @Test func a_tag_no_note_carries_co_occurs_with_nothing() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        #expect(index.coOccurringTags(with: "nowhere").isEmpty)
+    }
+
+    @Test func notes_tagged_all_returns_the_notes_carrying_every_tag_or_a_descendant_of_each()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // Linear Regression carries stats bare; Survey Sampling carries
+        // stats/frequentist. Bayesian Inference carries no data tag.
+        #expect(
+            index.notes(taggedAll: ["stats", "data"]).map(\.path) == [
+                "Research/Linear Regression.md", "Research/Survey Sampling.md",
+            ])
+        // Topics/Alignment carries interp/saes and interp/circuits, and Alignment.
+        #expect(
+            index.notes(taggedAll: ["interp", "Alignment"]).map(\.path) == ["Topics/Alignment.md"])
+        #expect(index.notes(taggedAll: ["stats/bayesian", "data"]).isEmpty)
+    }
+
+    @Test func notes_tagged_all_with_no_tags_returns_every_note_in_display_order() throws {
+        let library = try Library.open(at: Fixtures.library("obsidian-vault"))
+        let index = Index.build(from: library)
+
+        // The root's notes, then each folder's in turn — untagged ones included.
+        #expect(
+            index.notes(taggedAll: []).map(\.path) == [
+                "Reading List.md", "Scratch.md", "Welcome.md",
+                "Daily/2026-09-13.md", "Daily/Journal.md",
+                "Projects/Vitrine.md",
+                "Research/Bayesian Inference.md", "Research/Linear Regression.md",
+                "Research/Survey Sampling.md",
+                "Topics/Agents.md", "Topics/Alignment.md", "Topics/Interpretability.md",
+                "Topics/Journal.md", "Topics/Scratch.md",
+            ])
     }
 
     @Test func untagged_is_exactly_the_notes_with_no_tag_in_frontmatter_or_body() throws {
@@ -590,7 +715,8 @@ import Testing
         // Only Welcome carried `vitrine` and `fixture`.
         #expect(
             index.tagTree.map(\.name) == [
-                "agents", "Alignment", "daily", "interp", "project", "reading",
+                "agents", "Alignment", "daily", "data", "interp", "learning", "project",
+                "reading", "stats",
             ])
         #expect(index.notes(tagged: "vitrine").isEmpty)
         #expect(index.untagged == built.untagged)

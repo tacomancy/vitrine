@@ -175,9 +175,27 @@ by a 70-check headless harness over the real glue and on screen against
 the vault snapshot; the two-app scenario with Obsidian on the live vault
 is the owner's to confirm.
 
-Next: the Preview spec — the rendered view behind the mockup's
-SOURCE / PREVIEW toggle, its own renderer under ADR 0011's policy (ADR
-0013) — through `/grill-with-docs` and `/to-spec` first.
+**The fifth feature is under way (issue #72, filter chips and the Tags
+tab): ① built (issue #73).** Two `Index` additions, pure over the
+cached parses and red-first against the Obsidian fixture:
+`coOccurringTags(with:)` answers the tag page's CO-OCCURS WITH — for
+the notes tagged a tag or a descendant, every other tag they carry or
+sit under, each note once per other tag, the tag's own ancestors and
+descendants left out, as `TagCoOccurrence` (`tag`, `count`, `outOf`)
+sorted by count then name — and `notes(taggedAll:)` answers the note
+list behind its chips: the notes carrying every listed tag or a
+descendant of each, in display order, an empty list narrowing nothing.
+`childTags(of:)` was struck: `TagTreeNode.children` already is that.
+The fixture grew `Research/` — three plain notes under fresh roots
+(`stats`, `learning`, `data`) so one tag has co-occurrences with
+distinct counts and ties for the sort to break; seven `IndexTests`
+assert hand-counted tuples, and on the vault snapshot `data_science`
+answers `14` notes with `machine_learning 6/14`, matching a grep count.
+Nothing on screen consumes either yet.
+
+Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
+(issue #75), in parallel; then the specs already written — search and
+the command palette (issue #67, ADR 0018) and Preview (issue #77).
 `/implement` per ticket on its own
 branch, clearing context between tickets. Update this section whenever
 the answer to "where are we?" changes — it's the first thing a fresh
