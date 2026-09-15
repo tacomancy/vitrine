@@ -3,10 +3,12 @@ import Foundation
 /// Library display order (CONTEXT.md, Index) read off two paths, so a
 /// note the tree was scanned without can be placed among the ones it was:
 /// a folder's own notes come before its subfolders', and every list is in
-/// the file tree's case-insensitive natural order.
-enum LibraryDisplayOrder {
+/// the file tree's case-insensitive natural order. Public for the seams
+/// that keep notes in this order one change at a time as the Index does
+/// (ADR 0017): Search adds a note where the Index would (ADR 0018).
+public enum LibraryDisplayOrder {
     /// Whether the note at `path` comes before the one at `other`.
-    static func precedes(_ path: String, _ other: String) -> Bool {
+    public static func precedes(_ path: String, _ other: String) -> Bool {
         let segments = path.split(separator: "/")
         let otherSegments = other.split(separator: "/")
         for (segment, otherSegment) in zip(segments.dropLast(), otherSegments.dropLast())

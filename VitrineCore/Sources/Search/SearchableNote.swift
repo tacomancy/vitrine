@@ -1,23 +1,22 @@
 import Library
 import NoteParsing
 
-/// One note as search holds it: the original title, aliases, and text
-/// beside their folded copies, so a query is matched against the folded
-/// ones and its matches shown in the originals.
+/// One note as search holds it: the note and its parse — the original
+/// title, aliases, and text — beside their folded copies, so a query is
+/// matched against the folded ones and its matches shown in the
+/// originals.
 struct SearchableNote: Sendable {
     let note: Note
-    let aliases: [String]
-    let text: String
-    let foldedTitle: [UInt8]
-    let foldedAliases: [[UInt8]]
-    let foldedText: [UInt8]
+    let parsed: ParsedNote
+    private let foldedTitle: [UInt8]
+    private let foldedAliases: [[UInt8]]
+    private let foldedText: [UInt8]
 
     init(note: Note, parsed: ParsedNote) {
         self.note = note
-        aliases = parsed.frontmatter?.aliases ?? []
-        text = parsed.text
+        self.parsed = parsed
         foldedTitle = TextFolding.fold(note.title)
-        foldedAliases = aliases.map(TextFolding.fold)
+        foldedAliases = (parsed.frontmatter?.aliases ?? []).map(TextFolding.fold)
         foldedText = TextFolding.fold(parsed.text)
     }
 
@@ -43,7 +42,7 @@ struct SearchableNote: Sendable {
     /// is in the text at all.
     func excerpt(for terms: [[UInt8]]) -> Excerpt {
         let newline = UInt8(ascii: "\n")
-        let lines = text.utf8.split(separator: newline, omittingEmptySubsequences: false)
+        let lines = parsed.text.utf8.split(separator: newline, omittingEmptySubsequences: false)
             .map(Self.withoutLineEnding)
         // A term holds no whitespace, so no match spans a line break, and
         // folding keeps every line break: the folded text's line is the
