@@ -308,13 +308,15 @@ around it. The list is the library's tags in tag tree order, kept to
 those whose path contains what is typed, case-insensitively — a path is
 lowercase — each a `SidebarRow` with the `#` glyph and the tag's whole
 display spelling (the spec's "tag paths" shown as the sidebar spells
-them) and no count, up to ten rows before it scrolls, or *No tags
-match.* at `caption` in `fg-muted`, padded 6 × 12 px, when nothing
-does. ↑ and ↓ move a **highlight** over the rows not yet chipped —
+them) and no count, the list as tall as its rows up to ten before it
+scrolls (a popover takes the height its content asks for, so a cap
+alone left a short list over empty ground), or *No tags match.* at
+`caption` in `fg-muted`, padded 6 × 12 px, when nothing does. ↑ and ↓ move a **highlight** over the rows not yet chipped —
 `SidebarRow.Emphasis.highlighted`: the selected-row pill, its text
 `fg`, its glyph muted rather than brass, since it is the keyboard's
 place in the list and not a nav item, as the palette's highlighted note
-will be — stopping at either end, and the list scrolls to keep it in
+will be; on the popover's raised ground the pill's fill is the ground's,
+and its sapphire rule is what marks the row — stopping at either end, and the list scrolls to keep it in
 view; it starts on the first such row and returns there as the query
 changes. ↩ adds the highlighted
 tag and closes; a click on a row adds that one and closes; Esc closes.

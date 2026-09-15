@@ -101,7 +101,12 @@ struct FilterPopover: View {
                         }
                     }
                 }
-                .frame(maxHeight: SidebarMetrics.rowHeight * Self.visibleRows)
+                // As tall as its rows, up to the cap: a popover takes the
+                // height its content asks for, so a maximum alone would
+                // leave the space under a short list empty.
+                .frame(
+                    height: SidebarMetrics.rowHeight * min(CGFloat(shown.count), Self.visibleRows)
+                )
                 .onChange(of: highlighted) { _, highlighted in
                     if let highlighted { proxy.scrollTo(highlighted) }
                 }
