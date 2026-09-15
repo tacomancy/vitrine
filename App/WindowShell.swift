@@ -35,9 +35,12 @@ struct WindowShell: View {
         .focusedSceneValue(\.notesSelection, selection)
         .focusedSceneValue(\.noteBuffer, buffer)
         // A different library takes the selection with it; the same one
-        // changed by a save keeps it, found again by path.
+        // changed by a save or by another tool keeps it, found again by
+        // path — the buffer first, since it decides whether the open note
+        // stays open (ADR 0014).
         .onChange(of: currentLibrary.library) { old, new in
             if let new, old?.rootURL == new.rootURL {
+                buffer.reconcile(with: new)
                 selection.refresh(from: new)
             } else {
                 selection.clear()

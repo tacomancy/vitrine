@@ -42,7 +42,9 @@ struct Sidebar: View {
                 .padding(.horizontal, SidebarMetrics.labelInset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: currentLibrary.library) {
+        // A different library starts folded; the same one changed by a save
+        // or another tool keeps what is open.
+        .onChange(of: currentLibrary.library?.rootURL) {
             expandedFolders = []
             expandedTags = []
         }

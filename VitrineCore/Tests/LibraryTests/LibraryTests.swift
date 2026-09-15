@@ -232,6 +232,15 @@ import Testing
         #expect(library.folder(at: "missing") == nil)
     }
 
+    @Test func a_notes_folderPath_is_the_path_of_the_folder_holding_it_empty_at_the_root()
+        throws
+    {
+        let library = try Library.open(at: Fixtures.library("scan-rules"))
+
+        #expect(try #require(library.note(at: "alpha/Same Title.md")).folderPath == "alpha")
+        #expect(try #require(library.note(at: "Same Title.md")).folderPath == "")
+    }
+
     // MARK: Writing
 
     @Test func write_then_read_returns_the_same_bytes_and_the_file_keeps_its_inode() throws {

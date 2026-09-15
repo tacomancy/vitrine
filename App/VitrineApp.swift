@@ -36,8 +36,23 @@ struct VitrineApp: App {
             // The Edit menu's Find submenu, which the editor's find bar answers
             // (ADR 0013); a Window scene has no Find of its own.
             TextEditingCommands()
-            // New replaces the system's New and Open: nothing on the menu is inert.
+            // New Note and Open Library… replace the system's New and Open:
+            // nothing on the menu is inert.
             CommandGroup(replacing: .newItem) {
+                // ⌘N: an Untitled note in the folder the sidebar has selected,
+                // or the root, opened with the caret in its title
+                // (spec #38 § Creating).
+                Button("New Note") {
+                    guard let library = currentLibrary.library, let selection else { return }
+                    let folder = selection.sidebar.folderForNewNotes(in: library)
+                    guard let note = try? currentLibrary.createUntitledNote(in: folder) else {
+                        return
+                    }
+                    selection.requestTitleFocus()
+                    selection.open(note)
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(currentLibrary.library == nil || selection == nil)
                 Button("Open Library…") {
                     // The window first, so a failure has somewhere to show its alert.
                     openWindow(id: Self.mainWindowID)

@@ -4,16 +4,20 @@ import Library
 import SwiftUI
 
 /// The editor pane (CONTEXT.md § Editor): the open note's path in a
-/// breadcrumb bar, its title, and its source in the text view — editable,
-/// its links live: a note link opens in place, an attachment or external
-/// link opens with the system. A note that cannot be read shows the reason
-/// in place of its text. Empty until a note is open.
+/// breadcrumb bar, its title in a field that renames it, and its source
+/// in the text view — editable, its links live: a note link opens in
+/// place, an unresolved one creates its note, an attachment or external
+/// link opens with the system. Between title and text, a bar when the
+/// file changed or went under the buffer (ADR 0014). A note that cannot
+/// be read shows the reason in place of its text. Empty until a note is
+/// open.
 struct Editor: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
     let buffer: NoteBuffer
 
     @State private var isTextFocused = false
+    @FocusState private var isTitleFocused: Bool
 
     private static let breadcrumbHeight: CGFloat = 34
     private static let breadcrumbInset: CGFloat = 16
@@ -30,11 +34,17 @@ struct Editor: View {
                 let note = buffer.note
             {
                 breadcrumb(for: note)
-                Text(note.title)
-                    .font(.sans(.title, weight: .semibold))
-                    .foregroundStyle(Color(.fg))
-                    .padding(.top, Self.pagePadding.top)
-                    .padding(.horizontal, Self.pagePadding.leading)
+                TitleField(
+                    note: note, rename: { title in rename(note, to: title) },
+                    isFocused: $isTitleFocused
+                )
+                .padding(.top, Self.pagePadding.top)
+                .padding(.horizontal, Self.pagePadding.leading)
+                if let conflict = buffer.conflict {
+                    ConflictBar(conflict: conflict, buffer: buffer, selection: selection)
+                        .padding(.top, Self.titleSpacing)
+                        .padding(.horizontal, Self.pagePadding.leading)
+                }
                 if let failure = buffer.saveFailure {
                     // The one thing the buffer says about itself: a save that
                     // could not write, so the text on screen is not on disk.
@@ -49,6 +59,10 @@ struct Editor: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .floatingSurface()
+        // A note ⌘N just created opens with the caret in its title.
+        .onChange(of: buffer.note?.path) {
+            if selection.takeTitleFocusRequest() { isTitleFocused = true }
+        }
     }
 
     private func breadcrumb(for note: Note) -> some View {
@@ -95,7 +109,7 @@ struct Editor: View {
     /// Following a link (CONTEXT.md § Links): a note opens here and pushes
     /// history, scope untouched; an attachment opens with its default app;
     /// an external link with the system's handler; an unresolved link
-    /// leads nowhere yet.
+    /// creates its note in the folder a new note goes in and opens it.
     private func follow(_ destination: BodyLink.Destination, in library: Library) {
         switch destination {
         case .note(let note): selection.open(note)
@@ -105,7 +119,37 @@ struct Editor: View {
         case .attachment(let attachment):
             _ = NSWorkspace.shared.open(library.rootURL.appending(path: attachment.path))
         case .external(let url): _ = NSWorkspace.shared.open(url)
-        case .unresolved: break
+        case .unresolved(let target):
+            let folder = selection.sidebar.folderForNewNotes(in: library)
+            // A title the folder refuses — one it already has, say — creates
+            // nothing; the link stays unresolved, as it was.
+            guard
+                let note = try? currentLibrary.createNote(named: Self.title(of: target), in: folder)
+            else { return }
+            selection.open(note)
+        }
+    }
+
+    /// The title a note created from an unresolved link takes: the target's
+    /// last path component, without the `.md` a path-form wikilink or a
+    /// Markdown link may carry — the note is created in one folder, never
+    /// along the target's path.
+    private static func title(of target: String) -> String {
+        let name = target.split(separator: "/").last.map(String.init) ?? target
+        return Library.isNote(name) ? String(name.dropLast(".md".count)) : name
+    }
+
+    /// The title field's rename: the note's path changes under the buffer
+    /// and the selection, so both follow before the library's change
+    /// reaches the panes. Answers with why the rename was refused, or nil.
+    private func rename(_ note: Note, to title: String) -> LibraryError? {
+        do {
+            let renamed = try currentLibrary.renameNote(note, to: title)
+            buffer.renamed(to: renamed)
+            selection.renamed(note, to: renamed)
+            return nil
+        } catch {
+            return error
         }
     }
 }

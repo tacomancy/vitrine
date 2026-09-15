@@ -14,6 +14,14 @@ public struct Note: Sendable, Hashable {
 }
 
 extension Note {
+    /// The path of the folder holding the note, relative to the library
+    /// root; empty for a note in the root — what `Library.folder(at:)`
+    /// finds that folder by.
+    public var folderPath: String {
+        guard let slash = path.lastIndex(of: "/") else { return "" }
+        return String(path[..<slash])
+    }
+
     /// This note carrying `modifiedAt` instead; the rest untouched.
     func with(modifiedAt: Date) -> Note {
         Note(name: name, path: path, title: title, modifiedAt: modifiedAt)
