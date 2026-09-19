@@ -2,15 +2,21 @@ import Library
 import Observation
 
 /// What the Notes tab has selected: the sidebar row, which scopes the note
-/// list, the note open in the editor, and the back / forward history of
-/// notes opened this session. Plain view state, shared by the panes because
-/// each is hosted on its own (spec #8 § Selection state); the note list,
-/// editor, and rail derive everything from it, `Library`, and `Index`.
+/// list, the note open in the editor, the back / forward history of notes
+/// opened this session, and Recent — the same notes by when they were
+/// last opened. Plain view state, shared by the panes because each is
+/// hosted on its own (spec #8 § Selection state); the note list, editor,
+/// rail, and command palette derive everything from it, `Library`,
+/// `Index`, and `Search`.
 @Observable
 final class NotesSelection {
     private(set) var sidebar: SidebarSelection = .allNotes
     /// The note open in the editor; `nil` leaves the editor empty.
     private(set) var openNote: Note?
+    /// Recent (CONTEXT.md): every note opened this session, the one opened
+    /// last first and each once — the open note at the front while one is
+    /// open. Never persisted, cleared with the library.
+    private(set) var recent: [Note] = []
     /// The notes opened this session up to and including the open one, as
     /// browsers keep them: never persisted, cleared with the library
     /// (spec #25 § History).
@@ -32,6 +38,10 @@ final class NotesSelection {
         sidebar = .untagged
     }
 
+    func selectRecent() {
+        sidebar = .recent
+    }
+
     /// Selecting a tag by its path (a `TagTreeNode`'s) deselects whatever
     /// folder or note was selected: the sidebar is one scope.
     func select(tagAt path: String) {
@@ -48,6 +58,7 @@ final class NotesSelection {
         sidebar = .note(note, in: folder)
         push(note)
         openNote = note
+        remember(note)
     }
 
     /// Opening a note — from a note list row, a link, or a backlink — shows
@@ -77,6 +88,7 @@ final class NotesSelection {
         guard let openNote else { return }
         history.removeAll { $0.path == openNote.path }
         forward.removeAll { $0.path == openNote.path }
+        recent.removeAll { $0.path == openNote.path }
         self.openNote = nil
     }
 
@@ -88,6 +100,7 @@ final class NotesSelection {
         openNote = openNote.map(replacing)
         history = history.map(replacing)
         forward = forward.map(replacing)
+        recent = recent.map(replacing)
         if case .note(let highlighted, in: let folder) = sidebar, highlighted.path == note.path {
             sidebar = .note(renamed, in: folder)
         }
@@ -125,14 +138,17 @@ final class NotesSelection {
         }
         history = withoutRepeats(history.compactMap(refreshed))
         forward = withoutRepeats(forward.compactMap(refreshed))
+        recent = recent.compactMap(refreshed)
     }
 
-    /// A library that has been replaced takes its selection and history with it.
+    /// A library that has been replaced takes its selection, history, and
+    /// Recent with it.
     func clear() {
         sidebar = .allNotes
         openNote = nil
         history = []
         forward = []
+        recent = []
         isTitleFocusRequested = false
     }
 
@@ -154,8 +170,16 @@ final class NotesSelection {
 
     private func show(_ note: Note) {
         openNote = note
+        remember(note)
         if case .note(let highlighted, in: let folder) = sidebar, highlighted != note {
             sidebar = .folder(folder)
         }
+    }
+
+    /// `note` was just opened — by any route, Back and Forward included —
+    /// so it moves to the front of Recent.
+    private func remember(_ note: Note) {
+        recent.removeAll { $0.path == note.path }
+        recent.insert(note, at: 0)
     }
 }

@@ -213,8 +213,8 @@ tag* prompt. `docs/visual-implementation.md` records all of it, the bar
 ramp included. ② (issue #74) — filter chips on the Notes tab — will
 reuse `InfoChip` and `WrappingRow`.
 
-**The sixth feature is under way (issue #67, search and the command
-palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
+**The sixth feature is built (issue #67, search and the command
+palette; tickets #68 and #69).** The `Search` seam (issue #68)
 is `Search.build(from: Index)`: every read note's title, aliases, and
 full text folded case- and diacritic-insensitively from the parses the
 Index caches — handed out by the new `Index.parsedNotes` — and scanned
@@ -232,8 +232,29 @@ against the Obsidian fixture, which gained `Topics/Café.md` (a
 diacritic, a `citekey:`, an alias, `#todo`). Measured on the real vault
 (79 notes, 460 KB): every query under 3 ms in release, under 10 ms in
 debug, once the byte search moved to `memmem` (ADR 0018, Update).
-Nothing on screen consumes it yet; ② is the palette, the title-bar
-field, and the *Recent* row.
+The screen (issue #69) is glue at the seam, with one seam addition,
+red-first: `Search.applying(_:in:)` folds a `LibraryChange` into the
+search from the parses the Index already re-read — the mirror of
+`Index.applying` (ADR 0018, second Update; five `SearchTests`) — so
+`CurrentLibrary` keeps library, Index, and Search current together on
+every save, create, rename, and watcher change. `CommandPalette` is the
+first overlay — a `bg-overlay` scrim and the 760 px panel, hosted in
+its own `NSHostingView` (`HostedOverlay`) because SwiftUI paints under
+the split view's AppKit panes — opened by ⌘K (Go › Search…, through
+`FocusedPaletteState`) or the title bar's new `SearchField`;
+`PaletteState` debounces the query 50 ms and asks `Search`; NOTES rows
+wash `titleRanges` in `accent-quiet` (`HighlightWash`), the preview
+rail draws the excerpt, tags, and counts from `Index`, ACTIONS are
+`PaletteAction` run through `WindowCommands` — what the menu bar's New
+Note and Open Library… now run too. `NotesSelection.recent` is Recent
+(`CONTEXT.md`): the sidebar's *Recent* row scopes the note list to it
+under `OPENED ↓`, and the palette lists it for an empty query with the
+open note left out. `docs/visual-implementation.md` records all of it.
+Verified by a 45-check headless harness over the real glue on the vault
+snapshot — `WindowShell` rendered offscreen with the palette open, keys
+sent through the query field, hit tests proving the window inert — and
+owed one on-screen pass: that the query field takes focus on open in a
+key window, which a locked screen cannot show.
 
 **The seventh and last v1 feature is under way (issue #77, Preview —
 render a note; tickets #78 and its screen ticket): ① built.** The
@@ -257,9 +278,7 @@ warnings are exempt from warnings-as-errors per target in
 `Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
 yet.
 
-Next: ② filter chips on the Notes tab (issue #74), which completes the
-fifth feature; ticket #69 — the palette, the title-bar field,
-and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
+Next: Preview's ② on screen — the SOURCE / PREVIEW
 toggle and ⌘E, the remembered setting, block views over `[Block]`, click
 routing through `Index`, re-render timing — with
 `docs/visual-implementation.md` recording the typography.

@@ -4,17 +4,22 @@ import Library
 import LibraryWatcher
 import NoteParsing
 import Observation
+import Search
 
-/// The one library open in the window (ADR 0007), its Index, and the rule
-/// for opening another: a successful open replaces both and remembers the
-/// path; a failed open changes nothing. No library is First run. While a
-/// library is open it is watched (ADR 0014): what another tool does to it
-/// is folded into the library and the Index as it happens.
+/// The one library open in the window (ADR 0007), its Index and Search,
+/// and the rule for opening another: a successful open replaces all three
+/// and remembers the path; a failed open changes nothing. No library is
+/// First run. While a library is open it is watched (ADR 0014): what
+/// another tool does to it is folded into the library, the Index, and
+/// the Search as it happens.
 @Observable
 final class CurrentLibrary {
     private(set) var library: Library?
     /// The open library's Index, built with it; `nil` exactly when `library` is.
     private(set) var index: Index?
+    /// The open library's Search, built from the Index and kept current
+    /// beside it (ADR 0018); `nil` exactly when `library` is.
+    private(set) var search: Search?
     /// Why the last open from the panel failed; cleared when the alert closes.
     var openFailure: LibraryError?
     /// Why the last note ⌘N or a link tried to create was not; cleared
@@ -52,28 +57,30 @@ final class CurrentLibrary {
     }
 
     /// Writes `parsed.text` to `note` in place and folds the parse into
-    /// the Index (ADR 0014, ADR 0017): the library and Index on screen are
-    /// replaced together, and the note comes back as the library holds it
-    /// now, with its new modification date. Throws what `Library.write`
-    /// throws, and then nothing has changed.
+    /// the Index and Search (ADR 0014, ADR 0017, ADR 0018): the three on
+    /// screen are replaced together, and the note comes back as the
+    /// library holds it now, with its new modification date. Throws what
+    /// `Library.write` throws, and then nothing has changed.
     func save(_ parsed: ParsedNote, to note: Note) throws(LibraryError) -> Note {
-        var (library, index) = opened()
+        var (library, index, search) = opened()
         try library.write(parsed.text, to: note)
         guard let saved = library.note(at: note.path) else { throw .noteMissing }
         self.index = index.updating(saved, parsed: parsed)
+        self.search = search.updating(saved, parsed: parsed)
         self.library = library
         return saved
     }
 
     /// Creates an empty note titled `title` in `folder` and folds it into
-    /// the Index, so links elsewhere to that title resolve at once; the
-    /// note comes back as the library holds it. Throws what
+    /// the Index and Search, so links elsewhere to that title resolve at
+    /// once; the note comes back as the library holds it. Throws what
     /// `Library.createNote` throws, and then nothing has changed.
     func createNote(named title: String, in folder: Folder) throws(LibraryError) -> Note {
-        var (library, index) = opened()
+        var (library, index, search) = opened()
         let note = try library.createNote(named: title, in: folder)
-        index = index.adding(note, parsed: ParsedNote.parse(""))
-        self.index = index
+        let parsed = ParsedNote.parse("")
+        self.index = index.adding(note, parsed: parsed)
+        self.search = search.adding(note, parsed: parsed)
         self.library = library
         return note
     }
@@ -81,20 +88,20 @@ final class CurrentLibrary {
     /// The new note ⌘N makes: `Untitled`, or the first `Untitled N` the
     /// folder does not have (CONTEXT.md § Note).
     func createUntitledNote(in folder: Folder) throws(LibraryError) -> Note {
-        let (library, _) = opened()
+        let (library, _, _) = opened()
         return try createNote(named: library.uniqueUntitledName(in: folder), in: folder)
     }
 
-    /// Renames `note` to `title` within its folder and tells the Index, so
-    /// links by either title re-resolve; the note comes back as the
-    /// library holds it. Links elsewhere are not rewritten (CONTEXT.md
-    /// § Note). Throws what `Library.renameNote` throws, and then nothing
-    /// has changed.
+    /// Renames `note` to `title` within its folder and tells the Index and
+    /// Search, so links by either title re-resolve and the new title is
+    /// findable; the note comes back as the library holds it. Links
+    /// elsewhere are not rewritten (CONTEXT.md § Note). Throws what
+    /// `Library.renameNote` throws, and then nothing has changed.
     func renameNote(_ note: Note, to title: String) throws(LibraryError) -> Note {
-        var (library, index) = opened()
+        var (library, index, search) = opened()
         let renamed = try library.renameNote(note, to: title)
-        index = index.renaming(note, to: renamed)
-        self.index = index
+        self.index = index.renaming(note, to: renamed)
+        self.search = search.renaming(note, to: renamed)
         self.library = library
         return renamed
     }
@@ -102,17 +109,19 @@ final class CurrentLibrary {
     /// A note is saved, created, or renamed in an open library — every
     /// caller reads it from this one — so having none is a programming
     /// error, not a case.
-    private func opened() -> (Library, Index) {
-        guard let library, let index else {
+    private func opened() -> (Library, Index, Search) {
+        guard let library, let index, let search else {
             preconditionFailure("A note is written into the library it was read from.")
         }
-        return (library, index)
+        return (library, index, search)
     }
 
     // ADR 0012: the Index is built here, synchronously, so a library is never
-    // on screen without its tags — no loading state.
+    // on screen without its tags — no loading state; the Search likewise.
     private func replace(with library: Library) {
-        index = Index.build(from: library)
+        let index = Index.build(from: library)
+        self.index = index
+        search = Search.build(from: index)
         self.library = library
         watch(library)
     }
@@ -131,12 +140,15 @@ final class CurrentLibrary {
         }
     }
 
-    /// The library and Index with `change` reflected (ADR 0014, ADR 0017),
-    /// replaced together so no pane sees one without the other.
+    /// The library, Index, and Search with `change` reflected (ADR 0014,
+    /// ADR 0017, ADR 0018), replaced together so no pane sees one without
+    /// the others.
     private func apply(_ change: LibraryChange) {
-        let (library, index) = opened()
+        let (library, index, search) = opened()
         let changed = library.applying(change)
-        self.index = index.applying(change, in: changed)
+        let indexed = index.applying(change, in: changed)
+        self.index = indexed
+        self.search = search.applying(change, in: indexed)
         self.library = changed
     }
 }
