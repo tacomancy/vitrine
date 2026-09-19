@@ -90,6 +90,10 @@ body.wide .colophon {
   background: var(--color-bg-sunken);
 }
 
+/* Narrower than the scale floor (gallery.js): the frame scrolls sideways.
+   The scaled iframe extends the scrollable area on its own. */
+.frame.scrolls { overflow-x: auto; }
+
 .open {
   margin: var(--space-3) 0 0;
   font-family: var(--font-mono);
