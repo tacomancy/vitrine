@@ -51,8 +51,12 @@ function hostOver(port: ParentPort): Host {
 }
 
 const staticDir = process.env["VITRINE_STATIC_DIR"];
+// Overridable so a verification run can start from a folder of its own
+// rather than the real Application Support.
+const appSupportDir = process.env["VITRINE_APP_SUPPORT_DIR"];
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
+  ...(appSupportDir === undefined ? {} : { appSupportDir }),
   ...(parentPort ? { host: hostOver(parentPort) } : {}),
 });
 

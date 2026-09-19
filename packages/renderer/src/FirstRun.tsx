@@ -24,7 +24,7 @@ export function FirstRun() {
       <div className={styles.column}>
         <p className={styles.promise}>
           Your files stay plain Markdown on disk. Vitrine keeps its own state in
-          one folder beside them, and touches nothing else.
+          one folder beside them.
         </p>
         <button
           type="button"
