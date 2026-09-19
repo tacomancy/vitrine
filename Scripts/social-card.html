@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Source of website/social.png, the Open Graph image. Rendered by Scripts/render-social-card.sh; not a page on the site. -->
+    <meta charset="utf-8" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300&family=Inter:wght@400&family=IBM+Plex+Mono:wght@400&display=swap"
+    />
+    <link rel="stylesheet" href="../docs/reference/branding/tokens.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        background: var(--color-bg);
+        color: var(--color-fg);
+        font-family: var(--font-sans);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 96px;
+        box-sizing: border-box;
+      }
+      .lockup {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        margin-bottom: 56px;
+      }
+      .wordmark {
+        font-family: var(--font-display);
+        font-weight: 300;
+        font-size: 56px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--color-accent);
+        transform: translateY(5px);
+      }
+      h1 {
+        margin: 0 0 28px;
+        font-family: var(--font-display);
+        font-weight: 300;
+        font-size: 68px;
+        line-height: 1.06;
+        letter-spacing: -0.022em;
+        color: var(--color-fg);
+        max-width: 780px;
+      }
+      p {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.5;
+        color: var(--color-fg-secondary);
+        max-width: 900px;
+      }
+      .eyebrow {
+        position: absolute;
+        right: 96px;
+        bottom: 56px;
+        font-family: var(--font-mono);
+        font-size: 20px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--color-fg-muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lockup">
+      <img
+        src="../docs/reference/branding/assets/mark-case.svg"
+        width="76"
+        height="76"
+        alt=""
+      /><span class="wordmark">Vitrine</span>
+    </div>
+    <h1>Built around the question, not the note.</h1>
+    <p>
+      A local-first research workspace. Questions carry their provenance,
+      sources argue for and against, Scouts propose and never decide.
+    </p>
+    <div class="eyebrow">tacomancy.com</div>
+  </body>
+</html>
