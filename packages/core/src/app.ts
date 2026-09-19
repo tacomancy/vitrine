@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import type { Host } from "./host.js";
+import { createQuestionService } from "./questions.js";
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
 
@@ -13,16 +14,31 @@ export type AppOptions = {
   host: Host;
   /** The core's own state folder; a temp folder in tests. */
   appSupportDir: string;
+  /** The clock and id source; tests pin them so a written file is predictable. */
+  now?: () => Date;
+  newId?: () => string;
 };
 
 /**
  * The core as a plain Hono app, constructible in-process so tests can call
  * procedures with `app.request(...)` and no socket.
  */
-export function createApp({ token, host, appSupportDir }: AppOptions): Hono {
+export function createApp({
+  token,
+  host,
+  appSupportDir,
+  now,
+  newId,
+}: AppOptions): Hono {
   const app = new Hono();
+  const vault = createVaultService({ host, appSupportDir });
   const context: Context = {
-    vault: createVaultService({ host, appSupportDir }),
+    vault,
+    questions: createQuestionService({
+      vault,
+      ...(now === undefined ? {} : { now }),
+      ...(newId === undefined ? {} : { newId }),
+    }),
   };
 
   // The renderer is served from the Vite dev server in development and from

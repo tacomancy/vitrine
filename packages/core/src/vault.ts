@@ -4,9 +4,10 @@ import type { Host } from "./host.js";
 
 export type Vault = { name: string; path: string };
 
-export type VaultErrorKind = "notAFolder" | "unreadable";
+export type VaultErrorKind =
+  "notAFolder" | "unreadable" | "noVault" | "writeFailed";
 
-/** Why an open was refused, with a message fit to show as it is. */
+/** Why the vault refused an open or a write, with a message fit to show as it is. */
 export class VaultError extends Error {
   constructor(
     readonly kind: VaultErrorKind,

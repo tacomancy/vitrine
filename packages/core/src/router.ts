@@ -1,11 +1,13 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import { z } from "zod";
+import type { QuestionService } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
 
-export type Context = { vault: VaultService };
+export type Context = { vault: VaultService; questions: QuestionService };
 
 const t = initTRPC.context<Context>().create({
-  // A refused open reaches the client as a plain message plus its kind
-  // (notAFolder | unreadable), the typed errors the vault contract promises.
+  // A refused open or write reaches the client as a plain message plus its
+  // kind (VaultErrorKind), the typed errors the vault contract promises.
   errorFormatter: ({ shape, error }) => {
     const cause = error.cause;
     const kind = cause instanceof VaultError ? cause.kind : undefined;
@@ -13,19 +15,15 @@ const t = initTRPC.context<Context>().create({
   },
 });
 
-// The one input shape this slice takes; a schema library can replace this
-// when a second procedure needs one.
-function pathInput(value: unknown): { path: string } {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "path" in value &&
-    typeof value.path === "string"
-  ) {
-    return { path: value.path };
-  }
-  throw new Error("expected { path: string }");
-}
+const pathInput = z.object({ path: z.string() });
+
+// Only Unattached exists yet. `strict` is what makes a `from` key — or any
+// later context — an input error today, so later contexts extend this
+// schema rather than change what callers already rely on.
+const captureInput = z.object({
+  text: z.string().trim().min(1, "Question text is empty."),
+  provenance: z.object({ context: z.literal("other") }).strict(),
+});
 
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
 async function refusing<T>(work: Promise<T>): Promise<T> {
@@ -51,6 +49,13 @@ export const router = t.router({
       .input(pathInput)
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
+  }),
+  questions: t.router({
+    capture: t.procedure
+      .input(captureInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.capture(input.text, input.provenance))
+      ),
   }),
 });
 
