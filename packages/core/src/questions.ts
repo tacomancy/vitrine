@@ -173,20 +173,30 @@ export function createQuestionService({
         context: provenance.context,
       };
       const folder = join(current.path, "questions");
-      await mkdir(folder, { recursive: true });
-      const path = await freePath(
-        folder,
-        fileName(question.question, question.id)
-      );
-      const written: Question = { ...question, path };
-      await writeAtomically(path, questionFile(written));
-      if (!(await exists(join(current.path, ".vitrine", "vault.json")))) {
-        await ensureVaultMeta(current.path, {
-          id: nextId(),
-          created: question.captured,
-        });
+      try {
+        await mkdir(folder, { recursive: true });
+        const path = await freePath(
+          folder,
+          fileName(question.question, question.id)
+        );
+        const written: Question = { ...question, path };
+        await writeAtomically(path, questionFile(written));
+        if (!(await exists(join(current.path, ".vitrine", "vault.json")))) {
+          await ensureVaultMeta(current.path, {
+            id: nextId(),
+            created: question.captured,
+          });
+        }
+        return written;
+      } catch (cause) {
+        // Permissions, a full disk, a folder that vanished: the text stays
+        // in the capture line with this message, never lost and never silent.
+        const reason = cause instanceof Error ? cause.message : String(cause);
+        throw new VaultError(
+          "writeFailed",
+          `Couldn't write the Question into ${folder}: ${reason}`
+        );
       }
-      return written;
     },
   };
 }

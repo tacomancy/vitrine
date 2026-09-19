@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fileName, newId } from "./questions.js";
 import { core, fingerprint, tmp } from "./test-core.js";
 
@@ -228,5 +228,32 @@ describe("newId (pure)", () => {
 
   it("differs between calls", () => {
     expect(newId()).not.toBe(newId());
+  });
+});
+
+describe("a write that fails", () => {
+  const restore: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const fn of restore.splice(0)) await fn();
+  });
+
+  it("is typed writeFailed, carries the reason, and leaves the vault as it was", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    const folder = join(vault, "questions");
+    await mkdir(folder);
+    await chmod(folder, 0o500);
+    restore.push(() => chmod(folder, 0o700));
+    const before = await fingerprint(vault);
+
+    const reply = await c.mutate("questions.capture", {
+      text: "Will this land?",
+      provenance: unattached,
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toMatch(/permission denied|EACCES/);
+    expect(reply.error?.message).toContain(folder);
+    expect(await fingerprint(vault)).toEqual(before);
   });
 });
