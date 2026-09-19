@@ -1,5 +1,7 @@
 .detail {
-  width: 320px;
+  box-sizing: border-box;
+  /* Narrows with the window, so the list keeps room at the 900px minimum. */
+  width: clamp(240px, 28vw, 320px);
   flex: none;
   display: flex;
   flex-direction: column;

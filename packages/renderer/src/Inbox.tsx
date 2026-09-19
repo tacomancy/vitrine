@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState, type KeyboardEvent } from "react";
 import type { Order } from "core";
 import { formatAge } from "./age";
@@ -18,7 +18,12 @@ export function Inbox() {
   const trpc = useTRPC();
   const [order, setOrder] = useState<Order>("newest");
   const [selected, setSelected] = useState<string | null>(null);
-  const listing = useQuery(trpc.questions.list.queryOptions({ order }));
+  // Switching the sort re-queries; the old list stays until the new one lands
+  // rather than flashing empty.
+  const listing = useQuery({
+    ...trpc.questions.list.queryOptions({ order }),
+    placeholderData: keepPreviousData,
+  });
 
   const rows = listing.data ? rowsOf(listing.data, order) : [];
   const count = rows.length;
@@ -131,9 +136,7 @@ export function Inbox() {
                     ◇
                   </span>
                   <span className={styles.question}>{row.partial.name}</span>
-                  <span className={styles.provenance}>
-                    partial · question or captured missing
-                  </span>
+                  <span className={styles.provenance}>partial</span>
                 </>
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
