@@ -23,15 +23,152 @@
   letter-spacing: var(--tracking-tight);
 }
 
-.list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 /* Counts are data: mono, muted. This one counts what exists, never what is owed. */
 .count {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
+}
+
+.sort {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.sortLabel {
+  margin-right: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.sortOption {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  background: transparent;
+  color: var(--color-fg-muted);
+  font: inherit;
+  cursor: default;
+}
+
+/* The sort in force is a selected state: sapphire (BRAND.md law 2). */
+.sortOption[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 36px on the 4px grid; hairlines between rows, never a card or a shadow. */
+.row {
+  height: 36px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto 56px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5) 0 var(--space-4);
+  border-top: 1px solid var(--color-line);
+  cursor: default;
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.row:hover {
+  background: var(--color-bg-raised);
+}
+
+/* Selected: one surface step up and a 2px primary rule on the left edge. */
+.row[aria-selected="true"] {
+  background: var(--color-bg-raised);
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+.glyph,
+.glyphOpen {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+/* Amber means an open Question and nothing else on the row is coloured. */
+.glyphOpen {
+  color: var(--color-accent);
+}
+
+.question {
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-fg);
+}
+
+.provenance,
+.age {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.provenance {
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The same grey at every age; nothing turns a colour at thirty days or ever. */
+.age {
+  text-align: right;
+}
+
+.footer {
+  flex: none;
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.footerLine {
+  cursor: default;
+}
+
+.unreadable {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.unreadable li {
+  display: flex;
+  flex-direction: column;
+}
+
+.reason {
+  color: var(--color-fg-secondary);
 }
