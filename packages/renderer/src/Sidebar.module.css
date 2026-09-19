@@ -1,0 +1,64 @@
+.sidebar {
+  width: 238px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  user-select: none;
+}
+
+.label {
+  padding: 0 var(--space-4) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0 var(--space-2);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.live,
+.disabled {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
+.live {
+  color: var(--color-fg);
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--color-bg-raised);
+}
+
+/* Brass marks the active nav item and nothing else here (BRAND.md law 3). */
+.live .dot {
+  background: var(--color-accent);
+}
+
+.disabled {
+  color: var(--color-fg-disabled);
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 1px;
+  background: var(--color-line-strong);
+}
