@@ -18,12 +18,56 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Lint and format:** ESLint (typescript-eslint) and Prettier, as the vendored `setup-pre-commit` expects; dependency-cruiser via `setup-ts-deep-modules` once the packages exist.
   - **Compiler:** `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `isolatedModules`. Node is whatever the current Electron ships.
   - **Core lifetime:** the app's. No `launchd` agent unless daily Scouts prove they want one.
+- One Markdown file per object, Kind in frontmatter, App state in `.vitrine/` — ADR 0006. The concrete layout is § Vault layout below.
+
+## Vault layout
+
+The shape ADR 0006 decided, in enough detail to write against. Conventions that hold everywhere: timestamps are ISO 8601 with local offset; links are wikilinks; app-owned fields are flat frontmatter keys; the app reads `tags:` and inline `#tag` but writes only `tags:`; `status: abandoned` keeps the file, and app-initiated deletes go to the macOS Trash. Every app-owned object carries `id:` (10 chars of base32, 50 random bits) and `kind:`.
+
+```
+<vault>/
+  questions/     Question and Research Question notes
+  hypotheses/    Hypothesis notes
+  experiments/   one folder per Experiment: <name>/<name>.md plus stored Artifacts
+  sources/       Source and Source stub notes, <citekey>.md
+  sources/pdf/   the PDFs, <citekey>.pdf — the ONE synced folder (symlink to iCloud/Dropbox)
+  notes/         Notes the app creates on request; the user keeps Notes anywhere
+  .vitrine/      App state — see below
+```
+
+**Question** — `questions/<text, forbidden chars stripped, ≤80 chars>.md`. Frontmatter: `id`, `kind: question`, `question` (exact text), `status` (open | promoted | answered | abandoned), `captured`, Provenance as four flat keys — `from` (a wikilink, or free text when `context: other`), `page`, `annotation` (block id, Sources only), `context` (reading | writing | ingest | resolving | other) — plus `tags`, `related` (wikilinks added by the Link action; the only links Coverage counts on a Question), `promoted_to`, `answered`. Body: free; the answer when answered. Write-back from a resolved Hypothesis sets `status: answered`, `answered`, and appends one line — `Answered by [[hypothesis]] — falsified, <date>` — to the Question and to any intermediate Research Question.
+
+**Research Question** — same folder, file name suffixed ` (RQ)`, `kind: research-question`, `promoted_from`, Provenance keys copied not re-derived. Body headings, in order: `## Working answer`, `## Supporting sources`, `## Opposing sources`, `## Related questions`, `## Open threads`, `## Position history`. A source line is `- [[citekey#^h12]] — why it is here`.
+
+**Hypothesis** — `hypotheses/<claim, forbidden chars stripped>.md`, `kind: hypothesis`. Body: `## Claim`, `## Criteria`, `## Design notes`, `## Position history`. Each criterion is `### <criterion text> ^c<n>`, then `relationship:: confirming | falsifying | diagnostic`, `outcome:: met | not met | inconclusive`, then Evidence lines `- [[experiment]] — what it shows for this criterion`. Derived state is never written. An override to supported is a `## Position history` entry with a mandatory `why:`; any later change to a criterion voids it, recorded as its own entry.
+
+**Experiment** — `experiments/<name>/<name>.md`, `kind: experiment`, `status` (planned | running | complete | abandoned, hand-maintained), `ran_at` (list of links out), `tags`. Body: `## Purpose`, `## Design`, `## Artifacts`, `## Observations`, `## Position history`. Stored Artifacts are embeds (`![[plot.png]]`) in the same folder; linked heavyweights are `- <file> — <path or URL> · <size> · <date> — <description>`. Evidence attachments are recorded on the Hypothesis side only; the Experiment page shows them via backlinks.
+
+**Source / Source stub** — `sources/<citekey>.md`, `kind: source | source-stub`. Frontmatter: `citekey` (`<surname><year>`, ASCII-folded, lowercase, `a`/`b`… on collision; first word of the title when authors are missing), `title`, `authors`, `year`, `venue`, `doi`, `url`, `keywords` (author-supplied; feeds the Lexicon), `pdf` (file name under `sources/pdf/`; absent on a stub), `origin_scout` (Scout id), `origin_question`, `origin_retroactive`, `appearances` (every URL Corroboration merged). Body: the user's notes, then an app-owned `## Annotations` section rewritten whole on every Ingest — one block per Annotation in page order, `- p.<n> · "<quote>" ^h<n>` with the note text on the next line; ids are `h` + a per-Source counter, never reused. Unmatched blocks stay, marked `(unmatched)` until resolved; *drop the links* marks the block `(gone)` and leaves it forever rather than editing the user's notes.
+
+**Position history**, in every kind that has one — newest first, each entry `- <timestamp> · <field>` with optional `why:` and `from:` holding the full previous text. Edits to one field within 30 minutes coalesce; a why or a criterion edit after Evidence exists closes the entry early, and the latter is written as `· edited after evidence` permanently. Edits made in Obsidian are detected by the watcher and recorded the same way. Pressure valve if a page's history ever dominates it: entries older than a threshold move to `.vitrine/history/<id>.md` with a one-line pointer.
+
+**`.vitrine/`**
+```
+vault.json                  { id, schema, created } — one schema number for this whole layout
+scouts/<id>.yaml            id, name, source {kind, api | url}, filter {questions: [ids], tags, query},
+                            cadence, cap, lane, paused, created. Runtime never lives here.
+annotations/<source-id>.json  pdf, reading_position, annotations[]: id, page, rect, kind, quote, note,
+                            color, fingerprint (whatever re-matching keys on), last_matched, matched_by
+lexicon.json                per-Tag keyword weights from accept history; manual seeds
+dismissals.json             mark-deliberate and declined inferred links, keyed by id, or by path for Notes
+queue.sqlite                Proposals, Scout runs and health, triage events — NOT re-derivable
+index.sqlite                vault index and full-text search — always safe to delete
+```
+Window state and the session token live in `~/Library/Application Support/Vitrine/`; credentials in the Keychain.
+
+**Write discipline.** The app rewrites only the frontmatter block (key order preserved, new keys appended) and the sections it owns (`## Position history`, `## Annotations`); every other byte of a file the user edited stays identical. It never adds frontmatter to a Note.
 
 ## Open, in the order they block work
 
-1. Vault file layout: how a Question, Research Question, Hypothesis, Experiment, and Source stub are written as Markdown, and where the sidecar index lives.
-2. PDF renderer and annotation library for the Reader.
-3. Markdown parser, and the tag grammar it shares with the tag tree.
-4. How ingest is triggered (file watcher) and coalesced.
+1. PDF renderer and annotation library for the Reader. Decides what the sidecar's `fingerprint` actually holds.
+2. Markdown parser, and the tag grammar it shares with the tag tree. Inherits from ADR 0006: it must round-trip, editing the frontmatter block and owned sections while leaving the rest of the file byte-identical.
+3. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling.
+4. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
 
 Each goes through `grill-me` before its ADR is written.
