@@ -8,7 +8,7 @@
 
 **Frozen — original design intent, never edited (see `docs/reference/README.md`):**
 - `docs/reference/design-brief.md`, `docs/reference/design-prompts.md`
-- `docs/reference/prototypes/` — pinned Claude Design snapshots, not live links: per prompt, one exported HTML (`NN-<surface>.html`, interactive when opened in a browser beside `support.js`) and one full-length PNG of it, numbered to match the prompt. Read the PNG; the HTML holds any states behind tabs that the PNG could not capture
+- `docs/reference/prototypes/` — pinned Claude Design snapshots, not live links: per prompt, one exported HTML (`NN-<surface>.html`, interactive when opened in a browser beside `support.js`) and one full-length PNG of it, numbered to match the prompt. Read the PNG; the HTML holds the states behind tabs and below the fold of the app frame that the PNG could not capture
 - `docs/reference/branding/` — visual identity (palette, typography, logo/wordmark, design tokens) carried over from the earlier Vitrine project. The only thing reused from that project — nothing else about it applies here.
 
 **Living — current understanding, edited as work proceeds:**

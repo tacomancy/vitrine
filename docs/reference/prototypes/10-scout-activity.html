@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">SCOUT ACTIVITY — ARE THE AGENTS EARNING THEIR KEEP?</p><p class="hs">Twelve scouts, mixed quality. One is broken and one has a bad brief; both are visible before you read a row. Accept rate is measured on Review-lane items only — Skim is never rejected, so it carries no signal — and every row edits in place: brief, cadence, pause, drop. Click any scout to open it.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:1020px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">scout activity — consolidation-vault</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◻</div>
+    </div>
+
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:22px 26px 40px;display:flex;flex-direction:column;gap:22px">
+
+      <div style="display:flex;gap:0;border:1px solid #23272d;border-radius:3px;background:#131619">
+        <div style="flex:none;width:300px;padding:15px 18px;border-right:1px solid #23272d;display:flex;flex-direction:column;gap:7px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">REVIEW QUEUE</div>
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span style="font:400 24px 'IBM Plex Mono',monospace;color:#e7e9eb">214</span>
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">waiting</span>
+          </div>
+          <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:#8c939a">median age 4d · oldest 19d<br>skim is a feed and has no depth</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:15px 18px;border-right:1px solid #23272d;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#d99b4a">COVERAGE GAPS</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">open questions no scout is briefed on</span>
+          </div>
+          <sc-for list="{{ gaps }}" as="g" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="min-width:0;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.text }}</span>
+              <span style="margin-left:auto;flex:none;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ g.age }}</span>
+              <span onClick="{{ g.go }}" style="flex:none;padding:4px 10px;border:1px solid #3a2c18;background:#1a1611;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#d99b4a;cursor:default">{{ g.cta }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex:none;width:286px;padding:15px 18px;display:flex;flex-direction:column;gap:7px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">SOURCE HEALTH</div>
+          <div style="display:flex;gap:4px;align-items:center;margin:2px 0 4px">
+            <sc-for list="{{ health }}" as="h" hint-placeholder-count="12">
+              <div style="width:16px;height:16px;border-radius:2px;background:{{ h.fill }};border:1px solid {{ h.stroke }}"></div>
+            </sc-for>
+          </div>
+          <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:#8c939a">10 parsing cleanly · 1 stale · 1 broken<br><span style="color:#e59289">density-watch: 27 runs, 0 proposals</span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:grid;grid-template-columns:210px 158px 74px 78px 120px 92px 1fr;gap:14px;padding:7px 14px;border-bottom:1px solid #23272d;background:#121518;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">
+          <div>SCOUT</div><div>WATCHING</div><div>CADENCE</div><div>PROPOSED</div><div>ACCEPT RATE · 12 WEEKS</div><div>COST / RUN</div><div>ACTIONS</div>
+        </div>
+
+        <sc-for list="{{ scouts }}" as="s" hint-placeholder-count="12">
+          <div style="border-bottom:1px solid #191d22;background:{{ s.bg }};border-left:2px solid {{ s.edge }}">
+            <div onClick="{{ s.open }}" style="display:grid;grid-template-columns:210px 158px 74px 78px 120px 92px 1fr;gap:14px;padding:10px 14px;align-items:center;cursor:default">
+              <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <span style="font:400 9px 'IBM Plex Mono',monospace;color:{{ s.dot }}">●</span>
+                  <span style="font:500 12px 'IBM Plex Mono',monospace;color:{{ s.nameFg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.id }}</span>
+                </div>
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.status }}</span>
+              </div>
+              <div style="min-width:0;font:400 10.5px/1.45 'IBM Plex Mono',monospace;color:#8c939a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.watching }}</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.cadence }}</div>
+              <div style="font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">{{ s.proposed }}</div>
+              <div style="display:flex;align-items:center;gap:9px">
+                <svg viewBox="0 0 100 26" preserveAspectRatio="none" style="width:66px;height:26px;flex:none">
+                  <polyline points="{{ s.spark }}" fill="none" stroke="{{ s.sparkFg }}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline>
+                </svg>
+                <span style="font:500 12px 'IBM Plex Mono',monospace;color:{{ s.rateFg }}">{{ s.rate }}</span>
+              </div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.cost }}</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span onClick="{{ s.editBrief }}" style="padding:4px 10px;border:1px solid {{ s.briefBorder }};background:{{ s.briefBg }};border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:{{ s.briefFg }};cursor:default">{{ s.briefCta }}</span>
+                <span onClick="{{ s.cycleCadence }}" style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">{{ s.cadenceCta }}</span>
+                <span onClick="{{ s.pause }}" style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">{{ s.pauseLabel }}</span>
+                <span onClick="{{ s.drop }}" style="padding:4px 9px;border:1px solid transparent;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:{{ s.dropFg }};cursor:default">{{ s.dropLabel }}</span>
+                <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.lastRun }}</span>
+              </div>
+            </div>
+
+            <sc-if value="{{ s.expanded }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:6px 16px 20px 18px;display:flex;gap:26px;align-items:flex-start">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:11px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:{{ s.briefLabelFg }}">BRIEF</span>
+                    <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.briefNote }}</span>
+                  </div>
+                  <div style="border:1px solid {{ s.briefFieldBorder }};background:#15181c;border-radius:3px;padding:11px 13px;font:400 13.5px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ s.brief }}<span style="display:inline-block;width:1.5px;height:15px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">LINKED QUESTIONS</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <sc-for list="{{ s.linked }}" as="q" hint-placeholder-count="2">
+                        <span style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">{{ q.label }}</span>
+                      </sc-for>
+                      <span style="padding:4px 9px;border:1px dashed #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">+ question</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="padding:6px 13px;border-radius:3px;background:#d99b4a;font:500 11.5px 'IBM Plex Mono',monospace;color:#0f1113;cursor:default">save brief · next run tonight</span>
+                    <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">dry run against last week</span>
+                    <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.dryNote }}</span>
+                  </div>
+                  <sc-if value="{{ s.diagnosis }}" hint-placeholder-val="{{ true }}">
+                    <div style="border:1px solid {{ s.diagBorder }};background:{{ s.diagBg }};border-radius:3px;padding:11px 13px;display:flex;gap:10px;align-items:flex-start">
+                      <span style="font:400 11px 'IBM Plex Mono',monospace;color:{{ s.diagTone }};padding-top:2px">!</span>
+                      <span style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#bac0c6">{{ s.diagnosisText }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+
+                <div style="width:600px;flex:none;display:flex;flex-direction:column;gap:11px">
+                  <div style="display:flex;align-items:baseline;gap:12px">
+                    <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ACCEPT RATE · REVIEW LANE ONLY</span>
+                    <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.chartNote }}</span>
+                  </div>
+                  <div style="position:relative;height:150px;border-left:1px solid #2b3036;border-bottom:1px solid #2b3036;padding:0">
+                    <div style="position:absolute;left:0;right:0;top:25%;height:1px;background:#1a1e23"></div>
+                    <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:#1a1e23"></div>
+                    <div style="position:absolute;left:0;right:0;top:75%;height:1px;background:#1a1e23"></div>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                      <polyline points="{{ s.chart }}" fill="none" stroke="{{ s.sparkFg }}" stroke-width="1.75" vector-effect="non-scaling-stroke"></polyline>
+                    </svg>
+                    <div style="position:absolute;left:6px;top:2px;font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.axHi }}</div>
+                    <div style="position:absolute;left:6px;top:calc(50% - 5px);font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.axMid }}</div>
+                    <div style="position:absolute;left:6px;bottom:3px;font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.axLo }}</div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font:400 9px 'IBM Plex Mono',monospace;color:#8c939a"><span>12 weeks ago</span><span>6</span><span>now</span></div>
+                  <div style="display:flex;gap:24px;border-top:1px solid #1d2126;padding-top:11px">
+                    <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">RUNS · 30D</span><span style="font:400 12px 'IBM Plex Mono',monospace;color:#bac0c6">{{ s.runs30 }}</span></div>
+                    <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">SPEND · 30D</span><span style="font:400 12px 'IBM Plex Mono',monospace;color:#bac0c6">{{ s.spend30 }}</span></div>
+                    <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">TOKENS / RUN</span><span style="font:400 12px 'IBM Plex Mono',monospace;color:#bac0c6">{{ s.tokens }}</span></div>
+                    <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">SOURCE</span><span style="font:400 12px 'IBM Plex Mono',monospace;color:{{ s.healthFg }}">{{ s.healthLabel }}</span></div>
+                  </div>
+                  <div style="font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">cost is per run, not per proposal — proposals are near-free once a run has happened</div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;gap:40px;border-top:1px solid #1d2126;padding-top:14px">
+        <div style="flex:1;font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">Accept rate counts Review-lane decisions only. Skim items are never rejected, so including them would let a scout improve its number by proposing more of what you ignore.</div>
+        <div style="flex:1;font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">A low rate is a brief problem, not a scout problem — which is why the brief is a text field on this row rather than a settings page two clicks away.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1120}}">
+const SCOUTS = [
+  { id:'born-lab', watching:'lab publications page', cadence:'weekly', proposed:31, rate:52,
+    series:[38,41,44,42,49,47,51,48,54,50,53,52], cost:'$0.02', runs30:'4', spend30:'$0.08', tokens:'1.4k',
+    health:'ok', last:'2d ago',
+    brief:'New publications from the Born lab. No filter — everything they put out is relevant.',
+    linked:['consolidation or encoding?','TMR dose–response'],
+    chartNote:'steady; the best-briefed scout you have' },
+  { id:'encoding-confound', watching:'OpenAlex citations of Rasch 2013', cadence:'weekly', proposed:24, rate:41,
+    series:[22,27,31,29,35,38,36,40,39,43,41,41], cost:'$0.06', runs30:'4', spend30:'$0.24', tokens:'4.1k',
+    health:'ok', last:'3d ago',
+    brief:'Papers citing Rasch & Born 2013 that engage with the encoding-strength confound rather than merely citing it in passing.',
+    linked:['consolidation or encoding?'],
+    chartNote:'improving since the brief was narrowed in June' },
+  { id:'tmr-watch', watching:'Semantic Scholar · TMR query', cadence:'daily', proposed:88, rate:34,
+    series:[29,33,31,36,34,38,35,33,36,32,35,34], cost:'$0.04', runs30:'30', spend30:'$1.20', tokens:'2.8k',
+    health:'ok', last:'6h ago',
+    brief:'Targeted memory reactivation: cueing during sleep, dose–response, and any within-subject design that separates cueing from encoding.',
+    linked:['TMR dose–response','consolidation or encoding?'],
+    chartNote:'flat and healthy for a daily API scout' },
+  { id:'openalex-consolidation', watching:'OpenAlex · topic feed', cadence:'weekly', proposed:41, rate:31,
+    series:[26,29,28,33,31,30,34,32,29,33,30,31], cost:'$0.05', runs30:'4', spend30:'$0.20', tokens:'3.6k',
+    health:'ok', last:'4d ago',
+    brief:'Systems consolidation in humans. Exclude rodent-only work unless it proposes a human-testable prediction.',
+    linked:['consolidation or encoding?'], chartNote:'stable' },
+  { id:'methods-stats', watching:'PubMed · methods query', cadence:'weekly', proposed:19, rate:28,
+    series:[18,21,24,22,26,25,29,27,30,26,29,28], cost:'$0.03', runs30:'4', spend30:'$0.12', tokens:'2.2k',
+    health:'ok', last:'3d ago',
+    brief:'Power, preregistration and meta-analytic method as applied to sleep and memory research.',
+    linked:['what sample size would detect the dissociation?'], chartNote:'slowly improving' },
+  { id:'pubmed-tmr', watching:'PubMed · TMR MeSH', cadence:'weekly', proposed:27, rate:26,
+    series:[31,29,27,28,25,27,24,26,25,27,26,26], cost:'$0.03', runs30:'4', spend30:'$0.12', tokens:'2.0k',
+    health:'ok', last:'5d ago',
+    brief:'MeSH-scoped TMR search. Overlaps tmr-watch by design — corroboration across two sources is a ranking signal.',
+    linked:['TMR dose–response'], chartNote:'overlaps tmr-watch deliberately' },
+  { id:'replay-arxiv', watching:'arXiv q-bio.NC', cadence:'daily', proposed:96, rate:22,
+    series:[27,25,24,26,23,22,24,21,23,20,22,22], cost:'$0.02', runs30:'30', spend30:'$0.60', tokens:'1.6k',
+    health:'ok', last:'11h ago',
+    brief:'Hippocampal replay, sequence decoding, and awake reactivation. Preprints only.',
+    linked:['awake replay in humans?'], chartNote:'drifting down slightly — worth a look in a month' },
+  { id:'blog-ring', watching:'RSS ring · 6 lab blogs', cadence:'daily', proposed:22, rate:19,
+    series:[24,22,21,23,20,19,21,18,20,19,18,19], cost:'$0.01', runs30:'30', spend30:'$0.30', tokens:'0.9k',
+    health:'ok', last:'9h ago',
+    brief:'Six lab blogs. No topic filter — the point is to see what people say informally.',
+    linked:[], chartNote:'low by design; most of this lands in Skim' },
+  { id:'sleep-proceedings', watching:'conference index', cadence:'monthly', proposed:14, rate:17,
+    series:[19,21,18,20,17,19,16,18,17,16,17,17], cost:'$0.07', runs30:'1', spend30:'$0.07', tokens:'5.2k',
+    health:'stale', last:'17d ago',
+    brief:'SLEEP and SfN abstracts mentioning consolidation, replay or spindles.',
+    linked:['TMR dose–response'],
+    chartNote:'rate is unreliable while extraction is partial',
+    diagnosis:'stale',
+    diagnosisText:'Extraction has returned titles only since 2 Sep — authors, dates and keywords are empty, so ranking on author overlap and venue history is not working for this scout. Fix the extractor before judging the rate.' },
+  { id:'crossref-sleep', watching:'Crossref · subject feed', cadence:'daily', proposed:134, rate:14,
+    series:[19,18,17,16,17,15,16,14,15,14,13,14], cost:'$0.02', runs30:'30', spend30:'$0.60', tokens:'1.8k',
+    health:'ok', last:'8h ago',
+    brief:'Everything Crossref files under sleep research.',
+    linked:[], chartNote:'broad by construction; mostly routed to Skim' },
+  { id:'spindle-broad', watching:'Semantic Scholar · broad query', cadence:'daily', proposed:214, rate:9,
+    series:[24,22,19,17,15,14,12,11,10,9,9,9], cost:'$0.05', runs30:'30', spend30:'$1.50', tokens:'3.9k',
+    health:'ok', last:'5h ago', bad:true,
+    brief:'sleep spindles',
+    linked:[],
+    chartNote:'falling for twelve weeks — the brief has never been narrowed',
+    dryNote:'would have proposed 23 instead of 214 last week',
+    diagnosis:'bad',
+    diagnosisText:'Nine percent of 214 reviewed items, and falling. Two words is not a brief — it matches every spindle paper in the field, including clinical sleep medicine you have never once accepted. Narrow it here and dry-run it against last week before saving.' },
+  { id:'density-watch', watching:'lab page + RSS', cadence:'daily', proposed:0, rate:0,
+    series:[33,31,34,32,35,33,36,34,0,0,0,0], cost:'$0.01', runs30:'27', spend30:'$0.27', tokens:'0.7k',
+    health:'broken', last:'ran 5h ago',
+    brief:'New posts on the density-methods lab page, plus its RSS mirror.',
+    linked:['density definition artefact?'],
+    chartNote:'no decisions to measure — nothing has been proposed since 14 Sep',
+    diagnosis:'broken',
+    diagnosisText:'The page markup changed on 15 Sep and the post list no longer parses. Twenty-seven runs have each reported “0 new”, which is indistinguishable from a quiet field until you look here. The accept rate above is meaningless while this is true.' }
+];
+
+const GAPS = [
+  { text:'Is awake replay measurable non-invasively in humans?', age:'research question · 61d', cta:'brief a scout' },
+  { text:'What would falsify the active systems account?', age:'research question · 94d', cta:'brief a scout' },
+  { text:'Why is the mid-size stratum the highest?', age:'question · 5w', cta:'brief a scout' }
+];
+
+function bounds(series){
+  const lo = Math.min.apply(null, series), hi = Math.max.apply(null, series);
+  const span = Math.max(hi - lo, 4), pad = span * 0.18;
+  return { lo: lo - pad, hi: hi + pad };
+}
+function poly(series, w, h, inset){
+  const b = bounds(series), range = b.hi - b.lo;
+  return series.map((v, i) => {
+    const x = (i / (series.length - 1)) * w;
+    const y = h - inset / 2 - ((v - b.lo) / range) * (h - inset);
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+}
+const CADENCES = ['daily','weekly','fortnightly','monthly'];
+
+class Component extends DCLogic {
+  state = { open:'spindle-broad', paused:{}, cadence:{}, dropped:{} };
+
+  stop(e, fn){ if (e && e.stopPropagation) e.stopPropagation(); fn(); }
+
+  renderVals(){
+    const st = this.state;
+    const FILL = { ok:'#2f3942', stale:'#3a2c18', broken:'#3c2b28' };
+    const STROKE = { ok:'#3a424b', stale:'#6a4a1e', broken:'#5a3f3a' };
+
+    return {
+      gaps: GAPS.map(g => ({ ...g, go: () => this.setState({ open:'new' }) })),
+      health: SCOUTS.map(s => ({ fill: FILL[s.health], stroke: STROKE[s.health] })),
+      scouts: SCOUTS.map(s => {
+        const open = st.open === s.id;
+        const paused = st.paused[s.id];
+        const dropped = st.dropped[s.id];
+        const cadence = st.cadence[s.id] || s.cadence;
+        const b = bounds(s.series);
+        const loud = s.health === 'broken';
+        const bad = s.bad;
+        return {
+          id: s.id, watching: s.watching, cadence: cadence,
+          axHi: Math.round(b.hi) + '%', axMid: Math.round((b.hi + b.lo) / 2) + '%', axLo: Math.round(Math.max(b.lo, 0)) + '%',
+          cadenceCta: cadence === s.cadence ? 'cadence' : '→ ' + cadence,
+          cycleCadence: e => this.stop(e, () => this.setState(p => ({
+            cadence: { ...p.cadence, [s.id]: CADENCES[(CADENCES.indexOf(cadence) + 1) % CADENCES.length] } }))),
+          dropLabel: dropped ? 'undo drop' : 'drop',
+          dropFg: dropped ? '#d99b4a' : '#8c939a',
+          drop: e => this.stop(e, () => this.setState(p => ({ dropped: { ...p.dropped, [s.id]: !dropped } }))),
+          editBrief: e => this.stop(e, () => this.setState({ open: s.id })),
+          proposed: s.proposed ? s.proposed + ' / 30d' : '0 / 30d',
+          rate: s.health === 'broken' ? '—' : s.rate + '%',
+          cost: s.cost, runs30: s.runs30, spend30: s.spend30, tokens: s.tokens,
+          lastRun: dropped ? 'dropped' : paused ? 'paused' : s.last,
+          status: dropped ? 'dropped — undo to restore' : s.health === 'broken' ? 'source not parsing' : s.health === 'stale' ? 'partial extraction' : paused ? 'paused by you' : 'healthy',
+          dot: s.health === 'broken' ? '#e59289' : s.health === 'stale' ? '#d99b4a' : bad ? '#d99b4a' : '#4fb3a4',
+          nameFg: loud ? '#e59289' : '#e7e9eb',
+          bg: loud ? '#171313' : bad ? '#171512' : open ? '#141821' : 'transparent',
+          edge: loud ? '#d4685c' : bad ? '#d99b4a' : open ? '#3a424b' : 'transparent',
+          rateFg: s.health === 'broken' ? '#8c939a' : bad ? '#d99b4a' : '#e7e9eb',
+          sparkFg: loud ? '#d4685c' : bad ? '#d99b4a' : '#8c939a',
+          spark: poly(s.series, 100, 26, 6),
+          chart: poly(s.series, 100, 100, 10),
+          chartNote: s.chartNote,
+          brief: s.brief,
+          briefNote: bad ? 'two words — this is the whole brief' : 'editable here · saved to the next run',
+          briefLabelFg: bad ? '#d99b4a' : '#8c939a',
+          briefFieldBorder: bad ? '#d99b4a' : '#2b3036',
+          briefCta: bad ? 'fix brief' : 'edit brief',
+          briefBg: bad ? '#d99b4a' : 'transparent',
+          briefBorder: bad ? '#d99b4a' : '#23272d',
+          briefFg: bad ? '#0f1113' : '#bac0c6',
+          dryNote: s.dryNote || 'previews what the new brief would have caught',
+          linked: (s.linked || []).map(l => ({ label: '◆ ' + l })),
+          diagnosis: !!s.diagnosis,
+          diagnosisText: s.diagnosisText || '',
+          diagTone: s.diagnosis === 'broken' ? '#e59289' : '#d99b4a',
+          diagBorder: s.diagnosis === 'broken' ? '#5a3f3a' : '#6a4a1e',
+          diagBg: s.diagnosis === 'broken' ? '#1a1413' : '#1a1611',
+          healthLabel: s.health === 'ok' ? 'parsing cleanly' : s.health === 'stale' ? 'stale extraction' : 'not parsing',
+          healthFg: s.health === 'ok' ? '#bac0c6' : s.health === 'stale' ? '#d99b4a' : '#e59289',
+          pauseLabel: paused ? 'resume' : 'pause',
+          expanded: open && !dropped,
+          open: () => this.setState({ open: open ? null : s.id }),
+          pause: e => this.stop(e, () => this.setState(p => ({ paused: { ...p.paused, [s.id]: !p.paused[s.id] } })))
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

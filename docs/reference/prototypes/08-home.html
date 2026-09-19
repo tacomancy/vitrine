@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">HOME — A LANDING, NOT A COMMAND CENTER</p><p class="hs">One column of sentences and routes. No metric cards, no sparklines, no rings — the only numbers on the page are ones you can click through. Switch between the two states: the difference is one alert and an order of magnitude of queue, and only the alert raises its voice.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+    <div onClick="{{ t.pick }}" style="padding:6px 13px;border:1px solid {{ t.border }};border-radius:3px;background:{{ t.bg }};font:400 11.5px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }}</div>
+  </sc-for>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;height:900px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">consolidation-vault</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◻</div>
+    </div>
+
+    <div style="flex:1;min-width:0;overflow-y:auto;display:flex;justify-content:center;padding:54px 40px 60px">
+      <div style="width:840px;display:flex;flex-direction:column;gap:40px">
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8c939a">{{ dateline }}</div>
+          <div style="font:400 23px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:720px">{{ opener }}</div>
+        </div>
+
+        <sc-if value="{{ broken }}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid #5a3f3a;background:#1a1413;border-radius:3px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:11px">
+              <span style="font:400 12px 'IBM Plex Mono',monospace;color:#e59289">!</span>
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#e59289">A SCOUT HAS STOPPED SEEING ANYTHING</span>
+            </div>
+            <div style="font:400 16px/1.7 'Source Serif 4',Georgia,serif;color:#e7e9eb;max-width:700px">{{ brokenLead }}</div>
+            <sc-for list="{{ brokenScouts }}" as="b" hint-placeholder-count="2">
+              <div style="border-top:1px solid #3a2c2a;padding-top:13px;display:flex;align-items:flex-start;gap:14px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;gap:9px">
+                    <span style="font:500 12px 'IBM Plex Mono',monospace;color:#e7e9eb">{{ b.id }}</span>
+                    <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ b.kind }}</span>
+                  </div>
+                  <div style="font:400 12.5px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">{{ b.what }}</div>
+                  <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ b.since }}</div>
+                </div>
+                <div style="display:flex;gap:7px;flex:none">
+                  <span style="padding:6px 12px;border:1px solid #5a3f3a;border-radius:3px;background:#241a19;font:400 11px 'IBM Plex Mono',monospace;color:#e7e9eb;cursor:default">check source</span>
+                  <span style="padding:6px 12px;border:1px solid #2b3036;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">pause</span>
+                </div>
+              </div>
+            </sc-for>
+            <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">A scout that has quietly stopped parsing looks exactly like a quiet field. This is the only thing on Home that will interrupt you.</div>
+          </div>
+        </sc-if>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WAITING</div>
+          <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid #1d2126;padding-bottom:14px">
+            <span style="font:400 26px 'IBM Plex Mono',monospace;color:#e7e9eb;min-width:64px">{{ reviewN }}</span>
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+              <span style="font:400 15px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ reviewLine }}</span>
+              <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ reviewSub }}</span>
+            </div>
+            <span style="font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">open review →</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:16px;border-bottom:1px solid #1d2126;padding-bottom:14px">
+            <span style="font:400 15px 'IBM Plex Mono',monospace;color:#8c939a;min-width:64px">skim</span>
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+              <span style="font:400 15px/1.5 'Source Serif 4',Georgia,serif;color:#8c939a">Flowing as usual. A feed has no depth, so it is not counted here.</span>
+            </div>
+            <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;cursor:default">glance →</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CHANGED {{ sinceLabel }}</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">grouped by what it is about</span>
+          </div>
+          <sc-for list="{{ activity }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;gap:20px;align-items:flex-start;padding-bottom:12px;border-bottom:1px solid #1d2126">
+              <span style="flex:none;width:168px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:#bac0c6">{{ a.topic }}</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                <sc-for list="{{ a.items }}" as="i" hint-placeholder-count="2">
+                  <div style="display:flex;gap:9px;align-items:baseline">
+                    <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ i.tone }}">{{ i.glyph }}</span>
+                    <span style="min-width:0;font:400 13.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ i.text }}</span>
+                    <span style="margin-left:auto;flex:none;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ i.when }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">FROM THE NOTEBOOK</span>
+            <span style="font:400 11px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">{{ resurfaceLead }}</span>
+            <span onClick="{{ reshuffle }}" style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;cursor:default">↻ others</span>
+          </div>
+          <sc-for list="{{ resurfaced }}" as="r" hint-placeholder-count="3">
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:11px 0;border-top:1px solid #1d2126">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                <span style="font:400 16px/1.55 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ r.text }}</span>
+                <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.origin }}</span>
+              </div>
+              <span onClick="{{ r.dismiss }}" style="flex:none;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:3px;cursor:default">×</span>
+            </div>
+          </sc-for>
+          <div style="font:400 11px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">{{ resurfaceFoot }}</div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:22px;border-top:1px solid #1d2126;padding-top:18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">
+          <span style="color:#bac0c6;cursor:default">Vault Overview</span>
+          <span style="color:#bac0c6;cursor:default">Scout Activity</span>
+          <span style="color:#bac0c6;cursor:default">Question Map</span>
+          <span style="color:#bac0c6;cursor:default">Loose Ends{{ looseTail }}</span>
+          <span style="margin-left:auto">opened deliberately — nothing is summarised here</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1000}}">
+const QUIET = {
+  label:'quiet morning',
+  dateline:'SATURDAY · 19 SEPTEMBER · 08:12',
+  opener:'Nothing is broken. Nine proposals came in overnight and the vault is where you left it on Thursday.',
+  broken:false,
+  reviewN:'9',
+  reviewLine:'proposals in Review — about four minutes of stack.',
+  reviewSub:'6 from tmr-watch · 3 from replay-arxiv · 1 reserved slot',
+  sinceLabel:'SINCE THURSDAY',
+  activity:[
+    { topic:'consolidation vs encoding', items:[
+      { glyph:'◆', tone:'#d99b4a', text:'Working answer revised — “mostly small-study bias”', when:'Thu' },
+      { glyph:'·', tone:'#8c939a', text:'Dissociation designs — power', when:'Thu' } ] },
+    { topic:'spindle metrics', items:[
+      { glyph:'◈', tone:'#4fb3a4', text:'Antony 2018 — 4 new highlights', when:'Thu' } ] }
+  ],
+  resurfaceLead:'three older questions, picked at random',
+  resurfaced:[
+    { text:'Who decided 11–16 Hz was the spindle band, and on what basis?', origin:'captured 14 months ago · while reading Staresina 2015, p.7' },
+    { text:'Is the forgetting curve the right null model here at all?', origin:'captured 8 months ago · lab meeting note' },
+    { text:'What would I need to see to abandon this line entirely?', origin:'captured 2 years ago · unattached' }
+  ],
+  resurfaceFoot:'Dismissing one takes it out of the rotation, not out of the vault. Nothing here needs answering today or ever.',
+  looseTail:''
+};
+
+const MONDAY = {
+  label:'Monday, after a week away',
+  dateline:'MONDAY · 21 SEPTEMBER · 09:04 · AWAY SINCE THE 14TH',
+  opener:'One scout has gone quiet and needs a look. The rest of this is a week of reading that arrived without you, which is what you asked it to do.',
+  broken:true,
+  brokenLead:'density-watch has returned nothing for six days. Its page still loads, so the schedule looks healthy — the extraction is what failed.',
+  brokenScouts:[
+    { id:'density-watch', kind:'lab page + RSS · daily',
+      what:'The markup changed on 15 Sep; the post list no longer parses. Last successful extraction 14 Sep, and it has reported “0 new” every day since.',
+      since:'6 runs, 0 proposals · previously averaged 4 a week' },
+    { id:'sleep-proceedings', kind:'conference index · monthly',
+      what:'Extraction succeeds but yields only titles — authors and dates have been empty for two runs.',
+      since:'stale extraction since 2 Sep' }
+  ],
+  reviewN:'214',
+  reviewLine:'proposals in Review — a week of six scouts, already grouped and ranked.',
+  reviewSub:'largest group 61 · reject a whole run in one key · items you skip demote themselves to Skim',
+  sinceLabel:'WHILE YOU WERE AWAY',
+  activity:[
+    { topic:'consolidation vs encoding', items:[
+      { glyph:'▲', tone:'#e59289', text:'Hypothesis falsified — run-2026-09-14, F1 met', when:'Mon' },
+      { glyph:'◆', tone:'#d99b4a', text:'Follow-up question captured from the result', when:'Mon' },
+      { glyph:'◈', tone:'#4fb3a4', text:'Cordi & Rasch 2021 — 3 highlights ingested from iPad', when:'Wed' } ] },
+    { topic:'replay decoding', items:[
+      { glyph:'◈', tone:'#4fb3a4', text:'Ólafsdóttir 2018 — 11 highlights, 2 questions ingested', when:'Thu' },
+      { glyph:'◇', tone:'#8c939a', text:'2 source stubs accepted from tmr-watch', when:'Fri' } ] },
+    { topic:'methods · power', items:[
+      { glyph:'⌗', tone:'#8c939a', text:'4 runs recorded, none yet interpreted', when:'Fri' },
+      { glyph:'·', tone:'#8c939a', text:'Grant aim 2 — draft', when:'Sat' } ] }
+  ],
+  resurfaceLead:'three older questions, picked at random',
+  resurfaced:[
+    { text:'Is “consolidation” doing any work in this sentence, or is it decoration?', origin:'captured 11 months ago · while reading Diekelmann 2010, p.1' },
+    { text:'Why do I keep assuming sleep is the interesting variable?', origin:'captured 5 months ago · unattached' },
+    { text:'Has anyone replicated the spindle-coupling effect with high-density EEG?', origin:'captured 2 years ago · while reading Staresina 2015, p.8' }
+  ],
+  resurfaceFoot:'Unchanged by the week away — these rotate on their own schedule and have nothing to do with the queue above.',
+  looseTail:' · 6'
+};
+
+const STATES = { quiet: QUIET, monday: MONDAY };
+
+class Component extends DCLogic {
+  state = { view:'monday', seed:0, dismissed:{} };
+
+  renderVals(){
+    const st = this.state, d = STATES[st.view];
+    const pool = d.resurfaced.filter((x, i) => !st.dismissed[st.view + i]);
+    const shown = pool.length ? pool : d.resurfaced;
+
+    return {
+      tabs: Object.keys(STATES).map(k => {
+        const on = st.view === k;
+        return { label: STATES[k].label, bg: on ? '#212730' : 'transparent',
+          border: on ? '#3a424b' : '#23272d', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ view:k }) };
+      }),
+      dateline: d.dateline,
+      opener: d.opener,
+      broken: d.broken,
+      brokenLead: d.brokenLead || '',
+      brokenScouts: d.brokenScouts || [],
+      reviewN: d.reviewN, reviewLine: d.reviewLine, reviewSub: d.reviewSub,
+      sinceLabel: d.sinceLabel,
+      activity: d.activity,
+      resurfaceLead: d.resurfaceLead,
+      resurfaced: shown.map((r, i) => ({
+        text: r.text, origin: r.origin,
+        dismiss: () => this.setState(s => ({ dismissed: { ...s.dismissed, [st.view + d.resurfaced.indexOf(r)]: true } }))
+      })),
+      resurfaceFoot: d.resurfaceFoot,
+      reshuffle: () => this.setState({ seed: st.seed + 1, dismissed: {} }),
+      looseTail: d.looseTail
+    };
+  }
+}
+</script>
+</body>
+</html>

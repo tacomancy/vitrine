@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:880px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">PANEL 1 — COVERAGE MATRIX</p><p class="hs">Questions down, tags across, both axes sorted by total attached weight, so the structure falls out of the sort rather than out of a layout algorithm. Cells are explicit links only — a source or annotation actually attached to that question. Nothing here is inferred, nothing floats, and there are no edges to untangle.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <sc-for list="{{ matrixModes }}" as="m" hint-placeholder-count="2">
+    <div onClick="{{ m.pick }}" style="padding:6px 13px;border:1px solid {{ m.border }};border-radius:3px;background:{{ m.bg }};font:400 11.5px 'IBM Plex Mono',monospace;color:{{ m.fg }};cursor:default">{{ m.label }}</div>
+  </sc-for>
+  <div style="margin-left:auto;padding-top:8px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ scaleNote }}</div>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;display:flex">
+  <div style="flex:1;min-width:0;padding:18px 20px 22px;overflow-x:auto">
+
+    <sc-if value="{{ showMatrix }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;align-items:flex-end;height:104px">
+          <div style="width:338px;flex:none;padding-bottom:6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">QUESTION ↓ · TAG →</div>
+          <sc-for list="{{ cols }}" as="c" hint-placeholder-count="22">
+            <div style="width:23px;flex:none;height:104px;position:relative">
+              <div style="position:absolute;bottom:4px;left:15px;transform:rotate(-58deg);transform-origin:0 100%;white-space:nowrap;font:400 9.5px 'IBM Plex Mono',monospace;color:{{ c.fg }}">{{ c.label }}</div>
+            </div>
+          </sc-for>
+          <div style="width:58px;flex:none;padding-bottom:6px;text-align:right;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8c939a">TOTAL</div>
+        </div>
+
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="24">
+          <div style="display:flex;align-items:center;background:{{ r.bg }}">
+            <div style="width:338px;flex:none;padding:0 10px 0 2px;display:flex;align-items:center;gap:7px;height:23px">
+              <span style="font:400 9px 'IBM Plex Mono',monospace;color:{{ r.glyphFg }}">{{ r.glyph }}</span>
+              <span style="min-width:0;font:400 11.5px 'IBM Plex Sans',sans-serif;color:{{ r.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.label }}</span>
+            </div>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="22">
+              <div style="width:23px;flex:none;height:23px;padding:2px;box-sizing:border-box">
+                <div style="width:100%;height:100%;border-radius:1px;background:{{ c.fill }};border:1px solid {{ c.stroke }}"></div>
+              </div>
+            </sc-for>
+            <div style="width:58px;flex:none;text-align:right;padding-right:4px;font:400 10px 'IBM Plex Mono',monospace;color:{{ r.totalFg }}">{{ r.total }}</div>
+          </div>
+        </sc-for>
+
+        <div style="display:flex;align-items:center;margin-top:4px">
+          <div style="width:338px;flex:none;padding-right:10px;text-align:right;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8c939a">TOTAL</div>
+          <sc-for list="{{ cols }}" as="c" hint-placeholder-count="22">
+            <div style="width:23px;flex:none;text-align:center;font:400 9px 'IBM Plex Mono',monospace;color:{{ c.totalFg }}">{{ c.total }}</div>
+          </sc-for>
+          <div style="width:58px;flex:none"></div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;align-items:center;gap:14px">
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">attached material</span>
+          <div style="display:flex;gap:3px;align-items:center">
+            <sc-for list="{{ ramp }}" as="l" hint-placeholder-count="5">
+              <div style="width:18px;height:11px;border-radius:1px;background:{{ l.fill }};border:1px solid {{ l.stroke }}"></div>
+            </sc-for>
+          </div>
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">none · 1 · 2–3 · 4–7 · 8+</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ matrixFoot }}</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLists }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a;max-width:800px">{{ fallbackLead }}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px">
+          <sc-for list="{{ lists }}" as="l" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:7px;border-bottom:1px solid #23272d">
+                <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:{{ l.titleFg }}">{{ l.title }}</span>
+                <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ l.n }}</span>
+                <span style="margin-left:auto;font:400 10px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">{{ l.note }}</span>
+              </div>
+              <sc-for list="{{ l.items }}" as="i" hint-placeholder-count="6">
+                <div style="display:flex;align-items:baseline;gap:10px">
+                  <span style="flex:none;width:26px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ i.n }}</span>
+                  <span style="min-width:0;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ i.text }}</span>
+                  <span style="margin-left:auto;flex:none;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ i.tail }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="width:344px;flex:none;background:#131619;border-left:1px solid #23272d;padding:18px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">FOUR READINGS OF ONE PANEL</div>
+    <sc-for list="{{ readings }}" as="r" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;gap:5px;padding-bottom:13px;border-bottom:1px solid #1d2126">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:{{ r.tone }}">{{ r.title }}</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.count }}</span>
+        </div>
+        <div style="font:400 11px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">{{ r.what }}</div>
+        <div style="font:400 12px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ r.example }}</div>
+      </div>
+    </sc-for>
+    <div style="font:400 11px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Clocked-but-unquestioned is the one worth reading twice: material you kept from Skim with no question behind it is usually an interest you have not articulated yet.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">INFERRED LINKS — AN ACTION, NOT A FAINT EDGE</p><p class="hs">Shared tags and keyword overlap never appear in the matrix as ghost connections. The same computation is offered as a review: here are the papers that share tags with an unanchored question. Accepting writes a real edge and the cell fills in; skipping is remembered so the same pair is not offered again.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;display:flex">
+  <div style="flex:1;min-width:0;padding:18px 20px 22px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#d99b4a">{{ unanchoredHead }}</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">promoted 3 months ago · nothing attached</span>
+    </div>
+    <div style="font:600 19px/1.45 'Source Serif 4',Georgia,serif;max-width:760px">What would falsify the active systems account?</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">#sleep/consolidation</span>
+      <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">#theory</span>
+      <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">#meta-science/replication</span>
+    </div>
+    <div style="font:400 12.5px/1.7 'IBM Plex Sans',sans-serif;color:#bac0c6;max-width:800px">{{ inferLead }}</div>
+
+    <sc-for list="{{ candidates }}" as="c" hint-placeholder-count="6">
+      <div style="border:1px solid {{ c.border }};background:{{ c.bg }};border-radius:3px;padding:11px 13px;display:flex;align-items:flex-start;gap:14px">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ c.glyphFg }}">{{ c.glyph }}</span>
+            <span style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e7e9eb">{{ c.cite }}</span>
+            <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ c.kind }}</span>
+          </div>
+          <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ c.title }}</div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ c.overlap }}</div>
+        </div>
+        <div style="flex:none;display:flex;gap:6px">
+          <sc-for list="{{ c.actions }}" as="a" hint-placeholder-count="3">
+            <span onClick="{{ a.go }}" style="padding:6px 11px;border:1px solid {{ a.border }};background:{{ a.bg }};border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:{{ a.fg }};cursor:default">{{ a.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+
+    <div style="display:flex;align-items:center;gap:14px;border-top:1px solid #1d2126;padding-top:13px">
+      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ inferTally }}</span>
+      <span style="margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">next unanchored question →</span>
+    </div>
+  </div>
+  <div style="width:344px;flex:none;background:#131619;border-left:1px solid #23272d;padding:18px;display:flex;flex-direction:column;gap:13px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHY NOT DRAW THEM</div>
+    <div style="font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">A faint edge for every shared tag would make the matrix look complete while asserting nothing. Suggestions are guesses; the panel is a record. Keeping them apart means a filled cell always means you decided something.</div>
+    <div style="height:1px;background:#1d2126"></div>
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT ACCEPTING DOES</div>
+    <div style="font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Writes the source into the question's supporting column as <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">unsorted</span> — attached, but not yet claimed to support or oppose. The cell in Panel 1 fills on the next render.</div>
+    <div style="height:1px;background:#1d2126"></div>
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">BACKLOG</div>
+    <div style="font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">{{ backlogNote }}</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">PANEL 2 — ATTENTION SCATTER</p><p class="hs">Different data source, deliberately a different picture: external literature volume, synced periodically, against your own coverage. Growth rate is publication-volume acceleration rather than citation count, because citations lag by years and the question is where the field is going. Depth controls how deep the tag paths are rolled up — mixing a parent with its own children would double-count coverage and flatten the quadrants into noise.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;display:flex">
+  <div style="flex:1;min-width:0;padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">TAG DEPTH</span>
+      <div style="display:flex;gap:3px">
+        <sc-for list="{{ depths }}" as="d" hint-placeholder-count="3">
+          <div onClick="{{ d.pick }}" style="padding:4px 11px;border-radius:3px;background:{{ d.bg }};font:400 10.5px 'IBM Plex Mono',monospace;color:{{ d.fg }};cursor:default">{{ d.label }}</div>
+        </sc-for>
+      </div>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ depthNote }}</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#4fb3a4"></span>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">OpenAlex volume · as of 17 Sep 2026, 04:00 · next sync in 2d</span>
+      </span>
+    </div>
+
+    <div style="position:relative;height:430px;border:1px solid #23272d;border-radius:3px;background:#0c0e10">
+      <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:#23272d"></div>
+      <div style="position:absolute;top:0;bottom:0;left:50%;width:1px;background:#23272d"></div>
+      <div style="position:absolute;left:14px;top:12px;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">HIGH COVERAGE · LOW ATTENTION<br><span style="font-weight:400;letter-spacing:0">ahead of the field, or a backwater</span></div>
+      <div style="position:absolute;right:14px;top:12px;text-align:right;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">HIGH COVERAGE · HIGH ATTENTION<br><span style="font-weight:400;letter-spacing:0">crowded — expect competition</span></div>
+      <div style="position:absolute;left:14px;bottom:12px;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">LOW COVERAGE · LOW ATTENTION<br><span style="font-weight:400;letter-spacing:0">obscure — opportunity or dead end</span></div>
+      <div style="position:absolute;right:14px;bottom:12px;text-align:right;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#d99b4a">LOW COVERAGE · HIGH ATTENTION<br><span style="font-weight:400;letter-spacing:0;color:#bac0c6">blind spot — the actionable quadrant</span></div>
+      <sc-for list="{{ points }}" as="p" hint-placeholder-count="20">
+        <div style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);display:flex;flex-direction:{{ p.dir }};align-items:center;gap:6px">
+          <div style="width:{{ p.d }};height:{{ p.d }};border-radius:50%;background:{{ p.fill }};border:1px solid {{ p.stroke }};flex:none"></div>
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:{{ p.labelFg }};white-space:nowrap">{{ p.label }}</span>
+        </div>
+      </sc-for>
+      <div style="position:absolute;left:50%;bottom:2px;transform:translateX(-50%);font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">field growth rate →</div>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:16px">
+      <div style="flex:none;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a;padding-top:4px">UNPLACED</div>
+      <div style="flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{ unplaced }}" as="u" hint-placeholder-count="6">
+          <span style="padding:3px 9px;border:1px dashed #3a424b;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ u.label }}</span>
+        </sc-for>
+      </div>
+      <div style="width:330px;flex:none;font:400 10.5px/1.65 'IBM Plex Sans',sans-serif;color:#8c939a">Too few papers in the external index to measure a growth rate. Not the same as low attention — these are unmeasured, and plotting them at zero would put them in a quadrant that means the opposite thing.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">PANELS 3 &amp; 4 — FLOW AND ORIGINS</p><p class="hs">What happens to questions after capture, and where they come from. Both are counts you can walk into: every bar and every row opens the set behind it.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:stretch">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:14px;color:#e7e9eb">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">QUESTION FLOW · LAST 12 MONTHS</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">318 captured</span>
+    </div>
+    <sc-for list="{{ funnel }}" as="f" hint-placeholder-count="5">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font:400 12px 'IBM Plex Mono',monospace;color:{{ f.fg }}">{{ f.label }}</span>
+          <span style="font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">{{ f.n }}</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ f.pct }}</span>
+        </div>
+        <div style="height:14px;background:#15181c;border-radius:2px;overflow:hidden"><div style="height:14px;width:{{ f.w }};background:{{ f.fill }}"></div></div>
+        <div style="font:400 10.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">{{ f.note }}</div>
+      </div>
+    </sc-for>
+    <div style="border-top:1px solid #1d2126;padding-top:12px;font:400 11px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">The wide top is the design working. A capture rate that fell to match the promotion rate would mean you had started editing yourself at the moment of wondering, which is the one thing this app is built to prevent.</div>
+  </div>
+
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;color:#e7e9eb">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT GENERATES QUESTIONS</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">sources and contexts, ranked</span>
+    </div>
+    <sc-for list="{{ origins }}" as="o" hint-placeholder-count="10">
+      <div style="display:grid;grid-template-columns:22px 1fr 96px 46px;gap:11px;align-items:center;padding:5px 0;border-bottom:1px solid #191d22">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ o.rank }}</span>
+        <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+          <span style="font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#bac0c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ o.label }}</span>
+          <span style="font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">{{ o.kind }}</span>
+        </div>
+        <div style="height:8px;background:#15181c;border-radius:2px;overflow:hidden"><div style="height:8px;width:{{ o.w }};background:{{ o.fill }}"></div></div>
+        <span style="text-align:right;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">{{ o.n }}</span>
+      </div>
+    </sc-for>
+    <div style="font:400 11px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Lecture and lab-meeting captures convert to Research Questions at nearly twice the rate of paper captures, on a tenth of the volume. Worth knowing before you decide where to spend a Tuesday.</div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1080}}">
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const TAGPATHS = [
+  'sleep/consolidation','sleep/consolidation/tmr','sleep/consolidation/replay','sleep/consolidation/gist',
+  'sleep/spindles','sleep/spindles/density','sleep/spindles/coupling','sleep/rem','sleep/staging','sleep/naps',
+  'methods/power','methods/power/simulation','methods/power/prereg','methods/eeg','methods/eeg/artefacts',
+  'methods/eeg/staging','methods/stats','methods/stats/bayes','methods/stats/meta','methods/sampling',
+  'memory/encoding','memory/retrieval','memory/retrieval/cued','memory/retrieval/free','memory/schema',
+  'memory/emotional','meta-science','meta-science/replication','meta-science/bias','meta-science/preregistration',
+  'ml/decoding','ml/interpretability','ml/interpretability/probing','ml/interpretability/features','ml/simulation',
+  'clinical/insomnia','clinical/apnea','theory','theory/systems','theory/synaptic',
+  'tooling/pipelines','tooling/sharing','writing/aim2','writing/thesis'
+];
+
+const HWQ = [
+  'Is the overnight benefit consolidation or encoding strength?',
+  'Does TMR show a dose–response relationship?',
+  'Is awake replay measurable non-invasively in humans?',
+  'What counts as a reactivation event across labs?',
+  'Is the between-lab dispersion an artefact of density definition?',
+  'What would falsify the active systems account?',
+  'Does waking rest share a mechanism with sleep, or only an outcome?',
+  'Is targeted memory reactivation orthogonal to encoding?',
+  'Why is spindle refractoriness always reported in group means?',
+  'What sample size would detect the dissociation I care about?',
+  'Has the spindle-coupling effect been replicated with high-density EEG?',
+  'Who set the 11–16 Hz band, and on what evidence?',
+  'Is gist extraction a separate process or forgetting with better press?',
+  'Do motor and declarative tasks need separate accounts?',
+  'Is the forgetting curve the right null model here at all?',
+  'How would I detect replay without assuming the sequence in advance?',
+  'Does the planning account of replay make any sleep predictions?',
+  'Is there a dataset with both intracranial and scalp recordings?',
+  'Why does nobody plot per-subject slopes in this literature?',
+  'Could the whole effect be regression to the mean across sessions?',
+  'What proportion of these studies used a within-subject control night?',
+  'Is the ripple-rate measure comparable across montages?',
+  'Does the field have a standard for sleep-staging reliability?',
+  'Is probing the right tool for reading structure out of a decoder?',
+  'What happens to all of this in fragmented or clinical sleep?',
+  'Why do I keep assuming sleep is the interesting variable?'
+];
+const STEMS = [
+  'Does {x} replicate in older adults?','Is {x} sensitive to time of day?','How would I measure {x} without EEG?',
+  'Does {x} survive a preregistered test?','Is {x} confounded by circadian phase?','Has {x} been shown outside the lab?',
+  'Is {x} the same construct across these two literatures?','Does {x} depend on task difficulty?',
+  'What happens to {x} in fragmented sleep?','Why is {x} never plotted per subject?',
+  'Is {x} an assumption here or a finding?','How stable is {x} across nights?'
+];
+const OBJS = [
+  'slow-wave density','spindle–SO coupling','the TMR benefit','awake replay','the overnight effect',
+  'reactivation strength','the encoding confound','cue-locked reinstatement','gist extraction',
+  'spindle refractoriness','the nap benefit','ripple rate','the forgetting slope','replay fidelity'
+];
+
+const ORIGINS = [
+  ['Klinzing, Niethard & Born 2019','source · read 3×',41],
+  ['Ólafsdóttir, Bush & Barry 2018','source · read 2×',34],
+  ['Lab meeting','recurring context · 41 sessions',29],
+  ['Rasch & Born 2013','source · read 4×',26],
+  ['Cordi & Rasch 2021','source · read 1×',22],
+  ['Journal club','recurring context · 18 sessions',19],
+  ['Grant aim 2 — draft','note · while writing',17],
+  ['SLEEP 2026 keynote','talk',14],
+  ['Schreiner & Rasch 2021','source',12],
+  ['Thesis ch.3 outline','note · while writing',11]
+];
+
+function build(){
+  const r = rng(31337);
+  const questions = [];
+  for (let i = 0; i < 64; i++) {
+    const text = i < HWQ.length ? HWQ[i]
+      : STEMS[Math.floor(r()*STEMS.length)].replace('{x}', OBJS[Math.floor(r()*OBJS.length)]);
+    const kind = i < 14 ? 'rq' : i < 20 ? 'hyp' : 'q';
+    const tags = {};
+    const nt = 1 + Math.floor(r() * 4);
+    const weightBias = r();
+    for (let k = 0; k < nt; k++) {
+      const t = TAGPATHS[Math.floor(r() * TAGPATHS.length)];
+      const w = weightBias > .72 ? 1 + Math.floor(r() * 9) : weightBias > .4 ? Math.floor(r() * 4) : Math.floor(r() * 2);
+      if (w > 0) tags[t] = (tags[t] || 0) + w;
+    }
+    questions.push({ i, text, kind, tags, total: Object.keys(tags).reduce((a, k) => a + tags[k], 0) });
+  }
+  return questions;
+}
+const Q = build();
+
+const TAGTOTAL = {};
+TAGPATHS.forEach(t => { TAGTOTAL[t] = Q.reduce((a, q) => a + (q.tags[t] || 0), 0); });
+const SKIMKEPT = {};
+(function(){ const r = rng(777); TAGPATHS.forEach(t => { SKIMKEPT[t] = Math.floor(r() * 14); }); })();
+
+const LEAFCOUNT = {};
+TAGPATHS.forEach(t => { const l = t.split('/').slice(-1)[0]; LEAFCOUNT[l] = (LEAFCOUNT[l] || 0) + 1; });
+function leafLabel(t){
+  const parts = t.split('/'), leaf = parts[parts.length - 1];
+  return LEAFCOUNT[leaf] > 1 && parts.length > 1 ? parts[parts.length - 2] + '/' + leaf : leaf;
+}
+const UNANCHORED = Q.filter(q => q.total <= 1).sort((a, b) => a.total - b.total);
+
+const RAMP = [
+  {fill:'#111417', stroke:'#191d22'},
+  {fill:'#252c33', stroke:'#2b3036'},
+  {fill:'#3a444d', stroke:'#414b55'},
+  {fill:'#5b6771', stroke:'#626e79'},
+  {fill:'#98a2ab', stroke:'#a4aeb6'}
+];
+function level(v){ return v === 0 ? 0 : v === 1 ? 1 : v <= 3 ? 2 : v <= 7 ? 3 : 4; }
+
+const SCATTER = (function(){
+  const r = rng(4242), out = [];
+  TAGPATHS.forEach(t => {
+    const depth = t.split('/').length;
+    const papers = Math.floor(r() * 40);
+    const measurable = papers >= 8;
+    out.push({
+      path: t, depth,
+      growth: -6 + r() * 46,
+      coverage: Math.min(100, (TAGTOTAL[t] || 0) * 3 + Math.floor(r() * 24)),
+      papers, measurable
+    });
+  });
+  return out;
+})();
+
+const CANDIDATES = [
+  { cite:'Lewis & Durrant (2011)', kind:'review · in vault', title:'Overlapping memory replay during sleep builds cognitive schemata',
+    overlap:'shares #sleep/consolidation, #theory · cited by 2 notes you wrote' },
+  { cite:'Feld & Born (2017)', kind:'review · in vault, unread', title:'Sculpting memory during sleep: concurrent consolidation and forgetting',
+    overlap:'shares #sleep/consolidation, #theory' },
+  { cite:'Cordi & Rasch (2021)', kind:'meta-analysis · in vault', title:'How robust are sleep-mediated memory benefits?',
+    overlap:'shares #meta-science/replication · already attached to 2 other questions' },
+  { cite:'Squire (2015)', kind:'stub · no PDF', title:'Memory consolidation — a retrospective',
+    overlap:'shares #theory · keyword overlap on “systems consolidation”' },
+  { cite:'Dudai (2015)', kind:'stub · no PDF', title:'The consolidation and transformation of memory',
+    overlap:'shares #theory, #sleep/consolidation' },
+  { cite:'Gelman & Loken (2013)', kind:'methods · in vault', title:'The garden of forking paths',
+    overlap:'shares #meta-science/replication only · weakest of the six' }
+];
+
+class Component extends DCLogic {
+  state = { mode:'matrix', depth:2, decided:{} };
+
+  renderVals(){
+    const st = this.state;
+
+    const cols = TAGPATHS.slice().sort((a, b) => TAGTOTAL[b] - TAGTOTAL[a]).slice(0, 22);
+    const rows = Q.slice().sort((a, b) => b.total - a.total).slice(0, 24);
+
+    const lowRows = UNANCHORED;
+    const emptyCols = TAGPATHS.filter(t => TAGTOTAL[t] === 0 || TAGTOTAL[t] <= 2);
+    const clocked = TAGPATHS.filter(t => SKIMKEPT[t] >= 6 && (TAGTOTAL[t] || 0) <= 3)
+      .sort((a, b) => SKIMKEPT[b] - SKIMKEPT[a]);
+
+    const KG = { rq:'◆', hyp:'▲', q:'◇' };
+    const KF = { rq:'#d99b4a', hyp:'#8c939a', q:'#8c939a' };
+
+    const depthTags = SCATTER.filter(s => s.depth <= st.depth &&
+      !(st.depth > s.depth && TAGPATHS.some(t => t.indexOf(s.path + '/') === 0 && t.split('/').length <= st.depth)));
+    const placed = depthTags.filter(s => s.measurable).slice(0, 22);
+    const unplacedList = depthTags.filter(s => !s.measurable).slice(0, 9);
+
+    const gMin = -8, gMax = 42;
+    const maxPapers = Math.max.apply(null, placed.map(p => p.papers).concat([1]));
+
+    const decidedN = Object.keys(st.decided).length;
+    const acceptedN = Object.keys(st.decided).filter(k => st.decided[k] === 'link').length;
+
+    const FUNNEL = [
+      ['captured', 318, 'every wondering that cost two keystrokes', '#5b6771'],
+      ['still open', 214, 'the resting state — not a failure mode', '#98a2ab'],
+      ['promoted to a research question', 47, 'decided to answer by reading', '#d99b4a'],
+      ['promoted to a hypothesis', 19, 'decided to answer by testing', '#d99b4a'],
+      ['answered in place', 26, 'resolved without ever being promoted', '#4fb3a4'],
+      ['abandoned', 12, 'deliberately dropped, and still searchable', '#3a444d']
+    ];
+
+    return {
+      matrixModes: [['matrix','matrix · top 24 × 22'],['lists','ranked lists · all 64']].map(([k, label]) => {
+        const on = st.mode === k;
+        return { label, bg: on ? '#212730' : 'transparent', border: on ? '#3a424b' : '#23272d',
+          fg: on ? '#e7e9eb' : '#8c939a', pick: () => this.setState({ mode:k }) };
+      }),
+      showMatrix: st.mode === 'matrix', showLists: st.mode === 'lists',
+      scaleNote: '64 questions · 44 tags · matrix shows the 24 × 22 heaviest, lists show everything',
+      matrixFoot: 'both axes sorted by total weight — the ordering is the analysis',
+      fallbackLead: 'Past roughly forty questions a matrix is a wall of grey squares, so the same four readings are served as ranked lists instead. Nothing is lost: the matrix was only ever a sorted table, and these are its rows and columns read one at a time.',
+
+      cols: cols.map(t => ({
+        label: leafLabel(t),
+        fg: TAGTOTAL[t] <= 2 ? '#8c939a' : '#bac0c6',
+        total: TAGTOTAL[t],
+        totalFg: TAGTOTAL[t] <= 2 ? '#8c939a' : '#bac0c6'
+      })),
+      rows: rows.map(q => ({
+        label: q.text,
+        glyph: KG[q.kind], glyphFg: KF[q.kind],
+        fg: q.total === 0 ? '#8c939a' : '#bac0c6',
+        bg: q.total === 0 ? '#151312' : 'transparent',
+        total: q.total, totalFg: q.total === 0 ? '#8c939a' : '#bac0c6',
+        cells: cols.map(t => {
+          const L = RAMP[level(q.tags[t] || 0)];
+          return { fill: L.fill, stroke: L.stroke };
+        })
+      })),
+      ramp: RAMP,
+
+      readings: [
+        { title:'well-supported', tone:'#e7e9eb', count: Q.filter(q => q.total >= 8).length + ' questions',
+          what:'Dense rows. These have enough attached material that the next move is writing, not reading.',
+          example:'“' + rows[0].text + '”' },
+        { title:'unanchored', tone:'#d99b4a', count: UNANCHORED.length + ' questions',
+          what:'Empty rows. Promoted or captured, nothing attached — this is the backlog, and the inferred-link review below is how it closes.',
+          example:'“What would falsify the active systems account?”' },
+        { title:'unquestioned knowledge', tone:'#bac0c6', count: emptyCols.length + ' tags',
+          what:'Empty columns. Material in the vault that no question points at. Sometimes reference, sometimes a question you never wrote down.',
+          example:'#' + (emptyCols[0] || 'clinical/apnea') + ' · #' + (emptyCols[1] || 'tooling/sharing') },
+        { title:'clocked but unquestioned', tone:'#4fb3a4', count: clocked.length + ' tags',
+          what:'Kept from the Skim feed, no question behind any of it. The best available evidence of an interest you have not articulated.',
+          example:'#' + (clocked[0] || 'ml/interpretability/probing') + ' — ' + (SKIMKEPT[clocked[0]] || 9) + ' kept, 0 questions' }
+      ],
+
+      lists: [
+        { title:'WELL-SUPPORTED', titleFg:'#e7e9eb', n: Q.filter(q => q.total >= 8).length, note:'by attached weight',
+          items: Q.slice().sort((a,b) => b.total - a.total).slice(0, 8).map((q, i) => ({ n: i+1, text: q.text, tail: q.total + ' attached' })) },
+        { title:'UNANCHORED', titleFg:'#d99b4a', n: lowRows.length, note:'nothing, or almost nothing, attached',
+          items: lowRows.slice(0, 8).map((q, i) => ({ n: i+1, text: q.text, tail: q.total === 0 ? 'none' : '1 attached' })) },
+        { title:'UNQUESTIONED KNOWLEDGE', titleFg:'#bac0c6', n: emptyCols.length, note:'tags no question points at',
+          items: emptyCols.slice(0, 8).map((t, i) => ({ n: i+1, text: '#' + t, tail: (TAGTOTAL[t] || 0) + ' links' })) },
+        { title:'CLOCKED BUT UNQUESTIONED', titleFg:'#4fb3a4', n: clocked.length, note:'kept from Skim, no question behind it',
+          items: clocked.slice(0, 8).map((t, i) => ({ n: i+1, text: '#' + t, tail: SKIMKEPT[t] + ' kept' })) }
+      ],
+
+      unanchoredHead: 'UNANCHORED QUESTION · 1 OF ' + UNANCHORED.length,
+      backlogNote: UNANCHORED.length + ' unanchored questions, ' + (UNANCHORED.length * 4 + 5) + ' candidate pairs. Working through them is how the empty rows in the matrix close — which is the only reason the empty rows are worth showing.',
+      inferLead: 'Six sources share at least one tag with this question. They are ranked by overlap strength, and nothing has been written to the vault — the matrix cell for this row is still empty and will stay empty until you say otherwise.',
+      candidates: CANDIDATES.map((c, i) => {
+        const d = st.decided[i];
+        return {
+          cite: c.cite, kind: c.kind, title: c.title,
+          overlap: d === 'link' ? 'linked — now in the supporting column as unsorted' : d === 'skip' ? 'skipped — this pair will not be offered again' : c.overlap,
+          glyph: d === 'link' ? '✓' : d === 'skip' ? '×' : '◈',
+          glyphFg: d === 'link' ? '#4fb3a4' : d === 'skip' ? '#8c939a' : '#8c939a',
+          border: d === 'link' ? '#1f3b37' : '#23272d',
+          bg: d === 'link' ? '#11211f' : d === 'skip' ? 'transparent' : '#15181c',
+          actions: d
+            ? [{ label:'undo', bg:'transparent', border:'transparent', fg:'#8c939a',
+                 go: () => this.setState(s => { const n = { ...s.decided }; delete n[i]; return { decided:n }; }) }]
+            : [
+              { label:'link', bg:'#212730', border:'#3a424b', fg:'#e7e9eb',
+                go: () => this.setState(s => ({ decided: { ...s.decided, [i]:'link' } })) },
+              { label:'open', bg:'transparent', border:'#23272d', fg:'#bac0c6', go: () => {} },
+              { label:'skip', bg:'transparent', border:'transparent', fg:'#8c939a',
+                go: () => this.setState(s => ({ decided: { ...s.decided, [i]:'skip' } })) }
+            ]
+        };
+      }),
+      inferTally: decidedN
+        ? acceptedN + ' linked · ' + (decidedN - acceptedN) + ' skipped · the matrix row fills on the next render'
+        : 'nothing written yet — link, open or skip each one',
+
+      depths: [[1,'roots'],[2,'two levels'],[3,'full paths']].map(([k, label]) => {
+        const on = st.depth === k;
+        return { label, bg: on ? '#212730' : 'transparent', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ depth:k }) };
+      }),
+      depthNote: st.depth === 1 ? 'roots only — no double counting, least resolution'
+        : st.depth === 2 ? 'a parent is shown only where it has no child at this depth'
+        : 'leaves only — highest resolution, smallest paper counts',
+
+      points: (() => {
+        const prepped = placed.map(p => ({
+          p,
+          blind: p.growth > 17 && p.coverage < 50,
+          xPct: ((p.growth - gMin) / (gMax - gMin)) * 86 + 7,
+          yPct: 100 - (p.coverage / 100) * 80 - 10
+        })).sort((a, b) => (b.blind - a.blind) || (b.p.papers - a.p.papers));
+        const taken = [];
+        return prepped.map(o => {
+          let y = o.yPct, tries = 0;
+          while (tries < 14 && taken.some(t => Math.abs(t.x - o.xPct) < 17 && Math.abs(t.y - y) < 5)) {
+            y += (tries % 2 ? -1 : 1) * (4.6 + Math.floor(tries / 2) * 1.4);
+            tries++;
+          }
+          y = Math.max(5, Math.min(94, y));
+          taken.push({ x: o.xPct, y });
+          const d = 7 + Math.round((o.p.papers / maxPapers) * 17);
+          return {
+            x: o.xPct + '%', y: y + '%', d: d + 'px',
+            dir: o.xPct > 68 ? 'row-reverse' : 'row',
+            fill: o.blind ? '#d99b4a' : '#2f3942',
+            stroke: o.blind ? '#d99b4a' : '#4b5560',
+            labelFg: o.blind ? '#e7e9eb' : '#8c939a',
+            label: '#' + leafLabel(o.p.path)
+          };
+        });
+      })(),
+      unplaced: unplacedList.map(u => ({ label: '#' + leafLabel(u.path) + ' · ' + u.papers + ' papers' })),
+
+      funnel: FUNNEL.map(([label, n, note, fill]) => ({
+        label, n, note, fill,
+        pct: Math.round((n / 318) * 100) + '% of captures',
+        w: Math.max(2, (n / 318) * 100) + '%',
+        fg: label === 'captured' ? '#e7e9eb' : '#bac0c6'
+      })),
+
+      origins: ORIGINS.map(([label, kind, n], i) => ({
+        rank: i + 1, label, kind, n,
+        w: Math.round((n / 41) * 100) + '%',
+        fill: i < 3 ? '#98a2ab' : '#4b5560'
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
