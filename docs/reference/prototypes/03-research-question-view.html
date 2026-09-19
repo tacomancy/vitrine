@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:840px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">RESEARCH QUESTION — THREE AGES OF THE SAME PAGE</p><p class="hs">Switch between them: the layout never changes, only how much of it is filled. A freshly promoted page is mostly provenance and that is its finished state, not a stub. The evidence spread is two structurally separate columns with a balance strip above them, so a one-sided literature is visible before you have to think about it.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+    <div onClick="{{ t.pick }}" style="padding:6px 13px;border:1px solid {{ t.border }};border-radius:3px;background:{{ t.bg }};font:400 11.5px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }}</div>
+  </sc-for>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;height:940px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ winTitle }}</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">◻</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 26px;gap:12px">
+        <span style="font:500 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">RESEARCH QUESTION</span>
+        <span style="padding:2px 8px;border-radius:3px;background:#2b2117;font:500 10.5px 'IBM Plex Mono',monospace;color:#d99b4a">{{ ageChip }}</span>
+        <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ revChip }}</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">+ attach source</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">history</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">resolve</span>
+        </span>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px 40px;display:flex;flex-direction:column;gap:26px">
+
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div style="font:600 26px/1.32 'Source Serif 4',Georgia,serif;max-width:720px">{{ question }}</div>
+            <div style="display:flex;align-items:center;gap:9px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">
+              <span style="color:#d99b4a">◆</span><span>first wondered {{ originWhen }} · {{ originWhere }}</span>
+            </div>
+            <div style="border-left:2px solid #2b3036;padding:2px 0 2px 12px;font:400 13px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a;max-width:680px">{{ originQuote }}</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WORKING ANSWER</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ answerMeta }}</span>
+            </div>
+            <sc-if value="{{ hasAnswer }}" hint-placeholder-val="{{ true }}">
+              <div style="border-left:2px solid #d99b4a;padding:3px 0 3px 14px;font:400 16px/1.72 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:720px">{{ answer }}</div>
+            </sc-if>
+            <sc-if value="{{ noAnswer }}" hint-placeholder-val="{{ true }}">
+              <div style="border-left:2px dashed #2b3036;padding:3px 0 3px 14px;max-width:660px;display:flex;flex-direction:column;gap:6px">
+                <div style="font:400 16px/1.7 'Source Serif 4',Georgia,serif;color:#7d858d">No position yet.</div>
+                <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Write one when you have one — even a bad guess is a starting position, and the history will show where it went from there.</div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">THE SHAPE OF IT</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ balanceMeta }}</span>
+            </div>
+            <div style="display:flex;align-items:stretch;height:26px;gap:3px;max-width:820px">
+              <div style="flex:{{ forFlex }};background:#2f3942;border:1px solid #3a424b;border-radius:2px;display:flex;align-items:center;padding:0 10px;font:500 10.5px 'IBM Plex Mono',monospace;color:#d3d7db">{{ forLabel }}</div>
+              <sc-if value="{{ hasAgainst }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:{{ againstFlex }};background:#3c2b28;border:1px solid #5a3f3a;border-radius:2px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font:500 10.5px 'IBM Plex Mono',monospace;color:#e59289">{{ againstLabel }}</div>
+              </sc-if>
+              <sc-if value="{{ noAgainst }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;border:1px dashed #3a2c28;border-radius:2px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">nothing against</div>
+              </sc-if>
+            </div>
+            <sc-if value="{{ lopsided }}" hint-placeholder-val="{{ true }}">
+              <div style="max-width:820px;display:flex;gap:10px;align-items:flex-start;border:1px solid #3a2c18;background:#1a1611;border-radius:3px;padding:10px 13px">
+                <span style="font:400 11px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:2px">!</span>
+                <span style="font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:#bac0c6">{{ lopsidedText }}</span>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:920px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:1px solid #2f3942">
+                <span style="width:7px;height:7px;border-radius:2px;background:#8c939a"></span>
+                <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">SUPPORTING</span>
+                <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ forCount }}</span>
+              </div>
+              <sc-for list="{{ forSources }}" as="s" hint-placeholder-count="3">
+                <div style="border:1px solid #23272d;border-radius:3px;background:#15181c;padding:11px 13px;display:flex;flex-direction:column;gap:7px">
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e7e9eb">{{ s.cite }}</span>
+                    <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ s.kind }}</span>
+                  </div>
+                  <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ s.why }}</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.anns }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ forEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1px dashed #23272d;border-radius:3px;padding:14px 13px;font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">Nothing attached yet. Sources arrive here from the Reader, or with ⌘⇧A.</div>
+              </sc-if>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ forMore }}</div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:1px solid #4a3835">
+                <span style="width:7px;height:7px;border-radius:2px;background:#d4685c"></span>
+                <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">OPPOSING</span>
+                <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ againstCount }}</span>
+              </div>
+              <sc-for list="{{ againstSources }}" as="s" hint-placeholder-count="2">
+                <div style="border:1px solid #23272d;border-radius:3px;background:#15181c;padding:11px 13px;display:flex;flex-direction:column;gap:7px">
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e7e9eb">{{ s.cite }}</span>
+                    <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ s.kind }}</span>
+                  </div>
+                  <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ s.why }}</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.anns }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ againstEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1px dashed #23272d;border-radius:3px;padding:14px 13px;font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">{{ againstEmptyText }}</div>
+              </sc-if>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ againstMore }}</div>
+            </div>
+          </div>
+
+          <sc-if value="{{ hasUnsorted }}" hint-placeholder-val="{{ true }}">
+            <div style="max-width:920px;border:1px solid #23272d;border-radius:3px;background:#121518;padding:11px 14px;display:flex;align-items:center;gap:12px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">UNSORTED</span>
+              <span style="font:400 12px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ unsortedText }}</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">read then place · never forced</span>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="width:344px;flex:none;background:#131619;border-left:1px solid #23272d;overflow-y:auto;display:flex;flex-direction:column">
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">POSITION HISTORY</div>
+            <sc-for list="{{ miniHistory }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;padding-top:3px;width:42px;flex:none">{{ h.when }}</span>
+                <span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:{{ h.fg }}">{{ h.text }}</span>
+              </div>
+            </sc-for>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ historyLink }}</div>
+          </div>
+
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">OPEN THREADS</div>
+            <sc-for list="{{ threads }}" as="t" hint-placeholder-count="2">
+              <div style="display:flex;gap:9px;align-items:flex-start">
+                <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ t.tone }};padding-top:3px">{{ t.glyph }}</span>
+                <span style="font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:{{ t.fg }}">{{ t.text }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noThreads }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">None recorded. Threads usually appear once you have read enough to know what is missing.</div>
+            </sc-if>
+          </div>
+
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">RELATED</div>
+            <sc-for list="{{ related }}" as="r" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span style="font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ r.text }}</span>
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ r.rel }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noRelated }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">Nothing linked. Sub-questions spawned from this page will collect here on their own.</div>
+            </sc-if>
+          </div>
+
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">FEEDER CAPTURES</div>
+            <div style="font:400 11.5px/1.6 'IBM Plex Mono',monospace;color:#8c939a">{{ feeders }}</div>
+            <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#4fb3a4">{{ scout }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">ATTACHING A SOURCE — AND DECIDING WHICH SIDE IT IS ON</p><p class="hs">⌘⇧A from anywhere on the page, or drag a source in from the Reader. Side is a choice with three answers, not two: <em>unsorted</em> exists so that attaching never costs a judgement you have not made yet. The note and the annotation links are the part worth typing, and both are optional.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;box-shadow:0 24px 60px -28px rgba(0,0,0,.72)">
+    <div style="padding:12px 16px;border-bottom:1px solid #23272d;display:flex;align-items:center;gap:10px;background:#15181b">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ATTACH TO — IS THE OVERNIGHT BENEFIT CONSOLIDATION OR ENCODING?</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">esc</span>
+    </div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:9px;background:#15181c;border:1px solid #2b3036;border-radius:3px;padding:8px 11px">
+        <span style="font:400 11px 'IBM Plex Mono',monospace;color:#7d858d">⌕</span>
+        <span style="font:400 12.5px 'IBM Plex Mono',monospace;color:#e7e9eb">cordi rasch 2021<span style="display:inline-block;width:1.5px;height:14px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">3 in vault · 1 stub</span>
+      </div>
+      <div style="border:1px solid #3a424b;border-radius:3px;background:#171b20;padding:11px 13px;display:flex;flex-direction:column;gap:5px">
+        <div style="font:500 13px 'IBM Plex Sans',sans-serif">Cordi &amp; Rasch (2021)</div>
+        <div style="font:400 11.5px/1.5 'IBM Plex Mono',monospace;color:#8c939a">How robust are sleep-mediated memory benefits? · Current Opinion in Neurobiology · pdf in vault · 11 highlights</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHICH SIDE</div>
+        <div style="display:flex;gap:8px">
+          <sc-for list="{{ sides }}" as="s" hint-placeholder-count="3">
+            <div onClick="{{ s.pick }}" style="flex:1;border:1px solid {{ s.border }};background:{{ s.bg }};border-radius:3px;padding:9px 11px;display:flex;flex-direction:column;gap:4px;cursor:default">
+              <div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:2px;background:{{ s.dot }}"></span><span style="font:500 11.5px 'IBM Plex Mono',monospace;color:{{ s.fg }}">{{ s.label }}</span></div>
+              <div style="font:400 10.5px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">{{ s.hint }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHY IT IS HERE</span>
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">optional — but this is the field you will reread in six months</span>
+        </div>
+        <div style="border:1px solid #2b3036;border-radius:3px;background:#15181c;padding:10px 12px;font:400 13.5px/1.65 'Source Serif 4',Georgia,serif;color:#d3d7db">Meta-analysis: the overnight benefit shrinks to about a third of its reported size once preregistered studies are separated out.<span style="display:inline-block;width:1.5px;height:15px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">LINK TO ANNOTATIONS</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <span style="padding:4px 9px;border:1px solid #3a424b;background:#212730;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#e7e9eb">h·9 — “shrinks with preregistration”</span>
+          <span style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">h·12 — “funnel plot asymmetry”</span>
+          <span style="padding:4px 9px;border:1px dashed #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">+ 9 more</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;border-top:1px solid #1d2126;padding-top:12px">
+        <span style="padding:6px 13px;border-radius:3px;background:#d99b4a;font:500 11.5px 'IBM Plex Mono',monospace;color:#0f1113">attach ⏎</span>
+        <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">attach and open ⇧⏎</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ attachHint }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="box-sizing:border-box;width:470px;flex:none;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;color:#e7e9eb">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHY TWO COLUMNS AND NOT ONE BIBLIOGRAPHY</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">A tagged list lets you collect thirty papers and never notice that twenty-nine of them agree with you. Two structurally separate columns make the ratio a visual fact you cannot scroll past, and the balance strip states it in words when one side is empty.</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Filing a source on the wrong side is cheap to undo and is itself a recorded event — if a paper moves from supporting to opposing after a second reading, that move shows up in the position history alongside the answer revision it caused.</div>
+    <div style="height:1px;background:#1d2126"></div>
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT AN EMPTY SECTION SAYS</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Empty sections are dashed outlines with a sentence explaining what would go there, not greyed-out headings. Nothing on the page is a placeholder waiting to be filled in — a page with one source and no answer is a page in a normal state, and the only thing that ever raises its voice is a one-sided literature.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">EDITING THE ANSWER — AND THE OPTIONAL “WHY”</p><p class="hs">Left: editing is a plain text field and ⌘⏎ commits. The revision is recorded either way. Right: ⌥⏎ instead opens one line for what changed your mind, with the source, annotation or experiment responsible attachable in the same gesture. Nothing blocks the save; the note can also be added to any past revision later, from the history.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;color:#e7e9eb">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WORKING ANSWER — EDITING</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">revision 6 · autosaves on blur</span>
+    </div>
+    <div style="border-left:2px solid #d99b4a;background:#15181c;padding:12px 0 12px 14px;font:400 16px/1.72 'Source Serif 4',Georgia,serif;color:#d3d7db">Probably both, but the dissociation designs that could separate them are underpowered. The strongest case for consolidation proper is TMR, where the cue is experimenter-controlled and orthogonal to encoding<span style="display:inline-block;width:1.5px;height:18px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+    <div style="display:flex;align-items:center;gap:14px;border-top:1px solid #1d2126;padding-top:11px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">
+      <span style="color:#bac0c6">⌘⏎ save</span>
+      <span>⌥⏎ save with a note on what changed</span>
+      <span style="margin-left:auto;color:#7d858d">esc reverts</span>
+    </div>
+    <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">No dialog appears on save. The previous text is kept, the timestamp is kept, and the page returns to reading. A revision with no note still counts as a revision — it just lands in the quiet trail.</div>
+  </div>
+
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;color:#e7e9eb">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#d99b4a">⌥⏎ — WHAT CHANGED</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">one line, then you are back on the page</span>
+    </div>
+    <div style="border-left:2px solid #2b3036;background:#121518;padding:10px 0 10px 14px;font:400 13.5px/1.65 'Source Serif 4',Georgia,serif;color:#8c939a">Probably both, but the dissociation designs that could separate them are underpowered…</div>
+    <div style="border:1px solid #d99b4a;border-radius:3px;background:#15181c;padding:11px 13px;display:flex;flex-direction:column;gap:10px">
+      <div style="font:400 14px/1.6 'Source Serif 4',Georgia,serif;color:#d3d7db">Cordi's funnel plot — the effect is mostly small-study bias<span style="display:inline-block;width:1.5px;height:16px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;border-top:1px solid #23272d;padding-top:9px">
+        <span style="padding:4px 9px;border:1px solid #3a424b;background:#212730;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#e7e9eb">◈ Cordi &amp; Rasch 2021 · h·12</span>
+        <span style="padding:4px 9px;border:1px dashed #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">+ source</span>
+        <span style="padding:4px 9px;border:1px dashed #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">+ annotation</span>
+        <span style="padding:4px 9px;border:1px dashed #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">+ experiment</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">
+      <span style="color:#bac0c6">⏎ save both</span><span>esc saves the revision without the note</span>
+    </div>
+    <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Escaping here is not a cancel — the position change is already recorded. You are only declining to explain it, which the history renders as a date rather than a story.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">POSITION HISTORY — A TRAIN OF THOUGHT, NOT A DIFF LOG</p><p class="hs">Seven revisions over eleven months; three of them carry a why. Explained revisions are the narrative and get the full width. The unexplained ones are not hidden — they collapse into a dated rule that still shows the position moved, and any of them can be annotated later from here.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="padding:16px 26px;border-bottom:1px solid #23272d;display:flex;align-items:baseline;gap:14px">
+    <div style="font:600 15px/1.35 'Source Serif 4',Georgia,serif">Is the overnight retention benefit attributable to consolidation, or to encoding strength?</div>
+    <div style="margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">7 revisions · 3 explained · 11 months</div>
+  </div>
+  <div style="padding:8px 26px 10px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:8px">
+    <sc-for list="{{ histFilters }}" as="h" hint-placeholder-count="3">
+      <div onClick="{{ h.pick }}" style="padding:4px 10px;border-radius:3px;background:{{ h.bg }};font:400 10.5px 'IBM Plex Mono',monospace;color:{{ h.fg }};cursor:default">{{ h.label }}</div>
+    </sc-for>
+    <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">newest first</span>
+  </div>
+
+  <div style="padding:22px 26px 30px;display:flex;flex-direction:column">
+    <sc-for list="{{ history }}" as="h" hint-placeholder-count="5">
+      <div style="display:grid;grid-template-columns:118px 20px 1fr;gap:0;align-items:stretch">
+        <div style="padding:0 16px 22px 0;text-align:right">
+          <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ h.dateTone }}">{{ h.date }}</div>
+          <div style="margin-top:3px;font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ h.rev }}</div>
+        </div>
+        <div style="position:relative;display:flex;justify-content:center">
+          <div style="position:absolute;top:0;bottom:0;width:1px;background:#23272d"></div>
+          <div style="position:relative;width:{{ h.dotSize }};height:{{ h.dotSize }};border-radius:50%;background:{{ h.dot }};margin-top:4px;box-shadow:0 0 0 4px #0f1113"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;min-width:0">
+          <sc-if value="{{ h.marked }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:11px;max-width:880px">
+              <div style="font:400 15px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ h.text }}</div>
+              <div style="display:flex;gap:11px;align-items:flex-start;border-left:2px solid #d99b4a;padding-left:12px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font:400 13px/1.6 'Source Serif 4',Georgia,serif;color:#e7e9eb">{{ h.why }}</div>
+                  <div style="display:flex;gap:7px;flex-wrap:wrap">
+                    <sc-for list="{{ h.causes }}" as="c" hint-placeholder-count="1">
+                      <span style="padding:3px 8px;border:1px solid #23272d;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ c.label }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+              <div style="font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#7d858d">{{ h.from }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ h.quiet }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:12px;height:20px">
+              <div style="flex:1;max-width:560px;height:1px;background:#1d2126"></div>
+              <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ h.text }}</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d;cursor:default">{{ h.action }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="border-top:1px solid #1d2126;background:#121518;padding:14px 26px;display:flex;gap:40px">
+    <div style="flex:1;font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">Read top to bottom this is a person changing their mind twice on evidence and once on a calculation they ran themselves. The four silent revisions between them are visible as movement without pretending to be reasoning.</div>
+    <div style="flex:1;font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">Hovering any quiet revision offers <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#bac0c6">+ why</span> — the note can be written months after the fact, which is usually when you know what actually changed.</div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1040}}">
+const STATES = {
+  fresh: {
+    label:'1 · freshly promoted',
+    win:'is the overnight benefit consolidation or encoding? — promoted 2 days ago',
+    age:'OPEN · 2d', rev:'no revisions yet',
+    answer:null, answerMeta:'nothing written yet',
+    forSources:[{cite:'Rasch & Born (2013)', kind:'review · the paper it came from', why:'Not yet read past §4. Attached because this is where the question started.', anns:'h·4 — “overnight retention benefits”'}],
+    againstSources:[], unsorted:0,
+    forTotal:1, againstTotal:0,
+    threads:[], related:[],
+    history:[{when:'2d', text:'Promoted from a capture made 22 Aug.', fg:'#8c939a'}],
+    historyLink:'nothing has changed yet',
+    feeders:'1 capture · the original',
+    scout:'no scout yet — set one from any attached source'
+  },
+  progress: {
+    label:'2 · in progress',
+    win:'is the overnight benefit consolidation or encoding? — 4 months',
+    age:'OPEN · 4mo', rev:'revision 3 of 3 · held 11 days',
+    answer:'Probably both, but the dissociation designs that could separate them are underpowered. The strongest case for consolidation proper is TMR, where the cue is experimenter-controlled and orthogonal to encoding. Everything correlational is contaminated.',
+    answerMeta:'held since 8 Sep · revision 3 · 2 explained',
+    forSources:[
+      {cite:'Rasch & Born (2013)', kind:'review', why:'TMR effects survive encoding controls — the cleanest statement of the case I have found.', anns:'h·4, h·11'},
+      {cite:'Schreiner & Rasch (2021)', kind:'direct test', why:'Cue-locked reactivation predicts gain within subject, which the encoding account does not obviously predict.', anns:'h·2 — “within-subject cue-locked”'},
+      {cite:'Staresina (2015)', kind:'mechanism', why:'Nesting gives a plausible mechanism. Weak evidence for the behavioural claim, strong for its possibility.', anns:'—'}
+    ],
+    againstSources:[
+      {cite:'Klinzing (2019)', kind:'review', why:'Concedes in §2 that the confound is unresolved. Not opposition exactly — an admission from the other side.', anns:'h·12, h·13'},
+      {cite:'Wamsley (2019)', kind:'direct test', why:'Waking rest produces a comparable benefit, which weakens the sleep-specific story considerably.', anns:'h·6'}
+    ],
+    unsorted:2, forTotal:4, againstTotal:2,
+    threads:[
+      {text:'Have not read Cordi & Rasch 2021 past the abstract.', done:false},
+      {text:'No idea what the power of the standard nap design actually is.', done:false},
+      {text:'Is TMR really orthogonal to encoding, or only nominally?', done:false}
+    ],
+    related:[
+      {text:'Does TMR show a dose–response relationship?', rel:'sub-question · spawned 6 Aug'},
+      {text:'What counts as a reactivation event?', rel:'question · shares 2 sources'}
+    ],
+    history:[
+      {when:'8 Sep', text:'Narrowed to TMR as the only clean design.', fg:'#bac0c6'},
+      {when:'2 Aug', text:'3 quiet revisions', fg:'#8c939a'},
+      {when:'19 May', text:'First position: “mostly consolidation”.', fg:'#bac0c6'}
+    ],
+    historyLink:'open full history →',
+    feeders:'5 captures · 2 from the iPad',
+    scout:'scout encoding-confound · 3 proposals waiting'
+  },
+  mature: {
+    label:'3 · mature',
+    win:'is the overnight benefit consolidation or encoding? — 11 months',
+    age:'OPEN · 11mo', rev:'revision 7 of 7 · held 6 weeks',
+    answer:'The benefit is real but roughly a third the size the 2010s reviews imply. The portion attributable to consolidation proper is best estimated from TMR designs, where the cue is orthogonal to encoding; correlational slow-wave measures should be read as descriptive and not as evidence for a mechanism. I would now bet on a small true effect with a large publication-bias component.',
+    answerMeta:'held since 5 Aug · revision 7 · 3 explained',
+    forSources:[
+      {cite:'Schreiner & Rasch (2021)', kind:'direct test', why:'Within-subject cue-locked reactivation predicts gain. Still the single strongest piece of evidence on this side.', anns:'h·2, h·5, h·9'},
+      {cite:'Rasch & Born (2013)', kind:'review', why:'TMR effects survive encoding controls, though the review predates the replication reckoning.', anns:'h·4, h·11'},
+      {cite:'Antony (2018)', kind:'direct test', why:'Refractoriness result implies a real physiological process rather than a measurement artefact.', anns:'h·7'},
+      {cite:'Staresina (2015)', kind:'mechanism', why:'Mechanism is plausible and well-characterised. Does not speak to effect size.', anns:'h·3'}
+    ],
+    againstSources:[
+      {cite:'Cordi & Rasch (2021)', kind:'meta-analysis', why:'The effect shrinks to about a third once preregistered studies are separated. This is what moved me most.', anns:'h·9 — “shrinks with preregistration”, h·12'},
+      {cite:'Wamsley (2019)', kind:'direct test', why:'Comparable benefit from waking rest. If quiet wake does it too, sleep is not the variable.', anns:'h·6'},
+      {cite:'Klinzing (2019)', kind:'review', why:'Concedes the confound is unresolved in §2.', anns:'h·12, h·13'},
+      {cite:'Gelman & Loken (2013)', kind:'methods', why:'Not about sleep at all. Explains why the dispersion between labs is what you would expect from flexible analysis.', anns:'h·1'}
+    ],
+    unsorted:1, forTotal:11, againstTotal:5,
+    threads:[
+      {text:'Power of the standard nap design — computed, 0.31 for the effect I care about.', done:true},
+      {text:'Is TMR orthogonal to encoding? Mostly, see Schreiner §3.', done:true},
+      {text:'No human dataset with both intracranial and scalp recordings.', done:false},
+      {text:'What would actually falsify this for me? Still cannot answer cleanly.', done:false}
+    ],
+    related:[
+      {text:'Does TMR show a dose–response relationship?', rel:'sub-question · spawned 6 Aug · 4 sources'},
+      {text:'Is awake replay measurable non-invasively in humans?', rel:'research question · shares 3 sources'},
+      {text:'What would falsify the active systems account?', rel:'question · stale 94d'}
+    ],
+    history:[
+      {when:'5 Aug', text:'Cordi funnel plot — revised size downward.', fg:'#bac0c6'},
+      {when:'Jun–Jul', text:'4 quiet revisions', fg:'#8c939a'},
+      {when:'11 Apr', text:'Ran the power calculation myself.', fg:'#bac0c6'}
+    ],
+    historyLink:'open full history →',
+    feeders:'17 captures · 9 from the iPad',
+    scout:'scout encoding-confound · weekly · 3 proposals'
+  }
+};
+
+const HISTORY = [
+  { date:'5 Aug 2026', rev:'revision 7', marked:true,
+    text:'The benefit is real but roughly a third the size the 2010s reviews imply, with a large publication-bias component.',
+    why:'Cordi\u2019s funnel plot. I had been treating the meta-analytic estimate as the effect; it is mostly small-study bias, and once you split on preregistration the picture is different enough that my previous wording was misleading.',
+    causes:[{label:'◈ Cordi & Rasch 2021 · h·12'},{label:'◆ capture: “is the funnel asymmetric?”'}],
+    from:'from — “probably both, but the designs are underpowered”' },
+  { date:'Jun – Jul', rev:'revisions 4–6', quiet:true, text:'4 quiet revisions over six weeks', action:'+ why' },
+  { date:'11 Apr 2026', rev:'revision 3', marked:true,
+    text:'Probably both, but the dissociation designs that could separate them are underpowered.',
+    why:'Ran the power calculation myself rather than trusting the discussion sections: 0.31 for the effect size I care about. That reframed the whole literature as underpowered rather than inconsistent.',
+    causes:[{label:'⌗ notebook: power-nap-design.R'},{label:'✎ note: Dissociation designs — power'}],
+    from:'from — “mostly consolidation, the encoding story is a technicality”' },
+  { date:'2 Mar 2026', rev:'revision 2', quiet:true, text:'1 quiet revision', action:'+ why' },
+  { date:'19 Feb 2026', rev:'revision 1', marked:true,
+    text:'Mostly consolidation. The encoding-strength story is a technicality that careful designs rule out.',
+    why:'First real position, written after finishing Rasch & Born. In hindsight this was the review\u2019s framing rather than mine, which is worth remembering.',
+    causes:[{label:'◈ Rasch & Born 2013 · h·4'}],
+    from:'first position' },
+  { date:'22 Oct 2025', rev:'promoted', quiet:true, text:'Promoted from a capture made while reading Rasch & Born, p.699', action:'view capture' }
+];
+
+class Component extends DCLogic {
+  state = { view:'progress', side:'against', histFilter:'all' };
+
+  renderVals(){
+    const key = this.state.view, d = STATES[key];
+    const forN = d.forTotal, againstN = d.againstTotal;
+    const lopsided = againstN === 0 && forN >= 1;
+
+    const sides = [
+      ['for','supporting','argues for the working answer','#8c939a'],
+      ['against','opposing','undercuts or contradicts it','#d4685c'],
+      ['unsorted','unsorted','read it first, decide later','#7d858d']
+    ].map(([k,label,hint,dot]) => {
+      const on = this.state.side === k;
+      return { label, hint, dot,
+        bg: on ? '#171b20' : 'transparent', border: on ? '#3a424b' : '#23272d',
+        fg: on ? '#e7e9eb' : '#bac0c6',
+        pick: () => this.setState({ side:k }) };
+    });
+
+    const hf = this.state.histFilter;
+    const bySource = h => h.marked && (h.causes || []).some(c => c.label.indexOf('◈') === 0);
+    const histFilters = [['all','everything'],['marked','explained only'],['sources','changed by a source']].map(([k,label]) => {
+      const on = hf === k;
+      return { label, bg: on ? '#212730' : 'transparent', fg: on ? '#e7e9eb' : '#8c939a',
+        pick: () => this.setState({ histFilter:k }) };
+    });
+
+    const history = HISTORY.filter(h => hf === 'all' ? true : hf === 'marked' ? h.marked : bySource(h)).map(h => ({
+      ...h,
+      quiet: !h.marked,
+      dateTone: h.marked ? '#bac0c6' : '#8c939a',
+      dot: h.marked ? '#d99b4a' : '#3a424b',
+      dotSize: h.marked ? '9px' : '5px',
+      causes: h.causes || []
+    }));
+
+    return {
+      tabs: Object.keys(STATES).map(k => {
+        const on = key === k;
+        return { label: STATES[k].label, bg: on ? '#212730' : 'transparent',
+          border: on ? '#3a424b' : '#23272d', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ view:k }) };
+      }),
+      winTitle: d.win, ageChip: d.age, revChip: d.rev,
+      question: 'Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?',
+      originWhen: key === 'fresh' ? '22 Aug 2026, 16:07' : '22 Oct 2025, 16:07',
+      originWhere: 'while reading Rasch & Born 2013, p.699 · h·4',
+      originQuote: '“…the overnight benefit is routinely attributed to consolidation, though participants who learn more also sleep differently…”',
+      answer: d.answer, hasAnswer: !!d.answer, noAnswer: !d.answer, answerMeta: d.answerMeta,
+
+      balanceMeta: forN + ' for · ' + againstN + ' against' + (d.unsorted ? ' · ' + d.unsorted + ' unsorted' : ''),
+      forFlex: String(Math.max(forN, 1)),
+      againstFlex: String(Math.max(againstN, 1)),
+      forLabel: forN + ' supporting',
+      againstLabel: againstN + ' opposing',
+      hasAgainst: againstN > 0, noAgainst: againstN === 0,
+      lopsided,
+      lopsidedText: key === 'fresh'
+        ? 'One source, and it is the paper that prompted the question. Nothing here argues the other way yet — which at two days old is expected, not a problem.'
+        : 'Everything collected so far agrees with the working answer. That is a property of your reading, not of the literature.',
+
+      forSources: d.forSources, againstSources: d.againstSources,
+      forCount: forN, againstCount: againstN,
+      forEmpty: d.forSources.length === 0,
+      againstEmpty: d.againstSources.length === 0,
+      againstEmptyText: key === 'fresh'
+        ? 'Nothing yet. When you find a paper that undercuts the answer, it goes here — and the strip above will stop pointing it out.'
+        : 'Nothing yet.',
+      forMore: forN > d.forSources.length ? '+ ' + (forN - d.forSources.length) + ' more' : '',
+      againstMore: againstN > d.againstSources.length ? '+ ' + (againstN - d.againstSources.length) + ' more' : '',
+      hasUnsorted: d.unsorted > 0,
+      unsortedText: d.unsorted === 1
+        ? 'Feld & Born (2017) — attached last week, not read yet.'
+        : 'Diekelmann (2010) · Denis (2021) — attached, not read yet.',
+
+      miniHistory: d.history.map(h => ({ when:h.when, text:h.text, fg:h.fg })),
+      historyLink: d.historyLink,
+      threads: d.threads.map(t => ({
+        text: t.text, glyph: t.done ? '✓' : '·',
+        tone: t.done ? '#4fb3a4' : '#7d858d',
+        fg: t.done ? '#8c939a' : '#bac0c6'
+      })),
+      noThreads: d.threads.length === 0,
+      related: d.related, noRelated: d.related.length === 0,
+      feeders: d.feeders, scout: d.scout,
+
+      sides, attachHint: this.state.side === 'unsorted'
+        ? 'lands in the unsorted strip — no side chosen'
+        : 'lands in ' + (this.state.side === 'for' ? 'supporting' : 'opposing') + ' · move it any time',
+      histFilters, history
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(255,255,255,.09);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.dv-tid{font:600 10px ui-monospace,'IBM Plex Mono',monospace;padding:3px 7px;background:#e7e9eb;color:#0f1113;border-radius:3px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'IBM Plex Mono',monospace;color:#e7e9eb}
+.dv-tsub{margin:0 0 24px;font:400 12.5px/1.6 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.58);max-width:760px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.1);color:#d5d9dd;border-radius:3px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 11.5px/1.3 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.62)}
+.dv-opt:target .dv-oid{background:#d99b4a;color:#0f1113}
+.dv-next{margin:26px 0 0;font:12px/1.6 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.5)}
+.dv-cap{margin:2px 0 0;max-width:1180px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 26px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:rgba(231,233,235,.45)}
+</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Terminal-adjacent — the two models you kept</span></div>
+<p class="dv-tsub">Same structure as <a class="dv-oid" href="#1a">1a</a> and <a class="dv-oid" href="#1b">1b</a>, recast near-black with hairline rules and monospace carrying the signal. Turn <a class="dv-oid" href="#t1">1</a> stays below for comparison; the warm palette card in turn <a class="dv-oid" href="#t0">0</a> is superseded by <a class="dv-oid" href="#2p">2p</a>.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2p">
+<div class="dv-olabel"><a class="dv-oid" href="#2p">2p</a>The revised language — near-black, hairlines, monospace carrying the signal.</div>
+<div style="box-sizing:border-box;width:1180px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:24px 26px;display:flex;gap:40px;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb">
+  <div style="width:360px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">TYPE</div>
+    <div><div style="font:400 22px/1.3 'Source Serif 4',Georgia,serif">Questions and quotations stay serif</div><div style="margin-top:4px;font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#6b737b">The only humane thing on the screen. Mono for a three-line question would be hostile at hour four.</div></div>
+    <div><div style="font:400 15px 'IBM Plex Mono',monospace">Nav, labels, counts, provenance → IBM&nbsp;Plex&nbsp;Mono</div><div style="margin-top:4px;font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#6b737b">p.4 · ann#12 · 09:41 · 94d · ⌘K · 14 untriaged</div></div>
+    <div><div style="font:450 14px 'IBM Plex Sans',sans-serif">Plex Sans survives only in prose UI</div><div style="margin-top:4px;font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#6b737b">Sentences the interface speaks. Everything enumerable moved to mono.</div></div>
+  </div>
+  <div style="width:1px;background:#23272d"></div>
+  <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+    <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">SURFACE &amp; SIGNAL</div>
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px">
+      <div><div style="height:40px;border-radius:3px;background:#08090a;border:1px solid #23272d"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">well<br>#08090a</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#0f1113;border:1px solid #23272d"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">page<br>#0f1113</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#131619;border:1px solid #23272d"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">chrome<br>#131619</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#23272d"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">rule<br>#23272d</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#6b737b"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">muted<br>#6b737b</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#d99b4a"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">open Q<br>#d99b4a</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#4fb3a4"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">scout<br>#4fb3a4</div></div>
+      <div><div style="height:40px;border-radius:3px;background:#d4685c"></div><div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#6b737b">opposing<br>#d4685c</div></div>
+    </div>
+    <div style="font:400 12.5px/1.7 'IBM Plex Sans',sans-serif;color:#bac0c6;max-width:640px">Four greys and three hues, nothing else. Amber is <span style="color:#d99b4a">an open question</span>, teal is <span style="color:#4fb3a4">the machine acting</span>, rust is <span style="color:#d4685c">evidence against</span>; a screen with no amber on it means nothing is waiting for you. Separation is 1px rules at <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">#23272d</span> plus a 4-point step in surface value — never a shadow, never a card. Radii drop to 3px; rows tighten to 30–36px. Highlights on the page are the only warm fill in the app, so a marked passage reads as a physical mark rather than a UI state.</div>
+    <div style="font:400 12.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a;max-width:640px">Dropped from the warm version: inner card shadows, the paper cream, the 6px radius. Kept: serif for anything a human wrote, and provenance always rendered as machine text.</div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Sidebar — surfaces as places. Conventional, legible, teaches the model.</div>
+<div style="width:1180px;height:780px;background:#0f1113;border:1px solid #2b3036;border-radius:3px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb">
+  <div style="height:38px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 13px;gap:16px">
+    <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11.5px 'IBM Plex Mono',monospace;color:#6b737b;letter-spacing:.02em">consolidation-vault</div>
+    <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:238px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column;padding:14px 0 0">
+      <div style="padding:0 14px 12px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">SURFACES</div>
+      <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px">
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;font:400 12.5px 'IBM Plex Mono',monospace;color:#bac0c6"><div style="width:5px;height:5px;border-radius:1px;background:#4b525a"></div>Home</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;background:#212730;font:600 12.5px 'IBM Plex Mono',monospace;color:#e7e9eb"><div style="width:5px;height:5px;border-radius:1px;background:#d99b4a"></div>Question Inbox<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#d99b4a">14</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;font:400 12.5px 'IBM Plex Mono',monospace;color:#bac0c6"><div style="width:5px;height:5px;border-radius:1px;background:#4b525a"></div>Reader</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;font:400 12.5px 'IBM Plex Mono',monospace;color:#bac0c6"><div style="width:5px;height:5px;border-radius:1px;background:#4b525a"></div>Research Questions<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">9</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;font:400 12.5px 'IBM Plex Mono',monospace;color:#bac0c6"><div style="width:5px;height:5px;border-radius:1px;background:#4b525a"></div>Scout Queue<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#4fb3a4">6</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;font:400 12.5px 'IBM Plex Mono',monospace;color:#bac0c6"><div style="width:5px;height:5px;border-radius:1px;background:#4b525a"></div>Vault</div>
+      </div>
+      <div style="height:1px;background:#23272d;margin:16px 14px"></div>
+      <div style="padding:0 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">THREADS</div>
+      <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px;font:400 12px/1.5 'IBM Plex Mono',monospace;color:#8c939a">
+        <div style="padding:5px 8px">Replay &amp; awake reactivation</div>
+        <div style="padding:5px 8px">TMR dose–response</div>
+        <div style="padding:5px 8px">Slow-wave density metrics</div>
+        <div style="padding:5px 8px">Methods · EEG artefacts</div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #23272d;padding:10px 14px;display:flex;align-items:center;gap:8px;font:400 11px 'IBM Plex Mono',monospace;color:#6b737b">
+        <div style="width:6px;height:6px;border-radius:50%;background:#4fb3a4"></div>3 scouts idle · synced 4m
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1113">
+      <div style="height:52px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 24px;gap:14px">
+        <div style="font:600 15px 'IBM Plex Sans',sans-serif">Question Inbox</div>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#8c939a">14 untriaged · 3 today</div>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <div style="padding:4px 10px;border:1px solid #23272d;border-radius:3px;font:500 11.5px 'IBM Plex Sans',sans-serif;background:#131619">All</div>
+          <div style="padding:4px 10px;border:1px solid transparent;border-radius:3px;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#8c939a">Unlinked</div>
+          <div style="padding:4px 10px;border:1px solid transparent;border-radius:3px;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#8c939a">Stale &gt; 30d</div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="width:520px;flex:none;border-right:1px solid #23272d;overflow:hidden">
+          <div style="padding:9px 24px 7px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a;background:#121518;border-bottom:1px solid #23272d">TODAY</div>
+          <div style="padding:14px 24px;border-bottom:1px solid #1d2126;border-left:2px solid #d99b4a;background:#15181c">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#e7e9eb">Does slow-wave density predict recall gain, or is it just a proxy for encoding strength at learning?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#6b737b"><span style="color:#d99b4a">◆</span>Klinzing 2019 · p.4 · highlight #12<span style="margin-left:auto">09:41</span></div>
+          </div>
+          <div style="padding:14px 24px;border-bottom:1px solid #1d2126">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#e7e9eb">Why does the replay literature so rarely address awake replay in humans?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#6b737b"><span style="color:#d99b4a">◆</span>Ólafsdóttir 2018 · p.11<span style="margin-left:auto">09:12</span></div>
+          </div>
+          <div style="padding:14px 24px;border-bottom:1px solid #1d2126">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#e7e9eb">Is targeted memory reactivation dose-dependent, or is one cue enough?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#6b737b"><span style="color:#7d858d">◇</span>captured from note · Cueing methods<span style="margin-left:auto">08:30</span></div>
+          </div>
+          <div style="padding:9px 24px 7px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a;background:#121518;border-top:1px solid #23272d;border-bottom:1px solid #23272d">EARLIER THIS WEEK</div>
+          <div style="padding:13px 24px;border-bottom:1px solid #1d2126">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#bac0c6">What counts as a "reactivation event" across the three labs that report it?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a"><span>◆</span>Schreiner 2021 · p.3<span style="margin-left:auto">Tue</span></div>
+          </div>
+          <div style="padding:13px 24px;border-bottom:1px solid #1d2126">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#bac0c6">Has anyone replicated the 2016 spindle-coupling effect with high-density EEG?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a"><span>◇</span>no source attached<span style="margin-left:auto">Mon</span></div>
+          </div>
+          <div style="padding:13px 24px;border-bottom:1px solid #1d2126;opacity:.72">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#bac0c6">Is there a principled reason to prefer overnight over nap designs?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a"><span>◆</span>Lab meeting note<span style="margin-left:auto">Mon</span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:22px 26px;background:#121518;display:flex;flex-direction:column;gap:16px">
+          <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">TRIAGE</div>
+          <div style="font:400 19px/1.4 'Source Serif 4',Georgia,serif">Does slow-wave density predict recall gain, or is it just a proxy for encoding strength at learning?</div>
+          <div style="border:1px solid #272c32;border-radius:3px;background:#15181c;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">PROVENANCE</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">Captured 19 Sep, 09:41 while reading<br><span style="color:#e7e9eb;font-weight:500">Klinzing, Niethard &amp; Born (2019)</span>, p.4</div>
+            <div style="border-left:2px solid #2b3036;padding:2px 0 2px 10px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#8c939a">"…slow-wave activity has consistently been associated with overnight retention benefits…"</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #d99b4a;border-radius:3px;background:#d99b4a;color:#15181c;font:500 12.5px 'IBM Plex Sans',sans-serif">Promote to Research Question<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;opacity:.75">⏎</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #23272d;border-radius:3px;background:#15181c;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#bac0c6">Attach to existing question…<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">A</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #23272d;border-radius:3px;background:#15181c;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#bac0c6">File as note<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">N</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #23272d;border-radius:3px;background:#15181c;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#bac0c6">Answered — resolve with a source<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">R</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid transparent;border-radius:3px;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#6b737b">Dismiss<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace">⌫</span></div>
+          </div>
+          <div style="margin-top:auto;border-top:1px solid #23272d;padding-top:12px;display:flex;flex-direction:column;gap:6px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">NEARBY</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">2 open questions already cite Klinzing 2019 →</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">Scout <span style="color:#4fb3a4">swa-metrics</span> proposed 3 papers on this →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><div class="dv-cap">
+<div>· Nav is a place-list; surface = destination. Zero learning cost.</div>
+<div>· Counts on Inbox / RQ / Scout are the only numerals in the chrome.</div>
+<div>· Triage pane is keyboard-first — every action has a single key.</div>
+<div>· Cost: Reader and Vault both want the full width and don't get it.</div>
+</div></sc-if>
+</div>
+
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Icon rail + contextual pane — reading gets the window. Shown mid-capture.</div>
+<div style="width:1180px;height:780px;background:#0f1113;border:1px solid #2b3036;border-radius:3px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb">
+  <div style="height:38px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 13px;gap:16px">
+    <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div><div style="width:11px;height:11px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11.5px 'IBM Plex Mono',monospace;color:#6b737b">Klinzing, Niethard &amp; Born (2019) — Mechanisms of systems memory consolidation during sleep</div>
+    <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#6b737b">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#6b737b;position:relative">?<div style="position:absolute;top:4px;right:3px;width:6px;height:6px;border-radius:50%;background:#d99b4a"></div></div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#e7e9eb">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#6b737b">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#6b737b;position:relative">⌖<div style="position:absolute;top:4px;right:3px;width:6px;height:6px;border-radius:50%;background:#4fb3a4"></div></div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#6b737b">◻</div>
+      <div style="margin-top:auto;width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:500 13px 'IBM Plex Mono',monospace;color:#8c939a">⚙</div>
+    </div>
+    <div style="width:214px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column">
+      <div style="padding:13px 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">OUTLINE</div>
+      <div style="display:flex;flex-direction:column;font:400 12.5px/1.45 'IBM Plex Sans',sans-serif;color:#8c939a;padding:0 8px">
+        <div style="padding:5px 8px">1 Introduction</div>
+        <div style="padding:5px 8px;background:#212730;border-radius:3px;color:#e7e9eb;font-weight:500">2 Slow oscillations</div>
+        <div style="padding:5px 8px 5px 20px">2.1 SO–spindle coupling</div>
+        <div style="padding:5px 8px 5px 20px">2.2 Density measures</div>
+        <div style="padding:5px 8px">3 Replay</div>
+        <div style="padding:5px 8px">4 Open problems</div>
+      </div>
+      <div style="height:1px;background:#23272d;margin:14px"></div>
+      <div style="padding:0 14px 10px;display:flex;align-items:center"><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">QUESTIONS HERE</span><span style="margin-left:auto;font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a">4</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px">
+        <div style="border-left:2px solid #d99b4a;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#bac0c6">Does slow-wave density predict recall gain…<div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;margin-top:3px">p.4 · open</div></div>
+        <div style="border-left:2px solid #2b3036;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#bac0c6">Which density metric is standard?<div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;margin-top:3px">p.5 · resolved</div></div>
+        <div style="border-left:2px solid #d99b4a;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#bac0c6">Are nap designs comparable at all?<div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;margin-top:3px">p.9 · open</div></div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #23272d;padding:10px 14px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:#6b737b">37 highlights · 12 notes</div>
+    </div>
+    <div style="flex:1;min-width:0;background:#08090a;display:flex;flex-direction:column;align-items:center;padding:20px 0;overflow:hidden;position:relative">
+      <div style="box-sizing:border-box;width:612px;background:#15181c;border:1px solid #2b3036;box-shadow:0 2px 10px rgba(0,0,0,.55);padding:46px 58px;display:flex;flex-direction:column;gap:13px">
+        <div style="font:600 17px/1.35 'Source Serif 4',Georgia,serif">2 Slow oscillations and the density hypothesis</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#d3d7db">Across three decades of work, slow-wave activity has consistently been associated with overnight retention benefits in declarative tasks. <span style="background:#4a3a1c;box-shadow:0 1px 0 #8a6f36">The magnitude of that association, however, varies by almost an order of magnitude between laboratories, and the reasons for this dispersion have not been systematically examined.</span> Where authors report density rather than power, the definitions used are rarely stated explicitly.</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#d3d7db">A second difficulty concerns the direction of the inference. Participants who encode more material during learning also tend to exhibit greater subsequent slow-wave activity, which makes the overnight benefit difficult to attribute to consolidation as such rather than to <span style="background:#17332f;box-shadow:0 1px 0 #3d6a63">prior encoding strength</span>.</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#d3d7db">We return to this problem in Section 4, where the available dissociation designs are reviewed and their statistical power is assessed.</div>
+        <div style="margin-top:6px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">4</div>
+      </div>
+      <div style="position:absolute;left:236px;top:214px;width:330px;background:#15181c;border:1px solid #31373d;border-radius:4px;box-shadow:0 14px 34px -10px rgba(0,0,0,.72);padding:13px 14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#d99b4a">NEW QUESTION</span><span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">from highlight · p.4</span></div>
+        <div style="font:400 14px/1.5 'Source Serif 4',Georgia,serif;color:#e7e9eb">Is the between-lab dispersion an artefact of density definition, or a real moderator?<span style="display:inline-block;width:1.5px;height:15px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><div style="padding:3px 8px;border-radius:4px;background:#15181b;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">#methods</div><div style="padding:3px 8px;border-radius:4px;background:#15181b;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">#swa</div><div style="padding:3px 8px;border-radius:4px;border:1px dashed #2b3036;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">+ tag</div></div>
+        <div style="display:flex;align-items:center;gap:8px;border-top:1px solid #1d2126;padding-top:9px"><div style="padding:4px 10px;border-radius:3px;background:#d99b4a;color:#15181c;font:500 11.5px 'IBM Plex Sans',sans-serif">Capture ⏎</div><div style="padding:4px 10px;border-radius:3px;border:1px solid #23272d;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#8c939a">Promote ⇧⏎</div><div style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">esc</div></div>
+      </div>
+    </div>
+    <div style="width:250px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column">
+      <div style="padding:13px 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">ANNOTATIONS · P.4</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="padding:11px 14px;border-top:1px solid #1d2126;background:#121518">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#d99b4a"></span>#12 · 09:41 · linkable</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">"…varies by almost an order of magnitude between laboratories…"</div>
+          <div style="margin-top:6px;font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#d99b4a">→ 1 question captured here</div>
+        </div>
+        <div style="padding:11px 14px;border-top:1px solid #1d2126">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#4fb3a4"></span>#13 · 09:44</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">"prior encoding strength"</div>
+          <div style="margin-top:6px;font:400 12px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">This is the confound Schreiner tries to design out. Cross-ref §4.</div>
+        </div>
+        <div style="padding:11px 14px;border-top:1px solid #1d2126;border-bottom:1px solid #1d2126">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#d99b4a"></span>#14 · 09:52</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">"available dissociation designs are reviewed"</div>
+        </div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #23272d;padding:11px 14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">SCOUT · THIS SOURCE</div>
+        <div style="font:400 12px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">Watching citations since Mar. <span style="color:#4fb3a4">3 new proposals</span> →</div>
+      </div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><div class="dv-cap">
+<div>· Rail is 54px and iconic; the second pane changes meaning per surface.</div>
+<div>· Capture popover is anchored to the highlight — provenance is automatic.</div>
+<div>· Questions-in-this-source sit in the outline pane, not a separate trip.</div>
+<div>· Cost: six icons is six things to learn; needs tooltips + ⌘K as the real nav.</div>
+</div></sc-if>
+</div>
+
+</div>
+<p class="dv-next">Try next: "merge them — rail from <a class="dv-oid" href="#2b">2b</a>, question list from <a class="dv-oid" href="#2a">2a</a>" · "show Home and the Scout Queue in this language" · "one notch denser" · "now the iPad reading mode"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Three navigation models for the main window</span></div>
+<p class="dv-tsub">Same six surfaces, same visual language, three different theories of what the window is <em>for</em>. Each is drawn at 1180&times;780 — a modest laptop window, not a maximised one, because that is where a tool like this actually lives. Context, palette and the surface map are in turn <a class="dv-oid" href="#t0">0</a> below.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Sidebar — surfaces as places. Conventional, legible, teaches the model.</div>
+<div style="width:1180px;height:780px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(40,34,22,.4);display:flex;flex-direction:column;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#1c1b18">
+  <div style="height:38px;flex:none;background:#efece5;border-bottom:1px solid #ddd9d0;display:flex;align-items:center;padding:0 13px;gap:16px">
+    <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div></div>
+    <div style="flex:1;text-align:center;font:500 11.5px 'IBM Plex Mono',monospace;color:#8a867d;letter-spacing:.02em">consolidation-vault</div>
+    <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:238px;flex:none;background:#f1eee7;border-right:1px solid #ddd9d0;display:flex;flex-direction:column;padding:14px 0 0">
+      <div style="padding:0 14px 12px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">SURFACES</div>
+      <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px">
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;font:450 13px 'IBM Plex Sans',sans-serif;color:#3b3831"><div style="width:5px;height:5px;border-radius:1px;background:#b6b1a6"></div>Home</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;background:#e2dcd0;font:600 13px 'IBM Plex Sans',sans-serif;color:#1c1b18"><div style="width:5px;height:5px;border-radius:1px;background:#8f5f2c"></div>Question Inbox<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#8f5f2c">14</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;font:450 13px 'IBM Plex Sans',sans-serif;color:#3b3831"><div style="width:5px;height:5px;border-radius:1px;background:#b6b1a6"></div>Reader</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;font:450 13px 'IBM Plex Sans',sans-serif;color:#3b3831"><div style="width:5px;height:5px;border-radius:1px;background:#b6b1a6"></div>Research Questions<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">9</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;font:450 13px 'IBM Plex Sans',sans-serif;color:#3b3831"><div style="width:5px;height:5px;border-radius:1px;background:#b6b1a6"></div>Scout Queue<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#2f6560">6</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;font:450 13px 'IBM Plex Sans',sans-serif;color:#3b3831"><div style="width:5px;height:5px;border-radius:1px;background:#b6b1a6"></div>Vault</div>
+      </div>
+      <div style="height:1px;background:#ddd9d0;margin:16px 14px"></div>
+      <div style="padding:0 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">THREADS</div>
+      <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px;font:400 12.5px/1.45 'IBM Plex Sans',sans-serif;color:#56534c">
+        <div style="padding:5px 8px">Replay &amp; awake reactivation</div>
+        <div style="padding:5px 8px">TMR dose–response</div>
+        <div style="padding:5px 8px">Slow-wave density metrics</div>
+        <div style="padding:5px 8px">Methods · EEG artefacts</div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #ddd9d0;padding:10px 14px;display:flex;align-items:center;gap:8px;font:400 11px 'IBM Plex Mono',monospace;color:#8a867d">
+        <div style="width:6px;height:6px;border-radius:50%;background:#2f6560"></div>3 scouts idle · synced 4m
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#faf9f6">
+      <div style="height:52px;flex:none;border-bottom:1px solid #e6e2d9;display:flex;align-items:center;padding:0 24px;gap:14px">
+        <div style="font:600 15px 'IBM Plex Sans',sans-serif">Question Inbox</div>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#a8a49a">14 untriaged · 3 today</div>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <div style="padding:4px 10px;border:1px solid #ddd9d0;border-radius:5px;font:500 11.5px 'IBM Plex Sans',sans-serif;background:#f1eee7">All</div>
+          <div style="padding:4px 10px;border:1px solid transparent;border-radius:5px;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#56534c">Unlinked</div>
+          <div style="padding:4px 10px;border:1px solid transparent;border-radius:5px;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#56534c">Stale &gt; 30d</div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="width:520px;flex:none;border-right:1px solid #e6e2d9;overflow:hidden">
+          <div style="padding:9px 24px 7px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a;background:#f4f2ec;border-bottom:1px solid #e6e2d9">TODAY</div>
+          <div style="padding:14px 24px;border-bottom:1px solid #eeebe3;border-left:2px solid #8f5f2c;background:#fdfcf9">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#1c1b18">Does slow-wave density predict recall gain, or is it just a proxy for encoding strength at learning?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#8a867d"><span style="color:#8f5f2c">◆</span>Klinzing 2019 · p.4 · highlight #12<span style="margin-left:auto">09:41</span></div>
+          </div>
+          <div style="padding:14px 24px;border-bottom:1px solid #eeebe3">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#1c1b18">Why does the replay literature so rarely address awake replay in humans?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#8a867d"><span style="color:#8f5f2c">◆</span>Ólafsdóttir 2018 · p.11<span style="margin-left:auto">09:12</span></div>
+          </div>
+          <div style="padding:14px 24px;border-bottom:1px solid #eeebe3">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#1c1b18">Is targeted memory reactivation dose-dependent, or is one cue enough?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;align-items:center;font:400 11px 'IBM Plex Mono',monospace;color:#8a867d"><span style="color:#b6b1a6">◇</span>captured from note · Cueing methods<span style="margin-left:auto">08:30</span></div>
+          </div>
+          <div style="padding:9px 24px 7px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a;background:#f4f2ec;border-top:1px solid #e6e2d9;border-bottom:1px solid #e6e2d9">EARLIER THIS WEEK</div>
+          <div style="padding:13px 24px;border-bottom:1px solid #eeebe3">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#3b3831">What counts as a "reactivation event" across the three labs that report it?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a"><span>◆</span>Schreiner 2021 · p.3<span style="margin-left:auto">Tue</span></div>
+          </div>
+          <div style="padding:13px 24px;border-bottom:1px solid #eeebe3">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#3b3831">Has anyone replicated the 2016 spindle-coupling effect with high-density EEG?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a"><span>◇</span>no source attached<span style="margin-left:auto">Mon</span></div>
+          </div>
+          <div style="padding:13px 24px;border-bottom:1px solid #eeebe3;opacity:.72">
+            <div style="font:400 15px/1.45 'Source Serif 4',Georgia,serif;color:#3b3831">Is there a principled reason to prefer overnight over nap designs?</div>
+            <div style="margin-top:7px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a"><span>◆</span>Lab meeting note<span style="margin-left:auto">Mon</span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:22px 26px;background:#f7f5f0;display:flex;flex-direction:column;gap:16px">
+          <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">TRIAGE</div>
+          <div style="font:400 19px/1.4 'Source Serif 4',Georgia,serif">Does slow-wave density predict recall gain, or is it just a proxy for encoding strength at learning?</div>
+          <div style="border:1px solid #e0dcd3;border-radius:6px;background:#fdfcf9;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">PROVENANCE</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Captured 19 Sep, 09:41 while reading<br><span style="color:#1c1b18;font-weight:500">Klinzing, Niethard &amp; Born (2019)</span>, p.4</div>
+            <div style="border-left:2px solid #d8d2c6;padding:2px 0 2px 10px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#56534c">"…slow-wave activity has consistently been associated with overnight retention benefits…"</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #8f5f2c;border-radius:6px;background:#8f5f2c;color:#fdfcf9;font:500 12.5px 'IBM Plex Sans',sans-serif">Promote to Research Question<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;opacity:.75">⏎</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #ddd9d0;border-radius:6px;background:#fdfcf9;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#3b3831">Attach to existing question…<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">A</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #ddd9d0;border-radius:6px;background:#fdfcf9;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#3b3831">File as note<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">N</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #ddd9d0;border-radius:6px;background:#fdfcf9;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#3b3831">Answered — resolve with a source<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">R</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid transparent;border-radius:6px;font:450 12.5px 'IBM Plex Sans',sans-serif;color:#8a867d">Dismiss<span style="margin-left:auto;font:500 10.5px 'IBM Plex Mono',monospace">⌫</span></div>
+          </div>
+          <div style="margin-top:auto;border-top:1px solid #e6e2d9;padding-top:12px;display:flex;flex-direction:column;gap:6px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">NEARBY</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">2 open questions already cite Klinzing 2019 →</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Scout <span style="color:#2f6560">swa-metrics</span> proposed 3 papers on this →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><div class="dv-cap">
+<div>· Nav is a place-list; surface = destination. Zero learning cost.</div>
+<div>· Counts on Inbox / RQ / Scout are the only numerals in the chrome.</div>
+<div>· Triage pane is keyboard-first — every action has a single key.</div>
+<div>· Cost: Reader and Vault both want the full width and don't get it.</div>
+</div></sc-if>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Icon rail + contextual pane — reading gets the window. Shown mid-capture.</div>
+<div style="width:1180px;height:780px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(40,34,22,.4);display:flex;flex-direction:column;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#1c1b18">
+  <div style="height:38px;flex:none;background:#efece5;border-bottom:1px solid #ddd9d0;display:flex;align-items:center;padding:0 13px;gap:16px">
+    <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div></div>
+    <div style="flex:1;text-align:center;font:500 11.5px 'IBM Plex Mono',monospace;color:#8a867d">Klinzing, Niethard &amp; Born (2019) — Mechanisms of systems memory consolidation during sleep</div>
+    <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#eae7df;border-right:1px solid #ddd9d0;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#8a867d">⌂</div>
+      <div style="width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#8a867d;position:relative">?<div style="position:absolute;top:4px;right:3px;width:6px;height:6px;border-radius:50%;background:#8f5f2c"></div></div>
+      <div style="width:34px;height:34px;border-radius:7px;background:#d9d2c4;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#1c1b18">▤</div>
+      <div style="width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#8a867d">◈</div>
+      <div style="width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#8a867d;position:relative">⌖<div style="position:absolute;top:4px;right:3px;width:6px;height:6px;border-radius:50%;background:#2f6560"></div></div>
+      <div style="width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 14px 'IBM Plex Mono',monospace;color:#8a867d">◻</div>
+      <div style="margin-top:auto;width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:500 13px 'IBM Plex Mono',monospace;color:#a8a49a">⚙</div>
+    </div>
+    <div style="width:214px;flex:none;background:#f1eee7;border-right:1px solid #ddd9d0;display:flex;flex-direction:column">
+      <div style="padding:13px 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">OUTLINE</div>
+      <div style="display:flex;flex-direction:column;font:400 12.5px/1.45 'IBM Plex Sans',sans-serif;color:#56534c;padding:0 8px">
+        <div style="padding:5px 8px">1 Introduction</div>
+        <div style="padding:5px 8px;background:#e2dcd0;border-radius:5px;color:#1c1b18;font-weight:500">2 Slow oscillations</div>
+        <div style="padding:5px 8px 5px 20px">2.1 SO–spindle coupling</div>
+        <div style="padding:5px 8px 5px 20px">2.2 Density measures</div>
+        <div style="padding:5px 8px">3 Replay</div>
+        <div style="padding:5px 8px">4 Open problems</div>
+      </div>
+      <div style="height:1px;background:#ddd9d0;margin:14px"></div>
+      <div style="padding:0 14px 10px;display:flex;align-items:center"><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">QUESTIONS HERE</span><span style="margin-left:auto;font:500 10px 'IBM Plex Mono',monospace;color:#8f5f2c">4</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px">
+        <div style="border-left:2px solid #8f5f2c;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#3b3831">Does slow-wave density predict recall gain…<div style="font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a;margin-top:3px">p.4 · open</div></div>
+        <div style="border-left:2px solid #d8d2c6;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#3b3831">Which density metric is standard?<div style="font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a;margin-top:3px">p.5 · resolved</div></div>
+        <div style="border-left:2px solid #8f5f2c;padding-left:9px;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#3b3831">Are nap designs comparable at all?<div style="font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a;margin-top:3px">p.9 · open</div></div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #ddd9d0;padding:10px 14px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:#8a867d">37 highlights · 12 notes</div>
+    </div>
+    <div style="flex:1;min-width:0;background:#e6e3dc;display:flex;flex-direction:column;align-items:center;padding:20px 0;overflow:hidden;position:relative">
+      <div style="box-sizing:border-box;width:612px;background:#fdfcfa;border:1px solid #d6d1c7;box-shadow:0 2px 10px rgba(40,34,22,.1);padding:46px 58px;display:flex;flex-direction:column;gap:13px">
+        <div style="font:600 17px/1.35 'Source Serif 4',Georgia,serif">2 Slow oscillations and the density hypothesis</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#2b2a26">Across three decades of work, slow-wave activity has consistently been associated with overnight retention benefits in declarative tasks. <span style="background:#f3e2c8;box-shadow:0 1px 0 #d8b57e">The magnitude of that association, however, varies by almost an order of magnitude between laboratories, and the reasons for this dispersion have not been systematically examined.</span> Where authors report density rather than power, the definitions used are rarely stated explicitly.</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#2b2a26">A second difficulty concerns the direction of the inference. Participants who encode more material during learning also tend to exhibit greater subsequent slow-wave activity, which makes the overnight benefit difficult to attribute to consolidation as such rather than to <span style="background:#cfe0dc;box-shadow:0 1px 0 #8fb3ac">prior encoding strength</span>.</div>
+        <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#2b2a26">We return to this problem in Section 4, where the available dissociation designs are reviewed and their statistical power is assessed.</div>
+        <div style="margin-top:6px;font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a">4</div>
+      </div>
+      <div style="position:absolute;left:236px;top:214px;width:330px;background:#fdfcf9;border:1px solid #cfc8b9;border-radius:8px;box-shadow:0 14px 34px -10px rgba(40,34,22,.42);padding:13px 14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8f5f2c">NEW QUESTION</span><span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a">from highlight · p.4</span></div>
+        <div style="font:400 14px/1.5 'Source Serif 4',Georgia,serif;color:#1c1b18">Is the between-lab dispersion an artefact of density definition, or a real moderator?<span style="display:inline-block;width:1.5px;height:15px;background:#8f5f2c;vertical-align:-3px;margin-left:2px"></span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><div style="padding:3px 8px;border-radius:4px;background:#efece5;font:400 10.5px 'IBM Plex Mono',monospace;color:#56534c">#methods</div><div style="padding:3px 8px;border-radius:4px;background:#efece5;font:400 10.5px 'IBM Plex Mono',monospace;color:#56534c">#swa</div><div style="padding:3px 8px;border-radius:4px;border:1px dashed #d8d2c6;font:400 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">+ tag</div></div>
+        <div style="display:flex;align-items:center;gap:8px;border-top:1px solid #eeebe3;padding-top:9px"><div style="padding:4px 10px;border-radius:5px;background:#8f5f2c;color:#fdfcf9;font:500 11.5px 'IBM Plex Sans',sans-serif">Capture ⏎</div><div style="padding:4px 10px;border-radius:5px;border:1px solid #ddd9d0;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#56534c">Promote ⇧⏎</div><div style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a">esc</div></div>
+      </div>
+    </div>
+    <div style="width:250px;flex:none;background:#f1eee7;border-left:1px solid #ddd9d0;display:flex;flex-direction:column">
+      <div style="padding:13px 14px 10px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">ANNOTATIONS · P.4</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="padding:11px 14px;border-top:1px solid #e4e0d7;background:#f7f5f0">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span style="width:8px;height:8px;border-radius:2px;background:#e8c98f"></span>#12 · 09:41 · linkable</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#3b3831">"…varies by almost an order of magnitude between laboratories…"</div>
+          <div style="margin-top:6px;font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#8f5f2c">→ 1 question captured here</div>
+        </div>
+        <div style="padding:11px 14px;border-top:1px solid #e4e0d7">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span style="width:8px;height:8px;border-radius:2px;background:#9fc3bc"></span>#13 · 09:44</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#3b3831">"prior encoding strength"</div>
+          <div style="margin-top:6px;font:400 12px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">This is the confound Schreiner tries to design out. Cross-ref §4.</div>
+        </div>
+        <div style="padding:11px 14px;border-top:1px solid #e4e0d7;border-bottom:1px solid #e4e0d7">
+          <div style="display:flex;gap:7px;align-items:center;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span style="width:8px;height:8px;border-radius:2px;background:#e8c98f"></span>#14 · 09:52</div>
+          <div style="margin-top:6px;font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#3b3831">"available dissociation designs are reviewed"</div>
+        </div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #ddd9d0;padding:11px 14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">SCOUT · THIS SOURCE</div>
+        <div style="font:400 12px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Watching citations since Mar. <span style="color:#2f6560">3 new proposals</span> →</div>
+      </div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><div class="dv-cap">
+<div>· Rail is 54px and iconic; the second pane changes meaning per surface.</div>
+<div>· Capture popover is anchored to the highlight — provenance is automatic.</div>
+<div>· Questions-in-this-source sit in the outline pane, not a separate trip.</div>
+<div>· Cost: six icons is six things to learn; needs tooltips + ⌘K as the real nav.</div>
+</div></sc-if>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Question column — the open questions are permanent furniture. Most opinionated.</div>
+<div style="width:1180px;height:780px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(40,34,22,.4);display:flex;flex-direction:column;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#1c1b18">
+  <div style="height:38px;flex:none;background:#efece5;border-bottom:1px solid #ddd9d0;display:flex;align-items:center;padding:0 13px;gap:16px">
+    <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div><div style="width:11px;height:11px;border-radius:50%;background:#cdc8bd"></div></div>
+    <div style="flex:1;text-align:center;font:500 11.5px 'IBM Plex Mono',monospace;color:#8a867d">consolidation-vault — 23 open questions</div>
+    <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#a8a49a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:300px;flex:none;background:#f1eee7;border-right:1px solid #ddd9d0;display:flex;flex-direction:column">
+      <div style="padding:12px 14px;border-bottom:1px solid #ddd9d0;display:flex;align-items:center;gap:8px">
+        <div style="font:600 12.5px 'IBM Plex Sans',sans-serif">Open questions</div>
+        <div style="margin-left:auto;display:flex;gap:4px"><span style="padding:2px 7px;border-radius:4px;background:#e2dcd0;font:500 10px 'IBM Plex Mono',monospace">live</span><span style="padding:2px 7px;border-radius:4px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">all</span></div>
+      </div>
+      <div style="padding:8px 14px 6px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">RESEARCH QUESTIONS · 9</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="padding:10px 14px;background:#e6e0d3;border-left:2px solid #8f5f2c">
+          <div style="font:400 13px/1.42 'Source Serif 4',Georgia,serif;color:#1c1b18">Is the overnight retention benefit attributable to consolidation, or to encoding strength?</div>
+          <div style="margin-top:6px;display:flex;gap:9px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d"><span style="color:#2f6560">7 for</span><span style="color:#9a4b3f">3 against</span><span style="margin-left:auto">28d</span></div>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid #e4e0d7">
+          <div style="font:400 13px/1.42 'Source Serif 4',Georgia,serif;color:#3b3831">Does TMR show a dose–response relationship?</div>
+          <div style="margin-top:6px;display:flex;gap:9px;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span style="color:#2f6560">4 for</span><span style="color:#9a4b3f">4 against</span><span style="margin-left:auto">6d</span></div>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid #e4e0d7">
+          <div style="font:400 13px/1.42 'Source Serif 4',Georgia,serif;color:#3b3831">Is awake replay measurable non-invasively in humans?</div>
+          <div style="margin-top:6px;display:flex;gap:9px;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span style="color:#2f6560">2 for</span><span>0 against</span><span style="margin-left:auto">61d</span></div>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid #e4e0d7;opacity:.8">
+          <div style="font:400 13px/1.42 'Source Serif 4',Georgia,serif;color:#3b3831">What would falsify the active systems account?</div>
+          <div style="margin-top:6px;display:flex;gap:9px;font:400 10px 'IBM Plex Mono',monospace;color:#a8a49a"><span>0 for</span><span>0 against</span><span style="margin-left:auto;color:#9a4b3f">stale 94d</span></div>
+        </div>
+      </div>
+      <div style="padding:12px 14px 6px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a;border-top:1px solid #ddd9d0;margin-top:8px">CAPTURES · 14 UNTRIAGED</div>
+      <div style="display:flex;flex-direction:column;font:400 12.5px/1.4 'Source Serif 4',Georgia,serif;color:#56534c">
+        <div style="padding:8px 14px;display:flex;gap:8px"><span style="color:#8f5f2c;font:400 10px 'IBM Plex Mono',monospace;padding-top:3px">◆</span>Does slow-wave density predict recall gain…</div>
+        <div style="padding:8px 14px;display:flex;gap:8px"><span style="color:#8f5f2c;font:400 10px 'IBM Plex Mono',monospace;padding-top:3px">◆</span>Why so little on awake replay in humans?</div>
+        <div style="padding:8px 14px;display:flex;gap:8px"><span style="color:#b6b1a6;font:400 10px 'IBM Plex Mono',monospace;padding-top:3px">◇</span>Is TMR dose-dependent?</div>
+        <div style="padding:8px 14px;font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a">+ 11 more</div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #ddd9d0;padding:10px 14px;display:flex;gap:10px;font:400 11px 'IBM Plex Mono',monospace;color:#8a867d"><span>⌂ Home</span><span>◻ Vault</span><span style="color:#2f6560">⌖ 6</span></div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#faf9f6">
+      <div style="height:50px;flex:none;border-bottom:1px solid #e6e2d9;display:flex;align-items:center;padding:0 26px;gap:12px">
+        <div style="font:500 11.5px 'IBM Plex Mono',monospace;color:#a8a49a">RESEARCH QUESTION</div>
+        <div style="padding:2px 8px;border-radius:4px;background:#f3e6d4;color:#8f5f2c;font:500 10.5px 'IBM Plex Mono',monospace">OPEN · 28d</div>
+        <div style="margin-left:auto;display:flex;gap:8px;font:450 11.5px 'IBM Plex Sans',sans-serif;color:#56534c"><span style="padding:4px 10px;border:1px solid #ddd9d0;border-radius:5px">Add source</span><span style="padding:4px 10px;border:1px solid #ddd9d0;border-radius:5px">Set scout</span><span style="padding:4px 10px;border:1px solid #ddd9d0;border-radius:5px">Resolve</span></div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="flex:1;min-width:0;padding:26px 30px;display:flex;flex-direction:column;gap:20px;border-right:1px solid #e6e2d9">
+          <div style="font:600 25px/1.3 'Source Serif 4',Georgia,serif;max-width:620px">Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">WORKING ANSWER · edited 3d ago</div>
+            <div style="border-left:2px solid #8f5f2c;padding:2px 0 2px 13px;font:400 15px/1.65 'Source Serif 4',Georgia,serif;color:#2b2a26;max-width:620px">Probably both, but the dissociation designs that could separate them are underpowered. The strongest case for consolidation-proper is TMR, because the cue is experimenter-controlled and orthogonal to encoding. Everything correlational is contaminated.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:2px;background:#2f6560"></span><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">SUPPORTING · 7</span></div>
+              <div style="border:1px solid #e0dcd3;border-radius:6px;background:#fdfcf9;padding:9px 11px"><div style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif">Rasch &amp; Born 2013</div><div style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;margin-top:3px">Review; TMR effects survive encoding controls. <span style="color:#8a867d;font-family:'IBM Plex Mono',monospace;font-size:10px">p.699 ann#4</span></div></div>
+              <div style="border:1px solid #e0dcd3;border-radius:6px;background:#fdfcf9;padding:9px 11px"><div style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif">Schreiner 2021</div><div style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;margin-top:3px">Cue-locked reactivation predicts gain within subject.</div></div>
+              <div style="border:1px dashed #ddd9d0;border-radius:6px;padding:9px 11px"><div style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif;color:#8a867d">Diekelmann 2010</div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#a8a49a;margin-top:3px">stub · no PDF</div></div>
+              <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#a8a49a">+ 4 more</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:2px;background:#9a4b3f"></span><span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">OPPOSING · 3</span></div>
+              <div style="border:1px solid #e0dcd3;border-radius:6px;background:#fdfcf9;padding:9px 11px"><div style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif">Cordi &amp; Rasch 2021</div><div style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;margin-top:3px">Meta-analysis; effect shrinks with preregistration. <span style="color:#8a867d;font-family:'IBM Plex Mono',monospace;font-size:10px">p.12 ann#9</span></div></div>
+              <div style="border:1px solid #e0dcd3;border-radius:6px;background:#fdfcf9;padding:9px 11px"><div style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif">Klinzing 2019</div><div style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;margin-top:3px">Concedes the confound is unresolved in §2.</div></div>
+              <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#a8a49a">+ 1 more</div>
+            </div>
+          </div>
+        </div>
+        <div style="width:282px;flex:none;background:#f4f2ec;padding:22px 20px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">ORIGIN</div>
+            <div style="font:400 12.5px/1.55 'IBM Plex Sans',sans-serif;color:#56534c">Captured 22 Aug 2026, 16:07 from <span style="color:#1c1b18;font-weight:500">Rasch &amp; Born 2013</span>, p.699 — promoted 24 Aug.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">FEEDER CAPTURES · 5</div>
+            <div style="font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;border-left:2px solid #e0dcd3;padding-left:9px">Does slow-wave density predict recall gain…</div>
+            <div style="font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#56534c;border-left:2px solid #e0dcd3;padding-left:9px">What counts as a reactivation event?</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">SCOUT</div>
+            <div style="border:1px solid #cfdedb;background:#eef4f2;border-radius:6px;padding:10px 11px;display:flex;flex-direction:column;gap:6px">
+              <div style="font:500 12px 'IBM Plex Sans',sans-serif;color:#2f6560">encoding-confound</div>
+              <div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Weekly · watches citations of Rasch 2013</div>
+              <div style="font:400 11.5px 'IBM Plex Sans',sans-serif;color:#2f6560">3 proposals waiting →</div>
+            </div>
+          </div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:7px">
+            <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">LINKED NOTES · 4</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Dissociation designs — power</div>
+            <div style="font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c">Lab meeting 04 Sep</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><div class="dv-cap">
+<div>· The left column never leaves — open questions are the app's spine.</div>
+<div>· For/against columns make a question's state readable in two seconds.</div>
+<div>· Staleness is first-class: 94d unanswered is shown, not hidden.</div>
+<div>· Cost: Reader must run in a second window or full-screen mode.</div>
+</div></sc-if>
+</div>
+
+</div>
+<p class="dv-next">Try next: "take <a class="dv-oid" href="#1c">1c</a>'s left column into <a class="dv-oid" href="#1b">1b</a>'s rail" · "show me Home and the Scout Queue in <a class="dv-oid" href="#1a">1a</a>" · "darker, and one notch denser" · "now the iPad reading mode"</p>
+</section>
+
+<section class="dv-turn" id="t0">
+<div class="dv-thd"><a class="dv-tid" href="#t0">0</a><span class="dv-tname">Assumptions, surface map, visual language</span></div>
+<p class="dv-tsub">You left both question forms empty, so these are my calls — argue with any of them. Everything above is built on them.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start">
+
+<div style="width:520px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 3px rgba(40,34,22,.07)">
+  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">ASSUMPTIONS I MADE</div>
+  <div style="display:flex;flex-direction:column;gap:11px;font:400 13px/1.6 'IBM Plex Sans',sans-serif;color:#3b3831">
+    <div><span style="font-weight:600;color:#1c1b18">Capture must cost nothing.</span> A question you have to leave the page to record is a question you don't record. Every model above captures in place, with provenance attached automatically — never typed.</div>
+    <div><span style="font-weight:600;color:#1c1b18">Promotion is the only ceremony.</span> Capture is one keystroke; becoming a Research Question is a deliberate act with a form. That asymmetry is the whole product.</div>
+    <div><span style="font-weight:600;color:#1c1b18">Time is a property of a question.</span> Age and staleness are shown everywhere. A 94-day-old unanswered question is information, not clutter.</div>
+    <div><span style="font-weight:600;color:#1c1b18">The Scout is a subordinate.</span> It proposes into a queue and never writes to the vault. It gets one colour, one badge, and no notifications.</div>
+    <div><span style="font-weight:600;color:#1c1b18">Keyboard-first, mouse-tolerant.</span> ⌘K is the real navigation; the sidebar is the map you consult until you stop needing it.</div>
+  </div>
+</div>
+
+<div style="width:606px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 1px 3px rgba(40,34,22,.07)">
+  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">HOW THE SIX SURFACES RELATE</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <div style="flex:1;border:1px solid #d8d2c6;border-radius:6px;background:#f1eee7;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif">3 · Reader</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Source + annotations. Where wondering happens.</div></div>
+      <div style="flex:1;border:1px solid #d8d2c6;border-radius:6px;background:#f1eee7;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif">6 · Vault</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Notes, links, graph. Where thinking is written down.</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-around;font:400 13px 'IBM Plex Mono',monospace;color:#8f5f2c">↓ capture<span style="color:#8f5f2c">↓ capture</span></div>
+    <div style="border:1px solid #8f5f2c;border-radius:6px;background:#f7efe4;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif;color:#8f5f2c">2 · Question Inbox</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Every capture lands here with its provenance. Triaged, never accumulated.</div></div>
+    <div style="text-align:center;font:400 13px 'IBM Plex Mono',monospace;color:#8f5f2c">↓ promote</div>
+    <div style="border:1px solid #d8d2c6;border-radius:6px;background:#f1eee7;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif">4 · Research Question</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Working answer · supporting · opposing. The only place an answer is asserted.</div></div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div style="flex:1;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:#2f6560">↓ sets a watch</div>
+      <div style="flex:1;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:#8a867d">↑ rolls up to</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <div style="flex:1;border:1px solid #cfdedb;border-radius:6px;background:#eef4f2;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif;color:#2f6560">5 · Scout Queue</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Accept → Source stub → Reader. Reject → the scout learns.</div></div>
+      <div style="flex:1;border:1px solid #d8d2c6;border-radius:6px;background:#f1eee7;padding:11px 12px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif">1 · Home</div><div style="font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:#56534c;margin-top:3px">Counts and what's stale. Read in five seconds, then left.</div></div>
+    </div>
+  </div>
+</div>
+
+<div style="width:520px;background:#faf9f6;border:1px solid #d6d1c7;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:18px;box-shadow:0 1px 3px rgba(40,34,22,.07)">
+  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#a8a49a">VISUAL LANGUAGE</div>
+  <div style="display:flex;flex-direction:column;gap:5px">
+    <div style="font:400 24px/1.3 'Source Serif 4',Georgia,serif">Source Serif 4 — questions, quotations, working answers</div>
+    <div style="font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a">Anything authored or quoted is set in serif. It reads like text, not like UI.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:5px">
+    <div style="font:500 17px 'IBM Plex Sans',sans-serif">IBM Plex Sans — interface, labels, controls</div>
+    <div style="font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a">450/500/600 only. No light weights; they die at 12px on a dense screen.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:5px">
+    <div style="font:400 14px 'IBM Plex Mono',monospace">IBM Plex Mono — p.4 · ann#12 · 09:41 · 94d</div>
+    <div style="font:400 11px 'IBM Plex Mono',monospace;color:#a8a49a">All provenance and all counts. Machine facts look like machine facts.</div>
+  </div>
+  <div style="height:1px;background:#e6e2d9"></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px">
+    <div><div style="height:44px;border-radius:5px;background:#faf9f6;border:1px solid #ddd9d0"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">paper<br>#faf9f6</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#f1eee7;border:1px solid #ddd9d0"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">chrome<br>#f1eee7</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#1c1b18"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">ink<br>#1c1b18</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#8a867d"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">muted<br>#8a867d</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#8f5f2c"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">open Q<br>#8f5f2c</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#2f6560"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">scout<br>#2f6560</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#9a4b3f"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">opposing<br>#9a4b3f</div></div>
+    <div><div style="height:44px;border-radius:5px;background:#f3e2c8;border:1px solid #e3cfae"></div><div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#8a867d">highlight<br>#f3e2c8</div></div>
+  </div>
+  <div style="font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:#3b3831">Three hues, all at the same chroma and lightness, all load-bearing: amber means <span style="color:#8f5f2c">an open question</span>, teal means <span style="color:#2f6560">the machine did this</span>, rust means <span style="color:#9a4b3f">evidence against</span>. Nothing else is coloured. Rows are 32–40px, the grid is 4px, radii are 5–6px, and there are no shadows inside the window — only hairlines at <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">#ddd9d0</span>. Warm paper rather than grey because you are looking at it for six hours.</div>
+</div>
+
+</div>
+<p class="dv-next">Next steps I'd take: Home and Scout Queue as real screens · the promote-a-question form · the iPad reading mode · a dark variant for night sessions.</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Annotation&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { showNotes: this.props.showNotes ?? true };
+  }
+}
+</script>
+</body>
+</html>

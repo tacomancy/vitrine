@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif}
+a{color:#d99b4a}a:hover{color:#e8b673}
+input{font-family:inherit}
+.hd{padding:40px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.6 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:780px;margin:0 0 20px}
+.wrap{padding:0 44px 44px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">QUESTION INBOX — 318 CAPTURES, THREE YEARS</p><p class="hs">Live: search, filter by status / origin / tag / age, sort, switch density, shuffle, select a row. Nothing here counts what you owe — the only number in the chrome is how many questions exist, and age is a column you can sort by, not a state a row can be in.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:900px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#6b737b">consolidation-vault — questions</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <div style="width:206px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:14px 14px 10px;display:flex;flex-direction:column;gap:2px">
+        <div style="font:600 11px 'IBM Plex Mono',monospace;color:#e7e9eb">Question Inbox</div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ totalLabel }}</div>
+      </div>
+      <div style="padding:8px 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">STATUS</div>
+      <div style="padding:0 8px">
+        <sc-for list="{{ statusFilters }}" as="s" hint-placeholder-count="6">
+          <div onClick="{{ s.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ s.bg }}">
+            <span style="width:9px;font:400 10px 'IBM Plex Mono',monospace;color:{{ s.tone }}">{{ s.glyph }}</span>
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ s.fg }}">{{ s.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ s.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:1px;background:#1d2126;margin:12px 14px"></div>
+      <div style="padding:0 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">ORIGIN</div>
+      <div style="padding:0 8px">
+        <sc-for list="{{ originFilters }}" as="o" hint-placeholder-count="4">
+          <div onClick="{{ o.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ o.bg }}">
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ o.fg }}">{{ o.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ o.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:1px;background:#1d2126;margin:12px 14px"></div>
+      <div style="padding:0 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">AGE</div>
+      <div style="padding:0 8px">
+        <sc-for list="{{ ageFilters }}" as="a" hint-placeholder-count="5">
+          <div onClick="{{ a.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ a.bg }}">
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ a.fg }}">{{ a.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ a.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:1px;background:#1d2126;margin:12px 14px"></div>
+      <div style="padding:0 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">TAGS</div>
+      <div style="padding:0 14px 16px;display:flex;flex-wrap:wrap;gap:5px">
+        <sc-for list="{{ tagFilters }}" as="t" hint-placeholder-count="10">
+          <div onClick="{{ t.pick }}" style="padding:3px 7px;border-radius:3px;border:1px solid {{ t.border }};background:{{ t.bg }};font:400 10px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }} {{ t.n }}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1113">
+
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 16px;gap:10px">
+        <div style="flex:1;max-width:340px;display:flex;align-items:center;gap:8px;background:#15181c;border:1px solid #23272d;border-radius:3px;padding:5px 9px">
+          <span style="font:400 11px 'IBM Plex Mono',monospace;color:#7d858d">⌕</span>
+          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="search questions, sources, tags" style="flex:1;min-width:0;background:transparent;border:0;outline:0;color:#e7e9eb;font:400 11.5px 'IBM Plex Mono',monospace" />
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">/</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;margin-left:4px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d;margin-right:6px">SORT</span>
+          <sc-for list="{{ sorts }}" as="s" hint-placeholder-count="4">
+            <div onClick="{{ s.pick }}" style="padding:4px 8px;border-radius:3px;background:{{ s.bg }};font:400 11px 'IBM Plex Mono',monospace;color:{{ s.fg }};cursor:default">{{ s.label }}</div>
+          </sc-for>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div onClick="{{ toggleDensity }}" style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;cursor:default">{{ densityLabel }}</div>
+          <div style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ shownLabel }}</div>
+        </div>
+      </div>
+
+      <sc-if value="{{ showResurface }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;border-bottom:1px solid #23272d;background:#121518;padding:11px 16px 13px;display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">FIVE YOU HAVEN'T LOOKED AT IN A WHILE</span>
+            <span onClick="{{ reshuffle }}" style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;cursor:default">↻ again</span>
+            <span onClick="{{ hideResurface }}" style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d;cursor:default">hide</span>
+          </div>
+          <div style="display:flex;gap:9px">
+            <sc-for list="{{ resurfaced }}" as="r" hint-placeholder-count="5">
+              <div onClick="{{ r.select }}" style="flex:1;min-width:0;background:#15181c;border:1px solid #23272d;border-radius:3px;padding:8px 10px;cursor:default">
+                <div style="font:400 12px/1.4 'Source Serif 4',Georgia,serif;color:#bac0c6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:50px">{{ r.text }}</div>
+                <div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.origin }} · {{ r.age }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="flex:none;display:grid;grid-template-columns:18px 1fr 196px 62px;gap:12px;padding:7px 16px;border-bottom:1px solid #23272d;background:#121518;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">
+        <div></div><div>QUESTION</div><div>WHERE IT CAME FROM</div><div style="text-align:right">AGE</div>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;min-height:0">
+        <sc-for list="{{ rows }}" as="q" hint-placeholder-count="14">
+          <div onClick="{{ q.select }}" style="display:grid;grid-template-columns:18px 1fr 196px 62px;gap:12px;align-items:start;padding:{{ q.pad }};border-bottom:1px solid #191d22;background:{{ q.bg }};cursor:default">
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:{{ q.tone }};padding-top:2px">{{ q.glyph }}</div>
+            <div style="min-width:0">
+              <div style="font:400 14px/1.45 'Source Serif 4',Georgia,serif;color:{{ q.fg }}">{{ q.text }}</div>
+              <sc-if value="{{ q.roomy }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ q.sub }}</div>
+              </sc-if>
+            </div>
+            <div style="min-width:0;font:400 10.5px/1.45 'IBM Plex Mono',monospace;color:#6b737b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:2px">{{ q.origin }}</div>
+            <div style="text-align:right;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:2px">{{ q.age }}</div>
+          </div>
+        </sc-for>
+        <div style="padding:22px 16px 40px;font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#7d858d">{{ endNote }}</div>
+      </div>
+    </div>
+
+    <div style="width:346px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:16px 18px 14px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid #1d2126">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ selTone }}">{{ selGlyph }}</span>
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">{{ selStatus }}</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ selAgeLong }}</span>
+        </div>
+        <div style="font:400 17px/1.45 'Source Serif 4',Georgia,serif;color:#e7e9eb">{{ selText }}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <sc-for list="{{ selTags }}" as="t" hint-placeholder-count="2">
+            <span style="padding:2px 6px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ t.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding:14px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">PROVENANCE</div>
+        <div style="font:400 11.5px/1.65 'IBM Plex Mono',monospace;color:#8c939a">{{ selProvLine }}</div>
+        <div style="font:400 11.5px/1.65 'IBM Plex Mono',monospace;color:#6b737b">{{ selProvWhen }}</div>
+        <sc-if value="{{ selHasQuote }}" hint-placeholder-val="{{ true }}">
+          <div style="border-left:2px solid #2b3036;padding:2px 0 2px 10px;font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ selQuote }}</div>
+        </sc-if>
+      </div>
+
+      <div style="padding:14px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d;margin-bottom:2px">TRIAGE — OR LEAVE IT</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #2b3036;border-radius:3px;background:#181c21;font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb;cursor:default"><span style="color:#8c939a">■</span>Promote to Research Question<span style="margin-left:auto;color:#7d858d">P</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default"><span style="color:#6b737b">▲</span>Promote to Hypothesis<span style="margin-left:auto;color:#7d858d">H</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default"><span style="color:#6b737b">⇥</span>Link to question, note or source<span style="margin-left:auto;color:#7d858d">L</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default"><span style="color:#6b737b">●</span>Answer in place<span style="margin-left:auto;color:#7d858d">A</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid transparent;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#6b737b;cursor:default"><span style="color:#7d858d">×</span>Drop<span style="margin-left:auto;color:#7d858d">D</span></div>
+      </div>
+
+      <div style="padding:14px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">CAPTURED IN THE SAME SITTING</div>
+        <sc-for list="{{ siblings }}" as="s" hint-placeholder-count="3">
+          <div onClick="{{ s.select }}" style="font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#8c939a;border-left:2px solid #23272d;padding-left:9px;cursor:default">{{ s.text }}</div>
+        </sc-for>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ siblingNote }}</div>
+      </div>
+
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">THIS SOURCE</div>
+        <div style="font:400 11.5px/1.6 'IBM Plex Mono',monospace;color:#6b737b">{{ sourceLine }}</div>
+        <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#4fb3a4">{{ scoutLine }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:28px;flex:none;border-top:1px solid #23272d;background:#121518;display:flex;align-items:center;padding:0 14px;gap:16px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">
+    <span>j/k move</span><span>P promote</span><span>H hypothesis</span><span>L link</span><span>A answer</span><span>D drop</span>
+    <span style="margin-left:auto">{{ footerLabel }}</span>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">CAPTURE — TWO KEYSTROKES, NO FORM</p><p class="hs">⌘' opens a single line wherever you already are. The provenance chip is resolved from context before you type a character; ⏎ commits and returns you to the page. There is no second step, no folder to choose, no field to fill.</p></div>
+<div class="wrap">
+<div style="display:flex;flex-direction:column;gap:20px">
+
+<div style="box-sizing:border-box;width:1440px;height:620px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb;position:relative">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#6b737b">Ólafsdóttir, Bush &amp; Barry (2018) — The role of hippocampal replay in memory and planning</div>
+    <div onClick="{{ toggleCapture }}" style="padding:3px 8px;border:1px solid #2b3036;border-radius:3px;font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a;cursor:default">{{ captureBtn }}</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0;background:#08090a;justify-content:center;padding:22px 0;overflow:hidden">
+    <div style="box-sizing:border-box;width:640px;background:#15181c;border:1px solid #23272d;padding:44px 56px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 16px/1.35 'Source Serif 4',Georgia,serif">3.2 Replay outside of sleep</div>
+      <div style="font:400 13.5px/1.8 'Source Serif 4',Georgia,serif;color:#d3d7db">Sequential reactivation is not confined to sleep. During quiet wakefulness, place-cell sequences recur at compressed timescales, and in rodents these waking events are at least as frequent as those observed in slow-wave sleep. <span style="background:#4a3a1c;box-shadow:0 1px 0 #8a6f36">Whether the same phenomenon is measurable in humans with non-invasive recordings remains an open methodological question,</span> and the few attempts to date have relied on decoding approaches whose sensitivity is difficult to establish.</div>
+      <div style="font:400 13.5px/1.8 'Source Serif 4',Georgia,serif;color:#d3d7db">The functional significance of waking replay is likewise unsettled: proposals range from immediate memory stabilisation to prospective planning, and these are rarely distinguished experimentally.</div>
+      <div style="margin-top:4px;font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">11</div>
+    </div>
+  </div>
+  <sc-if value="{{ captureOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;background:#15181c;border-top:1px solid #d99b4a;padding:12px 16px 13px;display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#d99b4a">CAPTURE</span>
+        <span style="padding:2px 7px;border-radius:3px;background:#1b1f24;border:1px solid #262c33;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">◆ Ólafsdóttir 2018 · p.11 · highlight #7</span>
+        <span style="padding:2px 7px;border-radius:3px;background:#1b1f24;border:1px solid #262c33;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">19 Sep 2026 · 14:22</span>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">resolved from context — not typed</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">esc discards</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;background:#0f1113;border:1px solid #2b3036;border-radius:3px;padding:9px 12px">
+        <span style="font:400 13px 'IBM Plex Mono',monospace;color:#d99b4a">?</span>
+        <span style="font:400 15px/1.4 'Source Serif 4',Georgia,serif;color:#e7e9eb">Would this hold for sparse inputs, or does decoding sensitivity collapse<span style="display:inline-block;width:1.5px;height:16px;background:#d99b4a;vertical-align:-3px;margin-left:3px"></span></span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">⏎ capture · ⇧⏎ promote now</span>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+<div style="display:flex;gap:20px;width:1440px">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">FROM THE READER</div>
+    <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">source · page · highlight id<br>the selected passage is stored as the anchor</div>
+    <div style="border-left:2px solid #d99b4a;padding-left:10px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">Ólafsdóttir 2018 · p.11 · ann#7 — the question reopens exactly where you left the page.</div>
+  </div>
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">FROM A NOTE</div>
+    <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">note · heading · cursor line<br>the paragraph you were writing is the anchor</div>
+    <div style="border-left:2px solid #2b3036;padding-left:10px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">Dissociation designs — power · §Power · line 34</div>
+  </div>
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">FROM NOTHING IN PARTICULAR</div>
+    <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">global hotkey, no document open<br>time and place are still a provenance</div>
+    <div style="border-left:2px solid #2b3036;padding-left:10px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">Unattached · 19 Sep 2026, 07:04 — later linkable, never blocked on a choice.</div>
+  </div>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:20px 22px;display:flex;gap:36px">
+  <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">WHY THIS ISN'T A BACKLOG</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">No count of open questions appears in the navigation, the window title, or the dock. The one number in the chrome is <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">318</span> — how many questions exist, which goes up and is meant to. Age is a right-aligned mono column in the same grey as everything else and can be sorted either way; nothing turns colour at thirty days, ninety days, or ever.</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Amber marks <span style="color:#d99b4a">open</span> and nothing else — not late, not urgent. Settled questions go grey rather than green, so the screen doesn't reward closing things.</div>
+  </div>
+  <div style="width:1px;background:#23272d"></div>
+  <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">WHAT MAKES IT INVITING ON DAY 400</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">The strip at the top of the list is a random draw from questions you haven't opened in months — the list's default gesture is browsing, not clearing. Shuffle is a first-class sort. Oldest-first is offered as archaeology rather than penance.</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Provenance is what makes an old question worth reopening: a bare line of text ages badly, but <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">p.7, three years ago, while reading X</span> is still a live lead. That is why it is on every row rather than behind a click.</div>
+  </div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1000}}">
+const SRC = [
+  ['Klinzing 2019','Mechanisms of systems memory consolidation during sleep'],
+  ['Ólafsdóttir 2018','The role of hippocampal replay in memory and planning'],
+  ['Rasch & Born 2013','About sleep\u2019s role in memory'],
+  ['Schreiner 2021','Cueing memories during sleep'],
+  ['Cordi & Rasch 2021','How robust are sleep-mediated memory benefits?'],
+  ['Diekelmann 2010','The memory function of sleep'],
+  ['Wamsley 2019','Memory consolidation during waking rest'],
+  ['Lewis & Durrant 2011','Overlapping memory replay'],
+  ['Feld & Born 2017','Sculpting memory during sleep'],
+  ['Staresina 2015','Hierarchical nesting of slow oscillations'],
+  ['Antony 2018','Sleep spindle refractoriness'],
+  ['Denis 2021','Sleep spindles and motor memory'],
+  ['Simmons 2011','False-positive psychology'],
+  ['Gelman & Loken 2013','The garden of forking paths'],
+  ['Squire 2015','Memory consolidation — a retrospective'],
+  ['Dudai 2015','The consolidation and transformation of memory']
+];
+const NOTES = ['Dissociation designs — power','Cueing methods','Lab meeting 04 Sep','Grant aim 2 — draft','Reading queue','EEG pipeline notes','Thesis ch.3 outline'];
+const TALKS = ['SLEEP 2026 keynote','Methods seminar — mixed models','Journal club 12 Mar','Dept colloquium — Wamsley','Workshop: preregistration'];
+const TAGS = ['methods','swa','tmr','replay','stats','theory','eeg','writing','sampling','tooling'];
+
+const HW = [
+  'Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?',
+  'Why does the replay literature so rarely address awake replay in humans?',
+  'Is targeted memory reactivation dose-dependent, or is one cue enough?',
+  'What counts as a "reactivation event" across the three labs that report it?',
+  'Has anyone replicated the spindle-coupling effect with high-density EEG?',
+  'Is there a principled reason to prefer overnight designs over naps?',
+  'What would actually falsify the active systems account?',
+  'Does waking rest share a mechanism with sleep consolidation, or only an outcome?',
+  'Why is spindle refractoriness always reported in group means?',
+  'How much of the TMR literature uses within-subject cueing?',
+  'Is the garden of forking paths worse in sleep EEG than in fMRI?',
+  'Should the analysis be preregistered before or after the pilot?',
+  'What sample size would actually detect the dissociation I care about?',
+  'Does anyone model spindle density as a random slope rather than a mean?',
+  'Is "consolidation" doing work in this sentence, or is it decoration?',
+  'Why do nap studies cluster so heavily in one lab tradition?',
+  'Could the between-lab dispersion be an artefact of how density is defined?',
+  'What is the shortest learning-to-sleep interval anyone has used?',
+  'Do motor and declarative tasks need separate accounts, or one?',
+  'Is there an animal analogue of TMR that actually works?',
+  'Who decided 11–16 Hz was the spindle band, and on what basis?',
+  'Does the overnight benefit survive when baseline performance is matched?',
+  'Is gist extraction a separate process or just forgetting with better press?',
+  'How would I detect replay without assuming the sequence in advance?',
+  'Why does nobody plot per-subject slopes in this literature?',
+  'Is reward-based memory triage compatible with the schema account?',
+  'What happens to all of this in fragmented or clinical sleep?',
+  'Are the effect sizes in the 2010s reviews recoverable from the papers?',
+  'Does time-of-day confound every nap-versus-wake comparison?',
+  'Is "systems consolidation" the same construct in rodents and humans?',
+  'Why is the retrieval side of consolidation so rarely measured?',
+  'Could I use the existing dataset to estimate the confound directly?',
+  'Is there a version of this experiment that fits in one session?',
+  'What would a preregistered replication of Schreiner cost?',
+  'Does the cue have to be semantically related, or just associated?',
+  'Is the ripple-rate measure comparable across electrode montages?',
+  'How stable is a person\u2019s spindle density across nights?',
+  'Is anyone sharing raw EEG rather than derived measures?',
+  'What does "consolidation" mean to a clinician reading this?',
+  'Why do I keep assuming sleep is the interesting variable?',
+  'Is the forgetting curve the right null model here at all?',
+  'Could the whole effect be regression to the mean across sessions?',
+  'Does the field have a standard for reporting sleep staging reliability?',
+  'Which of these findings would I bet money on?',
+  'Is there a review that covers the negative results?',
+  'What would I need to see to abandon this line entirely?',
+  'How do I cite an annotation rather than a paper?',
+  'Is the pipeline reproducible if I hand it to someone else tomorrow?',
+  'Why is theta in REM treated as a separate literature?',
+  'Does the planning account of replay make any sleep predictions?',
+  'Is there a dataset with both intracranial and scalp recordings?',
+  'What proportion of these studies used a within-subject control night?',
+  'Has anyone modelled the confound as a mediator rather than covariate?',
+  'Is the benefit larger for material learned to criterion?',
+  'Would a Bayesian reanalysis change the picture or just the language?',
+  'Why does every figure in this area use the same two colours?'
+];
+
+const STEMS = [
+  'Does {x} replicate in older adults?','Is {x} sensitive to time of day?','How would I measure {x} without EEG?',
+  'Who first reported {x}, and in what species?','Is {x} in the supplement or only in the abstract?',
+  'Does {x} survive a preregistered test?','What is the actual effect size for {x}?',
+  'Is {x} confounded by circadian phase?','Could {x} be a ceiling effect?','Has {x} been shown outside the lab?',
+  'Is {x} the same construct in these two papers?','Does {x} depend on task difficulty?',
+  'What happens to {x} in fragmented sleep?','Is {x} worth a pilot before the grant?',
+  'Why is {x} never plotted per subject?','Would {x} hold for sparse inputs?',
+  'Is {x} an assumption here or a finding?','Does {x} change under medication?',
+  'How stable is {x} across nights?','Is {x} detectable in a single session?',
+  'Does {x} interact with age at all?','What would {x} look like at n=200?',
+  'Is there a null result for {x} anywhere?','Can {x} be derived from open data?'
+];
+const OBJ = [
+  'slow-wave density','spindle–SO coupling','the TMR benefit','awake replay','the overnight retention effect',
+  'theta during REM','reactivation strength','the encoding-strength confound','cue-locked reinstatement',
+  'sleep-dependent gist extraction','spindle refractoriness','the nap benefit','delta power decline',
+  'reward-based memory triage','schema-consistent consolidation','ripple rate','the forgetting slope',
+  'sequence replay fidelity','sleep architecture stability','cross-frequency coupling','the retrieval cost of cueing',
+  'stage-2 spindle count','REM-dependent emotional gain','the wake-control baseline'
+];
+
+const STATUS = {
+  open:      {glyph:'◆', tone:'#d99b4a', label:'Open',       fg:'#d3d7db'},
+  promoted:  {glyph:'■', tone:'#8c939a', label:'Promoted',   fg:'#bac0c6'},
+  hypothesis:{glyph:'▲', tone:'#8c939a', label:'Hypothesis', fg:'#bac0c6'},
+  answered:  {glyph:'●', tone:'#6b737b', label:'Answered',   fg:'#8c939a'},
+  dropped:   {glyph:'×', tone:'#7d858d', label:'Dropped',    fg:'#6b737b'}
+};
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function ageShort(d){
+  if (d === 0) return 'today';
+  if (d < 7) return d + 'd';
+  if (d < 60) return Math.round(d/7) + 'w';
+  if (d < 365) return Math.round(d/30) + 'mo';
+  const y = Math.floor(d/365), m = Math.round((d%365)/30);
+  return m ? y + 'y ' + m + 'mo' : y + 'y';
+}
+function ageLong(d){
+  if (d === 0) return 'captured today';
+  if (d === 1) return 'captured yesterday';
+  if (d < 45) return 'open ' + d + ' days';
+  if (d < 365) return 'open ' + Math.round(d/30) + ' months';
+  return 'open ' + (d/365).toFixed(1) + ' years';
+}
+function dateOf(d){
+  const t = new Date(2026, 8, 19); t.setDate(t.getDate() - d);
+  return t.getDate() + ' ' + MON[t.getMonth()] + ' ' + t.getFullYear();
+}
+
+function build(){
+  const r = rng(20260919), out = [];
+  const total = 318;
+  for (let i = 0; i < total; i++) {
+    let text;
+    if (i < HW.length) text = HW[i];
+    else text = STEMS[Math.floor(r()*STEMS.length)].replace('{x}', OBJ[Math.floor(r()*OBJ.length)]);
+
+    const u = r();
+    const days = u < .12 ? Math.floor(r()*14)
+      : u < .34 ? 14 + Math.floor(r()*76)
+      : u < .62 ? 90 + Math.floor(r()*275)
+      : u < .85 ? 365 + Math.floor(r()*365)
+      : 730 + Math.floor(r()*400);
+
+    const sv = r();
+    const status = sv < .70 ? 'open' : sv < .80 ? 'promoted' : sv < .85 ? 'hypothesis' : sv < .95 ? 'answered' : 'dropped';
+
+    const ov = r();
+    let kind, origin, page = 0, srcIdx = -1;
+    if (ov < .66) { kind='source'; srcIdx = Math.floor(r()*SRC.length); page = 2 + Math.floor(r()*24); origin = SRC[srcIdx][0] + ' · p.' + page; }
+    else if (ov < .88) { kind='note'; origin = NOTES[Math.floor(r()*NOTES.length)]; }
+    else { kind='talk'; origin = TALKS[Math.floor(r()*TALKS.length)]; }
+
+    const nt = 1 + Math.floor(r()*2);
+    const tags = [];
+    while (tags.length < nt) { const t = TAGS[Math.floor(r()*TAGS.length)]; if (tags.indexOf(t) < 0) tags.push(t); }
+
+    out.push({ id:i, text, status, kind, origin, srcIdx, page, days, tags, date: dateOf(days) });
+  }
+  return out;
+}
+
+const ALL = build();
+const AGE_BANDS = [
+  ['Any', () => true],
+  ['Under a month', q => q.days < 30],
+  ['1–12 months', q => q.days >= 30 && q.days < 365],
+  ['1–2 years', q => q.days >= 365 && q.days < 730],
+  ['Older than two years', q => q.days >= 730]
+];
+
+class Component extends DCLogic {
+  state = {
+    query:'', status:'all', origin:'all', tag:null, age:0,
+    sort:'new', selected:0, compact:false, resurfaceOn:true, seed:1, captureOpen:true
+  };
+
+  componentDidMount(){
+    this._key = e => {
+      if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+      if (e.key === 'j' || e.key === 'k') {
+        const list = this.filtered();
+        const i = list.findIndex(q => q.id === this.state.selected);
+        const n = e.key === 'j' ? Math.min(list.length-1, i+1) : Math.max(0, i-1);
+        if (list[n]) this.setState({ selected:list[n].id });
+      }
+    };
+    document.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount(){ document.removeEventListener('keydown', this._key); }
+
+  filtered(){
+    const s = this.state, q = s.query.trim().toLowerCase();
+    let list = ALL.filter(x =>
+      (s.status === 'all' || x.status === s.status) &&
+      (s.origin === 'all' || x.kind === s.origin) &&
+      (!s.tag || x.tags.indexOf(s.tag) >= 0) &&
+      AGE_BANDS[s.age][1](x) &&
+      (!q || x.text.toLowerCase().includes(q) || x.origin.toLowerCase().includes(q) || x.tags.join(' ').includes(q))
+    );
+    if (s.sort === 'new') list = list.slice().sort((a,b) => a.days - b.days);
+    else if (s.sort === 'old') list = list.slice().sort((a,b) => b.days - a.days);
+    else if (s.sort === 'source') list = list.slice().sort((a,b) => a.origin.localeCompare(b.origin) || a.days - b.days);
+    else { const r = rng(s.seed * 7919); list = list.slice().map(x => [r(), x]).sort((a,b) => a[0]-b[0]).map(p => p[1]); }
+    return list;
+  }
+
+  chip(active){ return active ? {bg:'#212730', fg:'#e7e9eb'} : {bg:'transparent', fg:'#8c939a'}; }
+
+  renderVals(){
+    const st = this.state;
+    const list = this.filtered();
+    const sel = ALL.find(x => x.id === st.selected) || ALL[0];
+    const S = STATUS[sel.status];
+    const pad = st.compact ? '6px 16px' : '10px 16px';
+
+    const rows = list.slice(0, 220).map(q => ({
+      ...q,
+      glyph: STATUS[q.status].glyph,
+      tone: STATUS[q.status].tone,
+      fg: q.id === st.selected ? '#ffffff' : STATUS[q.status].fg,
+      bg: q.id === st.selected ? '#1b2129' : 'transparent',
+      age: ageShort(q.days),
+      pad,
+      roomy: !st.compact,
+      sub: q.date + '  ·  ' + q.tags.map(t => '#' + t).join(' '),
+      select: () => this.setState({ selected:q.id })
+    }));
+
+    const count = (fn) => ALL.filter(fn).length;
+    const statusFilters = [['all','All',null]].concat(Object.keys(STATUS).map(k => [k, STATUS[k].label, k]))
+      .map(([k,label,sk]) => {
+        const a = st.status === k, c = this.chip(a);
+        return { label, n: sk ? count(x => x.status === sk) : ALL.length,
+          glyph: sk ? STATUS[sk].glyph : '·', tone: sk ? STATUS[sk].tone : '#7d858d',
+          bg:c.bg, fg:c.fg, pick: () => this.setState({ status:k }) };
+      });
+
+    const originFilters = [['all','Everything'],['source','Papers'],['note','Notes'],['talk','Talks & lectures']]
+      .map(([k,label]) => {
+        const a = st.origin === k, c = this.chip(a);
+        return { label, n: k === 'all' ? ALL.length : count(x => x.kind === k), bg:c.bg, fg:c.fg,
+          pick: () => this.setState({ origin:k }) };
+      });
+
+    const ageFilters = AGE_BANDS.map(([label, fn], i) => {
+      const a = st.age === i, c = this.chip(a);
+      return { label, n: count(fn), bg:c.bg, fg:c.fg, pick: () => this.setState({ age:i }) };
+    });
+
+    const tagFilters = TAGS.map(t => {
+      const a = st.tag === t;
+      return { label:'#'+t, n: count(x => x.tags.indexOf(t) >= 0),
+        bg: a ? '#212730' : 'transparent', border: a ? '#3a424b' : '#23272d', fg: a ? '#e7e9eb' : '#6b737b',
+        pick: () => this.setState({ tag: a ? null : t }) };
+    });
+
+    const sorts = [['new','newest'],['old','oldest'],['source','by source'],['rand','shuffle']].map(([k,label]) => {
+      const a = st.sort === k, c = this.chip(a);
+      return { label, bg:c.bg, fg:c.fg, pick: () => this.setState({ sort:k, seed: k === 'rand' ? st.seed + 1 : st.seed }) };
+    });
+
+    const r = rng(st.seed * 104729);
+    const pool = ALL.filter(x => x.status === 'open' && x.days > 120);
+    const resurfaced = pool.map(x => [r(), x]).sort((a,b) => a[0]-b[0]).slice(0,5).map(p => p[1]).map(q => ({
+      text: q.text, origin: q.origin, age: ageShort(q.days) + ' ago',
+      select: () => this.setState({ selected:q.id })
+    }));
+
+    const sibs = ALL.filter(x => x.id !== sel.id && x.origin === sel.origin).slice(0,3);
+
+    return {
+      rows, statusFilters, originFilters, ageFilters, tagFilters, sorts, resurfaced,
+      query: st.query,
+      onQuery: e => this.setState({ query:e.target.value }),
+      toggleDensity: () => this.setState({ compact: !st.compact }),
+      densityLabel: st.compact ? '▤ compact' : '▥ roomy',
+      showResurface: st.resurfaceOn && st.query === '' ,
+      hideResurface: () => this.setState({ resurfaceOn:false }),
+      reshuffle: () => this.setState({ seed: st.seed + 1 }),
+      totalLabel: ALL.length + ' questions · since Mar 2024',
+      shownLabel: list.length === ALL.length ? ALL.length + ' shown' : list.length + ' of ' + ALL.length,
+      footerLabel: 'oldest capture 2y 11mo · no counter, by design',
+      endNote: list.length > 220
+        ? 'showing 220 of ' + list.length + ' — keep scrolling, or narrow it down. The list is allowed to be long.'
+        : 'end of ' + list.length + ' questions. Most of these will stay open, which is the point.',
+      selText: sel.text, selStatus: S.label.toUpperCase(), selGlyph: S.glyph, selTone: S.tone,
+      selAgeLong: ageLong(sel.days),
+      selTags: sel.tags.map(t => ({ label:'#'+t })),
+      selProvLine: sel.kind === 'source'
+        ? 'while reading ' + SRC[sel.srcIdx][0] + ', p.' + sel.page
+        : sel.kind === 'note' ? 'while writing “' + sel.origin + '”' : 'during ' + sel.origin,
+      selProvWhen: sel.date + ' · ' + (sel.kind === 'source' ? 'anchored to highlight #' + (sel.page + 3) : 'anchored to cursor position'),
+      selHasQuote: sel.kind === 'source',
+      selQuote: sel.kind === 'source' ? '“' + SRC[sel.srcIdx][1] + '” — the passage is stored with the question.' : '',
+      siblings: sibs.map(q => ({ text:q.text, select: () => this.setState({ selected:q.id }) })),
+      siblingNote: sel.kind === 'source'
+        ? ALL.filter(x => x.srcIdx === sel.srcIdx).length + ' questions came out of this paper'
+        : ALL.filter(x => x.origin === sel.origin).length + ' questions came out of this',
+      sourceLine: sel.kind === 'source' ? SRC[sel.srcIdx][1] : sel.origin,
+      scoutLine: sel.kind === 'source' ? 'scout watching this source · 3 proposals' : 'no scout attached',
+      captureOpen: st.captureOpen,
+      captureBtn: st.captureOpen ? 'esc — dismiss' : '⌘\u2019 — capture',
+      toggleCapture: () => this.setState({ captureOpen: !st.captureOpen })
+    };
+  }
+}
+</script>
+</body>
+</html>

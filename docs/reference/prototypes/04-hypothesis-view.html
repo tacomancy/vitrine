@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">HYPOTHESIS — THREE STATES, ALL DERIVED</p><p class="hs">There is no status control on this page. The state under the claim is computed from the criteria every time they change, and the rule that computed it is printed underneath so it can be checked rather than trusted. Falsifying criteria are not styled as a variant of the others — they sit in their own band above them, because one of them settles the page on its own.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+    <div onClick="{{ t.pick }}" style="padding:6px 13px;border:1px solid {{ t.border }};border-radius:3px;background:{{ t.bg }};font:400 11.5px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }}</div>
+  </sc-for>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;height:980px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ winTitle }}</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">▲</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">◻</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 26px;gap:12px">
+        <span style="font:500 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">HYPOTHESIS</span>
+        <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ ageChip }}</span>
+        <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ revChip }}</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">+ criterion</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">+ experiment</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">history</span>
+        </span>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="flex:1;min-width:0;overflow-y:auto;padding:26px 30px 44px;display:flex;flex-direction:column;gap:24px">
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">THE CLAIM</div>
+            <div style="border-left:2px solid #d99b4a;padding:2px 0 2px 14px;font:400 20px/1.55 'Source Serif 4',Georgia,serif;color:#e7e9eb;max-width:760px">{{ claim }}</div>
+            <div style="display:flex;align-items:center;gap:9px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">
+              <span style="color:#d99b4a">▲</span><span>{{ claimMeta }}</span>
+            </div>
+          </div>
+
+          <div style="border:1px solid {{ stBorder }};background:{{ stBg }};border-radius:3px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;max-width:900px">
+            <div style="display:flex;align-items:center;gap:14px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">STATE · DERIVED</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">recomputed when any criterion changes</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:16px">
+              <span style="font:600 27px/1 'IBM Plex Mono',monospace;letter-spacing:-.01em;color:{{ stFg }}">{{ stateLabel }}</span>
+              <span style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ stateBecause }}</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ tally }}" as="t" hint-placeholder-count="3">
+                <span style="padding:3px 9px;border:1px solid #23272d;border-radius:3px;background:#121518;font:400 10.5px 'IBM Plex Mono',monospace;color:{{ t.fg }}">{{ t.label }}</span>
+              </sc-for>
+            </div>
+            <div style="border-top:1px solid {{ stRule }};padding-top:11px;display:flex;align-items:center;gap:16px">
+              <span style="font:400 10px/1.7 'IBM Plex Mono',monospace;color:#8c939a">all criteria met → supported&nbsp;&nbsp;·&nbsp;&nbsp;any falsifying criterion met → falsified&nbsp;&nbsp;·&nbsp;&nbsp;otherwise → inconclusive</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ overrideHint }}</span>
+            </div>
+          </div>
+
+          <sc-if value="{{ isFalsified }}" hint-placeholder-val="{{ true }}">
+            <div style="border:1px solid #5a3f3a;background:#1a1413;border-radius:3px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;max-width:900px">
+              <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#e59289">THIS IS A RESULT</div>
+              <div style="font:400 15px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:720px">The reanalysis did not shrink the pooled effect. That answers the question this hypothesis came from — the small-study-bias explanation is not sufficient on its own — and it is worth as much as the outcome I was hoping for.</div>
+              <div style="border-top:1px solid #3a2c2a;padding-top:12px;display:flex;flex-direction:column;gap:9px">
+                <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CAPTURE WHAT IT RAISES</div>
+                <div style="display:flex;align-items:center;gap:11px;background:#0f1113;border:1px solid #2b3036;border-radius:3px;padding:10px 13px">
+                  <span style="font:400 12px 'IBM Plex Mono',monospace;color:#d99b4a">?</span>
+                  <span style="font:400 14.5px/1.45 'Source Serif 4',Georgia,serif;color:#e7e9eb">If it is not small-study bias, what is producing the between-lab dispersion?<span style="display:inline-block;width:1.5px;height:16px;background:#d99b4a;vertical-align:-3px;margin-left:3px"></span></span>
+                  <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">⏎ capture</span>
+                </div>
+                <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">pre-linked to this result · will appear in the Inbox with the falsifying run attached</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CRITERIA</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ criteriaMeta }}</span>
+            </div>
+
+            <sc-for list="{{ falsifying }}" as="c" hint-placeholder-count="1">
+              <div style="border:1px solid #5a3f3a;border-left:3px solid #d4685c;background:#191413;border-radius:3px;padding:14px 16px;display:flex;flex-direction:column;gap:11px;max-width:900px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#e59289">FALSIFYING · {{ c.id }}</span>
+                  <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">if met, this decides the page alone</span>
+                  <span style="margin-left:auto;padding:3px 9px;border-radius:3px;background:{{ c.pillBg }};border:1px solid {{ c.pillBorder }};font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.pillFg }}">{{ c.outcome }}</span>
+                </div>
+                <div style="font:400 16px/1.6 'Source Serif 4',Georgia,serif;color:#e7e9eb;max-width:720px">{{ c.text }}</div>
+                <sc-if value="{{ c.edited }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;gap:9px;align-items:flex-start;border:1px solid #6a4a1e;background:#1e1810;border-radius:3px;padding:9px 12px">
+                    <span style="font:400 11px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:2px">!</span>
+                    <span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#d3d7db">{{ c.editedText }}</span>
+                  </div>
+                </sc-if>
+                <sc-for list="{{ c.evidence }}" as="e" hint-placeholder-count="1">
+                  <div style="border-top:1px solid #3a2c2a;padding-top:10px;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">{{ e.run }}</span>
+                      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ e.meta }}</span>
+                    </div>
+                    <div style="font:400 13px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ e.note }}</div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ c.noEvidence }}" hint-placeholder-val="{{ true }}">
+                  <div style="border-top:1px dashed #3a2c2a;padding-top:10px;font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">No experiment attached yet. Stated before any run — which is the point of writing it down first.</div>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <sc-for list="{{ confirming }}" as="c" hint-placeholder-count="2">
+              <div style="border:1px solid #23272d;border-left:2px solid #3a424b;background:#15181c;border-radius:3px;padding:13px 15px;display:flex;flex-direction:column;gap:10px;max-width:900px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CONFIRMING · {{ c.id }}</span>
+                  <span style="margin-left:auto;padding:3px 9px;border-radius:3px;background:{{ c.pillBg }};border:1px solid {{ c.pillBorder }};font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.pillFg }}">{{ c.outcome }}</span>
+                </div>
+                <div style="font:400 14.5px/1.6 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:720px">{{ c.text }}</div>
+                <sc-if value="{{ c.edited }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;gap:9px;align-items:flex-start;border:1px solid #6a4a1e;background:#1e1810;border-radius:3px;padding:9px 12px">
+                    <span style="font:400 11px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:2px">!</span>
+                    <span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#d3d7db">{{ c.editedText }}</span>
+                  </div>
+                </sc-if>
+                <sc-for list="{{ c.evidence }}" as="e" hint-placeholder-count="1">
+                  <div style="border-top:1px solid #1d2126;padding-top:9px;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">{{ e.run }}</span>
+                      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ e.meta }}</span>
+                    </div>
+                    <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ e.note }}</div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ c.noEvidence }}" hint-placeholder-val="{{ true }}">
+                  <div style="border-top:1px dashed #1d2126;padding-top:9px;font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">No experiment attached yet.</div>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <sc-for list="{{ diagnostic }}" as="c" hint-placeholder-count="1">
+              <div style="border:1px dashed #23272d;border-radius:3px;padding:12px 15px;display:flex;flex-direction:column;gap:9px;max-width:900px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">DIAGNOSTIC · {{ c.id }}</span>
+                  <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">informative · does not decide</span>
+                  <span style="margin-left:auto;padding:3px 9px;border-radius:3px;background:{{ c.pillBg }};border:1px solid {{ c.pillBorder }};font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.pillFg }}">{{ c.outcome }}</span>
+                </div>
+                <div style="font:400 13.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a;max-width:720px">{{ c.text }}</div>
+                <sc-for list="{{ c.evidence }}" as="e" hint-placeholder-count="1">
+                  <div style="border-top:1px solid #1d2126;padding-top:9px;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ e.run }}</span>
+                      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ e.meta }}</span>
+                    </div>
+                    <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ e.note }}</div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ c.noEvidence }}" hint-placeholder-val="{{ true }}">
+                  <div style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">No experiment attached yet.</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DESIGN NOTES</div>
+            <div style="font:400 14px/1.8 'Source Serif 4',Georgia,serif;color:#bac0c6;max-width:760px">{{ designNotes }}</div>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ designMeta }}</div>
+          </div>
+        </div>
+
+        <div style="width:340px;flex:none;background:#131619;border-left:1px solid #23272d;overflow-y:auto;display:flex;flex-direction:column">
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CAME FROM</div>
+            <div style="font:400 13px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">Is the overnight retention benefit attributable to consolidation, or to encoding strength?</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">research question · promoted to hypothesis {{ promotedWhen }}</div>
+          </div>
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">POSITION HISTORY</div>
+            <sc-for list="{{ miniHistory }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;padding-top:3px;width:46px;flex:none">{{ h.when }}</span>
+                <span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:{{ h.fg }}">{{ h.text }}</span>
+              </div>
+            </sc-for>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ historyLink }}</div>
+          </div>
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">EXPERIMENTS</div>
+            <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">{{ runSummary }}</div>
+            <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Runs live in the analysis repo. This page records what each one was taken to show, not how it was produced.</div>
+          </div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">RELATED</div>
+            <sc-for list="{{ related }}" as="r" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span style="font:400 12.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ r.text }}</span>
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ r.rel }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">OVERRIDING INCONCLUSIVE — A WRITTEN ACT</p><p class="hs">The override is not adjacent to the state and is not a control on the page; it is reached from the small line under the derivation rule, and it cannot be completed without prose. What you write is not a field on the hypothesis — it becomes an entry in the position history, permanently, next to the derived state it contradicts.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;box-shadow:0 24px 60px -28px rgba(0,0,0,.72)">
+    <div style="padding:13px 18px;border-bottom:1px solid #23272d;background:#15181b;display:flex;align-items:center;gap:10px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">OVERRIDE THE DERIVED STATE</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">esc</span>
+    </div>
+    <div style="padding:16px 18px;display:flex;flex-direction:column;gap:15px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font:600 15px 'IBM Plex Mono',monospace;color:#d99b4a">INCONCLUSIVE</span>
+        <span style="font:400 12px 'IBM Plex Mono',monospace;color:#7d858d">derived</span>
+        <span style="font:400 13px 'IBM Plex Mono',monospace;color:#8c939a">→</span>
+        <span style="font:600 15px 'IBM Plex Mono',monospace;color:#e7e9eb">SUPPORTED</span>
+        <span style="font:400 12px 'IBM Plex Mono',monospace;color:#7d858d">asserted by you</span>
+      </div>
+      <div style="border:1px solid #23272d;background:#121518;border-radius:3px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT YOU ARE OVERRULING</div>
+        <div style="display:flex;gap:9px;align-items:flex-start"><span style="font:400 10px 'IBM Plex Mono',monospace;color:#e59289;padding-top:3px">F1</span><span style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">unresolved — no run has tested the preregistered-exclusion pooled effect</span></div>
+        <div style="display:flex;gap:9px;align-items:flex-start"><span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:3px">C2</span><span style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">not met — the effect did not shrink monotonically with sample size</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#d99b4a">WHY YOU ARE OVERRIDING</span>
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">required · goes into the history and stays there</span>
+        </div>
+        <div style="border:1px solid #d99b4a;border-radius:3px;background:#15181c;padding:12px 14px;min-height:74px;font:400 14px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db">C2 is not met because the monotonicity test is the wrong test for this sample — I wrote it before realising the size distribution is bimodal. F1 is unresolved and will stay unresolved because the preregistered subset is too small to pool. I am calling this supported on C1 and C3 and recording that the criteria were poorly chosen<span style="display:inline-block;width:1.5px;height:16px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #1d2126;padding-top:13px">
+        <span style="padding:7px 14px;border-radius:3px;background:#d99b4a;font:500 11.5px 'IBM Plex Mono',monospace;color:#0f1113">override and record</span>
+        <span style="padding:7px 14px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">cancel</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">the page will read SUPPORTED · asserted, not SUPPORTED</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="box-sizing:border-box;width:470px;flex:none;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:13px;color:#e7e9eb">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">AFTERWARDS, ON THE PAGE</div>
+    <div style="border:1px solid #6a4a1e;background:#1a1611;border-radius:3px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">STATE · ASSERTED</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">12 Sep</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font:600 23px/1 'IBM Plex Mono',monospace;color:#e7e9eb">SUPPORTED</span>
+        <span style="font:400 12px 'IBM Plex Mono',monospace;color:#d99b4a">overrides INCONCLUSIVE</span>
+      </div>
+      <div style="font:400 12.5px/1.65 'Source Serif 4',Georgia,serif;color:#bac0c6">“C2 is the wrong test for this sample — the size distribution is bimodal…”</div>
+      <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">read the full justification in the history →</div>
+    </div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">The asserted state never loses its qualifier. The derived state stays printed beside it, so anyone reading the page later — including you — sees both what the criteria said and what you decided instead.</div>
+    <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Editing the criteria to make the derivation come out right is the alternative the design deliberately makes worse: that path is the one that raises a permanent flag on the criterion, while this one only asks you to write a paragraph.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">A CRITERION EDITED AFTER EVIDENCE ARRIVED</p><p class="hs">Criteria are not locked — a badly worded criterion should be fixable. But an edit made after a run is attached is the exact shape of post-hoc storytelling, so it is marked at the moment it happens, the mark never expires, and the previous wording stays readable on the page rather than only in the log.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;color:#e7e9eb">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">AT THE MOMENT OF EDITING</div>
+    <div style="border:1px solid #6a4a1e;background:#1a1611;border-radius:3px;padding:13px 15px;display:flex;gap:11px;align-items:flex-start">
+      <span style="font:400 12px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:2px">!</span>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e7e9eb">Two experiments are already attached to this criterion.</div>
+        <div style="font:400 12.5px/1.7 'IBM Plex Sans',sans-serif;color:#bac0c6">Changing the wording now will be recorded as an edit-after-evidence and shown on the criterion permanently. If the criterion was simply wrong, that is a fine reason — write it below and it will read as one.</div>
+        <div style="border:1px solid #2b3036;border-radius:3px;background:#15181c;padding:9px 11px;font:400 13px/1.6 'Source Serif 4',Georgia,serif;color:#d3d7db">The monotonicity test was the wrong operationalisation — the sample-size distribution is bimodal, which I only saw after run 14<span style="display:inline-block;width:1.5px;height:15px;background:#d99b4a;vertical-align:-3px;margin-left:2px"></span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="padding:6px 12px;border-radius:3px;background:#d99b4a;font:500 11px 'IBM Plex Mono',monospace;color:#0f1113">save the edit</span>
+          <span style="padding:6px 12px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">add a new criterion instead</span>
+        </div>
+      </div>
+    </div>
+    <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">The second button is the escape hatch that keeps the record honest: a new criterion beside the old one costs nothing and leaves both visible.</div>
+  </div>
+
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;color:#e7e9eb">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">FOREVER AFTERWARDS</div>
+    <div style="border:1px solid #23272d;border-left:2px solid #3a424b;background:#15181c;border-radius:3px;padding:13px 15px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CONFIRMING · C2</span>
+        <span style="margin-left:auto;padding:3px 9px;border-radius:3px;background:#212730;border:1px solid #3a424b;font:500 10.5px 'IBM Plex Mono',monospace;color:#e7e9eb">met</span>
+      </div>
+      <div style="font:400 14.5px/1.6 'Source Serif 4',Georgia,serif;color:#d3d7db">The pooled effect is lower in the large-sample stratum than in the small-sample stratum.</div>
+      <div style="border:1px solid #6a4a1e;background:#1e1810;border-radius:3px;padding:9px 12px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font:400 11px 'IBM Plex Mono',monospace;color:#d99b4a">!</span><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#d99b4a">EDITED 6 SEP, AFTER 2 EXPERIMENTS</span></div>
+        <div style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">was — “The effect shrinks monotonically as study sample size increases.”</div>
+        <div style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">“wrong operationalisation — the size distribution is bimodal, which I only saw after run 14”</div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">outcome flipped: not met → met · see history</div>
+      </div>
+    </div>
+    <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">The flag is the same weight as the criterion text and carries the old wording with it, so the page cannot be read as though the criterion had always said this.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">POSITION HISTORY — CLAIM, CRITERIA, AND EVERY OVERRULE</p><p class="hs">One timeline for the whole argument: revisions of the claim, edits to criteria, override justifications, and the runs that moved things. Explained entries lead; silent ones stay visible as dated rules. Edits made after evidence and overrides of the derived state are never quiet, whatever else is.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;box-shadow:0 24px 60px -28px rgba(0,0,0,.72)">
+  <div style="padding:16px 26px;border-bottom:1px solid #23272d;display:flex;align-items:baseline;gap:14px">
+    <div style="font:600 14.5px/1.4 'Source Serif 4',Georgia,serif;max-width:820px">Reanalysing the open nap datasets with a preregistered pipeline will shrink the pooled effect below d = 0.20.</div>
+    <div style="margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ histCount }}</div>
+  </div>
+  <div style="padding:8px 26px 10px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:8px">
+    <sc-for list="{{ histFilters }}" as="h" hint-placeholder-count="4">
+      <div onClick="{{ h.pick }}" style="padding:4px 10px;border-radius:3px;background:{{ h.bg }};font:400 10.5px 'IBM Plex Mono',monospace;color:{{ h.fg }};cursor:default">{{ h.label }}</div>
+    </sc-for>
+    <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">newest first</span>
+  </div>
+  <div style="padding:22px 26px 30px;display:flex;flex-direction:column">
+    <sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+      <div style="display:grid;grid-template-columns:118px 20px 1fr;align-items:stretch">
+        <div style="padding:0 16px 22px 0;text-align:right">
+          <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ h.dateTone }}">{{ h.date }}</div>
+          <div style="margin-top:3px;font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ h.kindLabel }}</div>
+        </div>
+        <div style="position:relative;display:flex;justify-content:center">
+          <div style="position:absolute;top:0;bottom:0;width:1px;background:#23272d"></div>
+          <div style="position:relative;width:{{ h.dotSize }};height:{{ h.dotSize }};border-radius:50%;background:{{ h.dot }};margin-top:4px;box-shadow:0 0 0 4px #0f1113"></div>
+        </div>
+        <div style="padding:0 0 22px 18px;min-width:0">
+          <sc-if value="{{ h.loud }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px;max-width:900px;border:1px solid {{ h.border }};background:{{ h.bg }};border-radius:3px;padding:13px 15px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:{{ h.tagFg }}">{{ h.tag }}</span>
+                <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ h.sub }}</span>
+              </div>
+              <div style="font:400 15px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ h.text }}</div>
+              <sc-if value="{{ h.hasWhy }}" hint-placeholder-val="{{ true }}">
+                <div style="border-left:2px solid {{ h.whyRule }};padding-left:12px;font:400 13px/1.65 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ h.why }}</div>
+              </sc-if>
+              <div style="display:flex;gap:7px;flex-wrap:wrap">
+                <sc-for list="{{ h.causes }}" as="c" hint-placeholder-count="1">
+                  <span style="padding:3px 8px;border:1px solid #23272d;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ c.label }}</span>
+                </sc-for>
+              </div>
+              <div style="font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#7d858d">{{ h.from }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ h.quiet }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:12px;height:20px">
+              <div style="flex:1;max-width:520px;height:1px;background:#1d2126"></div>
+              <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ h.text }}</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d;cursor:default">{{ h.action }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="border-top:1px solid #1d2126;background:#121518;padding:14px 26px;display:flex;gap:40px">
+    <div style="flex:1;font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">Two entries here can never be quiet: the criterion edited after run 14, and the override of the derived state. Both are rendered as blocks with their own borders whether or not a reason was written, because the absence of a reason is the thing a reader most needs to see.</div>
+    <div style="flex:1;font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">Everything else follows the Research Question's rule: recording your reasoning is optional and rewarded. A claim that narrowed three times with two explanations still reads as a train of thought.</div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1080}}">
+const OUT = {
+  met:       {label:'met',           bg:'#212730', border:'#3a424b', fg:'#e7e9eb'},
+  notmet:    {label:'not met',       bg:'#121518', border:'#23272d', fg:'#8c939a'},
+  inconc:    {label:'inconclusive',  bg:'#1e1810', border:'#6a4a1e', fg:'#d99b4a'},
+  none:      {label:'awaiting evidence', bg:'transparent', border:'#23272d', fg:'#7d858d'}
+};
+
+const C = {
+  F1: {id:'F1', rel:'falsifying', text:'The pooled effect stays at or above d = 0.35 after applying the preregistered exclusions.'},
+  C1: {id:'C1', rel:'confirming', text:'Funnel-plot asymmetry is significant (Egger p < .05) across the full set of 41 datasets.'},
+  C2: {id:'C2', rel:'confirming', text:'The effect shrinks monotonically as study sample size increases.'},
+  C3: {id:'C3', rel:'confirming', text:'The preregistered subset alone pools below d = 0.20.'},
+  D1: {id:'D1', rel:'diagnostic', text:'Between-lab variance drops once the slow-wave density definition is harmonised.'}
+};
+
+const STATES = {
+  fresh: {
+    label:'1 · freshly promoted', win:'preregistered reanalysis will shrink the pooled effect — promoted 3 days ago',
+    age:'3d', rev:'claim revision 1 · no experiments', promoted:'16 Sep 2026',
+    claim:'Reanalysing the open nap datasets with a preregistered pipeline will shrink the pooled effect below d = 0.20.',
+    claimMeta:'stated 16 Sep · promoted from a research question, not from a capture',
+    criteria:[
+      {...C.F1, outcome:'none'},
+      {...C.C1, outcome:'none'},
+      {...C.C2, outcome:'none'},
+      {...C.C3, outcome:'none'},
+      {...C.D1, outcome:'none'}
+    ],
+    designNotes:'Varied: inclusion rule (all / preregistered only), density definition (as-reported / harmonised). Held constant: outcome measure, exclusion of within-subject designs, random-effects estimator. Known confounds — the open datasets are not a random sample of the literature, and four of them come from one lab, so the between-lab term is partly a between-author term. No run has been done yet; these criteria are the point of the page today.',
+    designMeta:'written before any run · 5 criteria stated, 0 experiments attached',
+    runs:'none yet',
+    history:[{when:'16 Sep', text:'Promoted from the research question; criteria written the same afternoon.', fg:'#bac0c6'}],
+    historyLink:'nothing has changed yet',
+    related:[{text:'Is the overnight retention benefit consolidation or encoding?', rel:'research question · the parent'}]
+  },
+  midflight: {
+    label:'2 · mid-flight, conflicting', win:'preregistered reanalysis will shrink the pooled effect — 14 runs',
+    age:'4mo', rev:'claim revision 3 · 14 experiments', promoted:'14 May 2026',
+    claim:'Reanalysing the open nap datasets with a preregistered pipeline will shrink the pooled effect below d = 0.20, mostly through small-study bias.',
+    claimMeta:'narrowed 2 Aug · revision 3 of 3 · 2 explained',
+    criteria:[
+      {...C.F1, outcome:'none'},
+      {...C.C1, outcome:'met', evidence:[{run:'run-2026-07-22 · egger-full', meta:'41 datasets · pipeline v2', note:'Egger p = .004. Clear asymmetry in the direction the claim predicts.'}]},
+      {...C.C2, outcome:'notmet', evidence:[{run:'run-2026-08-14 · size-strata', meta:'41 datasets · pipeline v3', note:'Not monotonic. The mid-size stratum is the highest of the three, which the claim does not predict and I cannot currently explain.'}]},
+      {...C.C3, outcome:'inconc', evidence:[{run:'run-2026-08-30 · prereg-subset', meta:'6 datasets · pipeline v3', note:'d = 0.17, but the interval spans 0.02–0.33. Directionally right, far too wide to call.'}]},
+      {...C.D1, outcome:'inconc', evidence:[{run:'run-2026-08-31 · harmonised-density', meta:'27 datasets with raw EEG', note:'Variance drops by about a fifth. Suggestive, and the subset that has raw data is not representative.'}]}
+    ],
+    designNotes:'Varied: inclusion rule, density definition. Held constant: outcome measure, exclusion of within-subject designs, estimator. Known confounds — four datasets share a first author; the raw-EEG subset used for D1 skews recent and better-powered, so any variance reduction there is partly a cohort effect. Runs are cheap, which is the hazard: I have done fourteen and I am writing this note mainly to stop myself from picking the flattering ones.',
+    designMeta:'last edited 31 Aug · 14 experiments attached across 4 criteria',
+    runs:'14 runs · pipeline v2 → v3 · analysis repo nap-reanalysis',
+    history:[
+      {when:'2 Aug', text:'Narrowed the claim to “mostly through small-study bias”.', fg:'#bac0c6'},
+      {when:'Jun–Jul', text:'2 quiet revisions', fg:'#8c939a'},
+      {when:'14 May', text:'Promoted; five criteria stated before any run.', fg:'#bac0c6'}
+    ],
+    historyLink:'open full history →',
+    related:[
+      {text:'Is the overnight retention benefit consolidation or encoding?', rel:'research question · the parent'},
+      {text:'Why is the mid-size stratum the highest?', rel:'question · spawned by run-2026-08-14'}
+    ]
+  },
+  falsified: {
+    label:'3 · falsified', win:'preregistered reanalysis will shrink the pooled effect — falsified 14 Sep',
+    age:'5mo', rev:'claim revision 3 · 19 experiments', promoted:'14 May 2026',
+    claim:'Reanalysing the open nap datasets with a preregistered pipeline will shrink the pooled effect below d = 0.20, mostly through small-study bias.',
+    claimMeta:'claim unchanged since 2 Aug · the criteria decided it, not a revision',
+    criteria:[
+      {...C.F1, outcome:'met', evidence:[{run:'run-2026-09-14 · prereg-exclusions', meta:'41 → 33 datasets · pipeline v3 · preregistered rule', note:'d = 0.41, CI 0.29–0.53. The pooled effect did not move. This is the run the criterion was written for, and it came out the other way.'}]},
+      {...C.C1, outcome:'met', evidence:[{run:'run-2026-07-22 · egger-full', meta:'41 datasets · pipeline v2', note:'Egger p = .004. Asymmetry is real — it is simply not doing the work I claimed it was.'}]},
+      {...C.C2, outcome:'met', edited:true, editedText:'Edited 6 Sep, after 2 experiments. Was — “The effect shrinks monotonically as study sample size increases.” Reason: wrong operationalisation, the size distribution is bimodal. Outcome flipped not met → met.', evidence:[{run:'run-2026-09-06 · size-strata-b', meta:'41 datasets · two strata', note:'Large-sample stratum pools lower than small-sample. True under the revised wording, and the revision is flagged above.'}]},
+      {...C.C3, outcome:'inconc', evidence:[{run:'run-2026-08-30 · prereg-subset', meta:'6 datasets', note:'d = 0.17, interval 0.02–0.33. Still too wide, and now moot.'}]},
+      {...C.D1, outcome:'met', evidence:[{run:'run-2026-09-02 · harmonised-density', meta:'27 datasets with raw EEG', note:'Variance drops by a third once harmonised. Informative about the dispersion, silent on the pooled effect.'}]}
+    ],
+    designNotes:'Varied: inclusion rule, density definition. Held constant: outcome measure, exclusion of within-subject designs, estimator. Known confounds — four datasets share a first author; the raw-EEG subset skews recent. In hindsight the design was sound and the claim was wrong, which is the good version of this outcome: the falsifying criterion was specific enough that a single run could settle it.',
+    designMeta:'last edited 14 Sep · 19 experiments attached across 5 criteria',
+    runs:'19 runs · pipeline v2 → v3 · analysis repo nap-reanalysis',
+    history:[
+      {when:'14 Sep', text:'F1 met — falsified by run-2026-09-14.', fg:'#e59289'},
+      {when:'6 Sep', text:'C2 reworded after evidence — flagged.', fg:'#d99b4a'},
+      {when:'2 Aug', text:'Narrowed the claim to “mostly small-study bias”.', fg:'#bac0c6'}
+    ],
+    historyLink:'open full history →',
+    related:[
+      {text:'Is the overnight retention benefit consolidation or encoding?', rel:'research question · the parent · updated by this result'},
+      {text:'If it is not small-study bias, what produces the dispersion?', rel:'question · spawned by this result'},
+      {text:'Why is the mid-size stratum the highest?', rel:'question · spawned by run-2026-08-14'}
+    ]
+  }
+};
+
+const HISTORY = [
+  { date:'14 Sep 2026', kind:'result', loud:true, tag:'FALSIFIED', tagFg:'#e59289',
+    border:'#5a3f3a', bg:'#1a1413', whyRule:'#d4685c',
+    sub:'derived — F1 met', text:'Pooled effect with preregistered exclusions: d = 0.41, CI 0.29–0.53.',
+    why:'The falsifying criterion was written in May precisely so that this run could end the question, and it did. I do not think the claim can be rescued by re-specifying the pipeline; the asymmetry is real but too small to account for the effect.',
+    causes:[{label:'⌗ run-2026-09-14 · prereg-exclusions'},{label:'▲ criterion F1'}],
+    from:'state — inconclusive → falsified' },
+  { date:'6 Sep 2026', kind:'criterion', loud:true, tag:'CRITERION EDITED AFTER EVIDENCE', tagFg:'#d99b4a',
+    border:'#6a4a1e', bg:'#1a1611', whyRule:'#d99b4a',
+    sub:'C2 · 2 experiments already attached · outcome flipped not met → met',
+    text:'“The effect shrinks monotonically as sample size increases” → “The pooled effect is lower in the large-sample stratum than in the small-sample stratum.”',
+    why:'Wrong operationalisation. The size distribution is bimodal, which I only saw after run 14 — monotonicity was never going to be the right test. Recording this rather than quietly rewording it.',
+    causes:[{label:'⌗ run-2026-08-14 · size-strata'}],
+    from:'flag is permanent — shown on the criterion itself' },
+  { date:'29 Aug 2026', kind:'quiet', quiet:true, text:'3 quiet revisions to the design notes', action:'+ why' },
+  { date:'2 Aug 2026', kind:'claim', loud:true, tag:'CLAIM NARROWED', tagFg:'#8c939a',
+    border:'#23272d', bg:'#15181c', whyRule:'#3a424b',
+    sub:'revision 3', text:'…will shrink the pooled effect below d = 0.20, mostly through small-study bias.',
+    why:'Added the mechanism. Without it the claim was unfalsifiable in practice — any shrinkage at all would have counted.',
+    causes:[{label:'◈ Cordi & Rasch 2021 · h·12'}],
+    from:'from — “…will shrink the pooled effect below d = 0.20”' },
+  { date:'22 Jul 2026', kind:'quiet', quiet:true, text:'first experiment attached · run-2026-07-22', action:'view run' },
+  { date:'11 Jul 2026', kind:'quiet', quiet:true, text:'1 quiet revision', action:'+ why' },
+  { date:'14 May 2026', kind:'claim', loud:true, tag:'PROMOTED FROM A QUESTION', tagFg:'#8c939a',
+    border:'#23272d', bg:'#15181c', whyRule:'#3a424b',
+    sub:'revision 1 · five criteria stated the same day',
+    text:'Reanalysing the open nap datasets with a preregistered pipeline will shrink the pooled effect below d = 0.20.',
+    why:'Needed testing rather than reading — the datasets are all open and the analysis is a week of work, so the honest move was to run it rather than keep collecting opinions about it.',
+    causes:[{label:'◈ research question · consolidation or encoding'}],
+    from:'criteria written before any run — F1, C1, C2, C3, D1' }
+];
+
+class Component extends DCLogic {
+  state = { view:'midflight', histFilter:'all' };
+
+  derive(cs){
+    const scored = cs.filter(c => c.outcome !== 'none');
+    if (cs.some(c => c.rel === 'falsifying' && c.outcome === 'met'))
+      return { key:'falsified', label:'FALSIFIED', fg:'#e59289', bg:'#1a1413', border:'#5a3f3a', rule:'#3a2c2a',
+        because:'a falsifying criterion was met — F1 decides alone, whatever the others say.' };
+    if (cs.length && cs.every(c => c.outcome === 'met'))
+      return { key:'supported', label:'SUPPORTED', fg:'#e7e9eb', bg:'#15181c', border:'#3a424b', rule:'#23272d',
+        because:'every criterion is met.' };
+    if (!scored.length)
+      return { key:'inconc', label:'INCONCLUSIVE', fg:'#d99b4a', bg:'#15181c', border:'#23272d', rule:'#1d2126',
+        because:'no evidence attached yet — which is what a hypothesis looks like the week it is written, not a gap in the page.' };
+    return { key:'inconc', label:'INCONCLUSIVE', fg:'#d99b4a', bg:'#15181c', border:'#23272d', rule:'#1d2126',
+      because:'the criteria disagree and the falsifying one is untested. This is an outcome, not a queue position.' };
+  }
+
+  deco(c){
+    const o = OUT[c.outcome];
+    return { ...c, outcome:o.label, pillBg:o.bg, pillBorder:o.border, pillFg:o.fg,
+      evidence: c.evidence || [], noEvidence: !c.evidence,
+      edited: !!c.edited, editedText: c.editedText || '' };
+  }
+
+  renderVals(){
+    const key = this.state.view, d = STATES[key];
+    const st = this.derive(d.criteria);
+    const n = k => d.criteria.filter(c => c.outcome === k).length;
+
+    const hf = this.state.histFilter;
+    const keep = h => hf === 'all' ? true
+      : hf === 'claim' ? h.kind === 'claim'
+      : hf === 'criteria' ? h.kind === 'criterion'
+      : h.kind === 'result' || h.kind === 'criterion';
+
+    return {
+      tabs: Object.keys(STATES).map(k => {
+        const on = key === k;
+        return { label: STATES[k].label, bg: on ? '#212730' : 'transparent',
+          border: on ? '#3a424b' : '#23272d', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ view:k }) };
+      }),
+      winTitle: d.win, ageChip: 'open · ' + d.age, revChip: d.rev,
+      claim: d.claim, claimMeta: d.claimMeta,
+      promotedWhen: d.promoted,
+
+      stateLabel: st.label, stateBecause: st.because,
+      stFg: st.fg, stBg: st.bg, stBorder: st.border, stRule: st.rule,
+      isFalsified: st.key === 'falsified',
+      overrideHint: st.key === 'inconc' ? 'disagree with this? override…' : 'not overridable — a met falsifying criterion is a result',
+      tally: [
+        { label: n('met') + ' met', fg:'#e7e9eb' },
+        { label: n('notmet') + ' not met', fg:'#8c939a' },
+        { label: n('inconc') + ' inconclusive', fg:'#d99b4a' },
+        { label: n('none') + ' awaiting evidence', fg:'#7d858d' }
+      ],
+
+      criteriaMeta: d.criteria.length + ' stated · ' + (key === 'fresh' ? 'written before any run' : 'written before the first run, on ' + d.promoted),
+      falsifying: d.criteria.filter(c => c.rel === 'falsifying').map(c => this.deco(c)),
+      confirming: d.criteria.filter(c => c.rel === 'confirming').map(c => this.deco(c)),
+      diagnostic: d.criteria.filter(c => c.rel === 'diagnostic').map(c => this.deco(c)),
+
+      designNotes: d.designNotes, designMeta: d.designMeta,
+      miniHistory: d.history, historyLink: d.historyLink,
+      runSummary: d.runs, related: d.related,
+
+      histCount: HISTORY.length + ' entries · 4 months',
+      histFilters: [['all','everything'],['claim','claim only'],['criteria','criterion edits'],['decisive','what decided it']].map(([k,label]) => {
+        const on = hf === k;
+        return { label, bg: on ? '#212730' : 'transparent', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ histFilter:k }) };
+      }),
+      history: HISTORY.filter(keep).map(h => ({
+        ...h,
+        loud: !!h.loud, quiet: !!h.quiet, hasWhy: !!h.why,
+        causes: h.causes || [],
+        kindLabel: h.kind === 'quiet' ? 'quiet' : h.kind,
+        dateTone: h.loud ? '#bac0c6' : '#8c939a',
+        dot: h.kind === 'result' ? '#d4685c' : h.kind === 'criterion' ? '#d99b4a' : h.loud ? '#8c939a' : '#3a424b',
+        dotSize: h.loud ? '9px' : '5px'
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@
 
 **Frozen — original design intent, never edited (see `docs/reference/README.md`):**
 - `docs/reference/design-brief.md`, `docs/reference/design-prompts.md`
-- `docs/reference/prototypes/` — pinned Claude Design snapshots (exported HTML/images, not live links), one folder per prompt
+- `docs/reference/prototypes/` — pinned Claude Design snapshots, not live links: per prompt, one exported HTML (`NN-<surface>.html`, interactive when opened in a browser beside `support.js`) and one full-length PNG of it, numbered to match the prompt. Read the PNG; the HTML holds any states behind tabs that the PNG could not capture
 - `docs/reference/branding/` — visual identity (palette, typography, logo/wordmark, design tokens) carried over from the earlier Vitrine project. The only thing reused from that project — nothing else about it applies here.
 
 **Living — current understanding, edited as work proceeds:**
@@ -19,7 +19,7 @@
 **Precedence:**
 - Living docs win wherever they speak. Frozen docs are the fallback for whatever living docs haven't caught up to yet.
 - Any divergence between a living doc and the brief should trace to an ADR — that's what makes it a decision instead of unnoticed drift.
-- On a prototype: the brief wins on behavior it specifies (no badges, no red states, derived-not-declared state, no force-directed graph); the prototype wins on layout and visual treatment. Check it against `docs/reference/design-prompts.md`'s "what to push back on, by surface" table before trusting it as settled. No prototype yet for Hypothesis or Experiment (Part 2 is unspecified) — fall back to brief prose plus the visual language earlier prototypes established.
+- On a prototype: the brief wins on behavior it specifies (no badges, no red states, derived-not-declared state, no force-directed graph); the prototype wins on layout and visual treatment. Check it against `docs/reference/design-prompts.md`'s "what to push back on, by surface" table before trusting it as settled. A surface with no prototype in `docs/reference/prototypes/` falls back to brief prose plus the visual language the existing prototypes established.
 - Palette and typography come from `docs/reference/branding/`, not from a prototype or from scratch — prototypes and UI work should be drawing on it, not inventing an alternative.
 
 **Rules:**

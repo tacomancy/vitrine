@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">REVIEW LANE — 214 PENDING, ONE AT A TIME</p><p class="hs">A stack, not a mailbox. One card is in hand, the rest are underneath, and the whole apparatus is built so a decision costs one key. Ranking sorts the stack and never hides anything — what is underneath is listed in order beneath the card, and the reserved outside-the-usual slot is placed into that order by the run rather than earned by it. Grouping picks the mental context: one Scout, one question, or one topic at a time.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:1000px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">consolidation-vault — scouts</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:236px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:14px 14px 12px;display:flex;flex-direction:column;gap:3px">
+        <div style="font:600 11px 'IBM Plex Mono',monospace;color:#e7e9eb">Scout Queue</div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ totalLabel }}</div>
+      </div>
+      <div style="padding:0 8px 10px;display:flex;gap:3px">
+        <sc-for list="{{ lanes }}" as="l" hint-placeholder-count="2">
+          <div onClick="{{ l.pick }}" style="flex:1;padding:6px 8px;border-radius:3px;background:{{ l.bg }};text-align:center;font:500 10.5px 'IBM Plex Mono',monospace;color:{{ l.fg }};cursor:default">{{ l.label }}</div>
+        </sc-for>
+      </div>
+      <div style="padding:8px 14px 7px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">GROUP BY</div>
+      <div style="padding:0 8px 10px;display:flex;gap:3px">
+        <sc-for list="{{ groupModes }}" as="g" hint-placeholder-count="3">
+          <div onClick="{{ g.pick }}" style="flex:1;padding:5px 6px;border-radius:3px;background:{{ g.bg }};text-align:center;font:400 10px 'IBM Plex Mono',monospace;color:{{ g.fg }};cursor:default">{{ g.label }}</div>
+        </sc-for>
+      </div>
+      <div style="padding:0 8px 14px">
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+          <div onClick="{{ g.pick }}" style="display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:3px;cursor:default;background:{{ g.bg }}">
+            <span style="min-width:0;font:400 11px/1.45 'IBM Plex Mono',monospace;color:{{ g.fg }}">{{ g.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:1px">{{ g.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #1d2126;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">MUTED</div>
+        <div style="font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">3 rules · 47 items held</div>
+        <div style="font:400 11px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">Muted items are kept in their own view, never dropped — a rule that is quietly wrong is findable.</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1113">
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 20px;gap:12px">
+        <span style="font:600 12px 'IBM Plex Mono',monospace;color:#e7e9eb">{{ groupTitle }}</span>
+        <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ groupSub }}</span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a;margin-right:4px">SORT</span>
+          <sc-for list="{{ sorts }}" as="s" hint-placeholder-count="3">
+            <div onClick="{{ s.pick }}" style="padding:4px 9px;border-radius:3px;background:{{ s.bg }};font:400 10.5px 'IBM Plex Mono',monospace;color:{{ s.fg }};cursor:default">{{ s.label }}</div>
+          </sc-for>
+        </span>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:22px 26px 34px;display:flex;flex-direction:column;gap:20px">
+
+        <div style="position:relative;padding-bottom:12px">
+          <div style="position:absolute;left:14px;right:14px;top:14px;height:60px;background:#131619;border:1px solid #23272d;border-radius:4px"></div>
+          <div style="position:absolute;left:7px;right:7px;top:7px;height:60px;background:#15181c;border:1px solid #262c33;border-radius:4px"></div>
+          <div style="position:relative;background:#171b20;border:1px solid #3a424b;border-radius:4px;box-shadow:0 18px 40px -16px rgba(0,0,0,.8);overflow:hidden">
+            <div style="padding:10px 16px;background:#1b2027;border-bottom:1px solid #2b3036;display:flex;align-items:center;gap:10px">
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#4fb3a4">{{ card.whyTag }}</span>
+              <span style="font:400 11px/1.5 'IBM Plex Sans',sans-serif;color:#d3d7db">{{ card.why }}</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ card.pos }}</span>
+            </div>
+            <div style="padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+              <div style="font:600 19px/1.4 'Source Serif 4',Georgia,serif;color:#e7e9eb;max-width:720px">{{ card.title }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:x;column-gap:18px;row-gap:6px">
+                <sc-for list="{{ card.fields }}" as="f" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:baseline;gap:7px">
+                    <span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">{{ f.k }}</span>
+                    <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ f.fg }}">{{ f.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <sc-for list="{{ card.keywords }}" as="k" hint-placeholder-count="3">
+                  <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ k.label }}</span>
+                </sc-for>
+              </div>
+              <div style="font:400 13.5px/1.75 'Source Serif 4',Georgia,serif;color:#bac0c6;max-width:760px">{{ card.abstract }}</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">abstract as published · nothing on this card is generated</div>
+            </div>
+            <div style="padding:11px 16px;border-top:1px solid #2b3036;background:#15181c;display:flex;align-items:center;gap:8px">
+              <sc-for list="{{ actions }}" as="a" hint-placeholder-count="4">
+                <div onClick="{{ a.go }}" style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid {{ a.border }};border-radius:3px;background:{{ a.bg }};cursor:default">
+                  <span style="font:600 10px 'IBM Plex Mono',monospace;color:{{ a.keyFg }}">{{ a.key }}</span>
+                  <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ a.fg }}">{{ a.label }}</span>
+                </div>
+              </sc-for>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ lastAction }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">UNDERNEATH</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ underneathLabel }}</span>
+            <span style="margin-left:auto;display:flex;gap:7px">
+              <sc-for list="{{ bulk }}" as="b" hint-placeholder-count="3">
+                <span onClick="{{ b.go }}" style="padding:4px 10px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6;cursor:default">{{ b.label }}</span>
+              </sc-for>
+            </span>
+          </div>
+          <sc-for list="{{ underneath }}" as="u" hint-placeholder-count="10">
+            <div onClick="{{ u.go }}" style="display:grid;grid-template-columns:26px 1fr 168px 128px 44px;gap:12px;align-items:baseline;padding:7px 10px;border-radius:3px;background:{{ u.bg }};border-left:2px solid {{ u.edge }};cursor:default">
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ u.rank }}</span>
+              <span style="min-width:0;font:400 13px/1.45 'Source Serif 4',Georgia,serif;color:{{ u.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.title }}</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.venue }}</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ u.whyFg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.whyShort }}</span>
+              <span style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ u.age }}</span>
+            </div>
+          </sc-for>
+          <div style="padding:10px 10px 0;font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">{{ underneathNote }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:330px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:11px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHY THIS IS IN REVIEW</div>
+        <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">{{ r.label }}</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.val }}</span>
+            </div>
+            <div style="height:3px;background:#1d2126;border-radius:2px;overflow:hidden"><div style="height:3px;width:{{ r.w }};background:{{ r.fill }}"></div></div>
+          </div>
+        </sc-for>
+        <div style="font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">rank {{ card.rank }} of {{ groupCount }} · sort only, nothing is filtered out</div>
+      </div>
+
+      <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ORIGIN</div>
+        <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">{{ card.origin }}</div>
+        <div style="font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ card.matched }}</div>
+      </div>
+
+      <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#4fb3a4">OUTSIDE THE USUAL</div>
+        <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#bac0c6">One slot per run is reserved for well-corroborated work from authors and venues you have never accepted from. It is placed into the order, not appended to the end.</div>
+        <div style="border:1px solid #1f3b37;background:#11211f;border-radius:3px;padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+          <div style="font:400 12.5px/1.45 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ oddOne.title }}</div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ oddOne.meta }}</div>
+        </div>
+      </div>
+
+      <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">MUTE FROM HERE</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">author</span>
+          <span style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">venue</span>
+          <span style="padding:4px 9px;border:1px solid #23272d;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">keyword</span>
+        </div>
+        <div style="font:400 11px/1.65 'IBM Plex Sans',sans-serif;color:#8c939a">Muting moves matching items to the muted view and shows how many it caught, so an over-broad rule announces itself.</div>
+      </div>
+
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">THIS SESSION</div>
+        <div style="font:400 11.5px/1.8 'IBM Plex Mono',monospace;color:#8c939a">{{ session }}</div>
+        <div style="font:400 11px/1.65 'IBM Plex Sans',sans-serif;color:#8c939a">Review items skipped three times drop back to Skim on their own. The queue shortens whether or not you decide.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:28px;flex:none;border-top:1px solid #23272d;background:#121518;display:flex;align-items:center;padding:0 14px;gap:16px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">
+    <span>A accept</span><span>R reject</span><span>D defer</span><span>J next</span><span>M mute…</span><span>⇧R reject group</span>
+    <span style="margin-left:auto">{{ footer }}</span>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">SKIM FEED — SCROLLING PAST IS THE INTERACTION</p><p class="hs">The same proposals, different physics. No cards, no borders, no stack, no accept or reject: a continuous column of single lines that thins out as it ages and disappears on its own after thirty days. The only affordance is promotion upward — anything you touch moves into Review. Nothing here is owed a decision, and the design says so by giving you nothing to press.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:660px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">skim</div>
+  </div>
+  <div style="height:42px;flex:none;border-bottom:1px solid #1d2126;display:flex;align-items:center;padding:0 26px;gap:14px">
+    <span style="font:600 12px 'IBM Plex Mono',monospace;color:#bac0c6">Skim</span>
+    <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ skimLabel }}</span>
+    <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">↑ on any line moves it to Review · nothing else to do</span>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:14px 26px 40px;display:flex;flex-direction:column">
+    <sc-for list="{{ skim }}" as="s" hint-placeholder-count="18">
+      <div style="display:grid;grid-template-columns:1fr 210px 150px 46px;gap:16px;align-items:baseline;padding:6px 0;opacity:{{ s.op }}">
+        <span style="min-width:0;font:400 13.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.title }}</span>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.authors }}</span>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.venue }}</span>
+        <span style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.age }}</span>
+      </div>
+      <sc-if value="{{ s.divider }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:12px;margin:14px 0 10px">
+          <div style="flex:1;height:1px;background:#1d2126"></div>
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#8c939a">{{ s.dividerLabel }}</span>
+          <div style="flex:1;height:1px;background:#1d2126"></div>
+        </div>
+      </sc-if>
+    </sc-for>
+    <div style="margin-top:20px;font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">older items fade and are removed after 30 days · none of this is a backlog</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">ONE PROPOSAL, IN FULL — AND WHAT IS MISSING</p><p class="hs">Left: a journal article with every field populated. Right: a lab blog post with no venue, no keywords and no DOI. Both are valid cards. Missing fields are printed as missing in the same slot they would occupy, so the shape of the card tells you what kind of thing it is before you read a word of it — and nothing is inferred to fill a gap.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#171b20;border:1px solid #3a424b;border-radius:4px;overflow:hidden;color:#e7e9eb">
+    <div style="padding:10px 16px;background:#1b2027;border-bottom:1px solid #2b3036;display:flex;align-items:center;gap:10px">
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#4fb3a4">MATCHED</span>
+      <span style="font:400 11px/1.5 'IBM Plex Sans',sans-serif;color:#d3d7db">2 prior accepts from Schreiner · corroborated by 3 scouts · matches an open question</span>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="font:600 19px/1.4 'Source Serif 4',Georgia,serif">Cue-locked reinstatement during slow-wave sleep predicts overnight retention independently of encoding strength</div>
+      <div style="display:flex;flex-wrap:wrap;column-gap:20px;row-gap:7px">
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">AUTHORS</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">Schreiner, Petzka, Staudigl, Rasch</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DATE</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">11 Sep 2026</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">VENUE</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">Nature Communications 17</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DOI</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">10.1038/s41467-026-4471</span></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">targeted memory reactivation</span>
+        <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">slow-wave sleep</span>
+        <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">EEG</span>
+        <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">declarative memory</span>
+      </div>
+      <div style="font:400 13.5px/1.8 'Source Serif 4',Georgia,serif;color:#bac0c6">Whether the overnight retention benefit reflects consolidation during sleep or differences in encoding at learning remains contested, in part because the two are confounded in correlational designs. Here we cue a subset of learned associations during slow-wave sleep and show that trial-level reinstatement strength predicts retention for cued items within participants, while encoding-phase measures predict retention equally across cued and uncued sets. The dissociation holds after matching sets on pre-sleep performance.</div>
+      <div style="display:flex;align-items:center;gap:14px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">
+        <span>abstract as published</span><span>·</span><span style="color:#bac0c6">open in browser ↗</span><span>·</span><span>found by scout tmr-watch, 12 Sep</span>
+      </div>
+    </div>
+    <div style="padding:11px 16px;border-top:1px solid #2b3036;background:#15181c;display:flex;align-items:center;gap:8px">
+      <span style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #3a424b;border-radius:3px;background:#212730"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#e7e9eb">A</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb">accept → source stub</span></span>
+      <span style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #23272d;border-radius:3px"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#8c939a">R</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">reject</span></span>
+      <span style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #23272d;border-radius:3px"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#8c939a">D</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">defer</span></span>
+    </div>
+  </div>
+
+  <div style="box-sizing:border-box;width:480px;flex:none;background:#171b20;border:1px solid #2b3036;border-radius:4px;overflow:hidden;color:#e7e9eb">
+    <div style="padding:10px 16px;background:#1b2027;border-bottom:1px solid #2b3036;display:flex;align-items:center;gap:10px">
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#4fb3a4">WATCHED PAGE</span>
+      <span style="font:400 11px/1.5 'IBM Plex Sans',sans-serif;color:#d3d7db">new post on a lab page you follow</span>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="font:600 17px/1.4 'Source Serif 4',Georgia,serif">What we got wrong about spindle density — a postmortem on our 2021 paper</div>
+      <div style="display:flex;flex-wrap:wrap;column-gap:20px;row-gap:7px">
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">AUTHORS</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">D. Denis</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DATE</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">16 Sep 2026</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">VENUE</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">— not stated</span></div>
+        <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DOI</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">— none</span></div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">KEYWORDS</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">— none supplied</span></div>
+      <div style="font:400 13.5px/1.8 'Source Serif 4',Georgia,serif;color:#bac0c6">We re-ran the 2021 analysis after a reader pointed out that our density measure was sensitive to the artefact rejection threshold. The direction of the effect survives; the magnitude does not.</div>
+      <div style="font:400 10px/1.7 'IBM Plex Mono',monospace;color:#8c939a">first paragraph in place of an abstract — the page has none<br>source: sleeplab.example.org/blog · found by scout density-watch</div>
+    </div>
+    <div style="padding:11px 16px;border-top:1px solid #2b3036;background:#15181c;display:flex;align-items:center;gap:8px">
+      <span style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #3a424b;border-radius:3px;background:#212730"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#e7e9eb">A</span><span style="font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb">accept → source stub</span></span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">a stub with no DOI is still a stub</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">THE TRIAGE LOOP</p><p class="hs">Four keys carry almost all the traffic, and none of them opens anything. The card is replaced in place, the decision is reversible for as long as the session lasts, and accepting writes a Source stub — a bibliographic record and a link, no file.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:22px 24px;display:flex;gap:28px;color:#e7e9eb">
+  <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">KEYS</div>
+    <sc-for list="{{ keymap }}" as="k" hint-placeholder-count="6">
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="flex:none;min-width:34px;text-align:center;padding:5px 8px;border:1px solid #2b3036;border-radius:3px;background:#171b20;font:600 11px 'IBM Plex Mono',monospace;color:#e7e9eb">{{ k.key }}</span>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font:500 12px 'IBM Plex Sans',sans-serif;color:#e7e9eb">{{ k.name }}</span>
+          <span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">{{ k.what }}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="width:1px;background:#23272d"></div>
+  <div style="width:430px;flex:none;display:flex;flex-direction:column;gap:12px">
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT “ACCEPT” WRITES</div>
+    <div style="border:1px solid #23272d;background:#15181c;border-radius:3px;padding:12px 14px;font:400 11.5px/1.85 'IBM Plex Mono',monospace;color:#8c939a">
+      <div style="color:#8c939a">sources/schreiner-2026-cue-locked.md</div>
+      <div style="margin-top:8px;color:#bac0c6">type: stub</div>
+      <div style="color:#bac0c6">title: Cue-locked reinstatement during…</div>
+      <div style="color:#bac0c6">authors: Schreiner, Petzka, Staudigl, Rasch</div>
+      <div style="color:#bac0c6">venue: Nature Communications 17</div>
+      <div style="color:#bac0c6">doi: 10.1038/s41467-026-4471</div>
+      <div style="color:#bac0c6">url: https://…</div>
+      <div style="color:#bac0c6">found_by: scout tmr-watch</div>
+      <div style="color:#bac0c6">matched: is awake replay measurable…</div>
+      <div style="color:#bac0c6">accepted: 2026-09-19</div>
+      <div style="margin-top:8px;color:#8c939a">no file attached</div>
+    </div>
+    <div style="font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">The stub appears in the Vault immediately and in the matched question's supporting column as unsorted. Downloading the PDF is a separate decision you make later, if the stub survives contact with your reading list.</div>
+    <div style="height:1px;background:#1d2126"></div>
+    <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHY THIS IS NOT A MAIL CLIENT</div>
+    <div style="font:400 12px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">No read/unread, no threads, no sender column, no search-first layout. The unit is a stack you work down, the default posture is one card at hand, and the two lanes have different physics: Review is a stack that shortens, Skim is a river that flows past. Volume is handled by grouping and ranking before you arrive, not by you filing faster.</div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1080}}">
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const SCOUTS = [
+  {id:'tmr-watch', kind:'Semantic Scholar', cadence:'daily'},
+  {id:'encoding-confound', kind:'OpenAlex citations', cadence:'weekly'},
+  {id:'density-watch', kind:'lab page + RSS', cadence:'daily'},
+  {id:'replay-arxiv', kind:'arXiv q-bio.NC', cadence:'daily'},
+  {id:'methods-stats', kind:'PubMed query', cadence:'weekly'},
+  {id:'sleep-proceedings', kind:'conference index', cadence:'monthly'}
+];
+const QUESTIONS = [
+  'Is awake replay measurable non-invasively in humans?',
+  'Is the overnight benefit consolidation or encoding strength?',
+  'Does TMR show a dose–response relationship?',
+  'What counts as a reactivation event?',
+  'Is the between-lab dispersion an artefact of density definition?',
+  'What would falsify the active systems account?'
+];
+const TOPICS = ['targeted reactivation','replay decoding','meta-science','spindle metrics','waking rest','sleep staging','simulation'];
+const VENUES = ['Nature Communications','Journal of Neuroscience','eLife','Sleep','Current Biology','PNAS','NeuroImage','Cerebral Cortex','bioRxiv','arXiv q-bio.NC','Journal of Sleep Research','SLEEP 2026 abstracts'];
+const NAMES = ['Schreiner','Petzka','Staudigl','Rasch','Born','Klinzing','Ólafsdóttir','Wamsley','Antony','Denis','Cordi','Feld','Staresina','Lewis','Durrant','Diekelmann','Ngo','Cairney','Lehmann','Zhang','Okuda','Marshall','Batterink','Paller'];
+
+const T_A = ['Cue-locked reinstatement','Sequential replay','Slow-oscillation phase','Spindle density','Targeted memory reactivation','Sleep-dependent gist extraction','Hippocampal ripple rate','Waking quiescence','Delta power decline','Cross-frequency coupling','Reward-tagged memories','Schema congruence'];
+const T_B = ['during slow-wave sleep','in quiet wakefulness','across a full night','under pharmacological suppression','in a nap protocol','during REM','after massed learning','in fragmented sleep'];
+const T_C = ['predicts overnight retention','fails to predict retention','is confounded with encoding strength','shows no dose–response relationship','varies by detection threshold','is not reproducible across labs','scales with prior performance','depends on the estimator used'];
+const T_D = ['in healthy young adults','in older adults','in a preregistered replication','across nine open datasets','in a simulation study','with intracranial recordings','in a within-subject design',''];
+
+const ABS_A = ['The relationship remains contested because the candidate mechanisms are confounded in the designs typically used.','Prior work has relied on correlational measures whose sensitivity is difficult to establish independently.','Reports of this effect vary by nearly an order of magnitude between laboratories.','Existing accounts make similar behavioural predictions and have rarely been contrasted directly.'];
+const ABS_B = ['Here we address this using a within-subject manipulation and trial-level analysis.','We reanalyse nine open datasets under a single preregistered pipeline.','We simulate the proposed mechanism across a realistic parameter range.','We combine scalp and intracranial recordings from the same participants.'];
+const ABS_C = ['The effect survives matching on pre-sleep performance, though the interval remains wide.','The direction replicates; the magnitude does not.','We find no evidence for the predicted relationship once the confound is controlled.','Results are consistent with a small true effect and substantial reporting bias.'];
+
+function build(){
+  const r = rng(55117), out = [];
+  for (let i = 0; i < 268; i++) {
+    const a = T_A[Math.floor(r()*T_A.length)], b = T_B[Math.floor(r()*T_B.length)],
+          c = T_C[Math.floor(r()*T_C.length)], d = T_D[Math.floor(r()*T_D.length)];
+    const title = (a + ' ' + b + ' ' + c + (d ? ' ' + d : '')).replace(/\s+/g,' ');
+    const nAuth = 2 + Math.floor(r()*4);
+    const auth = [];
+    while (auth.length < nAuth) { const n = NAMES[Math.floor(r()*NAMES.length)]; if (auth.indexOf(n) < 0) auth.push(n); }
+    const hasVenue = r() > .14;
+    const scout = SCOUTS[Math.floor(r()*SCOUTS.length)];
+    const matchScore = r();
+    const q = matchScore > .45 ? QUESTIONS[Math.floor(r()*QUESTIONS.length)] : null;
+    const overlap = Math.floor(r()*5);
+    const venueHist = Math.floor(r()*14);
+    const corrob = 1 + Math.floor(r()*4);
+    const novel = overlap === 0 && venueHist === 0 && corrob >= 3;
+    const score = matchScore*0.42 + (overlap/5)*0.24 + (venueHist/14)*0.14 + (corrob/4)*0.20;
+    out.push({
+      i, title, authors: auth, date: Math.floor(r()*26),
+      venue: hasVenue ? VENUES[Math.floor(r()*VENUES.length)] : null,
+      keywords: [TOPICS[Math.floor(r()*TOPICS.length)], TOPICS[Math.floor(r()*TOPICS.length)]],
+      abstract: ABS_A[Math.floor(r()*ABS_A.length)] + ' ' + ABS_B[Math.floor(r()*ABS_B.length)] + ' ' + ABS_C[Math.floor(r()*ABS_C.length)],
+      scout: scout.id, scoutKind: scout.kind, question: q, topic: TOPICS[Math.floor(r()*TOPICS.length)],
+      matchScore, overlap, venueHist, corrob, novel, score,
+      lane: (matchScore > .62 || score > .58) ? 'review' : 'skim'
+    });
+  }
+  return out;
+}
+const ALL = build();
+const REVIEW = ALL.filter(x => x.lane === 'review');
+const SKIM = ALL.filter(x => x.lane === 'skim').sort((a,b) => a.date - b.date);
+
+function ageShort(d){ return d === 0 ? 'today' : d < 7 ? d + 'd' : Math.round(d/7) + 'w'; }
+
+class Component extends DCLogic {
+  state = { lane:'review', groupMode:'scout', group:SCOUTS[0].id, sort:'rank', idx:0, done:0, acc:0, rej:0, last:'' };
+
+  groupList(){
+    const m = this.state.groupMode;
+    const keys = m === 'scout' ? SCOUTS.map(s => s.id) : m === 'question' ? QUESTIONS : TOPICS;
+    return keys.map(k => ({ key:k, n: REVIEW.filter(x => (m === 'scout' ? x.scout : m === 'question' ? x.question : x.topic) === k).length }));
+  }
+
+  items(){
+    const m = this.state.groupMode, g = this.state.group;
+    let list = REVIEW.filter(x => (m === 'scout' ? x.scout : m === 'question' ? x.question : x.topic) === g);
+    if (this.state.sort === 'rank') list = list.slice().sort((a,b) => b.score - a.score);
+    else if (this.state.sort === 'new') list = list.slice().sort((a,b) => a.date - b.date);
+    else list = list.slice().sort((a,b) => b.corrob - a.corrob || b.score - a.score);
+    const odd = list.find(x => x.novel);
+    if (odd && this.state.sort === 'rank') {
+      const rest = list.filter(x => x !== odd);
+      list = rest.slice(0, 3).concat([odd]).concat(rest.slice(3));
+    }
+    return list;
+  }
+
+  chip(on){ return on ? {bg:'#212730', fg:'#e7e9eb'} : {bg:'transparent', fg:'#8c939a'}; }
+
+  act(kind){
+    this.setState(s => ({
+      idx: s.idx + 1, done: s.done + 1,
+      acc: s.acc + (kind === 'accept' ? 1 : 0),
+      rej: s.rej + (kind === 'reject' ? 1 : 0),
+      last: kind === 'accept' ? 'accepted — source stub written · ⌘Z' : kind === 'reject' ? 'rejected · ⌘Z' : kind === 'defer' ? 'deferred to next run · ⌘Z' : 'skipped'
+    }));
+  }
+
+  renderVals(){
+    const st = this.state;
+    const list = this.items();
+    const card = list[st.idx % Math.max(list.length, 1)] || REVIEW[0];
+    const rest = list.filter(x => x !== card).slice(0, 11);
+    const oddOne = list.find(x => x.novel) || REVIEW.find(x => x.novel) || REVIEW[0];
+
+    const why = card.novel ? 'OUTSIDE THE USUAL'
+      : card.question ? 'QUESTION MATCH' : card.overlap ? 'AUTHOR OVERLAP' : 'CORROBORATED';
+    const whyText = card.novel
+      ? 'No prior accepts from these authors or this venue — corroborated by ' + card.corrob + ' scouts, held in the reserved slot.'
+      : (card.question ? 'Matches “' + card.question.slice(0, 44) + '…” · ' : '')
+        + card.overlap + ' prior accepts from these authors · corroborated by ' + card.corrob + ' scouts';
+
+    return {
+      totalLabel: REVIEW.length + ' in review · ' + SKIM.length + ' in skim',
+      lanes: [['review','Review ' + REVIEW.length],['skim','Skim ' + SKIM.length]].map(([k,label]) => {
+        const c = this.chip(st.lane === k);
+        return { label, bg:c.bg, fg:c.fg, pick: () => this.setState({ lane:k }) };
+      }),
+      groupModes: [['scout','scout'],['question','question'],['topic','topic']].map(([k,label]) => {
+        const c = this.chip(st.groupMode === k);
+        return { label, bg:c.bg, fg:c.fg,
+          pick: () => this.setState({ groupMode:k, idx:0,
+            group: k === 'scout' ? SCOUTS[0].id : k === 'question' ? QUESTIONS[0] : TOPICS[0] }) };
+      }),
+      groups: this.groupList().map(g => {
+        const c = this.chip(st.group === g.key);
+        return { label: g.key.length > 30 ? g.key.slice(0, 30) + '…' : g.key, n: g.n, bg:c.bg, fg:c.fg,
+          pick: () => this.setState({ group:g.key, idx:0 }) };
+      }),
+      sorts: [['rank','rank'],['new','newest'],['corrob','corroboration']].map(([k,label]) => {
+        const c = this.chip(st.sort === k);
+        return { label, bg:c.bg, fg:c.fg, pick: () => this.setState({ sort:k, idx:0 }) };
+      }),
+
+      groupTitle: st.groupMode === 'scout' ? 'scout ' + st.group : st.group.length > 52 ? st.group.slice(0,52) + '…' : st.group,
+      groupSub: list.length + ' pending in this group · ' + REVIEW.length + ' across all groups',
+      groupCount: list.length,
+
+      card: {
+        title: card.title,
+        whyTag: why, why: whyText,
+        pos: 'card ' + ((st.idx % Math.max(list.length,1)) + 1) + ' of ' + list.length,
+        rank: (st.idx % Math.max(list.length,1)) + 1,
+        fields: [
+          { k:'AUTHORS', v: card.authors.join(', '), fg:'#bac0c6' },
+          { k:'DATE', v: ageShort(card.date) + ' ago', fg:'#bac0c6' },
+          { k:'VENUE', v: card.venue || '— not stated', fg: card.venue ? '#bac0c6' : '#8c939a' },
+          { k:'CORROBORATION', v: card.corrob + ' scouts', fg:'#bac0c6' }
+        ],
+        keywords: card.keywords.map(k => ({ label:k })),
+        abstract: card.abstract,
+        origin: 'scout ' + card.scout + '\n' + card.scoutKind + ' · found ' + ageShort(card.date) + ' ago',
+        matched: card.question ? 'matched: ' + card.question : 'no question match — in Review on the Scout\u2019s prior'
+      },
+
+      reasons: [
+        { label:'question match', val: card.matchScore.toFixed(2), w: Math.round(card.matchScore*100) + '%', fill:'#8c939a' },
+        { label:'author overlap', val: card.overlap + ' prior accepts', w: (card.overlap/5*100) + '%', fill:'#8c939a' },
+        { label:'venue history', val: card.venueHist + ' accepts', w: (card.venueHist/14*100) + '%', fill:'#8c939a' },
+        { label:'corroboration', val: card.corrob + ' scouts', w: (card.corrob/4*100) + '%', fill:'#4fb3a4' }
+      ],
+
+      actions: [
+        { key:'A', label:'accept', bg:'#212730', border:'#3a424b', fg:'#e7e9eb', keyFg:'#e7e9eb', go: () => this.act('accept') },
+        { key:'R', label:'reject', bg:'transparent', border:'#23272d', fg:'#bac0c6', keyFg:'#8c939a', go: () => this.act('reject') },
+        { key:'D', label:'defer', bg:'transparent', border:'#23272d', fg:'#bac0c6', keyFg:'#8c939a', go: () => this.act('defer') },
+        { key:'J', label:'next', bg:'transparent', border:'#23272d', fg:'#bac0c6', keyFg:'#8c939a', go: () => this.act('next') }
+      ],
+      lastAction: st.last || 'nothing decided yet this session',
+
+      underneath: rest.map((x, n) => ({
+        rank: String(n + 2),
+        title: x.title,
+        venue: x.venue || '— no venue',
+        whyShort: x.novel ? 'outside the usual' : x.question ? 'question match' : x.overlap ? x.overlap + ' prior accepts' : x.corrob + ' scouts',
+        whyFg: x.novel ? '#4fb3a4' : '#8c939a',
+        age: ageShort(x.date),
+        fg: x.novel ? '#d3d7db' : '#bac0c6',
+        bg: x.novel ? '#11211f' : 'transparent',
+        edge: x.novel ? '#4fb3a4' : 'transparent',
+        go: () => this.setState({ idx: list.indexOf(x) })
+      })),
+      underneathLabel: 'next ' + rest.length + ' in rank order · nothing filtered',
+      underneathNote: list.length > 12 ? (list.length - 12) + ' more below in this group — ranking orders them, it never removes them' : 'that is the whole group',
+      bulk: [
+        { label:'reject group', go: () => this.act('reject') },
+        { label:'reject this run', go: () => this.act('reject') },
+        { label:'defer all', go: () => this.act('defer') }
+      ],
+
+      oddOne: { title: oddOne.title, meta: (oddOne.venue || 'no venue') + ' · ' + oddOne.corrob + ' scouts · 0 prior accepts' },
+      session: st.done + ' decided · ' + st.acc + ' accepted · ' + st.rej + ' rejected\n' + Math.max(REVIEW.length - st.done, 0) + ' left across all groups',
+      footer: 'review is a stack · skim is a river',
+
+      skimLabel: SKIM.length + ' items · oldest 29 days',
+      skim: SKIM.slice(0, 34).map((x, n) => ({
+        title: x.title,
+        authors: x.authors.slice(0, 2).join(', ') + (x.authors.length > 2 ? ' et al.' : ''),
+        venue: x.venue || '— no venue',
+        age: ageShort(x.date),
+        op: String(Math.max(0.35, 1 - (x.date / 34))),
+        divider: n === 7 || n === 19,
+        dividerLabel: n === 7 ? 'LAST WEEK' : 'OLDER — FADING OUT'
+      })),
+
+      keymap: [
+        { key:'A', name:'accept', what:'Writes a Source stub into the vault and drops it into the matched question as unsorted. No file, no download.' },
+        { key:'R', name:'reject', what:'Removes it from the stack and teaches the ranking. Undoable for the session; visible in the Scout\u2019s log afterwards.' },
+        { key:'D', name:'defer', what:'Returns it to the next run of the same Scout. A third defer demotes it to Skim rather than leaving it pending forever.' },
+        { key:'J', name:'next', what:'Skips without a verdict. Three skips demote to Skim as well — the stack shortens whether or not you decide.' },
+        { key:'M', name:'mute…', what:'Opens author / venue / keyword. The rule reports how many current items it caught before you confirm it.' },
+        { key:'⇧R', name:'reject group', what:'The whole visible group, with a one-line confirmation naming the count and the Scout.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

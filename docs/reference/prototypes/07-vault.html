@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">VAULT — EDITING, WITH BACKLINKS</p><p class="hs">Three panes, file tree on the left, backlinks on the right, Markdown in the middle. Nothing here is reinvented. The only differences are in what can appear in a link: questions and source stubs are first-class objects in the tree, in autocomplete, and in the backlinks panel, alongside ordinary notes.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:940px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">Dissociation designs — power · consolidation-vault</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">◻</div>
+    </div>
+
+    <div style="width:250px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:10px 10px 8px;display:flex;gap:3px">
+        <sc-for list="{{ paneTabs }}" as="t" hint-placeholder-count="4">
+          <div onClick="{{ t.pick }}" style="flex:1;padding:5px 4px;border-radius:3px;text-align:center;background:{{ t.bg }};font:400 10px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }}</div>
+        </sc-for>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:4px 8px 14px">
+        <sc-for list="{{ tree }}" as="n" hint-placeholder-count="14">
+          <div onClick="{{ n.pick }}" style="display:flex;align-items:center;gap:7px;padding:4px 7px;padding-left:{{ n.pad }};border-radius:3px;background:{{ n.bg }};cursor:default">
+            <span style="flex:none;width:11px;font:400 10px 'IBM Plex Mono',monospace;color:{{ n.glyphFg }}">{{ n.glyph }}</span>
+            <span style="min-width:0;font:400 11.5px/1.45 'IBM Plex Mono',monospace;color:{{ n.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ n.label }}</span>
+            <span style="margin-left:auto;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ n.tail }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid #1d2126;padding:9px 12px;display:flex;align-items:center;gap:10px;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">
+        <span>◆ question</span><span>◈ source</span><span>◇ stub</span>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1113">
+      <div style="height:40px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 20px;gap:14px">
+        <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">notes / methods / Dissociation designs — power.md</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">edited 3d ago · 412 words</span>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:30px 44px 50px;display:flex;justify-content:center">
+        <div style="width:660px;display:flex;flex-direction:column;gap:15px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">#methods/power</span>
+            <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">#sleep/consolidation</span>
+            <span style="padding:3px 8px;border-radius:3px;background:#1b1f24;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">#writing/aim2</span>
+          </div>
+          <div style="font:600 25px/1.35 'Source Serif 4',Georgia,serif">Dissociation designs — power</div>
+          <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">The designs that could separate consolidation from encoding strength are all underpowered, and nobody in this literature says so in an abstract. I ran the calculation for the standard nap protocol myself: <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#bac0c6">0.31</span> for the effect size I care about.</div>
+          <div style="font:600 17px/1.4 'Source Serif 4',Georgia,serif;margin-top:6px">What the calculation assumed</div>
+          <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">Two groups of twenty, d = 0.35, α = .05 two-tailed. That is generous — most published nap studies run smaller. See <span style="color:#d99b4a">[[◆ Is the overnight benefit consolidation or encoding?]]</span> for where this bears on the argument, and <span style="color:#bac0c6">[[◈ Cordi &amp; Rasch 2021#h·12]]</span> for the meta-analytic version of the same point.</div>
+          <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">The obvious objection is that within-subject designs buy back most of the power. They do, but they also reintroduce the confound the design was meant to remove — which is the substance of <span style="color:#d99b4a">[[◆ Is TMR really orthogonal to encoding?]]</span>.</div>
+          <div style="font:600 17px/1.4 'Source Serif 4',Georgia,serif;margin-top:6px">Still to check</div>
+          <div style="display:flex;flex-direction:column;gap:7px;font:400 15px/1.7 'Source Serif 4',Georgia,serif;color:#d3d7db">
+            <div style="display:flex;gap:10px"><span style="font:400 12px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:4px">☐</span><span>Whether <span style="color:#8c939a;border-bottom:1px dashed #3a424b">[[◇ Diekelmann 2010]]</span> reports per-group n anywhere — stub, no PDF yet</span></div>
+            <div style="display:flex;gap:10px"><span style="font:400 12px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:4px">☑</span><span>Recompute with the profile-likelihood interval — see <span style="color:#bac0c6">[[⌗ run-2026-09-14 · prereg-exclusions]]</span></span></div>
+          </div>
+          <div style="margin-top:8px;border-left:2px solid #2b3036;padding:2px 0 2px 13px;font:400 14px/1.75 'Source Serif 4',Georgia,serif;color:#8c939a">“…the available dissociation designs are reviewed and their statistical power is assessed…” — <span style="color:#bac0c6">[[◈ Klinzing 2019#h·8]]</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:340px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:12px 16px 10px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">BACKLINKS</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">9 linked · 4 unlinked</span>
+      </div>
+      <sc-for list="{{ backlinks }}" as="b" hint-placeholder-count="5">
+        <div style="padding:12px 16px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ b.tone }}">{{ b.glyph }}</span>
+            <span style="min-width:0;font:400 12.5px/1.45 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ b.title }}</span>
+          </div>
+          <div style="border-left:2px solid #23272d;padding-left:9px;font:400 11.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ b.context }}</div>
+          <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ b.meta }}</div>
+        </div>
+      </sc-for>
+      <div style="padding:12px 16px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:8px">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">UNLINKED MENTIONS</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">4</span>
+      </div>
+      <div style="padding:12px 16px;display:flex;flex-direction:column;gap:9px">
+        <div style="font:400 12px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">Lab meeting 04 Sep — “…the power problem in the dissociation designs…”</div>
+        <div style="font:400 12px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">Grant aim 2 — draft — “…dissociation designs are underpowered…”</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">TAG BROWSER — SLASH-SEPARATED, PARSED INTO A TREE</p><p class="hs">The one change to a familiar control: <span style="font-family:'IBM Plex Mono',monospace">#ml/interpretability/probing</span> is a path, not a string. Selecting a parent includes everything beneath it, and the count on a parent row is the inclusive count — the exclusive count is shown beside it so the difference is never a guess.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;width:420px;flex:none;background:#131619;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb">
+    <div style="padding:11px 14px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">TAGS</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ tagSummary }}</span>
+    </div>
+    <div style="padding:8px 8px 14px">
+      <sc-for list="{{ tags }}" as="t" hint-placeholder-count="12">
+        <div onClick="{{ t.pick }}" style="display:flex;align-items:center;gap:7px;padding:5px 8px;padding-left:{{ t.pad }};border-radius:3px;background:{{ t.bg }};cursor:default">
+          <span style="flex:none;width:10px;font:400 9px 'IBM Plex Mono',monospace;color:#8c939a">{{ t.caret }}</span>
+          <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ t.fg }}">{{ t.label }}</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:{{ t.nFg }}">{{ t.n }}</span>
+          <span style="font:400 9px 'IBM Plex Mono',monospace;color:#8c939a;width:26px;text-align:right">{{ t.own }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-top:1px solid #1d2126;padding:10px 14px;font:400 9.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">left number — inclusive of children · right number — items tagged at this level only</div>
+  </div>
+
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;display:flex;flex-direction:column">
+    <div style="padding:11px 16px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px">
+      <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb">{{ selTag }}</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ selTagNote }}</span>
+    </div>
+    <div style="flex:1">
+      <sc-for list="{{ tagged }}" as="r" hint-placeholder-count="8">
+        <div style="display:grid;grid-template-columns:16px 1fr 190px 58px;gap:12px;align-items:baseline;padding:8px 16px;border-bottom:1px solid #191d22">
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ r.tone }}">{{ r.glyph }}</span>
+          <span style="min-width:0;font:400 13px/1.45 'Source Serif 4',Georgia,serif;color:#d3d7db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.title }}</span>
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.tag }}</span>
+          <span style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.age }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-top:1px solid #1d2126;padding:11px 16px;font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Renaming a parent renames the path in every child. Dragging a tag onto another re-parents the whole subtree and rewrites the strings in the files — the tree is a view of the text, never a second source of truth.</div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">SOURCE STUB versus SOURCE WITH A FILE</p><p class="hs">Both are sources and both are linkable. The distinction is carried by one glyph, a dashed outline, and the absence of the page apparatus — so it is legible in the tree, in autocomplete, in backlinks, and on the page itself. Attaching a PDF is a drop target and a single command, and everything already linked to the stub keeps pointing at it.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:20px;width:1440px;align-items:flex-start">
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px dashed #3a424b;border-radius:5px;overflow:hidden;color:#e7e9eb">
+    <div style="padding:11px 16px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px;background:#131619">
+      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">◇</span>
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">SOURCE STUB · NO FILE</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">accepted from scout tmr-watch · 2 Aug</span>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 18px/1.4 'Source Serif 4',Georgia,serif">Diekelmann &amp; Born (2010) — The memory function of sleep</div>
+      <div style="display:flex;flex-wrap:wrap;column-gap:20px;row-gap:7px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">
+        <span><span style="color:#8c939a">venue&nbsp;</span>Nature Reviews Neuroscience 11</span>
+        <span><span style="color:#8c939a">doi&nbsp;</span>10.1038/nrn2762</span>
+        <span><span style="color:#8c939a">cited by&nbsp;</span>3 notes · 1 question</span>
+      </div>
+      <div style="border:1px dashed #3a424b;border-radius:3px;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:9px;background:#121518">
+        <div style="font:400 12.5px 'IBM Plex Mono',monospace;color:#8c939a">no PDF attached</div>
+        <div style="display:flex;gap:8px">
+          <span style="padding:6px 13px;border:1px solid #3a424b;border-radius:3px;background:#212730;font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb">drop a PDF here</span>
+          <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">attach… ⌘⇧P</span>
+          <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">open DOI ↗</span>
+        </div>
+        <div style="font:400 10px/1.6 'IBM Plex Mono',monospace;color:#8c939a;text-align:center">attaching keeps the record and every existing link — the stub becomes the source, it is not replaced</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">BACKLINKS</div>
+        <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">Dissociation designs — power <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8c939a">— “whether it reports per-group n anywhere”</span></div>
+        <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">◆ Is the overnight benefit consolidation or encoding? <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8c939a">— supporting, unsorted</span></div>
+      </div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">No page count, no highlights section, no reader button. The page is short because there is nothing there yet, not because something failed to load.</div>
+    </div>
+  </div>
+
+  <div style="box-sizing:border-box;flex:1;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb">
+    <div style="padding:11px 16px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px;background:#131619">
+      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">◈</span>
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#bac0c6">SOURCE · PDF IN VAULT</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">14 pages · 4.1 MB · read 47 min</span>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 18px/1.4 'Source Serif 4',Georgia,serif">Ólafsdóttir, Bush &amp; Barry (2018) — The role of hippocampal replay in memory and planning</div>
+      <div style="display:flex;flex-wrap:wrap;column-gap:20px;row-gap:7px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">
+        <span><span style="color:#8c939a">venue&nbsp;</span>Current Biology 28</span>
+        <span><span style="color:#8c939a">doi&nbsp;</span>10.1016/j.cub.2017.10.073</span>
+        <span><span style="color:#8c939a">cited by&nbsp;</span>4 notes · 9 questions</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <span style="padding:6px 13px;border:1px solid #3a424b;border-radius:3px;background:#212730;font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb">open in reader</span>
+        <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">37 highlights</span>
+        <span style="padding:6px 13px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">12 margin notes</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">BACKLINKS BY ANNOTATION</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">6 of 37 highlights are linked</span>
+        </div>
+        <sc-for list="{{ annBacklinks }}" as="a" hint-placeholder-count="3">
+          <div style="border:1px solid #23272d;background:#15181c;border-radius:3px;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="font:500 10px 'IBM Plex Mono',monospace;color:#bac0c6">{{ a.id }}</span>
+              <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ a.page }}</span>
+              <span style="margin-left:auto;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ a.count }}</span>
+            </div>
+            <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#8c939a">{{ a.quote }}</div>
+            <sc-for list="{{ a.links }}" as="l" hint-placeholder-count="2">
+              <div style="display:flex;gap:8px;align-items:baseline">
+                <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:{{ l.tone }}">{{ l.glyph }}</span>
+                <span style="font:400 12px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ l.title }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="font:400 11px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">File-level backlinks are listed underneath, as usual. The annotation grouping is the addition — it answers “which of my notes depend on this specific passage”, which file-level backlinks cannot.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">GRAPH — PRESENT, NOT PROMOTED</p><p class="hs">It exists because it is expected, it is honest about what it shows, and it is not the front door. The relational view that earns its place is the Question Map, which is a different surface. Filters are the usual ones plus the two object kinds this vault adds.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:520px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;color:#e7e9eb;display:flex;flex-direction:column">
+  <div style="height:40px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 18px;gap:10px">
+    <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">Graph</span>
+    <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">318 nodes · 742 links · showing 2 hops from the current note</span>
+    <span style="margin-left:auto;display:flex;gap:6px">
+      <span style="padding:4px 9px;border-radius:3px;background:#212730;font:400 10px 'IBM Plex Mono',monospace;color:#e7e9eb">notes</span>
+      <span style="padding:4px 9px;border-radius:3px;background:#212730;font:400 10px 'IBM Plex Mono',monospace;color:#e7e9eb">questions</span>
+      <span style="padding:4px 9px;border-radius:3px;background:#212730;font:400 10px 'IBM Plex Mono',monospace;color:#e7e9eb">sources</span>
+      <span style="padding:4px 9px;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">stubs</span>
+      <span style="padding:4px 9px;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">tags</span>
+    </span>
+  </div>
+  <div style="flex:1;position:relative;background:#0c0e10;overflow:hidden">
+    <sc-for list="{{ edges }}" as="e" hint-placeholder-count="30">
+      <div style="position:absolute;left:{{ e.x }};top:{{ e.y }};width:{{ e.w }};height:1px;background:#1d2126;transform:rotate({{ e.rot }});transform-origin:0 0"></div>
+    </sc-for>
+    <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="26">
+      <div style="position:absolute;left:{{ n.x }};top:{{ n.y }};width:{{ n.d }};height:{{ n.d }};border-radius:50%;background:{{ n.fill }};border:1px solid {{ n.stroke }};transform:translate(-50%,-50%)"></div>
+    </sc-for>
+    <div style="position:absolute;left:18px;bottom:14px;display:flex;gap:16px;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#8c939a"></span>note</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#d99b4a"></span>question</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#4fb3a4"></span>source</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:transparent;border:1px solid #4fb3a4"></span>stub</span>
+    </div>
+    <div style="position:absolute;right:18px;bottom:14px;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">the Question Map is the view that actually answers questions →</div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1040}}">
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const TREE = [
+  ['folder', 0, 'notes', ''],
+  ['folder', 1, 'methods', ''],
+  ['note',   2, 'Dissociation designs — power', '', true],
+  ['note',   2, 'EEG pipeline notes', ''],
+  ['note',   2, 'Cueing methods', ''],
+  ['folder', 1, 'writing', ''],
+  ['note',   2, 'Grant aim 2 — draft', ''],
+  ['note',   2, 'Thesis ch.3 outline', ''],
+  ['folder', 0, 'sources', ''],
+  ['source', 1, 'Ólafsdóttir 2018', '37'],
+  ['source', 1, 'Klinzing 2019', '22'],
+  ['source', 1, 'Schreiner 2021', '14'],
+  ['stub',   1, 'Diekelmann 2010', 'stub'],
+  ['stub',   1, 'Denis 2021', 'stub'],
+  ['folder', 0, 'questions', ''],
+  ['question', 1, 'Is the overnight benefit consolidation or encoding?', 'rq'],
+  ['question', 1, 'Is awake replay measurable in humans?', 'rq'],
+  ['question', 1, 'Is TMR really orthogonal to encoding?', ''],
+  ['question', 1, 'What counts as a reactivation event?', ''],
+  ['folder', 0, 'experiments', ''],
+  ['run',    1, 'run-2026-09-14 · prereg-exclusions', '6'],
+  ['run',    1, 'run-2026-09-06 · size-strata-b', '4']
+];
+
+const KIND = {
+  folder:   {glyph:'▾', tone:'#8c939a', fg:'#bac0c6'},
+  note:     {glyph:'·', tone:'#8c939a', fg:'#bac0c6'},
+  source:   {glyph:'◈', tone:'#bac0c6', fg:'#bac0c6'},
+  stub:     {glyph:'◇', tone:'#8c939a', fg:'#8c939a'},
+  question: {glyph:'◆', tone:'#d99b4a', fg:'#bac0c6'},
+  run:      {glyph:'⌗', tone:'#8c939a', fg:'#bac0c6'}
+};
+
+const BACKLINKS = [
+  { glyph:'◆', tone:'#d99b4a', title:'Is the overnight benefit consolidation or encoding?',
+    context:'“…the dissociation designs that could separate them are underpowered — see Dissociation designs — power.”',
+    meta:'research question · working answer · 5 Aug' },
+  { glyph:'▲', tone:'#8c939a', title:'Preregistered reanalysis will shrink the pooled effect',
+    context:'“Ran the power calculation myself rather than trusting the discussion sections.”',
+    meta:'hypothesis · position history, revision 3 · 11 Apr' },
+  { glyph:'·', tone:'#8c939a', title:'Grant aim 2 — draft',
+    context:'“Power for the standard protocol is 0.31 ([[Dissociation designs — power]]), which is the problem aim 2 addresses.”',
+    meta:'note · edited Aug' },
+  { glyph:'◆', tone:'#d99b4a', title:'Is TMR really orthogonal to encoding?',
+    context:'“Within-subject designs buy back the power but reintroduce the confound.”',
+    meta:'question · captured 12 Jun' },
+  { glyph:'⌗', tone:'#8c939a', title:'run-2026-09-14 · prereg-exclusions',
+    context:'Design notes — “power assumptions as in Dissociation designs — power.”',
+    meta:'experiment · 14 Sep' }
+];
+
+const TAGS = [
+  ['methods', 0, 61, 8, true],
+  ['methods/power', 1, 19, 12, false],
+  ['methods/power/simulation', 2, 7, 7, false],
+  ['methods/eeg', 1, 34, 21, true],
+  ['methods/eeg/artefacts', 2, 13, 13, false],
+  ['sleep', 0, 128, 14, true],
+  ['sleep/consolidation', 1, 74, 31, true],
+  ['sleep/consolidation/tmr', 2, 28, 28, false],
+  ['sleep/consolidation/replay', 2, 15, 15, false],
+  ['sleep/spindles', 1, 40, 40, false],
+  ['writing', 0, 22, 9, true],
+  ['writing/aim2', 1, 13, 13, false]
+];
+
+const TAGGED = [
+  ['·','#8c939a','Dissociation designs — power','methods/power','3d'],
+  ['⌗','#8c939a','run-2026-09-14 · prereg-exclusions','methods/power/simulation','5d'],
+  ['◆','#d99b4a','What sample size would detect the dissociation?','methods/power','2mo'],
+  ['·','#8c939a','Power simulation — nap protocol','methods/power/simulation','2mo'],
+  ['◈','#bac0c6','Gelman & Loken 2013','methods/power','4mo'],
+  ['◇','#8c939a','Simmons 2011','methods/power','4mo'],
+  ['·','#8c939a','Bootstrap notes','methods/power/simulation','6mo'],
+  ['◆','#d99b4a','Is 0.31 good enough to justify the grant aim?','methods/power','7mo']
+];
+
+const ANN = [
+  { id:'h·7', page:'p.11', count:'3 links',
+    quote:'“…measurable in humans with non-invasive recordings…”',
+    links:[
+      {glyph:'◆', tone:'#d99b4a', title:'Would this hold for sparse inputs?'},
+      {glyph:'◆', tone:'#d99b4a', title:'Is awake replay measurable non-invasively in humans?'},
+      {glyph:'·', tone:'#8c939a', title:'Reading queue — decoding methods'}
+    ] },
+  { id:'h·8', page:'p.11', count:'2 links',
+    quote:'“…lacked the statistical power to separate them…”',
+    links:[
+      {glyph:'·', tone:'#8c939a', title:'Dissociation designs — power'},
+      {glyph:'·', tone:'#8c939a', title:'Grant aim 2 — draft'}
+    ] },
+  { id:'h·21', page:'p.14', count:'1 link',
+    quote:'“…the animal\u2019s future trajectory is experimentally constrained…”',
+    links:[
+      {glyph:'◆', tone:'#d99b4a', title:'How would I detect replay without assuming the sequence?'}
+    ] }
+];
+
+class Component extends DCLogic {
+  state = { pane:'files', tag:'methods/power', sel:2 };
+
+  renderVals(){
+    const st = this.state;
+
+    const r = rng(8821);
+    const W = 1438, H = 438;
+    const nodes = [];
+    for (let i = 0; i < 34; i++) {
+      const kind = i === 0 ? 'self' : r() < .46 ? 'note' : r() < .72 ? 'question' : r() < .9 ? 'source' : 'stub';
+      const ang = r() * Math.PI * 2, rad = i === 0 ? 0 : 60 + r() * 170;
+      nodes.push({
+        cx: W/2 + Math.cos(ang) * rad * 1.9,
+        cy: H/2 + Math.sin(ang) * rad * 0.82,
+        kind
+      });
+    }
+    const FILL = { self:'#e7e9eb', note:'#8c939a', question:'#d99b4a', source:'#4fb3a4', stub:'transparent' };
+    const STROKE = { self:'#e7e9eb', note:'#8c939a', question:'#d99b4a', source:'#4fb3a4', stub:'#4fb3a4' };
+
+    const edges = [];
+    for (let i = 1; i < nodes.length; i++) {
+      const j = Math.floor(r() * i);
+      const a = nodes[i], b = nodes[j];
+      const dx = b.cx - a.cx, dy = b.cy - a.cy;
+      edges.push({
+        x: a.cx + 'px', y: a.cy + 'px',
+        w: Math.sqrt(dx*dx + dy*dy) + 'px',
+        rot: (Math.atan2(dy, dx) * 180 / Math.PI) + 'deg'
+      });
+    }
+
+    const selTagRow = TAGS.find(t => t[0] === st.tag) || TAGS[1];
+
+    return {
+      paneTabs: [['files','files'],['search','search'],['tags','tags'],['starred','★']].map(([k,label]) => {
+        const on = st.pane === k;
+        return { label, bg: on ? '#212730' : 'transparent', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ pane:k }) };
+      }),
+      tree: TREE.map(([kind, depth, label, tail, active], i) => {
+        const K = KIND[kind];
+        const on = st.sel === i;
+        return { label, tail, glyph: K.glyph, glyphFg: K.tone,
+          fg: on ? '#e7e9eb' : K.fg,
+          bg: on ? '#212730' : 'transparent',
+          pad: (8 + depth * 13) + 'px',
+          pick: () => this.setState({ sel:i }) };
+      }),
+      backlinks: BACKLINKS,
+
+      tagSummary: '12 paths · 4 roots',
+      tags: TAGS.map(([path, depth, incl, own, open]) => {
+        const on = st.tag === path || (st.tag && path.indexOf(st.tag + '/') === 0);
+        const exact = st.tag === path;
+        return {
+          label: '#' + path.split('/').pop(),
+          caret: depth < 2 ? (open ? '▾' : '▸') : '',
+          n: incl, own: own,
+          pad: (8 + depth * 15) + 'px',
+          bg: exact ? '#212730' : on ? '#181c21' : 'transparent',
+          fg: exact ? '#e7e9eb' : '#bac0c6',
+          nFg: exact ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ tag:path })
+        };
+      }),
+      selTag: '#' + st.tag,
+      selTagNote: selTagRow[2] + ' items including children · ' + selTagRow[3] + ' tagged at this level',
+      tagged: TAGGED.map(([glyph, tone, title, tag, age]) => ({ glyph, tone, title, tag: '#' + tag, age })),
+
+      annBacklinks: ANN,
+
+      nodes: nodes.map(n => ({
+        x: n.cx + 'px', y: n.cy + 'px',
+        d: (n.kind === 'self' ? 13 : n.kind === 'question' ? 9 : 7) + 'px',
+        fill: FILL[n.kind], stroke: STROKE[n.kind]
+      })),
+      edges
+    };
+  }
+}
+</script>
+</body>
+</html>
