@@ -22,3 +22,7 @@ ADR 0001 committed to web technology in a desktop shell and left the shell, UI f
 - **−** Binding the core to the LAN for phase 2 needs pairing and auth; the session token exists from day one so that is an extension, not a redesign.
 - Derived state is computed in the core and displayed by the renderer, never derived client-side. The renderer keeps no global store until a second surface needs one; server state goes through the RPC client's query cache.
 - Deferred, deliberately: the end-to-end runner (chosen by the first slice that has a window to drive), packaging, signing and updates, LAN pairing.
+
+## Update (2026-09-19)
+
+ADR 0008 adds a fourth package, `packages/markdown`: Obsidian's Markdown grammar as pure TypeScript with no Node API, imported at runtime by `core` and `renderer` alike. The boundary above is unchanged — the renderer still touches no file system — the package simply sits on the renderer's side of it as well as the core's.

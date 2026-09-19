@@ -8,7 +8,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
 - Annotations in the PDF; sidecar index for identity — ADR 0002.
 - Phase 1 reading is Preview plus ingest; sync scope is the PDF folder only — ADR 0003.
 - The public site at tacomancy.com is static files in `website/`, assembled by `Scripts/build-site.sh` and deployed by `.github/workflows/pages.yml` on push to `main` — ADR 0004.
-- TypeScript end to end; Electron; React; the core is a local HTTP API the renderer and the iPad PWA are both clients of; a pnpm workspace of `packages/core`, `packages/renderer`, `packages/shell` — ADR 0005. The detail that ADR leaves to this file:
+- TypeScript end to end; Electron; React; the core is a local HTTP API the renderer and the iPad PWA are both clients of; a pnpm workspace of `packages/core`, `packages/renderer`, `packages/shell` — ADR 0005 (plus `packages/markdown`, ADR 0008). The detail that ADR leaves to this file:
   - **Build and dev:** Vite for the renderer, `electron-vite` driving main, preload, and renderer from one config — `packages/shell/electron.vite.config.ts`, with the renderer's root pointed at `packages/renderer` and output under `packages/shell/out/`. The core builds separately (`tsc` to `packages/core/dist`), because the shell spawns its entry as a file and must not bundle it. `pnpm dev` builds the core, then starts electron-vite; in development the window loads the Vite dev server for HMR, otherwise the core serves the bundle. Packaging, signing, and updates are chosen when there is something worth installing.
   - **Tests:** Vitest, for `core` and `renderer` alike. `pnpm test` at the root runs three projects from `vitest.config.ts` — `core` (node), `renderer` (jsdom, Testing Library, a fake tRPC link), `tooling` (the lint rules) — and the `test` job in `.github/workflows/ci.yml` runs lint, typecheck, and that suite as the second required check beside `guidance`. The core is exercised in-process with `app.request(...)`, no socket. The end-to-end runner is chosen by the first slice that has a window to drive; until then `VITRINE_SNAPSHOT=<png>` makes the shell render its window hidden, capture it, and quit, so a change can be seen without a window appearing.
   - **RPC:** tRPC; the router type in `core` is the contract, imported type-only by `renderer`. Pushes the brief needs (ingest landed, Scout finished, Unmatched annotation surfaced) are tRPC subscriptions over SSE, so no WebSocket server. Server state in the renderer goes through tRPC's TanStack Query integration; UI state is React local state; no global store until a second surface needs one.
@@ -26,6 +26,11 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Annotation intent** (renderer → core): page index, geometry in PDF user space, kind, colour, note text. The core snaps geometry to its character boxes, derives the quote, writes the object, assigns the id. Selection text from the renderer is never stored.
   - **Written into the PDF:** `/NM` = sidecar id, `/T` = the user's name, `/CreationDate`, `/M`, `/AP`, standard `/Subj`.
   - The sidecar's fields and the matching tiers are § Annotation identity below.
+- Markdown is located and spliced, never re-serialised; a closed set of write operations; Obsidian's grammar in a fourth workspace package, `packages/markdown`, shared by core and renderer; tag identity case-insensitive — ADR 0008. The detail that ADR leaves to this file:
+  - **Locator:** `mdast-util-from-markdown` (micromark) with GFM and four extensions of our own — tags, wikilinks, block ids, `key:: value` inline fields — all in `packages/markdown`. Offsets are UTF-16 code units into the source string, which is what `String.prototype.slice` takes. `remark-stringify` is not a dependency.
+  - **Frontmatter:** `yaml` (eemeli), `parseDocument` → `set` → `toString`. Known renormalisations: 4-space indent to 2, `[a, b]` to `[ a, b ]`. The fence is `---` at byte 0 (after a BOM if any), closed by `---`; a file whose frontmatter does not parse is *unreadable* for Kind purposes and the app never writes to it.
+  - **Package rule** (dependency-cruiser): `core` and `renderer` may import `packages/markdown`; it imports neither, and no Node built-in.
+  - **Writes:** the operations, the re-apply, and the verify step are § Markdown below. Temp file in the same folder, rename; EOL style, BOM, and trailing newline preserved from the file as read; new files UTF-8, LF, one trailing newline.
 
 ## Vault layout
 
@@ -112,10 +117,39 @@ At any of tiers 2–4, several candidates are broken by quad overlap — the hig
 
 **Ingest summary line:** `N new · N questions · N removed · N could not be re-matched` — the panel opens only when the last is non-zero (brief § Ingest review).
 
+## Markdown
+
+The shape ADR 0008 decided, in enough detail to write against.
+
+**What the locator returns for one file** — an *outline*: the frontmatter range and its parsed Document; headings (level, text, range of the heading line, range of the section body to the next heading of equal or higher level); block ids (id, the block's range); wikilinks and Markdown links (target, heading path, block id, alias, embed flag, range); tags (canonical form, form as written, source `frontmatter | inline`, range); inline fields (key, value, range, and the `###` they sit under); list items with ranges, from which the core's Position history module reads Revisions. Everything Vitrine-specific — which sections are owned, what `^c<n>` means, the Revision line grammar — is applied by the core's per-Kind modules to this structure.
+
+**Write operations** — the closed set. Anything else reopens ADR 0008.
+
+```
+setFrontmatter(keys)          set one or more keys; key order preserved; new keys appended; never removes
+replaceSection(name, body)    the ## Annotations rewrite
+prependEntry(section, entry)  a Revision into ## Position history, newest first
+appendLine(line)              the write-back line at the end of a Question or Research Question
+createFile(path, content)     a new object or an app-created Note, written whole
+```
+
+A write = `{ operations[], basedOn: <content hash> }`. Before writing: re-hash; on mismatch re-read and re-apply the operations to the new content; splice from the highest offset down (frontmatter and section ranges never overlap); re-parse the result and verify — frontmatter parses, `kind` unchanged, each owned section present exactly once, block ids the app depends on present; write temp + rename. Re-apply impossible or verification failed → not written, surfaced with the reason. Notes are only ever created.
+
+**Owned sections:** `## <name>` exact, case-sensitive, level 2. Absent → appended after a blank line at end of file. Duplicated → the first is owned, the second untouched, the duplicate surfaced as a shape problem.
+
+**Shape problems:** a `kind:` file missing structure its Kind expects (no `## Criteria`, a `###` criterion without `^c<n>`, a duplicated owned section) is reported in the same channel as *partial* and *unreadable* (#105) and derived state is computed from what parses.
+
+**Tag grammar** (Obsidian's, `help.obsidian.md/tags`): after `#`, letters, digits, `_`, `-`, `/`, and other commonly accepted Unicode including emoji; no spaces; at least one non-digit. Not a tag inside code fences or code spans, inside a link target, or in a text property. Canonical form: NFC, then `toLowerCase()`; `_` ≠ `-`. Display: majority casing per path segment; the app writes the display casing, a new tag as typed. Frontmatter: `tags:` as a YAML list is canonical; the legacy comma-separated string is read, and converted to a block sequence the first time the app adds a tag to that file; `tag:` (dropped by Obsidian 1.9) is read as `tags:` and never written. Invalid entries are indexed as `invalid` with position, never silently dropped. Undocumented by Obsidian and settled by the fixture corpus (#112): `#tag/`, `#a//b`, a `#` after `# ` at line start, in a URL, in an autolink, in a `tags:` entry containing a space.
+
+**Link grammar** (`help.obsidian.md/links`): `[[target]]`, `[[target|alias]]`, `[[target#Heading]]`, `[[target#H1#H2]]`, `[[target#^blockid]]`, `[[#Heading]]`, `![[embed]]` with `|WxH` and `#page=N`; `[text](target.md)` and `[text](target.md#Heading)` with `%20` decoding. Block ids: Latin letters, digits, dashes. Invalid in a target: `# | ^ : %% [[ ]]`. Resolution: a target with `/` by vault-relative path; otherwise by basename, case-insensitive, unique → resolved; several → *ambiguous* (resolves to nothing; a Loose Ends row offering the path-qualified rewrite); none → *unresolved*. `#Heading` matches heading text case-insensitively after trimming; `#^id` matches a block id in that file.
+
+**Block ids:** every `^id` in the vault is indexed, app-written or not. The app never rewrites or moves a user's. The per-Source `h` counter starts above the highest `^h<digits>` present.
+
+**Divergences from Obsidian, by design:** display casing (majority per segment, not first-created); ambiguous links resolve to nothing rather than to a best match; invalid tags are recorded rather than ignored.
+
 ## Open, in the order they block work
 
-1. Markdown parser, and the tag grammar it shares with the tag tree. Inherits from ADR 0006: it must round-trip, editing the frontmatter block and owned sections while leaving the rest of the file byte-identical.
-2. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling. Inherits from ADR 0007: a write landing while the iPad holds the file open, and whether a note edited to begin with `Q:` after the fact becomes a Question on that Ingest.
-3. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
+1. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling. Inherits from ADR 0007: a write landing while the iPad holds the file open, and whether a note edited to begin with `Q:` after the fact becomes a Question on that Ingest.
+2. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
 
 Each goes through `grill-me` before its ADR is written.
