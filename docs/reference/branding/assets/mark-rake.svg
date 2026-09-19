@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vitrine mark — The Rake">
+  <title>Vitrine mark — The Rake</title>
+  <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+    <stop offset="100%" stop-color="#836202"/></linearGradient></defs>
+  <g fill="none" stroke="url(#b)" stroke-width="4.6"><path d="M7,15 L32,53 L57,15"/><path d="M15,15 L32,41 L49,15"/><path d="M23,15 L32,29 L41,15"/></g>
+  <rect x="7" y="8" width="50" height="3" fill="url(#b)"/>
+</svg>

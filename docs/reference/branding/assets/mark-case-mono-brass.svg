@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vitrine mark — one colour, brass">
+  <title>Vitrine mark — one colour, brass</title>
+  <path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="#E5B64A"/>
+  <path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="none"/>
+  <path d="M23,29 L32,47 L41,29" fill="none" stroke="#E5B64A" stroke-width="4.2"/>
+  <rect x="4" y="54" width="56" height="6" fill="#E5B64A"/>
+</svg>
