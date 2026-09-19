@@ -22,8 +22,20 @@ _Avoid_: Type (taken by the type system), category
 An ordinary Markdown file with links, tags, and backlinks. Obsidian behaviour is the tiebreaker for anything unspecified.
 
 **Tag**:
-A slash-separated topic label parsed into a tree (`ml/interpretability/probing`). A parent's coverage is the union of its children's.
+A slash-separated topic label parsed into a tree (`ml/interpretability/probing`), the same tag whatever its casing. A parent's coverage is the union of its children's.
 _Avoid_: Topic (a tag *is* the topic axis; "topic cluster" is a Scout Queue grouping, not a tag)
+
+**Owned section**:
+A `##` section of a vault file that the app rewrites whole — `## Annotations`, `## Position history` — as opposed to the user's prose, which it never touches.
+_Avoid_: Managed section, generated section
+
+**Shape problem**:
+An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`.
+_Avoid_: Corrupt, malformed, invalid file
+
+**Ambiguous link**:
+A bare wikilink whose name matches more than one file. Resolves to nothing and surfaces as a Loose end rather than picking one.
+_Avoid_: Broken link (that is an unresolved one), conflict
 
 ### Sources and reading
 
