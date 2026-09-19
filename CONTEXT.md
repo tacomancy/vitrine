@@ -30,7 +30,7 @@ A `##` section of a vault file that the app rewrites whole — `## Annotations`,
 _Avoid_: Managed section, generated section
 
 **Shape problem**:
-An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`. Reported beside partial and unreadable files; never hidden, never repaired without asking.
+An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`.
 _Avoid_: Corrupt, malformed, invalid file
 
 **Ambiguous link**:

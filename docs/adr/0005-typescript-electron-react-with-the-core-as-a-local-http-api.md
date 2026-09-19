@@ -25,4 +25,4 @@ ADR 0001 committed to web technology in a desktop shell and left the shell, UI f
 
 ## Update (2026-09-19)
 
-ADR 0008 adds a fourth package, `packages/markdown`: Obsidian's Markdown grammar as pure TypeScript with no Node API, imported at runtime by `core` and `renderer` alike. The boundary above is unchanged — the renderer still touches no file system — the package simply sits on the renderer's side of it as well as the core's.
+ADR 0008 adds a fourth package, `packages/markdown`: Obsidian's Markdown grammar as pure TypeScript with no Node API, imported at runtime by `core` and `renderer` alike. The boundary above is unchanged — the renderer still touches no file system — the package sits beneath both sides of it.

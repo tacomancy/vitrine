@@ -29,8 +29,8 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
 - Markdown is located and spliced, never re-serialised; a closed set of write operations; Obsidian's grammar in a fourth workspace package, `packages/markdown`, shared by core and renderer; tag identity case-insensitive — ADR 0008. The detail that ADR leaves to this file:
   - **Locator:** `mdast-util-from-markdown` (micromark) with GFM and four extensions of our own — tags, wikilinks, block ids, `key:: value` inline fields — all in `packages/markdown`. Offsets are UTF-16 code units into the source string, which is what `String.prototype.slice` takes. `remark-stringify` is not a dependency.
   - **Frontmatter:** `yaml` (eemeli), `parseDocument` → `set` → `toString`. Known renormalisations: 4-space indent to 2, `[a, b]` to `[ a, b ]`. The fence is `---` at byte 0 (after a BOM if any), closed by `---`; a file whose frontmatter does not parse is *unreadable* for Kind purposes and the app never writes to it.
-  - **Package rule** (dependency-cruiser): `core` and `renderer` may import `packages/markdown`; it imports neither, and no Node built-in.
-  - **Writes:** the operations, the re-apply, and the verify step are § Markdown below. Temp file in the same folder, rename; EOL style, BOM, and trailing newline preserved from the file as read; new files UTF-8, LF, one trailing newline.
+  - **Package rule** (dependency-cruiser, once `setup-ts-deep-modules` runs): `core` and `renderer` may import `packages/markdown`; it imports neither, and no Node built-in. It builds with `tsc` like the core, because the core imports it at runtime from `dist`, and joins `vitest.config.ts` as a fourth project.
+  - **Writes:** § Markdown below — the seven operations, the re-apply, the verify step, and the file-level rules (temp file and rename; EOL, BOM, and trailing newline preserved; new files UTF-8, LF, one trailing newline).
 
 ## Vault layout
 
@@ -72,7 +72,7 @@ index.sqlite                vault index and full-text search — always safe to 
 ```
 Window state, the session token, and the last vault opened (`last-vault.json`, `{ path }`, written only on a successful open) live in `~/Library/Application Support/Vitrine/`; the core owns that folder and tests pass a temp one at construction. Credentials in the Keychain.
 
-**Write discipline.** The app rewrites only the frontmatter block (key order preserved, new keys appended) and the sections it owns (`## Position history`, `## Annotations`); every other byte of a file the user edited stays identical. It never adds frontmatter to a Note.
+**Write discipline.** Every write the app makes is one of the seven operations in § Markdown, spliced into the file so that no byte outside the operation's target changes; the Vault editor's whole-file save is the one exception, and it is the user's own typing. It never adds frontmatter to a Note.
 
 ## Annotation identity
 
@@ -126,22 +126,26 @@ The shape ADR 0008 decided, in enough detail to write against.
 **Write operations** — the closed set. Anything else reopens ADR 0008.
 
 ```
-setFrontmatter(keys)          set one or more keys; key order preserved; new keys appended; never removes
-replaceSection(name, body)    the ## Annotations rewrite
-prependEntry(section, entry)  a Revision into ## Position history, newest first
-appendLine(line)              the write-back line at the end of a Question or Research Question
-createFile(path, content)     a new object or an app-created Note, written whole
+setFrontmatter(keys)                    one or more keys; order preserved; new keys appended; never removes
+setInlineField(blockId, key, value)     outcome:: / relationship:: under a ### … ^c<n>; the value range only
+replaceSection(name, body)              an owned section whole: ## Annotations; ## Position history for the pressure valve
+prependEntry(section, entry)            a Revision into ## Position history, newest first
+appendToSection(target, line)           a line at the end of a ## section or a ### block: Evidence under ^c<n>,
+                                        an Artifact line, a source line; `lead` = the body before the first ##,
+                                        which is where the write-back line goes (end of file on a Question)
+replaceFile(content, basedOn)           the Vault editor's save, and nothing else; the user's own typing
+createFile(path, content)               a new object or an app-created Note, written whole
 ```
 
-A write = `{ operations[], basedOn: <content hash> }`. Before writing: re-hash; on mismatch re-read and re-apply the operations to the new content; splice from the highest offset down (frontmatter and section ranges never overlap); re-parse the result and verify — frontmatter parses, `kind` unchanged, each owned section present exactly once, block ids the app depends on present; write temp + rename. Re-apply impossible or verification failed → not written, surfaced with the reason. Notes are only ever created.
+A write = `{ operations[], basedOn: <content hash> }`. Before writing: re-hash; on mismatch re-read and re-apply the operations to the new content; splice from the highest offset down (targets never overlap); re-parse the result and verify — frontmatter parses, `kind` unchanged, each owned section present exactly once, block ids the app depends on present; write temp + rename. Re-apply impossible or verification failed → not written, surfaced with the reason. `replaceFile` skips the re-apply (there is nothing to re-apply) and refuses on a hash mismatch, which the editor surfaces as "changed on disk". Notes are written only by the editor, whole.
 
 **Owned sections:** `## <name>` exact, case-sensitive, level 2. Absent → appended after a blank line at end of file. Duplicated → the first is owned, the second untouched, the duplicate surfaced as a shape problem.
 
 **Shape problems:** a `kind:` file missing structure its Kind expects (no `## Criteria`, a `###` criterion without `^c<n>`, a duplicated owned section) is reported in the same channel as *partial* and *unreadable* (#105) and derived state is computed from what parses.
 
-**Tag grammar** (Obsidian's, `help.obsidian.md/tags`): after `#`, letters, digits, `_`, `-`, `/`, and other commonly accepted Unicode including emoji; no spaces; at least one non-digit. Not a tag inside code fences or code spans, inside a link target, or in a text property. Canonical form: NFC, then `toLowerCase()`; `_` ≠ `-`. Display: majority casing per path segment; the app writes the display casing, a new tag as typed. Frontmatter: `tags:` as a YAML list is canonical; the legacy comma-separated string is read, and converted to a block sequence the first time the app adds a tag to that file; `tag:` (dropped by Obsidian 1.9) is read as `tags:` and never written. Invalid entries are indexed as `invalid` with position, never silently dropped. Undocumented by Obsidian and settled by the fixture corpus (#112): `#tag/`, `#a//b`, a `#` after `# ` at line start, in a URL, in an autolink, in a `tags:` entry containing a space.
+**Tag grammar** (Obsidian's, `help.obsidian.md/tags`): after `#`, letters, digits, `_`, `-`, `/`, and other commonly accepted Unicode including emoji; no spaces; at least one non-digit. Not a tag inside code fences or code spans, inside a link target, or in a text property. Canonical form: NFC, then `toLowerCase()`; `_` ≠ `-`. Display: majority casing per path segment; the app writes the display casing, a new tag as typed. Frontmatter: `tags:` as a YAML list is canonical; the legacy comma-separated string is read, and converted to a block sequence the first time the app adds a tag to that file, as Obsidian's Format Converter does; `tag:` is neither read nor written — Obsidian 1.9 dropped it, and a vault that still has one is a Format Converter job, not the app's. Invalid entries are indexed as `invalid` with position, never silently dropped. Undocumented by Obsidian and settled by the fixture corpus (#112): `#tag/`, `#a//b`, a `#` after `# ` at line start, in a URL, in an autolink, in a `tags:` entry containing a space; how `#Heading` link fragments match; what the Properties editor does to comments and key order.
 
-**Link grammar** (`help.obsidian.md/links`): `[[target]]`, `[[target|alias]]`, `[[target#Heading]]`, `[[target#H1#H2]]`, `[[target#^blockid]]`, `[[#Heading]]`, `![[embed]]` with `|WxH` and `#page=N`; `[text](target.md)` and `[text](target.md#Heading)` with `%20` decoding. Block ids: Latin letters, digits, dashes. Invalid in a target: `# | ^ : %% [[ ]]`. Resolution: a target with `/` by vault-relative path; otherwise by basename, case-insensitive, unique → resolved; several → *ambiguous* (resolves to nothing; a Loose Ends row offering the path-qualified rewrite); none → *unresolved*. `#Heading` matches heading text case-insensitively after trimming; `#^id` matches a block id in that file.
+**Link grammar** (`help.obsidian.md/links`): `[[target]]`, `[[target|alias]]`, `[[target#Heading]]`, `[[target#H1#H2]]`, `[[target#^blockid]]`, `[[#Heading]]`, `![[embed]]` with `|WxH` and `#page=N`; `[text](target.md)` and `[text](target.md#Heading)` with `%20` decoding. Block ids: Latin letters, digits, dashes. Invalid in a target: `# | ^ : %% [[ ]]`. Resolution: a target with `/` by vault-relative path; otherwise by basename, case-insensitive, unique → resolved; several → *ambiguous* (resolves to nothing; a Loose Ends row under Disconnected material offering the path-qualified rewrite); none → *unresolved*. `#^id` matches a block id in that file; how `#Heading` matches heading text (case, trimming) is a corpus item.
 
 **Block ids:** every `^id` in the vault is indexed, app-written or not. The app never rewrites or moves a user's. The per-Source `h` counter starts above the highest `^h<digits>` present.
 

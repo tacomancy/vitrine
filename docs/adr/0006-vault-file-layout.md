@@ -45,4 +45,4 @@ ADR 0007 settled what the sidecar in decision 6 holds: quads and the engine-extr
 
 ## Update (2026-09-19, ADR 0008)
 
-Decision 11's surgical writes are now a closed set of five operations (`docs/architecture.md` § Markdown), applied by locate-and-splice. One assumption in decision 2 is still to be confirmed by the fixture corpus: that Obsidian resolves `[[hypothesis#^c1]]` when `^c1` sits on the `###` heading line. If it does not, the id moves to the line below the heading and this ADR gets a further update.
+Decision 11's surgical writes are now a closed set of seven operations (`docs/architecture.md` § Markdown), applied by locate-and-splice. One assumption in decision 2 is still to be confirmed by the fixture corpus: that Obsidian resolves `[[hypothesis#^c1]]` when `^c1` sits on the `###` heading line. If it does not, the id moves to the line below the heading and this ADR gets a further update.
