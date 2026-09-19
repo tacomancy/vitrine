@@ -1,0 +1,72 @@
+/* A full-width strip at the foot of the window: a step up from the ground,
+   no hairline. It is the one thing the whole window shares. */
+.line {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg-raised);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Brass marks the one live thing on screen (BRAND.md law 3). */
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* The Provenance, resolved before a character is typed: data, so mono. */
+.chip {
+  padding: 2px 7px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+}
+
+/* The Question reads as text, not a form field: the serif, on a quiet
+   inset with no border. The brass ring on focus is the global one. */
+.input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-fg);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+}
+
+.input:disabled {
+  color: var(--color-fg-muted);
+}
+
+.hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+/* Why a write failed, under the input, in plain grey — the text stays. */
+.message {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
