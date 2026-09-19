@@ -40,15 +40,16 @@ Never silently violate these:
 
 ## Development loop
 
-Run in this order, per tracer-bullet slice:
+Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving). Run in this order, per tracer-bullet slice:
 
-1. **`grill-me`** — pressure-test the slice's plan, one question at a time, before code exists.
-2. **`to-issues`** — break the plan into end-to-end, demoable vertical slices (not schema/API/UI layers).
-3. **`tdd`** — red-green-refactor. Test written before the code that satisfies it.
-4. **`diagnose`** — as needed: reproduce → minimize → hypothesize → instrument → fix → regression-test.
-5. **`code-review`** — before merge, checked against the brief section implemented and the code standard below.
+1. **`grill-with-docs`** — pressure-test the slice's plan, one question at a time, before code exists. It writes new terms to `CONTEXT.md` and decisions to `docs/adr/` as they are resolved. `grill-me` is the same interview without the doc writes; use it for questions that aren't about this codebase yet (the stack choice, for instance). Detour through `prototype` on a `prototype/<name>` branch when a question needs a runnable answer.
+2. **`to-spec`** — turn the interview into a spec and publish it as a GitHub issue. No implementation starts without a spec issue.
+3. **`to-tickets`** — break the spec into end-to-end, demoable vertical slices (not schema/API/UI layers), each a GitHub issue blocked on its predecessors.
+4. **`implement`** per ticket, on its own branch — drives **`tdd`** (red-green-refactor, test written before the code that satisfies it) and closes by running **`code-review`**.
+5. **`diagnosing-bugs`** — as needed: reproduce → minimize → hypothesize → instrument → fix → regression-test.
+6. **`code-review`** — before merge, checked against the brief section implemented and the code standard below. Step 4 runs it; run it again if the branch changed since.
 
-`grill-with-docs` and `improve-codebase-architecture` are in use now that `CONTEXT.md` / `docs/adr/` exist. `to-prd` stays excluded — it would regenerate the brief from conversation, with less authority than the original.
+`improve-codebase-architecture` is in use now that `CONTEXT.md` / `docs/adr/` exist. `to-questionnaire` and `wayfinder` are available but not part of the loop. Nothing regenerates the brief from conversation — it has more authority than any summary of it.
 
 ## Code standard
 
@@ -64,14 +65,14 @@ Overrides `code-review`'s default smell baseline:
 
 ## Parallel work
 
-- One `git worktree` / branch per issue (`claude --worktree <name>`).
+- One `git worktree` / branch per issue (`claude --worktree <name>`). Branch names and PR titles carry a conventional type prefix: `feat/`, `fix/`, `docs/`, `chore/`, `test/`; `feat(scope): …` in the title. See `CONTRIBUTING.md`.
 - Before running two issues in parallel, check whether either touches a shared load-bearing piece — the annotation-identity index, the Position History mechanism. Sequence those instead of parallelizing.
 - Tests are the interface contract between slices — an agent shouldn't need the other branch's context, just a suite that fails loudly if an assumption breaks.
-- Short-lived branches, one issue each. Full suite green (not just the branch's own tests) and review approval required before merge — enforced by branch protection and CI, not just this file.
+- Short-lived branches, one issue each. Merge gates are enforced by branch protection on `main` and the `guidance` job in `.github/workflows/ci.yml`, not just this file. Today that job checks the guidance itself (frozen tier untouched, skill references resolve, ADR numbering); the test suite joins it as a required check the moment the stack lands (`docs/architecture.md`).
 
 ## Setup
 
-Run `/setup-matt-pocock-skills` once per repo. Domain-doc layout: `CONTEXT.md` + `docs/adr/`, as above.
+Run `/setup-matt-pocock-skills` once per repo. Domain-doc layout: `CONTEXT.md` + `docs/adr/`, as above. `Scripts/check-guidance.sh` is what CI runs; run it locally before pushing a `docs:` change.
 
 ## Agent skills
 
