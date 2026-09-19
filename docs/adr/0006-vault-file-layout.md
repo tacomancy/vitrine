@@ -38,3 +38,7 @@ ADR 0005 left the vault file layout as the first open item in `docs/architecture
 - **−** The file watcher (open item) inherits three requirements: recognise the app's own writes by content hash so the `## Annotations` rewrite does not echo as a change; treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand — at a few hundred PDFs nobody hits this, at a few thousand it is routine; use FSEvents, not polling, over a vault that will reach tens of thousands of files.
 - **−** Stored Artifacts are the vault's only byte-size growth vector. The brief's open threshold ("how large is small?") is the lever and wants a number early; the per-Experiment folder is what makes pruning one record a single delete.
 - A `schema` number in `.vitrine/vault.json` versions this whole layout; a key rename ships as one migration keyed on it, never as per-file version handling.
+
+## Update (2026-09-19)
+
+ADR 0007 settled what the sidecar in decision 6 holds: quads and the engine-extracted quote per annotation, raw, and one fingerprint per *document* (trailer `/ID`, page count, per-page text hashes) rather than per PDF object. The field list is `docs/architecture.md` § Annotation identity.

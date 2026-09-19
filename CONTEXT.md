@@ -44,7 +44,7 @@ A highlight or margin note stored in a PDF as a standard annotation object, indi
 _Avoid_: Highlight (one kind of annotation, not the general term), comment
 
 **Annotation identity**:
-The app's stable ID for an Annotation, kept in a sidecar index with its page, geometry, and quoted text. PDF objects have no reliable ID across editors, so identity is re-matched on every Ingest: quoted text first, geometry second. A note with no passage is matched on its own text. Ink and shapes have identity but are never link targets.
+The app's stable ID for an Annotation, kept in a sidecar index with its page, geometry, and quoted text. PDF objects have no reliable ID across editors, so identity is re-matched on every Ingest: quoted text first, geometry second.
 
 **Ingest**:
 The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations.
@@ -54,7 +54,7 @@ _Avoid_: Import, sync (sync moves files; ingest reads them)
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.
 
 **Removed annotation**:
-An Annotation that nothing linked to and that could not be found on Ingest. Counted, never a decision: its identity is retired so nothing can later be mistaken for it. Whether a vanished Annotation is Removed or Unmatched turns only on whether anything pointed at it.
+An Annotation that nothing linked to and that could not be found on Ingest. Counted, never a decision; a vanished Annotation that something pointed at is Unmatched instead.
 _Avoid_: Deleted (the app did not delete it), lost
 
 **Tombstone**:
