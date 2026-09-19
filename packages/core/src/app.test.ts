@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 
@@ -5,7 +8,7 @@ const token = "test-token";
 const options = {
   token,
   host: { pickFolder: () => Promise.resolve(null) },
-  appSupportDir: "/dev/null/never-written",
+  appSupportDir: await mkdtemp(join(tmpdir(), "vitrine-support-")),
 };
 
 describe("core HTTP app", () => {

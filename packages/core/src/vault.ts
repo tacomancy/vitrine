@@ -32,18 +32,25 @@ export type VaultService = {
 
 /** Throws a VaultError unless the path is a folder this process can list. */
 async function validateFolder(path: string): Promise<void> {
-  let isDirectory: boolean;
+  let isDirectory = false;
   try {
     isDirectory = (await stat(path)).isDirectory();
   } catch {
-    throw new VaultError("notAFolder", `${path} is not a folder.`);
+    // Missing counts as not a folder.
   }
-  if (!isDirectory)
-    throw new VaultError("notAFolder", `${path} is not a folder.`);
+  if (!isDirectory) {
+    throw new VaultError(
+      "notAFolder",
+      `${path} is not a folder. Choose a folder.`
+    );
+  }
   try {
     await readdir(path);
   } catch {
-    throw new VaultError("unreadable", `${path} can't be read.`);
+    throw new VaultError(
+      "unreadable",
+      `${path} can't be read. Check its permissions.`
+    );
   }
 }
 
@@ -69,7 +76,8 @@ export function createVaultService({
         return typeof parsed.path === "string" ? parsed.path : null;
       }
     } catch {
-      // No file yet, or one this build cannot read: the same as nothing remembered.
+      // No file yet, or one that does not parse. Either way the outcome is
+      // First run, which is the honest answer; nothing the user did is lost.
     }
     return null;
   }
@@ -91,10 +99,11 @@ export function createVaultService({
     await restored;
     const absolute = resolve(path);
     await validateFolder(absolute);
-    current = { name: basename(absolute), path: absolute };
-    // Written only here, after validation, so a failed open can never
-    // overwrite a good path.
+    // Remembered only here, after validation, so a failed open can never
+    // overwrite a good path — and remembered before it becomes current, so
+    // an open either happens whole or not at all.
     await remember(absolute);
+    current = { name: basename(absolute), path: absolute };
     return current;
   }
 

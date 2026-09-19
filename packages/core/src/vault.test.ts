@@ -207,6 +207,19 @@ describe("the remembered vault", () => {
     expect(current.result?.data).toEqual({ name: basename(good), path: good });
   });
 
+  it("cannot be written → the open fails and the current vault is unchanged", async () => {
+    // An app-support path that is a file: nothing can be remembered under it.
+    const blocked = join(await tmp("blocked"), "not-a-folder");
+    await writeFile(blocked, "");
+    const c = await core({ appSupportDir: blocked });
+    const folder = await tmp("unremembered");
+
+    const reply = await c.mutate<Vault>("vault.open", { path: folder });
+    expect(reply.error).toBeDefined();
+    const current = await c.query<Vault | null>("vault.current");
+    expect(current.result?.data).toBeNull();
+  });
+
   it("is the most recently opened vault when a second replaces the first", async () => {
     const first = await core();
     const one = await tmp("one");

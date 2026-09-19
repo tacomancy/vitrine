@@ -30,7 +30,7 @@ export function Sidebar() {
               </a>
             </li>
           ) : (
-            <li key={surface} className={styles.disabled} aria-disabled="true">
+            <li key={surface} className={styles.disabled}>
               <span className={styles.dot} />
               {surface}
             </li>

@@ -72,6 +72,8 @@ function spawnCore(): Promise<Session> {
   });
 }
 
+type CoreClient = ReturnType<typeof coreClient>;
+
 /** The shell as one more client of the core, for what the menu drives. */
 function coreClient({ port, token }: Session) {
   return createTRPCClient<AppRouter>({
@@ -90,7 +92,7 @@ function coreClient({ port, token }: Session) {
  * discards every piece of window state anyway, so the window is reloaded
  * to show the new vault; a refused folder is stated in a plain message.
  */
-async function openVaultFromMenu(client: ReturnType<typeof coreClient>) {
+async function openVaultFromMenu(client: CoreClient) {
   try {
     const vault = await client.vault.pick.mutate();
     if (vault) frontWindow()?.reload();
@@ -102,7 +104,7 @@ async function openVaultFromMenu(client: ReturnType<typeof coreClient>) {
   }
 }
 
-function installMenu(client: ReturnType<typeof coreClient>) {
+function installMenu(client: CoreClient) {
   const menu = Menu.buildFromTemplate([
     { role: "appMenu" },
     {

@@ -23,6 +23,12 @@
   letter-spacing: var(--tracking-tight);
 }
 
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* Counts are data: mono, muted. This one counts what exists, never what is owed. */
 .count {
   font-family: var(--font-mono);

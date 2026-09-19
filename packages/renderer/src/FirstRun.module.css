@@ -48,7 +48,7 @@
   background: var(--color-bg-raised);
 }
 
-/* A refused folder is stated, in place; never an alert, never a colour. */
+/* A refused folder is stated in place — no dialog, and no colour. */
 .message {
   margin: 0;
   font-size: var(--text-sm);

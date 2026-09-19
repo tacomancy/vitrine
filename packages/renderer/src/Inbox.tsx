@@ -6,7 +6,7 @@ import styles from "./Inbox.module.css";
  */
 export function Inbox() {
   return (
-    <section className={styles.inbox} aria-labelledby="inbox-title">
+    <section id="inbox" className={styles.inbox} aria-labelledby="inbox-title">
       <div className={styles.header}>
         <h1 id="inbox-title" className={styles.title}>
           Question Inbox
@@ -14,6 +14,7 @@ export function Inbox() {
         {/* Nothing is read from the vault yet, so the count is what it says. */}
         <span className={styles.count}>0 questions</span>
       </div>
+      <ul className={styles.list} aria-label="Questions" />
     </section>
   );
 }

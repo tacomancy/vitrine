@@ -4,8 +4,8 @@ import { VaultError, type VaultService } from "./vault.js";
 export type Context = { vault: VaultService };
 
 const t = initTRPC.context<Context>().create({
-  // A refused open reaches the client as a plain message plus its kind, so
-  // the renderer can show the one and later slices can branch on the other.
+  // A refused open reaches the client as a plain message plus its kind
+  // (notAFolder | unreadable), the typed errors the vault contract promises.
   errorFormatter: ({ shape, error }) => {
     const cause = error.cause;
     const kind = cause instanceof VaultError ? cause.kind : undefined;
