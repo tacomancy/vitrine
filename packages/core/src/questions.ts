@@ -106,6 +106,27 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+const VAULT_SCHEMA = 1;
+
+/**
+ * `.vitrine/vault.json`, if absent. Written after the Question, not before:
+ * the folder becomes a Vitrine vault at the moment something lands in it,
+ * and a capture that fails leaves no trace that it was tried.
+ */
+async function ensureVaultMeta(
+  vaultPath: string,
+  meta: { id: string; created: string }
+): Promise<void> {
+  const folder = join(vaultPath, ".vitrine");
+  await mkdir(folder, { recursive: true });
+  const content = JSON.stringify(
+    { id: meta.id, schema: VAULT_SCHEMA, created: meta.created },
+    null,
+    2
+  );
+  await writeFile(join(folder, "vault.json"), content + "\n", { flag: "wx" });
+}
+
 /** `<name>.md`, or `<name> (2).md`, `<name> (3).md`, … whichever is free. */
 async function freePath(folder: string, name: string): Promise<string> {
   let candidate = join(folder, `${name}.md`);
@@ -159,6 +180,12 @@ export function createQuestionService({
       );
       const written: Question = { ...question, path };
       await writeAtomically(path, questionFile(written));
+      if (!(await exists(join(current.path, ".vitrine", "vault.json")))) {
+        await ensureVaultMeta(current.path, {
+          id: nextId(),
+          created: question.captured,
+        });
+      }
       return written;
     },
   };

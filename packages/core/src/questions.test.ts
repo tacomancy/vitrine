@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { core, tmp } from "./test-core.js";
+import { core, fingerprint, tmp } from "./test-core.js";
 
 const fixtures = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -57,7 +57,10 @@ describe("questions.capture", () => {
   });
 
   it("writes questions/<text>.md in the ADR 0006 shape and returns the Question", async () => {
-    const c = await core({ now: () => at, newId: ids("k7m2p9q4wx") });
+    const c = await core({
+      now: () => at,
+      newId: ids("k7m2p9q4wx", "vault0id00"),
+    });
     const vault = await openVault(c);
 
     const reply = await c.mutate<Question>("questions.capture", {
@@ -81,5 +84,42 @@ describe("questions.capture", () => {
     expect(await readFile(path, "utf8")).toBe(
       await readFile(join(fixtures, "plain.md"), "utf8")
     );
+  });
+});
+
+describe("the first write into a vault", () => {
+  it("creates questions/ and .vitrine/vault.json — and an open before it creates nothing", async () => {
+    const c = await core({ now: () => at, newId: ids("q0000id000", "vault0id00") });
+    const vault = await openVault(c);
+    expect(await fingerprint(vault)).toEqual([]);
+
+    await c.mutate("questions.capture", { text: "First", provenance: unattached });
+
+    const meta = JSON.parse(
+      await readFile(join(vault, ".vitrine", "vault.json"), "utf8")
+    ) as unknown;
+    expect(meta).toEqual({
+      id: "vault0id00",
+      schema: 1,
+      created: "2026-09-19T07:04:00+05:30",
+    });
+    expect((await fingerprint(vault)).filter((e) => e.endsWith("/"))).toEqual([
+      ".vitrine/",
+      "questions/",
+    ]);
+  });
+
+  it("is the only write that creates anything: a second capture adds one file and nothing else", async () => {
+    const c = await core({ now: () => at });
+    const vault = await openVault(c);
+    await c.mutate("questions.capture", { text: "First", provenance: unattached });
+    const before = await fingerprint(vault);
+
+    await c.mutate("questions.capture", { text: "Second", provenance: unattached });
+
+    const after = await fingerprint(vault);
+    expect(after.filter((e) => !before.includes(e))).toEqual([
+      expect.stringMatching(/^questions\/Second\.md:/),
+    ]);
   });
 });
