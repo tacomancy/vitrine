@@ -1,28 +1,9 @@
 # Vitrine
 
-A native macOS app for personal knowledge management, research, note-taking,
-and continuous learning — in the tradition of Obsidian and LogSeq, growing
-toward agentic source collection, dashboards, and research-idea tracking.
+A local-first research workspace built around the Question rather than the note. Plain Markdown vault, PDFs annotated in place, scheduled Scouts that propose papers, and three dashboards that each lead to an action.
 
-**Status:** scaffolded — an app that launches to an empty window, a core
-package with one test, and CI. No features yet.
+- `docs/reference/design-brief.md` — what it is and why. Frozen.
+- `CLAUDE.md` — how work happens here. `CONTRIBUTING.md` — branch and merge mechanics.
+- `CONTEXT.md` — the vocabulary. `docs/architecture.md` and `docs/adr/` — the decisions.
 
-## Building
-
-Requires Xcode 26. Nothing to install.
-
-- `open Vitrine.xcodeproj` — ordinary macOS app project; the `Vitrine` scheme
-  builds the app and runs every test.
-- `Scripts/test.sh` — the one verification command: build, all tests,
-  coverage. What CI runs.
-- `Scripts/coverage-gate.sh build/Vitrine.xcresult` — the coverage floor.
-- `cd VitrineCore && swift test` — the fast inner loop for core logic.
-- `swift format lint --strict --recursive App VitrineCore` — formatting, as CI checks it.
-
-- `CLAUDE.md` — how to work on this repo (agents and humans alike)
-- `CODING_STANDARDS.md` — the bar for code; what `/code-review` checks against
-- `.claude/skills/` — Matt Pocock's engineering skills, vendored (`/ask-matt` to navigate)
-- `CONTEXT.md` — the vocabulary
-- `docs/adr/` — decisions and why
-- `design/` — the design-system brief (authoritative), UI mockups (reference), and the icon package
-- `BACKLOG.md` — what's parked, and what's still open
+The previous native macOS app lives in `main`'s history before the reimagining.

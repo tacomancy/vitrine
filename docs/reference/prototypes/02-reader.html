@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:820px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">READER — CALM STATE</p><p class="hs">Chrome at rest: a 54px rail, a hairline status strip, and the annotation margin. No toolbar over the page, no floating buttons. The narrow strip between page and margin is the connection gutter — one tick per anchored thing, positioned at the depth it refers to, so the page can tell you it is already wired into your vault without a single badge on the text.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:900px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#6b737b">Ólafsdóttir, Bush &amp; Barry (2018) — The role of hippocampal replay in memory and planning</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#6b737b">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#6b737b;position:relative">?<div style="position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:#d99b4a"></div></div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#6b737b">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#6b737b">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#6b737b">◻</div>
+      <div style="margin-top:auto;width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 13px 'IBM Plex Mono',monospace;color:#7d858d">⚙</div>
+    </div>
+
+    <div style="flex:1;min-width:0;background:#08090a;display:flex;justify-content:center;overflow:hidden;position:relative">
+      <div style="box-sizing:border-box;width:748px;background:#15181c;border-left:1px solid #1d2126;border-right:1px solid #1d2126;padding:54px 76px 40px;display:flex;flex-direction:column;gap:15px">
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d;letter-spacing:.08em">HIPPOCAMPAL REPLAY · CURRENT BIOLOGY 28 · R37–R50</div>
+        <div style="font:600 19px/1.35 'Source Serif 4',Georgia,serif;margin-top:6px">3.2 Replay outside of sleep</div>
+        <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">Sequential reactivation is not confined to sleep. During quiet wakefulness, place-cell sequences recur at compressed timescales, and in rodents these waking events are at least as frequent as those observed in slow-wave sleep. <span style="background:#4a3a1c;box-shadow:0 1px 0 #8a6f36">Whether the same phenomenon is measurable in humans with non-invasive recordings remains an open methodological question,</span> and the few attempts to date have relied on decoding approaches whose sensitivity is difficult to establish independently of the hypothesis being tested.</div>
+        <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">The functional significance of waking replay is likewise unsettled. Proposals range from immediate stabilisation of the just-encoded trace to prospective simulation of routes not yet taken, and these accounts are rarely distinguished experimentally. <span style="background:#22343f;box-shadow:0 1px 0 #3d5c6b">Where they have been contrasted, the designs have generally lacked the statistical power to separate them,</span> a limitation acknowledged more often in discussion sections than in abstracts.</div>
+        <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">A further complication concerns the direction of replay. Forward sequences predominate before movement and reverse sequences after reward, which has been read as evidence for planning and for credit assignment respectively. Both readings are compatible with a more conservative account in which the sequence direction reflects the order of recent experience rather than any prospective computation.</div>
+        <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">We consider the methodological requirements for adjudicating between these positions in Section 5, where we argue that the critical evidence will come from tasks in which the animal's future trajectory is experimentally constrained.</div>
+        <div style="margin-top:auto;padding-top:24px;display:flex;align-items:center;font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d"><span>11</span></div>
+      </div>
+      <div style="position:absolute;left:50%;margin-left:374px;top:0;bottom:0;width:16px;background:#0c0e10;border-right:1px solid #1d2126">
+        <div style="position:absolute;left:4px;top:196px;width:8px;height:2px;background:#d99b4a"></div>
+        <div style="position:absolute;left:4px;top:214px;width:8px;height:2px;background:#6b737b"></div>
+        <div style="position:absolute;left:4px;top:330px;width:8px;height:2px;background:#4fb3a4"></div>
+        <div style="position:absolute;left:4px;top:348px;width:8px;height:2px;background:#6b737b"></div>
+        <div style="position:absolute;left:4px;top:356px;width:8px;height:2px;background:#6b737b"></div>
+        <div style="position:absolute;left:4px;top:498px;width:8px;height:2px;background:#6b737b"></div>
+      </div>
+    </div>
+
+    <div style="width:312px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column">
+      <div style="padding:12px 16px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1d2126">
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">MARGIN · PAGE 11</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">6 anchored</span>
+      </div>
+      <div style="padding:13px 16px;border-bottom:1px solid #1d2126;background:#171b20;border-left:2px solid #d99b4a">
+        <div style="display:flex;align-items:center;gap:7px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#8a6f36"></span>h·7<span style="color:#d99b4a">→ question</span><span style="margin-left:auto">14:22</span></div>
+        <div style="margin-top:7px;font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">“…measurable in humans with non-invasive recordings…”</div>
+        <div style="margin-top:8px;border-left:2px solid #2b3036;padding-left:9px;font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#d3d7db">Would this hold for sparse inputs, or does decoding sensitivity collapse?</div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d"><span style="color:#6b737b">⧉ copy ref</span><span style="color:#7d858d">[[olafsdottir2018#h7]]</span></div>
+      </div>
+      <div style="padding:13px 16px;border-bottom:1px solid #1d2126">
+        <div style="display:flex;align-items:center;gap:7px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#3d5c6b"></span>h·8<span style="margin-left:auto">ingested · 12 Sep</span></div>
+        <div style="margin-top:7px;font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#bac0c6">“…lacked the statistical power to separate them…”</div>
+        <div style="margin-top:8px;font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">Cite this in aim 2 — it is the cleanest admission of the power problem I have found.</div>
+        <div style="margin-top:8px;font:400 10px 'IBM Plex Mono',monospace;color:#4fb3a4">linked from 2 notes</div>
+      </div>
+      <div style="padding:13px 16px;border-bottom:1px solid #1d2126">
+        <div style="display:flex;align-items:center;gap:7px;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a"><span style="width:8px;height:8px;border-radius:2px;background:#3f464d"></span>h·9<span style="margin-left:auto">last read · Mar</span></div>
+        <div style="margin-top:7px;font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">“…reverse sequences after reward…”</div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid #1d2126;padding:12px 16px;display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">THIS SOURCE, ELSEWHERE</div>
+        <div style="font:400 11.5px/1.6 'IBM Plex Mono',monospace;color:#6b737b">4 notes · 9 questions · 1 research question</div>
+        <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a">⌘⇧C — open connections</div>
+      </div>
+    </div>
+  </div>
+  <div style="height:30px;flex:none;border-top:1px solid #23272d;background:#121518;display:flex;align-items:center;padding:0 14px;gap:18px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">
+    <span>page 11 / 14</span><span>read 47 min today</span><span>37 highlights · 12 notes</span>
+    <div style="flex:1;height:2px;background:#1d2126;margin:0 8px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:78%;background:#2b3036"></div></div>
+    <span>⌘' capture</span>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">SELECTION — THREE ACTIONS, NO DIALOG</p><p class="hs">The popover appears at the selection and nowhere else. Question is the default action and takes the Return key; the other two need a letter. Provenance is already written along the bottom of the popover before you type — source, page, highlight id, position — so capture is one keystroke to open, one to commit.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:660px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;color:#e7e9eb">
+  <div style="flex:1;min-width:0;background:#08090a;display:flex;justify-content:center;position:relative;overflow:hidden">
+    <div style="box-sizing:border-box;width:748px;background:#15181c;border-left:1px solid #1d2126;border-right:1px solid #1d2126;padding:48px 76px;display:flex;flex-direction:column;gap:15px">
+      <div style="font:600 19px/1.35 'Source Serif 4',Georgia,serif">3.2 Replay outside of sleep</div>
+      <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">Sequential reactivation is not confined to sleep. During quiet wakefulness, place-cell sequences recur at compressed timescales, and in rodents these waking events are at least as frequent as those observed in slow-wave sleep. <span style="background:#2f3a44;box-shadow:0 0 0 1px #46586a">Whether the same phenomenon is measurable in humans with non-invasive recordings remains an open methodological question,</span> and the few attempts to date have relied on decoding approaches whose sensitivity is difficult to establish.</div>
+      <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#6b737b">The functional significance of waking replay is likewise unsettled. Proposals range from immediate stabilisation of the just-encoded trace to prospective simulation of routes not yet taken, and these accounts are rarely distinguished experimentally.</div>
+      <div style="font:400 15px/1.85 'Source Serif 4',Georgia,serif;color:#6b737b">A further complication concerns the direction of replay. Forward sequences predominate before movement and reverse sequences after reward.</div>
+    </div>
+    <div style="position:absolute;left:50%;margin-left:-176px;top:236px;width:420px;background:#181c21;border:1px solid #3a424b;border-radius:4px;box-shadow:0 18px 44px -12px rgba(0,0,0,.8);overflow:hidden">
+      <div style="display:flex;flex-direction:column;padding:6px">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:3px;background:#212730;cursor:default">
+          <span style="width:14px;font:400 12px 'IBM Plex Mono',monospace;color:#d99b4a">?</span>
+          <span style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e7e9eb">Make a question</span>
+          <span style="font:400 11px 'IBM Plex Sans',sans-serif;color:#6b737b">provenance attached</span>
+          <span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">⏎</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:3px;cursor:default">
+          <span style="width:14px;font:400 12px 'IBM Plex Mono',monospace;color:#6b737b">✎</span>
+          <span style="font:450 12.5px 'IBM Plex Sans',sans-serif;color:#bac0c6">Make a note</span>
+          <span style="font:400 11px 'IBM Plex Sans',sans-serif;color:#8c939a">seeded from selection</span>
+          <span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">N</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:3px;cursor:default">
+          <span style="width:14px;font:400 12px 'IBM Plex Mono',monospace;color:#6b737b">⇥</span>
+          <span style="font:450 12.5px 'IBM Plex Sans',sans-serif;color:#bac0c6">Link to existing</span>
+          <span style="font:400 11px 'IBM Plex Sans',sans-serif;color:#8c939a">note, question or source</span>
+          <span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">L</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid #23272d;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <div style="display:flex;gap:5px">
+          <div style="width:15px;height:15px;border-radius:2px;background:#8a6f36;box-shadow:0 0 0 1px #a98b4a"></div>
+          <div style="width:15px;height:15px;border-radius:2px;background:#3d5c6b"></div>
+          <div style="width:15px;height:15px;border-radius:2px;background:#4a5a45"></div>
+          <div style="width:15px;height:15px;border-radius:2px;background:#5a4a52"></div>
+        </div>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">highlight only</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#6b737b">⧉ ref</span>
+      </div>
+      <div style="border-top:1px solid #23272d;background:#121518;padding:7px 12px;font:400 10px/1.5 'IBM Plex Mono',monospace;color:#7d858d">olafsdottir2018 · p.11 · ¶1 · chars 214–318 → will become h·7</div>
+    </div>
+  </div>
+  <div style="width:392px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column">
+    <div style="padding:14px 18px;border-bottom:1px solid #1d2126;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">AFTER ⏎ — WHAT GETS WRITTEN</div>
+    <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+      <div style="background:#0f1113;border:1px solid #23272d;border-radius:3px;padding:12px 14px;font:400 11.5px/1.85 'IBM Plex Mono',monospace;color:#8c939a">
+        <div style="color:#7d858d">questions/2026-09-19-1422.md</div>
+        <div style="margin-top:8px;color:#d99b4a">? Would this hold for sparse inputs,</div>
+        <div style="color:#d99b4a">&nbsp;&nbsp;or does decoding sensitivity collapse?</div>
+        <div style="margin-top:8px;color:#8c939a">source: olafsdottir2018</div>
+        <div style="color:#8c939a">anchor: h·7 (p.11, ¶1, 214–318)</div>
+        <div style="color:#8c939a">quote: “…measurable in humans with</div>
+        <div style="color:#8c939a">&nbsp;&nbsp;non-invasive recordings…”</div>
+        <div style="color:#8c939a">captured: 2026-09-19T14:22</div>
+        <div style="color:#8c939a">status: open</div>
+      </div>
+      <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">Everything below the question text was resolved from where the cursor already was. The only thing typed is the sentence itself — and you are returned to the page, at the same scroll position, the moment you commit.</div>
+      <div style="height:1px;background:#1d2126"></div>
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">ADDRESSABILITY</div>
+      <div style="font:400 12.5px/1.75 'IBM Plex Sans',sans-serif;color:#bac0c6">A highlight is an object with an id, not a mark on a file. <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8c939a">[[olafsdottir2018#h7]]</span> resolves anywhere in the vault and opens the page scrolled to the passage. ⧉ in the margin copies that reference; typing <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8c939a">#h</span> in any note autocompletes from the highlights of sources already cited there.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">CONNECTIONS — WHAT THIS PAPER ALREADY TOUCHES</p><p class="hs">⌘⇧C replaces the margin with the tie-back panel. Nothing about it interrupts the page: the text does not reflow, no inline badges appear, and the connection gutter's ticks are the only trace while it is closed.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:620px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;color:#e7e9eb">
+  <div style="flex:1;min-width:0;background:#08090a;display:flex;justify-content:center;overflow:hidden">
+    <div style="box-sizing:border-box;width:700px;background:#15181c;border-left:1px solid #1d2126;border-right:1px solid #1d2126;padding:44px 72px;display:flex;flex-direction:column;gap:14px;opacity:.55">
+      <div style="font:600 18px/1.35 'Source Serif 4',Georgia,serif">3.2 Replay outside of sleep</div>
+      <div style="font:400 14.5px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">Sequential reactivation is not confined to sleep. During quiet wakefulness, place-cell sequences recur at compressed timescales, and in rodents these waking events are at least as frequent as those observed in slow-wave sleep. <span style="background:#4a3a1c">Whether the same phenomenon is measurable in humans with non-invasive recordings remains an open methodological question,</span> and the few attempts to date have relied on decoding approaches whose sensitivity is difficult to establish.</div>
+      <div style="font:400 14.5px/1.85 'Source Serif 4',Georgia,serif;color:#d3d7db">The functional significance of waking replay is likewise unsettled. Proposals range from immediate stabilisation of the just-encoded trace to prospective simulation of routes not yet taken.</div>
+    </div>
+  </div>
+  <div style="width:420px;flex:none;background:#131619;border-left:1px solid #2b3036;display:flex;flex-direction:column">
+    <div style="padding:13px 18px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:10px">
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CONNECTIONS</span>
+      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">Ólafsdóttir 2018</span>
+      <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">esc</span>
+    </div>
+    <div style="padding:12px 18px 8px;display:flex;gap:6px">
+      <span style="padding:3px 8px;border-radius:3px;background:#212730;font:400 10.5px 'IBM Plex Mono',monospace;color:#e7e9eb">all 14</span>
+      <span style="padding:3px 8px;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#6b737b">questions 9</span>
+      <span style="padding:3px 8px;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#6b737b">notes 4</span>
+      <span style="padding:3px 8px;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#6b737b">rq 1</span>
+    </div>
+    <div style="flex:1;overflow-y:auto">
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:3px">■</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">Is awake replay measurable non-invasively in humans?</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">research question · anchored to h·7 · 2 for / 0 against</div></div>
+      </div>
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:3px">◆</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">Why does the replay literature so rarely address awake replay in humans?</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">question · p.11 · 3 weeks ago</div></div>
+      </div>
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a;padding-top:3px">◆</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">How would I detect replay without assuming the sequence in advance?</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">question · p.14 · 7 months ago</div></div>
+      </div>
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#6b737b;padding-top:3px">✎</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">Dissociation designs — power</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">note · cites h·8 · edited 3d ago</div></div>
+      </div>
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#6b737b;padding-top:3px">✎</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#d3d7db">Grant aim 2 — draft</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">note · cites h·8, h·12 · edited Aug</div></div>
+      </div>
+      <div style="padding:11px 18px;border-top:1px solid #1d2126;display:flex;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d;padding-top:3px">◈</span>
+        <div style="min-width:0"><div style="font:400 13px/1.5 'Source Serif 4',Georgia,serif;color:#8c939a">Wamsley 2019 — Memory consolidation during waking rest</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">source · co-cited in 3 notes</div></div>
+      </div>
+    </div>
+    <div style="border-top:1px solid #1d2126;padding:12px 18px;display:flex;flex-direction:column;gap:6px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">WHILE CLOSED</div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">The gutter shows one tick per anchored object at the depth it points to — amber for an open question, teal for a note, grey for a highlight with no links. That is the entire ambient display.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">iPAD — FULL SCREEN, PENCIL AND TOUCH</p><p class="hs">1366×1024. The same app, not a reduced one: the margin becomes a swipe-in sheet, every control is at least 44pt, and the pencil palette sits under the hand rather than in a toolbar. Selection is a long-press or a pencil double-tap; the three actions become 56pt rows so they can be hit without looking. Capture from the pencil writes exactly the same file as ⌘'.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1404px;background:#1a1d21;border-radius:22px;padding:19px;box-shadow:0 30px 70px -30px rgba(0,0,0,.8)">
+<div style="box-sizing:border-box;width:1366px;height:1024px;background:#0f1113;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;color:#e7e9eb;position:relative">
+  <div style="height:26px;flex:none;display:flex;align-items:center;padding:0 18px;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a"><span>14:22</span><span style="margin-left:auto">Ólafsdóttir 2018 · p.11/14</span><span style="margin-left:auto">100%</span></div>
+  <div style="flex:1;display:flex;min-height:0;background:#08090a;justify-content:center;position:relative">
+    <div style="box-sizing:border-box;width:840px;background:#15181c;padding:52px 88px;display:flex;flex-direction:column;gap:17px">
+      <div style="font:600 22px/1.35 'Source Serif 4',Georgia,serif">3.2 Replay outside of sleep</div>
+      <div style="font:400 17px/1.9 'Source Serif 4',Georgia,serif;color:#d3d7db">Sequential reactivation is not confined to sleep. During quiet wakefulness, place-cell sequences recur at compressed timescales, and in rodents these waking events are at least as frequent as those observed in slow-wave sleep. <span style="background:#2f3a44;box-shadow:0 0 0 1px #46586a">Whether the same phenomenon is measurable in humans with non-invasive recordings remains an open methodological question,</span> and the few attempts to date have relied on decoding approaches whose sensitivity is difficult to establish independently of the hypothesis being tested.</div>
+      <div style="font:400 17px/1.9 'Source Serif 4',Georgia,serif;color:#d3d7db">The functional significance of waking replay is likewise unsettled. Proposals range from immediate stabilisation of the just-encoded trace to prospective simulation of routes not yet taken, and these accounts are rarely distinguished experimentally. <span style="background:#4a3a1c">Where they have been contrasted, the designs have generally lacked the statistical power to separate them.</span></div>
+      <div style="font:400 17px/1.9 'Source Serif 4',Georgia,serif;color:#d3d7db">A further complication concerns the direction of replay. Forward sequences predominate before movement and reverse sequences after reward, which has been read as evidence for planning and for credit assignment respectively.</div>
+    </div>
+    <div style="position:absolute;left:50%;margin-left:420px;top:0;bottom:0;width:18px;background:#0c0e10">
+      <div style="position:absolute;left:5px;top:210px;width:9px;height:3px;border-radius:2px;background:#d99b4a"></div>
+      <div style="position:absolute;left:5px;top:372px;width:9px;height:3px;border-radius:2px;background:#4fb3a4"></div>
+      <div style="position:absolute;left:5px;top:520px;width:9px;height:3px;border-radius:2px;background:#6b737b"></div>
+    </div>
+    <div style="position:absolute;left:50%;margin-left:-250px;top:300px;width:500px;background:#181c21;border:1px solid #3a424b;border-radius:8px;box-shadow:0 22px 56px -14px rgba(0,0,0,.85);overflow:hidden">
+      <div style="display:flex;flex-direction:column;padding:8px">
+        <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 14px;border-radius:5px;background:#212730">
+          <span style="width:20px;font:400 16px 'IBM Plex Mono',monospace;color:#d99b4a">?</span>
+          <span style="font:500 16px 'IBM Plex Sans',sans-serif;color:#e7e9eb">Make a question</span>
+          <span style="margin-left:auto;font:400 12px 'IBM Plex Mono',monospace;color:#6b737b">provenance attached</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 14px;border-radius:5px">
+          <span style="width:20px;font:400 16px 'IBM Plex Mono',monospace;color:#6b737b">✎</span>
+          <span style="font:450 16px 'IBM Plex Sans',sans-serif;color:#bac0c6">Make a note</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 14px;border-radius:5px">
+          <span style="width:20px;font:400 16px 'IBM Plex Mono',monospace;color:#6b737b">⇥</span>
+          <span style="font:450 16px 'IBM Plex Sans',sans-serif;color:#bac0c6">Link to existing</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid #23272d;background:#121518;padding:10px 16px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d858d">olafsdottir2018 · p.11 · ¶1 → h·7</div>
+    </div>
+    <div style="position:absolute;right:26px;bottom:120px;width:60px;background:#181c21;border:1px solid #2b3036;border-radius:30px;padding:8px;display:flex;flex-direction:column;gap:6px;box-shadow:0 14px 34px -10px rgba(0,0,0,.75)">
+      <div style="width:44px;height:44px;border-radius:22px;background:#8a6f36;box-shadow:0 0 0 2px #c9a762"></div>
+      <div style="width:44px;height:44px;border-radius:22px;background:#3d5c6b"></div>
+      <div style="width:44px;height:44px;border-radius:22px;background:#4a5a45"></div>
+      <div style="width:44px;height:44px;border-radius:22px;background:#5a4a52"></div>
+      <div style="width:44px;height:44px;border-radius:22px;border:1px solid #2b3036;display:flex;align-items:center;justify-content:center;font:400 16px 'IBM Plex Mono',monospace;color:#8c939a">✎</div>
+      <div style="width:44px;height:44px;border-radius:22px;border:1px solid #2b3036;display:flex;align-items:center;justify-content:center;font:400 16px 'IBM Plex Mono',monospace;color:#8c939a">⌫</div>
+    </div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,17,19,0),#131619);display:flex;align-items:center;justify-content:center"><div style="width:4px;height:120px;border-radius:2px;background:#2b3036"></div></div>
+  </div>
+  <div style="height:72px;flex:none;background:#131619;border-top:1px solid #23272d;display:flex;align-items:center;padding:0 20px;gap:12px">
+    <div style="width:52px;height:52px;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 19px 'IBM Plex Mono',monospace;color:#8c939a">‹</div>
+    <div style="width:52px;height:52px;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 19px 'IBM Plex Mono',monospace;color:#8c939a">›</div>
+    <div style="width:52px;height:52px;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 17px 'IBM Plex Mono',monospace;color:#8c939a">⌕</div>
+    <div style="flex:1;height:4px;background:#1d2126;border-radius:2px;margin:0 14px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:78%;background:#3a424b;border-radius:2px"></div><div style="position:absolute;left:78%;top:-5px;width:14px;height:14px;border-radius:7px;background:#8c939a"></div></div>
+    <div style="height:52px;padding:0 20px;border-radius:5px;border:1px solid #2b3036;display:flex;align-items:center;gap:10px;font:500 14px 'IBM Plex Mono',monospace;color:#d99b4a">? capture</div>
+    <div style="height:52px;padding:0 18px;border-radius:5px;display:flex;align-items:center;gap:10px;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◫ margin</div>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">INGEST REVIEW — A PDF COMES BACK FROM THE TABLET</p><p class="hs">Phase 1: the file is annotated in Preview on iPadOS and syncs back through the vault folder. The app re-derives every annotation's identity from its quoted text and geometry, which can fail — so the review is organised by <em>confidence</em>, not by page. Nothing is written until the bottom row is empty.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="padding:16px 22px;border-bottom:1px solid #23272d;display:flex;align-items:baseline;gap:14px">
+    <div style="font:600 13px 'IBM Plex Sans',sans-serif">Klinzing, Niethard &amp; Born (2019) returned from iPad</div>
+    <div style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">19 Sep 14:48 · 22 annotations read · 14 new · 6 unchanged · {{ pendingLabel }}</div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <div style="padding:6px 12px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a;cursor:default">discard all</div>
+      <div style="padding:6px 12px;border:1px solid {{ commitBorder }};border-radius:3px;background:{{ commitBg }};font:500 11.5px 'IBM Plex Mono',monospace;color:{{ commitFg }};cursor:default">{{ commitLabel }}</div>
+    </div>
+  </div>
+
+  <div style="display:flex;min-height:0">
+    <div style="flex:1;min-width:0;border-right:1px solid #23272d">
+      <div style="padding:10px 20px;background:#121518;border-bottom:1px solid #23272d;display:flex;align-items:center;gap:10px">
+        <span style="width:8px;height:8px;border-radius:2px;background:#8a6f36"></span>
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">MATCHED CLEANLY · 9 NEW HIGHLIGHTS</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">no decision needed</span>
+      </div>
+      <sc-for list="{{ clean }}" as="c" hint-placeholder-count="4">
+        <div style="padding:11px 20px;border-bottom:1px solid #191d22;display:grid;grid-template-columns:52px 1fr 120px;gap:14px;align-items:start">
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ c.id }}</div>
+          <div><div style="font:400 13px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ c.quote }}</div><div style="margin-top:4px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ c.meta }}</div></div>
+          <div style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ c.conf }}</div>
+        </div>
+      </sc-for>
+      <div style="padding:10px 20px;background:#121518;border-top:1px solid #23272d;border-bottom:1px solid #23272d;display:flex;align-items:center;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a">?</span>
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">BECAME QUESTIONS · 3</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">note text began with Q:</span>
+      </div>
+      <sc-for list="{{ becameQ }}" as="q" hint-placeholder-count="3">
+        <div style="padding:12px 20px;border-bottom:1px solid #191d22;display:grid;grid-template-columns:52px 1fr 120px;gap:14px;align-items:start">
+          <div style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a">{{ q.id }}</div>
+          <div>
+            <div style="font:400 13.5px/1.5 'Source Serif 4',Georgia,serif;color:#e7e9eb">{{ q.text }}</div>
+            <div style="margin-top:5px;border-left:2px solid #2b3036;padding-left:9px;font:400 12px/1.5 'Source Serif 4',Georgia,serif;color:#6b737b">{{ q.quote }}</div>
+            <div style="margin-top:5px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ q.meta }}</div>
+          </div>
+          <div style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">→ inbox</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="width:520px;flex:none;background:#131619;display:flex;flex-direction:column">
+      <div style="padding:10px 20px;background:#171b20;border-bottom:1px solid #23272d;display:flex;align-items:center;gap:10px">
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a">!</span>
+        <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#e7e9eb">COULD NOT RE-MATCH · {{ unmatchedCount }}</span>
+        <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#6b737b">decide before committing</span>
+      </div>
+      <sc-for list="{{ unmatched }}" as="u" hint-placeholder-count="2">
+        <div style="padding:14px 20px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:11px;background:{{ u.bg }}">
+          <div style="display:flex;align-items:center;gap:9px">
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ u.id }}</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ u.reason }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:{{ u.tone }}">{{ u.state }}</span>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="flex:1;min-width:0">
+              <div style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d;margin-bottom:5px">WAS · {{ u.wasId }}</div>
+              <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#6b737b">{{ u.was }}</div>
+              <div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ u.wasLinks }}</div>
+            </div>
+            <div style="width:1px;background:#23272d"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d;margin-bottom:5px">CAME BACK AS</div>
+              <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ u.now }}</div>
+              <div style="margin-top:5px;font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ u.nowMeta }}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <sc-for list="{{ u.actions }}" as="a" hint-placeholder-count="3">
+              <div onClick="{{ a.pick }}" style="padding:6px 11px;border:1px solid {{ a.border }};border-radius:3px;background:{{ a.bg }};font:400 11px 'IBM Plex Mono',monospace;color:{{ a.fg }};cursor:default">{{ a.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <div style="padding:14px 20px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">WHY THIS SCREEN EXISTS</div>
+        <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Identity is reconstructed from quoted text plus geometry. Reflow, a re-exported file, or an extended selection can break the match. If the app guessed silently, <span style="color:#bac0c6">[[klinzing2019#h12]]</span> in four notes would quietly start pointing at nothing. So a failed match is never resolved by the app — it waits here, and the commit stays disabled until it does not.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">THE DESK — TABLET READS, MAC ANSWERS</p><p class="hs">How the two halves are actually used at the same time, and where a question goes between them.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;padding:26px 28px 24px;display:flex;flex-direction:column;gap:20px;color:#e7e9eb">
+  <div style="display:flex;gap:26px;align-items:flex-start">
+
+    <div style="width:470px;flex:none;display:flex;flex-direction:column;gap:9px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">iPAD · READING, 3 HOURS</div>
+      <div style="box-sizing:border-box;width:470px;height:352px;background:#1a1d21;border-radius:12px;padding:9px">
+        <div style="width:100%;height:100%;background:#08090a;border-radius:5px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="height:14px;flex:none;display:flex;align-items:center;padding:0 10px;font:500 7px 'IBM Plex Mono',monospace;color:#7d858d"><span>14:22</span><span style="margin-left:auto">p.11/14</span></div>
+          <div style="flex:1;display:flex;justify-content:center;min-height:0">
+            <div style="box-sizing:border-box;width:290px;background:#15181c;padding:16px 26px;display:flex;flex-direction:column;gap:6px">
+              <div style="height:7px;width:62%;background:#3a424b;border-radius:1px"></div>
+              <div style="margin-top:4px;display:flex;flex-direction:column;gap:5px">
+                <div style="height:4px;background:#272d34;border-radius:1px"></div><div style="height:4px;background:#272d34;border-radius:1px"></div>
+                <div style="height:4px;width:74%;background:#4a3a1c;border-radius:1px"></div>
+                <div style="height:4px;background:#272d34;border-radius:1px"></div><div style="height:4px;width:88%;background:#272d34;border-radius:1px"></div>
+                <div style="height:4px;background:#272d34;border-radius:1px"></div><div style="height:4px;width:66%;background:#272d34;border-radius:1px"></div>
+                <div style="height:4px;background:#272d34;border-radius:1px"></div><div style="height:4px;width:80%;background:#272d34;border-radius:1px"></div>
+              </div>
+            </div>
+            <div style="width:7px;background:#0c0e10;position:relative"><div style="position:absolute;left:2px;top:44px;width:3px;height:2px;background:#d99b4a"></div></div>
+          </div>
+          <div style="height:26px;flex:none;background:#131619;border-top:1px solid #23272d;display:flex;align-items:center;padding:0 10px;gap:6px">
+            <div style="width:18px;height:18px;border-radius:2px;background:#1d2126"></div><div style="width:18px;height:18px;border-radius:2px;background:#1d2126"></div>
+            <div style="flex:1"></div>
+            <div style="height:18px;padding:0 9px;border-radius:2px;border:1px solid #2b3036;display:flex;align-items:center;font:500 7px 'IBM Plex Mono',monospace;color:#d99b4a">? capture</div>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Pencil in hand, app full-screen, no keyboard. Phase 1: Preview on iPadOS writing into the synced folder. Phase 2: this same view in the browser.</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding-top:26px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a">1</span><span style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">Pencil double-tap on a passage → three actions → <span style="color:#e7e9eb">Make a question</span>. Written into the vault folder as Markdown with the anchor.</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a">2</span><span style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">Folder syncs. In phase 1 the PDF also carries Preview's own annotations back.</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a">3</span><span style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">Mac ingests: clean matches land silently, <span style="color:#e7e9eb">Q:</span> notes become Questions, failures wait in the review.</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#d99b4a">4</span><span style="font:400 12px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">The question appears in the Inbox with the page you were on — and the Research Question you are writing on the Mac picks it up as a feeder capture.</span></div>
+      </div>
+    </div>
+
+    <div style="width:400px;flex:none;display:flex;flex-direction:column;gap:9px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">MAC · WRITING THE ANSWER</div>
+      <div style="box-sizing:border-box;width:400px;height:352px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:18px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 7px;gap:4px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#394048"></div><div style="width:5px;height:5px;border-radius:50%;background:#394048"></div><div style="width:5px;height:5px;border-radius:50%;background:#394048"></div>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <div style="width:88px;flex:none;background:#131619;border-right:1px solid #23272d;padding:8px 7px;display:flex;flex-direction:column;gap:5px">
+            <div style="height:5px;width:70%;background:#272d34;border-radius:1px"></div>
+            <div style="height:5px;background:#212730;border-radius:1px"></div>
+            <div style="height:5px;width:84%;background:#1d2126;border-radius:1px"></div>
+            <div style="height:5px;width:60%;background:#1d2126;border-radius:1px"></div>
+            <div style="margin-top:8px;height:5px;width:52%;background:#3a2c18;border-radius:1px"></div>
+            <div style="height:5px;width:76%;background:#1d2126;border-radius:1px"></div>
+          </div>
+          <div style="flex:1;min-width:0;padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+            <div style="font:400 10.5px/1.45 'Source Serif 4',Georgia,serif;color:#d3d7db">Is awake replay measurable non-invasively in humans?</div>
+            <div style="border-left:2px solid #d99b4a;padding-left:7px;display:flex;flex-direction:column;gap:3px">
+              <div style="height:3px;background:#272d34;border-radius:1px"></div><div style="height:3px;width:88%;background:#272d34;border-radius:1px"></div><div style="height:3px;width:64%;background:#272d34;border-radius:1px"></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:400 6.5px 'IBM Plex Mono',monospace;color:#4fb3a4">FOR 2</div><div style="height:12px;background:#171b20;border:1px solid #23272d;border-radius:2px"></div><div style="height:12px;background:#171b20;border:1px solid #23272d;border-radius:2px"></div></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:400 6.5px 'IBM Plex Mono',monospace;color:#d4685c">AGAINST 0</div><div style="height:12px;border:1px dashed #23272d;border-radius:2px"></div></div>
+            </div>
+            <div style="margin-top:auto;border-top:1px solid #1d2126;padding-top:7px;display:flex;flex-direction:column;gap:4px">
+              <div style="font:400 6.5px 'IBM Plex Mono',monospace;color:#7d858d">FEEDER CAPTURES · 5</div>
+              <div style="font:400 8.5px/1.4 'Source Serif 4',Georgia,serif;color:#8c939a;border-left:2px solid #3a2c18;padding-left:5px">Would this hold for sparse inputs…</div>
+              <div style="font:400 6.5px 'IBM Plex Mono',monospace;color:#7d858d">arrived from iPad · 6 min ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 11.5px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">The Research Question does not need you to file anything: a capture anchored to a source it already cites shows up as a feeder the moment it lands.</div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#1d2126"></div>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d858d">
+    <span style="flex:none;padding:5px 10px;border:1px solid #23272d;border-radius:3px;color:#8c939a">iPad · Reader</span>
+    <span style="flex:none;color:#d99b4a">──── vault folder ────▸</span>
+    <span style="flex:none;padding:5px 10px;border:1px solid #23272d;border-radius:3px;color:#8c939a">Mac · ingest review</span>
+    <span style="flex:none;color:#d99b4a">──── clean matches + Q: notes ────▸</span>
+    <span style="flex:none;padding:5px 10px;border:1px solid #23272d;border-radius:3px;color:#8c939a">Question Inbox</span>
+    <span style="flex:none;color:#d99b4a">──── promote ────▸</span>
+    <span style="flex:none;padding:5px 10px;border:1px solid #2b3036;border-radius:3px;color:#e7e9eb">Research Question</span>
+    <span style="flex:none;margin-left:auto;color:#7d858d">the only thing that crosses the gap is a Markdown file</span>
+  </div>
+</div>
+</div>
+<div style="height:36px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1000}}">
+const CLEAN = [
+  ['h·31','“…slow-wave activity has consistently been associated with overnight retention benefits…”','p.4 · ¶2 · yellow · exact text match','1.00'],
+  ['h·32','“…the definitions used are rarely stated explicitly…”','p.4 · ¶2 · yellow · exact text match','1.00'],
+  ['h·33','“…participants who encode more material during learning…”','p.5 · ¶1 · blue · text + geometry','0.98'],
+  ['h·34','“…available dissociation designs are reviewed…”','p.5 · ¶4 · yellow · text + geometry','0.97'],
+  ['h·35','“…statistical power is assessed in the supplement…”','p.6 · ¶1 · yellow · exact text match','1.00']
+];
+const BQ = [
+  ['h·36','Is the density definition itself the moderator here?','“…varies by almost an order of magnitude between laboratories…”','p.4 · pencil note “Q: is the density definition itself the moderator here?”'],
+  ['h·37','Who actually set the 11–16 Hz band, and on what evidence?','“…spindles were detected in the 11–16 Hz band…”','p.7 · pencil note “Q: who actually set 11–16Hz, on what evidence?”'],
+  ['h·38','Could I test this on the existing dataset before writing aim 2?','“…a within-subject cueing design would dissociate the two…”','p.9 · pencil note “Q: could I test this on the existing dataset first?”']
+];
+const UNM = [
+  {
+    id:'?·1', wasId:'h·12', reason:'quote changed, geometry moved 1 page',
+    was:'“…varies by almost an order of magnitude between laboratories, and the reasons for this dispersion have not been systematically examined.”',
+    wasLinks:'referenced by 4 notes · 1 research question',
+    now:'“…varies by almost an order of magnitude between laboratories…”',
+    nowMeta:'p.4 → p.5 · selection shortened by 78 chars · confidence 0.61',
+    actions:[['same as h·12','match'],['new highlight','new'],['discard','drop']]
+  },
+  {
+    id:'?·2', wasId:'h·19', reason:'source file re-exported, page text reflowed',
+    was:'“…we return to this problem in Section 4, where the available dissociation designs are reviewed…”',
+    wasLinks:'referenced by 1 note',
+    now:'“…in Section 4, where the available dissociation designs are reviewed and their statistical power is assessed…”',
+    nowMeta:'p.5 · overlap 0.72 · geometry does not correspond',
+    actions:[['same as h·19','match'],['new highlight','new'],['discard','drop']]
+  }
+];
+
+class Component extends DCLogic {
+  state = { decisions: {} };
+
+  renderVals(){
+    const d = this.state.decisions;
+    const pending = UNM.filter(u => !d[u.id]).length;
+    const tone = { match:'#4fb3a4', new:'#8c939a', drop:'#6b737b' };
+    const stateLabel = { match:'→ keeps its links', new:'→ new identity', drop:'→ not imported' };
+
+    return {
+      clean: CLEAN.map(([id,quote,meta,conf]) => ({ id, quote, meta, conf })),
+      becameQ: BQ.map(([id,text,quote,meta]) => ({ id, text, quote, meta })),
+      unmatchedCount: UNM.length,
+      unmatched: UNM.map(u => ({
+        ...u,
+        bg: d[u.id] ? 'transparent' : '#171b20',
+        state: d[u.id] ? stateLabel[d[u.id]] : 'undecided',
+        tone: d[u.id] ? tone[d[u.id]] : '#d99b4a',
+        actions: u.actions.map(([label, key]) => {
+          const on = d[u.id] === key;
+          return {
+            label,
+            bg: on ? '#212730' : 'transparent',
+            border: on ? '#3a424b' : '#23272d',
+            fg: on ? '#e7e9eb' : '#8c939a',
+            pick: () => this.setState(s => ({ decisions: { ...s.decisions, [u.id]: key } }))
+          };
+        })
+      })),
+      pendingLabel: pending ? pending + ' need a decision' : 'all decided',
+      commitLabel: pending ? 'commit — ' + pending + ' undecided' : 'commit 14 annotations',
+      commitBg: pending ? 'transparent' : '#d99b4a',
+      commitFg: pending ? '#7d858d' : '#0f1113',
+      commitBorder: pending ? '#1d2126' : '#d99b4a'
+    };
+  }
+}
+</script>
+</body>
+</html>

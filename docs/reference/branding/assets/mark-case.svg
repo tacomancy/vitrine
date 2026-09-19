@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vitrine mark — The Case">
+  <title>Vitrine mark — The Case</title>
+  <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+    <stop offset="100%" stop-color="#836202"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#053274"/><stop offset="100%" stop-color="#020713"/></linearGradient></defs>
+  <path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#b)"/>
+  <path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#g)"/>
+  <path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#b)" stroke-width="4.2"/>
+  <rect x="4" y="54" width="56" height="6" fill="url(#b)"/>
+</svg>

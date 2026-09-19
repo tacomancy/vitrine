@@ -2,9 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Vitrine",
-      "runtimeExecutable": "Scripts/run.sh",
-      "runtimeArgs": []
+      "name": "prototypes",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "docs/reference/prototypes"],
+      "port": 8765
     }
   ]
 }

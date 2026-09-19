@@ -2,22 +2,17 @@
 
 **Status:** Proposed | Accepted | Superseded by NNNN
 
-## Context
+One to three sentences: the situation that forces a decision, what was decided, and why. Name the brief section, `CONTEXT.md` term, or issue that raised it. An ADR can stop here.
 
-What situation forces a decision, and what constraints apply. Two to five
-sentences. Link to the ADR, `CONTEXT.md` term, or `BACKLOG.md` item that raised it.
+## Considered options
 
-## Decision
-
-What was decided, stated so a reader could act on it without the discussion.
+Only when the rejected alternatives are worth remembering, so nobody proposes them again in six months.
 
 ## Consequences
 
 - **+** what this makes easier or possible
 - **−** what this makes harder, rules out, or defers
-- Anything a later ADR is now expected to revisit
 
-## Update (optional)
+## Update (dated)
 
-Added later, dated, when a subsequent ADR narrows or extends this one without
-fully superseding it. Never rewrite the sections above.
+Added later when a subsequent decision narrows or extends this one without superseding it. Never rewrite the sections above.

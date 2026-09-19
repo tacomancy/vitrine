@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">LOOSE ENDS — A PUNCH LIST</p><p class="hs">Counts per group, never a total. Empty groups collapse to a single line rather than congratulating you. Every row resolves in one click, and one of those clicks is always <em>deliberate</em> — the escape hatch that keeps the list honest, because a list that cannot be told “this is fine” fills with noise and stops being opened. Switch states below; both are real workloads, neither is a scolding.</p></div>
+<div class="wrap">
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+    <div onClick="{{ t.pick }}" style="padding:6px 13px;border:1px solid {{ t.border }};border-radius:3px;background:{{ t.bg }};font:400 11.5px 'IBM Plex Mono',monospace;color:{{ t.fg }};cursor:default">{{ t.label }}</div>
+  </sc-for>
+  <div style="margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:8px">{{ resolvedNote }}</div>
+</div>
+
+<div style="box-sizing:border-box;width:1440px;height:940px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">loose ends — consolidation-vault</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">◈</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#8c939a">⌖</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">⊟</div>
+    </div>
+
+    <div style="flex:1;min-width:0;overflow-y:auto;display:flex;justify-content:center;padding:34px 40px 60px">
+      <div style="width:1000px;display:flex;flex-direction:column;gap:30px">
+
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <div style="font:600 15px 'IBM Plex Mono',monospace;color:#e7e9eb">Loose ends</div>
+          <div style="font:400 12.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ lead }}</div>
+        </div>
+
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px;padding-bottom:9px;border-bottom:1px solid {{ g.rule }}">
+              <span style="font:400 11px 'IBM Plex Mono',monospace;color:{{ g.tone }}">{{ g.glyph }}</span>
+              <span style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:{{ g.titleFg }}">{{ g.title }}</span>
+              <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ g.count }}</span>
+              <span style="margin-left:auto;font:400 10.5px/1.5 'IBM Plex Sans',sans-serif;color:#8c939a">{{ g.note }}</span>
+            </div>
+
+            <sc-if value="{{ g.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a;padding:0 0 4px">{{ g.emptyText }}</div>
+            </sc-if>
+
+            <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+              <div style="border:1px solid {{ r.border }};background:{{ r.bg }};border-radius:3px;padding:13px 15px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:flex-start;gap:14px">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <span style="font:500 11.5px 'IBM Plex Mono',monospace;color:{{ r.idFg }}">{{ r.id }}</span>
+                      <span style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.meta }}</span>
+                    </div>
+                    <div style="font:400 14px/1.6 'Source Serif 4',Georgia,serif;color:#d3d7db">{{ r.title }}</div>
+                    <div style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">{{ r.why }}</div>
+                  </div>
+                  <div style="flex:none;display:flex;gap:6px;align-items:flex-start">
+                    <sc-for list="{{ r.actions }}" as="a" hint-placeholder-count="2">
+                      <span onClick="{{ a.go }}" style="padding:6px 11px;border:1px solid {{ a.border }};background:{{ a.bg }};border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:{{ a.fg }};cursor:default">{{ a.label }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <sc-if value="{{ r.hasDetail }}" hint-placeholder-val="{{ true }}">
+                  <div style="border-top:1px solid {{ r.rule }};padding-top:11px;display:grid;grid-template-columns:1fr 1fr 210px;gap:16px">
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">QUOTED TEXT</div>
+                      <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ r.quote }}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHERE IT IS NOW</div>
+                      <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ r.context }}</div>
+                      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.confidence }}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div style="font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHAT POINTS AT IT</div>
+                      <sc-for list="{{ r.dependents }}" as="d" hint-placeholder-count="2">
+                        <div style="display:flex;gap:7px;align-items:baseline">
+                          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:{{ d.tone }}">{{ d.glyph }}</span>
+                          <span style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ d.title }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ r.resolved }}" hint-placeholder-val="{{ true }}">
+                  <div style="border-top:1px solid {{ r.rule }};padding-top:10px;font:400 11px 'IBM Plex Mono',monospace;color:#4fb3a4">{{ r.resolvedText }}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <sc-if value="{{ g.more }}" hint-placeholder-val="{{ true }}">
+              <div style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ g.moreText }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div style="border-top:1px solid #1d2126;padding-top:16px;display:flex;gap:40px">
+          <div style="flex:1;font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a">There is no total on this page and there never will be. Four counts that each name a kind of work are four decisions; one number that adds them together is a verdict on you.</div>
+          <div style="flex:1;font:400 11.5px/1.75 'IBM Plex Sans',sans-serif;color:#8c939a"><span style="color:#bac0c6">Deliberate</span> is permanent and per-item. An orphan note you want orphaned, a stub you will never attach, a paper you accepted and then thought better of — all legitimate, all removable from this list without being removed from the vault.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1040}}">
+const ACT = {
+  primary: {bg:'#212730', border:'#3a424b', fg:'#e7e9eb'},
+  plain:   {bg:'transparent', border:'#23272d', fg:'#bac0c6'},
+  quiet:   {bg:'transparent', border:'transparent', fg:'#8c939a'}
+};
+
+function row(o){ return o; }
+
+const CLEAN = {
+  label:'mostly clean',
+  lead:'Three things. Five minutes.',
+  plumbing: [
+    row({ id:'?·1', meta:'unmatched annotation · klinzing2019 · ingested 19 Sep',
+      title:'One highlight came back from the iPad that could not be re-matched.',
+      why:'The selection was shortened by 78 characters and the page moved. Four notes and a research question point at the old identity.',
+      detail:true,
+      quote:'“…varies by almost an order of magnitude between laboratories, and the reasons for this dispersion have not been systematically examined.”',
+      context:'p.4 → p.5, selection shortened to “…varies by almost an order of magnitude between laboratories…”',
+      confidence: 'text overlap 0.61 · geometry does not correspond',
+      dependents:[
+        {glyph:'·', tone:'#8c939a', title:'Dissociation designs — power'},
+        {glyph:'·', tone:'#8c939a', title:'Grant aim 2 — draft'},
+        {glyph:'◆', tone:'#d99b4a', title:'Is the overnight benefit consolidation or encoding?'}
+      ],
+      actions:[['relink to h·12','primary'],['drop the links','plain'],['treat as new','plain']] })
+  ],
+  reading: [
+    row({ id:'◇', meta:'stub · accepted 6 weeks ago',
+      title:'Diekelmann & Born (2010) — The memory function of sleep',
+      why:'No PDF, and three notes cite it. The DOI resolves.',
+      actions:[['attach PDF','primary'],['open DOI','plain'],['deliberate','quiet']] })
+  ],
+  disconnected: [],
+  stalled: [
+    row({ id:'▲', meta:'hypothesis · inconclusive 4 months',
+      title:'Harmonising the density definition removes most between-lab variance',
+      why:'Two criteria still awaiting evidence; no run attached since May. Nothing is wrong with it — it is simply not moving.',
+      actions:[['attach a run','primary'],['mark dormant','plain'],['deliberate','quiet']] })
+  ]
+};
+
+const NEGLECTED = {
+  label:'a month away',
+  lead:'Four groups populated. Work down whichever one you have the stomach for — they are independent.',
+  plumbing: [
+    row({ id:'density-watch', meta:'scout · lab page + RSS · daily', loud:true,
+      title:'Source stopped parsing on 15 Sep — 27 runs, zero proposals.',
+      why:'The page still loads, so the schedule looks healthy. This is the failure mode that looks like a quiet field.',
+      actions:[['inspect selector','primary'],['pause scout','plain'],['deliberate','quiet']] }),
+    row({ id:'sleep-proceedings', meta:'scout · conference index · monthly', loud:true,
+      title:'Stale extraction — titles only, no authors or dates since 2 Sep.',
+      why:'Proposals are still arriving but the cards are missing the fields you rank on.',
+      actions:[['inspect selector','primary'],['accept partial','plain'],['deliberate','quiet']] }),
+    row({ id:'?·1', meta:'unmatched annotation · klinzing2019',
+      title:'Highlight could not be re-matched after the file was re-exported.',
+      why:'Four notes and a research question point at the old identity.',
+      detail:true,
+      quote:'“…varies by almost an order of magnitude between laboratories, and the reasons for this dispersion have not been systematically examined.”',
+      context:'p.4 → p.5, selection shortened by 78 characters',
+      confidence:'text overlap 0.61 · geometry does not correspond',
+      dependents:[
+        {glyph:'·', tone:'#8c939a', title:'Dissociation designs — power'},
+        {glyph:'·', tone:'#8c939a', title:'Grant aim 2 — draft'},
+        {glyph:'◆', tone:'#d99b4a', title:'Is the overnight benefit consolidation or encoding?'}
+      ],
+      actions:[['relink to h·12','primary'],['drop the links','plain'],['treat as new','plain']] }),
+    row({ id:'?·2', meta:'unmatched annotation · olafsdottir2018',
+      title:'Two highlights on p.14 landed on text that no longer exists.',
+      why:'One note points at them. The page was replaced with the published version.',
+      detail:true,
+      quote:'“…the animal\u2019s future trajectory is experimentally constrained…”',
+      context:'preprint p.14 → published p.16, wording revised by the authors',
+      confidence:'text overlap 0.44 · geometry does not correspond',
+      dependents:[
+        {glyph:'◆', tone:'#d99b4a', title:'How would I detect replay without assuming the sequence?'}
+      ],
+      actions:[['relink…','primary'],['drop the links','plain'],['treat as new','plain']] })
+  ],
+  reading: [
+    row({ id:'◇', meta:'stub · accepted 7 weeks ago',
+      title:'Diekelmann & Born (2010) — The memory function of sleep',
+      why:'No PDF, cited by three notes and one research question.',
+      actions:[['attach PDF','primary'],['open DOI','plain'],['deliberate','quiet']] }),
+    row({ id:'◈', meta:'source · attached 5 weeks ago',
+      title:'Feld & Born (2017) — Sculpting memory during sleep',
+      why:'PDF in the vault, never opened. Attached to a research question as unsorted.',
+      actions:[['open in reader','primary'],['deliberate','quiet']] }),
+    row({ id:'◇', meta:'11 stubs · accepted 3–6 weeks ago',
+      title:'Eleven accepted proposals with nothing attached since',
+      why:'All from tmr-watch during the week you were away. Reviewing them as a group is probably faster than one at a time.',
+      actions:[['review as a group','primary'],['deliberate all','quiet']] })
+  ],
+  disconnected: [
+    row({ id:'·', meta:'note · created 4 months ago',
+      title:'Bootstrap notes',
+      why:'No links in or out. Tagged #methods/power, referenced by nothing.',
+      actions:[['link…','primary'],['deliberate','quiet']] }),
+    row({ id:'·', meta:'note · 1 line, 6 months old',
+      title:'“check whether Ngo 2013 used the same detector”',
+      why:'Never grew past the line it was written as.',
+      actions:[['make a question','primary'],['link…','plain'],['deliberate','quiet']] }),
+    row({ id:'◈', meta:'source · 14 highlights',
+      title:'Lewis & Durrant (2011) — Overlapping memory replay',
+      why:'Annotated but linked to nothing. The highlights exist; no note or question cites them.',
+      actions:[['see highlights','primary'],['deliberate','quiet']] })
+  ],
+  stalled: [
+    row({ id:'◆', meta:'research question · promoted 3 months ago',
+      title:'What would falsify the active systems account?',
+      why:'No source on either side since it was promoted.',
+      actions:[['attach a source','primary'],['demote to question','plain'],['deliberate','quiet']] }),
+    row({ id:'◆', meta:'research question · answer unchanged 5 months',
+      title:'Does TMR show a dose–response relationship?',
+      why:'Four sources arrived in that time — two of them opposing — and the working answer has not moved.',
+      actions:[['revisit the answer','primary'],['deliberate','quiet']] }),
+    row({ id:'▲', meta:'hypothesis · inconclusive 4 months',
+      title:'Harmonising the density definition removes most between-lab variance',
+      why:'Two criteria awaiting evidence, no run attached since May.',
+      actions:[['attach a run','primary'],['mark dormant','plain'],['deliberate','quiet']] }),
+    row({ id:'⌗', meta:'4 experiments · complete, with artifacts',
+      title:'Four runs from last week with artifacts and no observations',
+      why:'Plots are in the vault; nothing records what you took them to show. This is the one that decays fastest.',
+      actions:[['write observations','primary'],['deliberate all','quiet']] }),
+    row({ id:'!', meta:'linked artifact · missing', loud:true,
+      title:'bootstrap-draws.parquet is no longer at its recorded path',
+      why:'2.4 GB, linked rather than stored, last seen 14 Sep. run-2026-09-14 points at it and that run falsified a hypothesis.',
+      actions:[['locate…','primary'],['mark lost','plain']] })
+  ]
+};
+
+const STATES = { clean: CLEAN, neglected: NEGLECTED };
+
+const GROUPS = [
+  ['plumbing', 'BROKEN PLUMBING', '!', 'these worsen while ignored', 'nothing broken'],
+  ['reading', 'UNFINISHED READING', '◇', 'acquired but not yet read', 'nothing outstanding'],
+  ['disconnected', 'DISCONNECTED MATERIAL', '·', 'in the vault, wired to nothing', 'everything is linked'],
+  ['stalled', 'STALLED QUESTIONS', '◆', 'promoted, then quiet', 'nothing stalled']
+];
+
+class Component extends DCLogic {
+  state = { view:'neglected', resolved:{} };
+
+  renderVals(){
+    const st = this.state, d = STATES[st.view];
+    let resolvedCount = 0;
+
+    const groups = GROUPS.map(([key, title, glyph, note, emptyText]) => {
+      const all = d[key] || [];
+      const rows = all.map((r, i) => {
+        const rk = st.view + key + i;
+        const res = st.resolved[rk];
+        if (res) resolvedCount++;
+        return {
+          id: r.id, meta: r.meta, title: r.title, why: r.why,
+          idFg: r.loud ? '#e59289' : '#bac0c6',
+          border: r.loud ? '#5a3f3a' : '#23272d',
+          bg: r.loud ? '#1a1413' : '#15181c',
+          rule: r.loud ? '#3a2c2a' : '#1d2126',
+          hasDetail: !!r.detail && !res,
+          quote: r.quote || '', context: r.context || '', confidence: r.confidence || '',
+          dependents: r.dependents || [],
+          resolved: !!res,
+          resolvedText: res === 'deliberate'
+            ? 'marked deliberate — permanently out of this list, still in the vault'
+            : 'resolved — ' + res,
+          actions: res
+            ? [{ label:'undo', ...ACT.quiet, go: () => this.setState(s => { const n = { ...s.resolved }; delete n[rk]; return { resolved:n }; }) }]
+            : r.actions.map(([label, kind]) => ({
+                label, ...ACT[kind],
+                go: () => this.setState(s => ({ resolved: { ...s.resolved, [rk]: label === 'deliberate' || label === 'deliberate all' ? 'deliberate' : label } }))
+              }))
+        };
+      });
+      const open = rows.filter(r => !r.resolved).length;
+      return {
+        title, glyph, note,
+        tone: key === 'plumbing' && open ? '#e59289' : '#8c939a',
+        titleFg: key === 'plumbing' && open ? '#e59289' : '#bac0c6',
+        rule: key === 'plumbing' && open ? '#4a3835' : '#23272d',
+        count: open ? open + (open === 1 ? ' item' : ' items') : 'clear',
+        empty: all.length === 0,
+        emptyText: emptyText,
+        rows: rows.slice(0, 5),
+        more: rows.length > 5,
+        moreText: rows.length > 5 ? (rows.length - 5) + ' more in this group' : ''
+      };
+    });
+
+    return {
+      tabs: Object.keys(STATES).map(k => {
+        const on = st.view === k;
+        return { label: STATES[k].label, bg: on ? '#212730' : 'transparent',
+          border: on ? '#3a424b' : '#23272d', fg: on ? '#e7e9eb' : '#8c939a',
+          pick: () => this.setState({ view:k }) };
+      }),
+      lead: d.lead,
+      groups,
+      resolvedNote: resolvedCount ? resolvedCount + ' resolved this visit' : 'click any action — they all work'
+    };
+  }
+}
+</script>
+</body>
+</html>

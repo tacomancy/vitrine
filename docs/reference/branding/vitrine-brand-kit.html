@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html{color-scheme:dark light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Vitrine Brand Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400;600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ============================================================
+   Dark Jazz Age — design tokens
+   Generated. Every color pairing in here is contrast-audited;
+   the 6 chart series pass CVD separation in both modes.
+   Dark is the primary mode; light is the "playbill" mode.
+   ============================================================ */
+
+:root {
+  /* ---- primitive ramps (never reference these in components) ---- */
+  --color-sapphire-100: #E3EEFE;
+  --color-sapphire-200: #C5DBFC;
+  --color-sapphire-300: #9ABFFA;
+  --color-sapphire-400: #659EF8;
+  --color-sapphire-500: #3C7FE5;
+  --color-sapphire-550: #2E70D6;
+  --color-sapphire-600: #2062C7;
+  --color-sapphire-700: #0C49A0;
+  --color-sapphire-800: #053274;
+  --color-sapphire-900: #011D4B;
+  --color-teal-100: #C1F9FE;
+  --color-teal-200: #67F0FC;
+  --color-teal-300: #37D5E1;
+  --color-teal-400: #2CB2BD;
+  --color-teal-500: #02939D;
+  --color-teal-550: #01848D;
+  --color-teal-600: #00767E;
+  --color-teal-700: #10595F;
+  --color-teal-800: #083F43;
+  --color-teal-900: #022629;
+  --color-emerald-100: #BEFEDE;
+  --color-emerald-200: #6AF8BC;
+  --color-emerald-300: #48DBA2;
+  --color-emerald-400: #2CB985;
+  --color-emerald-500: #22986D;
+  --color-emerald-550: #1E8861;
+  --color-emerald-600: #157A56;
+  --color-emerald-700: #105D41;
+  --color-emerald-800: #08412C;
+  --color-emerald-900: #022819;
+  --color-brass-100: #FEEBC4;
+  --color-brass-200: #FCD37D;
+  --color-brass-300: #E5B64A;
+  --color-brass-400: #C49726;
+  --color-brass-500: #A17B1D;
+  --color-brass-550: #916F19;
+  --color-brass-600: #836202;
+  --color-brass-700: #634A0D;
+  --color-brass-800: #463406;
+  --color-brass-900: #2B1E01;
+  --color-copper-100: #FEE8DE;
+  --color-copper-200: #FCCDB9;
+  --color-copper-300: #FAA680;
+  --color-copper-400: #E08256;
+  --color-copper-500: #C06539;
+  --color-copper-550: #B1582B;
+  --color-copper-600: #A24A1C;
+  --color-copper-700: #7F350C;
+  --color-copper-800: #5B2405;
+  --color-copper-900: #391301;
+  --color-garnet-100: #FEE6E9;
+  --color-garnet-200: #FCCAD2;
+  --color-garnet-300: #FAA0B0;
+  --color-garnet-400: #F5688A;
+  --color-garnet-500: #D3496E;
+  --color-garnet-550: #C33A61;
+  --color-garnet-600: #B42A54;
+  --color-garnet-700: #8F133E;
+  --color-garnet-800: #67092A;
+  --color-garnet-900: #410318;
+  --color-amethyst-100: #F1E8FE;
+  --color-amethyst-200: #E3CFFC;
+  --color-amethyst-300: #CFAAFA;
+  --color-amethyst-400: #B97CF8;
+  --color-amethyst-500: #9C5DD8;
+  --color-amethyst-550: #8E4FC9;
+  --color-amethyst-600: #8141BA;
+  --color-amethyst-700: #67229D;
+  --color-amethyst-800: #4B0C77;
+  --color-amethyst-900: #2E044D;
+  --color-ink-50: #EAEFF5;
+  --color-ink-100: #D0D8E4;
+  --color-ink-200: #B2BBC9;
+  --color-ink-300: #9099A7;
+  --color-ink-400: #707885;
+  --color-ink-500: #545B66;
+  --color-ink-600: #3F4550;
+  --color-ink-700: #2C333E;
+  --color-ink-800: #1C232F;
+  --color-ink-850: #121A25;
+  --color-ink-900: #09111D;
+  --color-ink-950: #020713;
+  --color-paper: #F7F1E6;
+  --color-paper-raised: #FDFAF3;
+  --color-paper-sunken: #EEE7D9;
+
+  /* ---- type ---- */
+  --font-display: 'Josefin Sans', 'Futura', 'Century Gothic', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 21px;
+  --text-2xl: 25px;
+  --text-3xl: 31px;
+  --text-4xl: 39px;
+  --text-5xl: 49px;
+  --text-6xl: 61px;
+  --leading-tight: 1.06;
+  --leading-snug: 1.2;
+  --leading-ui: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-display: -0.022em;
+  --tracking-tight: -0.011em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.14em;
+  --tracking-caps-wide: 0.22em;
+
+  /* ---- space / radius ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 5px;
+  --radius-pill: 999px;
+
+  /* ---- semantic: DARK is the default ---- */
+  --color-bg: #09111D;
+  --color-bg-surface: #121A25;
+  --color-bg-raised: #1C232F;
+  --color-bg-sunken: #020713;
+  --color-bg-overlay: rgba(2, 7, 19, 0.72);
+  --color-fg: #D0D8E4;
+  --color-fg-secondary: #B2BBC9;
+  --color-fg-muted: #9099A7;
+  --color-fg-disabled: #707885;
+  --color-fg-inverse: #020713;
+  --color-accent: #E5B64A;
+  --color-accent-quiet: #836202;
+  --color-link: #9ABFFA;
+  --color-line: #2C333E;
+  --color-line-strong: #3F4550;
+  --color-line-control: #707885;
+  --color-focus: #E5B64A;
+  --color-primary: #2062C7;
+  --color-primary-hover: #2E70D6;
+  --color-primary-active: #0C49A0;
+  --color-on-primary: #FFFFFF;
+  --color-success: #48DBA2;
+  --color-success-bg: #022819;
+  --color-success-line: #105D41;
+  --color-warning: #FAA680;
+  --color-warning-bg: #391301;
+  --color-warning-line: #7F350C;
+  --color-danger: #FAA0B0;
+  --color-danger-bg: #410318;
+  --color-danger-line: #8F133E;
+  --color-danger-solid: #B42A54;
+  --color-info: #9ABFFA;
+  --color-info-bg: #011D4B;
+  --color-info-line: #0C49A0;
+  --color-series-1: #3C7FE5;
+  --color-series-2: #22986D;
+  --color-series-3: #836202;
+  --color-series-4: #D3496E;
+  --color-series-5: #9C5DD8;
+  --color-series-6: #C06539;
+  --color-seq-1: #0C49A0;
+  --color-seq-2: #2062C7;
+  --color-seq-3: #3C7FE5;
+  --color-seq-4: #659EF8;
+  --color-seq-5: #9ABFFA;
+  --color-seq-6: #C5DBFC;
+  --shadow-1: 0 1px 2px rgba(2,7,19,.6);
+  --shadow-2: 0 2px 8px rgba(2,7,19,.65), 0 0 0 1px rgba(229,182,74,.06);
+  --shadow-3: 0 12px 32px rgba(2,7,19,.7), 0 0 0 1px rgba(229,182,74,.09);
+  color-scheme: dark;
+}
+
+/* System light preference — unless an explicit dark choice overrides it. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-bg: #F7F1E6;
+    --color-bg-surface: #FDFAF3;
+    --color-bg-raised: #FFFFFF;
+    --color-bg-sunken: #EEE7D9;
+    --color-bg-overlay: rgba(9, 17, 29, 0.48);
+    --color-fg: #09111D;
+    --color-fg-secondary: #2C333E;
+    --color-fg-muted: #545B66;
+    --color-fg-disabled: #707885;
+    --color-fg-inverse: #FFFFFF;
+    --color-accent: #634A0D;
+    --color-accent-quiet: #C49726;
+    --color-link: #0C49A0;
+    --color-line: #B2BBC9;
+    --color-line-strong: #9099A7;
+    --color-line-control: #707885;
+    --color-focus: #836202;
+    --color-primary: #2062C7;
+    --color-primary-hover: #0C49A0;
+    --color-primary-active: #053274;
+    --color-on-primary: #FFFFFF;
+    --color-success: #105D41;
+    --color-success-bg: #BEFEDE;
+    --color-success-line: #2CB985;
+    --color-warning: #7F350C;
+    --color-warning-bg: #FEE8DE;
+    --color-warning-line: #E08256;
+    --color-danger: #8F133E;
+    --color-danger-bg: #FEE6E9;
+    --color-danger-line: #F5688A;
+    --color-danger-solid: #8F133E;
+    --color-info: #0C49A0;
+    --color-info-bg: #E3EEFE;
+    --color-info-line: #659EF8;
+    --color-series-1: #3C7FE5;
+    --color-series-2: #22986D;
+    --color-series-3: #836202;
+    --color-series-4: #D3496E;
+    --color-series-5: #9C5DD8;
+    --color-series-6: #C06539;
+    --color-seq-1: #659EF8;
+    --color-seq-2: #3C7FE5;
+    --color-seq-3: #2062C7;
+    --color-seq-4: #0C49A0;
+    --color-seq-5: #053274;
+    --color-seq-6: #011D4B;
+    --shadow-1: 0 1px 2px rgba(9,17,29,.07);
+    --shadow-2: 0 2px 8px rgba(9,17,29,.09);
+    --shadow-3: 0 12px 32px rgba(9,17,29,.13);
+    color-scheme: light;
+  }
+}
+
+/* Explicit choice wins in both directions. */
+:root[data-theme="light"] {
+  --color-bg: #F7F1E6;
+  --color-bg-surface: #FDFAF3;
+  --color-bg-raised: #FFFFFF;
+  --color-bg-sunken: #EEE7D9;
+  --color-bg-overlay: rgba(9, 17, 29, 0.48);
+  --color-fg: #09111D;
+  --color-fg-secondary: #2C333E;
+  --color-fg-muted: #545B66;
+  --color-fg-disabled: #707885;
+  --color-fg-inverse: #FFFFFF;
+  --color-accent: #634A0D;
+  --color-accent-quiet: #C49726;
+  --color-link: #0C49A0;
+  --color-line: #B2BBC9;
+  --color-line-strong: #9099A7;
+  --color-line-control: #707885;
+  --color-focus: #836202;
+  --color-primary: #2062C7;
+  --color-primary-hover: #0C49A0;
+  --color-primary-active: #053274;
+  --color-on-primary: #FFFFFF;
+  --color-success: #105D41;
+  --color-success-bg: #BEFEDE;
+  --color-success-line: #2CB985;
+  --color-warning: #7F350C;
+  --color-warning-bg: #FEE8DE;
+  --color-warning-line: #E08256;
+  --color-danger: #8F133E;
+  --color-danger-bg: #FEE6E9;
+  --color-danger-line: #F5688A;
+  --color-danger-solid: #8F133E;
+  --color-info: #0C49A0;
+  --color-info-bg: #E3EEFE;
+  --color-info-line: #659EF8;
+  --color-series-1: #3C7FE5;
+  --color-series-2: #22986D;
+  --color-series-3: #836202;
+  --color-series-4: #D3496E;
+  --color-series-5: #9C5DD8;
+  --color-series-6: #C06539;
+  --color-seq-1: #659EF8;
+  --color-seq-2: #3C7FE5;
+  --color-seq-3: #2062C7;
+  --color-seq-4: #0C49A0;
+  --color-seq-5: #053274;
+  --color-seq-6: #011D4B;
+  --shadow-1: 0 1px 2px rgba(9,17,29,.07);
+  --shadow-2: 0 2px 8px rgba(9,17,29,.09);
+  --shadow-3: 0 12px 32px rgba(9,17,29,.13);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --color-bg: #09111D;
+  --color-bg-surface: #121A25;
+  --color-bg-raised: #1C232F;
+  --color-bg-sunken: #020713;
+  --color-bg-overlay: rgba(2, 7, 19, 0.72);
+  --color-fg: #D0D8E4;
+  --color-fg-secondary: #B2BBC9;
+  --color-fg-muted: #9099A7;
+  --color-fg-disabled: #707885;
+  --color-fg-inverse: #020713;
+  --color-accent: #E5B64A;
+  --color-accent-quiet: #836202;
+  --color-link: #9ABFFA;
+  --color-line: #2C333E;
+  --color-line-strong: #3F4550;
+  --color-line-control: #707885;
+  --color-focus: #E5B64A;
+  --color-primary: #2062C7;
+  --color-primary-hover: #2E70D6;
+  --color-primary-active: #0C49A0;
+  --color-on-primary: #FFFFFF;
+  --color-success: #48DBA2;
+  --color-success-bg: #022819;
+  --color-success-line: #105D41;
+  --color-warning: #FAA680;
+  --color-warning-bg: #391301;
+  --color-warning-line: #7F350C;
+  --color-danger: #FAA0B0;
+  --color-danger-bg: #410318;
+  --color-danger-line: #8F133E;
+  --color-danger-solid: #B42A54;
+  --color-info: #9ABFFA;
+  --color-info-bg: #011D4B;
+  --color-info-line: #0C49A0;
+  --color-series-1: #3C7FE5;
+  --color-series-2: #22986D;
+  --color-series-3: #836202;
+  --color-series-4: #D3496E;
+  --color-series-5: #9C5DD8;
+  --color-series-6: #C06539;
+  --color-seq-1: #0C49A0;
+  --color-seq-2: #2062C7;
+  --color-seq-3: #3C7FE5;
+  --color-seq-4: #659EF8;
+  --color-seq-5: #9ABFFA;
+  --color-seq-6: #C5DBFC;
+  --shadow-1: 0 1px 2px rgba(2,7,19,.6);
+  --shadow-2: 0 2px 8px rgba(2,7,19,.65), 0 0 0 1px rgba(229,182,74,.06);
+  --shadow-3: 0 12px 32px rgba(2,7,19,.7), 0 0 0 1px rgba(229,182,74,.09);
+  color-scheme: dark;
+}
+
+
+/* Page-level theme-aware accents (brass reads differently on ink vs. cream) */
+:root{ --wm-1:#FCD37D; --wm-2:#C49726; --wm-3:#836202;
+       --glow:#C49726; --glow-a:16%; --ray-o:.5 }
+@media (prefers-color-scheme:light){ :root:not([data-theme="dark"]){
+  --wm-1:#A17B1D; --wm-2:#634A0D; --wm-3:#463406;
+  --glow:#A17B1D; --glow-a:13%; --ray-o:.28 } }
+:root[data-theme="light"]{ --wm-1:#A17B1D; --wm-2:#634A0D; --wm-3:#463406;
+  --glow:#A17B1D; --glow-a:13%; --ray-o:.28 }
+:root[data-theme="dark"]{ --wm-1:#FCD37D; --wm-2:#C49726; --wm-3:#836202;
+  --glow:#C49726; --glow-a:16%; --ray-o:.5 }
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+body{margin:0;background:var(--color-bg);color:var(--color-fg);
+  font-family:var(--font-sans);font-size:var(--text-md);line-height:var(--leading-normal);
+  -webkit-font-smoothing:antialiased;font-feature-settings:"cv05","ss01"}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:24px;padding-block:0}
+@media(max-width:600px){.wrap{padding-inline:16px}}
+
+/* — Deco devices — */
+.eyebrow{font-size:var(--text-2xs);font-weight:600;letter-spacing:var(--tracking-caps);
+  text-transform:uppercase;color:var(--color-accent-quiet);margin:0}
+.rule2{border:0;border-top:1px solid var(--color-accent-quiet);border-bottom:1px solid var(--color-accent-quiet);
+  height:3px;opacity:.5;margin:0}
+.hair{border:0;border-top:1px solid var(--color-line);margin:0}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+h2{font-size:var(--text-3xl);font-weight:600;letter-spacing:var(--tracking-tight);line-height:var(--leading-snug)}
+h3{font-size:var(--text-xl);font-weight:600;line-height:var(--leading-ui)}
+p{margin:0}
+code{font-family:var(--font-mono);font-size:.92em;font-variant-ligatures:none}
+a{color:var(--color-link)}
+
+section{padding-block:72px;border-top:1px solid var(--color-line)}
+.sec-head{display:flex;flex-direction:column;gap:10px;margin-bottom:36px;max-width:66ch}
+.sec-head p{color:var(--color-fg-muted);font-size:var(--text-md)}
+
+/* — masthead — */
+.mast{position:relative;overflow:hidden;padding-block:88px 72px;isolation:isolate}
+.mast::before{content:"";position:absolute;inset:-40% -10% auto;height:140%;z-index:-2;
+  background:radial-gradient(ellipse 60% 55% at 50% 8%,color-mix(in srgb,var(--glow) var(--glow-a),transparent),transparent 70%)}
+.rays{position:absolute;inset:0;z-index:-1;width:100%;height:100%;opacity:var(--ray-o)}
+.mark-lockup{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.wordmark{font-family:var(--font-display);font-weight:300;font-size:clamp(40px,9vw,72px);
+  letter-spacing:.20em;line-height:1;margin:0;text-transform:uppercase;
+  background:linear-gradient(175deg,var(--wm-1),var(--wm-2) 55%,var(--wm-3));
+  -webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.2em}
+.tagline{margin-top:22px;font-size:var(--text-lg);color:var(--color-fg-secondary);max-width:56ch}
+.mast-meta{margin-top:28px;display:flex;gap:10px 28px;flex-wrap:wrap;font-size:var(--text-sm);color:var(--color-fg-muted)}
+.mast-meta b{color:var(--color-fg-secondary);font-weight:500}
+
+.toolbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--color-bg) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--color-line)}
+.toolbar .wrap{display:flex;align-items:center;gap:16px;padding-block:10px;flex-wrap:wrap}
+.toolbar nav{display:flex;gap:2px;flex-wrap:wrap;flex:1}
+.toolbar a{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-wide);
+  font-weight:600;color:var(--color-fg-muted);text-decoration:none;padding:6px 9px;border-radius:var(--radius-sm)}
+.toolbar a:hover{color:var(--color-accent);background:var(--color-bg-surface)}
+.tgl{font:inherit;font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-wide);text-transform:uppercase;
+  background:transparent;color:var(--color-fg-secondary);border:1px solid var(--color-line-control);
+  border-radius:var(--radius-sm);padding:7px 13px;cursor:pointer;white-space:nowrap}
+.tgl:hover{border-color:var(--color-accent);color:var(--color-accent)}
+:where(a,button,summary,input,select):focus-visible{outline:2px solid var(--color-focus);outline-offset:2px;border-radius:var(--radius-sm)}
+
+/* — swatches — */
+.ramp{display:grid;grid-template-columns:220px 1fr;gap:28px;align-items:start;padding-block:22px;border-top:1px solid var(--color-line)}
+.ramp:first-of-type{border-top:0}
+@media(max-width:820px){.ramp{grid-template-columns:1fr;gap:12px}}
+.ramp-head h3{font-size:var(--text-lg)}
+.ramp-head p{font-size:var(--text-sm);color:var(--color-fg-muted);margin-top:4px}
+.ramp-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:3px}
+.sw{appearance:none;border:0;cursor:pointer;font:inherit;text-align:left;background:var(--sw);color:var(--swfg);
+  padding:12px 9px 10px;display:flex;flex-direction:column;gap:2px;border-radius:var(--radius-sm);min-height:74px;
+  transition:transform .12s ease}
+.sw:hover{transform:translateY(-2px)}
+.sw-step{font-size:var(--text-2xs);font-weight:700;letter-spacing:.08em;opacity:.78}
+.sw-hex{font-family:var(--font-mono);font-size:var(--text-xs);font-weight:500}
+
+/* — tables — */
+.tablewrap{overflow-x:auto;border:1px solid var(--color-line);border-radius:var(--radius-md)}
+table{border-collapse:collapse;width:100%;font-size:var(--text-sm);min-width:560px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--color-line);vertical-align:top}
+thead th{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);
+  color:var(--color-fg-muted);font-weight:600;background:var(--color-bg-surface);position:sticky;top:0}
+.semgroup-head th{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);
+  color:var(--color-accent);background:var(--color-bg-sunken);font-weight:700;padding-block:8px}
+.tok code{color:var(--color-fg);font-weight:500}
+.tok-note{display:block;color:var(--color-fg-muted);font-size:var(--text-xs);margin-top:3px;max-width:46ch}
+.val{white-space:nowrap}
+.val code{color:var(--color-fg-secondary)}
+.chip{display:inline-block;width:13px;height:13px;border-radius:2px;background:var(--sw);
+  border:1px solid color-mix(in srgb,var(--color-fg) 22%,transparent);margin-right:8px;vertical-align:-2px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.req{color:var(--color-fg-muted)}
+.g{display:inline-block;margin-left:8px;font-family:var(--font-sans);font-size:var(--text-2xs);font-weight:700;
+  letter-spacing:.06em;padding:1px 6px;border-radius:var(--radius-sm)}
+.g-AAA{background:var(--color-success-bg);color:var(--color-success)}
+.g-AA{background:var(--color-info-bg);color:var(--color-info)}
+.g-3\:1{background:var(--color-info-bg);color:var(--color-info)}
+.g-fail{background:var(--color-danger-bg);color:var(--color-danger)}
+
+/* — specimen UI — */
+.specimen{border:1px solid var(--color-line);border-radius:var(--radius-lg);overflow:hidden;background:var(--color-bg-surface)}
+.spec-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--color-line);
+  background:var(--color-bg-sunken)}
+.spec-dot{width:9px;height:9px;background:var(--color-accent-quiet);border-radius:50%}
+.spec-title{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.2em;font-size:var(--text-xs);
+  font-weight:400;color:var(--color-fg-secondary)}
+.spec-body{padding:22px;display:grid;gap:22px}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:var(--text-base);font-weight:600;border-radius:var(--radius-md);padding:8px 16px;
+  border:1px solid transparent;cursor:pointer;line-height:1.35}
+.btn-primary{background:var(--color-primary);color:var(--color-on-primary)}
+.btn-primary:hover{background:var(--color-primary-hover)}
+.btn-primary:active{background:var(--color-primary-active)}
+.btn-ghost{background:transparent;color:var(--color-fg-secondary);border-color:var(--color-line-control)}
+.btn-ghost:hover{color:var(--color-accent);border-color:var(--color-accent)}
+.btn-danger{background:var(--color-danger-solid);color:#fff}
+.btn-brass{background:var(--color-accent);color:var(--color-bg-sunken)}
+.field{display:grid;gap:6px;max-width:320px}
+.field label{font-size:var(--text-xs);color:var(--color-fg-muted);font-weight:500}
+.field input{font:inherit;font-size:var(--text-base);background:var(--color-bg);color:var(--color-fg);
+  border:1px solid var(--color-line-control);border-radius:var(--radius-md);padding:8px 11px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:10px}
+.tile{padding:12px 14px;border-radius:var(--radius-md);border-left:3px solid}
+.tile b{display:block;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-wide);margin-bottom:3px}
+.tile span{font-size:var(--text-sm);color:var(--color-fg-secondary)}
+.t-ok{background:var(--color-success-bg);border-color:var(--color-success)}.t-ok b{color:var(--color-success)}
+.t-warn{background:var(--color-warning-bg);border-color:var(--color-warning)}.t-warn b{color:var(--color-warning)}
+.t-bad{background:var(--color-danger-bg);border-color:var(--color-danger)}.t-bad b{color:var(--color-danger)}
+.t-info{background:var(--color-info-bg);border-color:var(--color-info)}.t-info b{color:var(--color-info)}
+
+/* — type specimens — */
+.specrow{display:grid;grid-template-columns:118px 1fr;gap:24px;padding-block:18px;border-top:1px solid var(--color-line);align-items:baseline}
+@media(max-width:700px){.specrow{grid-template-columns:1fr;gap:6px}}
+.specrow .meta{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-fg-muted);line-height:1.5}
+.specrow .meta b{display:block;color:var(--color-accent);font-weight:500;font-family:var(--font-sans);
+  text-transform:uppercase;letter-spacing:var(--tracking-wide);font-size:var(--text-2xs)}
+.sample{color:var(--color-fg)}
+.face-card{border:1px solid var(--color-line);border-radius:var(--radius-md);padding:22px;background:var(--color-bg-surface)}
+.face-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.face-name{font-size:var(--text-2xl);margin-bottom:2px}
+.face-role{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);color:var(--color-accent-quiet);font-weight:600}
+.face-note{font-size:var(--text-sm);color:var(--color-fg-muted);margin-top:10px}
+.glyphs{font-size:var(--text-lg);color:var(--color-fg-secondary);margin-top:12px;word-break:break-all;line-height:1.5}
+
+/* — marks — */
+.marks{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:16px}
+.markcard{border:1px solid var(--color-line);border-radius:var(--radius-md);overflow:hidden;background:var(--color-bg-surface)}
+.markstage{display:grid;place-items:center;padding:34px;background:var(--color-bg-sunken);gap:18px}
+.marksizes{display:flex;align-items:flex-end;gap:16px}
+.markmeta{padding:14px 16px;border-top:1px solid var(--color-line)}
+.markmeta h4{font-size:var(--text-base);font-weight:600;margin-bottom:4px}
+.markmeta p{font-size:var(--text-sm);color:var(--color-fg-muted)}
+.lockups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:16px}
+.lock{border:1px solid var(--color-line);border-radius:var(--radius-md);padding:22px;display:grid;gap:14px;place-items:center;
+  background:var(--color-bg-surface);text-align:center}
+.lock .cap{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);color:var(--color-fg-muted);font-weight:600}
+.lock-h{display:flex;align-items:center;gap:12px}
+.lock-word{font-family:var(--font-display);font-weight:300;text-transform:uppercase;letter-spacing:.2em;
+  font-size:24px;color:var(--color-accent);line-height:1}
+.lock-v{display:grid;justify-items:center;gap:9px}
+
+/* — chart — */
+.chartcard{border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-bg-surface);padding:20px}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.chart-head h3{font-size:var(--text-lg)}
+.chart-head .sub{font-size:var(--text-xs);color:var(--color-fg-muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;font-size:var(--text-xs);color:var(--color-fg-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:16px;height:3px;border-radius:2px;background:var(--sw);display:inline-block}
+#chart{width:100%;height:auto;display:block;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:var(--color-bg-raised);border:1px solid var(--color-line-control);
+  border-radius:var(--radius-md);padding:9px 11px;font-size:var(--text-xs);box-shadow:var(--shadow-3);z-index:20;
+  min-width:150px;opacity:0;transition:opacity .1s}
+.tip b{display:block;font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-wide);
+  color:var(--color-fg-muted);margin-bottom:6px}
+.tip div{display:flex;justify-content:space-between;gap:14px;padding:1px 0;font-variant-numeric:tabular-nums}
+.tip i{width:9px;height:9px;border-radius:2px;background:var(--sw);display:inline-block;margin-right:6px}
+.chartbox{position:relative}
+
+/* — rules list — */
+.rules{display:grid;grid-template-columns:1fr;gap:2px;margin-top:8px}
+@media(min-width:760px){.rules{grid-template-columns:repeat(2,1fr)}}
+.rule{padding:16px 18px;background:var(--color-bg-surface);border-radius:var(--radius-sm)}
+.rule h4{font-size:var(--text-base);font-weight:600;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.rule h4::before{content:"";width:7px;height:7px;background:var(--color-accent);transform:rotate(45deg);flex:none}
+.rule p{font-size:var(--text-sm);color:var(--color-fg-muted)}
+.dont h4::before{background:var(--color-danger);border-radius:50%;transform:none}
+
+/* — tokens — */
+.tabs{display:flex;gap:2px;margin-bottom:-1px;flex-wrap:wrap}
+.tab{font:inherit;font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:var(--tracking-wide);
+  padding:9px 15px;background:var(--color-bg-surface);border:1px solid var(--color-line);border-bottom-color:transparent;
+  color:var(--color-fg-muted);cursor:pointer;border-radius:var(--radius-sm) var(--radius-sm) 0 0}
+.tab[aria-selected="true"]{color:var(--color-accent);background:var(--color-bg-sunken);border-bottom-color:var(--color-bg-sunken)}
+.codebox{border:1px solid var(--color-line);border-radius:0 var(--radius-md) var(--radius-md) var(--radius-md);
+  background:var(--color-bg-sunken);position:relative}
+.codebox pre{margin:0;padding:18px;overflow:auto;max-height:400px;font-family:var(--font-mono);
+  font-size:var(--text-xs);line-height:1.65;color:var(--color-fg-secondary)}
+.copybtn{position:absolute;top:10px;right:10px;font:inherit;font-size:var(--text-2xs);font-weight:700;
+  text-transform:uppercase;letter-spacing:var(--tracking-wide);padding:6px 11px;background:var(--color-bg-raised);
+  color:var(--color-fg-secondary);border:1px solid var(--color-line-control);border-radius:var(--radius-sm);cursor:pointer}
+.copybtn:hover{color:var(--color-accent);border-color:var(--color-accent)}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,14px);background:var(--color-accent);
+  color:var(--color-bg-sunken);font-size:var(--text-sm);font-weight:600;padding:9px 18px;border-radius:var(--radius-sm);
+  opacity:0;pointer-events:none;transition:opacity .16s,transform .16s;z-index:99}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+footer{padding-block:48px 64px;border-top:1px solid var(--color-line);color:var(--color-fg-muted);font-size:var(--text-sm)}
+.assume{border-left:3px solid var(--color-accent-quiet);padding:12px 16px;background:var(--color-bg-surface);
+  border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--text-sm);color:var(--color-fg-secondary);max-width:70ch}
+</style>
+</head>
+<body>
+<header class="mast">
+  <svg class="rays" viewBox="0 0 1200 420" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
+    <defs><linearGradient id="rayg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C49726" stop-opacity=".34"/>
+      <stop offset="100%" stop-color="#C49726" stop-opacity="0"/></linearGradient></defs>
+    <path d="M600,-40 L-286.3,116.3" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L-245.7,267.8" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L-179.4,410.0" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L-89.4,538.5" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L21.5,649.4" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L150.0,739.4" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L292.2,805.7" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L443.7,846.3" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L600.0,860.0" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L756.3,846.3" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L907.8,805.7" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L1050.0,739.4" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L1178.5,649.4" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L1289.4,538.5" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L1379.4,410.0" stroke="url(#rayg)" stroke-width="2.5" fill="none"/><path d="M600,-40 L1445.7,267.8" stroke="url(#rayg)" stroke-width="1" fill="none"/><path d="M600,-40 L1486.3,116.3" stroke="url(#rayg)" stroke-width="2.5" fill="none"/>
+  </svg>
+  <div class="wrap">
+    <p class="eyebrow">Identity &amp; design system</p>
+    <div class="mark-lockup" style="margin-top:18px">
+      <svg width="82" height="82" viewBox="0 0 64 64" role="img" aria-label="Vitrine mark">
+        <defs><linearGradient id="br1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+          <stop offset="100%" stop-color="#836202"/></linearGradient>
+          <linearGradient id="gl1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#053274"/><stop offset="100%" stop-color="#020713"/></linearGradient></defs>
+        <path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/>
+        <path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/>
+        <path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="4.2" stroke-linejoin="miter"/>
+        <rect x="4" y="54" width="56" height="6" fill="url(#br1)"/>
+      </svg>
+      <h1 class="wordmark">Vitrine</h1>
+    </div>
+    <p class="tagline">A brass-and-glass identity for a tool people keep open all day — jewel tones that hold up at 2 a.m., and gold used the way a jeweller uses it: sparingly, on the thing worth looking at.</p>
+    <div class="mast-meta">
+      <span><b>6</b> chart hues, CVD-validated</span>
+      <span><b>2</b> modes, both audited</span>
+      <span><b>0</b> contrast failures</span>
+      <span><b>3</b> typefaces</span>
+    </div>
+  </div>
+</header>
+
+<div class="toolbar"><div class="wrap">
+  <nav>
+    <a href="#direction">Direction</a><a href="#color">Color</a><a href="#roles">Roles</a>
+    <a href="#applied">Applied</a><a href="#type">Type</a><a href="#marks">Marks</a>
+    <a href="#data">Data</a><a href="#tokens">Tokens</a><a href="#ledger">Ledger</a>
+  </nav>
+  <button class="tgl" id="modebtn" type="button">Light mode</button>
+</div></div>
+
+<main>
+<section id="direction"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Direction</p><h2>Brass, glass, and a dark room</h2>
+    <p>A vitrine is a display case: brass frame, dark interior, one light raking across the glass. That is the whole system in a sentence. The ground is a blue-black you could stare into for eight hours. The jewels — sapphire, emerald, garnet, amethyst — carry meaning and identity. Brass is the light, and light is scarce on purpose.</p></div>
+  <div class="rules">
+    <div class="rule"><h4>Dark is the default</h4><p>Light mode exists and is fully audited, but the brand is built dark-first. The cream "playbill" mode is a 1920s printed program, not a bleached copy of the dark UI.</p></div>
+    <div class="rule"><h4>Brass is punctuation</h4><p>The focus ring, the active nav item, a number worth noticing, the wordmark. If more than roughly 5% of a screen is brass, it has stopped being precious.</p></div>
+    <div class="rule"><h4>Sapphire does the work</h4><p>Every button, link, and selected state is sapphire. Gold buttons look like a scam; blue buttons look like software.</p></div>
+    <div class="rule"><h4>Deco is geometry, not ornament</h4><p>Stepped corners, hairline double rules, wide letterspaced caps, symmetry. No filigree, no fan motifs scattered as decoration, no drop shadows pretending to be gilding.</p></div>
+  </div>
+  <p class="assume" style="margin-top:26px"><strong>One assumption to correct if it's wrong:</strong> I've written the positioning for Vitrine as a tool for presenting and curating work — that's what the name suggests. The color, type, and token systems don't depend on it, but the voice notes and the sample copy do. Tell me what Vitrine actually does and I'll re-cut those.</p>
+</div></section>
+
+<section id="color"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Color · ramps</p><h2>Eight families, built in OKLCH</h2>
+    <p>Every step is generated at a fixed perceptual lightness, so a 500 in one family is exactly as light as a 500 in any other. That is what makes the semantic mappings below swappable. Click any swatch to copy its hex.</p></div>
+  <div class="ramp">
+  <div class="ramp-head"><h3>Sapphire</h3><p>Primary. Interactive, links, the load-bearing blue.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#E3EEFE" style="--sw:#E3EEFE;--swfg:#020713" title="Copy #E3EEFE">
+      <span class="sw-step">100</span><span class="sw-hex">E3EEFE</span></button><button class="sw" data-copy="#C5DBFC" style="--sw:#C5DBFC;--swfg:#020713" title="Copy #C5DBFC">
+      <span class="sw-step">200</span><span class="sw-hex">C5DBFC</span></button><button class="sw" data-copy="#9ABFFA" style="--sw:#9ABFFA;--swfg:#020713" title="Copy #9ABFFA">
+      <span class="sw-step">300</span><span class="sw-hex">9ABFFA</span></button><button class="sw" data-copy="#659EF8" style="--sw:#659EF8;--swfg:#020713" title="Copy #659EF8">
+      <span class="sw-step">400</span><span class="sw-hex">659EF8</span></button><button class="sw" data-copy="#3C7FE5" style="--sw:#3C7FE5;--swfg:#020713" title="Copy #3C7FE5">
+      <span class="sw-step">500</span><span class="sw-hex">3C7FE5</span></button><button class="sw" data-copy="#2E70D6" style="--sw:#2E70D6;--swfg:#FFFFFF" title="Copy #2E70D6">
+      <span class="sw-step">550</span><span class="sw-hex">2E70D6</span></button><button class="sw" data-copy="#2062C7" style="--sw:#2062C7;--swfg:#FFFFFF" title="Copy #2062C7">
+      <span class="sw-step">600</span><span class="sw-hex">2062C7</span></button><button class="sw" data-copy="#0C49A0" style="--sw:#0C49A0;--swfg:#FFFFFF" title="Copy #0C49A0">
+      <span class="sw-step">700</span><span class="sw-hex">0C49A0</span></button><button class="sw" data-copy="#053274" style="--sw:#053274;--swfg:#FFFFFF" title="Copy #053274">
+      <span class="sw-step">800</span><span class="sw-hex">053274</span></button><button class="sw" data-copy="#011D4B" style="--sw:#011D4B;--swfg:#FFFFFF" title="Copy #011D4B">
+      <span class="sw-step">900</span><span class="sw-hex">011D4B</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Emerald</h3><p>Secondary jewel. Success, positive delta.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#BEFEDE" style="--sw:#BEFEDE;--swfg:#020713" title="Copy #BEFEDE">
+      <span class="sw-step">100</span><span class="sw-hex">BEFEDE</span></button><button class="sw" data-copy="#6AF8BC" style="--sw:#6AF8BC;--swfg:#020713" title="Copy #6AF8BC">
+      <span class="sw-step">200</span><span class="sw-hex">6AF8BC</span></button><button class="sw" data-copy="#48DBA2" style="--sw:#48DBA2;--swfg:#020713" title="Copy #48DBA2">
+      <span class="sw-step">300</span><span class="sw-hex">48DBA2</span></button><button class="sw" data-copy="#2CB985" style="--sw:#2CB985;--swfg:#020713" title="Copy #2CB985">
+      <span class="sw-step">400</span><span class="sw-hex">2CB985</span></button><button class="sw" data-copy="#22986D" style="--sw:#22986D;--swfg:#020713" title="Copy #22986D">
+      <span class="sw-step">500</span><span class="sw-hex">22986D</span></button><button class="sw" data-copy="#1E8861" style="--sw:#1E8861;--swfg:#020713" title="Copy #1E8861">
+      <span class="sw-step">550</span><span class="sw-hex">1E8861</span></button><button class="sw" data-copy="#157A56" style="--sw:#157A56;--swfg:#FFFFFF" title="Copy #157A56">
+      <span class="sw-step">600</span><span class="sw-hex">157A56</span></button><button class="sw" data-copy="#105D41" style="--sw:#105D41;--swfg:#FFFFFF" title="Copy #105D41">
+      <span class="sw-step">700</span><span class="sw-hex">105D41</span></button><button class="sw" data-copy="#08412C" style="--sw:#08412C;--swfg:#FFFFFF" title="Copy #08412C">
+      <span class="sw-step">800</span><span class="sw-hex">08412C</span></button><button class="sw" data-copy="#022819" style="--sw:#022819;--swfg:#FFFFFF" title="Copy #022819">
+      <span class="sw-step">900</span><span class="sw-hex">022819</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Brass</h3><p>The accent. Focus rings, emphasis, the wordmark. Never a default button.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#FEEBC4" style="--sw:#FEEBC4;--swfg:#020713" title="Copy #FEEBC4">
+      <span class="sw-step">100</span><span class="sw-hex">FEEBC4</span></button><button class="sw" data-copy="#FCD37D" style="--sw:#FCD37D;--swfg:#020713" title="Copy #FCD37D">
+      <span class="sw-step">200</span><span class="sw-hex">FCD37D</span></button><button class="sw" data-copy="#E5B64A" style="--sw:#E5B64A;--swfg:#020713" title="Copy #E5B64A">
+      <span class="sw-step">300</span><span class="sw-hex">E5B64A</span></button><button class="sw" data-copy="#C49726" style="--sw:#C49726;--swfg:#020713" title="Copy #C49726">
+      <span class="sw-step">400</span><span class="sw-hex">C49726</span></button><button class="sw" data-copy="#A17B1D" style="--sw:#A17B1D;--swfg:#020713" title="Copy #A17B1D">
+      <span class="sw-step">500</span><span class="sw-hex">A17B1D</span></button><button class="sw" data-copy="#916F19" style="--sw:#916F19;--swfg:#FFFFFF" title="Copy #916F19">
+      <span class="sw-step">550</span><span class="sw-hex">916F19</span></button><button class="sw" data-copy="#836202" style="--sw:#836202;--swfg:#FFFFFF" title="Copy #836202">
+      <span class="sw-step">600</span><span class="sw-hex">836202</span></button><button class="sw" data-copy="#634A0D" style="--sw:#634A0D;--swfg:#FFFFFF" title="Copy #634A0D">
+      <span class="sw-step">700</span><span class="sw-hex">634A0D</span></button><button class="sw" data-copy="#463406" style="--sw:#463406;--swfg:#FFFFFF" title="Copy #463406">
+      <span class="sw-step">800</span><span class="sw-hex">463406</span></button><button class="sw" data-copy="#2B1E01" style="--sw:#2B1E01;--swfg:#FFFFFF" title="Copy #2B1E01">
+      <span class="sw-step">900</span><span class="sw-hex">2B1E01</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Copper</h3><p>Warm accent. Warning, caution, the second metal.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#FEE8DE" style="--sw:#FEE8DE;--swfg:#020713" title="Copy #FEE8DE">
+      <span class="sw-step">100</span><span class="sw-hex">FEE8DE</span></button><button class="sw" data-copy="#FCCDB9" style="--sw:#FCCDB9;--swfg:#020713" title="Copy #FCCDB9">
+      <span class="sw-step">200</span><span class="sw-hex">FCCDB9</span></button><button class="sw" data-copy="#FAA680" style="--sw:#FAA680;--swfg:#020713" title="Copy #FAA680">
+      <span class="sw-step">300</span><span class="sw-hex">FAA680</span></button><button class="sw" data-copy="#E08256" style="--sw:#E08256;--swfg:#020713" title="Copy #E08256">
+      <span class="sw-step">400</span><span class="sw-hex">E08256</span></button><button class="sw" data-copy="#C06539" style="--sw:#C06539;--swfg:#020713" title="Copy #C06539">
+      <span class="sw-step">500</span><span class="sw-hex">C06539</span></button><button class="sw" data-copy="#B1582B" style="--sw:#B1582B;--swfg:#FFFFFF" title="Copy #B1582B">
+      <span class="sw-step">550</span><span class="sw-hex">B1582B</span></button><button class="sw" data-copy="#A24A1C" style="--sw:#A24A1C;--swfg:#FFFFFF" title="Copy #A24A1C">
+      <span class="sw-step">600</span><span class="sw-hex">A24A1C</span></button><button class="sw" data-copy="#7F350C" style="--sw:#7F350C;--swfg:#FFFFFF" title="Copy #7F350C">
+      <span class="sw-step">700</span><span class="sw-hex">7F350C</span></button><button class="sw" data-copy="#5B2405" style="--sw:#5B2405;--swfg:#FFFFFF" title="Copy #5B2405">
+      <span class="sw-step">800</span><span class="sw-hex">5B2405</span></button><button class="sw" data-copy="#391301" style="--sw:#391301;--swfg:#FFFFFF" title="Copy #391301">
+      <span class="sw-step">900</span><span class="sw-hex">391301</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Garnet</h3><p>Danger. Jewel-toned, so it scolds without shouting.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#FEE6E9" style="--sw:#FEE6E9;--swfg:#020713" title="Copy #FEE6E9">
+      <span class="sw-step">100</span><span class="sw-hex">FEE6E9</span></button><button class="sw" data-copy="#FCCAD2" style="--sw:#FCCAD2;--swfg:#020713" title="Copy #FCCAD2">
+      <span class="sw-step">200</span><span class="sw-hex">FCCAD2</span></button><button class="sw" data-copy="#FAA0B0" style="--sw:#FAA0B0;--swfg:#020713" title="Copy #FAA0B0">
+      <span class="sw-step">300</span><span class="sw-hex">FAA0B0</span></button><button class="sw" data-copy="#F5688A" style="--sw:#F5688A;--swfg:#020713" title="Copy #F5688A">
+      <span class="sw-step">400</span><span class="sw-hex">F5688A</span></button><button class="sw" data-copy="#D3496E" style="--sw:#D3496E;--swfg:#020713" title="Copy #D3496E">
+      <span class="sw-step">500</span><span class="sw-hex">D3496E</span></button><button class="sw" data-copy="#C33A61" style="--sw:#C33A61;--swfg:#FFFFFF" title="Copy #C33A61">
+      <span class="sw-step">550</span><span class="sw-hex">C33A61</span></button><button class="sw" data-copy="#B42A54" style="--sw:#B42A54;--swfg:#FFFFFF" title="Copy #B42A54">
+      <span class="sw-step">600</span><span class="sw-hex">B42A54</span></button><button class="sw" data-copy="#8F133E" style="--sw:#8F133E;--swfg:#FFFFFF" title="Copy #8F133E">
+      <span class="sw-step">700</span><span class="sw-hex">8F133E</span></button><button class="sw" data-copy="#67092A" style="--sw:#67092A;--swfg:#FFFFFF" title="Copy #67092A">
+      <span class="sw-step">800</span><span class="sw-hex">67092A</span></button><button class="sw" data-copy="#410318" style="--sw:#410318;--swfg:#FFFFFF" title="Copy #410318">
+      <span class="sw-step">900</span><span class="sw-hex">410318</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Amethyst</h3><p>Extended. Chart identity, tags, the sixth voice.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#F1E8FE" style="--sw:#F1E8FE;--swfg:#020713" title="Copy #F1E8FE">
+      <span class="sw-step">100</span><span class="sw-hex">F1E8FE</span></button><button class="sw" data-copy="#E3CFFC" style="--sw:#E3CFFC;--swfg:#020713" title="Copy #E3CFFC">
+      <span class="sw-step">200</span><span class="sw-hex">E3CFFC</span></button><button class="sw" data-copy="#CFAAFA" style="--sw:#CFAAFA;--swfg:#020713" title="Copy #CFAAFA">
+      <span class="sw-step">300</span><span class="sw-hex">CFAAFA</span></button><button class="sw" data-copy="#B97CF8" style="--sw:#B97CF8;--swfg:#020713" title="Copy #B97CF8">
+      <span class="sw-step">400</span><span class="sw-hex">B97CF8</span></button><button class="sw" data-copy="#9C5DD8" style="--sw:#9C5DD8;--swfg:#020713" title="Copy #9C5DD8">
+      <span class="sw-step">500</span><span class="sw-hex">9C5DD8</span></button><button class="sw" data-copy="#8E4FC9" style="--sw:#8E4FC9;--swfg:#FFFFFF" title="Copy #8E4FC9">
+      <span class="sw-step">550</span><span class="sw-hex">8E4FC9</span></button><button class="sw" data-copy="#8141BA" style="--sw:#8141BA;--swfg:#FFFFFF" title="Copy #8141BA">
+      <span class="sw-step">600</span><span class="sw-hex">8141BA</span></button><button class="sw" data-copy="#67229D" style="--sw:#67229D;--swfg:#FFFFFF" title="Copy #67229D">
+      <span class="sw-step">700</span><span class="sw-hex">67229D</span></button><button class="sw" data-copy="#4B0C77" style="--sw:#4B0C77;--swfg:#FFFFFF" title="Copy #4B0C77">
+      <span class="sw-step">800</span><span class="sw-hex">4B0C77</span></button><button class="sw" data-copy="#2E044D" style="--sw:#2E044D;--swfg:#FFFFFF" title="Copy #2E044D">
+      <span class="sw-step">900</span><span class="sw-hex">2E044D</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Teal</h3><p>Decorative only — too low-chroma in sRGB to hold a chart slot.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#C1F9FE" style="--sw:#C1F9FE;--swfg:#020713" title="Copy #C1F9FE">
+      <span class="sw-step">100</span><span class="sw-hex">C1F9FE</span></button><button class="sw" data-copy="#67F0FC" style="--sw:#67F0FC;--swfg:#020713" title="Copy #67F0FC">
+      <span class="sw-step">200</span><span class="sw-hex">67F0FC</span></button><button class="sw" data-copy="#37D5E1" style="--sw:#37D5E1;--swfg:#020713" title="Copy #37D5E1">
+      <span class="sw-step">300</span><span class="sw-hex">37D5E1</span></button><button class="sw" data-copy="#2CB2BD" style="--sw:#2CB2BD;--swfg:#020713" title="Copy #2CB2BD">
+      <span class="sw-step">400</span><span class="sw-hex">2CB2BD</span></button><button class="sw" data-copy="#02939D" style="--sw:#02939D;--swfg:#020713" title="Copy #02939D">
+      <span class="sw-step">500</span><span class="sw-hex">02939D</span></button><button class="sw" data-copy="#01848D" style="--sw:#01848D;--swfg:#020713" title="Copy #01848D">
+      <span class="sw-step">550</span><span class="sw-hex">01848D</span></button><button class="sw" data-copy="#00767E" style="--sw:#00767E;--swfg:#FFFFFF" title="Copy #00767E">
+      <span class="sw-step">600</span><span class="sw-hex">00767E</span></button><button class="sw" data-copy="#10595F" style="--sw:#10595F;--swfg:#FFFFFF" title="Copy #10595F">
+      <span class="sw-step">700</span><span class="sw-hex">10595F</span></button><button class="sw" data-copy="#083F43" style="--sw:#083F43;--swfg:#FFFFFF" title="Copy #083F43">
+      <span class="sw-step">800</span><span class="sw-hex">083F43</span></button><button class="sw" data-copy="#022629" style="--sw:#022629;--swfg:#FFFFFF" title="Copy #022629">
+      <span class="sw-step">900</span><span class="sw-hex">022629</span></button></div>
+</div>
+<div class="ramp">
+  <div class="ramp-head"><h3>Ink</h3><p>Blue-black neutrals. Every surface and every line.</p></div>
+  <div class="ramp-strip"><button class="sw" data-copy="#EAEFF5" style="--sw:#EAEFF5;--swfg:#020713" title="Copy #EAEFF5">
+      <span class="sw-step">50</span><span class="sw-hex">EAEFF5</span></button><button class="sw" data-copy="#D0D8E4" style="--sw:#D0D8E4;--swfg:#020713" title="Copy #D0D8E4">
+      <span class="sw-step">100</span><span class="sw-hex">D0D8E4</span></button><button class="sw" data-copy="#B2BBC9" style="--sw:#B2BBC9;--swfg:#020713" title="Copy #B2BBC9">
+      <span class="sw-step">200</span><span class="sw-hex">B2BBC9</span></button><button class="sw" data-copy="#9099A7" style="--sw:#9099A7;--swfg:#020713" title="Copy #9099A7">
+      <span class="sw-step">300</span><span class="sw-hex">9099A7</span></button><button class="sw" data-copy="#707885" style="--sw:#707885;--swfg:#020713" title="Copy #707885">
+      <span class="sw-step">400</span><span class="sw-hex">707885</span></button><button class="sw" data-copy="#545B66" style="--sw:#545B66;--swfg:#FFFFFF" title="Copy #545B66">
+      <span class="sw-step">500</span><span class="sw-hex">545B66</span></button><button class="sw" data-copy="#3F4550" style="--sw:#3F4550;--swfg:#FFFFFF" title="Copy #3F4550">
+      <span class="sw-step">600</span><span class="sw-hex">3F4550</span></button><button class="sw" data-copy="#2C333E" style="--sw:#2C333E;--swfg:#FFFFFF" title="Copy #2C333E">
+      <span class="sw-step">700</span><span class="sw-hex">2C333E</span></button><button class="sw" data-copy="#1C232F" style="--sw:#1C232F;--swfg:#FFFFFF" title="Copy #1C232F">
+      <span class="sw-step">800</span><span class="sw-hex">1C232F</span></button><button class="sw" data-copy="#121A25" style="--sw:#121A25;--swfg:#FFFFFF" title="Copy #121A25">
+      <span class="sw-step">850</span><span class="sw-hex">121A25</span></button><button class="sw" data-copy="#09111D" style="--sw:#09111D;--swfg:#FFFFFF" title="Copy #09111D">
+      <span class="sw-step">900</span><span class="sw-hex">09111D</span></button><button class="sw" data-copy="#020713" style="--sw:#020713;--swfg:#FFFFFF" title="Copy #020713">
+      <span class="sw-step">950</span><span class="sw-hex">020713</span></button></div>
+</div>
+</div></section>
+
+<section id="roles"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Color · roles</p><h2>Never reference a ramp directly</h2>
+    <p>Components read semantic tokens; semantic tokens read ramp steps. That one layer of indirection is what lets you retune the brand later without touching a component. The two value columns are the same token in each mode.</p></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:42%">Token</th><th>Dark (default)</th><th>Light (playbill)</th></tr></thead>
+    
+  <tbody class="semgroup"><tr class="semgroup-head"><th colspan="4">Surfaces</th></tr>
+  <tr>
+    <td class="tok"><code>--color-bg</code><span class="tok-note">App canvas — the deepest ground you build on</span></td>
+    <td class="val"><span class="chip" style="--sw:#09111D"></span><code>#09111D</code></td>
+    <td class="val"><span class="chip" style="--sw:#F7F1E6"></span><code>#F7F1E6</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-bg-surface</code><span class="tok-note">Panels, cards, the sidebar</span></td>
+    <td class="val"><span class="chip" style="--sw:#121A25"></span><code>#121A25</code></td>
+    <td class="val"><span class="chip" style="--sw:#FDFAF3"></span><code>#FDFAF3</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-bg-raised</code><span class="tok-note">Menus, popovers, anything floating</span></td>
+    <td class="val"><span class="chip" style="--sw:#1C232F"></span><code>#1C232F</code></td>
+    <td class="val"><span class="chip" style="--sw:#FFFFFF"></span><code>#FFFFFF</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-bg-sunken</code><span class="tok-note">Wells, code blocks, empty states</span></td>
+    <td class="val"><span class="chip" style="--sw:#020713"></span><code>#020713</code></td>
+    <td class="val"><span class="chip" style="--sw:#EEE7D9"></span><code>#EEE7D9</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-bg-overlay</code><span class="tok-note">Scrim behind modals</span></td>
+    <td class="val"><span class="chip" style="--sw:rgba(2, 7, 19, 0.72)"></span><code>rgba(2, 7, 19, 0.72)</code></td>
+    <td class="val"><span class="chip" style="--sw:rgba(9, 17, 29, 0.48)"></span><code>rgba(9, 17, 29, 0.48)</code></td>
+  </tr></tbody>
+  <tbody class="semgroup"><tr class="semgroup-head"><th colspan="4">Content</th></tr>
+  <tr>
+    <td class="tok"><code>--color-fg</code><span class="tok-note">Body and headings</span></td>
+    <td class="val"><span class="chip" style="--sw:#D0D8E4"></span><code>#D0D8E4</code></td>
+    <td class="val"><span class="chip" style="--sw:#09111D"></span><code>#09111D</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-fg-secondary</code><span class="tok-note">Supporting copy</span></td>
+    <td class="val"><span class="chip" style="--sw:#B2BBC9"></span><code>#B2BBC9</code></td>
+    <td class="val"><span class="chip" style="--sw:#2C333E"></span><code>#2C333E</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-fg-muted</code><span class="tok-note">Metadata, timestamps, column headers</span></td>
+    <td class="val"><span class="chip" style="--sw:#9099A7"></span><code>#9099A7</code></td>
+    <td class="val"><span class="chip" style="--sw:#545B66"></span><code>#545B66</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-fg-disabled</code><span class="tok-note">Inactive labels — exempt from contrast minimums, and it looks it</span></td>
+    <td class="val"><span class="chip" style="--sw:#707885"></span><code>#707885</code></td>
+    <td class="val"><span class="chip" style="--sw:#707885"></span><code>#707885</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-fg-inverse</code><span class="tok-note">Text on a solid accent fill</span></td>
+    <td class="val"><span class="chip" style="--sw:#020713"></span><code>#020713</code></td>
+    <td class="val"><span class="chip" style="--sw:#FFFFFF"></span><code>#FFFFFF</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-accent</code><span class="tok-note">Brass emphasis — numbers worth noticing, the active nav item</span></td>
+    <td class="val"><span class="chip" style="--sw:#E5B64A"></span><code>#E5B64A</code></td>
+    <td class="val"><span class="chip" style="--sw:#634A0D"></span><code>#634A0D</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-link</code><span class="tok-note">Inline links</span></td>
+    <td class="val"><span class="chip" style="--sw:#9ABFFA"></span><code>#9ABFFA</code></td>
+    <td class="val"><span class="chip" style="--sw:#0C49A0"></span><code>#0C49A0</code></td>
+  </tr></tbody>
+  <tbody class="semgroup"><tr class="semgroup-head"><th colspan="4">Lines</th></tr>
+  <tr>
+    <td class="tok"><code>--color-line</code><span class="tok-note">Dividers and card edges — decorative, not a control boundary</span></td>
+    <td class="val"><span class="chip" style="--sw:#2C333E"></span><code>#2C333E</code></td>
+    <td class="val"><span class="chip" style="--sw:#B2BBC9"></span><code>#B2BBC9</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-line-strong</code><span class="tok-note">Table rules, heavier separation</span></td>
+    <td class="val"><span class="chip" style="--sw:#3F4550"></span><code>#3F4550</code></td>
+    <td class="val"><span class="chip" style="--sw:#9099A7"></span><code>#9099A7</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-line-control</code><span class="tok-note">Input and control borders — this one carries a 3:1 obligation</span></td>
+    <td class="val"><span class="chip" style="--sw:#707885"></span><code>#707885</code></td>
+    <td class="val"><span class="chip" style="--sw:#707885"></span><code>#707885</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-focus</code><span class="tok-note">The brass focus ring</span></td>
+    <td class="val"><span class="chip" style="--sw:#E5B64A"></span><code>#E5B64A</code></td>
+    <td class="val"><span class="chip" style="--sw:#836202"></span><code>#836202</code></td>
+  </tr></tbody>
+  <tbody class="semgroup"><tr class="semgroup-head"><th colspan="4">Primary action</th></tr>
+  <tr>
+    <td class="tok"><code>--color-primary</code><span class="tok-note">Default fill</span></td>
+    <td class="val"><span class="chip" style="--sw:#2062C7"></span><code>#2062C7</code></td>
+    <td class="val"><span class="chip" style="--sw:#2062C7"></span><code>#2062C7</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-primary-hover</code><span class="tok-note">Hover</span></td>
+    <td class="val"><span class="chip" style="--sw:#2E70D6"></span><code>#2E70D6</code></td>
+    <td class="val"><span class="chip" style="--sw:#0C49A0"></span><code>#0C49A0</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-primary-active</code><span class="tok-note">Pressed</span></td>
+    <td class="val"><span class="chip" style="--sw:#0C49A0"></span><code>#0C49A0</code></td>
+    <td class="val"><span class="chip" style="--sw:#053274"></span><code>#053274</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-on-primary</code><span class="tok-note">Label on all three</span></td>
+    <td class="val"><span class="chip" style="--sw:#FFFFFF"></span><code>#FFFFFF</code></td>
+    <td class="val"><span class="chip" style="--sw:#FFFFFF"></span><code>#FFFFFF</code></td>
+  </tr></tbody>
+  <tbody class="semgroup"><tr class="semgroup-head"><th colspan="4">Status</th></tr>
+  <tr>
+    <td class="tok"><code>--color-success</code><span class="tok-note">Emerald text/icon</span></td>
+    <td class="val"><span class="chip" style="--sw:#48DBA2"></span><code>#48DBA2</code></td>
+    <td class="val"><span class="chip" style="--sw:#105D41"></span><code>#105D41</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-success-bg</code><span class="tok-note">Tile ground</span></td>
+    <td class="val"><span class="chip" style="--sw:#022819"></span><code>#022819</code></td>
+    <td class="val"><span class="chip" style="--sw:#BEFEDE"></span><code>#BEFEDE</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-warning</code><span class="tok-note">Copper text/icon</span></td>
+    <td class="val"><span class="chip" style="--sw:#FAA680"></span><code>#FAA680</code></td>
+    <td class="val"><span class="chip" style="--sw:#7F350C"></span><code>#7F350C</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-warning-bg</code><span class="tok-note">Tile ground</span></td>
+    <td class="val"><span class="chip" style="--sw:#391301"></span><code>#391301</code></td>
+    <td class="val"><span class="chip" style="--sw:#FEE8DE"></span><code>#FEE8DE</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-danger</code><span class="tok-note">Garnet text/icon</span></td>
+    <td class="val"><span class="chip" style="--sw:#FAA0B0"></span><code>#FAA0B0</code></td>
+    <td class="val"><span class="chip" style="--sw:#8F133E"></span><code>#8F133E</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-danger-bg</code><span class="tok-note">Tile ground</span></td>
+    <td class="val"><span class="chip" style="--sw:#410318"></span><code>#410318</code></td>
+    <td class="val"><span class="chip" style="--sw:#FEE6E9"></span><code>#FEE6E9</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-danger-solid</code><span class="tok-note">Destructive button fill</span></td>
+    <td class="val"><span class="chip" style="--sw:#B42A54"></span><code>#B42A54</code></td>
+    <td class="val"><span class="chip" style="--sw:#8F133E"></span><code>#8F133E</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-info</code><span class="tok-note">Sapphire text/icon</span></td>
+    <td class="val"><span class="chip" style="--sw:#9ABFFA"></span><code>#9ABFFA</code></td>
+    <td class="val"><span class="chip" style="--sw:#0C49A0"></span><code>#0C49A0</code></td>
+  </tr><tr>
+    <td class="tok"><code>--color-info-bg</code><span class="tok-note">Tile ground</span></td>
+    <td class="val"><span class="chip" style="--sw:#011D4B"></span><code>#011D4B</code></td>
+    <td class="val"><span class="chip" style="--sw:#E3EEFE"></span><code>#E3EEFE</code></td>
+  </tr></tbody>
+  </table></div>
+</div></section>
+
+<section id="applied"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Applied</p><h2>The system, assembled</h2>
+    <p>Every color below comes from a token — nothing is hand-picked. Tab to a control to see the brass focus ring, and flip the mode switch to watch the whole panel re-resolve.</p></div>
+  <div class="specimen">
+    <div class="spec-bar"><span class="spec-dot"></span><span class="spec-title">Vitrine · Specimen</span></div>
+    <div class="spec-body">
+      <div class="btnrow">
+        <button class="btn btn-primary" type="button">Publish case</button>
+        <button class="btn btn-ghost" type="button">Preview</button>
+        <button class="btn btn-brass" type="button">Feature this</button>
+        <button class="btn btn-danger" type="button">Delete</button>
+      </div>
+      <div class="field"><label for="spec-input">Case title</label>
+        <input id="spec-input" type="text" value="Autumn/Winter archive" /></div>
+      <div class="tiles">
+        <div class="tile t-ok"><b>Published</b><span>Live since 09:14</span></div>
+        <div class="tile t-info"><b>In review</b><span>2 items awaiting sign-off</span></div>
+        <div class="tile t-warn"><b>Expiring</b><span>Share link ends Friday</span></div>
+        <div class="tile t-bad"><b>Failed</b><span>3 assets over size limit</span></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="type"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Typography</p><h2>One face with a past, one with a job</h2>
+    <p>Josefin Sans is a 1920s geometric revival — beautiful at 40px, unreadable at 13. Inter is the opposite. The rule is simple: Josefin never appears below 20px and never inside the product UI.</p></div>
+  <div class="face-grid">
+    <div class="face-card"><p class="face-role">Display · brand</p>
+      <p class="face-name" style="font-family:var(--font-display);font-weight:300;letter-spacing:.02em">Josefin Sans</p>
+      <p class="face-note">Wordmark, hero lines, marketing headlines, letterspaced caps. Weights 200–400 only — Josefin's bold loses the Deco line.</p>
+      <p class="glyphs" style="font-family:var(--font-display);font-weight:300;letter-spacing:.06em">ABCDEFGHIJKLM<br>abcdefghijklm 0123456789</p></div>
+    <div class="face-card"><p class="face-role">Interface · body</p>
+      <p class="face-name" style="font-weight:600">Inter</p>
+      <p class="face-note">All product UI, tables, forms, long-form copy. Tall x-height, real tabular figures, holds together at 13px in a dense table.</p>
+      <p class="glyphs">ABCDEFGHIJKLM<br>abcdefghijklm 0123456789</p></div>
+    <div class="face-card"><p class="face-role">Data · mono</p>
+      <p class="face-name" style="font-family:var(--font-mono);font-weight:500">IBM Plex Mono</p>
+      <p class="face-note">IDs, hex values, timestamps, code. Slightly humanist, so it sits with Josefin instead of fighting it.</p>
+      <p class="glyphs" style="font-family:var(--font-mono)">ABCDEFGHIJKLM<br>abcdefghijklm 0123456789</p></div>
+  </div>
+  <h3 style="margin-top:44px;margin-bottom:6px">The scale</h3>
+  <p style="color:var(--color-fg-muted);font-size:var(--text-sm);margin-bottom:8px">A 1.22 ratio, rounded to whole pixels. 14px is the product default — productivity tools run dense.</p>
+  <div class="specrow"><div class="meta"><b>display</b>49 / 61px · Josefin 300<br>lh 1.06 · ls -0.022em<br><span style="color:var(--color-fg-disabled)">Wordmark, the one hero line per screen</span></div>
+      <div class="sample" style="font-family:var(--font-display);font-size:49px;font-weight:300;line-height:1.06;letter-spacing:-0.022em">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>4xl</b>39px · Josefin 300<br>lh 1.1 · ls -0.022em<br><span style="color:var(--color-fg-disabled)">Page title on a marketing page</span></div>
+      <div class="sample" style="font-family:var(--font-display);font-size:39px;font-weight:300;line-height:1.1;letter-spacing:-0.022em">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>3xl</b>31px · Inter 600<br>lh 1.2 · ls -0.011em<br><span style="color:var(--color-fg-disabled)">Section heading in-product</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:31px;font-weight:600;line-height:1.2;letter-spacing:-0.011em">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>2xl</b>25px · Inter 600<br>lh 1.2 · ls -0.011em<br><span style="color:var(--color-fg-disabled)">Panel title</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:25px;font-weight:600;line-height:1.2;letter-spacing:-0.011em">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>xl</b>21px · Inter 600<br>lh 1.35 · ls 0<br><span style="color:var(--color-fg-disabled)">Card title</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:21px;font-weight:600;line-height:1.35;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>lg</b>18px · Inter 500<br>lh 1.5 · ls 0<br><span style="color:var(--color-fg-disabled)">Lead paragraph</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:18px;font-weight:500;line-height:1.5;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>md</b>16px · Inter 400<br>lh 1.5 · ls 0<br><span style="color:var(--color-fg-disabled)">Long-form body</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>base</b>14px · Inter 400<br>lh 1.35 · ls 0<br><span style="color:var(--color-fg-disabled)">Product UI — the workhorse size</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:14px;font-weight:400;line-height:1.35;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>sm</b>13px · Inter 400<br>lh 1.35 · ls 0<br><span style="color:var(--color-fg-disabled)">Dense tables, sidebars</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:13px;font-weight:400;line-height:1.35;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>xs</b>12px · Inter 400<br>lh 1.35 · ls 0<br><span style="color:var(--color-fg-disabled)">Captions, helper text</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:12px;font-weight:400;line-height:1.35;letter-spacing:0">Vitrine keeps the good work visible</div></div><div class="specrow"><div class="meta"><b>2xs</b>11px · Inter 600<br>lh 1.2 · ls 0.14em<br><span style="color:var(--color-fg-disabled)">Uppercase eyebrows and labels</span></div>
+      <div class="sample" style="font-family:var(--font-sans);font-size:11px;font-weight:600;line-height:1.2;letter-spacing:0.14em;text-transform:uppercase">Vitrine keeps the good work visible</div></div>
+</div></section>
+
+<section id="marks"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Marks</p><h2>Three readings of a display case</h2>
+    <p>All three survive at 16px and all three work as a square app icon. The Case is my recommendation — it is the only one that carries the name's meaning rather than just its letter.</p></div>
+  <div class="marks">
+    <div class="markcard"><div class="markstage">
+      <svg width="104" height="104" viewBox="0 0 64 64" role="img" aria-label="The Case mark">
+        <path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/>
+        <path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/>
+        <path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="4.2"/>
+        <rect x="4" y="54" width="56" height="6" fill="url(#br1)"/></svg>
+      <div class="marksizes">
+        <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/><path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/><path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="4.2"/><rect x="4" y="54" width="56" height="6" fill="url(#br1)"/></svg>
+        <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/><path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/><path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="5"/><rect x="4" y="54" width="56" height="6" fill="url(#br1)"/></svg>
+      </div></div>
+      <div class="markmeta"><h4>The Case <span style="color:var(--color-accent);font-weight:600;font-size:var(--text-xs)">· recommended</span></h4>
+        <p>A stepped Deco cabinet on a plinth, lit glass inside, the V cut as the light itself. Reads as an object, not a letter.</p></div></div>
+
+    <div class="markcard"><div class="markstage">
+      <svg width="104" height="104" viewBox="0 0 64 64" role="img" aria-label="The Rake mark">
+        <g fill="none" stroke="url(#br1)" stroke-width="4.6" stroke-linecap="butt">
+          <path d="M7,15 L32,53 L57,15"/><path d="M15,15 L32,41 L49,15"/><path d="M23,15 L32,29 L41,15"/></g>
+        <rect x="7" y="8" width="50" height="3" fill="url(#br1)"/></svg>
+      <div class="marksizes">
+        <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="url(#br1)" stroke-width="4.6"><path d="M7,15 L32,53 L57,15"/><path d="M15,15 L32,41 L49,15"/><path d="M23,15 L32,29 L41,15"/></g><rect x="7" y="8" width="50" height="3" fill="url(#br1)"/></svg>
+        <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="url(#br1)" stroke-width="5.6"><path d="M7,15 L32,53 L57,15"/><path d="M15,15 L32,41 L49,15"/><path d="M23,15 L32,29 L41,15"/></g><rect x="7" y="8" width="50" height="3" fill="url(#br1)"/></svg>
+      </div></div>
+      <div class="markmeta"><h4>The Rake</h4><p>Three nested chevrons under a hairline — Deco speed-lines, and the V of Vitrine. The most typographic of the three; the best fit if the product is fast.</p></div></div>
+
+    <div class="markcard"><div class="markstage">
+      <svg width="104" height="104" viewBox="0 0 64 64" role="img" aria-label="The Facet mark">
+        <path d="M22,5 L42,5 L59,22 L59,42 L42,59 L22,59 L5,42 L5,22 Z" fill="url(#br1)"/>
+        <path d="M25,12 L39,12 L52,25 L52,39 L39,52 L25,52 L12,39 L12,25 Z" fill="url(#gl1)"/>
+        <path d="M23,27 L32,45 L41,27" fill="none" stroke="url(#br1)" stroke-width="4.2"/>
+        <path d="M23,27 L41,27" stroke="#FCD37D" stroke-width="2" opacity=".85"/></svg>
+      <div class="marksizes">
+        <svg width="32" height="32" viewBox="0 0 64 64" aria-hidden="true"><path d="M22,5 L42,5 L59,22 L59,42 L42,59 L22,59 L5,42 L5,22 Z" fill="url(#br1)"/><path d="M25,12 L39,12 L52,25 L52,39 L39,52 L25,52 L12,39 L12,25 Z" fill="url(#gl1)"/><path d="M23,27 L32,45 L41,27" fill="none" stroke="url(#br1)" stroke-width="4.2"/></svg>
+        <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><path d="M22,5 L42,5 L59,22 L59,42 L42,59 L22,59 L5,42 L5,22 Z" fill="url(#br1)"/><path d="M25,12 L39,12 L52,25 L52,39 L39,52 L25,52 L12,39 L12,25 Z" fill="url(#gl1)"/><path d="M23,27 L32,45 L41,27" fill="none" stroke="url(#br1)" stroke-width="5"/></svg>
+      </div></div>
+      <div class="markmeta"><h4>The Facet</h4><p>A beveled octagonal pane with the V as the bevel catching light. The softest of the three, and the one that scales smallest cleanly.</p></div></div>
+  </div>
+
+  <h3 style="margin-top:44px;margin-bottom:4px">Lockups</h3>
+  <p style="color:var(--color-fg-muted);font-size:var(--text-sm)">Clearspace on all sides equals the height of the plinth (⅒ of the mark). Minimum mark size 16px; minimum horizontal lockup width 104px — below that, drop to the mark alone.</p>
+  <div class="lockups">
+    <div class="lock"><div class="lock-h">
+      <svg width="38" height="38" viewBox="0 0 64 64" aria-hidden="true"><path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/><path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/><path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="4.2"/><rect x="4" y="54" width="56" height="6" fill="url(#br1)"/></svg>
+      <span class="lock-word">Vitrine</span></div><span class="cap">Horizontal · app header, 32–48px</span></div>
+    <div class="lock"><div class="lock-v">
+      <svg width="52" height="52" viewBox="0 0 64 64" aria-hidden="true"><path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#br1)"/><path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#gl1)"/><path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#br1)" stroke-width="4.2"/><rect x="4" y="54" width="56" height="6" fill="url(#br1)"/></svg>
+      <span class="lock-word" style="font-size:19px">Vitrine</span></div><span class="cap">Stacked · splash, print, avatars</span></div>
+    <div class="lock" style="background:#E5B64A"><div class="lock-h">
+      <svg width="38" height="38" viewBox="0 0 64 64" aria-hidden="true"><path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="#020713"/><path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="#E5B64A"/><path d="M23,29 L32,47 L41,29" fill="none" stroke="#020713" stroke-width="4.2"/><rect x="4" y="54" width="56" height="6" fill="#020713"/></svg>
+      <span class="lock-word" style="color:#020713">Vitrine</span></div><span class="cap" style="color:#463406">One-color · on brass, foil, or embossing</span></div>
+  </div>
+
+  <div class="rules dont" style="margin-top:26px">
+    <div class="rule"><h4>Don't recolor the glass</h4><p>The inner pane is always ink or sapphire-800. A green or red pane turns the case into a traffic light.</p></div>
+    <div class="rule"><h4>Don't add a gradient sheen</h4><p>The brass gradient is already in the mark. A second highlight sweep reads as 2009 web design, not 1929 metalwork.</p></div>
+    <div class="rule"><h4>Don't set the wordmark in Inter</h4><p>The wordmark is Josefin Sans 300 at 0.20em tracking. Always. It is the only place that tracking value is used.</p></div>
+    <div class="rule"><h4>Don't put the mark on a busy photo</h4><p>If there's no flat ground, use the one-color version inside a solid ink plate with the standard clearspace.</p></div>
+  </div>
+</div></section>
+
+<section id="data"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Data color</p><h2>Six voices, in a fixed order</h2>
+    <p>Series colors are assigned in slot order and never cycled or reshuffled — a filter that removes series 3 must not repaint the rest. These six clear a worst adjacent-pair separation of ΔE 11.4 under simulated protanopia and deuteranopia, against a target of 8, in <em>both</em> modes. They're identical in light and dark, so a screenshot survives a mode switch.</p></div>
+  <div class="chartcard">
+    <div class="chart-head"><h3>Slot order, demonstrated</h3><span class="sub">Example values — each line is one palette slot</span></div>
+    <div class="chartbox"><svg id="chart" viewBox="0 0 720 300" role="img" aria-label="Six-line chart demonstrating the categorical palette slots"></svg><div class="tip" id="tip"></div></div>
+    <div class="legend"><span style="--sw:#3C7FE5"><i></i>1. Sapphire</span><span style="--sw:#22986D"><i></i>2. Emerald</span><span style="--sw:#836202"><i></i>3. Brass</span><span style="--sw:#D3496E"><i></i>4. Garnet</span><span style="--sw:#9C5DD8"><i></i>5. Amethyst</span><span style="--sw:#C06539"><i></i>6. Copper</span></div>
+  </div>
+  <div class="rules" style="margin-top:20px">
+    <div class="rule"><h4>Sequential is one hue</h4><p>Sapphire, light→dark in the playbill mode and dark→light in the dark mode. Never a rainbow ramp for magnitude.</p></div>
+    <div class="rule"><h4>Diverging is garnet ↔ emerald</h4><p>With a neutral ink-300 midpoint. Never a jewel hue at the midpoint — that reads as a third category.</p></div>
+    <div class="rule"><h4>Status never borrows a slot</h4><p>Series colors live on the 500/600 steps; status lives on 300 (dark) and 700 (light). They share families but never a step — and status always ships with an icon and a label, never color alone.</p></div>
+    <div class="rule"><h4>Seven series is too many</h4><p>There is no slot 7. A seventh entity folds into "Other", or the chart becomes small multiples. Teal is in the ramps but can't hold a slot — sRGB has no chroma left at that lightness.</p></div>
+  </div>
+  <div style="margin-top:18px;display:grid;gap:10px">
+    <div><p class="eyebrow" style="margin-bottom:6px">Sequential · sapphire</p>
+      <div style="display:flex;gap:2px"><span style="flex:1;height:30px;background:#0C49A0;border-radius:2px"></span><span style="flex:1;height:30px;background:#2062C7;border-radius:2px"></span><span style="flex:1;height:30px;background:#3C7FE5;border-radius:2px"></span><span style="flex:1;height:30px;background:#659EF8;border-radius:2px"></span><span style="flex:1;height:30px;background:#9ABFFA;border-radius:2px"></span><span style="flex:1;height:30px;background:#C5DBFC;border-radius:2px"></span></div></div>
+    <div><p class="eyebrow" style="margin-bottom:6px">Diverging · garnet ↔ ink ↔ emerald</p>
+      <div style="display:flex;gap:2px"><span style="flex:1;height:30px;background:#8F133E;border-radius:2px"></span><span style="flex:1;height:30px;background:#D3496E;border-radius:2px"></span><span style="flex:1;height:30px;background:#FAA0B0;border-radius:2px"></span><span style="flex:1;height:30px;background:#9099A7;border-radius:2px"></span><span style="flex:1;height:30px;background:#48DBA2;border-radius:2px"></span><span style="flex:1;height:30px;background:#22986D;border-radius:2px"></span><span style="flex:1;height:30px;background:#105D41;border-radius:2px"></span></div></div>
+  </div>
+</div></section>
+
+<section id="tokens"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Tokens</p><h2>Drop-in, three ways</h2>
+    <p>All three are generated from one source, so they can't drift. The CSS is the canonical artifact; Tailwind and JSON are projections of it.</p></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-pane="css">tokens.css</button>
+    <button class="tab" role="tab" aria-selected="false" data-pane="tw">tailwind.css</button>
+    <button class="tab" role="tab" aria-selected="false" data-pane="json">tokens.json</button>
+  </div>
+  <div class="codebox">
+    <button class="copybtn" id="copycode" type="button">Copy</button>
+    <pre id="pane"></pre>
+  </div>
+</div></section>
+
+<section id="ledger"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Accessibility</p><h2>The ledger</h2>
+    <p>Measured, not estimated — every pairing below was computed with the WCAG 2.1 relative-luminance formula and re-run after each palette change. Disabled text is deliberately below the minimum and is exempt under 1.4.3; nothing else is.</p></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:40%">Pairing</th><th>Dark</th><th>Light</th><th>Required</th></tr></thead>
+    <tbody><tr><td>Body text on canvas</td>
+      <td class="num">13.18<span class="g g-AAA">AAA</span></td>
+      <td class="num">16.84<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Muted text on canvas</td>
+      <td class="num">6.58<span class="g g-AA">AA</span></td>
+      <td class="num">6.09<span class="g g-AA">AA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Link on canvas</td>
+      <td class="num">10.10<span class="g g-AAA">AAA</span></td>
+      <td class="num">7.54<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Brass accent text</td>
+      <td class="num">10.02<span class="g g-AAA">AAA</span></td>
+      <td class="num">7.42<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Success text</td>
+      <td class="num">10.75<span class="g g-AAA">AAA</span></td>
+      <td class="num">7.01<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Warning text</td>
+      <td class="num">9.76<span class="g g-AAA">AAA</span></td>
+      <td class="num">7.73<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Danger text</td>
+      <td class="num">9.66<span class="g g-AAA">AAA</span></td>
+      <td class="num">8.01<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Primary button label</td>
+      <td class="num">5.78<span class="g g-AA">AA</span></td>
+      <td class="num">5.78<span class="g g-AA">AA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Primary button, hover</td>
+      <td class="num">4.77<span class="g g-AA">AA</span></td>
+      <td class="num">8.48<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Destructive button label</td>
+      <td class="num">6.18<span class="g g-AA">AA</span></td>
+      <td class="num">9.01<span class="g g-AAA">AAA</span></td>
+      <td class="num req">4.5</td></tr><tr><td>Control border vs surface</td>
+      <td class="num">3.93<span class="g g-3:1">3:1</span></td>
+      <td class="num">3.96<span class="g g-3:1">3:1</span></td>
+      <td class="num req">3.0</td></tr><tr><td>Focus ring vs canvas</td>
+      <td class="num">10.02<span class="g g-3:1">3:1</span></td>
+      <td class="num">5.03<span class="g g-3:1">3:1</span></td>
+      <td class="num req">3.0</td></tr></tbody>
+  </table></div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <hr class="rule2" style="margin-bottom:22px">
+  <p>Vitrine identity system · generated in OKLCH, audited in WCAG 2.1, validated for protanopia and deuteranopia.<br>
+  Josefin Sans, Inter and IBM Plex Mono are all SIL Open Font License — free to embed and ship.</p>
+</div></footer>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+(function(){
+  "use strict";
+  var toast=document.getElementById('toast'),tt;
+  function say(m){toast.textContent=m;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('on')},1300);}
+  function copy(text,msg){
+    var done=function(){say(msg)};
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,fallback);return;} }catch(e){}
+    fallback();
+    function fallback(){ try{var t=document.createElement('textarea');t.value=text;t.setAttribute('readonly','');
+      t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();
+      document.execCommand('copy');document.body.removeChild(t);done();}catch(e){say('Select and copy manually');} }
+  }
+  document.addEventListener('click',function(e){
+    var s=e.target.closest('.sw'); if(s){copy(s.dataset.copy,s.dataset.copy+' copied');}
+  });
+
+  /* theme toggle */
+  var root=document.documentElement,btn=document.getElementById('modebtn');
+  function current(){ var ex=root.getAttribute('data-theme'); if(ex) return ex;
+    return (window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark'; }
+  function label(){ btn.textContent = current()==='dark' ? 'Light mode' : 'Dark mode'; }
+  try{ var saved=localStorage.getItem('vitrine-theme'); if(saved) root.setAttribute('data-theme',saved); }catch(e){}
+  label();
+  btn.addEventListener('click',function(){ var next=current()==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next); try{localStorage.setItem('vitrine-theme',next);}catch(e){} label(); });
+
+  /* tokens panes */
+  var PANES={"css":"/* ============================================================\n   Dark Jazz Age — design tokens\n   Generated. Every color pairing in here is contrast-audited;\n   the 6 chart series pass CVD separation in both modes.\n   Dark is the primary mode; light is the \"playbill\" mode.\n   ============================================================ */\n\n:root {\n  /* ---- primitive ramps (never reference these in components) ---- */\n  --color-sapphire-100: #E3EEFE;\n  --color-sapphire-200: #C5DBFC;\n  --color-sapphire-300: #9ABFFA;\n  --color-sapphire-400: #659EF8;\n  --color-sapphire-500: #3C7FE5;\n  --color-sapphire-550: #2E70D6;\n  --color-sapphire-600: #2062C7;\n  --color-sapphire-700: #0C49A0;\n  --color-sapphire-800: #053274;\n  --color-sapphire-900: #011D4B;\n  --color-teal-100: #C1F9FE;\n  --color-teal-200: #67F0FC;\n  --color-teal-300: #37D5E1;\n  --color-teal-400: #2CB2BD;\n  --color-teal-500: #02939D;\n  --color-teal-550: #01848D;\n  --color-teal-600: #00767E;\n  --color-teal-700: #10595F;\n  --color-teal-800: #083F43;\n  --color-teal-900: #022629;\n  --color-emerald-100: #BEFEDE;\n  --color-emerald-200: #6AF8BC;\n  --color-emerald-300: #48DBA2;\n  --color-emerald-400: #2CB985;\n  --color-emerald-500: #22986D;\n  --color-emerald-550: #1E8861;\n  --color-emerald-600: #157A56;\n  --color-emerald-700: #105D41;\n  --color-emerald-800: #08412C;\n  --color-emerald-900: #022819;\n  --color-brass-100: #FEEBC4;\n  --color-brass-200: #FCD37D;\n  --color-brass-300: #E5B64A;\n  --color-brass-400: #C49726;\n  --color-brass-500: #A17B1D;\n  --color-brass-550: #916F19;\n  --color-brass-600: #836202;\n  --color-brass-700: #634A0D;\n  --color-brass-800: #463406;\n  --color-brass-900: #2B1E01;\n  --color-copper-100: #FEE8DE;\n  --color-copper-200: #FCCDB9;\n  --color-copper-300: #FAA680;\n  --color-copper-400: #E08256;\n  --color-copper-500: #C06539;\n  --color-copper-550: #B1582B;\n  --color-copper-600: #A24A1C;\n  --color-copper-700: #7F350C;\n  --color-copper-800: #5B2405;\n  --color-copper-900: #391301;\n  --color-garnet-100: #FEE6E9;\n  --color-garnet-200: #FCCAD2;\n  --color-garnet-300: #FAA0B0;\n  --color-garnet-400: #F5688A;\n  --color-garnet-500: #D3496E;\n  --color-garnet-550: #C33A61;\n  --color-garnet-600: #B42A54;\n  --color-garnet-700: #8F133E;\n  --color-garnet-800: #67092A;\n  --color-garnet-900: #410318;\n  --color-amethyst-100: #F1E8FE;\n  --color-amethyst-200: #E3CFFC;\n  --color-amethyst-300: #CFAAFA;\n  --color-amethyst-400: #B97CF8;\n  --color-amethyst-500: #9C5DD8;\n  --color-amethyst-550: #8E4FC9;\n  --color-amethyst-600: #8141BA;\n  --color-amethyst-700: #67229D;\n  --color-amethyst-800: #4B0C77;\n  --color-amethyst-900: #2E044D;\n  --color-ink-50: #EAEFF5;\n  --color-ink-100: #D0D8E4;\n  --color-ink-200: #B2BBC9;\n  --color-ink-300: #9099A7;\n  --color-ink-400: #707885;\n  --color-ink-500: #545B66;\n  --color-ink-600: #3F4550;\n  --color-ink-700: #2C333E;\n  --color-ink-800: #1C232F;\n  --color-ink-850: #121A25;\n  --color-ink-900: #09111D;\n  --color-ink-950: #020713;\n  --color-paper: #F7F1E6;\n  --color-paper-raised: #FDFAF3;\n  --color-paper-sunken: #EEE7D9;\n\n  /* ---- type ---- */\n  --font-display: 'Josefin Sans', 'Futura', 'Century Gothic', sans-serif;\n  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\n  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;\n  --text-2xs: 11px;\n  --text-xs: 12px;\n  --text-sm: 13px;\n  --text-base: 14px;\n  --text-md: 16px;\n  --text-lg: 18px;\n  --text-xl: 21px;\n  --text-2xl: 25px;\n  --text-3xl: 31px;\n  --text-4xl: 39px;\n  --text-5xl: 49px;\n  --text-6xl: 61px;\n  --leading-tight: 1.06;\n  --leading-snug: 1.2;\n  --leading-ui: 1.35;\n  --leading-normal: 1.5;\n  --leading-relaxed: 1.65;\n  --tracking-display: -0.022em;\n  --tracking-tight: -0.011em;\n  --tracking-normal: 0;\n  --tracking-wide: 0.04em;\n  --tracking-caps: 0.14em;\n  --tracking-caps-wide: 0.22em;\n\n  /* ---- space / radius ---- */\n  --space-0: 0;\n  --space-1: 4px;\n  --space-2: 8px;\n  --space-3: 12px;\n  --space-4: 16px;\n  --space-5: 24px;\n  --space-6: 32px;\n  --space-7: 48px;\n  --space-8: 64px;\n  --space-9: 96px;\n  --space-10: 128px;\n  --radius-none: 0;\n  --radius-sm: 2px;\n  --radius-md: 3px;\n  --radius-lg: 5px;\n  --radius-pill: 999px;\n\n  /* ---- semantic: DARK is the default ---- */\n  --color-bg: #09111D;\n  --color-bg-surface: #121A25;\n  --color-bg-raised: #1C232F;\n  --color-bg-sunken: #020713;\n  --color-bg-overlay: rgba(2, 7, 19, 0.72);\n  --color-fg: #D0D8E4;\n  --color-fg-secondary: #B2BBC9;\n  --color-fg-muted: #9099A7;\n  --color-fg-disabled: #707885;\n  --color-fg-inverse: #020713;\n  --color-accent: #E5B64A;\n  --color-accent-quiet: #836202;\n  --color-link: #9ABFFA;\n  --color-line: #2C333E;\n  --color-line-strong: #3F4550;\n  --color-line-control: #707885;\n  --color-focus: #E5B64A;\n  --color-primary: #2062C7;\n  --color-primary-hover: #2E70D6;\n  --color-primary-active: #0C49A0;\n  --color-on-primary: #FFFFFF;\n  --color-success: #48DBA2;\n  --color-success-bg: #022819;\n  --color-success-line: #105D41;\n  --color-warning: #FAA680;\n  --color-warning-bg: #391301;\n  --color-warning-line: #7F350C;\n  --color-danger: #FAA0B0;\n  --color-danger-bg: #410318;\n  --color-danger-line: #8F133E;\n  --color-danger-solid: #B42A54;\n  --color-info: #9ABFFA;\n  --color-info-bg: #011D4B;\n  --color-info-line: #0C49A0;\n  --color-series-1: #3C7FE5;\n  --color-series-2: #22986D;\n  --color-series-3: #836202;\n  --color-series-4: #D3496E;\n  --color-series-5: #9C5DD8;\n  --color-series-6: #C06539;\n  --color-seq-1: #0C49A0;\n  --color-seq-2: #2062C7;\n  --color-seq-3: #3C7FE5;\n  --color-seq-4: #659EF8;\n  --color-seq-5: #9ABFFA;\n  --color-seq-6: #C5DBFC;\n  --shadow-1: 0 1px 2px rgba(2,7,19,.6);\n  --shadow-2: 0 2px 8px rgba(2,7,19,.65), 0 0 0 1px rgba(229,182,74,.06);\n  --shadow-3: 0 12px 32px rgba(2,7,19,.7), 0 0 0 1px rgba(229,182,74,.09);\n  color-scheme: dark;\n}\n\n/* System light preference — unless an explicit dark choice overrides it. */\n@media (prefers-color-scheme: light) {\n  :root:not([data-theme=\"dark\"]) {\n    --color-bg: #F7F1E6;\n    --color-bg-surface: #FDFAF3;\n    --color-bg-raised: #FFFFFF;\n    --color-bg-sunken: #EEE7D9;\n    --color-bg-overlay: rgba(9, 17, 29, 0.48);\n    --color-fg: #09111D;\n    --color-fg-secondary: #2C333E;\n    --color-fg-muted: #545B66;\n    --color-fg-disabled: #707885;\n    --color-fg-inverse: #FFFFFF;\n    --color-accent: #634A0D;\n    --color-accent-quiet: #C49726;\n    --color-link: #0C49A0;\n    --color-line: #B2BBC9;\n    --color-line-strong: #9099A7;\n    --color-line-control: #707885;\n    --color-focus: #836202;\n    --color-primary: #2062C7;\n    --color-primary-hover: #0C49A0;\n    --color-primary-active: #053274;\n    --color-on-primary: #FFFFFF;\n    --color-success: #105D41;\n    --color-success-bg: #BEFEDE;\n    --color-success-line: #2CB985;\n    --color-warning: #7F350C;\n    --color-warning-bg: #FEE8DE;\n    --color-warning-line: #E08256;\n    --color-danger: #8F133E;\n    --color-danger-bg: #FEE6E9;\n    --color-danger-line: #F5688A;\n    --color-danger-solid: #8F133E;\n    --color-info: #0C49A0;\n    --color-info-bg: #E3EEFE;\n    --color-info-line: #659EF8;\n    --color-series-1: #3C7FE5;\n    --color-series-2: #22986D;\n    --color-series-3: #836202;\n    --color-series-4: #D3496E;\n    --color-series-5: #9C5DD8;\n    --color-series-6: #C06539;\n    --color-seq-1: #659EF8;\n    --color-seq-2: #3C7FE5;\n    --color-seq-3: #2062C7;\n    --color-seq-4: #0C49A0;\n    --color-seq-5: #053274;\n    --color-seq-6: #011D4B;\n    --shadow-1: 0 1px 2px rgba(9,17,29,.07);\n    --shadow-2: 0 2px 8px rgba(9,17,29,.09);\n    --shadow-3: 0 12px 32px rgba(9,17,29,.13);\n    color-scheme: light;\n  }\n}\n\n/* Explicit choice wins in both directions. */\n:root[data-theme=\"light\"] {\n  --color-bg: #F7F1E6;\n  --color-bg-surface: #FDFAF3;\n  --color-bg-raised: #FFFFFF;\n  --color-bg-sunken: #EEE7D9;\n  --color-bg-overlay: rgba(9, 17, 29, 0.48);\n  --color-fg: #09111D;\n  --color-fg-secondary: #2C333E;\n  --color-fg-muted: #545B66;\n  --color-fg-disabled: #707885;\n  --color-fg-inverse: #FFFFFF;\n  --color-accent: #634A0D;\n  --color-accent-quiet: #C49726;\n  --color-link: #0C49A0;\n  --color-line: #B2BBC9;\n  --color-line-strong: #9099A7;\n  --color-line-control: #707885;\n  --color-focus: #836202;\n  --color-primary: #2062C7;\n  --color-primary-hover: #0C49A0;\n  --color-primary-active: #053274;\n  --color-on-primary: #FFFFFF;\n  --color-success: #105D41;\n  --color-success-bg: #BEFEDE;\n  --color-success-line: #2CB985;\n  --color-warning: #7F350C;\n  --color-warning-bg: #FEE8DE;\n  --color-warning-line: #E08256;\n  --color-danger: #8F133E;\n  --color-danger-bg: #FEE6E9;\n  --color-danger-line: #F5688A;\n  --color-danger-solid: #8F133E;\n  --color-info: #0C49A0;\n  --color-info-bg: #E3EEFE;\n  --color-info-line: #659EF8;\n  --color-series-1: #3C7FE5;\n  --color-series-2: #22986D;\n  --color-series-3: #836202;\n  --color-series-4: #D3496E;\n  --color-series-5: #9C5DD8;\n  --color-series-6: #C06539;\n  --color-seq-1: #659EF8;\n  --color-seq-2: #3C7FE5;\n  --color-seq-3: #2062C7;\n  --color-seq-4: #0C49A0;\n  --color-seq-5: #053274;\n  --color-seq-6: #011D4B;\n  --shadow-1: 0 1px 2px rgba(9,17,29,.07);\n  --shadow-2: 0 2px 8px rgba(9,17,29,.09);\n  --shadow-3: 0 12px 32px rgba(9,17,29,.13);\n  color-scheme: light;\n}\n:root[data-theme=\"dark\"] {\n  --color-bg: #09111D;\n  --color-bg-surface: #121A25;\n  --color-bg-raised: #1C232F;\n  --color-bg-sunken: #020713;\n  --color-bg-overlay: rgba(2, 7, 19, 0.72);\n  --color-fg: #D0D8E4;\n  --color-fg-secondary: #B2BBC9;\n  --color-fg-muted: #9099A7;\n  --color-fg-disabled: #707885;\n  --color-fg-inverse: #020713;\n  --color-accent: #E5B64A;\n  --color-accent-quiet: #836202;\n  --color-link: #9ABFFA;\n  --color-line: #2C333E;\n  --color-line-strong: #3F4550;\n  --color-line-control: #707885;\n  --color-focus: #E5B64A;\n  --color-primary: #2062C7;\n  --color-primary-hover: #2E70D6;\n  --color-primary-active: #0C49A0;\n  --color-on-primary: #FFFFFF;\n  --color-success: #48DBA2;\n  --color-success-bg: #022819;\n  --color-success-line: #105D41;\n  --color-warning: #FAA680;\n  --color-warning-bg: #391301;\n  --color-warning-line: #7F350C;\n  --color-danger: #FAA0B0;\n  --color-danger-bg: #410318;\n  --color-danger-line: #8F133E;\n  --color-danger-solid: #B42A54;\n  --color-info: #9ABFFA;\n  --color-info-bg: #011D4B;\n  --color-info-line: #0C49A0;\n  --color-series-1: #3C7FE5;\n  --color-series-2: #22986D;\n  --color-series-3: #836202;\n  --color-series-4: #D3496E;\n  --color-series-5: #9C5DD8;\n  --color-series-6: #C06539;\n  --color-seq-1: #0C49A0;\n  --color-seq-2: #2062C7;\n  --color-seq-3: #3C7FE5;\n  --color-seq-4: #659EF8;\n  --color-seq-5: #9ABFFA;\n  --color-seq-6: #C5DBFC;\n  --shadow-1: 0 1px 2px rgba(2,7,19,.6);\n  --shadow-2: 0 2px 8px rgba(2,7,19,.65), 0 0 0 1px rgba(229,182,74,.06);\n  --shadow-3: 0 12px 32px rgba(2,7,19,.7), 0 0 0 1px rgba(229,182,74,.09);\n  color-scheme: dark;\n}\n","tw":"/* Tailwind v4 — import after tailwindcss. Ramps become utilities\n   (bg-sapphire-600, text-brass-300); semantic tokens become\n   bg-surface, text-fg-muted, border-line, ring-focus, etc. */\n@import \"tailwindcss\";\n@import \"./tokens.css\";\n\n@theme inline {\n  --color-sapphire-100: #E3EEFE;\n  --color-sapphire-200: #C5DBFC;\n  --color-sapphire-300: #9ABFFA;\n  --color-sapphire-400: #659EF8;\n  --color-sapphire-500: #3C7FE5;\n  --color-sapphire-550: #2E70D6;\n  --color-sapphire-600: #2062C7;\n  --color-sapphire-700: #0C49A0;\n  --color-sapphire-800: #053274;\n  --color-sapphire-900: #011D4B;\n  --color-teal-100: #C1F9FE;\n  --color-teal-200: #67F0FC;\n  --color-teal-300: #37D5E1;\n  --color-teal-400: #2CB2BD;\n  --color-teal-500: #02939D;\n  --color-teal-550: #01848D;\n  --color-teal-600: #00767E;\n  --color-teal-700: #10595F;\n  --color-teal-800: #083F43;\n  --color-teal-900: #022629;\n  --color-emerald-100: #BEFEDE;\n  --color-emerald-200: #6AF8BC;\n  --color-emerald-300: #48DBA2;\n  --color-emerald-400: #2CB985;\n  --color-emerald-500: #22986D;\n  --color-emerald-550: #1E8861;\n  --color-emerald-600: #157A56;\n  --color-emerald-700: #105D41;\n  --color-emerald-800: #08412C;\n  --color-emerald-900: #022819;\n  --color-brass-100: #FEEBC4;\n  --color-brass-200: #FCD37D;\n  --color-brass-300: #E5B64A;\n  --color-brass-400: #C49726;\n  --color-brass-500: #A17B1D;\n  --color-brass-550: #916F19;\n  --color-brass-600: #836202;\n  --color-brass-700: #634A0D;\n  --color-brass-800: #463406;\n  --color-brass-900: #2B1E01;\n  --color-copper-100: #FEE8DE;\n  --color-copper-200: #FCCDB9;\n  --color-copper-300: #FAA680;\n  --color-copper-400: #E08256;\n  --color-copper-500: #C06539;\n  --color-copper-550: #B1582B;\n  --color-copper-600: #A24A1C;\n  --color-copper-700: #7F350C;\n  --color-copper-800: #5B2405;\n  --color-copper-900: #391301;\n  --color-garnet-100: #FEE6E9;\n  --color-garnet-200: #FCCAD2;\n  --color-garnet-300: #FAA0B0;\n  --color-garnet-400: #F5688A;\n  --color-garnet-500: #D3496E;\n  --color-garnet-550: #C33A61;\n  --color-garnet-600: #B42A54;\n  --color-garnet-700: #8F133E;\n  --color-garnet-800: #67092A;\n  --color-garnet-900: #410318;\n  --color-amethyst-100: #F1E8FE;\n  --color-amethyst-200: #E3CFFC;\n  --color-amethyst-300: #CFAAFA;\n  --color-amethyst-400: #B97CF8;\n  --color-amethyst-500: #9C5DD8;\n  --color-amethyst-550: #8E4FC9;\n  --color-amethyst-600: #8141BA;\n  --color-amethyst-700: #67229D;\n  --color-amethyst-800: #4B0C77;\n  --color-amethyst-900: #2E044D;\n  --color-ink-50: #EAEFF5;\n  --color-ink-100: #D0D8E4;\n  --color-ink-200: #B2BBC9;\n  --color-ink-300: #9099A7;\n  --color-ink-400: #707885;\n  --color-ink-500: #545B66;\n  --color-ink-600: #3F4550;\n  --color-ink-700: #2C333E;\n  --color-ink-800: #1C232F;\n  --color-ink-850: #121A25;\n  --color-ink-900: #09111D;\n  --color-ink-950: #020713;\n  --color-paper: #F7F1E6;\n  --color-paper-raised: #FDFAF3;\n  --color-paper-sunken: #EEE7D9;\n  --color-bg: var(--color-bg);\n  --color-bg-surface: var(--color-bg-surface);\n  --color-bg-raised: var(--color-bg-raised);\n  --color-bg-sunken: var(--color-bg-sunken);\n  --color-bg-overlay: var(--color-bg-overlay);\n  --color-fg: var(--color-fg);\n  --color-fg-secondary: var(--color-fg-secondary);\n  --color-fg-muted: var(--color-fg-muted);\n  --color-fg-disabled: var(--color-fg-disabled);\n  --color-fg-inverse: var(--color-fg-inverse);\n  --color-accent: var(--color-accent);\n  --color-accent-quiet: var(--color-accent-quiet);\n  --color-link: var(--color-link);\n  --color-line: var(--color-line);\n  --color-line-strong: var(--color-line-strong);\n  --color-line-control: var(--color-line-control);\n  --color-focus: var(--color-focus);\n  --color-primary: var(--color-primary);\n  --color-primary-hover: var(--color-primary-hover);\n  --color-primary-active: var(--color-primary-active);\n  --color-on-primary: var(--color-on-primary);\n  --color-success: var(--color-success);\n  --color-success-bg: var(--color-success-bg);\n  --color-success-line: var(--color-success-line);\n  --color-warning: var(--color-warning);\n  --color-warning-bg: var(--color-warning-bg);\n  --color-warning-line: var(--color-warning-line);\n  --color-danger: var(--color-danger);\n  --color-danger-bg: var(--color-danger-bg);\n  --color-danger-line: var(--color-danger-line);\n  --color-danger-solid: var(--color-danger-solid);\n  --color-info: var(--color-info);\n  --color-info-bg: var(--color-info-bg);\n  --color-info-line: var(--color-info-line);\n  --color-series-1: var(--color-series-1);\n  --color-series-2: var(--color-series-2);\n  --color-series-3: var(--color-series-3);\n  --color-series-4: var(--color-series-4);\n  --color-series-5: var(--color-series-5);\n  --color-series-6: var(--color-series-6);\n  --color-seq-1: var(--color-seq-1);\n  --color-seq-2: var(--color-seq-2);\n  --color-seq-3: var(--color-seq-3);\n  --color-seq-4: var(--color-seq-4);\n  --color-seq-5: var(--color-seq-5);\n  --color-seq-6: var(--color-seq-6);\n  --font-display: 'Josefin Sans', 'Futura', 'Century Gothic', sans-serif;\n  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\n  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;\n  --text-2xs: 11px;\n  --text-xs: 12px;\n  --text-sm: 13px;\n  --text-base: 14px;\n  --text-md: 16px;\n  --text-lg: 18px;\n  --text-xl: 21px;\n  --text-2xl: 25px;\n  --text-3xl: 31px;\n  --text-4xl: 39px;\n  --text-5xl: 49px;\n  --text-6xl: 61px;\n  --radius-none: 0;\n  --radius-sm: 2px;\n  --radius-md: 3px;\n  --radius-lg: 5px;\n  --radius-pill: 999px;\n}\n","json":"{\n  \"$description\": \"Dark Jazz Age design tokens. Dark is the primary mode.\",\n  \"color\": {\n    \"ramp\": {\n      \"sapphire\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E3EEFE\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C5DBFC\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9ABFFA\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#659EF8\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3C7FE5\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2E70D6\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2062C7\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#053274\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#011D4B\"\n        }\n      },\n      \"teal\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C1F9FE\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#67F0FC\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#37D5E1\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2CB2BD\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#02939D\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#01848D\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#00767E\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#10595F\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#083F43\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#022629\"\n        }\n      },\n      \"emerald\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#BEFEDE\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#6AF8BC\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#48DBA2\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2CB985\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#22986D\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#1E8861\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#157A56\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#105D41\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#08412C\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#022819\"\n        }\n      },\n      \"brass\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FEEBC4\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FCD37D\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E5B64A\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C49726\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#A17B1D\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#916F19\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#836202\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#634A0D\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#463406\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2B1E01\"\n        }\n      },\n      \"copper\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FEE8DE\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FCCDB9\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FAA680\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E08256\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C06539\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B1582B\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#A24A1C\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#7F350C\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#5B2405\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#391301\"\n        }\n      },\n      \"garnet\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FEE6E9\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FCCAD2\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FAA0B0\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#F5688A\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#D3496E\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C33A61\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B42A54\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8F133E\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#67092A\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#410318\"\n        }\n      },\n      \"amethyst\": {\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#F1E8FE\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E3CFFC\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#CFAAFA\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B97CF8\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9C5DD8\"\n        },\n        \"550\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8E4FC9\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8141BA\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#67229D\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#4B0C77\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2E044D\"\n        }\n      },\n      \"ink\": {\n        \"50\": {\n          \"$type\": \"color\",\n          \"$value\": \"#EAEFF5\"\n        },\n        \"100\": {\n          \"$type\": \"color\",\n          \"$value\": \"#D0D8E4\"\n        },\n        \"200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B2BBC9\"\n        },\n        \"300\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9099A7\"\n        },\n        \"400\": {\n          \"$type\": \"color\",\n          \"$value\": \"#707885\"\n        },\n        \"500\": {\n          \"$type\": \"color\",\n          \"$value\": \"#545B66\"\n        },\n        \"600\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3F4550\"\n        },\n        \"700\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2C333E\"\n        },\n        \"800\": {\n          \"$type\": \"color\",\n          \"$value\": \"#1C232F\"\n        },\n        \"850\": {\n          \"$type\": \"color\",\n          \"$value\": \"#121A25\"\n        },\n        \"900\": {\n          \"$type\": \"color\",\n          \"$value\": \"#09111D\"\n        },\n        \"950\": {\n          \"$type\": \"color\",\n          \"$value\": \"#020713\"\n        }\n      },\n      \"paper\": {\n        \"base\": {\n          \"$type\": \"color\",\n          \"$value\": \"#F7F1E6\"\n        },\n        \"raised\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FDFAF3\"\n        },\n        \"sunken\": {\n          \"$type\": \"color\",\n          \"$value\": \"#EEE7D9\"\n        }\n      }\n    },\n    \"semantic\": {\n      \"dark\": {\n        \"bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#09111D\"\n        },\n        \"bg-surface\": {\n          \"$type\": \"color\",\n          \"$value\": \"#121A25\"\n        },\n        \"bg-raised\": {\n          \"$type\": \"color\",\n          \"$value\": \"#1C232F\"\n        },\n        \"bg-sunken\": {\n          \"$type\": \"color\",\n          \"$value\": \"#020713\"\n        },\n        \"bg-overlay\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(2, 7, 19, 0.72)\"\n        },\n        \"fg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#D0D8E4\"\n        },\n        \"fg-secondary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B2BBC9\"\n        },\n        \"fg-muted\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9099A7\"\n        },\n        \"fg-disabled\": {\n          \"$type\": \"color\",\n          \"$value\": \"#707885\"\n        },\n        \"fg-inverse\": {\n          \"$type\": \"color\",\n          \"$value\": \"#020713\"\n        },\n        \"accent\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E5B64A\"\n        },\n        \"accent-quiet\": {\n          \"$type\": \"color\",\n          \"$value\": \"#836202\"\n        },\n        \"link\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9ABFFA\"\n        },\n        \"line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2C333E\"\n        },\n        \"line-strong\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3F4550\"\n        },\n        \"line-control\": {\n          \"$type\": \"color\",\n          \"$value\": \"#707885\"\n        },\n        \"focus\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E5B64A\"\n        },\n        \"primary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2062C7\"\n        },\n        \"primary-hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2E70D6\"\n        },\n        \"primary-active\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"on-primary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FFFFFF\"\n        },\n        \"success\": {\n          \"$type\": \"color\",\n          \"$value\": \"#48DBA2\"\n        },\n        \"success-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#022819\"\n        },\n        \"success-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#105D41\"\n        },\n        \"warning\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FAA680\"\n        },\n        \"warning-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#391301\"\n        },\n        \"warning-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#7F350C\"\n        },\n        \"danger\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FAA0B0\"\n        },\n        \"danger-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#410318\"\n        },\n        \"danger-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8F133E\"\n        },\n        \"danger-solid\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B42A54\"\n        },\n        \"info\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9ABFFA\"\n        },\n        \"info-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#011D4B\"\n        },\n        \"info-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"series-1\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3C7FE5\"\n        },\n        \"series-2\": {\n          \"$type\": \"color\",\n          \"$value\": \"#22986D\"\n        },\n        \"series-3\": {\n          \"$type\": \"color\",\n          \"$value\": \"#836202\"\n        },\n        \"series-4\": {\n          \"$type\": \"color\",\n          \"$value\": \"#D3496E\"\n        },\n        \"series-5\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9C5DD8\"\n        },\n        \"series-6\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C06539\"\n        },\n        \"seq-1\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"seq-2\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2062C7\"\n        },\n        \"seq-3\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3C7FE5\"\n        },\n        \"seq-4\": {\n          \"$type\": \"color\",\n          \"$value\": \"#659EF8\"\n        },\n        \"seq-5\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9ABFFA\"\n        },\n        \"seq-6\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C5DBFC\"\n        }\n      },\n      \"light\": {\n        \"bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#F7F1E6\"\n        },\n        \"bg-surface\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FDFAF3\"\n        },\n        \"bg-raised\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FFFFFF\"\n        },\n        \"bg-sunken\": {\n          \"$type\": \"color\",\n          \"$value\": \"#EEE7D9\"\n        },\n        \"bg-overlay\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(9, 17, 29, 0.48)\"\n        },\n        \"fg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#09111D\"\n        },\n        \"fg-secondary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2C333E\"\n        },\n        \"fg-muted\": {\n          \"$type\": \"color\",\n          \"$value\": \"#545B66\"\n        },\n        \"fg-disabled\": {\n          \"$type\": \"color\",\n          \"$value\": \"#707885\"\n        },\n        \"fg-inverse\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FFFFFF\"\n        },\n        \"accent\": {\n          \"$type\": \"color\",\n          \"$value\": \"#634A0D\"\n        },\n        \"accent-quiet\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C49726\"\n        },\n        \"link\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#B2BBC9\"\n        },\n        \"line-strong\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9099A7\"\n        },\n        \"line-control\": {\n          \"$type\": \"color\",\n          \"$value\": \"#707885\"\n        },\n        \"focus\": {\n          \"$type\": \"color\",\n          \"$value\": \"#836202\"\n        },\n        \"primary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2062C7\"\n        },\n        \"primary-hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"primary-active\": {\n          \"$type\": \"color\",\n          \"$value\": \"#053274\"\n        },\n        \"on-primary\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FFFFFF\"\n        },\n        \"success\": {\n          \"$type\": \"color\",\n          \"$value\": \"#105D41\"\n        },\n        \"success-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#BEFEDE\"\n        },\n        \"success-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2CB985\"\n        },\n        \"warning\": {\n          \"$type\": \"color\",\n          \"$value\": \"#7F350C\"\n        },\n        \"warning-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FEE8DE\"\n        },\n        \"warning-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E08256\"\n        },\n        \"danger\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8F133E\"\n        },\n        \"danger-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#FEE6E9\"\n        },\n        \"danger-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#F5688A\"\n        },\n        \"danger-solid\": {\n          \"$type\": \"color\",\n          \"$value\": \"#8F133E\"\n        },\n        \"info\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"info-bg\": {\n          \"$type\": \"color\",\n          \"$value\": \"#E3EEFE\"\n        },\n        \"info-line\": {\n          \"$type\": \"color\",\n          \"$value\": \"#659EF8\"\n        },\n        \"series-1\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3C7FE5\"\n        },\n        \"series-2\": {\n          \"$type\": \"color\",\n          \"$value\": \"#22986D\"\n        },\n        \"series-3\": {\n          \"$type\": \"color\",\n          \"$value\": \"#836202\"\n        },\n        \"series-4\": {\n          \"$type\": \"color\",\n          \"$value\": \"#D3496E\"\n        },\n        \"series-5\": {\n          \"$type\": \"color\",\n          \"$value\": \"#9C5DD8\"\n        },\n        \"series-6\": {\n          \"$type\": \"color\",\n          \"$value\": \"#C06539\"\n        },\n        \"seq-1\": {\n          \"$type\": \"color\",\n          \"$value\": \"#659EF8\"\n        },\n        \"seq-2\": {\n          \"$type\": \"color\",\n          \"$value\": \"#3C7FE5\"\n        },\n        \"seq-3\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2062C7\"\n        },\n        \"seq-4\": {\n          \"$type\": \"color\",\n          \"$value\": \"#0C49A0\"\n        },\n        \"seq-5\": {\n          \"$type\": \"color\",\n          \"$value\": \"#053274\"\n        },\n        \"seq-6\": {\n          \"$type\": \"color\",\n          \"$value\": \"#011D4B\"\n        }\n      }\n    }\n  },\n  \"typography\": {\n    \"families\": {\n      \"font-display\": \"'Josefin Sans', 'Futura', 'Century Gothic', sans-serif\",\n      \"font-sans\": \"'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif\",\n      \"font-mono\": \"'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace\"\n    },\n    \"size\": {\n      \"2xs\": \"11px\",\n      \"xs\": \"12px\",\n      \"sm\": \"13px\",\n      \"base\": \"14px\",\n      \"md\": \"16px\",\n      \"lg\": \"18px\",\n      \"xl\": \"21px\",\n      \"2xl\": \"25px\",\n      \"3xl\": \"31px\",\n      \"4xl\": \"39px\",\n      \"5xl\": \"49px\",\n      \"6xl\": \"61px\"\n    },\n    \"leading\": {\n      \"tight\": \"1.06\",\n      \"snug\": \"1.2\",\n      \"ui\": \"1.35\",\n      \"normal\": \"1.5\",\n      \"relaxed\": \"1.65\"\n    },\n    \"tracking\": {\n      \"display\": \"-0.022em\",\n      \"tight\": \"-0.011em\",\n      \"normal\": \"0\",\n      \"wide\": \"0.04em\",\n      \"caps\": \"0.14em\",\n      \"caps-wide\": \"0.22em\"\n    }\n  },\n  \"space\": {\n    \"0\": \"0\",\n    \"1\": \"4px\",\n    \"2\": \"8px\",\n    \"3\": \"12px\",\n    \"4\": \"16px\",\n    \"5\": \"24px\",\n    \"6\": \"32px\",\n    \"7\": \"48px\",\n    \"8\": \"64px\",\n    \"9\": \"96px\",\n    \"10\": \"128px\"\n  },\n  \"radius\": {\n    \"none\": \"0\",\n    \"sm\": \"2px\",\n    \"md\": \"3px\",\n    \"lg\": \"5px\",\n    \"pill\": \"999px\"\n  },\n  \"shadow\": {\n    \"dark\": {\n      \"1\": \"0 1px 2px rgba(2,7,19,.6)\",\n      \"2\": \"0 2px 8px rgba(2,7,19,.65), 0 0 0 1px rgba(229,182,74,.06)\",\n      \"3\": \"0 12px 32px rgba(2,7,19,.7), 0 0 0 1px rgba(229,182,74,.09)\"\n    },\n    \"light\": {\n      \"1\": \"0 1px 2px rgba(9,17,29,.07)\",\n      \"2\": \"0 2px 8px rgba(9,17,29,.09)\",\n      \"3\": \"0 12px 32px rgba(9,17,29,.13)\"\n    }\n  },\n  \"chart\": {\n    \"seriesOrder\": [\n      \"sapphire\",\n      \"emerald\",\n      \"brass\",\n      \"garnet\",\n      \"amethyst\",\n      \"copper\"\n    ],\n    \"series\": [\n      \"#3C7FE5\",\n      \"#22986D\",\n      \"#836202\",\n      \"#D3496E\",\n      \"#9C5DD8\",\n      \"#C06539\"\n    ],\n    \"sequential\": {\n      \"dark\": [\n        \"#0C49A0\",\n        \"#2062C7\",\n        \"#3C7FE5\",\n        \"#659EF8\",\n        \"#9ABFFA\",\n        \"#C5DBFC\"\n      ],\n      \"light\": [\n        \"#659EF8\",\n        \"#3C7FE5\",\n        \"#2062C7\",\n        \"#0C49A0\",\n        \"#053274\",\n        \"#011D4B\"\n      ]\n    },\n    \"diverging\": {\n      \"negative\": [\n        \"#8F133E\",\n        \"#D3496E\",\n        \"#FAA0B0\"\n      ],\n      \"neutral\": \"#9099A7\",\n      \"positive\": [\n        \"#48DBA2\",\n        \"#22986D\",\n        \"#105D41\"\n      ]\n    }\n  }\n}"};
+  var pane=document.getElementById('pane'),cur='css';
+  function show(k){cur=k;pane.textContent=PANES[k];
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){t.setAttribute('aria-selected',String(t.dataset.pane===k));});}
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){t.addEventListener('click',function(){show(t.dataset.pane)});});
+  show('css');
+  document.getElementById('copycode').addEventListener('click',function(){copy(PANES[cur],'Tokens copied');});
+
+  /* chart */
+  var DATA=[[12,19,24,31,38,44,52,61],[9,14,16,23,27,36,41,47],[22,21,26,25,30,29,34,33],[5,8,14,17,15,22,26,30],[30,28,25,27,22,20,19,17],[16,17,15,20,24,23,28,35]],NAMES=["Sapphire","Emerald","Brass","Garnet","Amethyst","Copper"],
+      COLS=["#3C7FE5","#22986D","#836202","#D3496E","#9C5DD8","#C06539"],MON=["Feb","Mar","Apr","May","Jun","Jul","Aug","Sep"];
+  var svg=document.getElementById('chart'),tip=document.getElementById('tip');
+  var W=720,H=300,L=38,Rr=118,T=16,B=34, iw=W-L-Rr, ih=H-T-B;
+  var max=70, n=MON.length;
+  var x=function(i){return L+iw*i/(n-1)}, y=function(v){return T+ih-ih*v/max};
+  var NS='http://www.w3.org/2000/svg';
+  function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  var frag=document.createDocumentFragment();
+  [0,14,28,42,56,70].forEach(function(v){
+    frag.appendChild(el('line',{x1:L,x2:L+iw,y1:y(v),y2:y(v),stroke:'currentColor','stroke-opacity':v===0?.28:.1,'stroke-width':1}));
+    var tx=el('text',{x:L-9,y:y(v)+4,'text-anchor':'end','font-size':11,fill:'currentColor','fill-opacity':.6});
+    tx.textContent=v;frag.appendChild(tx);});
+  MON.forEach(function(m,i){var tx=el('text',{x:x(i),y:H-13,'text-anchor':'middle','font-size':11,fill:'currentColor','fill-opacity':.6});
+    tx.textContent=m;frag.appendChild(tx);});
+  DATA.forEach(function(s,si){
+    var d=s.map(function(v,i){return (i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)}).join(' ');
+    frag.appendChild(el('path',{d:d,fill:'none',stroke:COLS[si],'stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'}));
+    frag.appendChild(el('circle',{cx:x(n-1),cy:y(s[n-1]),r:3.5,fill:COLS[si]}));
+    var lb=el('text',{x:x(n-1)+10,y:y(s[n-1])+4,'font-size':11.5,'font-weight':600,fill:COLS[si]});
+    lb.textContent=NAMES[si];frag.appendChild(lb);});
+  var hair=el('line',{x1:0,x2:0,y1:T,y2:T+ih,stroke:'currentColor','stroke-opacity':.35,'stroke-width':1,opacity:0});
+  frag.appendChild(hair);
+  var dots=[];DATA.forEach(function(s,si){var c=el('circle',{r:4.5,fill:COLS[si],stroke:'var(--color-bg-surface)','stroke-width':2,opacity:0});
+    dots.push(c);frag.appendChild(c);});
+  svg.appendChild(frag);
+  svg.addEventListener('pointermove',function(ev){
+    var r=svg.getBoundingClientRect(), px=(ev.clientX-r.left)/r.width*W;
+    var i=Math.round((px-L)/(iw/(n-1))); if(i<0)i=0; if(i>n-1)i=n-1;
+    hair.setAttribute('x1',x(i));hair.setAttribute('x2',x(i));hair.setAttribute('opacity',1);
+    DATA.forEach(function(s,si){dots[si].setAttribute('cx',x(i));dots[si].setAttribute('cy',y(s[i]));dots[si].setAttribute('opacity',1);});
+    var html='<b>'+MON[i]+'</b>';
+    DATA.map(function(s,si){return {n:NAMES[si],v:s[i],c:COLS[si]}}).sort(function(a,b){return b.v-a.v})
+      .forEach(function(o){html+='<div><span><i style="--sw:'+o.c+'"></i>'+o.n+'</span><span>'+o.v+'</span></div>';});
+    tip.innerHTML=html;tip.style.opacity=1;
+    var box=svg.parentNode.getBoundingClientRect(), lx=(x(i)/W)*box.width+16;
+    if(lx>box.width-176) lx=(x(i)/W)*box.width-176;
+    tip.style.left=Math.max(0,lx)+'px'; tip.style.top='8px';
+  });
+  svg.addEventListener('pointerleave',function(){hair.setAttribute('opacity',0);tip.style.opacity=0;
+    dots.forEach(function(d){d.setAttribute('opacity',0)});});
+})();
+</script>
+</body>
+</html>

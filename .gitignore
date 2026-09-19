@@ -1,19 +1,2 @@
-# Xcode / SwiftPM
-.build/
-DerivedData/
-*.xcuserstate
-xcuserdata/
-.swiftpm/
-*.xcscmblueprint
-
-# Vitrine per-library sidecar (ADR 0002) — never committed, from any library
-.vitrine/
-
-# macOS
 .DS_Store
-
-# Scripts/test.sh result bundles
-build/
-
-# Local working copies of real libraries for /run review (never committed)
 local-libraries/

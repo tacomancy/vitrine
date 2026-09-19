@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0b0c;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#e7e9eb}
+a{color:#d99b4a}a:hover{color:#e8b673}
+.hd{padding:44px 44px 0;max-width:1440px}
+.h1{font:600 13px 'IBM Plex Mono',monospace;color:#e7e9eb;letter-spacing:.02em;margin:0 0 6px}
+.hs{font:400 12.5px/1.65 'IBM Plex Sans',sans-serif;color:rgba(231,233,235,.55);max-width:860px;margin:0 0 20px}
+.wrap{padding:0 44px 16px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#262c33;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></helmet>
+
+<div class="hd"><p class="h1">EXPERIMENT — A COMPLETED RUN WITH ITS ARTIFACTS</p><p class="hs">An Experiment is recorded here and executed somewhere else. The page owns the argument and the evidence; the code owns the run. Artifacts are the one thing in the vault that exists nowhere else, so they are laid out to be looked at — full-width plots, readable snippets, and a visible distinction between what is stored here and what is merely pointed at.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:1020px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">run-2026-09-14 · prereg-exclusions</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:#8c939a">⌘K</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:54px;flex:none;background:#101315;border-right:1px solid #23272d;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">⌂</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">?</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">▤</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">▲</div>
+      <div style="width:34px;height:34px;border-radius:3px;background:#212730;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#e7e9eb">⌗</div>
+      <div style="width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 14px 'IBM Plex Mono',monospace;color:#7d858d">◻</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 26px;gap:12px">
+        <span style="font:500 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">EXPERIMENT</span>
+        <div style="display:flex;gap:3px;margin-left:4px">
+          <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4">
+            <div onClick="{{ s.pick }}" style="padding:4px 10px;border-radius:3px;background:{{ s.bg }};font:400 10.5px 'IBM Plex Mono',monospace;color:{{ s.fg }};cursor:default">{{ s.label }}</div>
+          </sc-for>
+        </div>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">you set this — the app never changes it</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">+ artifact</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">attach as evidence</span>
+          <span style="padding:5px 11px;border:1px solid #23272d;border-radius:3px;font:400 11px 'IBM Plex Mono',monospace;color:#bac0c6">history</span>
+        </span>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="flex:1;min-width:0;overflow-y:auto;padding:26px 30px 44px;display:flex;flex-direction:column;gap:26px">
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;gap:12px">
+              <span style="font:600 12.5px 'IBM Plex Mono',monospace;color:#e7e9eb">run-2026-09-14 · prereg-exclusions</span>
+              <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#7d858d">ran 14 Sep 2026, 11:04 · 6 min 22 s · pipeline v3</span>
+            </div>
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a;margin-top:6px">PURPOSE</div>
+            <div style="border-left:2px solid #d99b4a;padding:2px 0 2px 14px;font:400 17px/1.65 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:740px">See whether the pooled nap effect survives the preregistered exclusion rule at all — I expected it to collapse and wanted to know by how much before writing anything.</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DESIGN</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">written 9 Sep, before the run · revised twice · both explained</span>
+            </div>
+            <div style="font:400 14px/1.8 'Source Serif 4',Georgia,serif;color:#bac0c6;max-width:760px">Varied: the inclusion rule only — all 41 datasets versus the 33 that survive the preregistered exclusions. Held constant: random-effects estimator, Hedges' g, the harmonised density definition, and the exclusion of within-subject designs. Measured as the pooled estimate with a profile-likelihood interval, plus Egger's intercept on each set. Known confound: four of the 41 share a first author and all four survive the exclusion rule, so the surviving set is more homogeneous than a random subset of the same size would be.</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ARTIFACTS</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">6 items · 4 in the vault · 2 linked</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">stored in the vault under 25 MB · larger is linked · overridable per item</span>
+            </div>
+
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <div style="width:430px;border:1px solid #23272d;background:#15181c;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:9px">
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">funnel-all-41.png</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">412 KB · in vault</span>
+                </div>
+                <div style="padding:16px 14px 10px;position:relative;height:238px;box-sizing:border-box">
+                  <div style="position:absolute;left:52px;right:16px;top:16px;bottom:34px;border-left:1px solid #2b3036;border-bottom:1px solid #2b3036">
+                    <div style="position:absolute;left:44%;top:0;bottom:0;width:1px;background:#3a424b"></div>
+                    <sc-for list="{{ funnel }}" as="p" hint-placeholder-count="20">
+                      <div style="position:absolute;left:{{ p.x }};top:{{ p.y }};width:6px;height:6px;border-radius:50%;background:{{ p.fill }};transform:translate(-3px,-3px)"></div>
+                    </sc-for>
+                  </div>
+                  <div style="position:absolute;left:8px;top:14px;font:400 9px 'IBM Plex Mono',monospace;color:#7d858d">se 0.05</div>
+                  <div style="position:absolute;left:8px;bottom:38px;font:400 9px 'IBM Plex Mono',monospace;color:#7d858d">se 0.34</div>
+                  <div style="position:absolute;left:52px;bottom:16px;right:16px;display:flex;justify-content:space-between;font:400 9px 'IBM Plex Mono',monospace;color:#7d858d"><span>d 0.0</span><span>0.4</span><span>0.9</span></div>
+                </div>
+                <div style="padding:9px 12px;border-top:1px solid #1d2126;font:400 11.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">Asymmetric, as before. The excluded studies are the pale ones.</div>
+              </div>
+
+              <div style="width:494px;border:1px solid #23272d;background:#15181c;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:9px">
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">forest-prereg-33.png</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">301 KB · in vault</span>
+                </div>
+                <div style="padding:14px 14px 10px;display:flex;flex-direction:column;gap:7px">
+                  <sc-for list="{{ forest }}" as="f" hint-placeholder-count="7">
+                    <div style="display:grid;grid-template-columns:104px 1fr 54px;gap:10px;align-items:center">
+                      <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:{{ f.labelFg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.label }}</span>
+                      <div style="position:relative;height:11px">
+                        <div style="position:absolute;left:0;right:0;top:5px;height:1px;background:#1d2126"></div>
+                        <div style="position:absolute;left:{{ f.lo }};width:{{ f.w }};top:5px;height:1px;background:{{ f.line }}"></div>
+                        <div style="position:absolute;left:{{ f.est }};top:3px;width:5px;height:5px;background:{{ f.dot }};transform:translateX(-2.5px)"></div>
+                      </div>
+                      <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;text-align:right">{{ f.val }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="padding:9px 12px;border-top:1px solid #1d2126;font:400 11.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">Pooled estimate in the bottom row. It did not move.</div>
+              </div>
+
+              <div style="width:430px;border:1px solid #23272d;background:#15181c;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:9px">
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">pooled-summary.csv</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">2 KB · in vault · first 6 rows</span>
+                </div>
+                <div style="padding:12px 14px;font:400 11px/1.85 'IBM Plex Mono',monospace;color:#8c939a;white-space:pre">set,k,d,lo,hi,egger_p
+all,41,0.44,0.34,0.54,0.004
+prereg,33,0.41,0.29,0.53,0.011
+large_n,14,0.33,0.19,0.47,0.210
+small_n,19,0.52,0.38,0.66,0.002
+prereg_large,11,0.31,0.15,0.47,0.330</div>
+              </div>
+
+              <div style="width:494px;border:1px solid #23272d;background:#15181c;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:9px">
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">wandb-panel.png</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">1.1 MB · in vault</span>
+                </div>
+                <div style="height:186px;background:repeating-linear-gradient(135deg,#171b20 0 9px,#14171b 9px 18px);display:flex;align-items:center;justify-content:center">
+                  <span style="padding:6px 12px;background:#0f1113;border:1px solid #2b3036;border-radius:3px;font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">screenshot — W&amp;B run panel, sweep 3f2a</span>
+                </div>
+                <div style="padding:9px 12px;border-top:1px solid #1d2126;font:400 11.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">Kept because the sweep config is only legible in the UI.</div>
+              </div>
+
+              <div style="width:430px;border:1px solid #6a4a1e;background:#1a1611;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #3a2c18;display:flex;align-items:center;gap:9px">
+                  <span style="font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a">!</span>
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">bootstrap-draws.parquet</span>
+                  <span style="margin-left:auto;font:400 9.5px 'IBM Plex Mono',monospace;color:#d99b4a">2.4 GB · linked</span>
+                </div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+                  <div style="font:400 11px/1.75 'IBM Plex Mono',monospace;color:#8c939a">~/research/nap-reanalysis/out/2026-09-14/<br>bootstrap-draws.parquet</div>
+                  <div style="font:400 11.5px/1.65 'IBM Plex Sans',sans-serif;color:#bac0c6">Outside the vault. If this file moves or is cleaned up, the vault will not notice and this page will point at nothing.</div>
+                  <div style="display:flex;gap:7px;align-items:center">
+                    <span style="padding:4px 9px;border:1px solid #6a4a1e;border-radius:3px;font:400 10px 'IBM Plex Mono',monospace;color:#d99b4a">copy into vault anyway</span>
+                    <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">checked 14 Sep · sha 4f2ac1</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="width:494px;border:1px solid #23272d;background:#15181c;border-radius:3px;overflow:hidden">
+                <div style="padding:9px 12px;border-bottom:1px solid #1d2126;display:flex;align-items:center;gap:9px">
+                  <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">exclusion-counts</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">inline table · in vault</span>
+                </div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:0">
+                  <sc-for list="{{ table }}" as="r" hint-placeholder-count="5">
+                    <div style="display:grid;grid-template-columns:1fr 62px 62px;gap:10px;padding:6px 0;border-bottom:1px solid #1d2126">
+                      <span style="font:400 11.5px 'IBM Plex Sans',sans-serif;color:{{ r.fg }}">{{ r.rule }}</span>
+                      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;text-align:right">{{ r.dropped }}</span>
+                      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#8c939a;text-align:right">{{ r.left }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">OBSERVATIONS</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">revision 2 · changed once, explained · 14 Sep</span>
+            </div>
+            <div style="border-left:2px solid #3a424b;padding:2px 0 2px 14px;font:400 15px/1.75 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:760px">The pooled estimate barely moves: 0.44 → 0.41. Egger's intercept stays significant in both sets, so the asymmetry is real but it is not carrying the effect. The large-n stratum is lower (0.33) and its asymmetry disappears, which is the only part of this that behaves the way the bias story predicts. My reading: publication bias is present and small; something else accounts for the bulk of the effect.</div>
+            <div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:#8c939a">earlier — “effect essentially unchanged, bias story dead” · revised after noticing the large-n stratum</div>
+          </div>
+        </div>
+
+        <div style="width:352px;flex:none;background:#131619;border-left:1px solid #23272d;overflow-y:auto;display:flex;flex-direction:column">
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHERE IT RAN</div>
+            <div style="display:flex;flex-direction:column;gap:7px;font:400 11px/1.6 'IBM Plex Mono',monospace;color:#8c939a">
+              <div><span style="color:#7d858d">repo&nbsp;&nbsp;&nbsp;</span>nap-reanalysis</div>
+              <div><span style="color:#7d858d">commit&nbsp;</span><span style="color:#bac0c6">8c41f0d</span> · clean tree</div>
+              <div><span style="color:#7d858d">entry&nbsp;&nbsp;</span>analysis/pool.py --rule prereg</div>
+              <div><span style="color:#7d858d">config&nbsp;</span>configs/v3-prereg.yaml</div>
+              <div><span style="color:#7d858d">w&amp;b&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:#bac0c6">nap-reanalysis/3f2a91</span></div>
+              <div><span style="color:#7d858d">out&nbsp;&nbsp;&nbsp;&nbsp;</span>out/2026-09-14/</div>
+            </div>
+          </div>
+
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ATTACHED AS EVIDENCE</span>
+              <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">3 criteria · 2 hypotheses</span>
+            </div>
+            <sc-for list="{{ attachments }}" as="a" hint-placeholder-count="3">
+              <div style="border:1px solid #23272d;background:#15181c;border-radius:3px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font:500 10px 'IBM Plex Mono',monospace;color:{{ a.tone }}">{{ a.crit }}</span>
+                  <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">{{ a.rel }}</span>
+                </div>
+                <div style="font:400 11.5px/1.5 'Source Serif 4',Georgia,serif;color:#bac0c6">{{ a.hypothesis }}</div>
+                <div style="border-left:2px solid #2b3036;padding-left:9px;font:400 11.5px/1.6 'Source Serif 4',Georgia,serif;color:#8c939a">{{ a.note }}</div>
+              </div>
+            </sc-for>
+            <div style="font:400 10.5px/1.6 'IBM Plex Mono',monospace;color:#7d858d">each attachment carries its own note — the same run means different things to different criteria</div>
+          </div>
+
+          <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">POSITION HISTORY</div>
+            <div style="display:flex;gap:10px"><span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;width:46px;flex:none;padding-top:3px">14 Sep</span><span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">Observations revised after the large-n stratum.</span></div>
+            <div style="display:flex;gap:10px"><span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;width:46px;flex:none;padding-top:3px">12 Sep</span><span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#8c939a">2 quiet edits to the design.</span></div>
+            <div style="display:flex;gap:10px"><span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d;width:46px;flex:none;padding-top:3px">9 Sep</span><span style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:#bac0c6">Design written. Status planned.</span></div>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8c939a">open full history →</div>
+          </div>
+
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:9px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">RELATED RUNS</div>
+            <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">run-2026-09-06 · size-strata-b</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">same config lineage · v3</div>
+            <div style="font:400 12px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">run-2026-08-14 · size-strata</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">superseded by the above</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">EXPERIMENT — DESIGNED, NOT YET RUN</p><p class="hs">The same page before anything exists to show. Purpose and design are the whole content, and that is a finished state: writing the design down before the run is the thing that makes the result mean something later. Empty regions say what will go in them rather than rendering as gaps.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:560px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">draft · leave-one-lab-out</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="flex:1;min-width:0;padding:26px 30px;display:flex;flex-direction:column;gap:22px;overflow-y:auto">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font:600 12.5px 'IBM Plex Mono',monospace;color:#e7e9eb">draft · leave-one-lab-out</span>
+        <span style="padding:3px 10px;border-radius:3px;background:#212730;font:400 10.5px 'IBM Plex Mono',monospace;color:#bac0c6">planned</span>
+        <span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">created 17 Sep · not run</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">PURPOSE</div>
+        <div style="border-left:2px solid #d99b4a;padding:2px 0 2px 14px;font:400 17px/1.65 'Source Serif 4',Georgia,serif;color:#d3d7db;max-width:740px">See whether the four same-author datasets matter at all. No claim attached — I want to know the size of the dependence before deciding whether it is worth a criterion.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">DESIGN</div>
+        <div style="font:400 14px/1.8 'Source Serif 4',Georgia,serif;color:#bac0c6;max-width:760px">Varied: which lab is held out, iterating over all nine contributing labs. Held constant: everything else in the v3 pipeline. Measured as the pooled estimate and its interval per held-out set, plus the spread of the nine estimates. Expect the Born-lab leave-out to move it most; if nothing moves more than 0.03 the dependence is not worth writing a criterion about.</div>
+      </div>
+      <div style="display:flex;gap:16px">
+        <div style="flex:1;border:1px dashed #23272d;border-radius:3px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ARTIFACTS</div>
+          <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Nothing yet. Plots and snippets dropped here are stored in the vault; anything over 25 MB is linked with a warning.</div>
+        </div>
+        <div style="flex:1;border:1px dashed #23272d;border-radius:3px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">OBSERVATIONS</div>
+          <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Written after the run, and revisable — interpretation changes more often than data does.</div>
+        </div>
+      </div>
+    </div>
+    <div style="width:352px;flex:none;background:#131619;border-left:1px solid #23272d;padding:18px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">WHERE IT WILL RUN</div>
+        <div style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:#8c939a"><span style="color:#7d858d">repo&nbsp;&nbsp;&nbsp;</span>nap-reanalysis<br><span style="color:#7d858d">entry&nbsp;&nbsp;</span>analysis/loo.py <span style="color:#7d858d">(not written)</span><br><span style="color:#7d858d">commit&nbsp;</span><span style="color:#7d858d">—</span></div>
+      </div>
+      <div style="height:1px;background:#1d2126"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">ATTACHED AS EVIDENCE</div>
+        <div style="font:400 12px/1.7 'IBM Plex Sans',sans-serif;color:#8c939a">Nothing. Most runs never attach to a hypothesis, and this one was designed without a claim in mind on purpose.</div>
+      </div>
+      <div style="height:1px;background:#1d2126"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">CAME FROM</div>
+        <div style="font:400 12.5px/1.55 'Source Serif 4',Georgia,serif;color:#bac0c6">Four of the 41 share a first author — does that matter?</div>
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#7d858d">question · captured 16 Sep while reading run-2026-09-14</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="hd"><p class="h1">EXPERIMENT INBOX — COMPLETED, NOT YET INTERPRETED</p><p class="hs">The testing-side counterpart of the Question Inbox, and the same tone rule: the only number in the chrome is how many runs exist. Cheap runs accumulate; that is what cheap runs do. Sort, filter by project or attachment, search, or shuffle — the default gesture is looking through them, not clearing them.</p></div>
+<div class="wrap">
+<div style="box-sizing:border-box;width:1440px;height:820px;background:#0f1113;border:1px solid #2b3036;border-radius:5px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.72);display:flex;flex-direction:column;color:#e7e9eb">
+  <div style="height:36px;flex:none;background:#15181b;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 12px;gap:14px">
+    <div style="display:flex;gap:7px"><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div><div style="width:10px;height:10px;border-radius:50%;background:#394048"></div></div>
+    <div style="flex:1;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#8c939a">consolidation-vault — experiments</div>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <div style="width:206px;flex:none;background:#131619;border-right:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:14px 14px 10px;display:flex;flex-direction:column;gap:2px">
+        <div style="font:600 11px 'IBM Plex Mono',monospace;color:#e7e9eb">Experiments</div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ totalLabel }}</div>
+      </div>
+      <div style="padding:8px 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">STATUS</div>
+      <div style="padding:0 8px">
+        <sc-for list="{{ statusFilters }}" as="s" hint-placeholder-count="5">
+          <div onClick="{{ s.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ s.bg }}">
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ s.fg }}">{{ s.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ s.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:1px;background:#1d2126;margin:12px 14px"></div>
+      <div style="padding:0 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">EVIDENCE</div>
+      <div style="padding:0 8px">
+        <sc-for list="{{ attachFilters }}" as="a" hint-placeholder-count="3">
+          <div onClick="{{ a.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ a.bg }}">
+            <span style="font:400 11.5px 'IBM Plex Mono',monospace;color:{{ a.fg }}">{{ a.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ a.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:1px;background:#1d2126;margin:12px 14px"></div>
+      <div style="padding:0 14px 6px;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">PROJECT</div>
+      <div style="padding:0 8px 16px">
+        <sc-for list="{{ projFilters }}" as="p" hint-placeholder-count="4">
+          <div onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:3px;cursor:default;background:{{ p.bg }}">
+            <span style="font:400 11px 'IBM Plex Mono',monospace;color:{{ p.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.label }}</span>
+            <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ p.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="height:46px;flex:none;border-bottom:1px solid #23272d;display:flex;align-items:center;padding:0 16px;gap:10px">
+        <div style="flex:1;max-width:320px;display:flex;align-items:center;gap:8px;background:#15181c;border:1px solid #23272d;border-radius:3px;padding:5px 9px">
+          <span style="font:400 11px 'IBM Plex Mono',monospace;color:#7d858d">⌕</span>
+          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="search purpose, run id, project" style="flex:1;min-width:0;background:transparent;border:0;outline:0;color:#e7e9eb;font:400 11.5px 'IBM Plex Mono',monospace" />
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;margin-left:4px">
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d;margin-right:6px">SORT</span>
+          <sc-for list="{{ sorts }}" as="s" hint-placeholder-count="3">
+            <div onClick="{{ s.pick }}" style="padding:4px 8px;border-radius:3px;background:{{ s.bg }};font:400 11px 'IBM Plex Mono',monospace;color:{{ s.fg }};cursor:default">{{ s.label }}</div>
+          </sc-for>
+        </div>
+        <div style="margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8c939a">{{ shownLabel }}</div>
+      </div>
+
+      <div style="flex:none;display:grid;grid-template-columns:20px 176px 1fr 84px 96px 58px;gap:12px;padding:7px 16px;border-bottom:1px solid #23272d;background:#121518;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">
+        <div></div><div>RUN</div><div>PURPOSE</div><div>ARTIFACTS</div><div>EVIDENCE</div><div style="text-align:right">WHEN</div>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;min-height:0">
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="14">
+          <div onClick="{{ r.select }}" style="display:grid;grid-template-columns:20px 176px 1fr 84px 96px 58px;gap:12px;align-items:start;padding:9px 16px;border-bottom:1px solid #191d22;background:{{ r.bg }};cursor:default">
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:{{ r.tone }};padding-top:3px">{{ r.glyph }}</div>
+            <div style="min-width:0;font:400 10.5px/1.5 'IBM Plex Mono',monospace;color:#bac0c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.run }}</div>
+            <div style="min-width:0">
+              <div style="font:400 13.5px/1.45 'Source Serif 4',Georgia,serif;color:{{ r.fg }}">{{ r.purpose }}</div>
+              <div style="margin-top:3px;font:400 9.5px 'IBM Plex Mono',monospace;color:#8c939a">{{ r.sub }}</div>
+            </div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:3px">{{ r.arts }}</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:{{ r.evTone }};padding-top:3px">{{ r.ev }}</div>
+            <div style="text-align:right;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a;padding-top:3px">{{ r.when }}</div>
+          </div>
+        </sc-for>
+        <div style="padding:22px 16px 40px;font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#7d858d">{{ endNote }}</div>
+      </div>
+    </div>
+
+    <div style="width:330px;flex:none;background:#131619;border-left:1px solid #23272d;display:flex;flex-direction:column;overflow-y:auto">
+      <div style="padding:16px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font:400 10px 'IBM Plex Mono',monospace;color:{{ selTone }}">{{ selGlyph }}</span>
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#8c939a">{{ selStatus }}</span>
+          <span style="margin-left:auto;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">{{ selWhen }}</span>
+        </div>
+        <div style="font:500 11.5px 'IBM Plex Mono',monospace;color:#bac0c6">{{ selRun }}</div>
+        <div style="font:400 15px/1.55 'Source Serif 4',Georgia,serif;color:#e7e9eb">{{ selPurpose }}</div>
+      </div>
+      <div style="padding:14px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">ARTIFACTS</div>
+        <div style="font:400 11.5px/1.7 'IBM Plex Mono',monospace;color:#8c939a">{{ selArts }}</div>
+        <div style="height:104px;background:repeating-linear-gradient(135deg,#171b20 0 9px,#14171b 9px 18px);border:1px solid #23272d;border-radius:3px;display:flex;align-items:center;justify-content:center;font:400 10px 'IBM Plex Mono',monospace;color:#8c939a">{{ selPreview }}</div>
+      </div>
+      <div style="padding:14px 18px;border-bottom:1px solid #1d2126;display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">TRIAGE — OR LEAVE IT</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #2b3036;border-radius:3px;background:#181c21;font:400 11.5px 'IBM Plex Mono',monospace;color:#e7e9eb"><span style="color:#8c939a">✎</span>Write observations<span style="margin-left:auto;color:#7d858d">O</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6"><span style="color:#8c939a">▲</span>Attach to a criterion<span style="margin-left:auto;color:#7d858d">E</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #23272d;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#bac0c6"><span style="color:#8c939a">?</span>Capture a question from it<span style="margin-left:auto;color:#7d858d">Q</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid transparent;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#8c939a"><span style="color:#7d858d">×</span>Abandon<span style="margin-left:auto;color:#7d858d">D</span></div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#7d858d">WHERE IT RAN</div>
+        <div style="font:400 11px/1.7 'IBM Plex Mono',monospace;color:#8c939a">{{ selWhere }}</div>
+      </div>
+    </div>
+  </div>
+  <div style="height:28px;flex:none;border-top:1px solid #23272d;background:#121518;display:flex;align-items:center;padding:0 14px;gap:16px;font:400 10px 'IBM Plex Mono',monospace;color:#7d858d">
+    <span>j/k move</span><span>O observations</span><span>E attach</span><span>Q capture</span>
+    <span style="margin-left:auto">{{ footerLabel }}</span>
+  </div>
+</div>
+</div>
+<div style="height:40px"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1528,&quot;height&quot;:1100}}">
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const PROJECTS = ['nap-reanalysis','density-harmonise','tmr-sim','eeg-pipeline'];
+const STATUS = {
+  planned:   {glyph:'○', tone:'#7d858d', label:'planned'},
+  running:   {glyph:'◐', tone:'#d99b4a', label:'running'},
+  complete:  {glyph:'●', tone:'#e7e9eb', label:'complete'},
+  abandoned: {glyph:'×', tone:'#7d858d', label:'abandoned'}
+};
+
+const PURPOSES = [
+  'See whether the pooled effect survives the preregistered exclusion rule at all.',
+  'See whether the four same-author datasets matter — leave one lab out, nine times.',
+  'Check that Egger\u2019s intercept is stable under the harmonised density definition.',
+  'Find out how wide the interval gets when only the preregistered subset is pooled.',
+  'See whether the size strata are monotonic or whether the mid stratum really is highest.',
+  'Try the profile-likelihood interval instead of Wald and see if anything changes.',
+  'See what happens if within-subject designs are put back in.',
+  'Sanity check: does v3 reproduce v2 on the identical input set?',
+  'See whether spindle density and slow-wave density are interchangeable here at all.',
+  'Look at what the estimate does as the exclusion threshold is swept continuously.',
+  'See whether the effect differs between nap and overnight protocols.',
+  'Check how sensitive the pooled estimate is to the choice of estimator.',
+  'Find out whether the harmonisation step changes any single dataset by more than 0.1.',
+  'See if the funnel asymmetry is driven by one outlier or by the whole small-n group.',
+  'Try a Bayesian pooling with a sceptical prior and see how much it shrinks.',
+  'See whether publication year predicts effect size independently of sample size.',
+  'Check whether the raw-EEG subset is representative on anything measurable.',
+  'Look at the correlation between reported and recomputed effect sizes.',
+  'See whether the TMR simulation reproduces the dose curve at all.',
+  'Find out how many cue repetitions the simulation needs before the benefit saturates.',
+  'See if the simulated benefit is sensitive to the assumed decay rate.',
+  'Check whether the artefact rejection threshold changes spindle counts materially.',
+  'See what the pipeline does with the two datasets that have no staging annotations.',
+  'Try re-running everything at 128 Hz to see if the downsampling matters.',
+  'Look at whether the between-lab term is really a between-author term.',
+  'See whether the effect holds when the four largest studies are dropped.',
+  'Check the leave-one-out influence of the single intracranial dataset.',
+  'See whether anything changes if Hedges\u2019 g is replaced with raw mean difference.'
+];
+const SUFFIX = ['prereg-exclusions','leave-one-lab-out','egger-stability','prereg-subset','size-strata','profile-ci','within-subject','v2-v3-parity','density-swap','threshold-sweep','nap-vs-overnight','estimator-sens','harmonise-delta','outlier-funnel','bayes-sceptic','year-effect','raw-subset-rep','recompute-corr','dose-curve','saturation','decay-sens','artefact-thresh','no-staging','downsample-128','author-term','drop-largest','loo-intracranial','raw-md'];
+
+const STEMS = [
+  'See whether {x} changes at all when the estimator is swapped.',
+  'Check how sensitive {x} is to where the exclusion threshold is set.',
+  'Find out whether {x} holds in the preregistered subset.',
+  'See what {x} does when the four largest studies are dropped.',
+  'Look at whether {x} depends on sample size or only appears to.',
+  'Sanity check {x} against the v2 pipeline on identical input.',
+  'See whether {x} survives harmonising the density definition.',
+  'Find out how far {x} moves under a sceptical prior.',
+  'Check whether {x} is driven by a single outlier.',
+  'See whether {x} differs between nap and overnight protocols.',
+  'Look at {x} per lab rather than pooled.',
+  'Find out whether {x} is stable across downsampling rates.'
+];
+const OBJS = [
+  'the pooled estimate','Egger\u2019s intercept','the interval width','the between-lab variance',
+  'the funnel asymmetry','spindle density','the large-n stratum','the harmonisation delta',
+  'the recomputed effect sizes','the dose curve','the saturation point','the artefact rejection rate',
+  'the staging agreement','the year trend','the intracranial dataset\u2019s influence','the leave-one-out spread'
+];
+
+const STEM_SLUG = ['estimator-swap','threshold-sens','prereg-subset','drop-largest','size-depend','v2-parity','harmonise','bayes-sceptic','outlier-drive','nap-vs-overnight','per-lab','downsample'];
+const OBJ_SLUG = ['pooled','egger','ci-width','lab-var','funnel','spindle-density','large-n','harmonise-delta','recompute','dose-curve','saturation','artefact-rate','staging','year-trend','intracranial','loo-spread'];
+
+function build(){
+  const r = rng(917351), out = [], used = {};
+  for (let i = 0; i < 142; i++) {
+    let p, sfx;
+    if (i < PURPOSES.length) { p = PURPOSES[i]; sfx = SUFFIX[i]; }
+    else {
+      const si = Math.floor(r() * STEMS.length), oi = Math.floor(r() * OBJS.length);
+      p = STEMS[si].replace('{x}', OBJS[oi]);
+      sfx = STEM_SLUG[si] + '-' + OBJ_SLUG[oi];
+    }
+    used[sfx] = (used[sfx] || 0) + 1;
+    if (used[sfx] > 1) sfx += '-' + String.fromCharCode(96 + used[sfx]);
+    const days = Math.floor(r() * 300);
+    const sv = r();
+    const status = sv < .74 ? 'complete' : sv < .84 ? 'planned' : sv < .90 ? 'running' : 'abandoned';
+    const interpreted = status === 'complete' ? r() < .46 : false;
+    const attached = interpreted ? r() < .55 : false;
+    const arts = status === 'complete' ? 1 + Math.floor(r() * 8) : 0;
+    const t = new Date(2026, 8, 19); t.setDate(t.getDate() - days);
+    const id = 'run-' + t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+    out.push({ i, run: sfx, runId: id, purpose: p, status, interpreted, attached, arts, days,
+      project: PROJECTS[Math.floor(r() * PROJECTS.length)],
+      dur: (1 + Math.floor(r()*40)) + ' min', commit: Math.random > 2 ? '' : (0x100000 + Math.floor(r()*0xefffff)).toString(16) });
+  }
+  return out;
+}
+const ALL = build();
+
+function ageShort(d){
+  if (d === 0) return 'today';
+  if (d < 7) return d + 'd';
+  if (d < 60) return Math.round(d/7) + 'w';
+  if (d < 365) return Math.round(d/30) + 'mo';
+  return Math.round(d/365) + 'y';
+}
+
+const FOREST = [
+  ['Rasch 2013 a', .52, .31, .73],
+  ['Diekelmann 10', .61, .38, .84],
+  ['Schreiner 21', .38, .22, .54],
+  ['Antony 2018', .29, .11, .47],
+  ['Denis 2021', .47, .19, .75],
+  ['Feld 2017', .22, .04, .40],
+  ['Wamsley 2019', .18, -.02, .38],
+  ['pooled (33)', .41, .29, .53]
+];
+
+const TABLE = [
+  ['no preregistration', '6', '35'],
+  ['outcome switched', '1', '34'],
+  ['n < 12 per arm', '1', '33'],
+  ['staging unavailable', '0', '33'],
+  ['total excluded', '8', '33']
+];
+
+const ATTACH = [
+  { crit:'F1', tone:'#e59289', rel:'falsifying · met',
+    hypothesis:'Preregistered reanalysis will shrink the pooled effect below d = 0.20',
+    note:'This is the run the criterion was written for. d = 0.41 — the effect did not move, so the criterion is met and the hypothesis is falsified.' },
+  { crit:'C1', tone:'#8c939a', rel:'confirming · met',
+    hypothesis:'Preregistered reanalysis will shrink the pooled effect below d = 0.20',
+    note:'Egger stays significant in both sets. Supports the asymmetry half of the claim while the run as a whole kills it.' },
+  { crit:'C3', tone:'#8c939a', rel:'confirming · inconclusive',
+    hypothesis:'Harmonising the density definition removes most between-lab variance',
+    note:'Only incidental here — the harmonised definition was held constant, so this run shows the variance is not sensitive to the inclusion rule.' }
+];
+
+class Component extends DCLogic {
+  state = { status:'complete', query:'', filterStatus:'all', filterEv:'uninterpreted', proj:'all', sort:'new', selected:null };
+
+  filtered(){
+    const s = this.state, q = s.query.trim().toLowerCase();
+    let list = ALL.filter(x =>
+      (s.filterStatus === 'all' || x.status === s.filterStatus) &&
+      (s.proj === 'all' || x.project === s.proj) &&
+      (s.filterEv === 'all'
+        || (s.filterEv === 'uninterpreted' && x.status === 'complete' && !x.interpreted)
+        || (s.filterEv === 'unattached' && x.interpreted && !x.attached)
+        || (s.filterEv === 'attached' && x.attached)) &&
+      (!q || x.purpose.toLowerCase().includes(q) || x.run.toLowerCase().includes(q) || x.runId.includes(q) || x.project.includes(q))
+    );
+    if (s.sort === 'new') list = list.slice().sort((a,b) => a.days - b.days);
+    else if (s.sort === 'old') list = list.slice().sort((a,b) => b.days - a.days);
+    else if (s.sort === 'artifacts') list = list.slice().sort((a,b) => b.arts - a.arts);
+    else { const r = rng(4919); list = list.slice().map(x => [r(), x]).sort((a,b) => a[0]-b[0]).map(p => p[1]); }
+    return list;
+  }
+
+  chip(on){ return on ? {bg:'#212730', fg:'#e7e9eb'} : {bg:'transparent', fg:'#8c939a'}; }
+
+  renderVals(){
+    const st = this.state;
+    const list = this.filtered();
+    const sel = ALL.find(x => x.i === st.selected) || list[0] || ALL[0];
+    const S = STATUS[sel.status];
+    const r = rng(1234);
+
+    const funnel = [];
+    for (let i = 0; i < 41; i++) {
+      const se = 0.05 + r() * 0.29;
+      const d = 0.40 + (r() - 0.45) * se * 2.2;
+      const kept = i % 5 !== 0;
+      funnel.push({
+        x: Math.max(1, Math.min(99, (d / 0.9) * 100)) + '%',
+        y: Math.max(1, Math.min(99, ((se - 0.05) / 0.29) * 100)) + '%',
+        fill: kept ? '#8c939a' : '#3a424b'
+      });
+    }
+
+    const count = fn => ALL.filter(fn).length;
+
+    return {
+      statuses: Object.keys(STATUS).map(k => {
+        const on = st.status === k, c = this.chip(on);
+        return { label: STATUS[k].label, bg:c.bg, fg:c.fg, pick: () => this.setState({ status:k }) };
+      }),
+      funnel,
+      forest: FOREST.map(([label, est, lo, hi], i) => {
+        const pooled = i === FOREST.length - 1;
+        const sc = v => Math.max(0, Math.min(100, ((v + 0.1) / 1.0) * 100));
+        return { label, labelFg: pooled ? '#bac0c6' : '#8c939a',
+          lo: sc(lo) + '%', w: (sc(hi) - sc(lo)) + '%', est: sc(est) + '%',
+          line: pooled ? '#8c939a' : '#3a424b', dot: pooled ? '#d99b4a' : '#8c939a',
+          val: est.toFixed(2) };
+      }),
+      table: TABLE.map(([rule, dropped, left], i) => ({
+        rule, dropped, left, fg: i === TABLE.length - 1 ? '#bac0c6' : '#8c939a'
+      })),
+      attachments: ATTACH,
+
+      totalLabel: ALL.length + ' runs · since Nov 2025',
+      statusFilters: [['all','all']].concat(Object.keys(STATUS).map(k => [k, STATUS[k].label])).map(([k,label]) => {
+        const on = st.filterStatus === k, c = this.chip(on);
+        return { label, n: k === 'all' ? ALL.length : count(x => x.status === k), bg:c.bg, fg:c.fg,
+          pick: () => this.setState({ filterStatus:k }) };
+      }),
+      attachFilters: [['all','everything'],['uninterpreted','not yet interpreted'],['unattached','read, unattached'],['attached','attached to a criterion']].map(([k,label]) => {
+        const on = st.filterEv === k, c = this.chip(on);
+        const n = k === 'all' ? ALL.length
+          : k === 'uninterpreted' ? count(x => x.status === 'complete' && !x.interpreted)
+          : k === 'unattached' ? count(x => x.interpreted && !x.attached)
+          : count(x => x.attached);
+        return { label, n, bg:c.bg, fg:c.fg, pick: () => this.setState({ filterEv:k }) };
+      }),
+      projFilters: [['all','all projects']].concat(PROJECTS.map(p => [p,p])).map(([k,label]) => {
+        const on = st.proj === k, c = this.chip(on);
+        return { label, n: k === 'all' ? ALL.length : count(x => x.project === k), bg:c.bg, fg:c.fg,
+          pick: () => this.setState({ proj:k }) };
+      }),
+      sorts: [['new','newest'],['old','oldest'],['artifacts','most artifacts'],['rand','shuffle']].map(([k,label]) => {
+        const on = st.sort === k, c = this.chip(on);
+        return { label, bg:c.bg, fg:c.fg, pick: () => this.setState({ sort:k }) };
+      }),
+      query: st.query,
+      onQuery: e => this.setState({ query:e.target.value }),
+      shownLabel: list.length + ' of ' + ALL.length,
+      rows: list.slice(0, 180).map(x => ({
+        run: x.run,
+        purpose: x.purpose,
+        sub: x.runId + ' · ' + x.project + ' · ' + x.dur + ' · ' + x.commit,
+        glyph: STATUS[x.status].glyph,
+        tone: STATUS[x.status].tone,
+        fg: x.i === sel.i ? '#ffffff' : '#d3d7db',
+        bg: x.i === sel.i ? '#1b2129' : 'transparent',
+        arts: x.arts ? x.arts + ' items' : '—',
+        ev: x.attached ? 'attached' : x.interpreted ? 'read' : 'not yet read',
+        evTone: x.attached ? '#bac0c6' : '#8c939a',
+        when: ageShort(x.days),
+        select: () => this.setState({ selected:x.i })
+      })),
+      endNote: list.length > 180
+        ? 'showing 180 of ' + list.length + '. Runs accumulate — that is what cheap runs do.'
+        : 'end of ' + list.length + ' runs. Most of these will never attach to a hypothesis, which is fine.',
+      footerLabel: 'oldest run 10mo · no counter, by design',
+
+      selRun: sel.runId + ' · ' + sel.run, selPurpose: sel.purpose,
+      selStatus: S.label.toUpperCase(), selGlyph: S.glyph, selTone: S.tone,
+      selWhen: ageShort(sel.days) + ' ago',
+      selArts: sel.arts ? sel.arts + ' items · ' + (sel.arts > 5 ? '1 linked outside the vault' : 'all in vault') : 'none recorded',
+      selPreview: sel.arts ? 'first artifact — plot preview' : 'nothing to preview yet',
+      selWhere: sel.project + '\n' + sel.commit + ' · ' + sel.dur
+    };
+  }
+}
+</script>
+</body>
+</html>
