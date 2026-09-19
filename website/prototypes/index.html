@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vitrine · Prototypes</title>
+  <meta name="description" content="The twelve Claude Design prototypes behind Vitrine: the shape, eight surfaces, and three dashboards, live and interactive.">
+  <link rel="icon" href="../brand/mark-case.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="../brand/tokens.css">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="gallery.css">
+</head>
+<body class="wide">
+  <header class="masthead">
+    <a class="lockup" href="../" aria-label="Vitrine home">
+      <img class="mark" src="../brand/mark-case.svg" alt="" width="28" height="28">
+      <span class="wordmark">Vitrine</span>
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="./" aria-current="page">Prototypes</a>
+      <a href="https://github.com/tacomancy/vitrine">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="eyebrow">Prototypes</p>
+      <h1>Twelve surfaces, drawn before a line of code.</h1>
+      <p class="lede">Each was designed in its own session from a prompt written to stand alone: the overall shape first, then eight surfaces, then three dashboards. They are live below. Tabs switch states, rows select, filters filter. Sample content is placeholder research; the mechanics are the point.</p>
+      <nav class="toc" aria-label="Surfaces">
+        <ol>
+          <li><a href="#shape">Shape</a></li>
+          <li><a href="#question-inbox">Question Inbox</a></li>
+          <li><a href="#reader">Reader</a></li>
+          <li><a href="#research-question">Research Question</a></li>
+          <li><a href="#hypothesis">Hypothesis</a></li>
+          <li><a href="#experiment">Experiment</a></li>
+          <li><a href="#scout-queue">Scout Queue</a></li>
+          <li><a href="#vault">Vault</a></li>
+          <li><a href="#home">Home</a></li>
+          <li><a href="#loose-ends">Loose Ends</a></li>
+          <li><a href="#scout-activity">Scout Activity</a></li>
+          <li><a href="#question-map">Question Map</a></li>
+        </ol>
+      </nav>
+    </section>
+
+    <section class="proto" id="shape">
+      <header>
+        <p class="eyebrow">00 · The shape</p>
+        <h2>Navigation model and visual language</h2>
+        <p>Not a screen. The rail, the surfaces, how a surface occupies the window, and the type and colour everything after it inherits. Runs once; every later prompt assumes it.</p>
+      </header>
+      <div class="frame" data-src="00-shape.html"><iframe title="Prototype: the shape" loading="lazy"></iframe></div>
+      <p class="open"><a href="00-shape.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="question-inbox">
+      <header>
+        <p class="eyebrow">01 · Surface</p>
+        <h2>Question Inbox</h2>
+        <p>Where two-keystroke captures land, each with its provenance visible. Age is a sortable fact, never a state. No badge, no red, nothing owed. Shown at three years and three hundred questions.</p>
+      </header>
+      <div class="frame" data-src="01-question-inbox.html"><iframe title="Prototype: Question Inbox" loading="lazy"></iframe></div>
+      <p class="open"><a href="01-question-inbox.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="reader">
+      <header>
+        <p class="eyebrow">02 · Surface</p>
+        <h2>Reader</h2>
+        <p>PDF reading with highlights that have identity, so a note can link to a passage. Selecting text offers a note, a question, or a link. Ingest review shows what came back from the iPad, including anything that could not be re-matched.</p>
+      </header>
+      <div class="frame" data-src="02-reader.html"><iframe title="Prototype: Reader" loading="lazy"></iframe></div>
+      <p class="open"><a href="02-reader.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="research-question">
+      <header>
+        <p class="eyebrow">03 · Surface</p>
+        <h2>Research Question view</h2>
+        <p>A promoted question, answered by reading. Supporting and opposing sources are structurally separate. The working answer is a position held at a time, and its history reads as changing your mind, not as a diff.</p>
+      </header>
+      <div class="frame" data-src="03-research-question-view.html"><iframe title="Prototype: Research Question view" loading="lazy"></iframe></div>
+      <p class="open"><a href="03-research-question-view.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="hypothesis">
+      <header>
+        <p class="eyebrow">04 · Surface</p>
+        <h2>Hypothesis view</h2>
+        <p>A promoted question, answered by testing. Criteria are recorded before evidence arrives, and the state is computed from them. There is no status control. Falsified looks as solid as supported.</p>
+      </header>
+      <div class="frame" data-src="04-hypothesis-view.html"><iframe title="Prototype: Hypothesis view" loading="lazy"></iframe></div>
+      <p class="open"><a href="04-hypothesis-view.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="experiment">
+      <header>
+        <p class="eyebrow">05 · Surface</p>
+        <h2>Experiment view</h2>
+        <p>A run designed here and executed elsewhere. Artifacts are the one thing in the vault that exists nowhere else, so plots and snippets are laid out to be looked at, not filed as chips.</p>
+      </header>
+      <div class="frame" data-src="05-experiment-view.html"><iframe title="Prototype: Experiment view" loading="lazy"></iframe></div>
+      <p class="open"><a href="05-experiment-view.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="scout-queue">
+      <header>
+        <p class="eyebrow">06 · Surface</p>
+        <h2>Scout Queue</h2>
+        <p>Proposals from scheduled agents, sorted like a stack rather than read like mail. Two lanes: Review is a queue and Skim is a feed. One card in hand, one key per decision, ranking that never hides anything.</p>
+      </header>
+      <div class="frame" data-src="06-scout-queue.html"><iframe title="Prototype: Scout Queue" loading="lazy"></iframe></div>
+      <p class="open"><a href="06-scout-queue.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="vault">
+      <header>
+        <p class="eyebrow">07 · Surface</p>
+        <h2>Vault</h2>
+        <p>Ordinary notes, links, backlinks, tags, and folders. Deliberately unremarkable. The only differences: questions and source stubs are first-class in the tree, in autocomplete, and in backlinks.</p>
+      </header>
+      <div class="frame" data-src="07-vault.html"><iframe title="Prototype: Vault" loading="lazy"></iframe></div>
+      <p class="open"><a href="07-vault.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="home">
+      <header>
+        <p class="eyebrow">08 · Surface</p>
+        <h2>Home</h2>
+        <p>A landing, not a command center. One column of sentences and routes. The only numbers are ones you can click through, and the only thing that raises its voice is a Scout that has quietly stopped seeing anything.</p>
+      </header>
+      <div class="frame" data-src="08-home.html"><iframe title="Prototype: Home" loading="lazy"></iframe></div>
+      <p class="open"><a href="08-home.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="loose-ends">
+      <header>
+        <p class="eyebrow">09 · Dashboard</p>
+        <h2>Loose Ends</h2>
+        <p>What is incomplete or broken, as a punch list. Counts per group, never a total. Every row resolves in one click, and one of those clicks is always mark deliberate.</p>
+      </header>
+      <div class="frame" data-src="09-loose-ends.html"><iframe title="Prototype: Loose Ends" loading="lazy"></iframe></div>
+      <p class="open"><a href="09-loose-ends.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="scout-activity">
+      <header>
+        <p class="eyebrow">10 · Dashboard</p>
+        <h2>Scout Activity</h2>
+        <p>Are the agents earning their keep? Accept rate on Review-lane items only, source health per Scout, and every row edits its brief in place. The one dashboard where a line chart is the right shape.</p>
+      </header>
+      <div class="frame" data-src="10-scout-activity.html"><iframe title="Prototype: Scout Activity" loading="lazy"></iframe></div>
+      <p class="open"><a href="10-scout-activity.html">Open full size</a></p>
+    </section>
+
+    <section class="proto" id="question-map">
+      <header>
+        <p class="eyebrow">11 · Dashboard</p>
+        <h2>Question Map</h2>
+        <p>Where is my work thin, and where am I relative to the field? A sorted coverage matrix, a labeled attention scatter, ranked lists. Not a force-directed graph, and never will be.</p>
+      </header>
+      <div class="frame" data-src="11-question-map.html"><iframe title="Prototype: Question Map" loading="lazy"></iframe></div>
+      <p class="open"><a href="11-question-map.html">Open full size</a></p>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <p>Prototypes were produced in Claude Design and are pinned in the repository as frozen reference. What you see here is the same export, restyled into Vitrine's brand at build time. <a href="https://github.com/tacomancy/vitrine/tree/main/docs/reference">Source and design brief on GitHub.</a></p>
+  </footer>
+
+  <script src="gallery.js"></script>
+</body>
+</html>

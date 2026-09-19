@@ -23,6 +23,6 @@ No force pushes to `main`, no deleting it.
 ## Where things go
 
 - New vocabulary: `CONTEXT.md`. Technical decisions: `docs/architecture.md`. Resolved questions and implementation calls: `docs/adr/`, numbered from the highest existing number, using `docs/adr/0000-template.md`.
-- The public site is `website/`. `Scripts/build-site.sh` assembles it with the brand tokens and pinned prototypes copied in from `docs/reference/`; never commit copies of those into `website/`. It deploys from `main` only (ADR 0004).
+- The public site is `website/`. `Scripts/build-site.sh` assembles it with the brand tokens copied in from `docs/reference/` and the pinned prototypes rebranded by `Scripts/rebrand-prototypes.py`; never commit copies of either into `website/`. A re-pinned prototype that uses a new colour fails the build until the mapping covers it. It deploys from `main` only (ADR 0004).
 - Nothing under `docs/reference/` is ever edited. Its `README.md` changes only when the directory's contents do.
 - Issues, labels, and milestones: `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.

@@ -2,9 +2,10 @@
 # Assembles the public site into build/site. CI (.github/workflows/pages.yml)
 # runs this and deploys the result; run it locally to preview the same thing.
 #
-# The site is website/ plus a few files copied out of the frozen reference
-# tier — the brand tokens and marks, and the pinned prototypes — so the site
-# can show them without a second, drifting copy being committed anywhere.
+# The site is website/ plus what it borrows from the frozen reference tier:
+# the brand tokens and marks copied as they are, and the pinned prototypes
+# rewritten into the brand by Scripts/rebrand-prototypes.py. Neither is
+# committed as a second copy, so neither can drift from the original.
 #
 # Usage: Scripts/build-site.sh [out-dir]   (default: build/site)
 set -euo pipefail
@@ -19,8 +20,9 @@ mkdir -p "$out/brand"
 cp docs/reference/branding/tokens.css "$out/brand/tokens.css"
 cp docs/reference/branding/assets/*.svg "$out/brand/"
 
-# Each prototype needs support.js beside it; the copy keeps that layout.
-cp -R docs/reference/prototypes "$out/prototypes"
+# The gallery page (website/prototypes/index.html) is already in place from
+# the copy above; the rebranded exports and support.js land beside it.
+Scripts/rebrand-prototypes.py docs/reference/prototypes "$out/prototypes"
 
 # Pages serves this file on unknown paths; without it the default is GitHub's.
 [ -e "$out/404.html" ] || cp "$out/index.html" "$out/404.html"
