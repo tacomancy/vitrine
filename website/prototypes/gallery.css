@@ -38,7 +38,6 @@ body.wide .colophon {
   color: var(--color-fg-muted);
 }
 
-.nav { display: flex; gap: var(--space-5); }
 .nav a[aria-current="page"] { color: var(--color-accent); }
 
 .proto {
@@ -63,9 +62,10 @@ body.wide .colophon {
   line-height: var(--leading-relaxed);
 }
 
-/* The frame keeps the prototype's own aspect: the iframe is laid out at the
-   design width and scaled down; the wrapper's height follows the scale so the
-   page flow stays correct. gallery.js sets --scale from the measured width. */
+/* The iframe is laid out at the design width and scaled down; the wrapper's
+   height follows, so the page flow stays correct. gallery.js sets --scale
+   from the column width and --design-height from the loaded document. The
+   900 is only the placeholder before a prototype loads. */
 .frame {
   --design-width: 1528;
   --design-height: 900;

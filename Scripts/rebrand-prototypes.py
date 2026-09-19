@@ -119,7 +119,9 @@ FONTS = [
 
 FONT_LINK = re.compile(r'<link href="https://fonts\.googleapis\.com/css2\?[^"]*" rel="stylesheet">')
 BRAND_FONT_LINK = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400'
-                   '&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500'
+                   # Inter as a variable axis: the exports use 450 as well as the brand's
+                   # 400–700. Plex Mono 600 is used throughout the exports' labels.
+                   '&family=Inter:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600'
                    '&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">')
 
 # BRAND.md law 2: sapphire is every action. The exports colour <a> amber; the
@@ -127,33 +129,60 @@ BRAND_FONT_LINK = ('<link rel="stylesheet" href="https://fonts.googleapis.com/cs
 LINK_RULE = re.compile(r"a\{color:#d99b4a\}a:hover\{color:#e8b673\}")
 BRAND_LINK_RULE = "a{color:%s}a:hover{color:%s}" % (SAPPHIRE[300], SAPPHIRE[200])
 
-# BRAND.md law 2 again, for buttons. The exports fill a primary action amber
-# with dark text on it; carets, dots, and swatches are filled amber with no
-# text colour at all. That pairing inside one style attribute is the tell, so
-# those become the brand's primary (sapphire) with white on it, and every
-# other amber stays brass as punctuation.
-BUTTON_STYLE = re.compile(r'style="([^"]*background:#d99b4a[^"]*color:#(?:0f1113|15181c)[^"]*)"')
+# BRAND.md law 2 again, for buttons and selected states. The exports fill a
+# primary action amber with dark text on it; carets, dots, and swatches are
+# filled amber with no text colour at all. That pairing in one declaration
+# list is the tell, so those become the brand's primary (sapphire) with white
+# on it, and every other amber stays brass as punctuation.
+AMBER_FILL = "background:#d99b4a"
+DARK_TEXT = re.compile(r"(?<![\w-])color:#(?:0f1113|15181c)")
+# A style attribute, or a rule body in a <style> block: the shape document
+# styles its selected section chip in a rule, not an attribute.
+STYLE_ATTR = re.compile(r'style="([^"]*)"')
+RULE_BODY = re.compile(r"\{([^{}]*)\}")
 
 
-def button_sub(m):
-    style = (m.group(1)
-             .replace("background:#d99b4a", "background:" + SAPPHIRE[600])
+def is_button(decls: str) -> bool:
+    return AMBER_FILL in decls and DARK_TEXT.search(decls) is not None
+
+
+def to_primary(decls: str) -> str:
+    decls = (decls
+             .replace(AMBER_FILL, "background:" + SAPPHIRE[600])
              .replace("border:1px solid #d99b4a", "border:1px solid " + SAPPHIRE[600]))
-    style = re.sub(r"color:#(?:0f1113|15181c)", "color:#FFFFFF", style)
-    return f'style="{style}"'
+    return DARK_TEXT.sub("color:#FFFFFF", decls)
 
 
-HEX = re.compile(r"#([0-9a-fA-F]{6})(?![0-9a-fA-F])")
+def button_attr_sub(m):
+    decls = m.group(1)
+    return f'style="{to_primary(decls)}"' if is_button(decls) else m.group(0)
+
+
+def button_rule_sub(m):
+    decls = m.group(1)
+    return "{" + to_primary(decls) + "}" if is_button(decls) else m.group(0)
+
+
+# Any #hex run, whatever its length. Six digits map; anything else (3, 4, or
+# 8 digits) has no mapping and must fail rather than slip through. The
+# lookbehind keeps ids and anchors like href="#1a" out of it.
+HEX = re.compile(r"(?<![\w-])#([0-9a-fA-F]{3,8})(?![0-9a-fA-F])")
 RGBA_RE = re.compile(r"rgba?\((\d+),\s*(\d+),\s*(\d+)(,[^)]*)?\)")
 
 
 def rebrand(html: str) -> tuple[str, set[str]]:
     unmapped: set[str] = set()
     html = LINK_RULE.sub(BRAND_LINK_RULE, html)
-    html = BUTTON_STYLE.sub(button_sub, html)
+    # Order matters: the link and button passes key on the export's amber,
+    # so they run before the colour map turns it into brass.
+    html = STYLE_ATTR.sub(button_attr_sub, html)
+    html = RULE_BODY.sub(button_rule_sub, html)
 
     def hex_sub(m):
         key = "#" + m.group(1).lower()
+        if len(m.group(1)) != 6:
+            unmapped.add(key)
+            return m.group(0)
         if key in COLOURS:
             return COLOURS[key]
         if key.upper() in PASS_THROUGH:
@@ -184,10 +213,10 @@ def main(src: Path, out: Path) -> int:
     out.mkdir(parents=True, exist_ok=True)
     problems: dict[str, set[str]] = {}
     for path in sorted(src.glob("*.html")):
-        html, unmapped = rebrand(path.read_text())
+        html, unmapped = rebrand(path.read_text(encoding="utf-8"))
         if unmapped:
             problems[path.name] = unmapped
-        (out / path.name).write_text(html)
+        (out / path.name).write_text(html, encoding="utf-8")
     (out / "support.js").write_bytes((src / "support.js").read_bytes())
     if problems:
         for name, colours in problems.items():

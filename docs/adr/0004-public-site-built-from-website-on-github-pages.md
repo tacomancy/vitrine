@@ -17,6 +17,6 @@ The repository's GitHub Pages is already bound to the apex `tacomancy.com` (work
 - **+** The frozen tier stays the single source for tokens and prototypes; the site cannot show a stale copy.
 - **−** The rebrand is mechanical. Links and filled buttons are re-pointed at sapphire (`BRAND.md` law 2) by pattern: a button is an amber fill with dark text on it in one style attribute. Any other amber becomes brass, so an action styled some other way would slip through as punctuation. The app's own UI does not inherit any of this: it is built from the tokens, not from the exports.
 - **−** The exports set questions and quotations in Source Serif 4, a role `BRAND.md` doesn't have. The site keeps it: the serif marks what a person wondered against what the machine reports, a distinction the prototypes drew on purpose and the app is expected to keep. This is the one place the site goes past the branding package; if the app adopts a serif, its choice and weights belong in `docs/architecture.md`.
-- **−** Fonts load from Google Fonts on the site. The app's own font policy is undecided (`docs/architecture.md` § Open).
+- **−** Fonts load from Google Fonts on the site. Whether the app bundles its fonts is decided with the stack (`docs/architecture.md` § Open, item 1), not here.
 - **−** The Pages deploy is not a merge gate; a broken site build is noticed after merge, from the Actions run, not before.
 - The site's content beyond the landing page is not decided by this ADR.

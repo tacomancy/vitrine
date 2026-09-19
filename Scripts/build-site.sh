@@ -24,7 +24,4 @@ cp docs/reference/branding/assets/*.svg "$out/brand/"
 # the copy above; the rebranded exports and support.js land beside it.
 Scripts/rebrand-prototypes.py docs/reference/prototypes "$out/prototypes"
 
-# Pages serves this file on unknown paths; without it the default is GitHub's.
-[ -e "$out/404.html" ] || cp "$out/index.html" "$out/404.html"
-
 printf 'built %s (%s)\n' "$out" "$(du -sh "$out" | cut -f1)"
