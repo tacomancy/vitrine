@@ -1,0 +1,23 @@
+/* The serif role (questions, quotations) is settled in docs/architecture.md;
+   tokens.css predates it and names no serif family. */
+:root {
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Focus is always the brass ring (BRAND.md accessibility contract). */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

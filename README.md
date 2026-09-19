@@ -8,6 +8,6 @@ A local-first research workspace built around the Question rather than the note.
 - `docs/reference/prototypes/` — the twelve pinned Claude Design prototypes, one per surface and dashboard.
 - `website/` — the public site at [tacomancy.com](https://tacomancy.com), built by `Scripts/build-site.sh` and deployed from `main`. Its prototype gallery shows the twelve exports live, restyled into the brand.
 
-**Status:** the design is complete and every surface has a pinned prototype. The stack is undecided (`docs/architecture.md` § Open) and there is no application code yet.
+**Status:** the design is complete and every surface has a pinned prototype. The stack is settled (ADR 0005) and scaffolded: `pnpm install && pnpm dev` opens the window on a running core. Nothing vault-related exists yet.
 
 The previous native macOS app lives in `main`'s history before the reimagining.
