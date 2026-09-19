@@ -1,45 +1,58 @@
 import SwiftUI
 
-/// A row that wraps: its subviews laid out leading to trailing at their
-/// own sizes, `spacing` apart, starting a new line when the next would not
-/// fit the width proposed. What a row of chips sits in, so many never
-/// push what is below them off screen (spec #72).
+/// A row that wraps: its subviews laid out leading to trailing at their own
+/// sizes, `spacing` apart, starting a new line when the next would not fit
+/// the width proposed. The chip row is the first use.
 struct WrappingRow: Layout {
     let spacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.replacingUnspecifiedDimensions().width
-        let frames = frames(of: subviews, in: width)
-        let height = frames.map(\.maxY).max() ?? 0
-        return CGSize(width: width, height: height)
+    /// Where each subview goes, relative to the row's origin, and the
+    /// height the lines take together.
+    private struct Placement {
+        var origins: [CGPoint] = []
+        var height: CGFloat = 0
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let placement = place(subviews, within: width)
+        let widest = zip(placement.origins, subviews).map {
+            $0.x + $1.sizeThatFits(.unspecified).width
+        }
+        return CGSize(width: widest.max() ?? 0, height: placement.height)
     }
 
     func placeSubviews(
         in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
     ) {
-        for (subview, frame) in zip(subviews, frames(of: subviews, in: bounds.width)) {
+        let placement = place(subviews, within: bounds.width)
+        for (subview, origin) in zip(subviews, placement.origins) {
             subview.place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                proposal: ProposedViewSize(frame.size))
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                anchor: .topLeading, proposal: .unspecified)
         }
     }
 
-    /// Each subview's frame from the row's origin, wrapped at `width`. A
-    /// subview wider than the row takes a line of its own.
-    private func frames(of subviews: Subviews, in width: CGFloat) -> [CGRect] {
-        var frames: [CGRect] = []
-        var origin = CGPoint.zero
+    /// A subview that does not fit beside the one before it starts the next
+    /// line; a line is as tall as its tallest subview. An infinite width is
+    /// one line.
+    private func place(_ subviews: Subviews, within width: CGFloat) -> Placement {
+        var placement = Placement()
+        var cursor = CGPoint.zero
         var lineHeight: CGFloat = 0
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if origin.x > 0, origin.x + size.width > width {
-                origin = CGPoint(x: 0, y: origin.y + lineHeight + spacing)
+            if cursor.x > 0, cursor.x + size.width > width {
+                cursor = CGPoint(x: 0, y: cursor.y + lineHeight + spacing)
                 lineHeight = 0
             }
-            frames.append(CGRect(origin: origin, size: size))
-            origin.x += size.width + spacing
+            placement.origins.append(cursor)
+            cursor.x += size.width + spacing
             lineHeight = max(lineHeight, size.height)
         }
-        return frames
+        placement.height = subviews.isEmpty ? 0 : cursor.y + lineHeight
+        return placement
     }
 }

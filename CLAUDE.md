@@ -193,6 +193,32 @@ distinct counts and ties for the sort to break; seven `IndexTests`
 assert hand-counted tuples, and on the vault snapshot `data_science`
 answers `14` notes with `machine_learning 6/14`, matching a grep count.
 
+**② is built (issue #74): filter chips on the Notes tab.** Two seam
+additions, red-first, so the app never spells or lowercases a tag
+itself: `TagTreeNode.displaySpelling` — the whole tag as displayed —
+and `Index.tagPath(of:)`, a spelling's path by `CONTEXT.md` § Tags. The
+rest is glue at the seam, untested by decision and verified by `/run`:
+`NotesSelection` grew `chips` — tag paths in order of addition;
+`addChip(forTag:)` takes a tag as displayed, written, or a node's path
+and is a no-op for one present, `removeChip` is the `×`, `clear()`
+takes them with the library and a scope change leaves them. `NoteList`
+keeps the scope's notes to `Index.notes(taggedAll: chips)` and counts
+what it lists; above its header `FilterChipRow` draws each `FilterChip`
+— the brief's info chip with `×` — then `+ filter` in a `WrappingRow`
+(`Layout`), and `+ filter` opens `FilterPopover`: a field over the tag
+tree flattened in tree order, filtered by substring on the path, each
+a `SidebarRow` (`Emphasis.highlighted` is new: the pill without brass),
+↑↓ over the unchipped rows, ↩ or click adds and closes, Esc closes,
+chipped rows disabled. Tag clicks add chips in three places: `TagRow` —
+one attributed `Text` over `TokenURL`, the one encoding of a clickable
+token's kind and index, so the line stays one ellipsised line —
+replaces the inert tag text in `NoteRow` and the rail's INFO, and the
+editor gives every body tag a `.link` attribute of the same encoding,
+told from a note link's in `clickedOnLink` by kind, since a link click
+is the one the text view tracks without moving the caret.
+`docs/visual-implementation.md` records the chip, the row, the
+popover, and the editor's new table row.
+
 **③ is built (issue #75): the Tags tab.** Glue at the seam, untested by
 decision and verified by a headless harness over the real glue rendered
 offscreen (the screen was locked): `TagsSelection` is the tab's own view

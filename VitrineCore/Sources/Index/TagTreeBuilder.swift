@@ -44,14 +44,15 @@ struct TagTreeBuilder {
         insert(descendants, carriedBy: note)
     }
 
-    private func nodes(under ancestry: [String]) -> [TagTreeNode] {
+    private func nodes(under ancestry: [TagSegment]) -> [TagTreeNode] {
         children.map { identity, child in
-            let path = ancestry + [identity]
+            let segments = ancestry + [TagSegment(identity: identity, name: child.name)]
             return TagTreeNode(
                 name: child.name,
-                path: TagPath.joined(path),
+                path: TagPath.joined(segments.map(\.identity)),
+                displaySpelling: TagPath.joined(segments.map(\.name)),
                 count: child.carriers.count,
-                children: child.nodes(under: path))
+                children: child.nodes(under: segments))
         }
         .sorted { LibraryDisplayOrder.precedes($0.name, $1.name, thenBy: $0.path, $1.path) }
     }

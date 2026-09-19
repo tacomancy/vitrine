@@ -285,6 +285,15 @@ public struct Index: Sendable {
         return notes.filter { $0.isTagged(under: ancestry) }.map(\.note)
     }
 
+    /// The path — the identity — a tag spelled `spelling` has, without its
+    /// `#`: lowercased, empty segments dropped (CONTEXT.md § Tags), so a
+    /// tag as displayed, as written, or as a tree node's `path` all name
+    /// one filter chip. Nil for a spelling with no segment at all (`/`).
+    public static func tagPath(of spelling: String) -> String? {
+        let identities = TagPath.segmentIdentities(of: spelling)
+        return identities.isEmpty ? nil : TagPath.joined(identities)
+    }
+
     /// The notes carrying every tag in `tags` or a tag under each — what
     /// the note list shows behind its filter chips (CONTEXT.md § Note
     /// list) — in library display order. Each tag is matched as

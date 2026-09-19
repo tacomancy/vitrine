@@ -1,16 +1,21 @@
+import Index
 import Library
 import Observation
 
 /// What the Notes tab has selected: the sidebar row, which scopes the note
-/// list, the note open in the editor, the back / forward history of notes
-/// opened this session, and Recent — the same notes by when they were
-/// last opened. Plain view state, shared by the panes because each is
-/// hosted on its own (spec #8 § Selection state); the note list, editor,
-/// rail, and command palette derive everything from it, `Library`,
-/// `Index`, and `Search`.
+/// list, the filter chips that narrow that scope, the note open in the
+/// editor, the back / forward history of notes opened this session, and
+/// Recent — the same notes by when they were last opened. Plain view
+/// state, shared by the panes because each is hosted on its own (spec #8
+/// § Selection state); the note list, editor, rail, and command palette
+/// derive everything from it, `Library`, `Index`, and `Search`.
 @Observable
 final class NotesSelection {
     private(set) var sidebar: SidebarSelection = .allNotes
+    /// The filter chips (CONTEXT.md § Note list): tag paths in the order
+    /// they were added. A scope change leaves them; a library switch
+    /// clears them.
+    private(set) var chips: [String] = []
     /// The note open in the editor; `nil` leaves the editor empty.
     private(set) var openNote: Note?
     /// Recent (CONTEXT.md): every note opened this session, the one opened
@@ -50,6 +55,21 @@ final class NotesSelection {
 
     func select(_ folder: Folder) {
         sidebar = .folder(folder)
+    }
+
+    /// Adds a chip for `tag` — a tag without its `#`, as displayed, as
+    /// written, or as a tag tree node's path — at the path the Index gives
+    /// it, so a click on `Reading/Notes` and a pick of `reading/notes` are
+    /// one chip. A tag already chipped, or a spelling that is no tag, adds
+    /// nothing.
+    func addChip(forTag tag: String) {
+        guard let path = Index.tagPath(of: tag), !chips.contains(path) else { return }
+        chips.append(path)
+    }
+
+    /// The chip's `×`: the list widens by that one tag.
+    func removeChip(_ path: String) {
+        chips.removeAll { $0 == path }
     }
 
     /// Selecting a note in the file tree scopes the list to its folder and
@@ -145,6 +165,7 @@ final class NotesSelection {
     /// Recent with it.
     func clear() {
         sidebar = .allNotes
+        chips = []
         openNote = nil
         history = []
         forward = []

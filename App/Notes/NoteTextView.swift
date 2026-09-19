@@ -6,7 +6,8 @@ import SwiftUI
 
 /// The open note's text in an `NSTextView` on TextKit 2 (ADR 0013): its
 /// source exactly as the buffer holds it, frontmatter included, with the
-/// parser's ranges colored and re-colored on every edit. The view owns
+/// parser's ranges colored and re-colored on every edit, its links
+/// followed and its tags added as filter chips on a click. The view owns
 /// nothing but itself — each edit is parsed and reported up as a
 /// `ParsedNote`, and the text is written back into the view only when the
 /// app's parse is not the one the view showed or reported: a note switch.
@@ -18,10 +19,13 @@ struct NoteTextView: NSViewRepresentable {
     let inset: NSSize
     let onEdit: (ParsedNote) -> Void
     let follow: (BodyLink.Destination) -> Void
+    /// A click on a body tag, given the tag as written without its `#`.
+    let addChip: (String) -> Void
     let onFocusChange: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(note: note, index: index, onEdit: onEdit, follow: follow)
+        Coordinator(
+            note: note, index: index, onEdit: onEdit, follow: follow, addChip: addChip)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -98,6 +102,7 @@ struct NoteTextView: NSViewRepresentable {
         coordinator.index = index
         coordinator.onEdit = onEdit
         coordinator.follow = follow
+        coordinator.addChip = addChip
         // The app's parse is the view's own, echoed back: nothing to write —
         // though under a new path it is the note on show renamed, which a
         // later reload must not take for a different note.
@@ -118,6 +123,7 @@ struct NoteTextView: NSViewRepresentable {
         var index: Index
         var onEdit: (ParsedNote) -> Void
         var follow: (BodyLink.Destination) -> Void
+        var addChip: (String) -> Void
         weak var textView: EditorTextView?
         /// The parse the view showed last, or reported last — what the
         /// app hands back until the note changes underneath.
@@ -129,6 +135,8 @@ struct NoteTextView: NSViewRepresentable {
         /// reports it up.
         private var beingShown: ParsedNote?
         private var links: [BodyLink] = []
+        /// The body tags of the parse on show, as written, in order.
+        private var tags: [String] = []
         private var styledRanges: [StyledRange] = []
         /// Whether the styled ranges have changed since the layout manager
         /// was last given their colors.
@@ -137,11 +145,6 @@ struct NoteTextView: NSViewRepresentable {
         // ADR 0013: undo is per note, so the view's own manager, not the
         // window's, emptied on a note switch.
         private let undoManager = UndoManager()
-
-        /// A link's storage attribute: this scheme and its index in `links`,
-        /// a URL because AppKit expects one there — its Copy Link and Open
-        /// Link would cast — and the scheme is nothing the system opens.
-        private static let linkScheme = "vitrine-link"
 
         /// What every character carries unless a styled range says otherwise.
         static let baseAttributes: [NSAttributedString.Key: Any] = [
@@ -152,12 +155,14 @@ struct NoteTextView: NSViewRepresentable {
 
         init(
             note: Note, index: Index, onEdit: @escaping (ParsedNote) -> Void,
-            follow: @escaping (BodyLink.Destination) -> Void
+            follow: @escaping (BodyLink.Destination) -> Void,
+            addChip: @escaping (String) -> Void
         ) {
             self.note = note
             self.index = index
             self.onEdit = onEdit
             self.follow = follow
+            self.addChip = addChip
         }
 
         /// The note on show is now at `path` — the title field renamed it —
@@ -231,11 +236,18 @@ struct NoteTextView: NSViewRepresentable {
             renderIfNeeded()
         }
 
+        // A tag is a link in the storage too (`TokenURL`): the one click the
+        // view tracks without moving the caret, so the edit is undisturbed.
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            guard let url = link as? URL, url.scheme == Self.linkScheme,
-                let index = url.host().flatMap(Int.init), links.indices.contains(index)
-            else { return false }
-            follow(links[index].destination)
+            guard let url = link as? URL, let token = TokenURL.parse(url) else { return false }
+            switch token.kind {
+            case .link where links.indices.contains(token.index):
+                follow(links[token.index].destination)
+            case .tag where tags.indices.contains(token.index):
+                addChip(tags[token.index])
+            default:
+                return false
+            }
             return true
         }
 
@@ -259,6 +271,7 @@ struct NoteTextView: NSViewRepresentable {
         private func present(_ parsed: ParsedNote, in storage: NSTextStorage) {
             presented = parsed
             links = BodyLink.all(in: parsed, of: note, index: index)
+            tags = parsed.bodyTags.map(\.name)
             styledRanges = StyledRange.all(in: parsed, links: links)
             applyStorageAttributes(to: storage)
             needsRendering = true
@@ -287,8 +300,10 @@ struct NoteTextView: NSViewRepresentable {
         /// attributes — set only where what is in place differs, so an edit
         /// invalidates the layout of the lines it changed and not the whole
         /// note. An unresolved link is a link too: following it creates its
-        /// note. The color and paragraph style are uniform: loaded with the
-        /// text, typed with the typing attributes.
+        /// note; and a tag is one, so a click on it adds a chip — except
+        /// inside a link's own token, which stays the link's. The color and
+        /// paragraph style are uniform: loaded with the text, typed with
+        /// the typing attributes.
         private func applyStorageAttributes(to storage: NSTextStorage) {
             for span in StyledRange.fontSpans(of: styledRanges, length: storage.length) {
                 storage.enumerateAttribute(.font, in: span.range) { current, range, _ in
@@ -296,17 +311,27 @@ struct NoteTextView: NSViewRepresentable {
                     storage.addAttribute(.font, value: span.font, range: range)
                 }
             }
-            var links: [NSRange: URL] = [:]
+            var linkURLs: [NSRange: URL] = [:]
             var underlines: [NSRange: Int] = [:]
             for styled in styledRanges {
                 if case .link(let index, let isResolved) = styled.kind {
-                    links[styled.range] = URL(string: "\(Self.linkScheme)://\(index)")
+                    linkURLs[styled.range] = TokenURL.url(for: .link, index: index)
                     if !isResolved {
                         underlines[styled.range] = StyledRange.unresolvedUnderline
                     }
                 }
             }
-            reconcile(.link, to: links, in: storage)
+            let linkTokens = Array(linkURLs.keys)
+            for styled in styledRanges {
+                guard case .tag(let index) = styled.kind else { continue }
+                let isInsideLink = linkTokens.contains {
+                    NSIntersectionRange($0, styled.range).length > 0
+                }
+                if !isInsideLink {
+                    linkURLs[styled.range] = TokenURL.url(for: .tag, index: index)
+                }
+            }
+            reconcile(.link, to: linkURLs, in: storage)
             reconcile(.underlineStyle, to: underlines, in: storage)
         }
 

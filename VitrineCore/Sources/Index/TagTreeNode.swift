@@ -5,6 +5,10 @@ public struct TagTreeNode: Sendable, Equatable {
     /// The whole tag, lowercased — its identity, `interp/saes` for the node
     /// named `saes` under `interp`.
     public let path: String
+    /// The whole tag as displayed — every segment's display spelling
+    /// joined, `reading/Notes` for the node named `Notes` under `reading`
+    /// (CONTEXT.md § Tags): what a filter chip shows.
+    public let displaySpelling: String
     /// How many notes carry this tag or any tag under it, each note once.
     public let count: Int
     /// The tags one level down, in case-insensitive natural order by `name` —
