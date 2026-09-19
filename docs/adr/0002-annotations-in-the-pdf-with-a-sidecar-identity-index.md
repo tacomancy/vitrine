@@ -9,3 +9,7 @@ Annotations are stored in the PDF as standard annotation objects, never in a dat
 - **+** Any PDF tool can read and write annotations; the Preview-plus-ingest reading path (ADR 0003) is possible.
 - **−** Re-matching is load-bearing and can drift. It is one of the two pieces named in `CLAUDE.md` § Parallel work that are never worked in parallel with anything touching them.
 - The sidecar's on-disk format and location are undecided and go in `docs/architecture.md` when chosen.
+
+## Update (2026-09-19)
+
+ADR 0006 placed the sidecar at `.vitrine/annotations/<source-id>.json`; ADR 0007 settled its fields and the re-matching tiers, and chose the engines. "Rectangle" above is quads in practice.

@@ -20,6 +20,12 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Compiler:** `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `isolatedModules`, in `tsconfig.base.json` which every package extends. TypeScript stays on the 5.x line until typescript-eslint supports 6/7. Node is whatever the current Electron ships.
   - **Core lifetime:** the app's. No `launchd` agent unless daily Scouts prove they want one.
 - One Markdown file per object, Kind in frontmatter, App state in `.vitrine/` — ADR 0006. The concrete layout is § Vault layout below.
+- PDFium via WebAssembly in the core is the only thing that reads or writes a PDF; PDF.js in the renderer only draws pages; annotation identity is re-matched text first, geometry second, in five tiers — ADR 0007 (Proposed until `prototype/pdf-roundtrip`, #108, passes). The detail that ADR leaves to this file:
+  - **Core engine:** `@embedpdf/pdfium` raw bindings (not `@embedpdf/engines`), in one `worker_thread` behind a job queue; one worker, not a pool. Appearance streams via its `EPDFAnnot_GenerateAppearance`, regenerated after every edit. Saves are incremental (`FPDF_SaveAsCopy` with flag `1`) to a temp file, then renamed; a full save only when the file's existing structure forces it (an encrypted or already-damaged file). Growth per write is measured by the prototype and recorded here.
+  - **Renderer:** `pdfjs-dist` directly behind one component — canvas, text layer, Vitrine overlay. The engine's own rendering of text-markup and note annotations is suppressed; the overlay draws them from the core's index. Ink and shapes render from the PDF untouched.
+  - **Annotation intent** (renderer → core): page index, geometry in PDF user space, kind, colour, note text. The core snaps geometry to its character boxes, derives the quote, writes the object, assigns the id. Selection text from the renderer is never stored.
+  - **Written into the PDF:** `/NM` = sidecar id, `/T` = the user's name, `/CreationDate`, `/M`, `/AP`, standard `/Subj`.
+  - The sidecar's fields and the matching tiers are § Annotation identity below.
 
 ## Vault layout
 
@@ -44,7 +50,7 @@ The shape ADR 0006 decided, in enough detail to write against. Conventions that 
 
 **Experiment** — `experiments/<name>/<name>.md`, `kind: experiment`, `status` (planned | running | complete | abandoned, hand-maintained), `ran_at` (list of links out), `tags`. Body: `## Purpose`, `## Design`, `## Artifacts`, `## Observations`, `## Position history`. Stored Artifacts are embeds (`![[plot.png]]`) in the same folder; linked heavyweights are `- <file> — <path or URL> · <size> · <date> — <description>`. Evidence attachments are recorded on the Hypothesis side only; the Experiment page shows them via backlinks.
 
-**Source / Source stub** — `sources/<citekey>.md`, `kind: source | source-stub`. Frontmatter: `citekey` (`<surname><year>`, ASCII-folded, lowercase, `a`/`b`… on collision; first word of the title when authors are missing), `title`, `authors`, `year`, `venue`, `doi`, `url`, `keywords` (author-supplied; feeds the Lexicon), `pdf` (file name under `sources/pdf/`; absent on a stub), `origin_scout` (Scout id), `origin_question`, `origin_retroactive`, `appearances` (every URL Corroboration merged). Body: the user's notes, then an app-owned `## Annotations` section rewritten whole on every Ingest — one block per Annotation in page order, `- p.<n> · "<quote>" ^h<n>` with the note text on the next line; ids are `h` + a per-Source counter, never reused. Unmatched blocks stay, marked `(unmatched)` until resolved; *drop the links* marks the block `(gone)` and leaves it forever rather than editing the user's notes.
+**Source / Source stub** — `sources/<citekey>.md`, `kind: source | source-stub`. Frontmatter: `citekey` (`<surname><year>`, ASCII-folded, lowercase, `a`/`b`… on collision; first word of the title when authors are missing), `title`, `authors`, `year`, `venue`, `doi`, `url`, `keywords` (author-supplied; feeds the Lexicon), `pdf` (file name under `sources/pdf/`; absent on a stub), `origin_scout` (Scout id), `origin_question`, `origin_retroactive`, `appearances` (every URL Corroboration merged). Body: the user's notes, then an app-owned `## Annotations` section rewritten whole on every Ingest — one block per Annotation in page order, `- p.<n> · "<quote>" ^h<n>` with the note text on the next line; ids are `h` + a per-Source counter, never reused. Unmatched blocks stay, marked `(unmatched)` until resolved; *drop the links* marks the block `(gone)` and leaves it forever rather than editing the user's notes. A Removed annotation's block (ADR 0007: unlinked, and gone from the file) is deleted; its number is never reused. Ink and shape annotations have no block.
 
 **Position history**, in every kind that has one — newest first, each entry `- <timestamp> · <field>` with optional `why:` and `from:` holding the full previous text. Edits to one field within 30 minutes coalesce; a why or a criterion edit after Evidence exists closes the entry early, and the latter is written as `· edited after evidence` permanently. Edits made in Obsidian are detected by the watcher and recorded the same way. Pressure valve if a page's history ever dominates it: entries older than a threshold move to `.vitrine/history/<id>.md` with a one-line pointer.
 
@@ -53,8 +59,7 @@ The shape ADR 0006 decided, in enough detail to write against. Conventions that 
 vault.json                  { id, schema, created } — one schema number for this whole layout
 scouts/<id>.yaml            id, name, source {kind, api | url}, filter {questions: [ids], tags, query},
                             cadence, cap, lane, paused, created. Runtime never lives here.
-annotations/<source-id>.json  pdf, reading_position, annotations[]: id, page, rect, kind, quote, note,
-                            color, fingerprint (whatever re-matching keys on), last_matched, matched_by
+annotations/<source-id>.json  the annotation identity index — § Annotation identity
 lexicon.json                per-Tag keyword weights from accept history; manual seeds
 dismissals.json             mark-deliberate and declined inferred links, keyed by id, or by path for Notes
 queue.sqlite                Proposals, Scout runs and health, triage events — NOT re-derivable
@@ -64,11 +69,53 @@ Window state, the session token, and the last vault opened (`last-vault.json`, `
 
 **Write discipline.** The app rewrites only the frontmatter block (key order preserved, new keys appended) and the sections it owns (`## Position history`, `## Annotations`); every other byte of a file the user edited stays identical. It never adds frontmatter to a Note.
 
+## Annotation identity
+
+The shape ADR 0007 decided. The sidecar stores **raw** values; every rule below that compares them is code, so tuning never migrates a Source.
+
+**`.vitrine/annotations/<source-id>.json`**
+```
+pdf                       file name under sources/pdf/
+document_fingerprint      { id: trailer /ID[0], pages, page_text_hashes[] } — a change is a document-changed event
+reading_position
+next_block                the per-Source ^h counter; never reused, not even after removal
+annotations[]
+  id                      what /NM carries when Vitrine wrote the object
+  block                   h<n>
+  kind                    highlight | underline | strikeout | squiggly | text | freetext | ink | shape (Square, Circle, Line, Polygon, PolyLine)
+  page                    0-based index
+  quads[]                 8 numbers each, PDF user space, as written (Preview's verbatim; Vitrine's snapped)
+  quote                   engine-extracted text under the quads; for text/freetext the /Contents; empty on ink, shape, and image-only pages
+  note                    /Contents on markup kinds
+  color                   the PDF's /C verbatim
+  previous_quote, changed_at   one level only, set by a geometry-tier match
+  matched_by              object | text | text-moved | geometry — how the last Ingest found it
+  last_matched
+  removed_at              set when an unlinked identity failed every tier; the entry stays so the block is never reused
+  unmatched_since         set when a linked identity failed every tier; cleared by relink / drop / treat-as-new
+  gone_at                 set by *drop the links*: the Tombstone. The entry is skipped by every later Ingest, its block stays `(gone)`, and its links keep resolving
+```
+
+**Kinds and what they get.** Markup and notes: identity, a `^h<n>` block, link target, `Q:` carrier. Ink and shape: identity and a count on Ingest; no block, never a link target or `Q:` source. Kind *families* for matching: markup (the four text-markup kinds), note (text, freetext), ink, shape.
+
+**Normalisation** (code, applied at compare time to both sides): Unicode NFKC; join a hyphen at a line end to the next line's first word; collapse whitespace; case-fold. Ligatures fall out of NFKC.
+
+**The tiers, in order, per previously known identity against the annotations now in the file:**
+
+1. **object** — an annotation carrying our `/NM`, same kind family. Wins only if its normalised quote equals ours; otherwise fall through. PDFKit drops `/NM`, so this fires for Reader-only Sources.
+2. **text** — same page, same kind family, normalised quote equal.
+3. **text-moved** — any page, same kind family, normalised quote equal; page updated. Normally only reached after a document-changed event.
+4. **geometry** — same page, same kind family, quad overlap (IoU over the union bounding boxes) ≥ **0.6** — a starting number, tuned by the prototype. A match here with a different quote records `previous_quote`.
+5. **Unmatched** if the identity has inbound links (a backlink to `[[citekey#^h<n>]]` in `index.sqlite`, or a Question whose `annotation:` names it); **removed** otherwise. Because `index.sqlite` is disposable (ADR 0006), *removed* is concluded only against an index known to be current for this vault — Ingest refreshes it before this tier runs — and an identity whose links cannot be established is Unmatched, never removed. The cheap failure is a decision; the expensive one is silent link rot (`design-brief.md` § Annotation storage).
+
+At any of tiers 2–4, several candidates are broken by quad overlap — the highest wins, comparing quads across pages as if on one page at tier 3 — and an unbroken tie is Unmatched. Each candidate can be claimed once; two identities claiming one candidate are both Unmatched, linked or not: ambiguity is a decision, so this is the one way an unlinked identity reaches the panel. Tombstones (`gone_at`) take no part in matching. Annotations left unclaimed are **new**: a fresh id and block, and a Question if the note begins `Q:`. A changed `document_fingerprint` runs the same tiers document-wide and groups every resulting Unmatched row under one event with batch resolutions.
+
+**Ingest summary line:** `N new · N questions · N removed · N could not be re-matched` — the panel opens only when the last is non-zero (brief § Ingest review).
+
 ## Open, in the order they block work
 
-1. PDF renderer and annotation library for the Reader. Decides what the sidecar's `fingerprint` actually holds.
-2. Markdown parser, and the tag grammar it shares with the tag tree. Inherits from ADR 0006: it must round-trip, editing the frontmatter block and owned sections while leaving the rest of the file byte-identical.
-3. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling.
-4. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
+1. Markdown parser, and the tag grammar it shares with the tag tree. Inherits from ADR 0006: it must round-trip, editing the frontmatter block and owned sections while leaving the rest of the file byte-identical.
+2. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling. Inherits from ADR 0007: a write landing while the iPad holds the file open, and whether a note edited to begin with `Q:` after the fact becomes a Question on that Ingest.
+3. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
 
 Each goes through `grill-me` before its ADR is written.
