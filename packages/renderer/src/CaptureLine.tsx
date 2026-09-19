@@ -30,9 +30,7 @@ export function CaptureLine() {
     restoreTo.current = null;
   }, []);
 
-  const capture = useMutation(
-    trpc.questions.capture.mutationOptions({ onSuccess: close })
-  );
+  const capture = useMutation(trpc.questions.capture.mutationOptions());
 
   const open = useCallback(() => {
     if (openedAt === null) {
@@ -69,7 +67,10 @@ export function CaptureLine() {
     const trimmed = text.trim();
     // A stray ↵ never makes a blank Question.
     if (trimmed === "") return;
-    capture.mutate({ text: trimmed, provenance: { context: "other" } });
+    capture.mutate(
+      { text: trimmed, provenance: { context: "other" } },
+      { onSuccess: close }
+    );
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
