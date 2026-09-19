@@ -4,8 +4,8 @@
 The exports in docs/reference/prototypes/ are frozen and use Claude Design's
 own palette and type. The site shows them in Vitrine's brand instead
 (docs/reference/branding/BRAND.md), so this rewrites copies: every colour
-the exports use maps to a brand hex, the fonts map to the brand's three
-families, and the Google Fonts link becomes the brand's. The interactivity
+the exports use maps to a brand hex, the interface font maps to Inter (the serif
+for questions and quotations is kept), and the Google Fonts link becomes the brand's. The interactivity
 (support.js, the tab and state switches) is untouched.
 
 The mapping is total on purpose. A colour with no entry fails the build
@@ -110,15 +110,17 @@ RGBA = {
     "0,0,0": "2,7,19",              # overlays -> ink-950
 }
 
+# The brand has no serif role, but the exports set questions and quotations
+# in Source Serif 4 on purpose: the only humane thing on the screen, and the
+# mark of a thing a person wondered. That distinction is kept (ADR 0004).
 FONTS = [
     ("'IBM Plex Sans'", "'Inter'"),
-    ("'Source Serif 4',Georgia,serif", "'Inter',sans-serif"),
-    ("'Source Serif 4'", "'Inter'"),
 ]
 
 FONT_LINK = re.compile(r'<link href="https://fonts\.googleapis\.com/css2\?[^"]*" rel="stylesheet">')
 BRAND_FONT_LINK = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400'
-                   '&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">')
+                   '&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500'
+                   '&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">')
 
 # BRAND.md law 2: sapphire is every action. The exports colour <a> amber; the
 # rule is the same in every file, so it is re-pointed here rather than mapped.
