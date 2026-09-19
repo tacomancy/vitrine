@@ -1,5 +1,6 @@
-import { open, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { open, readdir, stat } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { parse as parseYaml } from "yaml";
 
 export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
@@ -13,7 +14,6 @@ export type Question = {
   status: QuestionStatus;
   captured: string;
   context: string;
-  // Provenance keys, present when the file has them.
   from?: string;
   page?: number;
   annotation?: string;
@@ -52,7 +52,7 @@ async function markdownFiles(
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch (error) {
-      unreadable.push({ path: dir, reason: describe(error) });
+      unreadable.push({ path: dir, reason: errorMessage(error) });
       return;
     }
     for (const entry of entries) {
@@ -66,7 +66,7 @@ async function markdownFiles(
   return files.sort();
 }
 
-function describe(error: unknown): string {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -75,6 +75,11 @@ const CHUNK = 4096;
 // whole file looking for a closing fence that is never coming.
 const MAX_FRONTMATTER = 64 * 1024;
 
+const OPEN_FENCE = /^---\r?\n/;
+const CLOSE_FENCE = /\r?\n---\r?\n/;
+// A file may end on its closing fence with no newline after it.
+const CLOSE_FENCE_AT_EOF = /\r?\n---$/;
+
 /**
  * The YAML between the opening and closing `---` fences, read in chunks so
  * the body past the block is never loaded. Null when the file has no block.
@@ -82,15 +87,23 @@ const MAX_FRONTMATTER = 64 * 1024;
 async function readFrontmatter(path: string): Promise<string | null> {
   const handle = await open(path, "r");
   try {
-    let text = "";
+    // Decoded incrementally: a multibyte character can straddle two reads.
+    const decoder = new StringDecoder("utf8");
     const buffer = Buffer.alloc(CHUNK);
+    let text = "";
     for (;;) {
       const { bytesRead } = await handle.read(buffer, 0, CHUNK, null);
-      text += buffer.toString("utf8", 0, bytesRead);
-      if (!/^---\r?\n/.test(text)) return null;
-      const close = /\r?\n---(\r?\n|$)/.exec(text.slice(3));
+      const eof = bytesRead < CHUNK;
+      text += decoder.write(buffer.subarray(0, bytesRead));
+      if (eof) text += decoder.end();
+      if (!OPEN_FENCE.test(text)) return null;
+      // The opening fence is three characters; the YAML starts after it and
+      // runs to the newline that precedes the closing fence.
+      const close =
+        CLOSE_FENCE.exec(text.slice(3)) ??
+        (eof ? CLOSE_FENCE_AT_EOF.exec(text.slice(3)) : null);
       if (close) return text.slice(3, 3 + close.index + 1);
-      if (bytesRead < CHUNK || text.length > MAX_FRONTMATTER) {
+      if (eof || text.length > MAX_FRONTMATTER) {
         throw new Error("frontmatter block is not closed");
       }
     }
@@ -114,21 +127,32 @@ async function parseFrontmatter(path: string): Promise<Frontmatter | null> {
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
-/** The Question a frontmatter block describes, or null when a required key is missing. */
+/**
+ * The Question a frontmatter block describes; null when `question` or
+ * `captured` is missing (the file is Partial). A key that is present but
+ * holds a value the vocabulary cannot read is a fault to report, not a gap.
+ */
 function toQuestion(path: string, fm: Frontmatter): Question | null {
   const question = str(fm["question"]);
   const captured = str(fm["captured"]);
   if (question === undefined || captured === undefined) return null;
-  if (Number.isNaN(Date.parse(captured))) return null;
-  // A Question that was never triaged is open; only a status the vocabulary
-  // does not know makes the file partial.
+  if (Number.isNaN(Date.parse(captured))) {
+    throw new Error(`captured is not a date: ${captured}`);
+  }
+  // A Question that was never triaged is open, so a file with no status is.
   const status = fm["status"] === undefined ? "open" : fm["status"];
-  if (!STATUSES.includes(status as QuestionStatus)) return null;
+  if (!STATUSES.includes(status as QuestionStatus)) {
+    throw new Error(
+      `status is not open, promoted, answered, or abandoned: ${JSON.stringify(status)}`
+    );
+  }
   const q: Question = {
     path,
     question,
     status: status as QuestionStatus,
     captured,
+    // No context recorded means nothing was open: time and place are the
+    // whole Provenance, which is what `other` says.
     context: str(fm["context"]) ?? "other",
   };
   const id = str(fm["id"]);
@@ -151,33 +175,27 @@ export async function listQuestions(
 ): Promise<Listing> {
   const listing: Listing = { questions: [], partial: [], unreadable: [] };
   for (const path of await markdownFiles(vaultPath, listing.unreadable)) {
-    let fm: Frontmatter | null;
     try {
-      fm = await parseFrontmatter(path);
+      const fm = await parseFrontmatter(path);
+      if (fm === null || fm["kind"] !== "question") continue;
+      const question = toQuestion(path, fm);
+      if (question) {
+        listing.questions.push(question);
+      } else {
+        const { mtime } = await stat(path);
+        listing.partial.push({
+          path,
+          name: basename(path, ".md"),
+          mtime: mtime.toISOString(),
+        });
+      }
     } catch (error) {
-      listing.unreadable.push({ path, reason: describe(error) });
-      continue;
-    }
-    if (fm === null || fm["kind"] !== "question") continue;
-    const question = toQuestion(path, fm);
-    if (question) {
-      listing.questions.push(question);
-    } else {
-      const handle = await open(path, "r");
-      const { mtime } = await handle.stat().finally(() => handle.close());
-      listing.partial.push({
-        path,
-        name: path.slice(path.lastIndexOf("/") + 1, -".md".length),
-        mtime: mtime.toISOString(),
-      });
+      listing.unreadable.push({ path, reason: errorMessage(error) });
     }
   }
-  const sign = order === "newest" ? -1 : 1;
-  listing.questions.sort(
-    (a, b) => sign * (Date.parse(a.captured) - Date.parse(b.captured))
-  );
-  listing.partial.sort(
-    (a, b) => sign * (Date.parse(a.mtime) - Date.parse(b.mtime))
-  );
+  const byTime = (a: string, b: string) =>
+    (order === "newest" ? -1 : 1) * (Date.parse(a) - Date.parse(b));
+  listing.questions.sort((a, b) => byTime(a.captured, b.captured));
+  listing.partial.sort((a, b) => byTime(a.mtime, b.mtime));
   return listing;
 }

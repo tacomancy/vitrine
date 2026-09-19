@@ -19,11 +19,12 @@ export function formatAge(captured: string, now: Date): string {
   return rest === 0 ? `${years}y` : `${years}y ${rest}mo`;
 }
 
-/** Whole calendar months from `from` to `to`, floored. */
+// Calendar months in local time, the same clock the detail pane shows the
+// capture in, so "1mo" and "14 August" never disagree across a month edge.
 function monthsBetween(from: Date, to: Date): number {
   let months =
-    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
-    (to.getUTCMonth() - from.getUTCMonth());
-  if (to.getUTCDate() < from.getUTCDate()) months -= 1;
+    (to.getFullYear() - from.getFullYear()) * 12 +
+    (to.getMonth() - from.getMonth());
+  if (to.getDate() < from.getDate()) months -= 1;
   return months;
 }

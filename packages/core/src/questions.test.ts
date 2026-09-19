@@ -203,6 +203,44 @@ describe("questions.list", () => {
     ]);
   });
 
+  it("reports a captured that is not a date, or a status outside the vocabulary, as unreadable with the reason", async () => {
+    const vault = await tmp("wrong-values");
+    const undated = join(vault, "Undated.md");
+    await writeFile(undated, questionFile("Undated", "yesterday"));
+    const odd = join(vault, "Odd status.md");
+    await writeFile(
+      odd,
+      "---\nkind: question\nquestion: Odd\nstatus: weird\ncaptured: 2026-01-01T00:00:00Z\n---\n"
+    );
+    const c = await opened(vault);
+    const listing = await c.list();
+    expect(listing.questions).toEqual([]);
+    expect(listing.partial).toEqual([]);
+    expect(listing.unreadable).toEqual([
+      {
+        path: odd,
+        reason: 'status is not open, promoted, answered, or abandoned: "weird"',
+      },
+      { path: undated, reason: "captured is not a date: yesterday" },
+    ]);
+  });
+
+  it("reads a multibyte character that straddles a read boundary whole", async () => {
+    const vault = await tmp("multibyte");
+    // "é" is two bytes; place its first byte at offset 4095 so a 4 KiB read
+    // ends in the middle of it.
+    const head = "---\nkind: question\nquestion: ";
+    const text = "x".repeat(4095 - head.length) + "é fin";
+    await writeFile(
+      join(vault, "Long.md"),
+      `${head}${text}\nstatus: open\ncaptured: 2026-01-01T00:00:00Z\ncontext: other\n---\n`
+    );
+    const c = await opened(vault);
+    const listing = await c.list();
+    expect(listing.unreadable).toEqual([]);
+    expect(listing.questions[0]?.question).toBe(text);
+  });
+
   it("refuses when no vault is open", async () => {
     const c = await core();
     const reply = await c.query<Listing>("questions.list");

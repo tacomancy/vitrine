@@ -4,7 +4,7 @@ import type { Order } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
 import styles from "./Inbox.module.css";
-import { monthYear, provenanceOf, rowsOf, STATUS, type Row } from "./rows";
+import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { useTRPC } from "./trpc";
 
 const ORDERS: readonly Order[] = ["newest", "oldest"];
@@ -26,6 +26,7 @@ export function Inbox() {
   });
 
   const rows = listing.data ? rowsOf(listing.data, order) : [];
+  const failed = listing.isError;
   const count = rows.length;
   // Oldest by capture (or mtime) regardless of the sort in force.
   const since = rows.reduce<string | null>(
@@ -75,10 +76,13 @@ export function Inbox() {
           <h1 id="inbox-title" className={styles.title}>
             Question Inbox
           </h1>
-          <span className={styles.count}>
-            {count} {count === 1 ? "question" : "questions"}
-            {since !== null && ` · since ${monthYear(since)}`}
-          </span>
+          {/* A failed read must never read as an empty vault (no silent failures). */}
+          {!failed && (
+            <span className={styles.count}>
+              {count} {count === 1 ? "question" : "questions"}
+              {since !== null && ` · since ${monthYear(since)}`}
+            </span>
+          )}
           <div className={styles.sort} role="group" aria-label="Sort">
             <span className={styles.sortLabel}>Sort</span>
             {ORDERS.map((o) => (
@@ -94,18 +98,25 @@ export function Inbox() {
             ))}
           </div>
         </div>
+        {failed && (
+          <p className={styles.failed} role="alert">
+            {listing.error.message}
+          </p>
+        )}
         <ul
           className={styles.list}
           role="listbox"
           aria-label="Questions"
-          aria-activedescendant={selectedRow ? rowId(selectedRow) : undefined}
+          aria-activedescendant={
+            selectedRow ? rowId(rows.indexOf(selectedRow)) : undefined
+          }
           tabIndex={0}
           onKeyDown={onKeyDown}
         >
-          {rows.map((row) => (
+          {rows.map((row, index) => (
             <li
               key={row.path}
-              id={rowId(row)}
+              id={rowId(index)}
               role="option"
               aria-selected={row.path === selected}
               className={styles.row}
@@ -119,7 +130,9 @@ export function Inbox() {
                         ? styles.glyphOpen
                         : styles.glyph
                     }
-                    aria-hidden="true"
+                    role="img"
+                    aria-label={STATUS[row.question.status].label}
+                    title={STATUS[row.question.status].label}
                   >
                     {STATUS[row.question.status].glyph}
                   </span>
@@ -132,7 +145,12 @@ export function Inbox() {
                 </>
               ) : (
                 <>
-                  <span className={styles.glyph} aria-hidden="true">
+                  <span
+                    className={styles.glyph}
+                    role="img"
+                    aria-label="partial"
+                    title="partial"
+                  >
                     ◇
                   </span>
                   <span className={styles.question}>{row.partial.name}</span>
@@ -165,13 +183,5 @@ export function Inbox() {
   );
 }
 
-// Ids for aria-activedescendant; the path is unique but not id-safe.
-const ids = new Map<string, string>();
-function rowId(row: Row): string {
-  let id = ids.get(row.path);
-  if (id === undefined) {
-    id = `row-${ids.size}`;
-    ids.set(row.path, id);
-  }
-  return id;
-}
+// For aria-activedescendant; a path is unique but not id-safe, its index is.
+const rowId = (index: number) => `question-row-${index}`;

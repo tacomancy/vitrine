@@ -87,7 +87,7 @@ A file whose frontmatter says `kind: question` but lacks `question` or `captured
 _Avoid_: Invalid, broken (that is Unreadable), malformed
 
 **Unreadable**:
-A file the app could not read, or whose frontmatter does not parse. Counted in a quiet footer line on the Inbox that opens to each path and reason; never dropped silently.
+A file the app could not read, whose frontmatter does not parse, or whose `captured` or `status` holds a value the vocabulary cannot read. Counted in a quiet footer line on the Inbox that opens to each path and reason; never dropped silently.
 _Avoid_: Error, corrupt, skipped
 
 **Capture**:

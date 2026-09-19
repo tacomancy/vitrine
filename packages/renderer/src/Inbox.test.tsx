@@ -180,6 +180,28 @@ describe("selection", () => {
 });
 
 describe("what cannot be shown whole", () => {
+  it("states a failed read in place of the list, never as zero questions", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": () => {
+        throw new Error("No vault is open.");
+      },
+    });
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(await within(inbox).findByRole("alert")).toBeDefined();
+    expect(inbox.textContent).toContain("No vault is open.");
+    expect(inbox.textContent).not.toContain("0 questions");
+  });
+
+  it("names each row's status for assistive technology, not by colour alone", async () => {
+    renderInbox({ questions: [newest, oldest] });
+    const items = await rows();
+    expect(within(items[0]!).getByRole("img", { name: "open" })).toBeDefined();
+    expect(
+      within(items[1]!).getByRole("img", { name: "answered" })
+    ).toBeDefined();
+  });
+
   it("lists a partial file by its name, marked partial, aged by its mtime", async () => {
     renderInbox({
       questions: [newest],
