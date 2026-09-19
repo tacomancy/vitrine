@@ -23,14 +23,17 @@ export function CaptureLine() {
   // Where focus was when the line opened, so closing puts it back.
   const restoreTo = useRef<HTMLElement | null>(null);
 
-  const close = useCallback(() => {
+  const capture = useMutation(trpc.questions.capture.mutationOptions());
+
+  const close = () => {
     setOpenedAt(null);
     setText("");
+    // The component stays mounted, so a failed attempt's message would
+    // otherwise greet the next open.
+    capture.reset();
     restoreTo.current?.focus();
     restoreTo.current = null;
-  }, []);
-
-  const capture = useMutation(trpc.questions.capture.mutationOptions());
+  };
 
   const open = useCallback(() => {
     if (openedAt === null) {
@@ -65,8 +68,11 @@ export function CaptureLine() {
 
   const submit = () => {
     const trimmed = text.trim();
-    // A stray ↵ never makes a blank Question.
-    if (trimmed === "") return;
+    // A stray ↵ never makes a blank Question; a second ↵ mid-write never
+    // makes a duplicate. The input is never disabled for the wait, because
+    // disabling it drops focus and a failed write should leave the user
+    // exactly where they were, text and all.
+    if (trimmed === "" || capture.isPending) return;
     capture.mutate(
       { text: trimmed, provenance: { context: "other" } },
       { onSuccess: close }
@@ -107,7 +113,6 @@ export function CaptureLine() {
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          disabled={capture.isPending}
         />
         <span className={styles.hint}>↵ capture · esc discards</span>
       </div>

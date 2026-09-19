@@ -34,11 +34,7 @@ export function createApp({
   const vault = createVaultService({ host, appSupportDir });
   const context: Context = {
     vault,
-    questions: createQuestionService({
-      vault,
-      ...(now === undefined ? {} : { now }),
-      ...(newId === undefined ? {} : { newId }),
-    }),
+    questions: createQuestionService({ vault, now, newId }),
   };
 
   // The renderer is served from the Vite dev server in development and from

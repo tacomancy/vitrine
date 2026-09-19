@@ -1,8 +1,8 @@
-import { chmod, mkdir, readFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { fileName, newId } from "./questions.js";
+import { fileName, randomId } from "./questions.js";
 import { core, fingerprint, tmp } from "./test-core.js";
 
 const fixtures = join(
@@ -219,15 +219,15 @@ describe("fileName (pure)", () => {
   });
 });
 
-describe("newId (pure)", () => {
+describe("randomId (pure)", () => {
   it("is 10 characters of lowercase RFC 4648 base32", () => {
     for (let i = 0; i < 200; i++) {
-      expect(newId()).toMatch(/^[a-z2-7]{10}$/);
+      expect(randomId()).toMatch(/^[a-z2-7]{10}$/);
     }
   });
 
   it("differs between calls", () => {
-    expect(newId()).not.toBe(newId());
+    expect(randomId()).not.toBe(randomId());
   });
 });
 
@@ -280,5 +280,44 @@ describe("the capture input", () => {
     expect(reply.error).toBeDefined();
     expect(reply.error?.data.kind).toBeUndefined();
     expect(await fingerprint(vault)).toEqual([]);
+  });
+});
+
+describe("a capture happens whole or not at all", () => {
+  it("removes the Question again when the vault marker cannot follow it", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    // A file where `.vitrine/` must go: the marker cannot be created.
+    await writeFile(join(vault, ".vitrine"), "");
+    const before = await fingerprint(vault);
+
+    const reply = await c.mutate("questions.capture", {
+      text: "Whole or nothing",
+      provenance: unattached,
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toContain(".vitrine");
+    expect(await readdir(join(vault, "questions")).catch(() => [])).toEqual([]);
+    expect((await fingerprint(vault)).filter((e) => !e.endsWith("/"))).toEqual(
+      before.filter((e) => !e.endsWith("/"))
+    );
+  });
+
+  it("gives two captures of one text arriving together two files, not one", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    const text = "Twice at once";
+
+    const replies = await Promise.all([
+      c.mutate<Question>("questions.capture", { text, provenance: unattached }),
+      c.mutate<Question>("questions.capture", { text, provenance: unattached }),
+    ]);
+
+    const paths = replies.map((r) => r.result?.data.path).sort();
+    expect(paths).toEqual([
+      join(vault, "questions", "Twice at once (2).md"),
+      join(vault, "questions", "Twice at once.md"),
+    ]);
   });
 });

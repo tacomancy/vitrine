@@ -117,11 +117,40 @@ describe("a write that fails", () => {
 
     const message = await screen.findByRole("alert");
     expect(message.textContent).toContain("EACCES: permission denied");
-    const kept = screen.getByRole("textbox", { name: "Question" });
-    expect((kept as HTMLInputElement).value).toBe("Will this land?");
+    const kept = screen.getByRole<HTMLInputElement>("textbox", {
+      name: "Question",
+    });
+    expect(kept.value).toBe("Will this land?");
     expect(
       kept.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+    // Fixing and retrying starts from the input, not from a click back into it.
+    expect(document.activeElement).toBe(kept);
+  });
+
+  it("is forgotten once the line is discarded: the next open starts clean", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.capture": () => {
+        throw new Error("EACCES: permission denied");
+      },
+    });
+    await screen.findByRole("banner");
+
+    pressCaptureChord();
+    const input = screen.getByRole("textbox", { name: "Question" });
+    fireEvent.change(input, { target: { value: "Will this land?" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByRole("alert");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Question" }), {
+      key: "Escape",
+    });
+
+    pressCaptureChord();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole<HTMLInputElement>("textbox", { name: "Question" }).value
+    ).toBe("");
   });
 });
 
@@ -155,8 +184,10 @@ describe("the chip", () => {
     input.blur();
     pressCaptureChord();
 
-    const again = screen.getByRole("textbox", { name: "Question" });
-    expect((again as HTMLInputElement).value).toBe("still here");
+    const again = screen.getByRole<HTMLInputElement>("textbox", {
+      name: "Question",
+    });
+    expect(again.value).toBe("still here");
     expect(document.activeElement).toBe(again);
   });
 });

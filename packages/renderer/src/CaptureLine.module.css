@@ -15,7 +15,9 @@
   gap: var(--space-3);
 }
 
-/* Brass marks the one live thing on screen (BRAND.md law 3). */
+/* Brass, as the prototype draws it: the label is the one thing on screen
+   saying a capture is live, the role BRAND.md law 3 gives the active nav
+   item. Nothing else in the strip is coloured. */
 .label {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -50,10 +52,6 @@
   font-family: var(--font-serif);
   font-size: var(--text-md);
   line-height: var(--leading-ui);
-}
-
-.input:disabled {
-  color: var(--color-fg-muted);
 }
 
 .hint {
