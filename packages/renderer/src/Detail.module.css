@@ -24,10 +24,6 @@
   color: var(--color-fg-muted);
 }
 
-.open {
-  color: var(--color-accent);
-}
-
 /* The Question at display size in the serif: it reads as text, not a field. */
 .text {
   margin: 0 0 var(--space-3);

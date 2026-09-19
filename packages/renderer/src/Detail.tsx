@@ -1,5 +1,6 @@
 import styles from "./Detail.module.css";
 import { localDateTime, provenanceOf, STATUS, type Row } from "./rows";
+import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 
 /**
  * The selected row in full. Holds no triage actions and no placeholders for
@@ -11,12 +12,7 @@ export function Detail({ row }: { row: Row | null }) {
       {row?.kind === "question" && (
         <>
           <div className={styles.status}>
-            <span
-              className={row.question.status === "open" ? styles.open : ""}
-              aria-hidden="true"
-            >
-              {STATUS[row.question.status].glyph}
-            </span>
+            <StatusGlyph status={row.question.status} />
             <span>{STATUS[row.question.status].label}</span>
           </div>
           <h2 className={styles.text}>{row.question.question}</h2>
@@ -27,16 +23,15 @@ export function Detail({ row }: { row: Row | null }) {
           </div>
         </>
       )}
+      {/* A Partial file has no Provenance to show: its name and when it last changed. */}
       {row?.kind === "partial" && (
         <>
           <div className={styles.status}>
-            <span aria-hidden="true">◇</span>
+            <PartialGlyph />
             <span>partial · question or captured missing</span>
           </div>
           <h2 className={styles.text}>{row.partial.name}</h2>
-          <div className={styles.label}>File</div>
           <div className={styles.provenance}>
-            <div>{row.partial.path}</div>
             <div>{localDateTime(row.partial.mtime)}</div>
           </div>
         </>

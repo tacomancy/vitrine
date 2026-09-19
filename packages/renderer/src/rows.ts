@@ -38,11 +38,15 @@ export const STATUS: Record<QuestionStatus, { glyph: string; label: string }> =
     abandoned: { glyph: "×", label: "dropped" },
   };
 
-/** Where a Question came from, as one line: *Unattached* when nothing was open. */
+/**
+ * Where a Question came from, as one line: *Unattached* when nothing was
+ * open. `from` is shown as the file holds it; how a Source reads here is the
+ * Reader slice's call, not this one's.
+ */
 export function provenanceOf(question: Question): string {
   if (question.from === undefined) return "Unattached";
-  const from = question.from.replace(/^\[\[|\]\]$/g, "");
-  return question.page === undefined ? from : `${from} · p.${question.page}`;
+  const { from, page } = question;
+  return page === undefined ? from : `${from} · p.${page}`;
 }
 
 const MONTHS = [

@@ -14,29 +14,23 @@ const t = initTRPC.context<Context>().create({
   },
 });
 
-// The one input shape this slice takes; a schema library can replace this
-// when a second procedure needs one.
+// Inputs are checked by hand: two shapes so far, both one key. A schema
+// library earns its place when a procedure takes more than that.
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function pathInput(value: unknown): { path: string } {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "path" in value &&
-    typeof value.path === "string"
-  ) {
-    return { path: value.path };
-  }
+  const path = record(value)["path"];
+  if (typeof path === "string") return { path };
   throw new Error("expected { path: string }");
 }
 
 function orderInput(value: unknown): { order: Order } {
-  if (value === undefined || value === null) return { order: "newest" };
-  if (
-    typeof value === "object" &&
-    "order" in value &&
-    (value.order === "newest" || value.order === "oldest")
-  ) {
-    return { order: value.order };
-  }
+  const order = record(value)["order"] ?? "newest";
+  if (order === "newest" || order === "oldest") return { order };
   throw new Error("expected { order: 'newest' | 'oldest' }");
 }
 

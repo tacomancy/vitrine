@@ -125,7 +125,7 @@ async function parseFrontmatter(path: string): Promise<Frontmatter | null> {
   return parsed as Frontmatter;
 }
 
-const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 /**
  * The Question a frontmatter block describes; null when `question` or
@@ -133,8 +133,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : undefined);
  * holds a value the vocabulary cannot read is a fault to report, not a gap.
  */
 function toQuestion(path: string, fm: Frontmatter): Question | null {
-  const question = str(fm["question"]);
-  const captured = str(fm["captured"]);
+  const question = asString(fm["question"]);
+  const captured = asString(fm["captured"]);
   if (question === undefined || captured === undefined) return null;
   if (Number.isNaN(Date.parse(captured))) {
     throw new Error(`captured is not a date: ${captured}`);
@@ -153,14 +153,14 @@ function toQuestion(path: string, fm: Frontmatter): Question | null {
     captured,
     // No context recorded means nothing was open: time and place are the
     // whole Provenance, which is what `other` says.
-    context: str(fm["context"]) ?? "other",
+    context: asString(fm["context"]) ?? "other",
   };
-  const id = str(fm["id"]);
+  const id = asString(fm["id"]);
   if (id !== undefined) q.id = id;
-  const from = str(fm["from"]);
+  const from = asString(fm["from"]);
   if (from !== undefined) q.from = from;
   if (typeof fm["page"] === "number") q.page = fm["page"];
-  const annotation = str(fm["annotation"]);
+  const annotation = asString(fm["annotation"]);
   if (annotation !== undefined) q.annotation = annotation;
   return q;
 }

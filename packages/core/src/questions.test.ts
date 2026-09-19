@@ -1,24 +1,8 @@
 import { chmod, mkdir, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { Listing } from "./questions.js";
 import { core, fixtures, tmp } from "./testing.js";
-
-type Question = {
-  id?: string;
-  path: string;
-  question: string;
-  status: "open" | "promoted" | "answered" | "abandoned";
-  captured: string;
-  context: string;
-  from?: string;
-  page?: number;
-  annotation?: string;
-};
-type Listing = {
-  questions: Question[];
-  partial: Array<{ path: string; name: string; mtime: string }>;
-  unreadable: Array<{ path: string; reason: string }>;
-};
 
 /** A core with the given folder open, ready to list. */
 async function opened(vault: string) {

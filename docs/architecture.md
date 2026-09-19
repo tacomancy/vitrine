@@ -26,6 +26,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Annotation intent** (renderer → core): page index, geometry in PDF user space, kind, colour, note text. The core snaps geometry to its character boxes, derives the quote, writes the object, assigns the id. Selection text from the renderer is never stored.
   - **Written into the PDF:** `/NM` = sidecar id, `/T` = the user's name, `/CreationDate`, `/M`, `/AP`, standard `/Subj`.
   - The sidecar's fields and the matching tiers are § Annotation identity below.
+- A `kind: question` file is read as found: frontmatter only, a missing `status` is open, a missing `question` or `captured` is Partial, a wrong value is Unreadable with its reason — ADR 0008.
 
 ## Vault layout
 

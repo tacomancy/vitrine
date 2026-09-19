@@ -115,7 +115,7 @@ describe("the Inbox list", () => {
       ],
     });
     const [row] = await rows();
-    expect(row?.textContent).toContain("olafsdottir2018 · p.11");
+    expect(row?.textContent).toContain("[[olafsdottir2018]] · p.11");
     expect(row?.textContent).not.toContain("Unattached");
   });
 });
@@ -218,6 +218,18 @@ describe("what cannot be shown whole", () => {
     expect(items[1]?.textContent).toContain("Half a thought");
     expect(items[1]?.textContent).toMatch(/partial/i);
     expect(items[1]?.textContent).toContain("3d");
+    // The header counts Questions; a Partial file is listed, not counted.
+    const inbox = screen.getByRole("region", { name: "Question Inbox" });
+    expect(inbox.textContent).toContain("1 question · since Sep 2026");
+
+    fireEvent.click(items[1]!);
+    const detail = screen.getByRole("complementary");
+    expect(within(detail).getByRole("heading").textContent).toBe(
+      "Half a thought"
+    );
+    expect(detail.textContent).toMatch(/partial/i);
+    expect(detail.textContent).toContain("16 September 2026 · 12:00");
+    expect(detail.textContent).not.toContain("/v/consolidation-vault");
   });
 
   it("has no footer line when every file could be read", async () => {

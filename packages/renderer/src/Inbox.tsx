@@ -4,7 +4,8 @@ import type { Order } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
 import styles from "./Inbox.module.css";
-import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
+import { monthYear, provenanceOf, rowsOf } from "./rows";
+import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 
 const ORDERS: readonly Order[] = ["newest", "oldest"];
@@ -27,12 +28,14 @@ export function Inbox() {
 
   const rows = listing.data ? rowsOf(listing.data, order) : [];
   const failed = listing.isError;
-  const count = rows.length;
-  // Oldest by capture (or mtime) regardless of the sort in force.
-  const since = rows.reduce<string | null>(
-    (oldest, row) =>
-      oldest === null || Date.parse(row.when) < Date.parse(oldest)
-        ? row.when
+  // The one number in the chrome counts Questions; a Partial file is listed
+  // but is not yet one. Oldest by capture regardless of the sort in force.
+  const questions = listing.data?.questions ?? [];
+  const count = questions.length;
+  const since = questions.reduce<string | null>(
+    (oldest, q) =>
+      oldest === null || Date.parse(q.captured) < Date.parse(oldest)
+        ? q.captured
         : oldest,
     null
   );
@@ -85,15 +88,15 @@ export function Inbox() {
           )}
           <div className={styles.sort} role="group" aria-label="Sort">
             <span className={styles.sortLabel}>Sort</span>
-            {ORDERS.map((o) => (
+            {ORDERS.map((candidate) => (
               <button
-                key={o}
+                key={candidate}
                 type="button"
                 className={styles.sortOption}
-                aria-pressed={o === order}
-                onClick={() => setOrder(o)}
+                aria-pressed={candidate === order}
+                onClick={() => setOrder(candidate)}
               >
-                {o}
+                {candidate}
               </button>
             ))}
           </div>
@@ -124,18 +127,7 @@ export function Inbox() {
             >
               {row.kind === "question" ? (
                 <>
-                  <span
-                    className={
-                      row.question.status === "open"
-                        ? styles.glyphOpen
-                        : styles.glyph
-                    }
-                    role="img"
-                    aria-label={STATUS[row.question.status].label}
-                    title={STATUS[row.question.status].label}
-                  >
-                    {STATUS[row.question.status].glyph}
-                  </span>
+                  <StatusGlyph status={row.question.status} />
                   <span className={styles.question}>
                     {row.question.question}
                   </span>
@@ -145,14 +137,7 @@ export function Inbox() {
                 </>
               ) : (
                 <>
-                  <span
-                    className={styles.glyph}
-                    role="img"
-                    aria-label="partial"
-                    title="partial"
-                  >
-                    ◇
-                  </span>
+                  <PartialGlyph />
                   <span className={styles.question}>{row.partial.name}</span>
                   <span className={styles.provenance}>partial</span>
                 </>
