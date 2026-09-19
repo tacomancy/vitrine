@@ -1,10 +1,12 @@
+import type { CoreReadyMessage } from "core";
 import { app, BrowserWindow, ipcMain, utilityProcess } from "electron";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-type Session = { port: number; token: string };
+type Session = Pick<CoreReadyMessage, "port" | "token">;
 
-// The shell's only runtime tie to the core is this path to its built entry.
+// The shell's only runtime tie to the core is this path to its built entry;
+// the `core` dependency above is type-only, for the message contract.
 const CORE_ENTRY = join(__dirname, "../../../core/dist/main.js");
 const RENDERER_DIR = join(__dirname, "../renderer");
 const PRELOAD = join(__dirname, "../preload/index.js");
@@ -12,13 +14,13 @@ const PRELOAD = join(__dirname, "../preload/index.js");
 let session: Session | undefined;
 
 /** Spawn the core out of process, so a crash there never takes the window down. */
-function startCore(): Promise<Session> {
+function spawnCore(): Promise<Session> {
   return new Promise((resolve) => {
     const core = utilityProcess.fork(CORE_ENTRY, [], {
       serviceName: "vitrine-core",
       env: { ...process.env, VITRINE_STATIC_DIR: RENDERER_DIR },
     });
-    core.once("message", (message: { type: string } & Session) => {
+    core.once("message", (message: CoreReadyMessage) => {
       if (message.type === "ready") {
         resolve({ port: message.port, token: message.token });
       }
@@ -70,7 +72,7 @@ function createWindow({ port }: Session) {
 }
 
 void app.whenReady().then(async () => {
-  session = await startCore();
+  session = await spawnCore();
 
   // Answered synchronously for the preload; only our own window may ask.
   ipcMain.on("vitrine:session", (event) => {

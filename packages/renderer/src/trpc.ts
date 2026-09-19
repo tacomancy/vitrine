@@ -4,10 +4,8 @@ import type { AppRouter } from "core";
 
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 
-export type Session = { port: number; token: string };
-
 /** The typed client for the core the shell told us about. */
-export function createClient({ port, token }: Session) {
+export function createClient({ port, token }: Window["vitrine"]) {
   return createTRPCClient<AppRouter>({
     links: [
       httpBatchLink({

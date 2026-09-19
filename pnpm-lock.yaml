@@ -291,6 +291,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.2.0
         version: 5.2.0(vite@7.3.6(@types/node@24.13.6))
+      core:
+        specifier: workspace:*
+        version: link:../core
       electron:
         specifier: ^44.4.3
         version: 44.4.3
