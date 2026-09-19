@@ -7,6 +7,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
 - Web technology, one codebase, packaged per device — ADR 0001.
 - Annotations in the PDF; sidecar index for identity — ADR 0002.
 - Phase 1 reading is Preview plus ingest; sync scope is the PDF folder only — ADR 0003.
+- The public site at tacomancy.com is static files in `website/`, assembled by `Scripts/build-site.sh` and deployed by `.github/workflows/pages.yml` on push to `main` — ADR 0004.
 
 ## Open, in the order they block work
 
