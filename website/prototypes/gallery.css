@@ -1,0 +1,102 @@
+/* The gallery is wider than the landing page: each prototype was designed
+   at 1528px and is shown live in a frame scaled to fit (gallery.js). */
+
+body.wide .masthead,
+body.wide main,
+body.wide .colophon {
+  width: min(100% - 2 * var(--space-4), 96rem);
+}
+
+.intro {
+  max-width: 44rem;
+  padding-block: var(--space-8) var(--space-7);
+}
+
+.intro h1 { font-size: clamp(var(--text-2xl), 4.5vw, var(--text-4xl)); }
+
+.toc ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: surface -1;
+}
+
+.toc li { counter-increment: surface; }
+
+.toc a {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-decoration: none;
+}
+
+.toc a::before {
+  content: counter(surface, decimal-leading-zero) " ";
+  color: var(--color-fg-muted);
+}
+
+.nav a[aria-current="page"] { color: var(--color-accent); }
+
+.proto {
+  padding-block: var(--space-7);
+  scroll-margin-top: var(--space-5);
+}
+
+.proto header { max-width: 44rem; }
+
+.proto h2 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-display);
+}
+
+.proto header p:last-child {
+  margin: 0 0 var(--space-5);
+  color: var(--color-fg-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+/* The iframe is laid out at the design width and scaled down; the wrapper's
+   height follows, so the page flow stays correct. gallery.js sets --scale
+   from the column width and --design-height from the loaded document. The
+   900 is only the placeholder before a prototype loads. */
+.frame {
+  --design-width: 1528;
+  --design-height: 900;
+  --scale: 1;
+  position: relative;
+  width: 100%;
+  height: calc(var(--design-height) * 1px * var(--scale));
+  overflow: hidden;
+  background: var(--color-bg-sunken);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.frame iframe {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: calc(var(--design-width) * 1px);
+  height: calc(var(--design-height) * 1px);
+  border: 0;
+  transform: scale(var(--scale));
+  transform-origin: 0 0;
+  background: var(--color-bg-sunken);
+}
+
+.open {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+
+.open a::after { content: " ↗"; }
+
+.colophon { max-width: 44rem; }

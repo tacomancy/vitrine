@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "docs/reference/prototypes"],
       "port": 8765
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "Scripts/build-site.sh build/site && python3 -m http.server 8766 --directory build/site"],
+      "port": 8766
     }
   ]
 }
