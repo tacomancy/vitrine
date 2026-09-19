@@ -10,9 +10,14 @@ afterEach(async () => {
   running = undefined;
 });
 
+// Never the real Application Support folder from a test.
+async function support() {
+  return { appSupportDir: await mkdtemp(join(tmpdir(), "vitrine-support-")) };
+}
+
 describe("startCore", () => {
   it("listens on 127.0.0.1 at an OS-assigned port with a freshly minted token", async () => {
-    running = await startCore();
+    running = await startCore(await support());
     expect(running.port).toBeGreaterThan(0);
     expect(running.token.length).toBeGreaterThanOrEqual(32);
 
@@ -25,7 +30,7 @@ describe("startCore", () => {
   it("serves the renderer bundle at / without a token", async () => {
     const dir = await mkdtemp(join(tmpdir(), "vitrine-bundle-"));
     await writeFile(join(dir, "index.html"), "<!doctype html><title>x</title>");
-    running = await startCore({ staticDir: dir });
+    running = await startCore({ staticDir: dir, ...(await support()) });
 
     const res = await fetch(`http://127.0.0.1:${running.port}/`);
     expect(res.status).toBe(200);
@@ -35,7 +40,7 @@ describe("startCore", () => {
   it("serves the bundle with a same-origin content security policy", async () => {
     const dir = await mkdtemp(join(tmpdir(), "vitrine-bundle-"));
     await writeFile(join(dir, "index.html"), "<!doctype html>");
-    running = await startCore({ staticDir: dir });
+    running = await startCore({ staticDir: dir, ...(await support()) });
 
     const res = await fetch(`http://127.0.0.1:${running.port}/`);
     expect(res.headers.get("content-security-policy")).toBe(

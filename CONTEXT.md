@@ -188,6 +188,16 @@ Per Scout: last successful extraction, last new item, and whether a structure ch
 **Mute**:
 A rule (author, venue, keyword) that moves Proposals to a muted view rather than discarding them.
 
+### The app
+
+**Host**:
+The shell-side counterpart the core asks for the things only a desktop shell can do — today, one thing: show the folder chooser. A one-method interface the core is constructed with; the iPad client has no Host and so no chooser, because the vault lives on the Mac.
+_Avoid_: Shell (the Host is what the shell provides, not the shell itself), bridge, IPC
+
+**First run**:
+What the window shows when no vault is open: the promise that files stay plain Markdown on disk with the app's own state in one folder beside them, and one action, *Open a vault*. Not a Surface. Also what a remembered vault that has gone missing yields — silently, because a moved folder is not a fault.
+_Avoid_: Onboarding, welcome screen, empty state
+
 ### Surfaces and dashboards
 
 **Surface**:

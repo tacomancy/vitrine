@@ -285,6 +285,9 @@ importers:
 
   packages/shell:
     devDependencies:
+      '@trpc/client':
+        specifier: 11.19.0
+        version: 11.19.0(@trpc/server@11.19.0(typescript@5.9.3))(typescript@5.9.3)
       '@types/node':
         specifier: ^24.13.6
         version: 24.13.6

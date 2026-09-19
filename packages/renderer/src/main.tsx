@@ -30,7 +30,7 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <App port={session.port} />
+        <App />
       </TRPCProvider>
     </QueryClientProvider>
   </StrictMode>

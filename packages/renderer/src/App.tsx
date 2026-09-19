@@ -1,24 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
 import styles from "./App.module.css";
+import { FirstRun } from "./FirstRun";
+import { Inbox } from "./Inbox";
+import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 import { useTRPC } from "./trpc";
 
-export function App({ port }: { port: number }) {
+export function App() {
   const trpc = useTRPC();
-  const health = useQuery(trpc.health.queryOptions());
+  const vault = useQuery(trpc.vault.current.queryOptions());
 
-  let status: string;
-  if (health.isPending) status = "core · connecting";
-  else if (health.isError)
-    status = `core not answering · ${health.error.message}`;
-  else status = `core answering on 127.0.0.1:${port}`;
+  // Nothing is drawn until the core has answered: a First run that flashes
+  // before a remembered vault appears would say something untrue.
+  if (vault.isPending) return <div className={styles.window} />;
+
+  if (vault.isError) {
+    return (
+      <div className={styles.window}>
+        <p className={styles.status}>
+          core not answering · {vault.error.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (vault.data === null) {
+    return (
+      <div className={styles.window}>
+        <FirstRun />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.window}>
-      <TitleBar title="Vitrine" />
-      <main className={styles.main}>
-        <p className={styles.status}>{status}</p>
-      </main>
+      <TitleBar title={vault.data.name} />
+      <div className={styles.panes}>
+        <Sidebar />
+        <Inbox />
+      </div>
     </div>
   );
 }
