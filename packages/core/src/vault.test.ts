@@ -1,62 +1,8 @@
 import { createHash } from "node:crypto";
-import {
-  chmod,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { chmod, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, join, relative } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
-import type { Host } from "./host.js";
-
-const token = "test-token";
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
-
-/** A host whose chooser always answers the same way. */
-function fakeHost(picked: string | null): Host {
-  return { pickFolder: () => Promise.resolve(picked) };
-}
-
-async function tmp(prefix: string) {
-  return mkdtemp(join(tmpdir(), `vitrine-${prefix}-`));
-}
-
-async function core(opts: { host?: Host; appSupportDir?: string } = {}) {
-  const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
-  const app = createApp({
-    token,
-    host: opts.host ?? fakeHost(null),
-    appSupportDir,
-  });
-  const headers = {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
-  type Reply<T> = {
-    result?: { data: T };
-    error?: { message: string; data: { kind?: string } };
-  };
-  return {
-    appSupportDir,
-    query: async <T>(path: string) => {
-      const res = await app.request(`/trpc/${path}`, { headers });
-      return (await res.json()) as Reply<T>;
-    },
-    mutate: async <T>(path: string, input?: unknown) => {
-      const res = await app.request(`/trpc/${path}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(input ?? {}),
-      });
-      return (await res.json()) as Reply<T>;
-    },
-  };
-}
+import { core, fakeHost, fixtures, tmp } from "./testing.js";
 
 type Vault = { name: string; path: string };
 

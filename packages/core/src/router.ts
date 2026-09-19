@@ -1,4 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import { listQuestions, type Order } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
 
 export type Context = { vault: VaultService };
@@ -27,6 +28,18 @@ function pathInput(value: unknown): { path: string } {
   throw new Error("expected { path: string }");
 }
 
+function orderInput(value: unknown): { order: Order } {
+  if (value === undefined || value === null) return { order: "newest" };
+  if (
+    typeof value === "object" &&
+    "order" in value &&
+    (value.order === "newest" || value.order === "oldest")
+  ) {
+    return { order: value.order };
+  }
+  throw new Error("expected { order: 'newest' | 'oldest' }");
+}
+
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
 async function refusing<T>(work: Promise<T>): Promise<T> {
   try {
@@ -51,6 +64,18 @@ export const router = t.router({
       .input(pathInput)
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
+  }),
+  questions: t.router({
+    list: t.procedure.input(orderInput).query(async ({ ctx, input }) => {
+      const vault = await ctx.vault.current();
+      if (vault === null) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No vault is open.",
+        });
+      }
+      return listQuestions(vault.path, input.order);
+    }),
   }),
 });
 
