@@ -6,7 +6,8 @@ import SwiftUI
 /// per note that links to the open one, sorted by title, with the line
 /// around each link — and INFO — the note's path and modification date,
 /// and its tags and link counts from the `Index`. Clicking a backlink
-/// opens that note, scope unchanged. Empty until a note is open.
+/// opens that note, scope unchanged; clicking a tag adds a filter chip.
+/// Empty until a note is open.
 struct Rail: View {
     let currentLibrary: CurrentLibrary
     let selection: NotesSelection
@@ -68,11 +69,7 @@ struct Rail: View {
                 .font(.sans(.caption, weight: .regular))
                 .foregroundStyle(Color(.fgSecondary))
             if !tags.isEmpty {
-                // The note list's tag row, verbatim: not a control in this spec.
-                Text(tags.map { "#" + $0 }.joined(separator: " "))
-                    .font(.mono(.label, weight: .regular))
-                    .foregroundStyle(Color(.link))
-                    .lineLimit(1)
+                TagRow(tags: tags, addChip: selection.addChip(forTag:))
             }
             Text("\(links.count) links · \(backlinks) backlinks · \(unresolved) unresolved")
                 .font(.mono(.label, weight: .regular))

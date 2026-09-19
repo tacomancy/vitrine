@@ -1,14 +1,18 @@
 import Index
 import SwiftUI
 
-/// The TOPICS tree: the library's tags by hierarchy, in the order the `Index`
-/// seam gives, each with its count. Nodes with children expand and collapse;
-/// every node selects.
+/// The tag tree as rows — TOPICS on the Notes tab, TAG TREE on the Tags
+/// tab, one tree (spec #72): the library's tags by hierarchy, in the order
+/// the `Index` seam gives, each with its count. Nodes with children expand
+/// and collapse; every node selects, through `select`.
 struct TagTree: View {
     let roots: [TagTreeNode]
-    let selection: NotesSelection
+    /// The path of the tag drawn selected, if any.
+    let selectedPath: String?
     /// Expanded tags, by path.
     @Binding var expandedTags: Set<String>
+    /// Called with a node's path when its row is clicked.
+    let select: (String) -> Void
 
     var body: some View {
         LazyVStack(spacing: 0) {
@@ -24,11 +28,11 @@ struct TagTree: View {
         return SidebarRow(
             glyph: "number", name: node.name, count: node.count, depth: entry.depth,
             disclosure: disclosure(of: node, isExpanded: isExpanded),
-            emphasis: selection.sidebar == .tag(path: node.path) ? .selected : .normal
+            emphasis: selectedPath == node.path ? .selected : .normal
         ) {
-            // As the file tree's folders: one click selects the tag as the
-            // scope and, when it has children, toggles them.
-            selection.select(tagAt: node.path)
+            // As the file tree's folders: one click selects the tag and,
+            // when it has children, toggles them.
+            select(node.path)
             guard !node.children.isEmpty else { return }
             if isExpanded {
                 expandedTags.remove(node.path)

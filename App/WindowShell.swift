@@ -11,29 +11,48 @@ struct WindowShell: View {
     @State private var selection = NotesSelection()
     /// The open note's text, one per window like the selection it follows.
     @State private var buffer: NoteBuffer
+    /// The window's Tags selection: its own, kept while the tab is away.
+    @State private var tagsSelection = TagsSelection()
+    /// The command palette's state, one per window like the selection it
+    /// opens notes into.
+    @State private var palette: PaletteState
 
     init(currentLibrary: CurrentLibrary) {
         self.currentLibrary = currentLibrary
         _buffer = State(initialValue: NoteBuffer(currentLibrary: currentLibrary))
+        _palette = State(initialValue: PaletteState(currentLibrary: currentLibrary))
     }
 
-    /// Every pane at its minimum, with a gutter around each.
+    /// Every Notes pane at its minimum, with a gutter around each — the
+    /// widest tab sets the window's minimum.
     private static let minimumWidth =
-        PaneWidth.all.map(\.minimum).reduce(0, +)
-        + ShellMetrics.gutter * CGFloat(PaneWidth.all.count + 1)
+        PaneWidth.notesTab.map(\.minimum).reduce(0, +)
+        + ShellMetrics.gutter * CGFloat(PaneWidth.notesTab.count + 1)
     private static let minimumHeight: CGFloat = 520
 
     var body: some View {
         VStack(spacing: 0) {
-            TitleBar(libraryName: currentLibrary.library?.name)
+            TitleBar(libraryName: currentLibrary.library?.name, openPalette: palette.open)
             TabStrip(selection: $selectedTab)
             body(for: selectedTab)
         }
         .background(Color(.bg))
+        // The palette over everything, the window inert beneath it — hosted
+        // on its own so it draws above the split view's AppKit panes.
+        .overlay {
+            if palette.isOpen {
+                HostedOverlay {
+                    CommandPalette(
+                        currentLibrary: currentLibrary, selection: selection, buffer: buffer,
+                        palette: palette, selectedTab: $selectedTab)
+                }
+            }
+        }
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: Self.minimumWidth, minHeight: Self.minimumHeight)
         .focusedSceneValue(\.notesSelection, selection)
         .focusedSceneValue(\.noteBuffer, buffer)
+        .focusedSceneValue(\.paletteState, palette)
         // A different library takes the selection with it; the same one
         // changed by a save or by another tool keeps it, found again by
         // path — the buffer first, since it decides whether the open note
@@ -44,6 +63,7 @@ struct WindowShell: View {
                 selection.refresh(from: new)
             } else {
                 selection.clear()
+                tagsSelection.clear()
             }
         }
         // The buffer follows the open note, saving what it held first.
@@ -75,9 +95,21 @@ struct WindowShell: View {
             FirstRun(currentLibrary: currentLibrary, selection: selection)
         case .notes:
             NotesTab(currentLibrary: currentLibrary, selection: selection, buffer: buffer)
-        case .tags: TagsTab()
+        case .tags:
+            TagsTab(
+                currentLibrary: currentLibrary, selection: tagsSelection, openInNotes: openInNotes)
         case .sources, .ideas, .dashboard: SoonSurface(tab: tab)
         }
+    }
+
+    /// The tag page's *Open in Notes*: the Notes tab, its sidebar scoped to
+    /// the tag or to Untagged; filter chips are not touched (spec #72).
+    private func openInNotes(_ subject: TagsSidebarSelection) {
+        switch subject {
+        case .tag(let path): selection.select(tagAt: path)
+        case .untagged: selection.selectUntagged()
+        }
+        selectedTab = .notes
     }
 
     private var isShowingCreateFailure: Binding<Bool> {

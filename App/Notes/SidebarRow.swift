@@ -2,8 +2,9 @@ import SwiftUI
 
 /// One 24 px sidebar row: a disclosure slot, a glyph, a name, and a count.
 /// Selected, it is the selected-row pill with a brass glyph — the active
-/// nav item (ADR 0008; brief rules 2 and 3). With `select` it is a button;
-/// without, it is inert.
+/// nav item (ADR 0008; brief rules 2 and 3); highlighted — the keyboard's
+/// place in a popover's list, not a nav item — the pill with the glyph
+/// left muted. With `select` it is a button; without, it is inert.
 struct SidebarRow: View {
     enum Disclosure {
         case none
@@ -14,6 +15,7 @@ struct SidebarRow: View {
     enum Emphasis {
         case normal
         case selected
+        case highlighted
         case disabled
     }
 
@@ -28,7 +30,7 @@ struct SidebarRow: View {
 
     var body: some View {
         if let select {
-            RowButton(isSelected: emphasis == .selected, select: select) { content }
+            RowButton(isSelected: isPill, select: select) { content }
                 .accessibilityValue(disclosureValue)
         } else {
             content
@@ -78,6 +80,11 @@ struct SidebarRow: View {
         }
     }
 
+    /// Selected and highlighted rows both draw the pill.
+    private var isPill: Bool {
+        emphasis == .selected || emphasis == .highlighted
+    }
+
     private var disclosureValue: String {
         switch disclosure {
         case .none: ""
@@ -88,7 +95,7 @@ struct SidebarRow: View {
 
     private var glyphColor: Color {
         switch emphasis {
-        case .normal: Color(.fgMuted)
+        case .normal, .highlighted: Color(.fgMuted)
         case .selected: Color(.accent)
         case .disabled: Color(.fgDisabled)
         }
@@ -97,7 +104,7 @@ struct SidebarRow: View {
     private var textColor: Color {
         switch emphasis {
         case .normal: Color(.fgSecondary)
-        case .selected: Color(.fg)
+        case .selected, .highlighted: Color(.fg)
         case .disabled: Color(.fgDisabled)
         }
     }

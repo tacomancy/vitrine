@@ -176,7 +176,8 @@ the vault snapshot; the two-app scenario with Obsidian on the live vault
 is the owner's to confirm.
 
 **The fifth feature is under way (issue #72, filter chips and the Tags
-tab): ① built (issue #73).** Two `Index` additions, pure over the
+tab): ① and ③ built (issues #73 and #75), ② in flight (issue #74).**
+Two `Index` additions, pure over the
 cached parses and red-first against the Obsidian fixture:
 `coOccurringTags(with:)` answers the tag page's CO-OCCURS WITH — for
 the notes tagged a tag or a descendant, every other tag they carry or
@@ -191,10 +192,55 @@ The fixture grew `Research/` — three plain notes under fresh roots
 distinct counts and ties for the sort to break; seven `IndexTests`
 assert hand-counted tuples, and on the vault snapshot `data_science`
 answers `14` notes with `machine_learning 6/14`, matching a grep count.
-Nothing on screen consumes either yet.
 
-**The sixth feature is under way (issue #67, search and the command
-palette; tickets #68 and #69): ① built.** The `Search` seam (issue #68)
+**② is built (issue #74): filter chips on the Notes tab.** Two seam
+additions, red-first, so the app never spells or lowercases a tag
+itself: `TagTreeNode.displaySpelling` — the whole tag as displayed —
+and `Index.tagPath(of:)`, a spelling's path by `CONTEXT.md` § Tags. The
+rest is glue at the seam, untested by decision and verified by `/run`:
+`NotesSelection` grew `chips` — tag paths in order of addition;
+`addChip(forTag:)` takes a tag as displayed, written, or a node's path
+and is a no-op for one present, `removeChip` is the `×`, `clear()`
+takes them with the library and a scope change leaves them. `NoteList`
+keeps the scope's notes to `Index.notes(taggedAll: chips)` and counts
+what it lists; above its header `FilterChipRow` draws each `FilterChip`
+— the brief's info chip with `×` — then `+ filter` in a `WrappingRow`
+(`Layout`), and `+ filter` opens `FilterPopover`: a field over the tag
+tree flattened in tree order, filtered by substring on the path, each
+a `SidebarRow` (`Emphasis.highlighted` is new: the pill without brass),
+↑↓ over the unchipped rows, ↩ or click adds and closes, Esc closes,
+chipped rows disabled. Tag clicks add chips in three places: `TagRow` —
+one attributed `Text` over `TokenURL`, the one encoding of a clickable
+token's kind and index, so the line stays one ellipsised line —
+replaces the inert tag text in `NoteRow` and the rail's INFO, and the
+editor gives every body tag a `.link` attribute of the same encoding,
+told from a note link's in `clickedOnLink` by kind, since a link click
+is the one the text view tracks without moving the caret.
+`docs/visual-implementation.md` records the chip, the row, the
+popover, and the editor's new table row.
+
+**③ is built (issue #75): the Tags tab.** Glue at the seam, untested by
+decision and verified by a headless harness over the real glue rendered
+offscreen (the screen was locked): `TagsSelection` is the tab's own view
+state beside `NotesSelection` — the sidebar row whose page is shown (a
+tag by path, or Untagged) and the tree's expanded tags — kept across tab
+switches and cleared with the library. `GutterSplitPanes` now takes a
+`PaneWidth` table and a pane builder, so `TagsTab` is two panes:
+`TagsSidebar` (TAG TREE over the one `TagTree`, which takes the selected
+path and a select closure so both tabs share it, then UNTAGGED → *Notes
+with no tag N*) and `TagPage` — `#tag` at `heading` in the tree's
+display spelling, `N NOTES · N CHILD TAGS` with *Open in Notes* (the
+shell sets the Notes scope and switches tabs, chips untouched), child
+chips (`InfoChip` in a `WrappingRow`; a click reveals the child's row and
+opens its page), and CO-OCCURS WITH — ten `CoOccurrenceRow`s in
+`SequentialRamp` slot order, `count/outOf · P %`, *and N more*, or the
+*needs at least 3 notes* line — plus the Untagged page and the *Select a
+tag* prompt. `docs/visual-implementation.md` records all of it, the bar
+ramp included. ② (issue #74) — filter chips on the Notes tab — will
+reuse `InfoChip` and `WrappingRow`.
+
+**The sixth feature is built (issue #67, search and the command
+palette; tickets #68 and #69).** The `Search` seam (issue #68)
 is `Search.build(from: Index)`: every read note's title, aliases, and
 full text folded case- and diacritic-insensitively from the parses the
 Index caches — handed out by the new `Index.parsedNotes` — and scanned
@@ -212,8 +258,29 @@ against the Obsidian fixture, which gained `Topics/Café.md` (a
 diacritic, a `citekey:`, an alias, `#todo`). Measured on the real vault
 (79 notes, 460 KB): every query under 3 ms in release, under 10 ms in
 debug, once the byte search moved to `memmem` (ADR 0018, Update).
-Nothing on screen consumes it yet; ② is the palette, the title-bar
-field, and the *Recent* row.
+The screen (issue #69) is glue at the seam, with one seam addition,
+red-first: `Search.applying(_:in:)` folds a `LibraryChange` into the
+search from the parses the Index already re-read — the mirror of
+`Index.applying` (ADR 0018, second Update; five `SearchTests`) — so
+`CurrentLibrary` keeps library, Index, and Search current together on
+every save, create, rename, and watcher change. `CommandPalette` is the
+first overlay — a `bg-overlay` scrim and the 760 px panel, hosted in
+its own `NSHostingView` (`HostedOverlay`) because SwiftUI paints under
+the split view's AppKit panes — opened by ⌘K (Go › Search…, through
+`FocusedPaletteState`) or the title bar's new `SearchField`;
+`PaletteState` debounces the query 50 ms and asks `Search`; NOTES rows
+wash `titleRanges` in `accent-quiet` (`HighlightWash`), the preview
+rail draws the excerpt, tags, and counts from `Index`, ACTIONS are
+`PaletteAction` run through `WindowCommands` — what the menu bar's New
+Note and Open Library… now run too. `NotesSelection.recent` is Recent
+(`CONTEXT.md`): the sidebar's *Recent* row scopes the note list to it
+under `OPENED ↓`, and the palette lists it for an empty query with the
+open note left out. `docs/visual-implementation.md` records all of it.
+Verified by a 45-check headless harness over the real glue on the vault
+snapshot — `WindowShell` rendered offscreen with the palette open, keys
+sent through the query field, hit tests proving the window inert — and
+owed one on-screen pass: that the query field takes focus on open in a
+key window, which a locked screen cannot show.
 
 **The seventh and last v1 feature is under way (issue #77, Preview —
 render a note; tickets #78 and its screen ticket): ① built.** The
@@ -237,9 +304,7 @@ warnings are exempt from warnings-as-errors per target in
 `Scripts/test.sh` (ADR 0006, Update from the Rendering seam). Nothing on screen uses it
 yet.
 
-Next: ② filter chips on the Notes tab (issue #74) and ③ the Tags tab
-(issue #75), in parallel; ticket #69 — the palette, the title-bar field,
-and the *Recent* row; and Preview's ② on screen — the SOURCE / PREVIEW
+Next: Preview's ② on screen — the SOURCE / PREVIEW
 toggle and ⌘E, the remembered setting, block views over `[Block]`, click
 routing through `Index`, re-render timing — with
 `docs/visual-implementation.md` recording the typography.

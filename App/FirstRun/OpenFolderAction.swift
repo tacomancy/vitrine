@@ -11,7 +11,6 @@ struct OpenFolderAction: View {
     private static let lineSpacing: CGFloat = 2
     private static let horizontalPadding: CGFloat = 15
     private static let verticalPadding: CGFloat = 13
-    private static let borderWidth: CGFloat = 1
     private static let glyphBoxSize: CGFloat = 26
     private static let shape = RoundedRectangle(cornerRadius: Radius.medium)
 
@@ -24,7 +23,7 @@ struct OpenFolderAction: View {
                     .frame(width: Self.glyphBoxSize, height: Self.glyphBoxSize)
                     .overlay {
                         RoundedRectangle(cornerRadius: Radius.small)
-                            .stroke(Color(.primary), lineWidth: Self.borderWidth)
+                            .stroke(Color(.primary), lineWidth: LineWidth.border)
                     }
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Self.lineSpacing) {
@@ -47,7 +46,7 @@ struct OpenFolderAction: View {
             .padding(.vertical, Self.verticalPadding)
             .background(Color(.bgRaised), in: Self.shape)
             .overlay {
-                Self.shape.stroke(Color(.primary), lineWidth: Self.borderWidth)
+                Self.shape.stroke(Color(.primary), lineWidth: LineWidth.border)
             }
             .contentShape(Rectangle())
         }
