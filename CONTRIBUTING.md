@@ -15,7 +15,7 @@ Agent guidance lives in `CLAUDE.md`; this file holds the mechanics that apply to
 `main` is protected. A PR merges only when:
 
 - the `guidance` job in `.github/workflows/ci.yml` passes — locally, `Scripts/check-guidance.sh`;
-- the test suite passes, once one exists (it becomes a required check with the stack, see `docs/architecture.md`);
+- the `test` job passes — locally, `pnpm lint && pnpm typecheck && pnpm test`;
 - the branch is up to date with `main`.
 
 No force pushes to `main`, no deleting it.

@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+
+# pnpm refuses to run install scripts it has not been told about. esbuild
+# needs its postinstall for the platform binary; electron fetches its own on
+# first launch but is listed so a future postinstall is not silently skipped.
+allowBuilds:
+  electron: true
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - "@types/node@24.13.6"

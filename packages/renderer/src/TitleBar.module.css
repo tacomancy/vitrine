@@ -1,0 +1,23 @@
+.bar {
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Clear the inset traffic lights so the title stays centred on the window. */
+  padding-left: 78px;
+  padding-right: 78px;
+  background: var(--color-bg-surface);
+  /* Chromium-only: this is what makes the strip drag the window. */
+  /* eslint-disable-next-line css/no-invalid-properties */
+  app-region: drag;
+  user-select: none;
+}
+
+.title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-muted);
+}

@@ -1,0 +1,13 @@
+# Frozen tier, vendored skills, generated output, and the static site (its own
+# build, ADR 0004) are never reformatted. Prose is hand-formatted.
+docs/reference/
+.agents/
+build/
+website/
+node_modules/
+dist/
+out/
+pnpm-lock.yaml
+skills-lock.json
+local-libraries/
+*.md

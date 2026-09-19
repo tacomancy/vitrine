@@ -1,6 +1,5 @@
-# One required check on pull requests to main. Today it guards the guidance
-# tier (Scripts/check-guidance.sh). The test suite is added as a second job,
-# and a second required check, the moment the stack lands (docs/architecture.md).
+# Two required checks on pull requests to main: the guidance tier
+# (Scripts/check-guidance.sh) and the test suite (lint, typecheck, vitest).
 name: CI
 
 on:
@@ -16,3 +15,18 @@ jobs:
           fetch-depth: 0
       - name: Check the guidance tier
         run: Scripts/check-guidance.sh "origin/${{ github.base_ref }}"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # Electron's binary is not needed to lint, typecheck, or test.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
