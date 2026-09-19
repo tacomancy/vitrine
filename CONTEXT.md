@@ -74,6 +74,10 @@ _Avoid_: Idea, task, todo, item
 What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
+**Unattached**:
+The Provenance of a Question captured with no document open: `context: other` and no `from`. Time and place are still a Provenance, so the capture is never blocked on a choice; what it belongs to can be linked later.
+_Avoid_: No provenance (it has one), orphan (a Loose Ends word), untagged
+
 **Status** (of a Question):
 One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state.
 _Avoid_: Overdue, stale (in code — "stale" is only a Scout health term)
