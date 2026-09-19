@@ -33,7 +33,11 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
     return await work;
   } catch (cause) {
     if (cause instanceof VaultError) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: cause.message, cause });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: cause.message,
+        cause,
+      });
     }
     throw cause;
   }

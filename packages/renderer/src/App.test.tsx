@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import { TRPCProvider } from "./trpc";
 
-type Answer = unknown | (() => unknown);
+/** A fixed value, or a function that computes (or throws) one per call. */
+type Answer = unknown;
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);
@@ -21,7 +22,8 @@ function fakeLink(answers: Record<string, Answer>): TRPCLink<AppRouter> {
       observable((observer) => {
         const answer = answers[op.path];
         try {
-          const data = typeof answer === "function" ? (answer as () => unknown)() : answer;
+          const data =
+            typeof answer === "function" ? (answer as () => unknown)() : answer;
           observer.next({ result: { type: "data", data } });
           observer.complete();
         } catch (error) {
@@ -49,7 +51,9 @@ function renderApp(answers: Record<string, Answer>) {
 describe("First run", () => {
   it("is what a launch with no vault shows: the promise and one action", async () => {
     renderApp({ "vault.current": null });
-    expect(await screen.findByRole("button", { name: "Open a vault" })).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: "Open a vault" })
+    ).toBeDefined();
     expect(screen.getByText(/plain Markdown/)).toBeDefined();
     expect(screen.getByText(/one folder beside them/)).toBeDefined();
     expect(screen.getAllByRole("button")).toHaveLength(1);
@@ -63,28 +67,43 @@ describe("First run", () => {
         throw new Error("/Users/me/notes.md is not a folder.");
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Open a vault" }));
-    expect(await screen.findByText("/Users/me/notes.md is not a folder.")).toBeDefined();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open a vault" })
+    );
+    expect(
+      await screen.findByText("/Users/me/notes.md is not a folder.")
+    ).toBeDefined();
     expect(screen.getByRole("button", { name: "Open a vault" })).toBeDefined();
   });
 
   it("stays on First run when the chooser is cancelled", async () => {
     renderApp({ "vault.current": null, "vault.pick": null });
-    fireEvent.click(await screen.findByRole("button", { name: "Open a vault" }));
-    expect(await screen.findByRole("button", { name: "Open a vault" })).toBeDefined();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open a vault" })
+    );
+    expect(
+      await screen.findByRole("button", { name: "Open a vault" })
+    ).toBeDefined();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("gives way to the window once a vault is picked", async () => {
-    const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
+    const vault = {
+      name: "consolidation-vault",
+      path: "/v/consolidation-vault",
+    };
     let current: typeof vault | null = null;
     renderApp({
       "vault.current": () => current,
       "vault.pick": () => (current = vault),
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Open a vault" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open a vault" })
+    );
     expect(await screen.findByRole("banner")).toBeDefined();
-    expect(screen.getByRole("banner").textContent).toContain("consolidation-vault");
+    expect(screen.getByRole("banner").textContent).toContain(
+      "consolidation-vault"
+    );
     expect(screen.queryByRole("button", { name: "Open a vault" })).toBeNull();
   });
 });
@@ -94,13 +113,17 @@ describe("the window with a vault open", () => {
 
   it("names the vault in the title bar", async () => {
     renderApp({ "vault.current": vault });
-    expect((await screen.findByRole("banner")).textContent).toBe("consolidation-vault");
+    expect((await screen.findByRole("banner")).textContent).toBe(
+      "consolidation-vault"
+    );
   });
 
   it("lists the eight surfaces with only Question Inbox live", async () => {
     renderApp({ "vault.current": vault });
     const nav = await screen.findByRole("navigation", { name: "Surfaces" });
-    const items = Array.from(nav.querySelectorAll("li")).map((li) => li.textContent);
+    const items = Array.from(nav.querySelectorAll("li")).map(
+      (li) => li.textContent
+    );
     expect(items).toEqual([
       "Home",
       "Question Inbox",
@@ -122,6 +145,8 @@ describe("the window with a vault open", () => {
     renderApp({ "vault.current": vault });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(inbox.textContent).toContain("0 questions");
-    expect(inbox.querySelectorAll("li, table, button, [role=listbox]")).toHaveLength(0);
+    expect(
+      inbox.querySelectorAll("li, table, button, [role=listbox]")
+    ).toHaveLength(0);
   });
 });

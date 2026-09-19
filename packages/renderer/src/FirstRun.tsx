@@ -13,7 +13,8 @@ export function FirstRun() {
     trpc.vault.pick.mutationOptions({
       onSuccess: (vault) => {
         // A cancelled chooser returns null: nothing changed, nothing to refetch.
-        if (vault) void queryClient.invalidateQueries(trpc.vault.current.queryFilter());
+        if (vault)
+          void queryClient.invalidateQueries(trpc.vault.current.queryFilter());
       },
     })
   );

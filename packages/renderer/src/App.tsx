@@ -17,7 +17,9 @@ export function App() {
   if (vault.isError) {
     return (
       <div className={styles.window}>
-        <p className={styles.status}>core not answering · {vault.error.message}</p>
+        <p className={styles.status}>
+          core not answering · {vault.error.message}
+        </p>
       </div>
     );
   }

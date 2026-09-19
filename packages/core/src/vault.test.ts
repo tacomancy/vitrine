@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,7 +74,9 @@ async function fingerprint(root: string): Promise<string[]> {
         out.push(`${rel}/`);
         await walk(full);
       } else {
-        const hash = createHash("sha256").update(await readFile(full)).digest("hex");
+        const hash = createHash("sha256")
+          .update(await readFile(full))
+          .digest("hex");
         out.push(`${rel}:${hash}`);
       }
     }
@@ -90,10 +99,16 @@ describe("vault.open", () => {
     const folder = await tmp("empty");
 
     const opened = await c.mutate<Vault>("vault.open", { path: folder });
-    expect(opened.result?.data).toEqual({ name: basename(folder), path: folder });
+    expect(opened.result?.data).toEqual({
+      name: basename(folder),
+      path: folder,
+    });
 
     const current = await c.query<Vault | null>("vault.current");
-    expect(current.result?.data).toEqual({ name: basename(folder), path: folder });
+    expect(current.result?.data).toEqual({
+      name: basename(folder),
+      path: folder,
+    });
   });
 
   it("writes nothing into the folder it opens", async () => {
@@ -162,7 +177,10 @@ describe("the remembered vault", () => {
 
     const next = await core({ appSupportDir: first.appSupportDir });
     const current = await next.query<Vault | null>("vault.current");
-    expect(current.result?.data).toEqual({ name: basename(folder), path: folder });
+    expect(current.result?.data).toEqual({
+      name: basename(folder),
+      path: folder,
+    });
   });
 
   it("yields no vault, silently, when the folder has gone missing", async () => {
@@ -195,7 +213,9 @@ describe("the remembered vault", () => {
     const two = await tmp("two");
     await first.mutate<Vault>("vault.open", { path: one });
     await first.mutate<Vault>("vault.open", { path: two });
-    expect((await first.query<Vault | null>("vault.current")).result?.data).toEqual({
+    expect(
+      (await first.query<Vault | null>("vault.current")).result?.data
+    ).toEqual({
       name: basename(two),
       path: two,
     });
@@ -212,9 +232,15 @@ describe("vault.pick", () => {
     const c = await core({ host: fakeHost(folder) });
 
     const picked = await c.mutate<Vault | null>("vault.pick");
-    expect(picked.result?.data).toEqual({ name: basename(folder), path: folder });
+    expect(picked.result?.data).toEqual({
+      name: basename(folder),
+      path: folder,
+    });
     const current = await c.query<Vault | null>("vault.current");
-    expect(current.result?.data).toEqual({ name: basename(folder), path: folder });
+    expect(current.result?.data).toEqual({
+      name: basename(folder),
+      path: folder,
+    });
   });
 
   it("returns null and changes nothing when the chooser is cancelled", async () => {
@@ -247,7 +273,10 @@ describe("a vault Obsidian wrote", () => {
     expect(before).toContain(".obsidian/");
 
     const opened = await c.mutate<Vault>("vault.open", { path: vault });
-    expect(opened.result?.data).toEqual({ name: "obsidian-vault", path: vault });
+    expect(opened.result?.data).toEqual({
+      name: "obsidian-vault",
+      path: vault,
+    });
     expect(await fingerprint(vault)).toEqual(before);
   });
 });

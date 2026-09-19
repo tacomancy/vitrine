@@ -38,7 +38,8 @@ async function validateFolder(path: string): Promise<void> {
   } catch {
     throw new VaultError("notAFolder", `${path} is not a folder.`);
   }
-  if (!isDirectory) throw new VaultError("notAFolder", `${path} is not a folder.`);
+  if (!isDirectory)
+    throw new VaultError("notAFolder", `${path} is not a folder.`);
   try {
     await readdir(path);
   } catch {
@@ -49,7 +50,10 @@ async function validateFolder(path: string): Promise<void> {
 /** The last vault opened, so the next launch skips First run. */
 const LAST_VAULT_FILE = "last-vault.json";
 
-export function createVaultService({ host, appSupportDir }: VaultServiceOptions): VaultService {
+export function createVaultService({
+  host,
+  appSupportDir,
+}: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let current: Vault | null = null;
 

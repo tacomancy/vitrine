@@ -8,16 +8,24 @@ export type CoreReadyMessage = { type: "ready"; port: number; token: string };
 /** Everything the core sends the shell. */
 export type CoreMessage = CoreReadyMessage | { type: "pickFolder"; id: number };
 /** Everything the shell sends the core. */
-export type ShellMessage = { type: "pickedFolder"; id: number; path: string | null };
+export type ShellMessage = {
+  type: "pickedFolder";
+  id: number;
+  path: string | null;
+};
 
 type ParentPort = {
   postMessage: (message: CoreMessage) => void;
-  on: (event: "message", listener: (event: { data: ShellMessage }) => void) => void;
+  on: (
+    event: "message",
+    listener: (event: { data: ShellMessage }) => void
+  ) => void;
 };
 
 // `process.parentPort` is Electron's channel to the spawning process; the core
 // has no dependency on Electron, so its shape is declared here.
-const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
+const parentPort = (process as unknown as { parentPort?: ParentPort })
+  .parentPort;
 
 /**
  * The host, over the process channel: each chooser request carries an id so

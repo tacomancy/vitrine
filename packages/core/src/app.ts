@@ -21,7 +21,9 @@ export type AppOptions = {
  */
 export function createApp({ token, host, appSupportDir }: AppOptions): Hono {
   const app = new Hono();
-  const context: Context = { vault: createVaultService({ host, appSupportDir }) };
+  const context: Context = {
+    vault: createVaultService({ host, appSupportDir }),
+  };
 
   // The renderer is served from the Vite dev server in development and from
   // this process in production; CORS keeps the former working. The bearer
