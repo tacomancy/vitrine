@@ -24,7 +24,7 @@ INK = {50: "#EAEFF5", 100: "#D0D8E4", 200: "#B2BBC9", 300: "#9099A7", 400: "#707
 PAPER = {"base": "#F7F1E6", "raised": "#FDFAF3", "sunken": "#EEE7D9"}
 BRASS = {100: "#FEEBC4", 200: "#FCD37D", 300: "#E5B64A", 400: "#C49726", 500: "#A17B1D",
          600: "#836202", 700: "#634A0D", 800: "#463406", 900: "#2B1E01"}
-SAPPHIRE = {200: "#C5DBFC", 300: "#9ABFFA", 700: "#0C49A0", 900: "#011D4B"}
+SAPPHIRE = {200: "#C5DBFC", 300: "#9ABFFA", 600: "#2062C7", 700: "#0C49A0", 900: "#011D4B"}
 EMERALD = {100: "#BEFEDE", 300: "#48DBA2", 400: "#2CB985", 700: "#105D41", 900: "#022819"}
 GARNET = {300: "#FAA0B0", 400: "#F5688A", 700: "#8F133E", 800: "#67092A", 900: "#410318"}
 
@@ -125,6 +125,22 @@ BRAND_FONT_LINK = ('<link rel="stylesheet" href="https://fonts.googleapis.com/cs
 LINK_RULE = re.compile(r"a\{color:#d99b4a\}a:hover\{color:#e8b673\}")
 BRAND_LINK_RULE = "a{color:%s}a:hover{color:%s}" % (SAPPHIRE[300], SAPPHIRE[200])
 
+# BRAND.md law 2 again, for buttons. The exports fill a primary action amber
+# with dark text on it; carets, dots, and swatches are filled amber with no
+# text colour at all. That pairing inside one style attribute is the tell, so
+# those become the brand's primary (sapphire) with white on it, and every
+# other amber stays brass as punctuation.
+BUTTON_STYLE = re.compile(r'style="([^"]*background:#d99b4a[^"]*color:#(?:0f1113|15181c)[^"]*)"')
+
+
+def button_sub(m):
+    style = (m.group(1)
+             .replace("background:#d99b4a", "background:" + SAPPHIRE[600])
+             .replace("border:1px solid #d99b4a", "border:1px solid " + SAPPHIRE[600]))
+    style = re.sub(r"color:#(?:0f1113|15181c)", "color:#FFFFFF", style)
+    return f'style="{style}"'
+
+
 HEX = re.compile(r"#([0-9a-fA-F]{6})(?![0-9a-fA-F])")
 RGBA_RE = re.compile(r"rgba?\((\d+),\s*(\d+),\s*(\d+)(,[^)]*)?\)")
 
@@ -132,6 +148,7 @@ RGBA_RE = re.compile(r"rgba?\((\d+),\s*(\d+),\s*(\d+)(,[^)]*)?\)")
 def rebrand(html: str) -> tuple[str, set[str]]:
     unmapped: set[str] = set()
     html = LINK_RULE.sub(BRAND_LINK_RULE, html)
+    html = BUTTON_STYLE.sub(button_sub, html)
 
     def hex_sub(m):
         key = "#" + m.group(1).lower()

@@ -15,7 +15,7 @@ The repository's GitHub Pages is already bound to the apex `tacomancy.com` (work
 
 - **+** One folder, one script, one workflow. The same script previews locally (`.claude/launch.json`, `site`) and builds in CI, so there is no second build to keep in step.
 - **+** The frozen tier stays the single source for tokens and prototypes; the site cannot show a stale copy.
-- **−** The rebrand is mechanical. It maps colour to colour and can't tell a brass button from brass punctuation, so the prototypes' amber actions become brass ones, against `BRAND.md` law 2 (sapphire is every action). Links are re-pointed at sapphire; buttons are not. The app's own UI does not inherit this: it is built from the tokens, not from the exports.
+- **−** The rebrand is mechanical. Links and filled buttons are re-pointed at sapphire (`BRAND.md` law 2) by pattern: a button is an amber fill with dark text on it in one style attribute. Any other amber becomes brass, so an action styled some other way would slip through as punctuation. The app's own UI does not inherit any of this: it is built from the tokens, not from the exports.
 - **−** The exports set questions and quotations in a serif the brand doesn't have. They become Inter, which loses a distinction the prototypes drew on purpose. Whether the app wants a serif role is a branding question for later, not decided here.
 - **−** Fonts load from Google Fonts on the site. The app's own font policy is undecided (`docs/architecture.md` § Open).
 - **−** The Pages deploy is not a merge gate; a broken site build is noticed after merge, from the Actions run, not before.
