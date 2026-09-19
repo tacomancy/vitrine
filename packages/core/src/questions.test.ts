@@ -257,3 +257,28 @@ describe("a write that fails", () => {
     expect(await fingerprint(vault)).toEqual(before);
   });
 });
+
+describe("the capture input", () => {
+  it.each([
+    ["empty text", { text: "", provenance: unattached }],
+    ["whitespace-only text", { text: " \t\n ", provenance: unattached }],
+    [
+      "a context this slice does not have",
+      { text: "x", provenance: { context: "reading" } },
+    ],
+    [
+      "a `from` on an Unattached capture",
+      { text: "x", provenance: { context: "other", from: "somewhere" } },
+    ],
+    ["no provenance at all", { text: "x" }],
+  ])("rejects %s as an input error, writing nothing", async (_, input) => {
+    const c = await core();
+    const vault = await openVault(c);
+
+    const reply = await c.mutate("questions.capture", input);
+
+    expect(reply.error).toBeDefined();
+    expect(reply.error?.data.kind).toBeUndefined();
+    expect(await fingerprint(vault)).toEqual([]);
+  });
+});
