@@ -49,7 +49,9 @@ Skill names below are the vendored ones in `.agents/skills/` (CI fails if one st
 5. **`diagnosing-bugs`** — as needed: reproduce → minimize → hypothesize → instrument → fix → regression-test.
 6. **`code-review`** — before merge, checked against the brief section implemented and the code standard below. Step 4 runs it; run it again if the branch changed since.
 
-`improve-codebase-architecture` is in use now that `CONTEXT.md` / `docs/adr/` exist. `to-questionnaire` and `wayfinder` are available but not part of the loop. Nothing regenerates the brief from conversation — it has more authority than any summary of it.
+`improve-codebase-architecture` is in use now that `CONTEXT.md` / `docs/adr/` exist. `wayfinder` sits upstream of the loop: it charts the decisions that stand between here and a spec (the map is the issue labelled `wayfinder:map`), and hands each beat to step 1 when its turn comes. `to-questionnaire` is available but not part of the loop. Nothing regenerates the brief from conversation — it has more authority than any summary of it.
+
+`research` findings go in `docs/research/<issue>-<slug>.md` — `0134-charting-library.md` — on a `research/<slug>` branch that is linked from the ticket and never merged. The decision a finding informs is written to `docs/adr/` or `docs/architecture.md` by the ticket that makes it; the finding itself stays on its branch.
 
 ## Code standard
 
