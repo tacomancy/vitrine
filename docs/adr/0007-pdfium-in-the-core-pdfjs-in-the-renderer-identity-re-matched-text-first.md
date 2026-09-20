@@ -44,3 +44,7 @@ ADR 0002 put annotations in the PDF with a sidecar for identity and left the re-
 - **−** PDFium's `SetColor` refuses once an appearance stream exists, so every edit regenerates the appearance; the fork extension is load-bearing and pins us to `@embedpdf/pdfium` rather than any PDFium build.
 - **−** Incremental saves grow the file by the objects text extraction happened to load; the number is a prototype output.
 - Whether a note edited in Preview to begin with `Q:` becomes a Question on that Ingest is an Ingest rule for the watcher ADR, not this one.
+
+## Update (2026-09-19, ADR 0009)
+
+The two questions decision 12 and the last consequence handed to the watcher are settled there. A Vitrine write landing while the iPad holds the file produces a sync-service *conflict copy*; a new PDF whose document fingerprint (decision 9) matches an existing Source is a Loose end resolved as *use this copy* or *discard*, never a Source of its own. The `Q:` rule runs on every Ingest against the annotation's current note and spawns a Question once — the sidecar gains a `question` field per annotation — so a `Q:` added in a later Preview pass becomes a Question on that Ingest.

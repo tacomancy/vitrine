@@ -59,8 +59,28 @@ _Avoid_: Highlight (one kind of annotation, not the general term), comment
 The app's stable ID for an Annotation, kept in a sidecar index with its page, geometry, and quoted text. PDF objects have no reliable ID across editors, so identity is re-matched on every Ingest: quoted text first, geometry second.
 
 **Ingest**:
-The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations.
+The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed together is one Ingest run.
 _Avoid_: Import, sync (sync moves files; ingest reads them)
+
+**Ingest run**:
+One batch of PDFs that settled together, ingested as one: one summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications.
+_Avoid_: Ingest event, batch (in UI copy)
+
+**Settled** (of a file):
+Quiet for long enough — no watcher events, two stats agreeing — that a sync client or Preview is judged to have finished writing it. Nothing is read or hashed before it settles.
+_Avoid_: Stable, debounced
+
+**Sweep**:
+A stat-only pass over files comparing size and modification time to what the app recorded, catching up what the watcher could not see — at vault open, after a watcher failure, and over the PDF folder when the window regains focus. Reads no content. Never a timer.
+_Avoid_: Poll, rescan, full scan
+
+**Evicted** (of a PDF):
+Present in the folder but with its bytes not on disk — iCloud or Dropbox keeping it online-only. Unreadable-not-changed: never hashed, never ingested, until the Reader opens it and the read brings it down.
+_Avoid_: Missing (that is a file that is gone), placeholder, offline
+
+**Conflict copy**:
+A second PDF the sync service created because the Mac and the iPad both wrote the same file — recognised by a document fingerprint matching an existing Source. Never a Source of its own; a Loose end resolved as *use this copy* or *discard*.
+_Avoid_: Duplicate, new Source
 
 **Unmatched annotation**:
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.
@@ -121,6 +141,10 @@ A claim held at a time — a Working answer, a Hypothesis claim, an Experiment d
 
 **Revision**:
 One entry in a Position history: when it changed and what it changed from, in full. Recorded automatically; edits to the same Position within a short window are one Revision. May carry a *why*.
+
+**Pending Revision**:
+A Revision the watcher raised for a Position edited outside the app, held in App state with the previous text until the file has been quiet long enough to splice it in — so the app never writes under the user's cursor in Obsidian, and never loses what the text changed from.
+_Avoid_: Draft revision, external edit (that is the cause, not the record)
 
 **Why**:
 An optional short note on a Revision saying what prompted the change, optionally linked to the Source, Annotation, or Experiment responsible. Revisions with a why lead the history view; the rest collapse into a trail of dates.

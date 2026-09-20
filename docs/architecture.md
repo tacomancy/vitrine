@@ -13,7 +13,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Tests:** Vitest, for `core` and `renderer` alike. `pnpm test` at the root runs three projects from `vitest.config.ts` — `core` (node), `renderer` (jsdom, Testing Library, a fake tRPC link), `tooling` (the lint rules) — and the `test` job in `.github/workflows/ci.yml` runs lint, typecheck, and that suite as the second required check beside `guidance`. The core is exercised in-process with `app.request(...)`, no socket. The end-to-end runner is chosen by the first slice that has a window to drive; until then `VITRINE_SNAPSHOT=<png>` makes the shell render its window hidden, capture it, and quit, so a change can be seen without a window appearing.
   - **RPC:** tRPC; the router type in `core` is the contract, imported type-only by `renderer`. Pushes the brief needs (ingest landed, Scout finished, Unmatched annotation surfaced) are tRPC subscriptions over SSE, so no WebSocket server. Server state in the renderer goes through tRPC's TanStack Query integration; UI state is React local state; no global store until a second surface needs one.
   - **HTTP server:** Hono, hosting the tRPC adapter, the renderer bundle for the iPad, and PDF bytes for the Reader. Handlers are testable with a `Request` and no socket. The core binds `127.0.0.1` on an OS-assigned port and mints a session token at start; `/trpc/*` requires it as a bearer header and answers 401 before any router code otherwise. The bundle at `/` is served without the token — a navigation cannot carry a header, and the bundle is public code, not vault data. The core sets the bundle's CSP (`default-src 'self'; img-src 'self' data:`) as a response header rather than a meta tag, so the same `index.html` works under the Vite dev server. CORS on `/trpc` is open because the token, not the origin, is the auth.
-  - **Shell ↔ core ↔ renderer:** the shell reads port and token from the core's `ready` message over the `utilityProcess` channel and answers the preload's single synchronous IPC (`vitrine:session`) with them; the token never travels in `argv` or a URL. The preload exposes exactly `window.vitrine = { port, token }`. The same channel carries the Host (`CONTEXT.md`): the core sends `pickFolder` with an id, the shell shows `dialog.showOpenDialog` restricted to directories and replies `pickedFolder` with the path or null. `File ▸ Open Vault…` calls `vault.pick` on the core as one more HTTP client; since the renderer has no push channel yet, a vault opened from the menu is shown by reloading the window — a vault switch discards every piece of window state regardless. Pushes to the renderer (ingest landed, Scout finished, a vault switched) are the SSE subscriptions above, whose auth over `EventSource` is still to be decided.
+  - **Shell ↔ core ↔ renderer:** the shell reads port and token from the core's `ready` message over the `utilityProcess` channel and answers the preload's single synchronous IPC (`vitrine:session`) with them; the token never travels in `argv` or a URL. The preload exposes exactly `window.vitrine = { port, token }`. The same channel carries the Host (`CONTEXT.md`): the core sends `pickFolder` with an id, the shell shows `dialog.showOpenDialog` restricted to directories and replies `pickedFolder` with the path or null. `File ▸ Open Vault…` calls `vault.pick` on the core as one more HTTP client; since the renderer has no push channel yet, a vault opened from the menu is shown by reloading the window — a vault switch discards every piece of window state regardless. Pushes to the renderer (ingest landed, Scout finished, a vault switched) are one SSE subscription, `events.subscribe`, authenticated with the same bearer header the queries carry — ADR 0009, § Watcher and Ingest.
   - **Styling:** plain CSS with CSS Modules per component, importing `docs/reference/branding/tokens.css` unchanged. Not Tailwind: BRAND.md law 1 (semantic tokens, never ramp steps) is a lint rule on `--color-<ramp>-*` outside `tokens.css` — `tooling/eslint-plugin-brand`, on CSS ASTs via `@eslint/css` and on string literals in TS/TSX for inline styles, with its own RuleTester suite. `tokens.css` names no serif family; the renderer defines `--font-serif` in `global.css`.
   - **Fonts:** bundled via `@fontsource` — Inter, IBM Plex Mono, Josefin Sans for the wordmark, and Source Serif 4 for questions and quotations, the role the prototypes drew and ADR 0004 asked this decision to settle. Nothing loads from Google Fonts in the app.
   - **Lint and format:** ESLint (typescript-eslint, type-aware) and Prettier, as the vendored `setup-pre-commit` expects — `pnpm lint`, `pnpm format`, `.prettierrc` per that skill; Prettier covers code only, prose and the frozen tier are ignored. dependency-cruiser via `setup-ts-deep-modules` now that the packages exist.
@@ -31,6 +31,11 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Frontmatter:** `yaml` (eemeli), `parseDocument` → `set` → `toString`. Known renormalisations: 4-space indent to 2, `[a, b]` to `[ a, b ]`. The fence is `---` at byte 0 (after a BOM if any), closed by `---`; a file whose frontmatter does not parse is *unreadable* for Kind purposes and the app never writes to it.
   - **Package rule** (dependency-cruiser, once `setup-ts-deep-modules` runs): `core` and `renderer` may import `packages/markdown`; it imports neither, and no Node built-in. It builds with `tsc` like the core, because the core imports it at runtime from `dist`, and joins `vitest.config.ts` as a fourth project.
   - **Writes:** § Markdown below — the seven operations, the re-apply, the verify step, and the file-level rules (temp file and rename; EOL, BOM, and trailing newline preserved; new files UTF-8, LF, one trailing newline).
+- One recursive `fs.watch` over the vault root (libuv's FSEvents backend, no native module) plus one over the PDF folder's real path; every event is stat-and-compared, then hashed; a file is acted on once it has settled, and everything that settles together is one Ingest run; what the watcher missed, a stat-only sweep catches up — ADR 0009. The detail that ADR leaves to this file:
+  - **Watcher:** `fs.watch(root, { recursive: true })` and, when `realpath(sources/pdf)` resolves outside the root, a second on that path with events rebased onto `sources/pdf/…`. No other symlink is followed. Entries beginning with `.` are dropped at the event level. Owned by the vault service: created by `open`, closed by the next `open` or exit; on `error` (including overflow) it is closed, reopened, and a full sweep runs. On open the order is *watch, then sweep*.
+  - **Numbers,** all code: settle window 2 s (no events, and two stats agreeing on size and mtime); run window 5 s after the last file settles; the external-edit splice window is ADR 0006's 30 minutes.
+  - **Hash:** SHA-256 via `node:crypto`, hex. Never computed for a file whose `blocks === 0 && size > 0` (evicted).
+  - **Push:** tRPC `httpSubscriptionLink` with a `fetch`-backed `EventSource` implementation that sends the bearer header; fallback a plain Hono SSE route read through `fetch`. One stream, a discriminated union — § Watcher and Ingest.
 
 ## Vault layout
 
@@ -57,7 +62,7 @@ The shape ADR 0006 decided, in enough detail to write against. Conventions that 
 
 **Source / Source stub** — `sources/<citekey>.md`, `kind: source | source-stub`. Frontmatter: `citekey` (`<surname><year>`, ASCII-folded, lowercase, `a`/`b`… on collision; first word of the title when authors are missing), `title`, `authors`, `year`, `venue`, `doi`, `url`, `keywords` (author-supplied; feeds the Lexicon), `pdf` (file name under `sources/pdf/`; absent on a stub), `origin_scout` (Scout id), `origin_question`, `origin_retroactive`, `appearances` (every URL Corroboration merged). Body: the user's notes, then an app-owned `## Annotations` section rewritten whole on every Ingest — one block per Annotation in page order, `- p.<n> · "<quote>" ^h<n>` with the note text on the next line; ids are `h` + a per-Source counter, never reused. Unmatched blocks stay, marked `(unmatched)` until resolved; *drop the links* marks the block `(gone)` and leaves it forever rather than editing the user's notes. A Removed annotation's block (ADR 0007: unlinked, and gone from the file) is deleted; its number is never reused. Ink and shape annotations have no block.
 
-**Position history**, in every kind that has one — newest first, each entry `- <timestamp> · <field>` with optional `why:` and `from:` holding the full previous text. Edits to one field within 30 minutes coalesce; a why or a criterion edit after Evidence exists closes the entry early, and the latter is written as `· edited after evidence` permanently. Edits made in Obsidian are detected by the watcher and recorded the same way. Pressure valve if a page's history ever dominates it: entries older than a threshold move to `.vitrine/history/<id>.md` with a one-line pointer.
+**Position history**, in every kind that has one — newest first, each entry `- <timestamp> · <field>` with optional `why:` and `from:` holding the full previous text. Edits to one field within 30 minutes coalesce; a why or a criterion edit after Evidence exists closes the entry early, and the latter is written as `· edited after evidence` permanently. Edits made in Obsidian are detected by the watcher and recorded the same way, spliced once the file has been quiet (§ Watcher and Ingest). Pressure valve if a page's history ever dominates it: entries older than a threshold move to `.vitrine/history/<id>.md` with a one-line pointer.
 
 **`.vitrine/`**
 ```
@@ -67,7 +72,8 @@ scouts/<id>.yaml            id, name, source {kind, api | url}, filter {question
 annotations/<source-id>.json  the annotation identity index — § Annotation identity
 lexicon.json                per-Tag keyword weights from accept history; manual seeds
 dismissals.json             mark-deliberate and declined inferred links, keyed by id, or by path for Notes
-queue.sqlite                Proposals, Scout runs and health, triage events — NOT re-derivable
+queue.sqlite                app events that are NOT re-derivable: Proposals, Scout runs and health, triage events,
+                            Ingest runs, conflict copies, pending Revisions from external edits
 index.sqlite                vault index and full-text search — always safe to delete
 ```
 Window state, the session token, and the last vault opened (`last-vault.json`, `{ path }`, written only on a successful open) live in `~/Library/Application Support/Vitrine/`; the core owns that folder and tests pass a temp one at construction. Credentials in the Keychain.
@@ -81,6 +87,7 @@ The shape ADR 0007 decided. The sidecar stores **raw** values; every rule below 
 **`.vitrine/annotations/<source-id>.json`**
 ```
 pdf                       file name under sources/pdf/
+file                      { size, mtime, hash } of the PDF as last ingested or last written — § Watcher and Ingest
 document_fingerprint      { id: trailer /ID[0], pages, page_text_hashes[] } — a change is a document-changed event
 reading_position
 next_block                the per-Source ^h counter; never reused, not even after removal
@@ -92,6 +99,7 @@ annotations[]
   quads[]                 8 numbers each, PDF user space, as written (Preview's verbatim; Vitrine's snapped)
   quote                   engine-extracted text under the quads; for text/freetext the /Contents; empty on ink, shape, and image-only pages
   note                    /Contents on markup kinds
+  question                the Question this annotation spawned under the `Q:` convention, once; never a second
   color                   the PDF's /C verbatim
   previous_quote, changed_at   one level only, set by a geometry-tier match
   matched_by              object | text | text-moved | geometry — how the last Ingest found it
@@ -151,9 +159,41 @@ A write = `{ operations[], basedOn: <content hash> }`. Before writing: re-hash; 
 
 **Divergences from Obsidian, by design:** display casing (majority per segment, not first-created); ambiguous links resolve to nothing rather than to a best match; invalid tags are recorded rather than ignored.
 
+## Watcher and Ingest
+
+The shape ADR 0009 decided, in enough detail to write against.
+
+**Pipeline.** An event names a path; the event kind is ignored. The path is *stat*ted and compared to the recorded `{ size, mtime, hash }` — the sidecar's `file` for a PDF, the files table in `index.sqlite` for Markdown. Same size and mtime → nothing. Otherwise the file is hashed once it has *settled* — no events for the settle window, and two stats agreeing — and a hash equal to the last-ingested or last-written one records the new stat and stops: the app's own write, an iCloud re-download, a touch. A different hash is a change. Changes that settle within one run window form one batch; a batch is one Ingest run for its PDFs and one index update for its Markdown, and raises one `ingestLanded` event with the summary line. A file whose `blocks === 0 && size > 0` is *evicted*: unreadable-not-changed, never hashed; the Reader's read materialises it, and the events that follow no-op through the hash.
+
+**Sweeps.** A stat-only pass comparing every file to its record, feeding the same pipeline: the whole vault at open and after a watcher error or overflow; `sources/pdf/` only when the window regains focus. Never a timer.
+
+**Renames.** Within one batch, a vanished path and an appeared path with equal hashes are one rename — Notes and PDFs only; app-owned Kinds are keyed by `id:` and simply re-parse. A Note rename re-keys its dismissals; a PDF rename sets the Source's `pdf:` with `setFrontmatter`. Vanished alone → removed from the index (a PDF: the *missing* row below); appeared alone → new (a PDF: the *no Source* row below, or a *conflict copy*).
+
+**PDF folder rows,** each a Loose end with one-click resolutions:
+
+| Case | Group | Resolutions |
+| --- | --- | --- |
+| A new PDF whose document fingerprint matches an existing Source | Broken plumbing — *conflict copy* | *use this copy* (replaces the canonical file; the next Ingest re-matches every identity through the tiers) · *discard* (Trash) |
+| A PDF no `pdf:` names | Unfinished reading — *no Source* | *attach to a stub* · *create a Source* — until then neither ingested nor indexed |
+| A Source whose `pdf:` names a file that is gone | Broken plumbing — *PDF missing* | *locate* (fingerprint must match, else refused) · *detach* (clears `pdf:`; `## Annotations` and the sidecar stay frozen, every `[[citekey#^h<n>]]` keeps resolving) |
+
+**`Q:` on every Ingest.** Evaluated against each annotation's current note. Spawns a Question once — the sidecar's `question` field — never a second; a later edit to the note does not rewrite the Question; removing the prefix does nothing.
+
+**External Position edits.** When the index sees a Position's text change in a file the app did not write, a *pending Revision* — the previous text from the index before the change, the timestamp of the change — is recorded in `queue.sqlite` at once, and spliced into `## Position history` with `prependEntry` when the file has been quiet for 30 minutes, or on the app's next write to that file, or at vault close, whichever first.
+
+**Ingest runs** are rows in `queue.sqlite`: started, finished, the four counts, per-file outcome, the Unmatched identities raised. Loose Ends reads the sidecar, never a run.
+
+**Event stream** — `events.subscribe`, one per renderer, a discriminated union on `type`:
+
+```
+ingestLanded    { runId, summary: { new, questions, removed, unmatched }, sources[] }
+vaultChanged    { paths[] }        the renderer invalidates queries; it never patches state
+vaultSwitched   { vault }          today the window still reloads; a slice may stop that
+scoutFinished   { scoutId, runId } later
+```
+
 ## Open, in the order they block work
 
-1. How ingest is triggered (file watcher) and coalesced. Inherits from ADR 0006: recognise the app's own writes by content hash (the `## Annotations` rewrite must not echo as a change); treat an iCloud-evicted or Dropbox online-only PDF as unreadable-not-changed, with the Reader materialising on demand; FSEvents, not polling. Inherits from ADR 0007: a write landing while the iPad holds the file open, and whether a note edited to begin with `Q:` after the fact becomes a Question on that Ingest.
-2. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
+1. The Artifact size threshold (brief § Open questions). The only byte-size growth vector in the vault; wants a number after seeing real artifacts.
 
 Each goes through `grill-me` before its ADR is written.
