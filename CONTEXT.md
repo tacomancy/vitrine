@@ -14,6 +14,14 @@ _Avoid_: Library (v1's word), database, workspace (that is the app)
 Everything the app knows that is not vault content: the annotation identity index, Scouts and their runs, the Proposal queue, the Lexicon, dismissals. Travels with the vault but is not part of it; never synced, never a wikilink target.
 _Avoid_: Database, cache (some of it cannot be rebuilt), config
 
+**Index**:
+The app's disposable record of what the vault's Markdown contains — files, links, block ids, tags, Positions — kept current by the watcher and rebuilt from the files whenever it is missing or out of date. Every list a surface shows comes from it; no write is ever based on it.
+_Avoid_: Cache (it is one, but the word invites reading it as optional), database, search index (search is one thing it holds)
+
+**Current** (of the Index):
+The state in which the Index may be trusted to say a link does not exist: the open-time sweep has finished, the watcher is healthy, and every settled Markdown change has been applied. When not current, an unlinked Annotation is Unmatched rather than Removed.
+_Avoid_: Fresh, up to date, synced
+
 **Kind**:
 Which sort of thing a vault file is — Note, Source, Source stub, Question, Research Question, Hypothesis, or Experiment. Declared in the file itself, never inferred from the folder it sits in.
 _Avoid_: Type (taken by the type system), category

@@ -47,6 +47,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Numbers,** all code: settle window 2 s (no events, and two stats agreeing on size and mtime); run window 5 s after the last file settles; the external-edit splice window is ADR 0006's 30 minutes.
   - **Hash:** SHA-256 via `node:crypto`, hex. Never computed for a file whose `blocks === 0 && size > 0` (evicted).
   - **Push:** tRPC `httpSubscriptionLink` with a `fetch`-backed `EventSource` implementation that sends the bearer header; fallback a plain Hono SSE route read through `fetch`. One stream, a discriminated union — § Watcher and Ingest.
+- `index.sqlite` is the read path for every surface — lists, counts, backlinks, resolution — through Node's built-in `node:sqlite`; it lands with the watcher's Markdown consumer (beat 1b), holds the whole outline except body text, is refreshed per watcher batch in one transaction, and is dropped and rebuilt in the background on any schema mismatch — ADR 0014. The detail that ADR leaves to this file is § Index below.
 
 ## Vault layout
 
@@ -85,7 +86,7 @@ lexicon.json                per-Tag keyword weights from accept history; manual 
 dismissals.json             mark-deliberate and declined inferred links, keyed by id, or by path for Notes
 queue.sqlite                app events that are NOT re-derivable: Proposals, Scout runs and health, triage events,
                             Ingest runs, conflict copies, pending Revisions from external edits
-index.sqlite                vault index and full-text search — always safe to delete
+index.sqlite                vault index and, from the Vault surface on, full-text search — always safe to delete; § Index
 ```
 Window state, the session token, and the last vault opened (`last-vault.json`, `{ path }`, written only on a successful open) live in `~/Library/Application Support/Vitrine/`; the core owns that folder and tests pass a temp one at construction. Credentials in the Keychain.
 
@@ -145,7 +146,7 @@ annotations[]
    | same highlight extended to the next line | 0.438 | 0.524 |
    | same highlight extended to three more lines | 0.206 | 0.273 |
 
-5. **Unmatched** if the identity has inbound links (a backlink to `[[citekey#^h<n>]]` in `index.sqlite`, or a Question whose `annotation:` names it); **removed** otherwise. Because `index.sqlite` is disposable (ADR 0006), *removed* is concluded only against an index known to be current for this vault — Ingest refreshes it before this tier runs — and an identity whose links cannot be established is Unmatched, never removed. The cheap failure is a decision; the expensive one is silent link rot (`design-brief.md` § Annotation storage).
+5. **Unmatched** if the identity has inbound links (a backlink to `[[citekey#^h<n>]]` in `index.sqlite`, or a Question whose `annotation:` names it); **removed** otherwise. Because `index.sqlite` is disposable (ADR 0006), *removed* is concluded only against an index known to be current for this vault (`current()`, § Index) — Ingest refreshes it before this tier runs — and an identity whose links cannot be established is Unmatched, never removed. The cheap failure is a decision; the expensive one is silent link rot (`design-brief.md` § Annotation storage).
 
 At any of tiers 2–4, several candidates are broken by quad overlap — the highest wins, comparing quads across pages as if on one page at tier 3 — and an unbroken tie is Unmatched. Each candidate can be claimed once; two identities claiming one candidate are both Unmatched, linked or not: ambiguity is a decision, so this is the one way an unlinked identity reaches the panel. The contested candidate is held with them — it is not counted as new — so resolving the row can relink it. Tombstones (`gone_at`) take no part in matching. Annotations left unclaimed are **new**: a fresh id and block, and a Question if the note begins `Q:`. A changed `document_fingerprint` runs the same tiers document-wide and groups every resulting Unmatched row under one event with batch resolutions.
 
@@ -217,6 +218,35 @@ vaultChanged    { paths[] }        the renderer invalidates queries; it never pa
 vaultSwitched   { vault }          today the window still reloads; a slice may stop that
 scoutFinished   { scoutId, runId } later
 ```
+
+## Index
+
+The shape ADR 0014 decided, in enough detail to write against.
+
+**Engine:** `node:sqlite` (`DatabaseSync`), verified on the Electron the shell pins (44 → Node 24.21) with FTS5 compiled in; no dependency, no native module. WAL journal mode. `PRAGMA user_version` holds the schema number, a constant in the index module and independent of `vault.json`'s `schema`; a mismatch, a failed open, or a corruption error deletes `index.sqlite*` and rebuilds. On vault open the app writes `.vitrine/.gitignore` containing `index.sqlite*` if that file is absent.
+
+**Tables,** one per outline concept, every row keyed by `path` (vault-relative). Keys named; the first index ticket settles the rest of the columns.
+
+```
+files       path, size, mtime, hash, kind, id, indexed_at        the watcher's Markdown stat record (ADR 0013 d.4)
+fields      path, key, value                                     the frontmatter keys the app reads per Kind
+headings    path, level, text, start, end                        section ranges, for owned-section checks and #Heading resolution
+blocks      path, id, start, end                                 every ^id, app-written or not
+links       path, target, heading, block, alias, embed, start,   resolution ∈ resolved | ambiguous | unresolved, resolved_path;
+            resolution, resolved_path                            a derived column, recomputed by query (below)
+tags        path, canonical, written, source, start              source ∈ frontmatter | inline; invalid entries as `invalid`
+fields_inline path, block, key, value                            outcome:: / relationship:: under a ### … ^c<n>
+positions   path, field, text, hash                              filled by the Kind's positionsOf(outline, content), not the outline
+```
+Not stored: body text, section bodies. Nothing from a sidecar or a PDF: the Source note's `## Annotations` blocks are outlined like any other block id, so `[[citekey#^h12]]` resolves through `blocks` and `links`.
+
+**Refresh.** One transaction per watcher batch: for each changed path, re-outline, `DELETE … WHERE path = ?` across every table, re-insert; a vanished path deletes its rows. Then recompute `links.resolution` for every link whose target basename or path the batch created, renamed, or removed — a query over `files`, not a re-outline of the linking files. `vaultChanged { paths }` is raised after the commit, by the code that committed it; `ingestLanded` likewise after the `## Annotations` rewrite's rows are in. At open: watch, then sweep (ADR 0013 d.3) — the sweep compares stats to `files` and re-outlines only the differing paths; a missing or mismatched database is a full rebuild through the same path. Indexing never blocks the window: the app opens at once and surfaces show a quiet "indexing…" line in the Inbox's footer channel until it finishes.
+
+**Reads.** Every list a surface shows is a query here — Inbox rows, `vault.tags`, backlinks, Loose Ends counts, Coverage. A file's body is read from disk to display or edit it. **A write is never based on the index:** § Markdown's protocol re-reads and re-hashes the file for `basedOn`.
+
+**`current()`.** True when the open-time sweep has completed, the watcher has no unrecovered error or overflow, and every Markdown batch that settled before the caller's Ingest run started has been applied; otherwise false with the reason. Ingest flushes pending Markdown batches, then asks; a file still inside its settle window is not waited for. Tier 5 (§ Annotation identity) concludes *removed* only when this is true.
+
+**Full-text search** joins with the Vault surface as an FTS5 virtual table over body text — additive, no existing table changes. The index is where search lives; no separate search library.
 
 ## Open, in the order they block work
 
