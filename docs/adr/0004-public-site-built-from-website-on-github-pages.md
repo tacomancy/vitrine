@@ -1,6 +1,6 @@
 # 0004: The public site is built from `website/` and deployed to GitHub Pages
 
-**Status:** Accepted
+**Status:** Superseded by 0012 — the site moved to `tacomancy/tacomancy`, where this decision continues as its ADR 0001
 
 The repository's GitHub Pages is already bound to the apex `tacomancy.com` (workflow build type, HTTPS enforced), and the tree wipe that started the reimagining removed the v1 site and its deploy workflow, so the domain has been serving v1's last deployment since. The site is rebuilt from scratch in `website/` — static files, no generator, no framework — and `Scripts/build-site.sh` assembles it into `build/site` together with the pieces it borrows from the frozen tier: the brand tokens and marks from `docs/reference/branding/`, copied as they are, and the pinned prototypes from `docs/reference/prototypes/`, rewritten into the brand by `Scripts/rebrand-prototypes.py`. The exports use Claude Design's own palette and type; the site shows them in Vitrine's, with their interactivity intact, and the rewrite is a total mapping that fails the build on any colour it doesn't know. `.github/workflows/pages.yml` runs that script and deploys the result on every push to `main` that touches the site or its inputs. Nothing from v1's `site/` is carried over.
 
