@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "./fake-core";
+import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
-
-const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
 
 // Only the clock is faked; timers stay real so Testing Library's waits work.
 beforeEach(() => {
@@ -13,13 +11,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-function pressCaptureChord() {
-  fireEvent.keyDown(window, { key: "'", metaKey: true });
-}
-
 describe("the capture line", () => {
   it("is absent until ⌘' opens it, then holds the focused input with the chip already resolved", async () => {
-    renderApp({ "vault.current": vault });
+    renderApp({ "vault.current": vault, "questions.list": empty });
     await screen.findByRole("banner");
     expect(screen.queryByRole("textbox", { name: "Question" })).toBeNull();
 
@@ -38,7 +32,11 @@ describe("the capture line", () => {
 describe("closing", () => {
   it("esc discards with no call and puts focus back where it was", async () => {
     const capture = vi.fn();
-    renderApp({ "vault.current": vault, "questions.capture": capture });
+    renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "questions.capture": capture,
+    });
     const link = await screen.findByRole("link", { name: "Question Inbox" });
     link.focus();
 
@@ -54,7 +52,11 @@ describe("closing", () => {
 
   it("↵ on an empty or whitespace-only line does nothing", async () => {
     const capture = vi.fn();
-    renderApp({ "vault.current": vault, "questions.capture": capture });
+    renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "questions.capture": capture,
+    });
     await screen.findByRole("banner");
 
     pressCaptureChord();
@@ -67,7 +69,7 @@ describe("closing", () => {
     expect(screen.getByRole("textbox", { name: "Question" })).toBeDefined();
   });
 
-  it("↵ with text captures Unattached, closes the line, and returns focus", async () => {
+  it("↵ with text captures Unattached, closes the line, and hands focus to the Inbox list", async () => {
     const capture = vi.fn((input: unknown) => ({
       id: "k7m2p9q4wx",
       path: "/v/consolidation-vault/questions/Does this hold for sparse inputs.md",
@@ -76,7 +78,11 @@ describe("closing", () => {
       captured: "2026-09-19T07:04:00+05:30",
       context: "other",
     }));
-    renderApp({ "vault.current": vault, "questions.capture": capture });
+    renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "questions.capture": capture,
+    });
     const link = await screen.findByRole("link", { name: "Question Inbox" });
     link.focus();
 
@@ -94,7 +100,11 @@ describe("closing", () => {
       text: "Does this hold for sparse inputs?",
       provenance: { context: "other" },
     });
-    expect(document.activeElement).toBe(link);
+    // Not back to the sidebar link: the selection moved to the new row, so
+    // the keyboard goes where j/k act on it (the join, #107).
+    expect(document.activeElement).toBe(
+      screen.getByRole("listbox", { name: "Questions" })
+    );
   });
 });
 
@@ -102,6 +112,7 @@ describe("a write that fails", () => {
   it("keeps the line open with the text and says why, under the input", async () => {
     renderApp({
       "vault.current": vault,
+      "questions.list": empty,
       "questions.capture": () => {
         throw new Error(
           "Couldn't write the Question into /v/consolidation-vault/questions: EACCES: permission denied"
@@ -131,6 +142,7 @@ describe("a write that fails", () => {
   it("is forgotten once the line is discarded: the next open starts clean", async () => {
     renderApp({
       "vault.current": vault,
+      "questions.list": empty,
       "questions.capture": () => {
         throw new Error("EACCES: permission denied");
       },
@@ -156,7 +168,7 @@ describe("a write that fails", () => {
 
 describe("the chip", () => {
   it("re-resolves the time each time the line opens", async () => {
-    renderApp({ "vault.current": vault });
+    renderApp({ "vault.current": vault, "questions.list": empty });
     await screen.findByRole("banner");
 
     pressCaptureChord();
@@ -175,7 +187,7 @@ describe("the chip", () => {
   });
 
   it("⌘' while the line is open keeps what was typed and refocuses the input", async () => {
-    renderApp({ "vault.current": vault });
+    renderApp({ "vault.current": vault, "questions.list": empty });
     await screen.findByRole("banner");
 
     pressCaptureChord();

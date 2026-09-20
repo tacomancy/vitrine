@@ -91,11 +91,27 @@ The Provenance of a Question captured with no document open: `context: other` an
 _Avoid_: No provenance (it has one), orphan (a Loose Ends word), untagged
 
 **Status** (of a Question):
-One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state.
+One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state. Every status is shown as a glyph and a label (`◆` open, `■` promoted, `●` answered, `×` dropped — the label follows the triage verb); only open carries colour, and that colour is the accent. A file with no `status:` is open: it was never triaged (ADR 0009).
 _Avoid_: Overdue, stale (in code — "stale" is only a Scout health term)
+
+**Unattached**:
+The Provenance of a Question captured with no document open — `context: other` and no `from`. Time and place are still a Provenance, so the Inbox shows the word rather than a blank.
+_Avoid_: No provenance, unknown, none
+
+**Partial**:
+A file whose frontmatter says `kind: question` but lacks `question` or `captured`, so it cannot be shown as a row. Listed anyway, by file name and modification time, marked as such — visible rather than dropped. Not a Status, and not counted as a Question (ADR 0009).
+_Avoid_: Invalid, broken (that is Unreadable), malformed
+
+**Unreadable**:
+A file the app could not read, whose frontmatter does not parse, or whose `captured` or `status` holds a value the vocabulary cannot read. Counted in a quiet footer line on the Inbox that opens to each path and reason; never dropped silently (ADR 0009).
+_Avoid_: Error, corrupt, skipped
 
 **Capture**:
 Making a Question in two keystrokes from anywhere, with Provenance attached without typing.
+
+**Landing** (of a Question):
+The moment a capture becomes a row: the Inbox re-reads the vault, the new Question is the selection, and the keyboard is on the list so `j`/`k` act on it. Happens when the Inbox is on screen; from another surface the capture is written and focus returns to where it was (ADR 0010).
+_Avoid_: Refresh, sync, notification
 
 **Triage** (of a Question):
 Acting on a Question from the Inbox: promote to Research Question, promote to Hypothesis, link, answer, or drop.

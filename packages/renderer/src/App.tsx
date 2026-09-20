@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Question } from "core";
+import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
 import { FirstRun } from "./FirstRun";
@@ -9,7 +11,17 @@ import { useTRPC } from "./trpc";
 
 export function App() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const vault = useQuery(trpc.vault.current.queryOptions());
+  // The last Question the capture line wrote. The Inbox re-reads the vault
+  // and makes it the selection, so the user sees it land (brief § Question
+  // Inbox: "everything captured recently, newest first").
+  const [landed, setLanded] = useState<Question | null>(null);
+
+  const onCaptured = (question: Question) => {
+    void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+    setLanded(question);
+  };
 
   // Nothing is drawn until the core has answered: a First run that flashes
   // before a remembered vault appears would say something untrue.
@@ -38,9 +50,9 @@ export function App() {
       <TitleBar title={vault.data.name} />
       <div className={styles.panes}>
         <Sidebar />
-        <Inbox />
+        <Inbox landed={landed} />
       </div>
-      <CaptureLine />
+      <CaptureLine onCaptured={onCaptured} />
     </div>
   );
 }

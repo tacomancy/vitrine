@@ -19,9 +19,9 @@ export default tseslint.config(
     ],
   },
 
-  // Plain JS: the lint tooling and this config.
+  // Plain JS: the lint tooling, this config, and the scripts.
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,mjs}"],
     ...js.configs.recommended,
     languageOptions: { globals: globals.node },
   },
@@ -62,7 +62,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.{js,ts,tsx}"],
+    files: ["**/*.{js,mjs,ts,tsx}"],
     plugins: { brand },
     rules: { "brand/no-ramp-tokens-in-strings": "error" },
   },

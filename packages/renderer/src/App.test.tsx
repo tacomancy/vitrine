@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { renderApp } from "./fake-core";
+import { renderApp, vault } from "./fake-core";
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);
@@ -66,8 +66,6 @@ describe("First run", () => {
 });
 
 describe("the window with a vault open", () => {
-  const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-
   it("names the vault in the title bar", async () => {
     renderApp({ "vault.current": vault });
     expect((await screen.findByRole("banner")).textContent).toBe(
@@ -98,12 +96,15 @@ describe("the window with a vault open", () => {
     expect(nav.textContent).not.toContain("THREADS");
   });
 
-  it("shows the Inbox header counting zero questions and nothing else", async () => {
-    renderApp({ "vault.current": vault });
+  it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": { questions: [], partial: [], unreadable: [] },
+    });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(inbox.textContent).toContain("0 questions");
-    expect(
-      inbox.querySelectorAll("li, table, button, [role=listbox]")
-    ).toHaveLength(0);
+    expect(inbox.textContent).not.toContain("since");
+    expect(inbox.querySelectorAll("li")).toHaveLength(0);
+    expect(screen.getByRole("complementary").textContent).toBe("");
   });
 });
