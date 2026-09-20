@@ -93,7 +93,7 @@ queue.sqlite                app events that are NOT re-derivable: Proposals, Sco
                             Ingest runs, conflict copies, pending Revisions from external edits
 index.sqlite                vault index and, from the Vault surface on, full-text search — always safe to delete; § Index
 ```
-Window state, the session token, and the last vault opened (`last-vault.json`, `{ path }`, written only on a successful open) live in `~/Library/Application Support/Vitrine/`; the core owns that folder and tests pass a temp one at construction. Credentials in the Keychain.
+Window state, the session token, and the last vault opened (`last-vault.json`, `{ path }`, written only on a successful open) live in `~/Library/Application Support/Vitrine/`; the core owns that folder and tests pass a temp one at construction. Credentials in the login Keychain, one item per provider — § BYOK and watched sources.
 
 **Write discipline.** Every write the app makes is one of the seven operations in § Markdown, spliced into the file so that no byte outside the operation's target changes; the Vault editor's whole-file save is the one exception, and it is the user's own typing. It never adds frontmatter to a Note.
 
@@ -294,7 +294,7 @@ The shape ADR 0016 decided, in enough detail to write against. Numbers are code,
 ```
 scout_runs    id, scout_id, started, finished, outcome (ok | failed), error_kind (network | http | rate_limited | parse),
               error_message, window_from, window_to, retroactive, fetched, new, truncated
-proposals     id, arxiv_id (unique), doi, title, authors (JSON), published, venue, abstract, url,
+proposals     id, source_key (unique; ADR 0017), doi, title, authors (JSON), published, venue, abstract, url,
               lane (review | skim), state (pending | deferred | accepted | rejected), first_seen, stub_path
 appearances   proposal_id, run_id, scout_id, seen_at, url
 triage        proposal_id, action (accept | reject | defer | promote), at
@@ -307,6 +307,30 @@ Health per Scout is a query: last `ok` run, last run with `new > 0`, and the new
 **Accept.** `createFile` of `sources/<citekey>.md` per § Vault layout — `citekey` minted from `authors`/`published` by the existing rule, `kind: source-stub`, `title`, `authors`, `year`, `doi` and `url` when present, `origin_scout`, `origin_question` (every Assigned Question), `origin_retroactive`, `appearances` (every Appearance's url); body: the abstract as `> ` quoted lines, written once. The row records `stub_path`; a stub whose file is later gone is a Loose end, not a re-accept.
 
 **Loose Ends rows this beat adds** — *Broken plumbing*: a Scout whose newest run failed (error kind shown; *run now* · *pause* · *open*). *Unfinished reading*: `kind: source-stub` with no `pdf:`, oldest first, resolving through ADR 0013's *attach to a stub*. **Owed to Home (beat 12):** Review depth (pending Review rows), broken Scouts.
+
+## BYOK and watched sources
+
+The shape ADR 0017 decided, in enough detail to write against. Numbers are starting points.
+
+**Seams.** `ModelProvider` in the core, one implementation (`anthropic`, via `@anthropic-ai/sdk`); `CredentialStore { get(provider), set(provider, key), delete(provider) }`, the real one over `@napi-rs/keyring` (`AsyncEntry`, service `Vitrine`, account = provider id) constructed once in `start.ts`, an in-memory one in tests. The key is fetched from the store at each run, never held between runs. The `.node` binary ships unpacked with the core (`asar: false`, § Packaging).
+
+**Model.** Default `claude-opus-5`, `output_config: { effort: "low" }`, model id an editable string stored with the provider's settings in `~/Library/Application Support/Vitrine/providers.json` (never the key). Structured output via `output_config.format`; no prefill, no `fallbacks`; SDK default retries (2). Price table, as of 2026-06-24, USD per MTok — `claude-opus-5` 5 / 25, `claude-sonnet-5` 2 / 10, `claude-haiku-4-5` 1 / 5; cache reads at 0.1× input. An unknown model id records tokens and `cost_usd = null`.
+
+**RPC.** `credentials.status(provider) → present | absent`, `credentials.set(provider, key)`, `credentials.delete(provider)`, `credentials.test(provider)` (one minimal call; returns ok or the error kind). No `credentials.get`. The Credentials panel opens from the app menu and from the Scout form's *Add a key*.
+
+**Fetch.** One URL per Scout, one fetch per run. `User-Agent: Vitrine/<version> (+https://tacomancy.com/vitrine)`; `robots.txt` Disallow → `http` failure, message *disallowed by robots.txt*; timeout **30 s**; response cap **2 MB**; no retries within a run. Feed autodiscovery on every fetch (`<link rel="alternate">` with an RSS or Atom type); a feed's entries map to the card directly — `title`, `author[]`, `published`/`updated` → date, `summary`/`content` → abstract, `link` → url — and the model is not called.
+
+**Reduce.** HTML → text with links (scripts, styles, `nav`/`header`/`footer` stripped, links kept as `[text](href)`), capped at **40K** input tokens (`count_tokens` before the call); a capped run records `truncated`. The run stores `page_hash` (SHA-256 of the reduced text) and `page_length`. `page_hash` equal to the last `ok` run's → `ok, new = 0`, no model call.
+
+**Extract.** System prompt: the card fields, *copy, never compose — every value must appear on the page; null when it does not; no summaries*. Schema: `{ items: [{ title, authors: string[] | null, date, venue, keywords: string[] | null, abstract, url }] }`, every scalar `string | null`. **Verify:** an item is kept only if its `title` and `url` both occur literally in the reduced text; dropped items count as `unverified` on the run. Item url → `source_key`: `arxiv:<id>` when the url is an arXiv abs/pdf link (version stripped), else `doi:<doi>` when a DOI is present, else `url:<normalised>` (scheme+host lowercased, fragment dropped, trailing slash and tracking query keys removed).
+
+**Outcomes.** `ok` when ≥ **50 %** of returned items verify and (items > 0 or the page did not change). `extraction` when < 50 % verify, or when zero items return while ≥ 50 % of the last `ok` run's verified titles still occur in the text (message *listing missed*), or when zero items return and they do not (message *structure change*). `credentials` when the store has no key or the provider answers 401 (message *no key* / *key rejected*). `model` on a provider error after retries, a `refusal` stop (category in the message), or a schema violation. `rate_limited` on 429 after retries. A Scout with a Watched source and no key does not run: health shows *blocked on credentials*, a state apart from *broken*.
+
+**First run.** No date window; "new" is an unseen `source_key`. The first run's Proposals carry `origin_retroactive`; the form hides *also search back to* for a Watched source.
+
+**`scout_runs` gains** `model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, unverified`; `error_kind` gains `credentials | model | extraction`.
+
+**Loose Ends rows this beat adds** — *Broken plumbing*: *blocked on credentials* (→ *open Credentials*); *structure change detected* — an `extraction` run on a Scout with a prior `ok` run that found items (→ *open the page* · *run now* · *pause*). The failed-Scout row shows the new kinds. **Owed to Home:** *blocked on credentials* joins the broken-Scouts count.
 
 ## Open, in the order they block work
 
