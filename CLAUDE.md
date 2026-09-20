@@ -87,3 +87,7 @@ Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### Running the app
+
+Hidden launch, driven over CDP, captured to a PNG — never a visible window. See `docs/agents/run.md`.
