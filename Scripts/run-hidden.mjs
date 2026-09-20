@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Launch the built app with no window ever shown, drive the page over the
 // Chrome DevTools Protocol, capture a PNG, quit. The way an agent sees a
-// change working without a window landing on the owner's screen; see
+// change working without a window landing on the user's screen; see
 // docs/agents/run.md.
 //
 //   node Scripts/run-hidden.mjs --snapshot out.png [--vault <folder>]
@@ -20,17 +20,26 @@
 // type(text); wait(js) → polls until truthy; sleep(ms). ⌘ is modifiers 4.
 //
 // Needs `pnpm --filter core build && pnpm --filter shell build` first: the
-// shell spawns core/dist/main.js, so a stale dist is stale behaviour.
+// shell spawns core/dist/main.js, so a stale dist is stale behaviour. Runs
+// under the system Node (22+, for fetch and WebSocket), on macOS only: the
+// Electron binary is the .app the shell package installs.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+// Every flag takes a value, so argv pairs up.
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) {
-  args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1]);
+  const flag = process.argv[i];
+  const value = process.argv[i + 1];
+  if (!flag.startsWith("--") || value === undefined) {
+    console.error(`run-hidden: expected --flag value, got ${flag}`);
+    process.exit(2);
+  }
+  args.set(flag.slice(2), value);
 }
 const snapshot = args.get("snapshot");
 if (!snapshot) {
@@ -39,13 +48,13 @@ if (!snapshot) {
 }
 const port = Number(args.get("port") ?? 9333);
 const after = Number(args.get("after") ?? 4000);
-const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repo = resolvePath(dirname(fileURLToPath(import.meta.url)), "..");
 const support =
   args.get("support") ?? (await mkdtemp(join(tmpdir(), "vitrine-support-")));
 if (args.has("vault")) {
   await writeFile(
     join(support, "last-vault.json"),
-    JSON.stringify({ path: resolve(args.get("vault")) })
+    JSON.stringify({ path: resolvePath(args.get("vault")) })
   );
 }
 
@@ -60,7 +69,7 @@ const child = spawn(
     env: {
       ...process.env,
       VITRINE_APP_SUPPORT_DIR: support,
-      VITRINE_SNAPSHOT: resolve(snapshot),
+      VITRINE_SNAPSHOT: resolvePath(snapshot),
       VITRINE_SNAPSHOT_AFTER: String(after),
     },
     stdio: ["ignore", "inherit", "inherit"],
@@ -97,9 +106,10 @@ function connect(url) {
   ws.addEventListener("message", (event) => {
     const msg = JSON.parse(event.data);
     if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
+      const reply = pending.get(msg.id);
       pending.delete(msg.id);
-      msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
+      if (msg.error) reply.reject(new Error(msg.error.message));
+      else reply.resolve(msg.result);
     }
   });
   const send = (method, params = {}) =>
@@ -155,7 +165,9 @@ const page = {
 try {
   await page.wait("document.querySelector('#root')?.children.length > 0");
   if (args.has("drive")) {
-    const mod = await import(pathToFileURL(resolve(args.get("drive"))).href);
+    const mod = await import(
+      pathToFileURL(resolvePath(args.get("drive"))).href
+    );
     await mod.default(page);
   }
 } catch (error) {

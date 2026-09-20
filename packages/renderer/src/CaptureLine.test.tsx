@@ -1,12 +1,8 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "./fake-core";
+import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
-
-const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-// The Inbox is on screen beneath the capture line; it asks for the list.
-const empty = { questions: [], partial: [], unreadable: [] };
 
 // Only the clock is faked; timers stay real so Testing Library's waits work.
 beforeEach(() => {
@@ -14,10 +10,6 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 8, 19, 7, 4, 0));
 });
 afterEach(() => vi.useRealTimers());
-
-function pressCaptureChord() {
-  fireEvent.keyDown(window, { key: "'", metaKey: true });
-}
 
 describe("the capture line", () => {
   it("is absent until ⌘' opens it, then holds the focused input with the chip already resolved", async () => {

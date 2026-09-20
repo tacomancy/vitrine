@@ -1,6 +1,12 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "./fake-core";
+import {
+  pressCaptureChord,
+  question as q,
+  renderApp,
+  rows,
+  vault,
+} from "./fake-core";
 
 // The join: a capture lands in the Inbox. The list is re-read, the new row is
 // the selection, and the keyboard is on the list so j/k act on it at once.
@@ -8,17 +14,6 @@ import { renderApp } from "./fake-core";
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-});
-
-const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-
-const q = (question: string, captured: string) => ({
-  id: question.slice(0, 10),
-  path: `/v/consolidation-vault/questions/${question}.md`,
-  question,
-  status: "open",
-  captured,
-  context: "other",
 });
 
 const older = q("Is theta during REM detectable?", "2026-07-19T12:00:00Z");
@@ -54,17 +49,12 @@ function renderVault(initial: ReturnType<typeof q>[]) {
   return { list, capture };
 }
 
-async function rows() {
-  const list = await screen.findByRole("listbox", { name: "Questions" });
-  return within(list).findAllByRole("option");
-}
-
 async function captureFromSidebar(text: string) {
   // Focus starts off the list, so the test sees focus move there rather
   // than merely stay.
   const link = await screen.findByRole("link", { name: "Question Inbox" });
   link.focus();
-  fireEvent.keyDown(window, { key: "'", metaKey: true });
+  pressCaptureChord();
   const input = screen.getByRole("textbox", { name: "Question" });
   fireEvent.change(input, { target: { value: text } });
   fireEvent.keyDown(input, { key: "Enter" });

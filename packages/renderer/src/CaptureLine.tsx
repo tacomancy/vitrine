@@ -13,10 +13,11 @@ import { useTRPC } from "./trpc";
 
 /**
  * The two-keystroke capture: ⌘' opens one line at the bottom of the window
- * with the Provenance already resolved, ↵ writes the Question and returns
- * focus to where it was, esc discards. Mounted once, window-wide. What
- * happens to a Question once written is the window's business, not the
- * line's: it reports the landing and closes.
+ * with the Provenance already resolved, ↵ writes the Question, esc discards.
+ * Closing puts focus back where it was; the surface the Question lands in
+ * may then take it (ADR 0010). Mounted once, window-wide. What happens to a
+ * Question once written is the window's business, not the line's: it
+ * reports the landing and closes.
  */
 export function CaptureLine({
   onCaptured,
