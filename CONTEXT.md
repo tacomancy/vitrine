@@ -22,8 +22,20 @@ _Avoid_: Type (taken by the type system), category
 An ordinary Markdown file with links, tags, and backlinks. Obsidian behaviour is the tiebreaker for anything unspecified.
 
 **Tag**:
-A slash-separated topic label parsed into a tree (`ml/interpretability/probing`). A parent's coverage is the union of its children's.
+A slash-separated topic label parsed into a tree (`ml/interpretability/probing`), the same tag whatever its casing. A parent's coverage is the union of its children's.
 _Avoid_: Topic (a tag *is* the topic axis; "topic cluster" is a Scout Queue grouping, not a tag)
+
+**Owned section**:
+A `##` section of a vault file that the app rewrites whole — `## Annotations`, `## Position history` — as opposed to the user's prose, which it never touches.
+_Avoid_: Managed section, generated section
+
+**Shape problem**:
+An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`.
+_Avoid_: Corrupt, malformed, invalid file
+
+**Ambiguous link**:
+A bare wikilink whose name matches more than one file. Resolves to nothing and surfaces as a Loose end rather than picking one.
+_Avoid_: Broken link (that is an unresolved one), conflict
 
 ### Sources and reading
 
@@ -73,6 +85,10 @@ _Avoid_: Idea, task, todo, item
 **Provenance**:
 What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
+
+**Unattached**:
+The Provenance of a Question captured with no document open: `context: other` and no `from`. Time and place are still a Provenance, so the capture is never blocked on a choice; what it belongs to can be linked later.
+_Avoid_: No provenance (it has one), orphan (a Loose Ends word), untagged
 
 **Status** (of a Question):
 One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state.

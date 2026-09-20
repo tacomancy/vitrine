@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import styles from "./App.module.css";
+import { CaptureLine } from "./CaptureLine";
 import { FirstRun } from "./FirstRun";
 import { Inbox } from "./Inbox";
 import { Sidebar } from "./Sidebar";
@@ -39,6 +40,7 @@ export function App() {
         <Sidebar />
         <Inbox />
       </div>
+      <CaptureLine />
     </div>
   );
 }
