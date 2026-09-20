@@ -28,8 +28,15 @@
   function pin() { pinned = location.hash ? document.getElementById(location.hash.slice(1)) : null; }
   pin();
   window.addEventListener("hashchange", pin);
-  ["wheel", "touchstart", "keydown"].forEach((type) =>
+  // Any sign the reader has taken over. Events inside a prototype don't reach
+  // this window, but focus moving into one blurs it, so blur covers a click
+  // or tap on a tab.
+  ["wheel", "touchstart", "keydown", "blur"].forEach((type) =>
     window.addEventListener(type, () => { pinned = null; }, { passive: true }));
+  // Only a frame above the target moves it; one below just lengthens the page.
+  function precedes(frame) {
+    return pinned !== null && (frame.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  }
 
   function follow(frame, iframe) {
     // Same origin, so the document is readable. Height follows the content
@@ -38,7 +45,7 @@
     if (!doc || !doc.documentElement) return;
     const measure = () => {
       frame.style.setProperty("--design-height", String(doc.documentElement.scrollHeight));
-      if (pinned) pinned.scrollIntoView();
+      if (precedes(frame)) pinned.scrollIntoView();
     };
     measure();
     if ("ResizeObserver" in window) new ResizeObserver(measure).observe(doc.documentElement);

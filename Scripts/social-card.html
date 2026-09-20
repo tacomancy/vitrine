@@ -23,48 +23,48 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding: 0 96px;
+        padding: 0 var(--space-9);
         box-sizing: border-box;
       }
       .lockup {
         display: flex;
         align-items: center;
-        gap: 28px;
-        margin-bottom: 56px;
+        gap: var(--space-5);
+        margin-bottom: var(--space-7);
       }
       .wordmark {
         font-family: var(--font-display);
         font-weight: 300;
-        font-size: 56px;
+        font-size: var(--text-5xl);
         letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--color-accent);
         transform: translateY(5px);
       }
       h1 {
-        margin: 0 0 28px;
+        margin: 0 0 var(--space-5);
         font-family: var(--font-display);
         font-weight: 300;
-        font-size: 68px;
-        line-height: 1.06;
-        letter-spacing: -0.022em;
+        font-size: var(--text-6xl);
+        line-height: var(--leading-tight);
+        letter-spacing: var(--tracking-display);
         color: var(--color-fg);
-        max-width: 780px;
+        max-width: 720px;
       }
       p {
         margin: 0;
-        font-size: 28px;
-        line-height: 1.5;
+        font-size: var(--text-2xl);
+        line-height: var(--leading-normal);
         color: var(--color-fg-secondary);
         max-width: 900px;
       }
       .eyebrow {
         position: absolute;
-        right: 96px;
-        bottom: 56px;
+        right: var(--space-9);
+        bottom: var(--space-7);
         font-family: var(--font-mono);
-        font-size: 20px;
-        letter-spacing: 0.14em;
+        font-size: var(--text-lg);
+        letter-spacing: var(--tracking-caps);
         text-transform: uppercase;
         color: var(--color-fg-muted);
       }
@@ -74,8 +74,8 @@
     <div class="lockup">
       <img
         src="../docs/reference/branding/assets/mark-case.svg"
-        width="76"
-        height="76"
+        width="64"
+        height="64"
         alt=""
       /><span class="wordmark">Vitrine</span>
     </div>

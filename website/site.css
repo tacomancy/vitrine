@@ -140,7 +140,7 @@ h1 {
 .button:active { background: var(--color-primary-active); }
 
 /* Landing body: one column of sections under the hero, separated by space
-   rather than rules. The two-up lists are floating surfaces with gutters. */
+   rather than rules. A pair is two floating surfaces with a gutter. */
 .section { padding-block: var(--space-7); }
 
 .section h2 {
@@ -159,28 +159,28 @@ h1 {
   color: var(--color-fg-secondary);
 }
 
-.paths {
+.pair {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
   gap: var(--space-4);
   margin: var(--space-5) 0 0;
 }
 
-.paths > div {
+.pair > div {
   padding: var(--space-5);
   border-radius: var(--radius-lg);
   background: var(--color-bg-surface);
   box-shadow: var(--shadow-1);
 }
 
-.paths dt {
+.pair dt {
   margin: 0 0 var(--space-2);
   font-weight: 500;
   color: var(--color-fg);
 }
 
 /* The object a path lands on, set as data: a label beside the sentence. */
-.paths .object {
+.pair .object {
   display: block;
   margin-top: var(--space-1);
   font-family: var(--font-mono);
@@ -191,13 +191,14 @@ h1 {
   color: var(--color-fg-muted);
 }
 
-.paths dd {
+.pair dd {
   margin: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   color: var(--color-fg-secondary);
 }
 
+/* list-style: none loses list semantics in WebKit; the markup says role="list". */
 .promises {
   margin: var(--space-5) 0 0;
   padding: 0;
@@ -259,7 +260,7 @@ h1 {
 
 .dashboard-list dt { margin: 0; }
 .dashboard-list dd {
-  margin: 0 0 var(--space-3) calc(3ch);
+  margin: 0 0 var(--space-3) 3ch;
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-normal);
