@@ -17,6 +17,7 @@
 (function () {
   const DESIGN_WIDTH = 1528;
   const MIN_SCALE = 0.5;
+  const wide = window.matchMedia("(min-width: 48rem)");
   const frames = Array.from(document.querySelectorAll(".frame"));
 
   function fit(frame) {
@@ -29,7 +30,8 @@
   // above it have loaded, and each one that loads grows past its placeholder
   // height and pushes the target down, by screens. So the linked section is
   // held in view as frames settle, until the reader scrolls on their own.
-  // Tabbed, nothing sits above the shown section, so the pin never fires.
+  // Tabbed, the shown section has nothing above it and select() places it,
+  // so the pin is stacked-only.
   let pinned = null;
   function pin() { pinned = location.hash ? document.getElementById(location.hash.slice(1)) : null; }
   pin();
@@ -41,7 +43,8 @@
     window.addEventListener(type, () => { pinned = null; }, { passive: true }));
   // Only a frame above the target moves it; one below just lengthens the page.
   function precedes(frame) {
-    return pinned !== null && (frame.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    if (wide.matches || pinned === null) return false;
+    return (frame.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
   }
 
   function follow(frame, iframe) {
@@ -50,6 +53,7 @@
     const doc = iframe.contentDocument;
     if (!doc || !doc.documentElement) return;
     const measure = () => {
+      if (frame.clientWidth === 0) return; // hidden: a zero would show as a flash on re-show
       frame.style.setProperty("--design-height", String(doc.documentElement.scrollHeight));
       if (precedes(frame)) pinned.scrollIntoView();
     };
@@ -80,8 +84,8 @@
 
   // --- The tabbed viewer.
 
-  const wide = window.matchMedia("(min-width: 48rem)");
   const strip = document.querySelector(".toc");
+  const items = Array.from(strip.querySelectorAll("li"));
   const tabs = Array.from(strip.querySelectorAll("a[href^='#']"));
   const sections = tabs.map((tab) => document.getElementById(tab.hash.slice(1)));
 
@@ -108,6 +112,8 @@
   function apply({ arriving }) {
     document.body.classList.toggle("tabbed", wide.matches);
     strip.querySelector("ol").setAttribute("role", wide.matches ? "tablist" : "list");
+    // A tablist owns its tabs directly; the list items step aside.
+    items.forEach((item) => wide.matches ? item.setAttribute("role", "presentation") : item.removeAttribute("role"));
     tabs.forEach((tab, i) => {
       const section = sections[i];
       if (wide.matches) {
@@ -122,7 +128,7 @@
       }
     });
     if (wide.matches) {
-      document.body.style.setProperty("--strip-height", strip.offsetHeight + "px");
+      measureStrip();
       // Arriving by link, the browser jumped before the other sections were
       // hidden, so the target is somewhere else now.
       select(indexOfHash(), { scroll: arriving && location.hash !== "" });
@@ -132,20 +138,26 @@
     }
   }
 
+  // Measured before the first scroll under it, and again whenever it rewraps:
+  // on resize, and when the web font lands.
+  function measureStrip() {
+    document.body.style.setProperty("--strip-height", strip.offsetHeight + "px");
+  }
   apply({ arriving: true });
   wide.addEventListener("change", () => apply({ arriving: false }));
-  window.addEventListener("resize", () => {
-    if (wide.matches) document.body.style.setProperty("--strip-height", strip.offsetHeight + "px");
-  });
+  if ("ResizeObserver" in window) new ResizeObserver(measureStrip).observe(strip);
 
-  // A tab click is a view change, not a navigation: the hash is replaced so
+  // A tab choice is a view change, not a navigation: the hash is replaced so
   // the link stays shareable, without a history entry per tab.
+  function choose(i) {
+    history.replaceState(null, "", tabs[i].hash);
+    select(i, { scroll: true });
+  }
   tabs.forEach((tab, i) => {
     tab.addEventListener("click", (event) => {
       if (!wide.matches) return;
       event.preventDefault();
-      history.replaceState(null, "", tab.hash);
-      select(i, { scroll: true });
+      choose(i);
     });
   });
   strip.addEventListener("keydown", (event) => {
@@ -157,8 +169,7 @@
     if (next === undefined) return;
     event.preventDefault();
     const i = (next + tabs.length) % tabs.length;
-    history.replaceState(null, "", tabs[i].hash);
-    select(i, { scroll: true });
+    choose(i);
     tabs[i].focus();
   });
   // Back, forward, or a typed hash.

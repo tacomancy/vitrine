@@ -54,7 +54,9 @@ body.tabbed .toc {
   background: var(--color-bg);
 }
 
-/* BRAND.md law 3: brass is the active nav item. */
+/* BRAND.md law 3: brass is the active nav item. Law 2 would make an active
+   tab sapphire, but these tabs are the page's contents, not a control in a
+   product surface, so they read as nav. */
 body.tabbed .toc a[aria-selected="true"] { color: var(--color-accent); }
 
 body.tabbed .proto { scroll-margin-top: var(--strip-height, 0px); }
