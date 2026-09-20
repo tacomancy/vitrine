@@ -41,6 +41,10 @@ _Avoid_: Managed section, generated section
 An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`.
 _Avoid_: Corrupt, malformed, invalid file
 
+**Changed on disk**:
+The state of a file open in the Vault editor with unsaved typing whose bytes on disk no longer match what the editor was given — an Obsidian edit, a sync, the app's own splice. Shown as a line, never a dialog; resolved as *keep mine* or *take the disk copy*, and until then nothing is written. A clean editor simply reloads.
+_Avoid_: Conflict, merge, stale (a Scout health word)
+
 **Ambiguous link**:
 A bare wikilink whose name matches more than one file. Resolves to nothing and surfaces as a Loose end rather than picking one.
 _Avoid_: Broken link (that is an unresolved one), conflict

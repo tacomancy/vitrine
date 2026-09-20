@@ -48,6 +48,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Hash:** SHA-256 via `node:crypto`, hex. Never computed for a file whose `blocks === 0 && size > 0` (evicted).
   - **Push:** tRPC `httpSubscriptionLink` with a `fetch`-backed `EventSource` implementation that sends the bearer header; fallback a plain Hono SSE route read through `fetch`. One stream, a discriminated union — § Watcher and Ingest.
 - `index.sqlite` is the read path for every surface — lists, counts, backlinks, resolution — through Node's built-in `node:sqlite`; it lands with the watcher's Markdown consumer (beat 1b), holds the whole outline except body text, is refreshed per watcher batch in one transaction, and is dropped and rebuilt in the background on any schema mismatch — ADR 0014. The detail that ADR leaves to this file is § Index below.
+- The Vault editor is CodeMirror 6 behind a hand-rolled React wrapper; it opens any Markdown file in the vault, its whole-file save records Position Revisions itself and never refuses on shape, and a file changed on disk under a dirty editor is a non-modal line with *keep mine* / *take the disk copy* — ADR 0015. The detail that ADR leaves to this file is § Vault surface below.
 
 ## Vault layout
 
@@ -247,6 +248,32 @@ Not stored: body text, section bodies. Nothing from a sidecar or a PDF: the Sour
 **`current()`.** True when the open-time sweep has completed, the watcher has no unrecovered error or overflow, and every Markdown batch that settled before the caller's Ingest run started has been applied; otherwise false with the reason. Ingest flushes pending Markdown batches, then asks; a file still inside its settle window is not waited for. Tier 5 (§ Annotation identity) concludes *removed* only when this is true.
 
 **Full-text search** joins with the Vault surface as an FTS5 virtual table over body text — additive, no existing table changes. The index is where search lives; no separate search library.
+
+## Vault surface
+
+The shape ADR 0015 decided, in enough detail to write against. Everything here is cheap to change; the ADR holds what is not.
+
+**Editor.** `@codemirror/state`, `@codemirror/view`, `@codemirror/language`, `@codemirror/lang-markdown` (`@lezer/markdown` underneath). One React component owns one `EditorView`: created in an effect, destroyed on unmount, the file's text pushed in with a single whole-document `dispatch` only when the *file* changes, a `dirty` flag kept from `updateListener`'s `docChanged`, and `state.sliceDoc()` read at save time. React never re-renders per keystroke. `@uiw/react-codemirror` is not a dependency.
+
+**Two parsers, one grammar.** The editor's structure comes from `@lezer/markdown` (CommonMark + GFM, incremental: 0.75 ms per keystroke at 200 KB, measured in #133) extended with four `InlineParser`s — tag, wikilink, block id, `key:: value` — whose recognition and canonicalisation are calls into `packages/markdown`'s exported grammar functions; the Lezer parser supplies the context (not inside a code span or link destination) that ADR 0008 decision 4 bought micromark for. The micromark outline stays the truth for everything the core does. The fixture corpus (#112) gains a parity check: both parsers find the same tags and links at the same offsets on every fixture. Outline-driven decorations (re-run the locator on every `docChanged`, 200 ms at 200 KB, not incremental) are the fallback if the parsers drift and cannot be kept in step.
+
+**Offsets and EOL.** CM6 counts every line break as one position regardless of separator; a CRLF file's outline offsets computed on the raw string do not equal editor positions. Decorations are computed on `state.doc.toString()` (LF-joined), never on the file bytes. The file's EOL (the read already knows it) is set as `EditorState.lineSeparator` so the save round-trips it; BOM and trailing newline are stripped before the editor and re-added by the write (§ Markdown, file-level rules). A CRLF fixture is a required test.
+
+**Live preview, inline only.** Off the cursor's line: `**`, `_`, backticks, `[[`/`]]` and the alias pipe, `#` heading marks, and `^blockid` are hidden (`Decoration.replace`, `atomicRanges` so a hidden `[[` cannot be half-deleted); wikilinks and tags render as links, click follows them. All of it is a `ViewPlugin` over `visibleRanges`. Frontmatter, embeds, tables, and callouts are shown as text — Obsidian's source mode — and each block widget (a Properties block first) is its own later slice, added one at a time, in a `StateField` mapped through `tr.changes`.
+
+**Theme.** A `HighlightStyle` mapping Lezer tags to classes, styled from a CSS Module scoped to the editor root with semantic tokens only; the brand lint rule covers it. Prose in the body face, code spans in IBM Plex Mono, questions and quotations in Source Serif 4 as the prototype draws them.
+
+**Save.** Autosave on a short idle (Obsidian's ~2 s), and on blur, file switch, and window close; `⌘S` saves now. Every save is `replaceFile(content, basedOn)`, `basedOn` the hash of the text last read from or written to disk; the watcher no-ops on the app's own hash (§ Watcher and Ingest). The handler diffs Positions (`positionsOf`, § Index) between that text and the new content and records Revisions at once with `prependEntry`, coalescing within ADR 0006's 30 minutes; it never verifies shape (ADR 0015 decision 4).
+
+**Changed on disk.** `vaultChanged` naming the open path while the editor is dirty, or a hash-mismatch refusal from `replaceFile`, shows the line inside the editor pane with the file's mtime relative: *keep mine* re-reads the hash and saves; *take the disk copy* replaces the document and clears `dirty`. Autosave is suspended while the line shows. A clean editor reloads silently on `vaultChanged`, preserving scroll and cursor where the text allows.
+
+**Panes.** Three, inside the surface slot the Sidebar already frames: a left pane tabbed *files* / *tags* (search joins when full-text search does), the editor, and a right pane for backlinks. The Vault surface accepts a vault-relative path to open, so a `[[link]]` on any other surface lands here.
+
+- *Files*: the vault tree with a Kind glyph per file (◆ question · ● source · ○ stub, the Inbox's family), Source rows showing their annotation count, `.vitrine/` hidden. Read-only in the first slice — no rename, move, delete, or new folder; *new note* is one command writing to `notes/`. Stub and Source rows expose the Reader beat's *attach a PDF* and *open in reader* commands.
+- *Tags*: the tree from `vault.tags`, inclusive count (with children) and exclusive count (this level only) per node; clicking a node lists its files. No rename, no drag: tag hierarchy management is out of scope by the brief (`#### Tags as topics`), whatever the prototype's caption says.
+- *Backlinks*: linked backlinks only, from `index.sqlite`'s `links` table, each with the linking file's Kind glyph, a context snippet read from that file's body, and its Kind · field · date line. When the open file is a Source, rows group by the `^h<n>` block they target — the annotation-level backlinks Prompt 7 asks for — with file-level links listed beneath. *Unlinked mentions* wait for full-text search.
+
+**First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: full-text search (FTS5 in `index.sqlite`, ADR 0014 decision 12) with the *search* tab and unlinked mentions; block widgets starting with a Properties block; folder operations; the graph view (fog on map #131).
 
 ## Open, in the order they block work
 
