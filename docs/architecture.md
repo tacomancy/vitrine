@@ -48,6 +48,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Hash:** SHA-256 via `node:crypto`, hex. Never computed for a file whose `blocks === 0 && size > 0` (evicted).
   - **Push:** tRPC `httpSubscriptionLink` with a `fetch`-backed `EventSource` implementation that sends the bearer header; fallback a plain Hono SSE route read through `fetch`. One stream, a discriminated union — § Watcher and Ingest.
 - `index.sqlite` is the read path for every surface — lists, counts, backlinks, resolution — through Node's built-in `node:sqlite`; it lands with the watcher's Markdown consumer (beat 1b), holds the whole outline except body text, is refreshed per watcher batch in one transaction, and is dropped and rebuilt in the background on any schema mismatch — ADR 0014. The detail that ADR leaves to this file is § Index below.
+- The first Scout beat is arXiv; a Scout's Filter is a hand-written Query plus the Questions it is Assigned to (no score behind "assigned"); Scouts run when due while the app is open; the Queue ships its two Lanes, the stack, keyboard triage, group-by-Scout, reject-this-run, and hand promotion, with everything that needs accept history or a second source on a named Wait list; health is derived from run rows — ADR 0016. The detail that ADR leaves to this file is § Scouts below.
 - The Vault editor is CodeMirror 6 behind a hand-rolled React wrapper; it opens any Markdown file in the vault, its whole-file save records Position Revisions itself and never refuses on shape, and a file changed on disk under a dirty editor is a non-modal line with *keep mine* / *take the disk copy* — ADR 0015. The detail that ADR leaves to this file is § Vault surface below.
 
 ## Vault layout
@@ -80,8 +81,9 @@ The shape ADR 0006 decided, in enough detail to write against. Conventions that 
 **`.vitrine/`**
 ```
 vault.json                  { id, schema, created } — one schema number for this whole layout
-scouts/<id>.yaml            id, name, source {kind, api | url}, filter {questions: [ids], tags, query},
-                            cadence, cap, lane, paused, created. Runtime never lives here.
+scouts/<id>.yaml            id, name, source {kind, api | url}, filter {query, tags}, assigned: [question ids],
+                            cadence, cap, lane, paused, created. Runtime never lives here. Read as found (ADR 0009's
+                            rule): a file that does not parse is listed by name as unreadable, never skipped.
 annotations/<source-id>.json  the annotation identity index — § Annotation identity
 lexicon.json                per-Tag keyword weights from accept history; manual seeds
 dismissals.json             mark-deliberate and declined inferred links, keyed by id, or by path for Notes
@@ -217,7 +219,7 @@ The shape ADR 0013 decided, in enough detail to write against.
 ingestLanded    { runId, summary: { new, questions, removed, unmatched }, sources[] }
 vaultChanged    { paths[] }        the renderer invalidates queries; it never patches state
 vaultSwitched   { vault }          today the window still reloads; a slice may stop that
-scoutFinished   { scoutId, runId } later
+scoutFinished   { scoutId, runId }   every run, failed or not; the run row carries the outcome
 ```
 
 ## Index
@@ -274,6 +276,35 @@ The shape ADR 0015 decided, in enough detail to write against. Everything here i
 - *Backlinks*: linked backlinks only, from `index.sqlite`'s `links` table, each with the linking file's Kind glyph, a context snippet read from that file's body, and its Kind · field · date line. When the open file is a Source, rows group by the `^h<n>` block they target — the annotation-level backlinks Prompt 7 asks for — with file-level links listed beneath. *Unlinked mentions* wait for full-text search.
 
 **First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: full-text search (FTS5 in `index.sqlite`, ADR 0014 decision 12) with the *search* tab and unlinked mentions; block widgets starting with a Properties block; folder operations; the graph view (fog on map #131).
+
+## Scouts
+
+The shape ADR 0016 decided, in enough detail to write against. Numbers are code, recorded here as starting points.
+
+**arXiv client.** `http://export.arxiv.org/api/query`, one client shared by every Scout: requests are serialised on one connection with a **3 s** gap (the ToU), paged at `max_results=100`, sorted `submittedDate` ascending so a ceiling cuts the newest, not the oldest. A run's query is the Scout's Query wrapped as `(<query>) AND submittedDate:[<from> TO <to>]`, `from` = the previous run's `window_to` (creation time for the first run; the backstop for a Retroactive search), `to` = now, both GMT. **Ceiling: 500** items per run; a run that hits it records `truncated` and the Queue shows *stopped at 500 — N more matched* from `opensearch:totalResults`. A malformed query comes back as an Atom feed with one error entry; that is a `parse` failure, not an empty run. Atom fields → Proposal: `title`, `author/name[]`, `published` (first submission — the only date arXiv has), `arxiv:journal_ref` → venue when present, `summary` → abstract, `link rel=alternate` → url, `arxiv:doi` → doi, `id` → `arxiv_id` with the trailing `v<n>` stripped. Keywords: never; the card shows the field as missing.
+
+**Scheduler.** At vault open and every **hour** while open, every unpaused Scout whose `now − last completed run ≥ cadence` (daily | weekly | monthly) is queued on the client in creation order. *Run now* queues one regardless. A run that fails does not advance `window_to`; the next attempt re-covers the same window, and identity by `arxiv_id` makes the overlap harmless.
+
+**Form.** Name, Query, cadence, Assigned Questions (a picker over open Questions), starting Lane, and *also search back to* (default backstop **90 days**, per Scout on creation). *Try* sends the Query once with no date window and shows `totalResults` and the first five titles; it writes nothing.
+
+**`queue.sqlite`,** the Scout tables — additive to the Ingest-run and pending-Revision tables ADR 0013 put there:
+
+```
+scout_runs    id, scout_id, started, finished, outcome (ok | failed), error_kind (network | http | rate_limited | parse),
+              error_message, window_from, window_to, retroactive, fetched, new, truncated
+proposals     id, arxiv_id (unique), doi, title, authors (JSON), published, venue, abstract, url,
+              lane (review | skim), state (pending | deferred | accepted | rejected), first_seen, stub_path
+appearances   proposal_id, run_id, scout_id, seen_at, url
+triage        proposal_id, action (accept | reject | defer | promote), at
+```
+
+Health per Scout is a query: last `ok` run, last run with `new > 0`, and the newest run's `outcome`/`error_kind`; *broken* = newest run `failed`. Accept rate (beat 9) is `accept` over `accept + reject` in `triage`, Review-lane rows only, bucketed by `at`.
+
+**Queue reads.** Review: `state = pending`, grouped by Scout, newest `first_seen` first, one card in hand and the rest listed. Deferred rows return to `pending` when a run for that Scout finishes `ok`. Skim: `lane = skim`, lines older than **30 days** behind a *show older* line, nothing deleted. A Proposal with several Appearances shows each Scout on the card.
+
+**Accept.** `createFile` of `sources/<citekey>.md` per § Vault layout — `citekey` minted from `authors`/`published` by the existing rule, `kind: source-stub`, `title`, `authors`, `year`, `doi` and `url` when present, `origin_scout`, `origin_question` (every Assigned Question), `origin_retroactive`, `appearances` (every Appearance's url); body: the abstract as `> ` quoted lines, written once. The row records `stub_path`; a stub whose file is later gone is a Loose end, not a re-accept.
+
+**Loose Ends rows this beat adds** — *Broken plumbing*: a Scout whose newest run failed (error kind shown; *run now* · *pause* · *open*). *Unfinished reading*: `kind: source-stub` with no `pdf:`, oldest first, resolving through ADR 0013's *attach to a stub*. **Owed to Home (beat 12):** Review depth (pending Review rows), broken Scouts.
 
 ## Open, in the order they block work
 
