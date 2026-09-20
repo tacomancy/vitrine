@@ -1,0 +1,12 @@
+.glyph,
+.open {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+/* Amber means an open Question and nothing else is coloured. */
+.open {
+  color: var(--color-accent);
+}

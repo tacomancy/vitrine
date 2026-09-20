@@ -1,4 +1,4 @@
-# 0009: One FSEvents watcher over the vault; Ingest fires on settled, hashed change and is batched into runs
+# 0013: One FSEvents watcher over the vault; Ingest fires on settled, hashed change and is batched into runs
 
 **Status:** Accepted
 

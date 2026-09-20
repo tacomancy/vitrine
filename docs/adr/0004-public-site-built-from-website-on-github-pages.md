@@ -1,6 +1,6 @@
 # 0004: The public site is built from `website/` and deployed to GitHub Pages
 
-**Status:** Accepted
+**Status:** Superseded by 0012 — the site moved to `tacomancy/tacomancy`, where this decision continues as its ADR 0001
 
 The repository's GitHub Pages is already bound to the apex `tacomancy.com` (workflow build type, HTTPS enforced), and the tree wipe that started the reimagining removed the v1 site and its deploy workflow, so the domain has been serving v1's last deployment since. The site is rebuilt from scratch in `website/` — static files, no generator, no framework — and `Scripts/build-site.sh` assembles it into `build/site` together with the pieces it borrows from the frozen tier: the brand tokens and marks from `docs/reference/branding/`, copied as they are, and the pinned prototypes from `docs/reference/prototypes/`, rewritten into the brand by `Scripts/rebrand-prototypes.py`. The exports use Claude Design's own palette and type; the site shows them in Vitrine's, with their interactivity intact, and the rewrite is a total mapping that fails the build on any colour it doesn't know. `.github/workflows/pages.yml` runs that script and deploys the result on every push to `main` that touches the site or its inputs. Nothing from v1's `site/` is carried over.
 
@@ -19,4 +19,5 @@ The repository's GitHub Pages is already bound to the apex `tacomancy.com` (work
 - **−** The exports set questions and quotations in Source Serif 4, a role `BRAND.md` doesn't have. The site keeps it: the serif marks what a person wondered against what the machine reports, a distinction the prototypes drew on purpose and the app is expected to keep. This is the one place the site goes past the branding package; if the app adopts a serif, its choice and weights belong in `docs/architecture.md`.
 - **−** Fonts load from Google Fonts on the site. Whether the app bundles its fonts is decided with the stack (`docs/architecture.md` § Open, item 1), not here.
 - **−** The Pages deploy is not a merge gate; a broken site build is noticed after merge, from the Actions run, not before.
+- **−** One render is committed after all: `website/social.png`, the Open Graph image, which carries the mark and wordmark. It is not a copy of frozen material but a page rendered from it, and the Pages build has no browser to render it with. `Scripts/render-social-card.sh` regenerates it from `Scripts/social-card.html`, which draws on the tokens and mark in place; a brand change re-runs it by hand (#115).
 - The site's content beyond the landing page is not decided by this ADR.

@@ -47,6 +47,6 @@ ADR 0007 settled what the sidecar in decision 6 holds: quads and the engine-extr
 
 Decision 11's surgical writes are now a closed set of seven operations (`docs/architecture.md` § Markdown), applied by locate-and-splice. One assumption in decision 2 is still to be confirmed by the fixture corpus: that Obsidian resolves `[[hypothesis#^c1]]` when `^c1` sits on the `###` heading line. If it does not, the id moves to the line below the heading and this ADR gets a further update.
 
-## Update (2026-09-19, ADR 0009)
+## Update (2026-09-19, ADR 0013)
 
 The file watcher's three inherited requirements are settled: own writes are recognised by a per-file `{ size, mtime, hash }` record (in the sidecar for PDFs, in `index.sqlite` for Markdown), evicted PDFs are detected by `blocks === 0` and never read, and the mechanism is `fs.watch` on FSEvents with a stat-only sweep as the safety net. Decision 5's coalescing window now also governs when a Position edited in Obsidian is spliced into the file, from a pending Revision held in `queue.sqlite`; decision 10's charter for that database widens to "app events that are not re-derivable" — Ingest runs, conflict copies, pending Revisions join Proposals and Scout runs. Decision 11's re-keying of Note dismissals on rename is done by pairing content hashes within one watcher batch.

@@ -1,52 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createTRPCClient, TRPCClientError, type TRPCLink } from "@trpc/client";
-import { observable } from "@trpc/server/observable";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { AppRouter } from "core";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { App } from "./App";
-import { TRPCProvider } from "./trpc";
-
-/** A fixed value, or a function that computes (or throws) one per call. */
-type Answer = unknown;
+import { renderApp, vault } from "./fake-core";
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);
-
-// A link that answers every procedure from a table, so the renderer is tested
-// against the router's contract without a socket or the core itself. An
-// answer that throws reaches the component as the error the core would send.
-function fakeLink(answers: Record<string, Answer>): TRPCLink<AppRouter> {
-  return () =>
-    ({ op }) =>
-      observable((observer) => {
-        const answer = answers[op.path];
-        try {
-          const data =
-            typeof answer === "function" ? (answer as () => unknown)() : answer;
-          observer.next({ result: { type: "data", data } });
-          observer.complete();
-        } catch (error) {
-          observer.error(TRPCClientError.from(error as Error));
-        }
-      });
-}
-
-function renderApp(answers: Record<string, Answer>) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  const trpcClient = createTRPCClient<AppRouter>({
-    links: [fakeLink(answers)],
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <App />
-      </TRPCProvider>
-    </QueryClientProvider>
-  );
-}
 
 describe("First run", () => {
   it("is what a launch with no vault shows: the promise and one action", async () => {
@@ -109,8 +66,6 @@ describe("First run", () => {
 });
 
 describe("the window with a vault open", () => {
-  const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-
   it("names the vault in the title bar", async () => {
     renderApp({ "vault.current": vault });
     expect((await screen.findByRole("banner")).textContent).toBe(
@@ -141,12 +96,15 @@ describe("the window with a vault open", () => {
     expect(nav.textContent).not.toContain("THREADS");
   });
 
-  it("shows the Inbox header counting zero questions and nothing else", async () => {
-    renderApp({ "vault.current": vault });
+  it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": { questions: [], partial: [], unreadable: [] },
+    });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(inbox.textContent).toContain("0 questions");
-    expect(
-      inbox.querySelectorAll("li, table, button, [role=listbox]")
-    ).toHaveLength(0);
+    expect(inbox.textContent).not.toContain("since");
+    expect(inbox.querySelectorAll("li")).toHaveLength(0);
+    expect(screen.getByRole("complementary").textContent).toBe("");
   });
 });

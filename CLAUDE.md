@@ -70,6 +70,16 @@ Overrides `code-review`'s default smell baseline:
 - Tests are the interface contract between slices — an agent shouldn't need the other branch's context, just a suite that fails loudly if an assumption breaks.
 - Short-lived branches, one issue each. Merge gates are enforced by branch protection on `main` and the `guidance` job in `.github/workflows/ci.yml`, not just this file. Today that job checks the guidance itself (frozen tier untouched, skill references resolve, ADR numbering); the test suite joins it as a required check the moment the stack lands (`docs/architecture.md`).
 
+## The public site
+
+`tacomancy.com/vitrine/` is authored in `tacomancy/tacomancy`, not here (ADR 0012). Before merge, if the branch did any of the following, open an issue there — `gh issue create --repo tacomancy/tacomancy` — naming this PR and what the site should now say:
+
+- re-pinned or added a prototype in `docs/reference/prototypes/`, or changed `docs/reference/branding/` (the site carries a copy of both);
+- changed the status line in `README.md` — if that moved, the landing page's claims probably did too;
+- shipped a surface the landing page lists as designed-only.
+
+Never edit the site from this repository.
+
 ## Setup
 
 Run `/setup-matt-pocock-skills` once per repo. Domain-doc layout: `CONTEXT.md` + `docs/adr/`, as above. `Scripts/check-guidance.sh` is what CI runs; run it locally before pushing a `docs:` change.
@@ -87,3 +97,7 @@ Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### Running the app
+
+Hidden launch, driven over CDP, captured to a PNG — never a visible window. See `docs/agents/run.md`.
