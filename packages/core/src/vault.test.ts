@@ -1,89 +1,12 @@
-import { createHash } from "node:crypto";
-import {
-  chmod,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
+import { chmod, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
-import type { Host } from "./host.js";
+import { core, fakeHost, fingerprint, tmp } from "./test-core.js";
 
-const token = "test-token";
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
 
-/** A host whose chooser always answers the same way. */
-function fakeHost(picked: string | null): Host {
-  return { pickFolder: () => Promise.resolve(picked) };
-}
-
-async function tmp(prefix: string) {
-  return mkdtemp(join(tmpdir(), `vitrine-${prefix}-`));
-}
-
-async function core(opts: { host?: Host; appSupportDir?: string } = {}) {
-  const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
-  const app = createApp({
-    token,
-    host: opts.host ?? fakeHost(null),
-    appSupportDir,
-  });
-  const headers = {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
-  type Reply<T> = {
-    result?: { data: T };
-    error?: { message: string; data: { kind?: string } };
-  };
-  return {
-    appSupportDir,
-    query: async <T>(path: string) => {
-      const res = await app.request(`/trpc/${path}`, { headers });
-      return (await res.json()) as Reply<T>;
-    },
-    mutate: async <T>(path: string, input?: unknown) => {
-      const res = await app.request(`/trpc/${path}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(input ?? {}),
-      });
-      return (await res.json()) as Reply<T>;
-    },
-  };
-}
-
 type Vault = { name: string; path: string };
-
-/**
- * Every entry under a folder with a hash of each file's bytes, so a test can
- * assert that opening left the folder byte-for-byte as it found it.
- */
-async function fingerprint(root: string): Promise<string[]> {
-  const out: string[] = [];
-  async function walk(dir: string) {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      const rel = relative(root, full);
-      if (entry.isDirectory()) {
-        out.push(`${rel}/`);
-        await walk(full);
-      } else {
-        const hash = createHash("sha256")
-          .update(await readFile(full))
-          .digest("hex");
-        out.push(`${rel}:${hash}`);
-      }
-    }
-  }
-  await walk(root);
-  return out.sort();
-}
 
 describe("vault.current", () => {
   it("is null when nothing has been opened and nothing is remembered", async () => {
