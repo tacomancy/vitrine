@@ -221,11 +221,19 @@ A scheduled background agent watching one source on a cadence and producing Prop
 _Avoid_: Agent (too general), watcher, feed, brief (the design brief's metaphor; there is no text to brief a Scout with)
 
 **Filter** (of a Scout):
-What narrows a Scout's source: Tags, links to Questions, a Query, or nothing. Questions and Tags become search terms deterministically, through the Tag's Lexicon; no model call is involved.
+What narrows a Scout's source: a Query, Tags, or nothing. Tags become search terms deterministically, through the Tag's Lexicon, once one exists (#144); until then a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
 _Avoid_: Brief, prompt, topic
 
+**Assigned** (a Scout, to Questions):
+The open Questions a Scout is run on behalf of. Stamped on every Proposal's Origin and on the accepted stub; what the coverage-gap row counts a Question as covered by. Says nothing about how well a Proposal fits the Question — that is ranking, which is separate (ADR 0016).
+_Avoid_: Briefed on, matched (implies a score), linked (that is Related), watching (that is the source relation)
+
+**Due** (of a Scout):
+Its cadence has elapsed since its last completed run. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. *Run now* runs a Scout whether or not it is due.
+_Avoid_: Scheduled, overdue, late
+
 **Query**:
-A hand-written search string a Scout sends to a Structured source, as a Filter in its own right or beside Question links. The escape hatch for a Question whose Tags have no Lexicon yet.
+A hand-written search string, in the Structured source's own syntax, that a Scout sends as its Filter. The only Filter until the Lexicon exists; afterwards the escape hatch for a Question whose Tags have none.
 _Avoid_: Prompt, search
 
 **Watched source**:
@@ -239,10 +247,22 @@ A metadata card a Scout produced: title, authors, date, venue, keywords, abstrac
 _Avoid_: Candidate, suggestion, result, message, proposed Source
 
 **Origin** (of a Proposal):
-Which Scout found it and which Question it matched. Retroactive results are tagged as such.
+Which Scout found it, which Questions that Scout is Assigned to, and whether it came from a Retroactive search. Carried onto the Source stub on acceptance.
+
+**Retroactive** (of a Proposal or a stub):
+Found by a backward search over already-published work, offered when a Scout is created and bounded by a backstop date, rather than by an ongoing run. Shown as such so the batch can be triaged or rejected together.
+_Avoid_: Backfill, historical, catch-up
+
+**Appearance**:
+One run returning a Proposal — the Scout, the run, when, and the link. A Proposal keeps every Appearance; a revised preprint or a second Scout's find is a new Appearance on the same card, never a second card. The mechanism Corroboration is built on.
+_Avoid_: Duplicate, hit, occurrence
 
 **Lane**:
-Where a Proposal sits for attention: *Review* (a queue; accept/reject is meaningful) or *Skim* (a feed; scrolling past is the interaction, items age out). Set by the Scout as a prior, then promoted or demoted by ranking.
+Where a Proposal sits for attention: *Review* (a queue; accept/reject is meaningful) or *Skim* (a feed; scrolling past is the interaction, items age out). Set by the Scout as a prior, then promoted or demoted by ranking — or promoted by hand, since Lanes govern attention, not capability.
+
+**Triage** (of a Proposal):
+Acting on a Proposal from the Queue: *accept* (writes a Source stub), *reject* (kept, never proposed again, no longer shown), *defer* (returns with that Scout's next completed run), or *promote* (Skim to Review). *Next* moves on and records nothing. Every triage act is recorded with its time; Accept rate is read from that record.
+_Avoid_: Archive, dismiss, snooze (for defer), delete
 
 **Corroboration**:
 The same work surfacing from several Scouts, merged into one Proposal that keeps every appearance. A ranking signal; a merged card lands in the highest Lane any component reached.
@@ -251,7 +271,8 @@ The same work surfacing from several Scouts, merged into one Proposal that keeps
 Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal.
 
 **Source health**:
-Per Scout: last successful extraction, last new item, and whether a structure change was detected. A broken Scout must never look identical to a quiet field.
+Per Scout: last successful run, last new item, and the last error and its kind — for a Structured source: network, HTTP status, rate-limited, or parse (the response lacked what was expected; an API's structure change). Derived from the Scout's runs, never stored on the Scout. *Broken* means the most recent run did not succeed; a run that succeeded and found nothing is a quiet field, and the two must never look alike.
+_Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old)
 
 **Mute**:
 A rule (author, venue, keyword) that moves Proposals to a muted view rather than discarding them.
@@ -278,7 +299,7 @@ One of the three analytical surfaces opened deliberately from Home: Question Map
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
 
 **Coverage**:
-How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Inferred connections never count; they are offered as candidate links.
+How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
 **Lexicon**:
 The keyword set a Tag is measured against for field attention, built from accept history. Flat, never inherited from the parent. A Tag without one is *unplaced*, never low.
