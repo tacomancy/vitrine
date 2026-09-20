@@ -221,7 +221,7 @@ A scheduled background agent watching one source on a cadence and producing Prop
 _Avoid_: Agent (too general), watcher, feed, brief (the design brief's metaphor; there is no text to brief a Scout with)
 
 **Filter** (of a Scout):
-What narrows a Scout's source: a Query, Tags, or nothing. Tags become search terms deterministically, through the Tag's Lexicon, once one exists (#144); until then a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
+What narrows a Scout's source: a Query, Tags, or nothing. A Tag becomes search terms deterministically, through its Lexicon, compiled into the source's own syntax (ADR 0017); until that slice lands a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
 _Avoid_: Brief, prompt, topic
 
 **Assigned** (a Scout, to Questions):
@@ -243,7 +243,7 @@ A page or feed a Scout extracts from — a lab's publications page, a blog, a pr
 A literature API a Scout queries — Semantic Scholar, arXiv, OpenAlex, PubMed, Crossref. Returns fields directly.
 
 **Proposal**:
-A metadata card a Scout produced: title, authors, date, venue, keywords, abstract as published, link back, and Origin. No model-generated summary, no file. Missing fields show as missing. Lives in App state until accepted; acceptance writes a Source stub carrying the Origin.
+A metadata card a Scout produced: title, authors, date, venue, author keywords, abstract as published, link back, and Origin. No model-generated summary, no file. Missing fields show as missing; a field the source is known never to supply is not shown at all (ADR 0017). Lives in App state until accepted; acceptance writes a Source stub carrying the Origin.
 _Avoid_: Candidate, suggestion, result, message, proposed Source
 
 **Origin** (of a Proposal):
@@ -302,4 +302,33 @@ One row on the Loose Ends dashboard: something incomplete or broken with a one-c
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
 **Lexicon**:
-The keyword set a Tag is measured against for field attention, built from accept history. Flat, never inherited from the parent. A Tag without one is *unplaced*, never low.
+The Terms a Tag is measured and searched by: derived from the titles and abstracts of the Tag's papers, with author keywords as extra votes when known, and the user's Seeds and Exclusions applied. One set per Tag, compiled into each Structured source's own syntax. Flat, never inherited from the parent. Visible and editable; a Tag without one is *unplaced*, never low (ADR 0017).
+_Avoid_: Keyword set (a keyword is author-supplied; a Term need not be), vocabulary, topic model
+
+**Term**:
+One phrase in a Lexicon — derived from the Tag's papers, seeded by the user, or an author keyword. Says nothing about who chose it.
+_Avoid_: Keyword (reserved for author-supplied ones), tag, label
+
+**Author keyword**:
+A keyword the paper's authors supplied — returned by a Structured source, printed in the PDF, or typed into the Source's `keywords:`. One vote with more weight than a derived phrase; never the only input.
+_Avoid_: Keyword alone (ambiguous with a Term), machine keyword, topic
+
+**Seed**:
+A Term the user typed into a Tag's Lexicon. Always included, whatever derivation says; a seeded Tag is never unplaced. Typed Terms are the only seeding path — pointing a Tag at a paper is ordinary tagging.
+_Avoid_: Manual keyword, override (that is Seeds and Exclusions together), pin
+
+**Excluded** (of a Term):
+Removed from a Tag's Lexicon by the user and never derived back for that Tag. Recorded, never forgotten by the next recompute.
+_Avoid_: Deleted, blocked, muted (a Scout Queue word)
+
+**Tag's papers**:
+The Sources and Source stubs that vote for a Tag's Lexicon: those carrying the Tag, plus those explicitly attached to a Question carrying it. The same set as the Tag's Coverage and as its point on the attention scatter. A parent's papers are the union of its descendants'.
+_Avoid_: Corpus, training set, accept history (that is how the set grows, not what it is)
+
+**Unplaced** (of a Tag):
+Too few of its papers have text behind them to derive a Lexicon, and it has no Seed. Shown as such on the scatter, never as low attention; still counted toward its parent.
+_Avoid_: Low, empty, unmeasured
+
+**Re-measure pending** (of a Tag):
+Its Lexicon has changed since field attention was last measured, so the point shows what was measured, marked as such, until the next sync. Distinct from unplaced and from low.
+_Avoid_: Stale (a Scout health word), dirty, out of date
