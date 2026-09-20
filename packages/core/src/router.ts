@@ -1,12 +1,14 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import { listQuestions, type Order } from "./questions.js";
+import { z } from "zod";
+import { listQuestions } from "./list.js";
+import type { QuestionService } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
 
-export type Context = { vault: VaultService };
+export type Context = { vault: VaultService; questions: QuestionService };
 
 const t = initTRPC.context<Context>().create({
-  // A refused open reaches the client as a plain message plus its kind
-  // (notAFolder | unreadable), the typed errors the vault contract promises.
+  // A refused open or write reaches the client as a plain message plus its
+  // kind (VaultErrorKind), the typed errors the vault contract promises.
   errorFormatter: ({ shape, error }) => {
     const cause = error.cause;
     const kind = cause instanceof VaultError ? cause.kind : undefined;
@@ -14,25 +16,19 @@ const t = initTRPC.context<Context>().create({
   },
 });
 
-// Inputs are checked by hand: two shapes so far, both one key. A schema
-// library earns its place when a procedure takes more than that.
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : {};
-}
+const pathInput = z.object({ path: z.string() });
 
-function pathInput(value: unknown): { path: string } {
-  const path = record(value)["path"];
-  if (typeof path === "string") return { path };
-  throw new Error("expected { path: string }");
-}
+const listInput = z
+  .object({ order: z.enum(["newest", "oldest"]).default("newest") })
+  .default({ order: "newest" });
 
-function orderInput(value: unknown): { order: Order } {
-  const order = record(value)["order"] ?? "newest";
-  if (order === "newest" || order === "oldest") return { order };
-  throw new Error("expected { order: 'newest' | 'oldest' }");
-}
+// Only Unattached exists yet. `strict` is what makes a `from` key — or any
+// later context — an input error today, so later contexts extend this
+// schema rather than change what callers already rely on.
+const captureInput = z.object({
+  text: z.string().trim().min(1, "Question text is empty."),
+  provenance: z.object({ context: z.literal("other") }).strict(),
+});
 
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
 async function refusing<T>(work: Promise<T>): Promise<T> {
@@ -60,7 +56,7 @@ export const router = t.router({
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
   }),
   questions: t.router({
-    list: t.procedure.input(orderInput).query(async ({ ctx, input }) => {
+    list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
       const vault = await ctx.vault.current();
       if (vault === null) {
         throw new TRPCError({
@@ -70,6 +66,11 @@ export const router = t.router({
       }
       return listQuestions(vault.path, input.order);
     }),
+    capture: t.procedure
+      .input(captureInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.capture(input.text, input.provenance))
+      ),
   }),
 });
 

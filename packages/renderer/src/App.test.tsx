@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { renderApp } from "./testing";
+import { renderApp } from "./fake-core";
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);

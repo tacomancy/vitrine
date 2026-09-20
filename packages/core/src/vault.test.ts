@@ -1,35 +1,12 @@
-import { createHash } from "node:crypto";
-import { chmod, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
+import { chmod, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { core, fakeHost, fixtures, tmp } from "./testing.js";
+import { core, fakeHost, fingerprint, tmp } from "./test-core.js";
+
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
 
 type Vault = { name: string; path: string };
-
-/**
- * Every entry under a folder with a hash of each file's bytes, so a test can
- * assert that opening left the folder byte-for-byte as it found it.
- */
-async function fingerprint(root: string): Promise<string[]> {
-  const out: string[] = [];
-  async function walk(dir: string) {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      const rel = relative(root, full);
-      if (entry.isDirectory()) {
-        out.push(`${rel}/`);
-        await walk(full);
-      } else {
-        const hash = createHash("sha256")
-          .update(await readFile(full))
-          .digest("hex");
-        out.push(`${rel}:${hash}`);
-      }
-    }
-  }
-  await walk(root);
-  return out.sort();
-}
 
 describe("vault.current", () => {
   it("is null when nothing has been opened and nothing is remembered", async () => {

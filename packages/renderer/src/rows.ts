@@ -1,8 +1,13 @@
-import type { Listing, PartialQuestion, Question, QuestionStatus } from "core";
+import type {
+  ListedQuestion,
+  Listing,
+  PartialQuestion,
+  QuestionStatus,
+} from "core";
 
 /** One line of the Inbox: a Question, or a partial file standing in for one. */
 export type Row =
-  | { kind: "question"; path: string; question: Question; when: string }
+  | { kind: "question"; path: string; question: ListedQuestion; when: string }
   | { kind: "partial"; path: string; partial: PartialQuestion; when: string };
 
 /**
@@ -43,7 +48,7 @@ export const STATUS: Record<QuestionStatus, { glyph: string; label: string }> =
  * open. `from` is shown as the file holds it; how a Source reads here is the
  * Reader slice's call, not this one's.
  */
-export function provenanceOf(question: Question): string {
+export function provenanceOf(question: ListedQuestion): string {
   if (question.from === undefined) return "Unattached";
   const { from, page } = question;
   return page === undefined ? from : `${from} · p.${page}`;

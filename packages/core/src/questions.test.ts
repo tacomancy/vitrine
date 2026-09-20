@@ -1,250 +1,323 @@
-import { chmod, mkdir, symlink, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import type { Listing } from "./questions.js";
-import { core, fixtures, tmp } from "./testing.js";
+import { chmod, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { fileName, randomId } from "./questions.js";
+import { core, fingerprint, tmp } from "./test-core.js";
 
-/** A core with the given folder open, ready to list. */
-async function opened(vault: string) {
-  const c = await core();
-  const reply = await c.mutate("vault.open", { path: vault });
-  expect(reply.error).toBeUndefined();
-  return {
-    list: async (input?: { order: "newest" | "oldest" }) => {
-      const reply = await c.query<Listing>("questions.list", input);
-      expect(reply.error).toBeUndefined();
-      return reply.result?.data as Listing;
-    },
+const fixtures = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/captures"
+);
+
+const unattached = { context: "other" as const };
+
+// The fixtures are byte-for-byte, and `captured` carries the local offset, so
+// the clock is pinned to one zone — one with a half-hour offset, so the
+// formatter is seen to do more than pick a sign.
+beforeAll(() => {
+  process.env["TZ"] = "Asia/Kolkata";
+});
+const at = new Date("2026-09-19T07:04:00+05:30");
+
+/** Ids handed out in order, so a test knows which id a file will get. */
+function ids(...list: string[]) {
+  const queue = [...list];
+  return () => {
+    const next = queue.shift();
+    if (next === undefined)
+      throw new Error("test asked for more ids than seeded");
+    return next;
   };
 }
 
-function questionFile(text: string, captured: string, extra = "") {
-  return `---\nkind: question\nquestion: ${text}\nstatus: open\ncaptured: ${captured}\ncontext: other\n${extra}---\n`;
+type Question = {
+  id: string;
+  path: string;
+  question: string;
+  status: string;
+  captured: string;
+  context: string;
+};
+
+async function openVault(c: Awaited<ReturnType<typeof core>>) {
+  const folder = await tmp("vault");
+  await c.mutate("vault.open", { path: folder });
+  return folder;
 }
 
-describe("questions.list", () => {
-  it("is empty for an empty vault", async () => {
-    const c = await opened(await tmp("empty"));
-    expect(await c.list()).toEqual({
-      questions: [],
-      partial: [],
-      unreadable: [],
-    });
-  });
-
-  it("finds the Question Obsidian wrote outside questions/, and nothing else", async () => {
-    const vault = join(fixtures, "obsidian-vault");
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.partial).toEqual([]);
-    expect(listing.unreadable).toEqual([]);
-    expect(listing.questions).toEqual([
-      {
-        id: "k7m2p9q4wx",
-        path: join(
-          vault,
-          "reading/Does slow-wave density predict recall gain.md"
-        ),
-        question:
-          "Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?",
-        status: "open",
-        captured: "2026-08-14T09:12:00+01:00",
-        context: "other",
-      },
-    ]);
-  });
-
-  it("does not list a file whose kind is note, or one with no frontmatter", async () => {
-    const vault = await tmp("notes");
-    await writeFile(
-      join(vault, "A note.md"),
-      "---\nkind: note\nquestion: looks like one\ncaptured: 2026-01-01T00:00:00Z\n---\n"
-    );
-    await writeFile(join(vault, "Plain.md"), "# No frontmatter at all\n");
-    await writeFile(join(vault, "Tagged.md"), "---\ntags:\n  - x\n---\nbody\n");
-    const c = await opened(vault);
-    expect(await c.list()).toEqual({
-      questions: [],
-      partial: [],
-      unreadable: [],
-    });
-  });
-
-  it("orders by captured, newest first by default and oldest on request", async () => {
-    const vault = await tmp("ordered");
-    await mkdir(join(vault, "questions"));
-    await writeFile(
-      join(vault, "questions/Middle.md"),
-      questionFile("Middle", "2026-05-01T12:00:00+02:00")
-    );
-    await writeFile(
-      join(vault, "questions/Newest.md"),
-      questionFile("Newest", "2026-09-01T08:00:00+02:00")
-    );
-    await writeFile(
-      join(vault, "questions/Oldest.md"),
-      questionFile("Oldest", "2025-12-24T23:59:00-05:00")
-    );
-    const c = await opened(vault);
-    const texts = (l: Listing) => l.questions.map((q) => q.question);
-    expect(texts(await c.list())).toEqual(["Newest", "Middle", "Oldest"]);
-    expect(texts(await c.list({ order: "newest" }))).toEqual([
-      "Newest",
-      "Middle",
-      "Oldest",
-    ]);
-    expect(texts(await c.list({ order: "oldest" }))).toEqual([
-      "Oldest",
-      "Middle",
-      "Newest",
-    ]);
-  });
-
-  it("lists a kind: question file missing question or captured as partial, by name and mtime", async () => {
-    const vault = await tmp("partial");
-    const path = join(vault, "Half a thought.md");
-    await writeFile(path, "---\nkind: question\nstatus: open\n---\n");
-    const stamp = new Date("2026-03-03T10:00:00Z");
-    await utimes(path, stamp, stamp);
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.questions).toEqual([]);
-    expect(listing.partial).toEqual([
-      { path, name: "Half a thought", mtime: stamp.toISOString() },
-    ]);
-  });
-
-  it("counts a file it cannot read, and one whose frontmatter does not parse, with reasons", async () => {
-    const vault = await tmp("broken");
-    const garbled = join(vault, "Garbled.md");
-    await writeFile(garbled, "---\nkind: question\nquestion: [unclosed\n---\n");
-    const locked = join(vault, "Locked.md");
-    await writeFile(locked, questionFile("Locked", "2026-01-01T00:00:00Z"));
-    await chmod(locked, 0o000);
-    restore.push(() => chmod(locked, 0o644));
-    const good = join(vault, "Good.md");
-    await writeFile(good, questionFile("Good", "2026-01-02T00:00:00Z"));
-
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.questions.map((q) => q.question)).toEqual(["Good"]);
-    expect(listing.partial).toEqual([]);
-    expect(listing.unreadable.map((u) => u.path).sort()).toEqual([
-      garbled,
-      locked,
-    ]);
-    for (const u of listing.unreadable) expect(u.reason).not.toBe("");
-  });
-
-  it("skips every dot-entry and never follows a symlink", async () => {
-    const vault = await tmp("dots");
-    const outside = await tmp("outside");
-    await writeFile(
-      join(outside, "Elsewhere.md"),
-      questionFile("Elsewhere", "2026-01-01T00:00:00Z")
-    );
-    await mkdir(join(vault, ".obsidian"));
-    await writeFile(
-      join(vault, ".obsidian/Hidden.md"),
-      questionFile("Hidden", "2026-01-01T00:00:00Z")
-    );
-    await writeFile(
-      join(vault, ".Dotfile.md"),
-      questionFile("Dotfile", "2026-01-01T00:00:00Z")
-    );
-    await symlink(outside, join(vault, "linked-folder"));
-    await symlink(join(outside, "Elsewhere.md"), join(vault, "linked.md"));
-    await mkdir(join(vault, "deep/er"), { recursive: true });
-    await writeFile(
-      join(vault, "deep/er/Nested.md"),
-      questionFile("Nested", "2026-01-01T00:00:00Z")
-    );
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.questions.map((q) => q.question)).toEqual(["Nested"]);
-    expect(listing.unreadable).toEqual([]);
-  });
-
-  it("reads the Provenance keys that are present and no others", async () => {
-    const vault = await tmp("provenance");
-    await writeFile(
-      join(vault, "From a paper.md"),
-      '---\nid: abcdefghij\nkind: question\nquestion: From a paper\nstatus: promoted\ncaptured: 2026-01-01T00:00:00Z\nfrom: "[[klinzing2019]]"\npage: 7\nannotation: h12\ncontext: reading\npromoted_to: "[[From a paper (RQ)]]"\n---\nBody text that is never read.\n'
-    );
-    const c = await opened(vault);
-    expect((await c.list()).questions).toEqual([
-      {
-        id: "abcdefghij",
-        path: join(vault, "From a paper.md"),
-        question: "From a paper",
-        status: "promoted",
-        captured: "2026-01-01T00:00:00Z",
-        context: "reading",
-        from: "[[klinzing2019]]",
-        page: 7,
-        annotation: "h12",
-      },
-    ]);
-  });
-
-  it("reports a captured that is not a date, or a status outside the vocabulary, as unreadable with the reason", async () => {
-    const vault = await tmp("wrong-values");
-    const undated = join(vault, "Undated.md");
-    await writeFile(undated, questionFile("Undated", "yesterday"));
-    const odd = join(vault, "Odd status.md");
-    await writeFile(
-      odd,
-      "---\nkind: question\nquestion: Odd\nstatus: weird\ncaptured: 2026-01-01T00:00:00Z\n---\n"
-    );
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.questions).toEqual([]);
-    expect(listing.partial).toEqual([]);
-    expect(listing.unreadable).toEqual([
-      {
-        path: odd,
-        reason: 'status is not open, promoted, answered, or abandoned: "weird"',
-      },
-      { path: undated, reason: "captured is not a date: yesterday" },
-    ]);
-  });
-
-  it("reads a multibyte character that straddles a read boundary whole", async () => {
-    const vault = await tmp("multibyte");
-    // "é" is two bytes; place its first byte at offset 4095 so a 4 KiB read
-    // ends in the middle of it.
-    const head = "---\nkind: question\nquestion: ";
-    const text = "x".repeat(4095 - head.length) + "é fin";
-    await writeFile(
-      join(vault, "Long.md"),
-      `${head}${text}\nstatus: open\ncaptured: 2026-01-01T00:00:00Z\ncontext: other\n---\n`
-    );
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.unreadable).toEqual([]);
-    expect(listing.questions[0]?.question).toBe(text);
-  });
-
-  it("accepts a fence after a byte-order mark (ADR 0008's fence rule)", async () => {
-    const vault = await tmp("bom");
-    await writeFile(
-      join(vault, "Marked.md"),
-      "\uFEFF" + questionFile("Marked", "2026-01-01T00:00:00Z")
-    );
-    const c = await opened(vault);
-    const listing = await c.list();
-    expect(listing.unreadable).toEqual([]);
-    expect(listing.questions.map((q) => q.question)).toEqual(["Marked"]);
-  });
-
-  it("refuses when no vault is open", async () => {
+describe("questions.capture", () => {
+  it("refuses when no vault is open, typed noVault", async () => {
     const c = await core();
-    const reply = await c.query<Listing>("questions.list");
+    const reply = await c.mutate("questions.capture", {
+      text: "Does this hold for sparse inputs?",
+      provenance: unattached,
+    });
+    expect(reply.error?.data.kind).toBe("noVault");
     expect(reply.error?.message).toMatch(/no vault/i);
+  });
+
+  it("writes questions/<text>.md in the ADR 0006 shape and returns the Question", async () => {
+    const c = await core({
+      now: () => at,
+      newId: ids("k7m2p9q4wx", "vault0id00"),
+    });
+    const vault = await openVault(c);
+
+    const reply = await c.mutate<Question>("questions.capture", {
+      text: "  Does this hold for sparse inputs?  ",
+      provenance: unattached,
+    });
+
+    const path = join(
+      vault,
+      "questions",
+      "Does this hold for sparse inputs.md"
+    );
+    expect(reply.result?.data).toEqual({
+      id: "k7m2p9q4wx",
+      path,
+      question: "Does this hold for sparse inputs?",
+      status: "open",
+      captured: "2026-09-19T07:04:00+05:30",
+      context: "other",
+    });
+    expect(await readFile(path, "utf8")).toBe(
+      await readFile(join(fixtures, "plain.md"), "utf8")
+    );
   });
 });
 
-const restore: Array<() => Promise<void>> = [];
-afterEach(async () => {
-  for (const fn of restore.splice(0)) await fn();
+describe("the first write into a vault", () => {
+  it("creates questions/ and .vitrine/vault.json — and an open before it creates nothing", async () => {
+    const c = await core({
+      now: () => at,
+      newId: ids("q0000id000", "vault0id00"),
+    });
+    const vault = await openVault(c);
+    expect(await fingerprint(vault)).toEqual([]);
+
+    await c.mutate("questions.capture", {
+      text: "First",
+      provenance: unattached,
+    });
+
+    const meta = JSON.parse(
+      await readFile(join(vault, ".vitrine", "vault.json"), "utf8")
+    ) as unknown;
+    expect(meta).toEqual({
+      id: "vault0id00",
+      schema: 1,
+      created: "2026-09-19T07:04:00+05:30",
+    });
+    expect((await fingerprint(vault)).filter((e) => e.endsWith("/"))).toEqual([
+      ".vitrine/",
+      "questions/",
+    ]);
+  });
+
+  it("is the only write that creates anything: a second capture adds one file and nothing else", async () => {
+    const c = await core({ now: () => at });
+    const vault = await openVault(c);
+    await c.mutate("questions.capture", {
+      text: "First",
+      provenance: unattached,
+    });
+    const before = await fingerprint(vault);
+
+    await c.mutate("questions.capture", {
+      text: "Second",
+      provenance: unattached,
+    });
+
+    const after = await fingerprint(vault);
+    expect(after.filter((e) => !before.includes(e))).toEqual([
+      expect.stringMatching(/^questions\/Second\.md:/),
+    ]);
+  });
+});
+
+describe("file names", () => {
+  it("gives a second capture of the same text ` (2)` rather than overwriting the first", async () => {
+    const c = await core({
+      now: () => at,
+      newId: ids("k7m2p9q4wx", "vault0id00", "b3n8r5t2yz"),
+    });
+    const vault = await openVault(c);
+    const text = "Does this hold for sparse inputs?";
+    await c.mutate("questions.capture", { text, provenance: unattached });
+    const second = await c.mutate<Question>("questions.capture", {
+      text,
+      provenance: unattached,
+    });
+
+    const path = join(
+      vault,
+      "questions",
+      "Does this hold for sparse inputs (2).md"
+    );
+    expect(second.result?.data.path).toBe(path);
+    expect(await readFile(path, "utf8")).toBe(
+      await readFile(join(fixtures, "collision.md"), "utf8")
+    );
+    expect(
+      await readFile(
+        join(vault, "questions", "Does this hold for sparse inputs.md"),
+        "utf8"
+      )
+    ).toBe(await readFile(join(fixtures, "plain.md"), "utf8"));
+  });
+
+  it("falls back to <id>.md when nothing of the text survives stripping", async () => {
+    const c = await core({
+      now: () => at,
+      newId: ids("c6d4f8h2jk", "vault0id00"),
+    });
+    const vault = await openVault(c);
+    const reply = await c.mutate<Question>("questions.capture", {
+      text: "???",
+      provenance: unattached,
+    });
+
+    const path = join(vault, "questions", "c6d4f8h2jk.md");
+    expect(reply.result?.data.path).toBe(path);
+    expect(await readFile(path, "utf8")).toBe(
+      await readFile(join(fixtures, "stripped-to-nothing.md"), "utf8")
+    );
+  });
+});
+
+describe("fileName (pure)", () => {
+  const id = "c6d4f8h2jk";
+  const a = (n: number) => "a".repeat(n);
+  it.each([
+    [
+      "a trailing ? goes",
+      "Does this hold for sparse inputs?",
+      "Does this hold for sparse inputs",
+    ],
+    ["Obsidian-forbidden characters go", 'a*b"c\\d/e<f>g:h|i?j', "abcdefghij"],
+    ["link-breaking characters go", "#tag ^block [[link]]", "tag block link"],
+    [
+      "whitespace collapses and trims",
+      "  many   spaces\t\tand\nnewlines  ",
+      "many spaces and newlines",
+    ],
+    [
+      "a leading dot goes, or the file would be a dot-entry the vault scan skips",
+      "...why",
+      "why",
+    ],
+    ["80 characters pass untouched", `${a(77)} bc`, `${a(77)} bc`],
+    ["81 characters cut back to the last word boundary", `${a(78)} bc`, a(78)],
+    ["a word ending exactly at 80 is kept", `${a(80)} b`, a(80)],
+    ["one unbroken word is cut hard at 80", a(100), a(80)],
+    ["nothing surviving yields the id", "???", id],
+    ["empty yields the id", "", id],
+  ])("%s", (_, text, expected) => {
+    expect(fileName(text, id)).toBe(expected);
+  });
+});
+
+describe("randomId (pure)", () => {
+  it("is 10 characters of lowercase RFC 4648 base32", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(randomId()).toMatch(/^[a-z2-7]{10}$/);
+    }
+  });
+
+  it("differs between calls", () => {
+    expect(randomId()).not.toBe(randomId());
+  });
+});
+
+describe("a write that fails", () => {
+  const restore: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const fn of restore.splice(0)) await fn();
+  });
+
+  it("is typed writeFailed, carries the reason, and leaves the vault as it was", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    const folder = join(vault, "questions");
+    await mkdir(folder);
+    await chmod(folder, 0o500);
+    restore.push(() => chmod(folder, 0o700));
+    const before = await fingerprint(vault);
+
+    const reply = await c.mutate("questions.capture", {
+      text: "Will this land?",
+      provenance: unattached,
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toMatch(/permission denied|EACCES/);
+    expect(reply.error?.message).toContain(folder);
+    expect(await fingerprint(vault)).toEqual(before);
+  });
+});
+
+describe("the capture input", () => {
+  it.each([
+    ["empty text", { text: "", provenance: unattached }],
+    ["whitespace-only text", { text: " \t\n ", provenance: unattached }],
+    [
+      "a context this slice does not have",
+      { text: "x", provenance: { context: "reading" } },
+    ],
+    [
+      "a `from` on an Unattached capture",
+      { text: "x", provenance: { context: "other", from: "somewhere" } },
+    ],
+    ["no provenance at all", { text: "x" }],
+  ])("rejects %s as an input error, writing nothing", async (_, input) => {
+    const c = await core();
+    const vault = await openVault(c);
+
+    const reply = await c.mutate("questions.capture", input);
+
+    expect(reply.error).toBeDefined();
+    expect(reply.error?.data.kind).toBeUndefined();
+    expect(await fingerprint(vault)).toEqual([]);
+  });
+});
+
+describe("a capture happens whole or not at all", () => {
+  it("removes the Question again when the vault marker cannot follow it", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    // A file where `.vitrine/` must go: the marker cannot be created.
+    await writeFile(join(vault, ".vitrine"), "");
+    const before = await fingerprint(vault);
+
+    const reply = await c.mutate("questions.capture", {
+      text: "Whole or nothing",
+      provenance: unattached,
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toContain(".vitrine");
+    expect(await readdir(join(vault, "questions")).catch(() => [])).toEqual([]);
+    expect((await fingerprint(vault)).filter((e) => !e.endsWith("/"))).toEqual(
+      before.filter((e) => !e.endsWith("/"))
+    );
+  });
+
+  it("gives two captures of one text arriving together two files, not one", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    const text = "Twice at once";
+
+    const replies = await Promise.all([
+      c.mutate<Question>("questions.capture", { text, provenance: unattached }),
+      c.mutate<Question>("questions.capture", { text, provenance: unattached }),
+    ]);
+
+    const paths = replies.map((r) => r.result?.data.path).sort();
+    expect(paths).toEqual([
+      join(vault, "questions", "Twice at once (2).md"),
+      join(vault, "questions", "Twice at once.md"),
+    ]);
+  });
 });

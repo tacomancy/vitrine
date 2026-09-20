@@ -1,204 +1,219 @@
-import { open, readdir, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
-import { StringDecoder } from "node:string_decoder";
-import { parse as parseYaml } from "yaml";
+import { randomBytes } from "node:crypto";
+import { mkdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { VaultError, type VaultService } from "./vault.js";
 
-export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
+/** Where a Question came from. This slice knows one context: Unattached. */
+export type Provenance = { context: "other" };
 
-/** A Question as the Inbox lists it: frontmatter fields, nothing from the body. */
 export type Question = {
-  /** Absent on a file another tool wrote without one; the path identifies it. */
-  id?: string;
+  id: string;
   path: string;
   question: string;
-  status: QuestionStatus;
+  status: "open";
   captured: string;
-  context: string;
-  from?: string;
-  page?: number;
-  annotation?: string;
+  context: Provenance["context"];
 };
 
-/** A `kind: question` file missing what a row needs; shown by name and mtime. */
-export type PartialQuestion = { path: string; name: string; mtime: string };
-
-export type Listing = {
-  questions: Question[];
-  partial: PartialQuestion[];
-  unreadable: Array<{ path: string; reason: string }>;
+export type QuestionService = {
+  capture: (text: string, provenance: Provenance) => Promise<Question>;
 };
 
-export type Order = "newest" | "oldest";
+export type QuestionServiceOptions = {
+  vault: VaultService;
+  /** The clock, so a test can pin `captured`. */
+  now?: (() => Date) | undefined;
+  /** The id source, so a test can know a file's name before it exists. */
+  newId?: (() => string) | undefined;
+};
 
-const STATUSES: readonly QuestionStatus[] = [
-  "open",
-  "promoted",
-  "answered",
-  "abandoned",
-];
+// RFC 4648 base32, lowercased: 32 symbols, 5 bits each.
+const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
+
+/** A 10-character id from 50 random bits (docs/architecture.md § Vault layout). */
+export function randomId(): string {
+  return Array.from(randomBytes(10), (byte) => BASE32[byte & 31]).join("");
+}
+
+const NAME_LIMIT = 80;
+// Obsidian refuses these in a file name; the second set breaks wikilinks.
+const FORBIDDEN = /[*"\\/<>:|?#^[\]]/g;
 
 /**
- * Every `.md` file under the vault, skipping dot-entries (files and folders
- * alike — `.obsidian/`, `.git/`, `.vitrine/`) and never following symlinks.
- * A folder that cannot be listed is reported, not skipped.
+ * The file name a Question's text yields, or the id when nothing survives.
+ * Pure, so the rules can be read off a table of cases.
  */
-async function markdownFiles(
-  root: string,
-  unreadable: Listing["unreadable"]
-): Promise<string[]> {
-  const files: string[] = [];
-  async function walk(dir: string) {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch (error) {
-      unreadable.push({ path: dir, reason: errorMessage(error) });
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) await walk(full);
-      else if (entry.isFile() && entry.name.endsWith(".md")) files.push(full);
-    }
+export function fileName(text: string, id: string): string {
+  let name = text.replace(FORBIDDEN, "").replace(/\s+/g, " ").trim();
+  // A leading dot would make the file a dot-entry, which every scan of the
+  // vault skips — a captured Question that never appears in the Inbox.
+  name = name.replace(/^\.+/, "").trimStart();
+  if (name.length > NAME_LIMIT) {
+    const cut = name.lastIndexOf(" ", NAME_LIMIT);
+    name = name.slice(0, cut > 0 ? cut : NAME_LIMIT).trimEnd();
   }
-  await walk(root);
-  return files.sort();
+  return name === "" ? id : name;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** ISO 8601 at seconds precision with the local UTC offset, never `Z`. */
+export function localIso(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const offset = -date.getTimezoneOffset();
+  const sign = offset < 0 ? "-" : "+";
+  const hh = pad(Math.floor(Math.abs(offset) / 60));
+  const mm = pad(Math.abs(offset) % 60);
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    `${sign}${hh}:${mm}`
+  );
 }
 
-const CHUNK = 4096;
-// A frontmatter block longer than this is not one; stop rather than read a
-// whole file looking for a closing fence that is never coming.
-const MAX_FRONTMATTER = 64 * 1024;
+// Always double-quoted: deciding when a plain scalar is safe means carrying
+// YAML's rules for leading `-`, `: `, ` #`, numbers, booleans and the rest,
+// and getting one wrong makes a Question unreadable. Quoting is never wrong.
+function yamlString(value: string): string {
+  const escaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+  return `"${escaped}"`;
+}
 
-// The fence sits at byte 0, after a BOM if any (ADR 0008).
-const OPEN_FENCE = /^\uFEFF?---\r?\n/;
-const CLOSE_FENCE = /\r?\n---\r?\n/;
-// A file may end on its closing fence with no newline after it.
-const CLOSE_FENCE_AT_EOF = /\r?\n---$/;
+/** The whole file: frontmatter keys in ADR 0006's order, then an empty body. */
+function questionFile(q: Question): string {
+  return [
+    "---",
+    `id: ${q.id}`,
+    "kind: question",
+    `question: ${yamlString(q.question)}`,
+    `status: ${q.status}`,
+    `captured: ${q.captured}`,
+    `context: ${q.context}`,
+    "---",
+    "",
+  ].join("\n");
+}
 
-/**
- * The YAML between the opening and closing `---` fences, read in chunks so
- * the body past the block is never loaded. Null when the file has no block.
- */
-async function readFrontmatter(path: string): Promise<string | null> {
-  const handle = await open(path, "r");
+async function exists(path: string): Promise<boolean> {
   try {
-    // Decoded incrementally: a multibyte character can straddle two reads.
-    const decoder = new StringDecoder("utf8");
-    const buffer = Buffer.alloc(CHUNK);
-    let text = "";
-    for (;;) {
-      const { bytesRead } = await handle.read(buffer, 0, CHUNK, null);
-      const eof = bytesRead < CHUNK;
-      text += decoder.write(buffer.subarray(0, bytesRead));
-      if (eof) text += decoder.end();
-      const opened = OPEN_FENCE.exec(text);
-      if (!opened) return null;
-      // The YAML starts after the opening fence and runs to the newline that
-      // precedes the closing one.
-      const start = opened[0].length - (opened[0].endsWith("\r\n") ? 2 : 1);
-      const rest = text.slice(start);
-      const close =
-        CLOSE_FENCE.exec(rest) ?? (eof ? CLOSE_FENCE_AT_EOF.exec(rest) : null);
-      if (close) return text.slice(start, start + close.index + 1);
-      if (eof || text.length > MAX_FRONTMATTER) {
-        throw new Error("frontmatter block is not closed");
-      }
-    }
-  } finally {
-    await handle.close();
+    await stat(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 
-type Frontmatter = Record<string, unknown>;
+const VAULT_SCHEMA = 1;
 
-async function parseFrontmatter(path: string): Promise<Frontmatter | null> {
-  const yaml = await readFrontmatter(path);
-  if (yaml === null) return null;
-  const parsed: unknown = parseYaml(yaml);
-  if (parsed === null || parsed === undefined) return {};
-  if (typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("frontmatter is not a map of keys");
-  }
-  return parsed as Frontmatter;
-}
-
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
-
-/**
- * The Question a frontmatter block describes; null when `question` or
- * `captured` is missing (the file is Partial). A key that is present but
- * holds a value the vocabulary cannot read is a fault to report, not a gap.
- */
-function toQuestion(path: string, fm: Frontmatter): Question | null {
-  const question = asString(fm["question"]);
-  const captured = asString(fm["captured"]);
-  if (question === undefined || captured === undefined) return null;
-  if (Number.isNaN(Date.parse(captured))) {
-    throw new Error(`captured is not a date: ${captured}`);
-  }
-  // A Question that was never triaged is open, so a file with no status is.
-  const status = fm["status"] === undefined ? "open" : fm["status"];
-  if (!STATUSES.includes(status as QuestionStatus)) {
-    throw new Error(
-      `status is not open, promoted, answered, or abandoned: ${JSON.stringify(status)}`
-    );
-  }
-  const q: Question = {
-    path,
-    question,
-    status: status as QuestionStatus,
-    captured,
-    // No context recorded means nothing was open: time and place are the
-    // whole Provenance, which is what `other` says.
-    context: asString(fm["context"]) ?? "other",
-  };
-  const id = asString(fm["id"]);
-  if (id !== undefined) q.id = id;
-  const from = asString(fm["from"]);
-  if (from !== undefined) q.from = from;
-  if (typeof fm["page"] === "number") q.page = fm["page"];
-  const annotation = asString(fm["annotation"]);
-  if (annotation !== undefined) q.annotation = annotation;
-  return q;
-}
-
-/**
- * Every Question in the vault, wherever it sits (ADR 0006 decision 1). A file
- * that cannot be read or parsed is reported, never dropped; nothing is written.
- */
-export async function listQuestions(
+/** `.vitrine/vault.json`: the folder is a Vitrine vault from here on. */
+async function writeVaultMeta(
   vaultPath: string,
-  order: Order
-): Promise<Listing> {
-  const listing: Listing = { questions: [], partial: [], unreadable: [] };
-  for (const path of await markdownFiles(vaultPath, listing.unreadable)) {
+  meta: { id: string; created: string }
+): Promise<void> {
+  const folder = join(vaultPath, ".vitrine");
+  await mkdir(folder, { recursive: true });
+  const content = JSON.stringify(
+    { id: meta.id, schema: VAULT_SCHEMA, created: meta.created },
+    null,
+    2
+  );
+  await writeFile(join(folder, "vault.json"), content + "\n", { flag: "wx" });
+}
+
+async function freePath(folder: string, name: string): Promise<string> {
+  let candidate = join(folder, `${name}.md`);
+  for (let n = 2; await exists(candidate); n++) {
+    candidate = join(folder, `${name} (${n}).md`);
+  }
+  return candidate;
+}
+
+/**
+ * Write whole, then rename into place: a crash mid-write leaves a temp file
+ * the vault scan ignores (it is a dot-entry), never a half Question.
+ */
+async function writeAtomically(path: string, content: string): Promise<void> {
+  const temp = join(dirname(path), `.${randomBytes(6).toString("hex")}.tmp`);
+  await writeFile(temp, content, { flag: "wx" });
+  try {
+    await rename(temp, path);
+  } catch (cause) {
+    await unlink(temp).catch(() => undefined);
+    throw cause;
+  }
+}
+
+export function createQuestionService({
+  vault,
+  now = () => new Date(),
+  newId = randomId,
+}: QuestionServiceOptions): QuestionService {
+  // Captures run one at a time. Two arriving together (the window and, later,
+  // the iPad) would otherwise both find the same name free and the second
+  // rename would silently replace the first — one record where there should
+  // be two.
+  let previous: Promise<unknown> = Promise.resolve();
+
+  async function capture(
+    text: string,
+    provenance: Provenance
+  ): Promise<Question> {
+    const current = await vault.current();
+    if (current === null) {
+      throw new VaultError("noVault", "No vault is open. Open a vault first.");
+    }
+    const question: Omit<Question, "path"> = {
+      id: newId(),
+      question: text.trim(),
+      status: "open",
+      captured: localIso(now()),
+      context: provenance.context,
+    };
+    const folder = join(current.path, "questions");
     try {
-      const fm = await parseFrontmatter(path);
-      if (fm === null || fm["kind"] !== "question") continue;
-      const question = toQuestion(path, fm);
-      if (question) {
-        listing.questions.push(question);
-      } else {
-        const { mtime } = await stat(path);
-        listing.partial.push({
-          path,
-          name: basename(path, ".md"),
-          mtime: mtime.toISOString(),
+      await mkdir(folder, { recursive: true });
+      const path = await freePath(
+        folder,
+        fileName(question.question, question.id)
+      );
+      const written: Question = { ...question, path };
+      await writeAtomically(path, questionFile(written));
+      // The marker follows the Question, and a Question the marker could
+      // not follow is taken back: a capture happens whole or not at all,
+      // so a failure reported is a failure, and a retry is never a
+      // duplicate. The text is still in the capture line.
+      if (!(await exists(join(current.path, ".vitrine", "vault.json")))) {
+        await writeVaultMeta(current.path, {
+          id: newId(),
+          created: question.captured,
+        }).catch(async (cause: unknown) => {
+          await unlink(written.path).catch(() => undefined);
+          throw cause;
         });
       }
-    } catch (error) {
-      listing.unreadable.push({ path, reason: errorMessage(error) });
+      return written;
+    } catch (cause) {
+      // Permissions, a full disk, a folder that vanished: the text stays
+      // in the capture line with this message, never lost and never silent.
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't write the Question into ${folder}: ${reason}`
+      );
     }
   }
-  const byTime = (a: string, b: string) =>
-    (order === "newest" ? -1 : 1) * (Date.parse(a) - Date.parse(b));
-  listing.questions.sort((a, b) => byTime(a.captured, b.captured));
-  listing.partial.sort((a, b) => byTime(a.mtime, b.mtime));
-  return listing;
+
+  return {
+    capture: (text, provenance) => {
+      const run = previous.then(
+        () => capture(text, provenance),
+        () => capture(text, provenance)
+      );
+      previous = run;
+      return run;
+    },
+  };
 }

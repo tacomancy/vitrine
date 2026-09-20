@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "./testing";
+import { renderApp } from "./fake-core";
 
 afterEach(() => {
   cleanup();

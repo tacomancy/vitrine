@@ -142,9 +142,11 @@ function createWindow({ port }: Session) {
   // An agent verifying a change runs the app beside someone's work, where a
   // window appearing is an interruption. With VITRINE_SNAPSHOT set the window
   // is never shown: the page renders hidden, is captured to that path, and
-  // the app quits.
+  // the app quits. VITRINE_SNAPSHOT_AFTER (ms) stretches the wait so a
+  // driver on --remote-debugging-port can act on the page first.
   const snapshot = process.env.VITRINE_SNAPSHOT;
   if (snapshot) {
+    const after = Number(process.env.VITRINE_SNAPSHOT_AFTER) || 1500;
     win.webContents.once("did-finish-load", () => {
       // Give the renderer a moment to ask the core for the vault and paint.
       setTimeout(() => {
@@ -152,7 +154,7 @@ function createWindow({ port }: Session) {
           .capturePage(undefined, { stayHidden: true })
           .then((image) => writeFile(snapshot, image.toPNG()))
           .finally(() => app.quit());
-      }, 1500);
+      }, after);
     });
   } else {
     win.once("ready-to-show", () => win.show());
