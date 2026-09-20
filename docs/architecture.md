@@ -20,11 +20,21 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Compiler:** `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `isolatedModules`, in `tsconfig.base.json` which every package extends. TypeScript stays on the 5.x line until typescript-eslint supports 6/7. Node is whatever the current Electron ships.
   - **Core lifetime:** the app's. No `launchd` agent unless daily Scouts prove they want one.
 - One Markdown file per object, Kind in frontmatter, App state in `.vitrine/` — ADR 0006. The concrete layout is § Vault layout below.
-- PDFium via WebAssembly in the core is the only thing that reads or writes a PDF; PDF.js in the renderer only draws pages; annotation identity is re-matched text first, geometry second, in five tiers — ADR 0007 (Proposed until `prototype/pdf-roundtrip`, #108, passes). The detail that ADR leaves to this file:
-  - **Core engine:** `@embedpdf/pdfium` raw bindings (not `@embedpdf/engines`), in one `worker_thread` behind a job queue; one worker, not a pool. Appearance streams via its `EPDFAnnot_GenerateAppearance`, regenerated after every edit. Saves are incremental (`FPDF_SaveAsCopy` with flag `1`) to a temp file, then renamed; a full save only when the file's existing structure forces it (an encrypted or already-damaged file). Growth per write is measured by the prototype and recorded here.
+- PDFium via WebAssembly in the core is the only thing that reads or writes a PDF; PDF.js in the renderer only draws pages; annotation identity is re-matched text first, geometry second, in five tiers — ADR 0007, accepted on the numbers `prototype/pdf-roundtrip` (#108) produced. The detail that ADR leaves to this file:
+  - **Core engine:** `@embedpdf/pdfium` raw bindings (not `@embedpdf/engines`), in one `worker_thread` behind a job queue; one worker, not a pool. Appearance streams via its `EPDFAnnot_GenerateAppearance`, regenerated after every edit. Every save is a full rewrite (`FPDF_SaveAsCopy` with flag `2`) to a temp file, then renamed; incremental (flag `1`) is held in reserve for a file whose structure a rewrite would damage. Measured by the prototype, one highlight per write, `FPDF_LoadPage` on the page being annotated:
+
+    | File | Size | Per incremental write | After five | Full rewrite | Time |
+    | --- | --- | --- | --- | --- | --- |
+    | Der Kiureghian 2009, page 1 (text, two-column) | 215 KB | 38 KB | — | — | — |
+    | Der Kiureghian 2009, page 0 (text) | 215 KB | 58 KB | 508 KB | 219 KB | 3 ms |
+    | Lewis 2021, page 0 (text, single-column) | 885 KB | 109 KB | 1.43 MB | 850 KB | 11 ms |
+    | Scan of the same paper, 4 pages | 2.33 MB | 474 KB | 4.7 MB | 2.33 MB | 2 ms |
+
+    The incremental save re-emits every object the page load pulled in (skipping text extraction saved 2 KB), so the cost is the page's fonts and streams and, on a scan, its image. The full rewrite keeps streams compressed and keeps `/ID[0]`.
   - **Renderer:** `pdfjs-dist` directly behind one component — canvas, text layer, Vitrine overlay. The engine's own rendering of text-markup and note annotations is suppressed; the overlay draws them from the core's index. Ink and shapes render from the PDF untouched.
   - **Annotation intent** (renderer → core): page index, geometry in PDF user space, kind, colour, note text. The core snaps geometry to its character boxes, derives the quote, writes the object, assigns the id. Selection text from the renderer is never stored.
-  - **Written into the PDF:** `/NM` = sidecar id, `/T` = the user's name, `/CreationDate`, `/M`, `/AP`, standard `/Subj`.
+  - **Written into the PDF:** `/NM` = sidecar id, `/T` = the user's name, `/CreationDate`, `/M`, `/AP`, standard `/Subj`. `FPDFPage_CreateAnnot` writes the object direct inside `/Annots`, not as `n 0 R`.
+  - **Read back:** colour through the fork's `EPDFAnnot_GetColor` (and `EPDFAnnot_GetOpacity`) — stock `FPDFAnnot_GetColor` refuses once an `/AP` exists, and every annotation Vitrine writes has one.
   - The sidecar's fields and the matching tiers are § Annotation identity below.
 - Markdown is located and spliced, never re-serialised; a closed set of write operations; Obsidian's grammar in a fourth workspace package, `packages/markdown`, shared by core and renderer; tag identity case-insensitive — ADR 0008. The detail that ADR leaves to this file:
   - **Locator:** `mdast-util-from-markdown` (micromark) with GFM and four extensions of our own — tags, wikilinks, block ids, `key:: value` inline fields — all in `packages/markdown`. Offsets are UTF-16 code units into the source string, which is what `String.prototype.slice` takes. `remark-stringify` is not a dependency.
@@ -89,13 +99,13 @@ The shape ADR 0007 decided. The sidecar stores **raw** values; every rule below 
 ```
 pdf                       file name under sources/pdf/
 file                      { size, mtime, hash } of the PDF as last ingested or last written — § Watcher and Ingest
-document_fingerprint      { id: trailer /ID[0], pages, page_text_hashes[] } — a change is a document-changed event
+document_fingerprint      { id: trailer /ID[0], pages, page_words[] } — pages changed, or any page's word-set similarity below the threshold, is a document-changed event; id equal is a fast "same file", id different means nothing (PDFKit replaces it on every save)
 reading_position
 next_block                the per-Source ^h counter; never reused, not even after removal
 annotations[]
   id                      what /NM carries when Vitrine wrote the object
   block                   h<n>
-  kind                    highlight | underline | strikeout | squiggly | text | freetext | ink | shape (Square, Circle, Line, Polygon, PolyLine)
+  kind                    highlight | underline | strikeout | squiggly | text | freetext | ink | stamp | shape (Square, Circle, Line, Polygon, PolyLine)
   page                    0-based index
   quads[]                 8 numbers each, PDF user space, as written (Preview's verbatim; Vitrine's snapped)
   quote                   engine-extracted text under the quads; for text/freetext the /Contents; empty on ink, shape, and image-only pages
@@ -110,19 +120,34 @@ annotations[]
   gone_at                 set by *drop the links*: the Tombstone. The entry is skipped by every later Ingest, its block stays `(gone)`, and its links keep resolving
 ```
 
-**Kinds and what they get.** Markup and notes: identity, a `^h<n>` block, link target, `Q:` carrier. Ink and shape: identity and a count on Ingest; no block, never a link target or `Q:` source. Kind *families* for matching: markup (the four text-markup kinds), note (text, freetext), ink, shape.
+**Kinds and what they get.** Markup and notes: identity, a `^h<n>` block, link target, `Q:` carrier. Ink and shape: identity and a count on Ingest; no block, never a link target or `Q:` source. Kind *families* for matching: markup (the four text-markup kinds), note (text, freetext), ink (ink, and stamp — what iPadOS Markup writes a pencil stroke as: an `/AP` plus PencilKit data, no `/InkList`; identity from `/Rect`, rendered from its `/AP`), shape.
 
-**Normalisation** (code, applied at compare time to both sides): Unicode NFKC; join a hyphen at a line end to the next line's first word; collapse whitespace; case-fold. Ligatures fall out of NFKC.
+**Normalisation** (code, applied at compare time to both sides): Unicode NFKC; join a hyphen at a line end to the next line's first word; collapse whitespace; case-fold. Ligatures fall out of NFKC. PDFium already merges a hyphenated line and flags the hyphen glyph (`FPDFText_IsHyphen`), and its character order is reading order, so a quote across a column break reads in order.
+
+**Quote derivation** (code): a glyph is under a quad when ≥ 50 % of its tight box lies inside it. Checked on the prototype against quads PDFKit and the iPad wrote, across a hyphenated line break and a column break; the one known cost is a sideways nudge over a narrow edge glyph, which gains or loses that glyph and sends the match to tier 4 (ADR 0007 Consequences).
+
+**Document fingerprint** (code): `page_words[n]` is the sorted set of ≥4-letter words on page *n* after normalisation; two fingerprints are the same document when page counts agree and every page's Jaccard similarity is ≥ **0.9**. Measured across a PDFKit save: ≥ 0.953 on every page (the worst is a math-heavy one); ≤ 0.24 between neighbouring pages. Per-page text hashes were the first design and changed on 7 of 8 pages across the same save.
 
 **The tiers, in order, per previously known identity against the annotations now in the file:**
 
 1. **object** — an annotation carrying our `/NM`, same kind family. Wins only if its normalised quote equals ours; otherwise fall through. PDFKit drops `/NM`, so this fires for Reader-only Sources.
 2. **text** — same page, same kind family, normalised quote equal.
 3. **text-moved** — any page, same kind family, normalised quote equal; page updated. Normally only reached after a document-changed event.
-4. **geometry** — same page, same kind family, quad overlap (IoU over the union bounding boxes) ≥ **0.6** — a starting number, tuned by the prototype. A match here with a different quote records `previous_quote`.
+4. **geometry** — same page, same kind family, quad overlap (IoU over the union bounding boxes) ≥ **0.4**. A match here with a different quote records `previous_quote`. The prototype started at 0.6, which separates edited from adjacent but rejects the two most ordinary edits that change a quote; adjacent same-line highlights would need to overlap by ~29 % of their combined extent to reach 0.4. Measured on an 8.2 pt / 10.5 pt-leading column and a 10 pt / 12 pt one:
+
+   | Case | IoU | IoU |
+   | --- | --- | --- |
+   | adjacent lines | 0.000 | 0.048 |
+   | same line shifted one line down | 0.000 | 0.044 |
+   | same highlight extended by ~10 glyphs | 0.869 | 0.873 |
+   | same highlight nudged 1.5, −2 pt | 0.601 | 0.709 |
+   | same highlight cut to its left half | 0.500 | 0.500 |
+   | same highlight extended to the next line | 0.438 | 0.524 |
+   | same highlight extended to three more lines | 0.206 | 0.273 |
+
 5. **Unmatched** if the identity has inbound links (a backlink to `[[citekey#^h<n>]]` in `index.sqlite`, or a Question whose `annotation:` names it); **removed** otherwise. Because `index.sqlite` is disposable (ADR 0006), *removed* is concluded only against an index known to be current for this vault — Ingest refreshes it before this tier runs — and an identity whose links cannot be established is Unmatched, never removed. The cheap failure is a decision; the expensive one is silent link rot (`design-brief.md` § Annotation storage).
 
-At any of tiers 2–4, several candidates are broken by quad overlap — the highest wins, comparing quads across pages as if on one page at tier 3 — and an unbroken tie is Unmatched. Each candidate can be claimed once; two identities claiming one candidate are both Unmatched, linked or not: ambiguity is a decision, so this is the one way an unlinked identity reaches the panel. Tombstones (`gone_at`) take no part in matching. Annotations left unclaimed are **new**: a fresh id and block, and a Question if the note begins `Q:`. A changed `document_fingerprint` runs the same tiers document-wide and groups every resulting Unmatched row under one event with batch resolutions.
+At any of tiers 2–4, several candidates are broken by quad overlap — the highest wins, comparing quads across pages as if on one page at tier 3 — and an unbroken tie is Unmatched. Each candidate can be claimed once; two identities claiming one candidate are both Unmatched, linked or not: ambiguity is a decision, so this is the one way an unlinked identity reaches the panel. The contested candidate is held with them — it is not counted as new — so resolving the row can relink it. Tombstones (`gone_at`) take no part in matching. Annotations left unclaimed are **new**: a fresh id and block, and a Question if the note begins `Q:`. A changed `document_fingerprint` runs the same tiers document-wide and groups every resulting Unmatched row under one event with batch resolutions.
 
 **Ingest summary line:** `N new · N questions · N removed · N could not be re-matched` — the panel opens only when the last is non-zero (brief § Ingest review).
 

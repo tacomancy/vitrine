@@ -41,7 +41,7 @@ ADR 0005 left the vault file layout as the first open item in `docs/architecture
 
 ## Update (2026-09-19)
 
-ADR 0007 settled what the sidecar in decision 6 holds: quads and the engine-extracted quote per annotation, raw, and one fingerprint per *document* (trailer `/ID`, page count, per-page text hashes) rather than per PDF object. The field list is `docs/architecture.md` § Annotation identity.
+ADR 0007 settled what the sidecar in decision 6 holds: quads and the engine-extracted quote per annotation, raw, and one fingerprint per *document* rather than per PDF object — page count plus a per-page word signature, since the prototype found PDFKit rewrites `/ID` and the extracted text on every save (ADR 0007 decision 9, as accepted). The field list is `docs/architecture.md` § Annotation identity.
 
 ## Update (2026-09-19, ADR 0008)
 
