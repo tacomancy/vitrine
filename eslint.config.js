@@ -14,7 +14,6 @@ export default tseslint.config(
       "**/out/",
       "build/",
       "docs/reference/",
-      "website/",
       "local-libraries/",
     ],
   },

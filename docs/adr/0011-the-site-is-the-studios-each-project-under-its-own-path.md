@@ -1,6 +1,6 @@
 # 0011: The site is the studio's; each project lives under its own path
 
-**Status:** Accepted
+**Status:** Superseded by 0012 — the site moved to `tacomancy/tacomancy`, where this decision continues as its ADR 0002; the hierarchy it decided stands, its rejection of a third repository does not
 
 ADR 0004 left "the site's content beyond the landing page" open and built `tacomancy.com` as Vitrine's site, with the studio as a page off it. Once the domain became the thing a shared link or a resume points at (#125), and the studio made a second thing, that arrangement read backwards: the root introduced one project, the studio was a footnote, and the skills repository had no page at all. Decided: **the root is Tacomancy; each project is a page under its own path, and its assets move with it.** `/` is the studio, `/vitrine/` and `/vitrine/prototypes/` are Vitrine, `/skills/` is the skills repository. The masthead is the studio's on every page — the Fold mark and the `Tacomancy` wordmark, nav `Vitrine · Skills · GitHub` — and each project's landing opens its hero with its own lockup, so the product brand lands on the product's page and nowhere else. The gallery is a page of Vitrine's, not a landing, and keeps its plain intro.
 

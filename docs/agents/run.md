@@ -33,4 +33,4 @@ Native dialogs and the menu: the folder chooser (`vault.pick`, `File ▸ Open Va
 
 ## The public site
 
-`website/` is outside the test suite and linters, so it is verified in the browser (ADR 0004): `preview_start` with the `site` configuration runs `Scripts/build-site.sh` and serves `build/site`. The configuration asks for port 8766 and, because it sets `autoPort`, accepts the port the harness assigns instead (arriving as `PORT`) when 8766 is already held — usually by the same configuration running in another checkout, since every worktree under `.claude/worktrees/` shares this file. Rebuild with the script after an edit; the server keeps serving the folder. The preview tab reports itself hidden while an agent works, so the gallery's lazily loaded prototypes do not load until the pane is fronted — read state from the DOM rather than trusting a blank screenshot.
+Not here: the site is `tacomancy/tacomancy` (ADR 0012), and that repository's `CLAUDE.md` says how it is previewed. The `prototypes` launch configuration still serves the frozen exports from `docs/reference/prototypes/` directly, for checking a pinned prototype against the brief.
