@@ -31,6 +31,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
   - **Frontmatter:** `yaml` (eemeli), `parseDocument` → `set` → `toString`. Known renormalisations: 4-space indent to 2, `[a, b]` to `[ a, b ]`. The fence is `---` at byte 0 (after a BOM if any), closed by `---`; a file whose frontmatter does not parse is *unreadable* for Kind purposes and the app never writes to it.
   - **Package rule** (dependency-cruiser, once `setup-ts-deep-modules` runs): `core` and `renderer` may import `packages/markdown`; it imports neither, and no Node built-in. It builds with `tsc` like the core, because the core imports it at runtime from `dist`, and joins `vitest.config.ts` as a fourth project.
   - **Writes:** § Markdown below — the seven operations, the re-apply, the verify step, and the file-level rules (temp file and rename; EOL, BOM, and trailing newline preserved; new files UTF-8, LF, one trailing newline).
+- A `kind: question` file is read as found: frontmatter only, a missing `status` is open, a missing `question` or `captured` is Partial, a wrong value is Unreadable with its reason — ADR 0009.
 
 ## Vault layout
 

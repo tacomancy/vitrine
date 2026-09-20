@@ -98,12 +98,15 @@ describe("the window with a vault open", () => {
     expect(nav.textContent).not.toContain("THREADS");
   });
 
-  it("shows the Inbox header counting zero questions and nothing else", async () => {
-    renderApp({ "vault.current": vault });
+  it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": { questions: [], partial: [], unreadable: [] },
+    });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(inbox.textContent).toContain("0 questions");
-    expect(
-      inbox.querySelectorAll("li, table, button, [role=listbox]")
-    ).toHaveLength(0);
+    expect(inbox.textContent).not.toContain("since");
+    expect(inbox.querySelectorAll("li")).toHaveLength(0);
+    expect(screen.getByRole("complementary").textContent).toBe("");
   });
 });

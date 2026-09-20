@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
 
@@ -16,6 +17,10 @@ const t = initTRPC.context<Context>().create({
 });
 
 const pathInput = z.object({ path: z.string() });
+
+const listInput = z
+  .object({ order: z.enum(["newest", "oldest"]).default("newest") })
+  .default({ order: "newest" });
 
 // Only Unattached exists yet. `strict` is what makes a `from` key — or any
 // later context — an input error today, so later contexts extend this
@@ -51,6 +56,16 @@ export const router = t.router({
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
   }),
   questions: t.router({
+    list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
+      const vault = await ctx.vault.current();
+      if (vault === null) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No vault is open.",
+        });
+      }
+      return listQuestions(vault.path, input.order);
+    }),
     capture: t.procedure
       .input(captureInput)
       .mutation(({ ctx, input }) =>

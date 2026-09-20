@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
 import type { Host } from "./host.js";
 
 const token = "test-token";
+export const fixtures = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../fixtures"
+);
 
 /** A host whose chooser always answers the same way. */
 export function fakeHost(picked: string | null): Host {
@@ -31,7 +36,7 @@ export async function core(
   opts: Partial<Omit<AppOptions, "token">> = {}
 ): Promise<{
   appSupportDir: string;
-  query: <T>(path: string) => Promise<Reply<T>>;
+  query: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
   mutate: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
 }> {
   const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
@@ -47,8 +52,12 @@ export async function core(
   };
   return {
     appSupportDir,
-    query: async <T>(path: string) => {
-      const res = await app.request(`/trpc/${path}`, { headers });
+    query: async <T>(path: string, input?: unknown) => {
+      const url =
+        input === undefined
+          ? `/trpc/${path}`
+          : `/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
+      const res = await app.request(url, { headers });
       return (await res.json()) as Reply<T>;
     },
     mutate: async <T>(path: string, input?: unknown) => {
