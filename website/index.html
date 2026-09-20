@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vitrine</title>
-  <meta name="description" content="Vitrine — a local-first research workspace built around the question rather than the note.">
+  <title>Tacomancy</title>
+  <meta name="description" content="Tacomancy — the study of taco-based magic, and what it makes: Vitrine, a local-first research workspace, and agent skills distilled from how it is run. The one-person kitchen of Sarah Lehman.">
   <meta name="author" content="Sarah Lehman">
   <!-- Both modes: the browser chrome follows the page's ground. The first theme-color whose media matches wins, so light goes first and dark is the fallback (BRAND.md law 4). -->
   <meta name="theme-color" content="#F7F1E6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#09111D">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Vitrine">
-  <meta property="og:title" content="Vitrine — built around the question, not the note">
-  <meta property="og:description" content="A local-first research workspace. Questions carry their provenance, sources argue for and against, Scouts propose and never decide.">
+  <meta property="og:site_name" content="Tacomancy">
+  <meta property="og:title" content="Tacomancy — the study of taco-based magic">
+  <meta property="og:description" content="A one-person studio: Vitrine, a local-first research workspace, and agent skills distilled from how it is run.">
   <meta property="og:url" content="https://tacomancy.com/">
-  <meta property="og:image" content="https://tacomancy.com/social.png">
+  <meta property="og:image" content="https://tacomancy.com/social-tacomancy.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Vitrine: built around the question, not the note. A local-first research workspace.">
+  <meta property="og:image:alt" content="Tacomancy: the study of taco-based magic. A one-person studio.">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="brand/mark-case.svg" type="image/svg+xml">
+  <link rel="icon" href="marks/fold.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -29,103 +29,57 @@
 </head>
 <body>
   <header class="masthead">
-    <a class="lockup" href="./" aria-label="Vitrine home">
-      <img class="mark" src="brand/mark-case.svg" alt="" width="28" height="28">
-      <span class="wordmark">Vitrine</span>
+    <a class="lockup" href="./" aria-label="Tacomancy home">
+      <img class="mark" src="marks/fold.svg" alt="" width="28" height="28">
+      <span class="wordmark">Tacomancy</span>
     </a>
     <nav class="nav" aria-label="Primary">
-      <a href="prototypes/">Prototypes</a>
-      <a href="tacomancy/">Tacomancy</a>
-      <a href="https://github.com/tacomancy/vitrine">GitHub</a>
+      <a href="vitrine/">Vitrine</a>
+      <a href="skills/">Skills</a>
+      <a href="https://github.com/tacomancy">GitHub</a>
     </nav>
   </header>
 
   <main>
     <section class="hero">
-      <p class="eyebrow">A research workspace</p>
-      <h1>Built around the question, not the note.</h1>
-      <p class="lede">Most tools let you store what you have read. Almost none let you track what you still want to know, where the wondering came from, and whether you ever resolved it. Vitrine makes the question a first-class object with its own lifecycle, fed by what you read and what your agents find.</p>
-      <p class="status">Design complete · in development · no release yet</p>
-      <p class="cta"><a class="button" href="prototypes/">See the twelve prototypes</a></p>
+      <p class="hero-lockup"><img class="mark" src="marks/fold.svg" alt="" width="44" height="44"><span class="wordmark">Tacomancy</span></p>
+      <p class="eyebrow">A one-person studio</p>
+      <h1>The study of taco-based magic.</h1>
+      <p class="lede">Every taco is a small act of divination. Things that had no business together get folded into one thing that holds, and for a moment it is perfectly obvious what should have been done all along. Tacomancy is the practice of getting that moment on purpose, and of writing down how, so the next taco is not luck.</p>
+      <p class="status">Est. whenever lunch was · peer review ongoing · no shell left behind</p>
     </section>
 
-    <section class="section" aria-labelledby="lifecycle">
-      <p class="eyebrow">The spine</p>
-      <h2 id="lifecycle">A question has a lifecycle.</h2>
-      <p>Capture is two keystrokes from anywhere and records its provenance without asking: what you were reading or doing, the page, the date. A question that occurred to you on page 7 of something you were reading three weeks ago is a different object from a line in a notebook.</p>
-      <p>Most questions stay open indefinitely, and that is expected. Age is a sortable fact, never a warning. Nothing counts what you have not answered. When a question is worth pursuing, it is promoted along one of two paths.</p>
+    <section class="section" aria-labelledby="makes">
+      <p class="eyebrow">What Tacomancy makes</p>
+      <h2 id="makes">Two things so far, both on GitHub.</h2>
       <dl class="pair">
         <div>
-          <dt>Answered by reading <span class="object">Research Question</span></dt>
-          <dd>A working answer, supporting and opposing sources kept structurally apart, and a position history that reads as changing your mind rather than as a diff.</dd>
+          <dt><a href="vitrine/">Vitrine</a> <span class="object">A research workspace</span></dt>
+          <dd>Local-first, plain Markdown, built around the question rather than the note. The design is complete and every surface has a pinned prototype; the app is in development. <a href="vitrine/">The premise</a> · <a href="vitrine/prototypes/">the twelve prototypes</a> · <a href="https://github.com/tacomancy/vitrine">the repository</a>.</dd>
         </div>
         <div>
-          <dt>Answered by testing <span class="object">Hypothesis</span></dt>
-          <dd>Criteria recorded before the evidence arrives. State is derived from them, never chosen from a menu. Falsified is a result, not a failure, and it answers the question with a real answer: no.</dd>
+          <dt><a href="skills/">Skills</a> <span class="object">Agent skills, distilled from Vitrine</span></dt>
+          <dd>How Tacomancy projects are run, made installable in any repository: guidance tiers with a check that fails when the frozen one is touched, pinned prototypes with a rebrand that maps every colour or fails, ADRs that name what they close, a ranking of every recommendation by how hard it is to reverse, and verifying a desktop app without ever showing a window. <a href="skills/">The five skills</a> · <a href="https://github.com/tacomancy/skills">the repository</a>.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="section" aria-labelledby="inputs">
-      <p class="eyebrow">Two inputs</p>
-      <h2 id="inputs">Fed by what you read and what your Scouts find.</h2>
-      <dl class="pair">
-        <div>
-          <dt>Reading <span class="object">Reader</span></dt>
-          <dd>Highlights and margin notes live in the PDF as standard annotation objects, so any PDF tool can read them and a note can link to one specific passage. Annotate on an iPad in Preview; the app ingests what comes back and asks about anything it could not re-match rather than dropping it.</dd>
-        </div>
-        <div>
-          <dt>Scouts <span class="object">Scout Queue</span></dt>
-          <dd>Scheduled agents that each watch one source, a lab's publications page, a feed, or a literature API, and propose what they find as metadata cards: no model-written summary, no download. Everything a Scout finds is a proposal. Nothing enters the vault without your acceptance.</dd>
-        </div>
-      </dl>
-    </section>
-
-    <section class="section" aria-labelledby="promises">
-      <p class="eyebrow">Non-negotiable</p>
-      <h2 id="promises">What it promises.</h2>
+    <section class="section" aria-labelledby="tenets">
+      <p class="eyebrow">First principles</p>
+      <h2 id="tenets">The tenets, as far as anyone has written them down.</h2>
       <ul class="marked" role="list">
-        <li><strong>Local-first.</strong> The vault is plain Markdown on disk, and this app is not the only way to read it. The only thing that syncs is the PDF folder.</li>
-        <li><strong>Annotations live in the PDF.</strong> Standard annotation objects in the file, not rows in a database beside it.</li>
-        <li><strong>Your own API keys.</strong> No credentials leave the device except to the provider you configured.</li>
-        <li><strong>Agent output is always a proposal.</strong> Nothing an agent finds is written until you accept it.</li>
-        <li><strong>No badges, no overdue states, no total counts.</strong> Curiosity is not debt.</li>
-        <li><strong>State is derived, never declared.</strong> A hypothesis is supported, falsified, or inconclusive because its criteria say so.</li>
-        <li><strong>No silent failures.</strong> An unmatched annotation asks for a decision, and a broken Scout never looks like a quiet field.</li>
-        <li><strong>No force-directed graph.</strong> A sorted matrix, a labeled scatter, ranked lists.</li>
+        <li><strong>Everything is in the fold.</strong> The shell decides what stays together. Get the fold right and the filling can be anything; get it wrong and no amount of filling helps.</li>
+        <li><strong>Layers, never a blend.</strong> A proper taco keeps its parts distinct: you can taste each one and see where it sits. Purée them and you have made soup, and soup is a different school.</li>
+        <li><strong>Salsa is a proposal.</strong> It arrives on the side. Nobody puts it on your taco for you, and a taco that came pre-sauced is asking you to trust a stranger.</li>
+        <li><strong>Two hands, no plate.</strong> The best instruments are held, not administered. If it needs a fork, something went wrong upstream and the fork is not the fix.</li>
+        <li><strong>The second taco is the honest one.</strong> The first is just hunger. Judge a recipe by whether you want another, and judge a tool the same way.</li>
+        <li><strong>Write down what you expected before you bite.</strong> Otherwise every taco was exactly what you meant, and you learn nothing.</li>
       </ul>
-    </section>
-
-    <section class="section" aria-labelledby="surfaces">
-      <p class="eyebrow">Eight surfaces, three dashboards</p>
-      <h2 id="surfaces">Every one drawn before a line of code.</h2>
-      <p>Each was designed from a prompt written to stand alone, and each is pinned in the repository as frozen reference. They are all live in the gallery.</p>
-      <div class="surfaces">
-        <!-- Numbered as the prototypes are (01–11); 00 is the shape, not a surface. -->
-        <ol class="surface-list" role="list" aria-label="Surfaces">
-          <li><a href="prototypes/#question-inbox">Question Inbox</a></li>
-          <li><a href="prototypes/#reader">Reader</a></li>
-          <li><a href="prototypes/#research-question">Research Question</a></li>
-          <li><a href="prototypes/#hypothesis">Hypothesis</a></li>
-          <li><a href="prototypes/#experiment">Experiment</a></li>
-          <li><a href="prototypes/#scout-queue">Scout Queue</a></li>
-          <li><a href="prototypes/#vault">Vault</a></li>
-          <li><a href="prototypes/#home">Home</a></li>
-        </ol>
-        <dl class="dashboard-list" aria-label="Dashboards">
-          <dt><a href="prototypes/#loose-ends">Loose Ends</a></dt>
-          <dd>What is incomplete or broken?</dd>
-          <dt><a href="prototypes/#scout-activity">Scout Activity</a></dt>
-          <dd>Are the agents earning their keep?</dd>
-          <dt><a href="prototypes/#question-map">Question Map</a></dt>
-          <dd>Where is my work thin?</dd>
-        </dl>
-      </div>
     </section>
   </main>
 
   <footer class="colophon">
-    <p>Local-first. Plain Markdown. Your own API keys. A <a href="tacomancy/">Tacomancy</a> project by <a href="https://github.com/dr-tacomancer">Sarah Lehman</a>; <a href="https://github.com/tacomancy/vitrine">follow along on GitHub.</a></p>
+    <p>Tacomancy is a one-person kitchen, and the person is <a href="https://github.com/dr-tacomancer">Sarah Lehman</a>. <a href="https://github.com/tacomancy">Everything it makes is on GitHub.</a></p>
   </footer>
 </body>
 </html>

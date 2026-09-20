@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skills · Tacomancy</title>
+  <meta name="description" content="tacomancy/skills — agent skills distilled from how Tacomancy projects are run: guidance tiers, pinned prototypes, ADR shape, reversibility ranking, hidden verification. One folder per skill; npx skills add tacomancy/skills.">
+  <meta name="author" content="Sarah Lehman">
+  <meta name="theme-color" content="#F7F1E6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#09111D">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Tacomancy">
+  <meta property="og:title" content="Skills — how Tacomancy projects are run, made installable">
+  <meta property="og:description" content="Five agent skills distilled from Vitrine: guidance tiers, pinned prototypes, ADR shape, reversibility ranking, hidden verification.">
+  <meta property="og:url" content="https://tacomancy.com/skills/">
+  <meta property="og:image" content="https://tacomancy.com/social-tacomancy.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tacomancy: the study of taco-based magic. A one-person studio.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../marks/tiers.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="../brand/tokens.css">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="lockup" href="../" aria-label="Tacomancy home">
+      <img class="mark" src="../marks/fold.svg" alt="" width="28" height="28">
+      <span class="wordmark">Tacomancy</span>
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="../vitrine/">Vitrine</a>
+      <a href="./" aria-current="page">Skills</a>
+      <a href="https://github.com/tacomancy">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="hero-lockup"><img class="mark" src="../marks/tiers.svg" alt="" width="44" height="44"><span class="wordmark">Skills</span></p>
+      <p class="eyebrow">Agent skills</p>
+      <h1>How Tacomancy projects are run, made installable.</h1>
+      <p class="lede"><code>tacomancy/skills</code> is a repository of agent skills distilled from Vitrine: the working practices that turned out to matter, each written so an agent in any other repository can follow it without Vitrine's context. One folder per skill, a <code>SKILL.md</code> in each, no build. Other repositories install them with <code>npx skills add tacomancy/skills</code>.</p>
+      <p class="status">Five specs written · guidance-tiers in tickets · nothing installable yet</p>
+      <p class="cta"><a class="button" href="https://github.com/tacomancy/skills">The repository</a> <a class="aside" href="https://github.com/tacomancy/skills/issues?q=label%3Aspec">the five specs</a></p>
+    </section>
+
+    <section class="section" aria-labelledby="five">
+      <p class="eyebrow">The five</p>
+      <h2 id="five">Each one exists because a spec says what it does.</h2>
+      <dl class="pair">
+        <div>
+          <dt>guidance-tiers <span class="object">Frozen and living documentation</span></dt>
+          <dd>A design document that must stay authoritative is frozen: never edited, indexed by a README that changes only with the folder's contents. Current understanding lives beside it and wins where it speaks; every divergence traces to an ADR. A check script, run as a required CI check, fails when the frozen tier is touched — a rule in a guidance file is only a rule if something fails when it is broken.</dd>
+        </div>
+        <div>
+          <dt>pin-prototypes <span class="object">Brief-driven design, pinned exports</span></dt>
+          <dd>One prompt per surface, each with what to push back on written before the output is seen. Exports pinned as numbered HTML and PNG. The brief wins on behaviour, the prototype on layout. A build-time rebrand that maps the design tool's palette onto the project's tokens as a total mapping, and fails on any colour it does not know.</dd>
+        </div>
+        <div>
+          <dt>adr-shape <span class="object">ADRs that name what they close</span></dt>
+          <dd>A lead paragraph naming the decision or open question this one closes. Every considered option priced with why it lost. The irreversible in the ADR, the reversible in the living architecture document, with a pointer each way. Superseded, never edited in place.</dd>
+        </div>
+        <div>
+          <dt>reversibility-rank <span class="object">What would be hard to change</span></dt>
+          <dd>Closes any round of recommendations with the hard-to-reverse items first, one line each on why they are sticky, and the rest marked trivial in a single line. Honest by construction: most rounds have one or two. Runs last in <code>grill-me</code>, <code>grill-with-docs</code>, and <code>adr-shape</code>, or alone on any list.</dd>
+        </div>
+        <div>
+          <dt>hidden-verify <span class="object">A desktop app checked without a window</span></dt>
+          <dd>An environment contract that makes the app render its window without showing it, capture after a delay, and quit; state pointed at a scratch directory so a run never touches the owner's; a driver over the DevTools Protocol that presses keys and reads computed styles, so proof is a value against a token, not a pixel.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="section" aria-labelledby="kept">
+      <p class="eyebrow">How the repository is kept</p>
+      <h2 id="kept">The rules it holds itself to.</h2>
+      <ul class="marked" role="list">
+        <li><strong>A spec before a skill.</strong> A skill exists because a GitHub issue labelled <code>spec</code> says what it does. Nothing is written without one.</li>
+        <li><strong>A check that fails on unknown input stays a failure.</strong> No warn-and-continue mode, no default value that lets the unknown through.</li>
+        <li><strong>Vendored skills are never edited.</strong> Extension goes through the new skill's own trigger, or one line in the adopting repository's guidance file.</li>
+        <li><strong>Tests ship separately.</strong> <code>tests/</code> mirrors <code>skills/</code>, so an install carries no test code. Every script a skill ships is tested as its user would run it: exit code, output, files — never from inside.</li>
+        <li><strong>Nothing project-specific in the body.</strong> A Vitrine path or token appears only as an example labelled as one; the contract is stated generically first. Each <code>SKILL.md</code> ends with one <em>Origin</em> line naming the pattern it came from, so drift is visible later.</li>
+      </ul>
+    </section>
+
+    <section class="section" aria-labelledby="status">
+      <p class="eyebrow">Where it stands</p>
+      <h2 id="status">Specified, not yet shipped.</h2>
+      <p>Five specs are written. <code>guidance-tiers</code> also lands the repository's skeleton — the test project, the structural checks, CI — so it goes first and is broken into tickets; the other four are blocked on it. When a skill lands, the install line above works for it.</p>
+      <p><a href="https://github.com/tacomancy/skills/issues?q=label%3Aspec">The specs</a> · <a href="https://github.com/tacomancy/skills/issues?q=is%3Aopen+label%3Askill%2Fguidance-tiers+-label%3Aspec">the guidance-tiers tickets</a> · <a href="https://github.com/tacomancy/skills">the repository</a>.</p>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <p>A <a href="../">Tacomancy</a> project by <a href="https://github.com/dr-tacomancer">Sarah Lehman</a>; <a href="https://github.com/tacomancy/skills">follow along on GitHub.</a></p>
+  </footer>
+</body>
+</html>

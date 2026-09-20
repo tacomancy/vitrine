@@ -20,8 +20,8 @@ mkdir -p "$out/brand"
 cp docs/reference/branding/tokens.css "$out/brand/tokens.css"
 cp docs/reference/branding/assets/*.svg "$out/brand/"
 
-# The gallery page (website/prototypes/index.html) is already in place from
-# the copy above; the rebranded exports and support.js land beside it.
-Scripts/rebrand-prototypes.py docs/reference/prototypes "$out/prototypes"
+# The gallery page (website/vitrine/prototypes/index.html) is already in place
+# from the copy above; the rebranded exports and support.js land beside it.
+Scripts/rebrand-prototypes.py docs/reference/prototypes "$out/vitrine/prototypes"
 
 printf 'built %s (%s)\n' "$out" "$(du -sh "$out" | cut -f1)"

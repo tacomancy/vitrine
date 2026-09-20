@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Skills mark — The Tiers">
+  <title>Skills mark — The Tiers</title>
+  <!-- Drawn in the Case's grammar (docs/reference/branding/BRAND.md § Marks): the same 8px steps,
+       the same brass and glass gradients, the same plinth. Three stepped tiers, each a brass frame
+       around glass — the frozen and living tiers the first skill exists to keep apart. -->
+  <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+    <stop offset="100%" stop-color="#836202"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#053274"/><stop offset="100%" stop-color="#020713"/></linearGradient></defs>
+  <path d="M8,54 L8,38 L16,38 L16,24 L24,24 L24,10 L40,10 L40,24 L48,24 L48,38 L56,38 L56,54 Z" fill="url(#b)"/>
+  <rect x="27" y="13" width="10" height="11" fill="url(#g)"/>
+  <rect x="19" y="27" width="26" height="11" fill="url(#g)"/>
+  <rect x="11" y="41" width="42" height="13" fill="url(#g)"/>
+  <rect x="4" y="54" width="56" height="6" fill="url(#b)"/>
+</svg>
