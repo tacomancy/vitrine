@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { renderApp } from "./fake-core";
+import { renderApp, vault } from "./fake-core";
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);
@@ -66,8 +66,6 @@ describe("First run", () => {
 });
 
 describe("the window with a vault open", () => {
-  const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-
   it("names the vault in the title bar", async () => {
     renderApp({ "vault.current": vault });
     expect((await screen.findByRole("banner")).textContent).toBe(

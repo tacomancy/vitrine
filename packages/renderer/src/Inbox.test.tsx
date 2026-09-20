@@ -1,26 +1,10 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "./fake-core";
+import { empty, question as q, renderApp, rows, vault } from "./fake-core";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-});
-
-const vault = { name: "consolidation-vault", path: "/v/consolidation-vault" };
-
-const q = (
-  question: string,
-  captured: string,
-  rest: Record<string, unknown> = {}
-) => ({
-  id: question.slice(0, 10),
-  path: `/v/consolidation-vault/questions/${question}.md`,
-  question,
-  status: "open",
-  captured,
-  context: "other",
-  ...rest,
 });
 
 const newest = q(
@@ -39,8 +23,6 @@ const oldest = q(
   }
 );
 
-const empty = { questions: [], partial: [], unreadable: [] };
-
 function renderInbox(listing: Record<string, unknown>) {
   vi.useFakeTimers({ now: new Date("2026-09-19T12:00:00Z"), toFake: ["Date"] });
   return renderApp({
@@ -55,11 +37,6 @@ function renderInbox(listing: Record<string, unknown>) {
       return { ...empty, ...listing, questions };
     },
   });
-}
-
-async function rows() {
-  const list = await screen.findByRole("listbox", { name: "Questions" });
-  return within(list).findAllByRole("option");
 }
 
 describe("the Inbox list", () => {

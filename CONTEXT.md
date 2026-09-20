@@ -109,6 +109,10 @@ _Avoid_: Error, corrupt, skipped
 **Capture**:
 Making a Question in two keystrokes from anywhere, with Provenance attached without typing.
 
+**Landing** (of a Question):
+The moment a capture becomes a row: the Inbox re-reads the vault, the new Question is the selection, and the keyboard is on the list so `j`/`k` act on it. Happens when the Inbox is on screen; from another surface the capture is written and focus returns to where it was (ADR 0010).
+_Avoid_: Refresh, sync, notification
+
 **Triage** (of a Question):
 Acting on a Question from the Inbox: promote to Research Question, promote to Hypothesis, link, answer, or drop.
 
