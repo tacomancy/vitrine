@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import type { Question } from "core";
 import {
   useCallback,
   useEffect,
@@ -13,9 +14,15 @@ import { useTRPC } from "./trpc";
 /**
  * The two-keystroke capture: ⌘' opens one line at the bottom of the window
  * with the Provenance already resolved, ↵ writes the Question and returns
- * focus to where it was, esc discards. Mounted once, window-wide.
+ * focus to where it was, esc discards. Mounted once, window-wide. What
+ * happens to a Question once written is the window's business, not the
+ * line's: it reports the landing and closes.
  */
-export function CaptureLine() {
+export function CaptureLine({
+  onCaptured,
+}: {
+  onCaptured: (question: Question) => void;
+}) {
   const trpc = useTRPC();
   const [openedAt, setOpenedAt] = useState<Date | null>(null);
   const [text, setText] = useState("");
@@ -75,7 +82,12 @@ export function CaptureLine() {
     if (trimmed === "" || capture.isPending) return;
     capture.mutate(
       { text: trimmed, provenance: { context: "other" } },
-      { onSuccess: close }
+      {
+        onSuccess: (question) => {
+          close();
+          onCaptured(question);
+        },
+      }
     );
   };
 

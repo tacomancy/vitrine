@@ -321,3 +321,49 @@ describe("a capture happens whole or not at all", () => {
     ]);
   });
 });
+
+describe("a capture lands in the list", () => {
+  it("is the first Question under newest, captured within the test's clock window", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    await mkdir(join(vault, "questions"));
+    await writeFile(
+      join(vault, "questions", "Earlier.md"),
+      "---\nkind: question\nquestion: Earlier\nstatus: open\ncaptured: 2026-01-01T00:00:00+00:00\ncontext: other\n---\n"
+    );
+    const before = Date.now();
+
+    const captured = await c.mutate<Question>("questions.capture", {
+      text: "Does this hold for sparse inputs?",
+      provenance: unattached,
+    });
+    const after = Date.now();
+
+    type Listing = { questions: Question[] };
+    const newest = await c.query<Listing>("questions.list", {
+      order: "newest",
+    });
+    const oldest = await c.query<Listing>("questions.list", {
+      order: "oldest",
+    });
+    const texts = (r: typeof newest) =>
+      r.result?.data.questions.map((q) => q.question);
+    expect(texts(newest)).toEqual([
+      "Does this hold for sparse inputs?",
+      "Earlier",
+    ]);
+    expect(texts(oldest)).toEqual([
+      "Earlier",
+      "Does this hold for sparse inputs?",
+    ]);
+
+    const landed = newest.result?.data.questions[0];
+    expect(landed?.id).toBe(captured.result?.data.id);
+    expect(landed?.path).toBe(captured.result?.data.path);
+    // `captured` is written at seconds precision, so the window is widened to
+    // the second on either side.
+    const stamp = Date.parse(landed?.captured ?? "");
+    expect(stamp).toBeGreaterThanOrEqual(Math.floor(before / 1000) * 1000);
+    expect(stamp).toBeLessThanOrEqual(Math.ceil(after / 1000) * 1000);
+  });
+});
