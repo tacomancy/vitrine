@@ -237,7 +237,35 @@ A hand-written search string, in the Structured source's own syntax, that a Scou
 _Avoid_: Prompt, search
 
 **Watched source**:
-A page or feed a Scout extracts from — a lab's publications page, a blog, a proceedings index, RSS/Atom. Extraction may need a model call.
+One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that; otherwise it needs an Extraction. Never crawled: one page, no link-following.
+_Avoid_: Site, crawl target, scrape
+
+**Feed**:
+An RSS or Atom document a Watched source advertises, whose entries map to a Proposal card directly. Read deterministically; no model call, no Extraction.
+
+**Extraction**:
+The one model call in the Scout pipeline: a Watched source's page, reduced to text, is asked for exactly the card fields — copied, never composed; missing shows as missing. Every returned item is then Verified before it can become a Proposal.
+_Avoid_: Summarisation, parsing (that is what a Feed or an API gets), scraping
+
+**Verified** (of an extracted item):
+Its title and link both occur literally on the fetched page. An item that is not Verified is dropped and counted on the run, never proposed. What stands between a hallucinated card and the Queue.
+_Avoid_: Confident, high-confidence (nothing is scored), validated
+
+**Source key**:
+What identifies a Proposal across sources: an arXiv id, else a DOI, else the normalised link. Two Scouts finding the same key produce one card with two Appearances.
+_Avoid_: External id, dedup key
+
+**Provider**:
+A model API the user holds a key for. One at launch, Anthropic; identified by name, and the name is where its Credential lives.
+_Avoid_: Vendor, backend, LLM
+
+**Credential**:
+The user's own key for a Provider, kept in the login Keychain by the app and read only when a run needs it. Entered once, never displayed again, removable. Leaves the device only in a request to that Provider.
+_Avoid_: API key (in copy — say key), token (that is the session token), secret
+
+**Blocked on credentials** (of a Scout):
+A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key.
+_Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:
 A literature API a Scout queries — Semantic Scholar, arXiv, OpenAlex, PubMed, Crossref. Returns fields directly.
@@ -250,7 +278,7 @@ _Avoid_: Candidate, suggestion, result, message, proposed Source
 Which Scout found it, which Questions that Scout is Assigned to, and whether it came from a Retroactive search. Carried onto the Source stub on acceptance.
 
 **Retroactive** (of a Proposal or a stub):
-Found by a backward search over already-published work, offered when a Scout is created and bounded by a backstop date, rather than by an ongoing run. Shown as such so the batch can be triaged or rejected together.
+Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run. Shown as such so the batch can be triaged or rejected together.
 _Avoid_: Backfill, historical, catch-up
 
 **Appearance**:
@@ -271,7 +299,7 @@ The same work surfacing from several Scouts, merged into one Proposal that keeps
 Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal.
 
 **Source health**:
-Per Scout: last successful run, last new item, and the last error and its kind — for a Structured source: network, HTTP status, rate-limited, or parse (the response lacked what was expected; an API's structure change). Derived from the Scout's runs, never stored on the Scout. *Broken* means the most recent run did not succeed; a run that succeeded and found nothing is a quiet field, and the two must never look alike.
+Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout. *Broken* means the most recent run did not succeed; a run that succeeded and found nothing — or found the page unchanged and never called the model — is a quiet field, and the two must never look alike.
 _Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old)
 
 **Mute**:
