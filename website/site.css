@@ -82,6 +82,16 @@ main { flex: 1; }
 
 .hero { padding-block: var(--space-9) var(--space-8); }
 
+/* The masthead is the studio's everywhere; a page's own lockup opens its hero,
+   one step larger. Same wordmark rules as above (BRAND.md). */
+.hero-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
+}
+.hero-lockup .wordmark { font-size: var(--text-2xl); transform: translateY(3px); }
+
 .eyebrow {
   margin: 0 0 var(--space-4);
   font-family: var(--font-mono);

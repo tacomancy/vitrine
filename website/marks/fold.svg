@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tacomancy mark — The Fold">
+  <title>Tacomancy mark — The Fold</title>
+  <!-- Drawn in the Case's grammar (docs/reference/branding/BRAND.md § Marks): the same stepped silhouette,
+       the same brass and glass gradients, the same plinth. The cabinet turned open: a stepped
+       vessel, the fold read as the chevron the Case cuts as light, pointing up instead of down. -->
+  <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+    <stop offset="100%" stop-color="#836202"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#053274"/><stop offset="100%" stop-color="#020713"/></linearGradient></defs>
+  <path d="M8,8 L8,36 L16,36 L16,44 L24,44 L24,54 L40,54 L40,44 L48,44 L48,36 L56,36 L56,8 Z" fill="url(#b)"/>
+  <path d="M14,8 L14,31 L21,31 L21,39 L28,39 L28,48 L36,48 L36,39 L43,39 L43,31 L50,31 L50,8 Z" fill="url(#g)"/>
+  <path d="M24,36 L32,20 L40,36" fill="none" stroke="url(#b)" stroke-width="4.2"/>
+  <rect x="4" y="54" width="56" height="6" fill="url(#b)"/>
+</svg>
