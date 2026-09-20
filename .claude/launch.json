@@ -18,9 +18,10 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "Scripts/build-site.sh build/site && python3 -m http.server 8766 --directory build/site"
+        "Scripts/build-site.sh build/site && python3 -m http.server \"${PORT:-8766}\" --directory build/site"
       ],
-      "port": 8766
+      "port": 8766,
+      "autoPort": true
     }
   ]
 }

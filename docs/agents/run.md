@@ -30,3 +30,7 @@ Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsid
 ## What cannot be driven this way
 
 Native dialogs and the menu: the folder chooser (`vault.pick`, `File ▸ Open Vault…`) needs a visible window and a human. Those stories are covered by the core's router tests with a fake host, and were verified by hand once in #104. The Obsidian round-trip (open the written file, see editable Properties) was checked once in #106 by registering the scratch vault in `~/Library/Application Support/obsidian/obsidian.json` — ask before doing that again; it adds a vault to the user's switcher.
+
+## The public site
+
+`website/` is outside the test suite and linters, so it is verified in the browser (ADR 0004): `preview_start` with the `site` configuration runs `Scripts/build-site.sh` and serves `build/site`. The configuration asks for port 8766 and, because it sets `autoPort`, accepts the port the harness assigns instead (arriving as `PORT`) when 8766 is already held — usually by the same configuration running in another checkout, since every worktree under `.claude/worktrees/` shares this file. Rebuild with the script after an edit; the server keeps serving the folder. The preview tab reports itself hidden while an agent works, so the gallery's lazily loaded prototypes do not load until the pane is fronted — read state from the DOM rather than trusting a blank screenshot.
