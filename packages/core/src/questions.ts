@@ -75,7 +75,8 @@ const CHUNK = 4096;
 // whole file looking for a closing fence that is never coming.
 const MAX_FRONTMATTER = 64 * 1024;
 
-const OPEN_FENCE = /^---\r?\n/;
+// The fence sits at byte 0, after a BOM if any (ADR 0008).
+const OPEN_FENCE = /^\uFEFF?---\r?\n/;
 const CLOSE_FENCE = /\r?\n---\r?\n/;
 // A file may end on its closing fence with no newline after it.
 const CLOSE_FENCE_AT_EOF = /\r?\n---$/;
@@ -96,13 +97,15 @@ async function readFrontmatter(path: string): Promise<string | null> {
       const eof = bytesRead < CHUNK;
       text += decoder.write(buffer.subarray(0, bytesRead));
       if (eof) text += decoder.end();
-      if (!OPEN_FENCE.test(text)) return null;
-      // The opening fence is three characters; the YAML starts after it and
-      // runs to the newline that precedes the closing fence.
+      const opened = OPEN_FENCE.exec(text);
+      if (!opened) return null;
+      // The YAML starts after the opening fence and runs to the newline that
+      // precedes the closing one.
+      const start = opened[0].length - (opened[0].endsWith("\r\n") ? 2 : 1);
+      const rest = text.slice(start);
       const close =
-        CLOSE_FENCE.exec(text.slice(3)) ??
-        (eof ? CLOSE_FENCE_AT_EOF.exec(text.slice(3)) : null);
-      if (close) return text.slice(3, 3 + close.index + 1);
+        CLOSE_FENCE.exec(rest) ?? (eof ? CLOSE_FENCE_AT_EOF.exec(rest) : null);
+      if (close) return text.slice(start, start + close.index + 1);
       if (eof || text.length > MAX_FRONTMATTER) {
         throw new Error("frontmatter block is not closed");
       }

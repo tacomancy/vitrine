@@ -1,4 +1,4 @@
-# 0008: A Question file is read as found — frontmatter only, missing keys are gaps, wrong values are faults
+# 0009: A Question file is read as found — frontmatter only, missing keys are gaps, wrong values are faults
 
 **Status:** Accepted
 
@@ -6,7 +6,7 @@ ADR 0006 says a file is a Question because its frontmatter says so, and that the
 
 ## Decisions
 
-1. **Frontmatter only.** The file is read up to its closing `---` fence and no further; the body is never loaded. Reading is not the round-tripping parser `docs/architecture.md` § Open item 1 still owes, and nothing here pre-empts it: no file is rewritten.
+1. **Frontmatter only.** The file is read up to its closing `---` fence (at byte 0, after a BOM if any — ADR 0008's fence rule) and no further; the body is never loaded. This is a reader, not the locator ADR 0008 puts in `packages/markdown`: when that package lands it finds the fence, and the rules below are what the Inbox does with what it finds. No file is rewritten.
 2. **A missing `status` is `open`.** A Question that was never triaged is open, so a file with no `status:` is listed as one. Nothing is written back; the key stays absent until a triage action sets it.
 3. **A missing `context` is `other`.** No context recorded means nothing was open when the Question was made: time and place are the whole Provenance, which is what *Unattached* (`CONTEXT.md`) says. Every other Provenance key (`from`, `page`, `annotation`) is optional and passed through as present.
 4. **A missing `question` or `captured` makes the file Partial.** It is listed by file name and modification time and marked, because without those two keys there is no row to draw. Partial is a gap, not a fault: the file is well-formed as far as it goes.

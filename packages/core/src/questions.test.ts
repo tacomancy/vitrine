@@ -225,6 +225,18 @@ describe("questions.list", () => {
     expect(listing.questions[0]?.question).toBe(text);
   });
 
+  it("accepts a fence after a byte-order mark (ADR 0008's fence rule)", async () => {
+    const vault = await tmp("bom");
+    await writeFile(
+      join(vault, "Marked.md"),
+      "\uFEFF" + questionFile("Marked", "2026-01-01T00:00:00Z")
+    );
+    const c = await opened(vault);
+    const listing = await c.list();
+    expect(listing.unreadable).toEqual([]);
+    expect(listing.questions.map((q) => q.question)).toEqual(["Marked"]);
+  });
+
   it("refuses when no vault is open", async () => {
     const c = await core();
     const reply = await c.query<Listing>("questions.list");

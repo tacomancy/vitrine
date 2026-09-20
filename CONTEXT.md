@@ -22,8 +22,20 @@ _Avoid_: Type (taken by the type system), category
 An ordinary Markdown file with links, tags, and backlinks. Obsidian behaviour is the tiebreaker for anything unspecified.
 
 **Tag**:
-A slash-separated topic label parsed into a tree (`ml/interpretability/probing`). A parent's coverage is the union of its children's.
+A slash-separated topic label parsed into a tree (`ml/interpretability/probing`), the same tag whatever its casing. A parent's coverage is the union of its children's.
 _Avoid_: Topic (a tag *is* the topic axis; "topic cluster" is a Scout Queue grouping, not a tag)
+
+**Owned section**:
+A `##` section of a vault file that the app rewrites whole — `## Annotations`, `## Position history` — as opposed to the user's prose, which it never touches.
+_Avoid_: Managed section, generated section
+
+**Shape problem**:
+An app-owned file missing structure its Kind expects, such as a Hypothesis without `## Criteria`.
+_Avoid_: Corrupt, malformed, invalid file
+
+**Ambiguous link**:
+A bare wikilink whose name matches more than one file. Resolves to nothing and surfaces as a Loose end rather than picking one.
+_Avoid_: Broken link (that is an unresolved one), conflict
 
 ### Sources and reading
 
@@ -75,7 +87,7 @@ What the user was reading or doing when a Question was captured, the page or tim
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
 **Status** (of a Question):
-One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state. Every status is shown as a glyph and a label (`◆` open, `■` promoted, `●` answered, `×` dropped — the label follows the triage verb); only open carries colour, and that colour is the accent. A file with no `status:` is open: it was never triaged (ADR 0008).
+One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state. Every status is shown as a glyph and a label (`◆` open, `■` promoted, `●` answered, `×` dropped — the label follows the triage verb); only open carries colour, and that colour is the accent. A file with no `status:` is open: it was never triaged (ADR 0009).
 _Avoid_: Overdue, stale (in code — "stale" is only a Scout health term)
 
 **Unattached**:
@@ -83,11 +95,11 @@ The Provenance of a Question captured with no document open — `context: other`
 _Avoid_: No provenance, unknown, none
 
 **Partial**:
-A file whose frontmatter says `kind: question` but lacks `question` or `captured`, so it cannot be shown as a row. Listed anyway, by file name and modification time, marked as such — visible rather than dropped. Not a Status, and not counted as a Question (ADR 0008).
+A file whose frontmatter says `kind: question` but lacks `question` or `captured`, so it cannot be shown as a row. Listed anyway, by file name and modification time, marked as such — visible rather than dropped. Not a Status, and not counted as a Question (ADR 0009).
 _Avoid_: Invalid, broken (that is Unreadable), malformed
 
 **Unreadable**:
-A file the app could not read, whose frontmatter does not parse, or whose `captured` or `status` holds a value the vocabulary cannot read. Counted in a quiet footer line on the Inbox that opens to each path and reason; never dropped silently (ADR 0008).
+A file the app could not read, whose frontmatter does not parse, or whose `captured` or `status` holds a value the vocabulary cannot read. Counted in a quiet footer line on the Inbox that opens to each path and reason; never dropped silently (ADR 0009).
 _Avoid_: Error, corrupt, skipped
 
 **Capture**:
