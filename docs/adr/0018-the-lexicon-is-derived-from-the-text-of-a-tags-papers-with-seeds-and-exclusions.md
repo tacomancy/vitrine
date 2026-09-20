@@ -1,4 +1,4 @@
-# 0017: The Lexicon is derived from the text of a Tag's papers, with seeds and exclusions
+# 0018: The Lexicon is derived from the text of a Tag's papers, with seeds and exclusions
 
 **Status:** Accepted
 

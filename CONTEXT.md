@@ -221,7 +221,7 @@ A scheduled background agent watching one source on a cadence and producing Prop
 _Avoid_: Agent (too general), watcher, feed, brief (the design brief's metaphor; there is no text to brief a Scout with)
 
 **Filter** (of a Scout):
-What narrows a Scout's source: a Query, Tags, or nothing. A Tag becomes search terms deterministically, through its Lexicon, compiled into the source's own syntax (ADR 0017); until that slice lands a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
+What narrows a Scout's source: a Query, Tags, or nothing. A Tag becomes search terms deterministically, through its Lexicon, compiled into the source's own syntax (ADR 0018); until that slice lands a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
 _Avoid_: Brief, prompt, topic
 
 **Assigned** (a Scout, to Questions):
@@ -243,7 +243,7 @@ A page or feed a Scout extracts from — a lab's publications page, a blog, a pr
 A literature API a Scout queries — Semantic Scholar, arXiv, OpenAlex, PubMed, Crossref. Returns fields directly.
 
 **Proposal**:
-A metadata card a Scout produced: title, authors, date, venue, author keywords, abstract as published, link back, and Origin. No model-generated summary, no file. Missing fields show as missing; a field the source is known never to supply is not shown at all (ADR 0017). Lives in App state until accepted; acceptance writes a Source stub carrying the Origin.
+A metadata card a Scout produced: title, authors, date, venue, author keywords, abstract as published, link back, and Origin. No model-generated summary, no file. Missing fields show as missing; a field the source is known never to supply is not shown at all (ADR 0018). Lives in App state until accepted; acceptance writes a Source stub carrying the Origin.
 _Avoid_: Candidate, suggestion, result, message, proposed Source
 
 **Origin** (of a Proposal):
@@ -302,7 +302,7 @@ One row on the Loose Ends dashboard: something incomplete or broken with a one-c
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
 **Lexicon**:
-The Terms a Tag is measured and searched by: derived from the titles and abstracts of the Tag's papers, with author keywords as extra votes when known, and the user's Seeds and Exclusions applied. One set per Tag, compiled into each Structured source's own syntax. Flat, never inherited from the parent. Visible and editable; a Tag without one is *unplaced*, never low (ADR 0017).
+The Terms a Tag is measured and searched by: derived from the titles and abstracts of the Tag's papers, with author keywords as extra votes when known, and the user's Seeds and Exclusions applied. One set per Tag, compiled into each Structured source's own syntax. Flat, never inherited from the parent. Visible and editable; a Tag without one is *unplaced*, never low (ADR 0018).
 _Avoid_: Keyword set (a keyword is author-supplied; a Term need not be), vocabulary, topic model
 
 **Term**:
