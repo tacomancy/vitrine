@@ -40,8 +40,6 @@ body.wide .colophon {
   color: var(--color-fg-muted);
 }
 
-.nav a[aria-current="page"] { color: var(--color-accent); }
-
 /* Tabbed viewer, at and above the width gallery.js decides on: the contents
    become a tab strip that stays put while a four-screen prototype scrolls
    under it, and one section shows at a time. The strip's height is measured

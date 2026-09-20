@@ -67,6 +67,9 @@ main,
   margin-inline-start: auto;
 }
 
+/* BRAND.md law 3: brass is the active nav item. */
+.nav a[aria-current="page"] { color: var(--color-accent); }
+
 .nav a {
   font-size: var(--text-sm);
   font-weight: 500;
@@ -198,15 +201,16 @@ h1 {
   color: var(--color-fg-secondary);
 }
 
-/* list-style: none loses list semantics in WebKit; the markup says role="list". */
-.promises {
+/* A list marked in brass: the landing's promises, the tenets. list-style:
+   none loses list semantics in WebKit; the markup says role="list". */
+.marked {
   margin: var(--space-5) 0 0;
   padding: 0;
   list-style: none;
   max-width: 38rem;
 }
 
-.promises li {
+.marked li {
   position: relative;
   padding-left: var(--space-5);
   margin-bottom: var(--space-3);
@@ -215,7 +219,7 @@ h1 {
 }
 
 /* BRAND.md law 3: brass is punctuation. A square, not a bullet — law 5. */
-.promises li::before {
+.marked li::before {
   content: "";
   position: absolute;
   left: 0;
@@ -225,7 +229,7 @@ h1 {
   background: var(--color-accent);
 }
 
-.promises strong { font-weight: 500; color: var(--color-fg); }
+.marked strong { font-weight: 500; color: var(--color-fg); }
 
 .surfaces {
   display: grid;
@@ -265,6 +269,11 @@ h1 {
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-normal);
   color: var(--color-fg-muted);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 
 .colophon {
