@@ -1,4 +1,4 @@
-import { readFile, realpath } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   BOM,
@@ -46,12 +46,13 @@ export type FileChoices = {
   trailingNewline: boolean;
 };
 
-/** The package's outline with the `yaml` Document replaced by its plain value: what crosses the RPC boundary. */
+/**
+ * The package's outline with the `yaml` Document replaced by its plain
+ * value: what crosses the RPC boundary. Frontmatter that does not parse
+ * never gets this far — the file is unreadable — so there is no unparsed arm.
+ */
 export type FileOutline = Omit<Outline, "frontmatter"> & {
-  frontmatter:
-    | { parsed: true; range: Range; content: Range; value: unknown }
-    | { parsed: false; range: Range; content: Range; reason: string }
-    | null;
+  frontmatter: { range: Range; content: Range; value: unknown } | null;
 };
 
 export type Relationship = "confirming" | "falsifying" | "diagnostic";
@@ -136,19 +137,23 @@ async function locate(
   if (!absolute.endsWith(".md")) {
     throw new VaultError("notMarkdown", `${path} is not a Markdown file.`);
   }
+  // The walks (`list.ts`) skip every symlink, so a single read refuses one
+  // too — the file itself, or any folder on the way to it — rather than
+  // reading through a link the walk would never have listed. A missing file
+  // is not an input error; the read below reports it.
   try {
     const [realFile, realVault] = await Promise.all([
       realpath(absolute),
       realpath(vaultPath),
     ]);
-    const realRelative = relative(realVault, realFile);
-    if (realRelative.startsWith("..") || isAbsolute(realRelative)) {
+    const linked =
+      relative(realVault, realFile) !== relativePath ||
+      (await lstat(absolute)).isSymbolicLink();
+    if (linked) {
       throw new VaultError("outsideVault", `${path} is not in the vault.`);
     }
   } catch (error) {
     if (error instanceof VaultError) throw error;
-    // A missing file is unreadable, reported by the read below; not an
-    // input error.
   }
   return { absolute, relativePath: relativePath.split(sep).join("/") };
 }
@@ -160,6 +165,10 @@ function fileChoices(raw: string): { text: string; file: FileChoices } {
     text,
     file: {
       bom,
+      // One choice per file: a file with any CRLF is a CRLF file, so the
+      // writer never has to guess per line. Obsidian converts a file it
+      // edits to LF wholesale (S3), so mixed endings only come from
+      // elsewhere and are normalised the same way on the app's first write.
       eol: text.includes("\r\n") ? "crlf" : "lf",
       trailingNewline: text.endsWith("\n"),
     },
@@ -179,29 +188,42 @@ function errorMessage(error: unknown): string {
 function readCriteria(
   path: string,
   kind: string,
-  o: Outline
+  parsed: Outline
 ): { criteria: Criterion[]; shape: ShapeProblem[] } {
   const criteria: Criterion[] = [];
   const shape: ShapeProblem[] = [];
-  const section = o.headings.find(
+  const problem = (problem: ShapeProblem["problem"], block?: string) =>
+    shape.push(
+      block === undefined
+        ? { path, kind, problem }
+        : { path, kind, problem, block }
+    );
+  const section = parsed.headings.find(
     (h) => h.level === 2 && h.text === "Criteria"
   );
   if (!section) {
-    shape.push({ path, kind, problem: "criteriaMissing" });
+    problem("criteriaMissing");
     return { criteria, shape };
   }
   const within = (range: Range) =>
     range.start >= section.body.start && range.end <= section.body.end;
-  for (const heading of o.headings) {
+  // A field whose value is outside its vocabulary reads as absent, so the
+  // derived state is the same inconclusive an unset field gives — and the
+  // shape row says why (ADR 0008 decision 12).
+  const vocabulary = <T extends string>(
+    field: InlineField,
+    id: string,
+    values: readonly T[]
+  ): T | null => {
+    if (values.includes(field.value as T)) return field.value as T;
+    problem("fieldOutsideVocabulary", id);
+    return null;
+  };
+  for (const heading of parsed.headings) {
     if (heading.level !== 3 || !within(heading.range)) continue;
     const id = heading.blockId;
     if (id === null || !CRITERION_ID.test(id)) {
-      shape.push({
-        path,
-        kind,
-        problem: "criterionWithoutId",
-        block: heading.text,
-      });
+      problem("criterionWithoutId", heading.text);
       continue;
     }
     const criterion: Criterion = {
@@ -210,32 +232,12 @@ function readCriteria(
       relationship: null,
       outcome: null,
     };
-    const fields = o.inlineFields.filter(
-      (f) => f.under === id && within(f.range)
-    );
-    for (const field of fields) {
+    for (const field of parsed.inlineFields) {
+      if (field.under !== id || !within(field.range)) continue;
       if (field.key === "relationship") {
-        if (RELATIONSHIPS.includes(field.value as Relationship)) {
-          criterion.relationship = field.value as Relationship;
-        } else {
-          shape.push({
-            path,
-            kind,
-            problem: "fieldOutsideVocabulary",
-            block: id,
-          });
-        }
+        criterion.relationship = vocabulary(field, id, RELATIONSHIPS);
       } else if (field.key === "outcome") {
-        if (OUTCOMES.includes(field.value as Outcome)) {
-          criterion.outcome = field.value as Outcome;
-        } else {
-          shape.push({
-            path,
-            kind,
-            problem: "fieldOutsideVocabulary",
-            block: id,
-          });
-        }
+        criterion.outcome = vocabulary(field, id, OUTCOMES);
       }
     }
     criteria.push(criterion);
@@ -247,11 +249,11 @@ function readCriteria(
 function duplicatedOwnedSections(
   path: string,
   kind: string,
-  o: Outline
+  parsed: Outline
 ): ShapeProblem[] {
   const shape: ShapeProblem[] = [];
   for (const name of OWNED_SECTIONS[kind] ?? []) {
-    const count = o.headings.filter(
+    const count = parsed.headings.filter(
       (h) => h.level === 2 && h.text === name
     ).length;
     if (count > 1) {
@@ -285,35 +287,38 @@ export async function readOutline(
   // The BOM is stripped here and remembered in `file`, so every offset in
   // the outline is into the text the writer will splice.
   const { text, file } = fileChoices(raw);
-  const o = outline(text);
+  const parsed = outline(text);
+  const unreadable = (reason: string): OutlineResponse => ({
+    readable: false,
+    path: relativePath,
+    reason,
+  });
 
   let frontmatter: FileOutline["frontmatter"] = null;
   let kind: string | null = null;
-  if (o.frontmatter) {
-    if (!o.frontmatter.parsed) {
-      return {
-        readable: false,
-        path: relativePath,
-        reason: `frontmatter does not parse: ${o.frontmatter.reason}`,
-      };
+  if (parsed.frontmatter) {
+    if (!parsed.frontmatter.parsed) {
+      return unreadable(
+        `frontmatter does not parse: ${parsed.frontmatter.reason}`
+      );
     }
-    const value: unknown = o.frontmatter.document.toJS();
-    if (value !== null && value !== undefined) {
-      if (typeof value !== "object" || Array.isArray(value)) {
-        return {
-          readable: false,
-          path: relativePath,
-          reason: "frontmatter is not a map of keys",
-        };
-      }
-      const k = (value as Record<string, unknown>)["kind"];
-      kind = typeof k === "string" ? k : null;
+    // An empty block (`---\n---`) is a map with no keys, not no frontmatter:
+    // the fence is there, and the writer may set keys into it.
+    const value: unknown = parsed.frontmatter.document.toJS() ?? {};
+    if (typeof value !== "object" || Array.isArray(value)) {
+      return unreadable("frontmatter is not a map of keys");
     }
+    // A `kind:` that is not a string is a wrong value, not a missing key
+    // (ADR 0009 decision 5): reported, never quietly read as no Kind.
+    const declared = (value as Record<string, unknown>)["kind"];
+    if (declared !== undefined && typeof declared !== "string") {
+      return unreadable(`kind is not a string: ${JSON.stringify(declared)}`);
+    }
+    kind = declared ?? null;
     frontmatter = {
-      parsed: true,
-      range: o.frontmatter.range,
-      content: o.frontmatter.content,
-      value: value ?? {},
+      range: parsed.frontmatter.range,
+      content: parsed.frontmatter.content,
+      value,
     };
   }
 
@@ -321,11 +326,11 @@ export async function readOutline(
   let criteria: Criterion[] = [];
   if (kind !== null) {
     if (kind === "hypothesis") {
-      const read = readCriteria(relativePath, kind, o);
+      const read = readCriteria(relativePath, kind, parsed);
       criteria = read.criteria;
       shape.push(...read.shape);
     }
-    shape.push(...duplicatedOwnedSections(relativePath, kind, o));
+    shape.push(...duplicatedOwnedSections(relativePath, kind, parsed));
   }
 
   return {
@@ -333,7 +338,7 @@ export async function readOutline(
     path: relativePath,
     kind,
     file,
-    outline: { ...o, frontmatter },
+    outline: { ...parsed, frontmatter },
     criteria,
     shape,
   };

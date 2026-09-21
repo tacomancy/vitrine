@@ -90,12 +90,16 @@ describe("vault.outline: input", () => {
     await writeFile(join(outside, "Elsewhere.md"), "text\n");
     await writeFile(join(vault, "image.png"), "");
     await symlink(join(outside, "Elsewhere.md"), join(vault, "linked.md"));
+    await writeFile(join(vault, "Inside.md"), "text\n");
+    await symlink(join(vault, "Inside.md"), join(vault, "linked-inside.md"));
     const c = await opened(vault);
     for (const path of [
       join(outside, "Elsewhere.md"),
       "../Elsewhere.md",
       ".obsidian/workspace.md",
       "linked.md",
+      // A symlink is refused wherever it points: the walks never list one.
+      "linked-inside.md",
     ]) {
       const reply = await c.raw(path);
       expect(reply.error?.data.kind, path).toBe("outsideVault");
@@ -124,7 +128,6 @@ describe("README rows: frontmatter", () => {
     const c = await opened(corpus);
     const r = await c.readable("props-comma-tags.md");
     expect(r.outline.frontmatter).toMatchObject({
-      parsed: true,
       value: { tags: ["alpha, beta", "gamma"] },
     });
     expect(canonical(r)).toEqual(["alpha", "invalid: beta", "gamma"]);
@@ -141,7 +144,7 @@ describe("README rows: frontmatter", () => {
     const c = await opened(corpus);
     const source = await read("props-comment-and-order.md");
     const r = await c.readable("props-comment-and-order.md");
-    if (!r.outline.frontmatter?.parsed) throw new Error("unreadable");
+    if (!r.outline.frontmatter) throw new Error("no frontmatter");
     const yaml = slice(source, r.outline.frontmatter.content);
     expect(yaml).not.toContain("#");
     expect(yaml).toContain("zebra: single quoted\n");

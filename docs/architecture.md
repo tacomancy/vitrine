@@ -261,9 +261,11 @@ files       path, size, mtime, hash, kind, id, indexed_at        the watcher's M
                                                                  non-dot file has a row — a non-Markdown file carries `path`
                                                                  only (no stat, no hash, no outline rows: the sidecar keeps
                                                                  a PDF's), so `![[plot.png]]` and `[[paper.pdf]]` resolve
-problems    path, kind, problem, block                           kind ∈ unreadable | partial | shape; written in the same
-                                                                 transaction as the file's other rows, read by every
-                                                                 surface's footer channel and, later, Loose Ends counts
+problems    path, channel, kind, problem, block                  channel ∈ unreadable | partial | shape; kind the file's
+                                                                 Kind and problem, block as § Markdown's shape problem
+                                                                 (#119). Written in the same transaction as the file's
+                                                                 other rows, read by every surface's footer channel and,
+                                                                 later, Loose Ends counts
 fields      path, key, value                                     the frontmatter keys the app reads per Kind
 headings    path, level, text, start, end                        section ranges, for owned-section checks and #Heading resolution
 blocks      path, id, start, end                                 every ^id, app-written or not

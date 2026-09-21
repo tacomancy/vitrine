@@ -91,7 +91,6 @@ describe("readOutline: kind and file-level choices", () => {
     });
     const { outline } = readable(await readOutline(vault, "q.md"));
     expect(outline.frontmatter).toEqual({
-      parsed: true,
       range: { start: 0, end: 40 },
       content: { start: 4, end: 37 },
       value: { kind: "question", tags: ["a", "b"] },
@@ -117,6 +116,20 @@ describe("readOutline: unreadable", () => {
       readable: false,
       reason: expect.stringMatching(/map/i) as string,
     });
+  });
+
+  it("is unreadable when kind: is not a string — a wrong value, not a missing key", async () => {
+    const vault = await vaultWith({
+      "k.md": "---\nkind:\n  - a\n---\n",
+      "empty.md": "---\n---\n",
+    });
+    expect(await readOutline(vault, "k.md")).toMatchObject({
+      readable: false,
+      reason: expect.stringMatching(/kind is not a string/) as string,
+    });
+    const empty = readable(await readOutline(vault, "empty.md"));
+    expect(empty.kind).toBeNull();
+    expect(empty.outline.frontmatter).toMatchObject({ value: {} });
   });
 
   it("is unreadable with the system's reason when the file cannot be read", async () => {
