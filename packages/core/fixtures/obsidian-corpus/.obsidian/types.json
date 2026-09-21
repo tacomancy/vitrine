@@ -1,0 +1,15 @@
+{
+  "types": {
+    "aliases": "aliases",
+    "cssclasses": "multitext",
+    "tags": "tags",
+    "susan": "multitext",
+    "lucy": "checkbox",
+    "tumnus": "date",
+    "aslan": "datetime",
+    "priority": "number",
+    "done": "checkbox",
+    "due": "date",
+    "reviewed": "datetime"
+  }
+}
