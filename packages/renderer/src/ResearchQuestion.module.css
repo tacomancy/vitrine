@@ -105,7 +105,7 @@
 
 /*
  * The plain text field: the section's lines as the file holds them, in the
- * mono so a `- [ ]` reads as what it is. No hairline (ADR 0008's geometry):
+ * mono so a `- [ ]` reads as what it is. No hairline (BRAND.md law 5):
  * the field is a lighter surface with the surfaces' radius.
  */
 .field {

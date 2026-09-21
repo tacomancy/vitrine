@@ -34,7 +34,9 @@ export function App() {
   };
 
   // What the capture line records as Provenance (CONTEXT.md): pursuing the
-  // Research Question on screen, otherwise Unattached. The Reader will add
+  // page at this address, otherwise Unattached. The address names a file,
+  // not a Kind; a capture on a page that is not a Research Question is
+  // refused by the core, loudly, in the capture line. The Reader will add
   // *reading* here when it exists.
   const provenance: Provenance =
     route.surface === "questions"

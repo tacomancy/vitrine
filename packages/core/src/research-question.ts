@@ -263,6 +263,58 @@ function openThread(content: string, item: ListItem): OpenThread {
   return { text: text.slice(task[0].length), done: task[1] !== " " };
 }
 
+type PageFile = {
+  readable: true;
+  relativePath: string;
+  /** The text the outline's offsets are into: BOM-less, as the writer splices it. */
+  content: string;
+  outline: FileOutline;
+  hash: string;
+  kind: string;
+  file: { bom: boolean };
+  shape: ShapeProblem[];
+};
+
+/**
+ * One file read as a Research Question, for the page and for every write
+ * the page makes: the bytes, their hash, and the outline of those same
+ * bytes. A file that is not this Kind is not readable as a page, whichever
+ * caller asked — a tick must no more land on a Note with an `## Open
+ * threads` heading than the page may show one.
+ */
+async function readPageFile(
+  vaultPath: string,
+  path: string
+): Promise<PageFile | { readable: false; path: string; reason: string }> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return { readable: false, path: relativePath, reason: errorMessage(error) };
+  }
+  const raw = bytes.toString("utf8");
+  const read = analyseFile(relativePath, raw, sha256(bytes));
+  if (!read.readable) return read;
+  if (read.kind !== KIND) {
+    return {
+      readable: false,
+      path: relativePath,
+      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
+    };
+  }
+  return {
+    readable: true,
+    relativePath,
+    content: read.file.bom ? raw.slice(BOM.length) : raw,
+    outline: read.outline,
+    hash: read.hash,
+    kind: read.kind,
+    file: read.file,
+    shape: read.shape,
+  };
+}
+
 /**
  * The page as the file holds it. The body is read from disk — it is what
  * the page shows and edits, and the hash a later write is `basedOn` — and
@@ -275,22 +327,9 @@ export async function readResearchQuestionPage(
   vaultPath: string,
   path: string
 ): Promise<ResearchQuestionPage> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(absolute);
-  } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
-  }
-  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
+  const read = await readPageFile(vaultPath, path);
   if (!read.readable) return read;
-  if (read.kind !== KIND) {
-    return {
-      readable: false,
-      path: relativePath,
-      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
-    };
-  }
+  const { relativePath } = read;
   let frontmatter: ResearchQuestionFrontmatter;
   try {
     frontmatter = readResearchQuestion(
@@ -300,10 +339,7 @@ export async function readResearchQuestionPage(
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
 
-  // The offsets are into the BOM-less text `analyseFile` outlined.
-  const raw = bytes.toString("utf8");
-  const content = read.file.bom ? raw.slice(BOM.length) : raw;
-  const { outline } = read;
+  const { content, outline } = read;
   const problems: ShapeProblem[] = [...read.shape];
   const found = {} as Record<(typeof SECTIONS)[number], Heading | undefined>;
   for (const name of SECTIONS) {
@@ -373,48 +409,6 @@ export async function readResearchQuestionPage(
 export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
-/**
- * The page's read of a file for a write: the outline the operation is
- * located against and the hash it is `basedOn`. Null when the file cannot
- * be read as a page, with the refusal to answer with.
- */
-async function readForWrite(
-  vaultPath: string,
-  path: string
-): Promise<
-  | { ok: true; content: string; outline: FileOutline; hash: string }
-  | { ok: false; result: WriteResult }
-> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(absolute);
-  } catch (error) {
-    return {
-      ok: false,
-      result: {
-        written: false,
-        reason: "changedAndUnreapplyable",
-        detail: `${relativePath}: ${errorMessage(error)}`,
-      },
-    };
-  }
-  const raw = bytes.toString("utf8");
-  const read = analyseFile(relativePath, raw, sha256(bytes));
-  if (!read.readable) {
-    return {
-      ok: false,
-      result: { written: false, reason: "unreadable", detail: read.reason },
-    };
-  }
-  return {
-    ok: true,
-    content: read.file.bom ? raw.slice(BOM.length) : raw,
-    outline: read.outline,
-    hash: read.hash,
-  };
-}
-
 /** One write through the protocol, then the index told of the app's own write, as a capture does. */
 async function writeOwn(
   index: VaultIndex,
@@ -422,11 +416,12 @@ async function writeOwn(
   path: string,
   operation: Parameters<typeof write>[2]
 ): Promise<WriteResult> {
-  const result = await write(vaultPath, path, operation);
-  if (result.written) {
-    const { relativePath } = await locate(vaultPath, path);
-    await index.own(relativePath, result.content);
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
   }
+  const result = await write(vaultPath, path, operation);
+  if (result.written) await index.own(read.relativePath, result.content);
   return result;
 }
 
@@ -444,24 +439,33 @@ export async function tickThread(
   path: string,
   { text, done }: { text: string; done: boolean }
 ): Promise<WriteResult> {
-  const read = await readForWrite(vaultPath, path);
-  if (!read.ok) return read.result;
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
+  }
   const { content, outline, hash } = read;
   const { heading } = section(outline, "Open threads");
-  const item =
+  const matches =
     heading === undefined
-      ? undefined
-      : topLevelItems(outline, heading).find((candidate) => {
+      ? []
+      : topLevelItems(outline, heading).filter((candidate) => {
           const thread = openThread(content, candidate);
           return thread.done !== null && thread.text === text;
         });
-  if (heading === undefined || item === undefined) {
+  // Two threads with one text: which was meant is not knowable from the
+  // text, and ticking the first would be a guess written to disk.
+  if (matches.length !== 1) {
     return {
       written: false,
       reason: "changedAndUnreapplyable",
-      detail: `no open thread reads "${text}"`,
+      detail:
+        matches.length === 0
+          ? `no open thread reads "${text}"`
+          : `${matches.length} open threads read "${text}"`,
     };
   }
+  const [item] = matches as [ListItem];
+  const { body: range } = heading as Heading;
   // The marker sits right after the list marker; the rest of the line and
   // every other line of the section are the user's and go back as they were.
   const line = content.slice(item.range.start, item.range.end);
@@ -470,9 +474,9 @@ export async function tickThread(
     line.slice(0, marker.length) +
     line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
   const body =
-    content.slice(heading.body.start, item.range.start) +
+    content.slice(range.start, item.range.start) +
     ticked +
-    content.slice(item.range.end, heading.body.end);
+    content.slice(item.range.end, range.end);
   return writeOwn(index, vaultPath, path, {
     operations: [
       { op: "replaceSection", name: "Open threads", body: body.trim() },

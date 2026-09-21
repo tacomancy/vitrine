@@ -290,10 +290,17 @@ function Outline({ children }: { children: ReactNode }) {
   return <p className={styles.outline}>{children}</p>;
 }
 
-// The Kinds with a surface to open: a Question and a Research Question both
-// live at `#/questions/<path>`. A link resolving to anything else — a Note,
-// a Source — is inert until its surface exists (spec #206 story 56).
-const OPENABLE = new Set(["question", "research-question"]);
+// The one Kind with a surface to open: `#/questions/<path>` is the Research
+// Question view. A link resolving to anything else — a Note, a Source, and a
+// Question, which has a row in the Inbox but no address yet — is inert until
+// its surface exists (spec #206 story 56).
+const OPENABLE = new Set(["research-question"]);
+
+/** `rasch2013#^h4`: the link's target as written, with its block id. */
+const targetText = ({ link }: LinkLine) =>
+  link === null
+    ? ""
+    : `${link.target}${link.blockId === null ? "" : `#^${link.blockId}`}`;
 
 /** Source and related lines: the link as written, its note, and what the index says about where it lands. */
 function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
@@ -315,14 +322,10 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
                     path: line.link.resolvedPath,
                   })}
                 >
-                  {line.link.target}
-                  {line.link.blockId !== null && `#^${line.link.blockId}`}
+                  {targetText(line)}
                 </a>
               ) : (
-                <span className={styles.target}>
-                  {line.link.target}
-                  {line.link.blockId !== null && `#^${line.link.blockId}`}
-                </span>
+                <span className={styles.target}>{targetText(line)}</span>
               )}
               {line.link.resolution !== "resolved" && (
                 <span className={styles.resolution}>
@@ -360,7 +363,6 @@ function useSectionWrite() {
     } else {
       setRefusal(`${result.reason} — ${result.detail}`);
     }
-    return result;
   };
   return {
     refusal,

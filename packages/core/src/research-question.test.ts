@@ -436,6 +436,45 @@ describe("researchQuestions.tickThread", () => {
     );
   });
 
+  it("refuses two threads with one text rather than guessing which was meant", async () => {
+    const twice = WELL_FORMED.replace(
+      "- [x] Is TMR orthogonal to encoding?\n",
+      "- [x] Is TMR orthogonal to encoding?\n- [ ] Is TMR orthogonal to encoding?\n"
+    );
+    const { vault, c } = await openedPage(
+      { ...NEIGHBOURS, [path]: twice },
+      path
+    );
+    const reply = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.tickThread",
+      { path, text: "Is TMR orthogonal to encoding?", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      detail: '2 open threads read "Is TMR orthogonal to encoding?"',
+    });
+    expect(await readFile(join(vault, path), "utf8")).toBe(twice);
+  });
+
+  it("refuses a file that is not a Research Question, whatever headings it has", async () => {
+    const note = "notes/plan.md";
+    const { vault, c } = await openedPage(
+      { [note]: "## Open threads\n\n- [ ] a thread\n" },
+      note
+    );
+    const reply = await c.mutate<{ written: boolean; reason?: string }>(
+      "researchQuestions.tickThread",
+      { path: note, text: "a thread", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "unreadable",
+    });
+    expect(await readFile(join(vault, note), "utf8")).toBe(
+      "## Open threads\n\n- [ ] a thread\n"
+    );
+  });
+
   it("refuses when the thread is not in the section, writing nothing", async () => {
     const { vault, c } = await openedPage(
       { ...NEIGHBOURS, [path]: WELL_FORMED },

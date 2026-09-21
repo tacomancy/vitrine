@@ -618,7 +618,7 @@ describe("links on the page", () => {
     note: "",
   });
 
-  it("a link resolving to a Research Question or a Question opens it by hash; one resolving elsewhere is inert", async () => {
+  it("a link resolving to a Research Question opens it by hash; one resolving elsewhere — a Question has no address yet — is inert", async () => {
     open(() =>
       withRelated({
         present: true,
@@ -636,15 +636,12 @@ describe("links on the page", () => {
       name: "Related questions",
     });
     const links = within(related).getAllByRole("link");
-    expect(links.map((l) => l.textContent)).toEqual([
-      "Other (RQ)",
-      "A capture",
-    ]);
+    expect(links.map((l) => l.textContent)).toEqual(["Other (RQ)"]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "#/questions/questions/Other%20(RQ).md",
-      "#/questions/questions/A%20capture.md",
     ]);
     // The rest are text: nothing to click, nothing that pretends to open.
+    expect(related.textContent).toContain("A capture");
     expect(related.textContent).toContain("A note");
     expect(related.textContent).toContain("A paper");
     expect(related.textContent).toContain("Nowhere");
@@ -719,11 +716,7 @@ describe("capturing from the page", () => {
     // (ADR 0010), so nothing on it takes the keyboard.
     expect(document.activeElement).toBe(edit);
     await waitFor(() =>
-      expect(
-        within(related).getByRole("link", {
-          name: "Does the effect survive a nap",
-        })
-      ).toBeDefined()
+      expect(related.textContent).toContain("Does the effect survive a nap")
     );
   });
 });

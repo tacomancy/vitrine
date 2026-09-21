@@ -120,12 +120,12 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return refusing(readResearchQuestionPage(index, vault.path, input.path));
     }),
-    // A thread ticked in place: `## Open threads` replaced whole, no
-    // Revision (ADR 0020 decision 4). The result is the write's own — a
-    // refusal is data the page shows as a line, never a silent no-op.
-    // A plain text field's save: the section replaced whole with what was
-    // typed, `basedOn` the hash the page read. Only the Edited sections
-    // without a Position — Working answer's save records its Revision (#213).
+    // The page's writes answer with the write's own result — a refusal is
+    // data the page shows as a line, never a silent no-op. Both replace an
+    // Edited section whole and record no Revision (ADR 0020 decision 4).
+    // A plain text field's save: the section replaced with what was typed,
+    // `basedOn` the hash the page read. Only the Edited sections without a
+    // Position — Working answer's save records its Revision (#213).
     saveSection: t.procedure
       .input(
         pathInput.extend({
@@ -138,6 +138,7 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return refusing(saveSection(index, vault.path, input.path, input));
       }),
+    // A thread ticked in place, named by its text.
     tickThread: t.procedure
       .input(pathInput.extend({ text: z.string(), done: z.boolean() }))
       .mutation(async ({ ctx, input }) => {

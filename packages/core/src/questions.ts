@@ -260,12 +260,15 @@ export function createQuestionService({
         page = await linkFromPage(current.path, pursuing, written);
       } catch (cause) {
         // Whole or not at all, as with the vault marker: the text is still
-        // in the capture line, and a retry is never a duplicate.
-        await unlink(written.path).catch(() => undefined);
-        throw new VaultError(
-          "writeFailed",
-          `Couldn't link the Question from the page: ${errorMessage(cause)}`
+        // in the capture line, and a retry is never a duplicate. A Question
+        // that could not be taken back is named, so it is never a stray.
+        const message = `Couldn't link the Question from the page: ${errorMessage(cause)}`;
+        const leftover = await unlink(written.path).then(
+          () => "",
+          (error: unknown) =>
+            ` (and ${written.path} could not be removed: ${errorMessage(error)})`
         );
+        throw new VaultError("writeFailed", message + leftover);
       }
       await opened?.index.own(page.path, page.content);
     }
