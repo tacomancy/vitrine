@@ -61,7 +61,7 @@ export function App() {
             <Inbox landed={landed} vaultPath={vault.data.path} />
           )}
           {route.surface === "questions" && (
-            <ResearchQuestion path={route.path} />
+            <ResearchQuestion key={route.path} path={route.path} />
           )}
           {route.surface === "loose-ends" && <LooseEnds />}
         </div>

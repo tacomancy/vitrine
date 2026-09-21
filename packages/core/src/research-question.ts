@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Heading, ListItem, Outline } from "markdown";
+import { BOM, type Heading, type ListItem, type Outline } from "markdown";
 import { errorMessage } from "./errors.js";
 import {
   analyseFile,
@@ -124,21 +124,20 @@ export function readResearchQuestion(
     context: asString(fm["context"]) ?? "other",
     tags,
   };
-  const strings = {
-    id: "id",
-    promotedFrom: "promoted_from",
-    promoted: "promoted",
-    answered: "answered",
-    captured: "captured",
-    from: "from",
-    annotation: "annotation",
-  } as const;
-  for (const [field, key] of Object.entries(strings)) {
-    const value = asString(fm[key]);
-    if (value !== undefined) {
-      (out as Record<string, unknown>)[field] = value;
-    }
-  }
+  const id = asString(fm["id"]);
+  if (id !== undefined) out.id = id;
+  const promotedFrom = asString(fm["promoted_from"]);
+  if (promotedFrom !== undefined) out.promotedFrom = promotedFrom;
+  const promoted = asString(fm["promoted"]);
+  if (promoted !== undefined) out.promoted = promoted;
+  const answered = asString(fm["answered"]);
+  if (answered !== undefined) out.answered = answered;
+  const captured = asString(fm["captured"]);
+  if (captured !== undefined) out.captured = captured;
+  const from = asString(fm["from"]);
+  if (from !== undefined) out.from = from;
+  const annotation = asString(fm["annotation"]);
+  if (annotation !== undefined) out.annotation = annotation;
   if (typeof fm["page"] === "number") out.page = fm["page"];
   return out;
 }
@@ -288,7 +287,8 @@ export async function readResearchQuestionPage(
   }
 
   // The offsets are into the BOM-less text `analyseFile` outlined.
-  const content = bytes.toString("utf8").replace(/^﻿/, "");
+  const raw = bytes.toString("utf8");
+  const content = read.file.bom ? raw.slice(BOM.length) : raw;
   const { outline } = read;
   const problems: ShapeProblem[] = [...read.shape];
   const found = {} as Record<(typeof SECTIONS)[number], Heading | undefined>;

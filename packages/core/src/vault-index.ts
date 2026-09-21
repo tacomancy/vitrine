@@ -513,7 +513,7 @@ function createIndex(
   };
 
   const resolveOne = (
-    link: LinkRow
+    link: Omit<LinkRow, "rowid">
   ): [resolution: Resolution, resolvedPath: string | null] => {
     let candidates: Candidate[];
     if (link.target === "") {
@@ -1132,7 +1132,6 @@ function createIndex(
       db.prepare(sql).all(...params) as T[],
     resolve: (linkingPath, link) => {
       const [resolution, resolvedPath] = resolveOne({
-        rowid: 0,
         path: linkingPath,
         target: link.target,
         ltarget: linkKey(linkingPath, link.target),

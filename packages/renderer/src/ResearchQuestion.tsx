@@ -3,7 +3,6 @@ import type {
   LinkLine,
   OpenThread,
   ResearchQuestionFrontmatter,
-  ResearchQuestionStatus,
   ShapeProblem,
 } from "core";
 import { useCallback, useState, type ReactNode } from "react";
@@ -33,12 +32,15 @@ export function ResearchQuestion({ path }: { path: string }) {
   // The page follows its file as the Inbox's selection does (§ Index, Inbox
   // under external change): a rename moves the address so the re-read lands
   // on `to`; a removal is an absence line, not a stale page and not an alarm.
+  // The window mounts the page with `key={path}`, so a new address starts
+  // with no absence remembered.
   const [removed, setRemoved] = useState<string | null>(null);
-  if (removed !== null && removed !== path) setRemoved(null);
   useVaultChanged(
     useCallback(
-      ({ renamed, removed: gone }) => {
+      ({ changed, renamed, removed: gone }) => {
         if (gone.includes(path)) setRemoved(path);
+        // The file came back (an undo, a sync flap): the re-read shows it.
+        else if (changed.includes(path)) setRemoved(null);
         const move = renamed.find(({ from }) => from === path);
         if (move) replaceRoute({ surface: "questions", path: move.to });
       },
@@ -160,14 +162,6 @@ export function ResearchQuestion({ path }: { path: string }) {
   );
 }
 
-// The page's status vocabulary is the Question's less *promoted*; the glyphs
-// are shared, the abandoned label is the page's own word (CONTEXT.md).
-const LABEL: Record<ResearchQuestionStatus, string> = {
-  open: "open",
-  answered: "answered",
-  abandoned: "abandoned",
-};
-
 /** The question in the serif, then where and when it was first wondered, then its status. */
 function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
   const now = new Date();
@@ -175,12 +169,11 @@ function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
     <header className={styles.header}>
       <div className={styles.kicker}>
         <span>Research Question</span>
+        {/* The status word is the page's own — *abandoned*, where the Inbox
+            says *dropped* — and the glyph already announces it. */}
         <span className={styles.status}>
-          <StatusGlyph
-            status={frontmatter.status}
-            label={LABEL[frontmatter.status]}
-          />
-          <span>{LABEL[frontmatter.status]}</span>
+          <StatusGlyph status={frontmatter.status} label={frontmatter.status} />
+          <span aria-hidden="true">{frontmatter.status}</span>
         </span>
         {frontmatter.promoted !== undefined && (
           <span>promoted {formatAge(frontmatter.promoted, now)}</span>
@@ -264,7 +257,7 @@ function Section({
         children
       ) : (
         <p className={styles.missing}>
-          not in the file — no `## {name}` heading was found.
+          not in the file — no ## {name} heading was found.
         </p>
       )}
     </section>
