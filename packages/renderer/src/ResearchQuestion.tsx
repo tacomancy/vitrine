@@ -1,11 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   LinkLine,
   OpenThread,
   ResearchQuestionFrontmatter,
   ShapeProblem,
+  WriteResult,
 } from "core";
-import { useCallback, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { formatAge } from "./age";
 import { useVaultChanged } from "./events";
 import styles from "./ResearchQuestion.module.css";
@@ -111,24 +119,31 @@ export function ResearchQuestion({ path }: { path: string }) {
               />
             </Section>
           </div>
-          <Section
+          <Editable
             name="Related questions"
             present={readable.sections.related.present}
+            path={readable.path}
+            hash={readable.hash}
+            text={readable.sections.related.text}
           >
             <Lines
               lines={readable.sections.related.lines}
               empty="Nothing linked. Sub-questions captured from this page, and neighbours linked from the Inbox, collect here on their own."
             />
-          </Section>
-          <Section
+          </Editable>
+          <Editable
             name="Open threads"
             present={readable.sections.openThreads.present}
+            path={readable.path}
+            hash={readable.hash}
+            text={readable.sections.openThreads.text}
           >
             <Threads
+              path={readable.path}
               threads={readable.sections.openThreads.threads}
               empty="None recorded. Threads usually appear once you have read enough to know what is missing."
             />
-          </Section>
+          </Editable>
           <Section
             name="Position history"
             present={readable.sections.positionHistory.present}
@@ -241,18 +256,24 @@ const paragraphs = (text: string) =>
 function Section({
   name,
   present,
+  action,
   children,
 }: {
   name: string;
   present: boolean;
+  /** What sits beside the label: the Edited sections' *edit*. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   const id = `rq-${name.toLowerCase().replace(/\s+/g, "-")}`;
   return (
     <section className={styles.section} aria-labelledby={id}>
-      <h2 id={id} className={styles.label}>
-        {name}
-      </h2>
+      <div className={styles.labelRow}>
+        <h2 id={id} className={styles.label}>
+          {name}
+        </h2>
+        {action}
+      </div>
       {present ? (
         children
       ) : (
@@ -300,29 +321,203 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
   );
 }
 
-/** Open threads as a read-only task list; a line that is not a task is shown as it is. */
-function Threads({ threads, empty }: { threads: OpenThread[]; empty: string }) {
+/**
+ * A write the page makes to its own file: the result is the protocol's, and
+ * a refusal is kept to show as a line in the section that asked — never a
+ * silent no-op (brief § Ingest review's rule, applied to every write). A
+ * write that landed re-reads the page; the own write's `vaultChanged` does
+ * the same, so this is only what makes the re-read immediate.
+ */
+function useSectionWrite() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const settle = (result: WriteResult) => {
+    if (result.written) {
+      setRefusal(null);
+      void queryClient.invalidateQueries(
+        trpc.researchQuestions.page.pathFilter()
+      );
+    } else {
+      setRefusal(`${result.reason} — ${result.detail}`);
+    }
+    return result;
+  };
+  return {
+    refusal,
+    settle,
+    fail: (error: { message: string }) => setRefusal(error.message),
+  };
+}
+
+/**
+ * An Edited section as a plain text field (§ Research Question view and
+ * triage, Editing on the page): *edit* opens the section's text as it is in
+ * the file, blur and ⌘↵ save it whole with `replaceSection`, esc reverts
+ * unsaved typing. No Revision — these are prose, not Positions (ADR 0020
+ * decision 4). A refused save keeps the field open with the typing and says
+ * why beneath it; the next save carries the same typing again.
+ */
+function Editable({
+  name,
+  present,
+  path,
+  hash,
+  text,
+  children,
+}: {
+  name: "Open threads" | "Related questions";
+  present: boolean;
+  path: string;
+  hash: string;
+  text: string;
+  children: ReactNode;
+}) {
+  const trpc = useTRPC();
+  const { refusal, settle, fail } = useSectionWrite();
+  const [draft, setDraft] = useState<string | null>(null);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const editing = draft !== null;
+
+  const close = () => setDraft(null);
+  const save = useMutation(
+    trpc.researchQuestions.saveSection.mutationOptions({
+      onSuccess: (result) => {
+        settle(result);
+        if (result.written) close();
+      },
+      onError: fail,
+    })
+  );
+  const submit = () => {
+    if (draft === null || save.isPending) return;
+    // Nothing typed is nothing written: a blur that changed nothing must
+    // not rewrite the section, or every glance would be a save.
+    if (draft === text) {
+      close();
+      return;
+    }
+    save.mutate({ path, section: name, body: draft, basedOn: hash });
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Enter" && event.metaKey) {
+      event.preventDefault();
+      submit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  };
+
+  // The keyboard follows the field: into it as it opens, back to *edit* as
+  // it closes — the button is not in the tree until then.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (editing) fieldRef.current?.focus();
+    else if (wasEditing.current) editRef.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
+
+  return (
+    <Section
+      name={name}
+      present={present}
+      action={
+        present &&
+        !editing && (
+          <button
+            ref={editRef}
+            type="button"
+            className={styles.edit}
+            onClick={() => setDraft(text)}
+          >
+            edit
+          </button>
+        )
+      }
+    >
+      {editing ? (
+        <textarea
+          ref={fieldRef}
+          className={styles.field}
+          aria-label={name}
+          value={draft}
+          rows={Math.max(3, draft.split("\n").length + 1)}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={submit}
+        />
+      ) : (
+        children
+      )}
+      <Refusal refusal={refusal} />
+    </Section>
+  );
+}
+
+/** The section's refusal line, in the footer's quiet voice, inside the section it belongs to. */
+function Refusal({ refusal }: { refusal: string | null }) {
+  if (refusal === null) return null;
+  return (
+    <p role="status" className={styles.refusal}>
+      could not save: {refusal}
+    </p>
+  );
+}
+
+/**
+ * Open threads as a task list that ticks in place: a resolved thread is
+ * ticked, never removed, so what was once not known stays beside what was
+ * learned (CONTEXT.md *Open thread*). A line that is not a task is shown as
+ * it is.
+ */
+function Threads({
+  path,
+  threads,
+  empty,
+}: {
+  path: string;
+  threads: OpenThread[];
+  empty: string;
+}) {
+  const trpc = useTRPC();
+  const { refusal, settle, fail } = useSectionWrite();
+  const tick = useMutation(
+    trpc.researchQuestions.tickThread.mutationOptions({
+      onSuccess: settle,
+      onError: fail,
+    })
+  );
   if (threads.length === 0) return <Outline>{empty}</Outline>;
   return (
-    <ul className={styles.lines}>
-      {threads.map((thread, i) => (
-        <li key={i} className={styles.thread}>
-          {thread.done !== null && (
-            <span
-              role="checkbox"
-              aria-checked={thread.done}
-              aria-disabled="true"
-              className={styles.box}
-            >
-              {thread.done ? "☑" : "☐"}
+    <>
+      <ul className={styles.lines}>
+        {threads.map((thread, i) => (
+          <li key={i} className={styles.thread}>
+            {thread.done !== null && (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={thread.done}
+                aria-label={thread.text}
+                className={styles.box}
+                onClick={() =>
+                  tick.mutate({ path, text: thread.text, done: !thread.done })
+                }
+              >
+                {thread.done ? "☑" : "☐"}
+              </button>
+            )}
+            <span className={thread.done === true ? styles.done : undefined}>
+              {thread.text}
             </span>
-          )}
-          <span className={thread.done === true ? styles.done : undefined}>
-            {thread.text}
-          </span>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ul>
+      <Refusal refusal={refusal} />
+    </>
   );
 }
 
