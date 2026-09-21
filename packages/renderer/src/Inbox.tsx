@@ -37,16 +37,19 @@ export function Inbox({
 
   // The selection is a path (ADR 0010), so a rename outside the app must
   // move it before the re-query lands, or the renamed row would arrive
-  // unselected. A removed selection needs nothing: the row's absence is the
-  // message, and `selectedRow` below is already null.
+  // unselected. A removed selection is cleared rather than left to dangle:
+  // the row's absence is the whole message, and a file that comes back
+  // later (a sync flap, an undo) should not arrive already selected.
   useVaultChanged(
     useCallback(
-      ({ renamed }) => {
-        for (const { from, to } of renamed) {
-          setSelected((path) =>
-            path === `${vaultPath}/${from}` ? `${vaultPath}/${to}` : path
-          );
-        }
+      ({ renamed, removed }) => {
+        const absolute = (path: string) => `${vaultPath}/${path}`;
+        setSelected((path) => {
+          if (path === null) return null;
+          if (removed.some((gone) => absolute(gone) === path)) return null;
+          const move = renamed.find(({ from }) => absolute(from) === path);
+          return move === undefined ? path : absolute(move.to);
+        });
       },
       [vaultPath]
     )

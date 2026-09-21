@@ -222,7 +222,7 @@ The shape ADR 0013 decided, in enough detail to write against.
 
 **Sweeps.** A stat-only pass comparing every file to its record, feeding the same pipeline: the whole vault at open and after a watcher error or overflow; `sources/pdf/` only when the window regains focus. Never a timer.
 
-**Renames.** Within one batch, a vanished path and an appeared path with equal hashes are one rename. Every Markdown file is paired (the comparison is the same whatever the Kind); what a pairing *does* differs: a Note rename re-keys its dismissals; a PDF rename sets the Source's `pdf:` with `setFrontmatter`; an app-owned Kind needs nothing beyond the re-parse, since it is keyed by `id:`. Every pairing is reported as `renamed` on the event (below) so a surface can follow a file it has selected or open. Vanished alone → removed from the index (a PDF: the *missing* row below); appeared alone → new (a PDF: the *no Source* row below, or a *conflict copy*).
+**Renames.** Within one batch, a vanished path and an appeared path with equal hashes are one rename. Every file is paired (the comparison is the same whatever the Kind, and a non-Markdown file is hashed for exactly this — #189); what a pairing *does* differs: a Note rename re-keys its dismissals; a PDF rename sets the Source's `pdf:` with `setFrontmatter`; an app-owned Kind needs nothing beyond the re-parse, since it is keyed by `id:`. Every pairing is reported as `renamed` on the event (below) so a surface can follow a file it has selected or open. Vanished alone → removed from the index (a PDF: the *missing* row below); appeared alone → new (a PDF: the *no Source* row below, or a *conflict copy*).
 
 **PDF folder rows,** each a Loose end with one-click resolutions:
 
