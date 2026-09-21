@@ -6,6 +6,7 @@ import type { Host } from "./host.js";
 import { createQuestionService } from "./questions.js";
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
+import type { IndexOptions } from "./vault-index.js";
 
 export type AppOptions = {
   /** Session token minted at core start; every /trpc request must carry it. */
@@ -17,6 +18,18 @@ export type AppOptions = {
   /** The clock and id source; tests pin them so a written file is predictable. */
   now?: () => Date;
   newId?: () => string;
+  /**
+   * The index's seams (`vault-index.ts`): the chunk size a test shortens,
+   * the `positionsOf` registry, and the after-commit listeners the event
+   * stream (#188) and the test harness hang off.
+   */
+  index?: IndexOptions;
+};
+
+export type App = {
+  app: Hono;
+  /** Tear down the open vault's resources: the index handle, and the watcher once it lands. */
+  close: () => void;
 };
 
 /**
@@ -29,9 +42,10 @@ export function createApp({
   appSupportDir,
   now,
   newId,
-}: AppOptions): Hono {
+  index,
+}: AppOptions): App {
   const app = new Hono();
-  const vault = createVaultService({ host, appSupportDir });
+  const vault = createVaultService({ host, appSupportDir, index });
   const context: Context = {
     vault,
     questions: createQuestionService({ vault, now, newId }),
@@ -46,5 +60,5 @@ export function createApp({
   app.use("/trpc/*", bearerAuth({ token }));
   app.use("/trpc/*", trpcServer({ router, createContext: () => context }));
 
-  return app;
+  return { app, close: () => vault.close() };
 }

@@ -3,7 +3,7 @@ import { readFile, symlink, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { OutlineResponse } from "./vault-files.js";
-import { core, fingerprint, fixtures, tmp } from "./test-core.js";
+import { core, fingerprint, fixtureCopy, fixtures, tmp } from "./test-core.js";
 
 // Golden tests over the Obsidian-written corpus (#112) through the router,
 // the seam every later surface reads through: one snapshot per file, and the
@@ -22,12 +22,18 @@ function files(dir: string): string[] {
   return out.sort();
 }
 
-/** A core with the given folder open, ready to outline. */
+/**
+ * A core with the given folder open, ready to outline. The corpus is opened
+ * from a temp copy: an open writes the index under `.vitrine/`, which must
+ * never land in the checked-in fixture.
+ */
 async function opened(vault: string) {
   const c = await core();
-  const reply = await c.mutate("vault.open", { path: vault });
+  const path = vault === corpus ? await fixtureCopy("obsidian-corpus") : vault;
+  const reply = await c.mutate("vault.open", { path });
   expect(reply.error).toBeUndefined();
   return {
+    path,
     raw: (path: string) => c.query<OutlineResponse>("vault.outline", { path }),
     outline: async (path: string) => {
       const reply = await c.query<OutlineResponse>("vault.outline", { path });
@@ -54,10 +60,10 @@ const canonical = (r: Extract<OutlineResponse, { readable: true }>) =>
 
 describe("vault.outline over the corpus", () => {
   it("reads every file without writing a byte", async () => {
-    const before = await fingerprint(corpus);
     const c = await opened(corpus);
-    for (const path of files(corpus)) await c.outline(path);
-    expect(await fingerprint(corpus)).toEqual(before);
+    const before = await fingerprint(c.path);
+    for (const path of files(corpus)) await c.outline(relative(corpus, path));
+    expect(await fingerprint(c.path)).toEqual(before);
   });
 
   for (const name of files(corpus).map((p) => relative(corpus, p))) {

@@ -1,10 +1,7 @@
 import { chmod, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { core, fakeHost, fingerprint, tmp } from "./test-core.js";
-
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
+import { core, fakeHost, fingerprint, fixtureCopy, tmp } from "./test-core.js";
 
 type Vault = { name: string; path: string };
 
@@ -34,12 +31,15 @@ describe("vault.open", () => {
     });
   });
 
-  it("writes nothing into the folder it opens", async () => {
+  it("writes nothing into the folder it opens beyond the index under .vitrine/", async () => {
     const c = await core();
     const folder = await tmp("untouched");
+    await writeFile(join(folder, "Mine.md"), "# mine\n");
     const before = await fingerprint(folder);
     await c.mutate<Vault>("vault.open", { path: folder });
-    expect(await fingerprint(folder)).toEqual(before);
+    await c.indexed();
+    // `fingerprint` leaves the index files out; `vault-index.test.ts` pins them.
+    expect(await fingerprint(folder)).toEqual([".vitrine/", ...before]);
   });
 });
 
@@ -201,9 +201,8 @@ describe("vault.pick", () => {
 });
 
 describe("a vault Obsidian wrote", () => {
-  const vault = join(fixtures, "obsidian-vault");
-
-  it("opens as it is, and is left exactly as it was", async () => {
+  it("opens as it is, and is left exactly as it was but for the index's folder", async () => {
+    const vault = await fixtureCopy("obsidian-vault");
     const c = await core();
     const before = await fingerprint(vault);
     expect(before).toContain(".obsidian/");
@@ -213,6 +212,7 @@ describe("a vault Obsidian wrote", () => {
       name: "obsidian-vault",
       path: vault,
     });
-    expect(await fingerprint(vault)).toEqual(before);
+    await c.indexed();
+    expect(await fingerprint(vault)).toEqual([".vitrine/", ...before].sort());
   });
 });

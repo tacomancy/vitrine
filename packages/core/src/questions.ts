@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
-import { VaultError, type VaultService } from "./vault.js";
+import { VaultError } from "./errors.js";
+import type { VaultService } from "./vault.js";
 
 /** Where a Question came from. This slice knows one context: Unattached. */
 export type Provenance = { context: "other" };
@@ -143,22 +144,12 @@ export function createQuestionService({
   // be two.
   let previous: Promise<unknown> = Promise.resolve();
 
-  async function capture(
-    text: string,
-    provenance: Provenance
-  ): Promise<Question> {
-    const current = await vault.current();
-    if (current === null) {
-      throw new VaultError("noVault", "No vault is open. Open a vault first.");
-    }
-    const question: Omit<Question, "path"> = {
-      id: newId(),
-      question: text.trim(),
-      status: "open",
-      captured: localIso(now()),
-      context: provenance.context,
-    };
-    const folder = join(current.path, "questions");
+  /** The file on disk, whole or not at all; its content comes back for the index. */
+  async function writeQuestion(
+    vaultPath: string,
+    question: Omit<Question, "path">
+  ): Promise<{ written: Question; content: string }> {
+    const folder = join(vaultPath, "questions");
     try {
       await mkdir(folder, { recursive: true });
       const path = await freePath(
@@ -166,13 +157,14 @@ export function createQuestionService({
         fileName(question.question, question.id)
       );
       const written: Question = { ...question, path };
-      await writeAtomically(path, questionFile(written));
+      const content = questionFile(written);
+      await writeAtomically(path, content);
       // The marker follows the Question, and a Question the marker could
       // not follow is taken back: a capture happens whole or not at all,
       // so a failure reported is a failure, and a retry is never a
       // duplicate. The text is still in the capture line.
-      if (!(await exists(join(current.path, ".vitrine", "vault.json")))) {
-        await writeVaultMeta(current.path, {
+      if (!(await exists(join(vaultPath, ".vitrine", "vault.json")))) {
+        await writeVaultMeta(vaultPath, {
           id: newId(),
           created: question.captured,
         }).catch(async (cause: unknown) => {
@@ -180,7 +172,7 @@ export function createQuestionService({
           throw cause;
         });
       }
-      return written;
+      return { written, content };
     } catch (cause) {
       // Permissions, a full disk, a folder that vanished: the text stays
       // in the capture line with this message, never lost and never silent.
@@ -190,6 +182,30 @@ export function createQuestionService({
         `Couldn't write the Question into ${folder}: ${reason}`
       );
     }
+  }
+
+  async function capture(
+    text: string,
+    provenance: Provenance
+  ): Promise<Question> {
+    const current = await vault.current();
+    if (current === null) {
+      throw new VaultError("noVault", "No vault is open. Open a vault first.");
+    }
+    const { written, content } = await writeQuestion(current.path, {
+      id: newId(),
+      question: text.trim(),
+      status: "open",
+      captured: localIso(now()),
+      context: provenance.context,
+    });
+    // The capture lands in the Inbox before this returns (ADR 0010): the
+    // index is written from the content just written, in one transaction,
+    // and the watcher will recognise the file's hash as the app's own.
+    await vault
+      .index()
+      ?.own(relative(current.path, written.path).split(sep).join("/"), content);
+    return written;
   }
 
   return {

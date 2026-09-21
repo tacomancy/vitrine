@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readdir,
@@ -13,6 +14,8 @@ import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
 import type { Host } from "./host.js";
 import { readOutline, type WriteResult } from "./vault-files.js";
+import type { PositionsOf, VaultChanged } from "./vault-index.js";
+import type { VaultStatus } from "./vault.js";
 
 const token = "test-token";
 export const fixtures = join(
@@ -35,39 +38,73 @@ export type Reply<T> = {
   error?: { message: string; data: { kind?: string } };
 };
 
+export type CoreOptions = Partial<
+  Omit<AppOptions, "token" | "index"> & {
+    chunkSize: number;
+    positionsOf: PositionsOf;
+    /** Awaited by the index before its next chunk, as the real listener is (#188). */
+    onVaultChanged: (event: VaultChanged) => void | Promise<void>;
+    onVaultStatus: () => void | Promise<void>;
+  }
+>;
+
 /**
  * The core in-process, driven as a caller would drive it: plain requests
  * with the bearer token, no socket. Every test asserts on the reply and on
- * disk, never on how the core got there.
+ * disk, never on how the core got there. `indexed()` waits for the open
+ * vault to be current — on status changes, never on a timer — and
+ * `changes` is every `vaultChanged` raised so far.
  */
-export async function core(
-  opts: Partial<Omit<AppOptions, "token">> = {}
-): Promise<{
+export async function core(opts: CoreOptions = {}): Promise<{
   appSupportDir: string;
   query: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
   mutate: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
+  indexed: () => Promise<void>;
+  changes: VaultChanged[];
 }> {
   const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
-  const app = createApp({
-    ...opts,
-    token,
-    host: opts.host ?? fakeHost(null),
-    appSupportDir,
-  });
+  const changes: VaultChanged[] = [];
+  const statusWaiters: Array<() => void> = [];
   const headers = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+  const query = async <T>(path: string, input?: unknown) => {
+    const url =
+      input === undefined
+        ? `/trpc/${path}`
+        : `/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
+    const res = await app.request(url, { headers });
+    return (await res.json()) as Reply<T>;
+  };
+  const { app } = createApp({
+    token,
+    host: opts.host ?? fakeHost(null),
+    appSupportDir,
+    ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.newId ? { newId: opts.newId } : {}),
+    index: {
+      chunkSize: opts.chunkSize,
+      positionsOf: opts.positionsOf,
+      onChanged: async (event) => {
+        changes.push(event);
+        await opts.onVaultChanged?.(event);
+      },
+      onStatus: async () => {
+        await opts.onVaultStatus?.();
+        // Checked here, after the test's own listener, so `indexed()`
+        // resolves only once the event that made the vault current has
+        // been seen by everyone.
+        const reply = await query<VaultStatus>("vault.status");
+        if (reply.result?.data.current.ok) {
+          for (const wake of statusWaiters.splice(0)) wake();
+        }
+      },
+    },
+  });
   return {
     appSupportDir,
-    query: async <T>(path: string, input?: unknown) => {
-      const url =
-        input === undefined
-          ? `/trpc/${path}`
-          : `/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
-      const res = await app.request(url, { headers });
-      return (await res.json()) as Reply<T>;
-    },
+    query,
     mutate: async <T>(path: string, input?: unknown) => {
       const res = await app.request(`/trpc/${path}`, {
         method: "POST",
@@ -76,12 +113,29 @@ export async function core(
       });
       return (await res.json()) as Reply<T>;
     },
+    indexed: async () => {
+      // Registered before the status is read, so an event that lands
+      // during the read is not missed; a waiter left behind by an early
+      // return is woken and ignored, nothing more.
+      const current = new Promise<void>((wake) => statusWaiters.push(wake));
+      const reply = await query<VaultStatus>("vault.status");
+      if (reply.error) throw new Error(reply.error.message);
+      if (reply.result?.data.current.ok) return;
+      await current;
+    },
+    changes,
   };
 }
 
+// The app's disposable index and the `.gitignore` that covers it (ADR 0014):
+// written by every open, rewritten by every own write, and not vault content.
+const INDEX_FILES = /^\.vitrine\/(index\.sqlite(-wal|-shm)?|\.gitignore)$/;
+
 /**
  * Every entry under a folder with a hash of each file's bytes, so a test can
- * assert that opening left the folder byte-for-byte as it found it.
+ * assert that opening left the folder byte-for-byte as it found it. The
+ * index files under `.vitrine/` are left out — `vault-index.test.ts` is
+ * where they are looked at — so `.vitrine/` alone is what an open adds.
  */
 export async function fingerprint(root: string): Promise<string[]> {
   const out: string[] = [];
@@ -89,6 +143,7 @@ export async function fingerprint(root: string): Promise<string[]> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       const rel = relative(root, full);
+      if (INDEX_FILES.test(rel)) continue;
       if (entry.isDirectory()) {
         out.push(`${rel}/`);
         await walk(full);
@@ -121,6 +176,20 @@ export async function vaultWith(
     await mkdir(join(vault, name, ".."), { recursive: true });
     await writeFile(join(vault, name), content);
   }
+  return vault;
+}
+
+/**
+ * A temp copy of one checked-in fixture folder, to open as a vault: an open
+ * writes `.vitrine/` into the vault, which must never land in the repo.
+ */
+export async function fixtureCopy(name: string): Promise<string> {
+  const vault = join(await tmp(name), name);
+  await cp(join(fixtures, name), vault, {
+    recursive: true,
+    // Never carry an index a stray in-place open may have left behind.
+    filter: (source) => !source.includes("/.vitrine"),
+  });
   return vault;
 }
 

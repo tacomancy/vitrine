@@ -40,11 +40,14 @@ export type RunningCore = {
  */
 export function startCore(options: StartOptions = {}): Promise<RunningCore> {
   const token = randomBytes(32).toString("base64url");
-  const app = createApp({
+  const { app, close } = createApp({
     token,
     host: options.host ?? NO_HOST,
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
   });
+  // The index handle is closed on the way out; the vault service's `close`
+  // is where the watcher's teardown joins (#188).
+  process.once("exit", close);
   if (options.staticDir !== undefined) {
     // The bundle is served from the same origin as the API, so the renderer
     // needs nothing beyond 'self'. Set here rather than in index.html because
@@ -65,6 +68,7 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
           token,
           close: () =>
             new Promise((done, fail) => {
+              close();
               server.close((err) => (err ? fail(err) : done()));
             }),
         });

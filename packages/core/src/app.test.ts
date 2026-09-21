@@ -13,7 +13,7 @@ const options = {
 
 describe("core HTTP app", () => {
   it("answers health through the router when the bearer token is present", async () => {
-    const app = createApp(options);
+    const { app } = createApp(options);
     const res = await app.request("/trpc/health", {
       headers: { authorization: `Bearer ${token}` },
     });
@@ -23,7 +23,7 @@ describe("core HTTP app", () => {
   });
 
   it("rejects a request with no token before any router code runs", async () => {
-    const app = createApp(options);
+    const { app } = createApp(options);
     const res = await app.request("/trpc/health");
     expect(res.status).toBe(401);
   });

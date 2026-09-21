@@ -2,8 +2,10 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
-import { VaultError, type VaultService } from "./vault.js";
+import { VaultError } from "./errors.js";
+import type { VaultService, VaultStatus } from "./vault.js";
 import { readOutline } from "./vault-files.js";
+import type { VaultIndex } from "./vault-index.js";
 
 export type Context = { vault: VaultService; questions: QuestionService };
 
@@ -71,11 +73,19 @@ export const router = t.router({
       const vault = await requireVault(ctx);
       return refusing(readOutline(vault.path, input.path));
     }),
+    status: t.procedure.query(async ({ ctx }) => {
+      await requireVault(ctx);
+      return (await ctx.vault.status()) as VaultStatus;
+    }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
       const vault = await requireVault(ctx);
-      return listQuestions(vault.path, input.order);
+      return listQuestions(
+        ctx.vault.index() as VaultIndex,
+        vault.path,
+        input.order
+      );
     }),
     capture: t.procedure
       .input(captureInput)
