@@ -1,7 +1,10 @@
-import { lstat, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { isMap, isScalar, isSeq, YAMLSeq, type Document } from "yaml";
 import {
   BOM,
+  canonicalTag,
   outline,
   type BlockId,
   type Heading,
@@ -13,13 +16,15 @@ import {
   type Range,
   type Tag,
 } from "markdown";
+import { writeAtomically } from "./atomic-write.js";
 import { VaultError } from "./vault.js";
 
 /**
  * The core's reading of one Markdown file: the outline `packages/markdown`
  * produces plus what only the core knows — the file's Kind, which sections
  * are owned, what a `### … ^c<n>` under `## Criteria` is, and where the
- * file falls short of its Kind. Read-only here; the write side is #121.
+ * file falls short of its Kind. The write side is below: one protocol
+ * (`write`) for the splicing operations, and the two whole-file writes.
  *
  * The response shape is fixed by this module so that beat 1b's re-assembly
  * of `vault.outline` from the index (ADR 0014) is invisible to callers.
@@ -31,6 +36,8 @@ export type OutlineResponse =
       path: string;
       /** `kind:` verbatim; null when there is no frontmatter or no key. */
       kind: string | null;
+      /** SHA-256 of the bytes on disk, hex: what a write is `basedOn`. */
+      hash: string;
       file: FileChoices;
       outline: FileOutline;
       /** The Kind's criteria; empty for every other Kind. */
@@ -39,7 +46,7 @@ export type OutlineResponse =
     }
   | { readable: false; path: string; reason: string };
 
-/** What the writer (#121) restores so a file's encoding never changes because the app touched it. */
+/** What the writer restores so a file's encoding never changes because the app touched it. */
 export type FileChoices = {
   bom: boolean;
   eol: "lf" | "crlf";
@@ -268,6 +275,9 @@ function duplicatedOwnedSections(
   return shape;
 }
 
+const sha256 = (bytes: Buffer | string) =>
+  createHash("sha256").update(bytes).digest("hex");
+
 /**
  * One file's outline, or `unreadable` with the reason. Never writes. A
  * refused path is a VaultError (`outsideVault`, `notMarkdown`) rather than
@@ -278,12 +288,21 @@ export async function readOutline(
   path: string
 ): Promise<OutlineResponse> {
   const { absolute, relativePath } = await locate(vaultPath, path);
-  let raw: string;
+  let bytes: Buffer;
   try {
-    raw = await readFile(absolute, "utf8");
+    bytes = await readFile(absolute);
   } catch (error) {
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
+  return analyse(relativePath, bytes.toString("utf8"), sha256(bytes));
+}
+
+/** The core's reading of one file's text; what `readOutline` and the write's verify step share. */
+function analyse(
+  relativePath: string,
+  raw: string,
+  hash: string
+): OutlineResponse {
   // The BOM is stripped here and remembered in `file`, so every offset in
   // the outline is into the text the writer will splice.
   const { text, file } = fileChoices(raw);
@@ -337,9 +356,308 @@ export async function readOutline(
     readable: true,
     path: relativePath,
     kind,
+    hash,
     file,
     outline: { ...parsed, frontmatter },
     criteria,
     shape,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The write side (ADR 0008 decisions 2–3; `docs/architecture.md` § Markdown).
+
+/**
+ * Set one or more frontmatter keys, and/or add tags. Keys keep the user's
+ * order, comments, blank lines, and quoting of untouched scalars; new keys
+ * are appended; nothing is ever removed. A tag is written exactly as
+ * supplied — display casing is the tag tree's call (beat 1b) — into `tags:`
+ * as a block sequence, a legacy comma-string `tags:` converted, unsplit, on
+ * that first tag write (F2a).
+ */
+export type SetFrontmatter = {
+  op: "setFrontmatter";
+  keys?: Record<string, unknown>;
+  addTags?: string[];
+};
+
+/** The splicing operations. #122 adds the four section operations; the set is closed by ADR 0008. */
+export type Operation = SetFrontmatter;
+
+/** One hash-checked application of operations to a file. */
+export type Write = {
+  operations: Operation[];
+  /** The `hash` of the outline the operations were computed from. */
+  basedOn: string;
+};
+
+export type WriteRefusal =
+  | "changedAndUnreapplyable"
+  | "verificationFailed"
+  | "changedOnDisk"
+  | "noFrontmatter"
+  | "unreadable"
+  | "alreadyExists";
+
+/**
+ * `content` and `hash` are what beat 1b's index consumes to record an own
+ * write synchronously (ADR 0014, update 2026-09-20). On a refusal nothing
+ * touched the disk.
+ */
+export type WriteResult =
+  | { written: true; hash: string; content: string }
+  | { written: false; reason: WriteRefusal; detail: string };
+
+const refusal = (reason: WriteRefusal, detail: string): WriteResult => ({
+  written: false,
+  reason,
+  detail,
+});
+
+type Splice = { range: Range; text: string };
+type Applied =
+  | { ok: true; splices: Splice[] }
+  | { ok: false; reason: WriteRefusal; detail: string };
+
+/**
+ * Add tags to a `tags:` node, whatever form the file has: absent or empty →
+ * a new block sequence; a sequence → appended to, and written as a block
+ * sequence; the legacy comma-string → one unsplit entry, as the Properties
+ * panel converts it (F2a). A tag the file already carries under any casing
+ * is not added again, so the writer never introduces a variant of a tag the
+ * user already has (ADR 0008, considered options).
+ */
+function addTags(document: Document, parsed: Outline, tags: string[]): void {
+  const existing = document.get("tags", true);
+  let seq: YAMLSeq;
+  if (isSeq(existing)) {
+    seq = existing;
+  } else {
+    seq = new YAMLSeq();
+    if (isScalar(existing) && existing.value !== null) {
+      seq.items.push(document.createNode(existing.value));
+    }
+    document.set("tags", seq);
+  }
+  seq.flow = false;
+  const present = new Set<string>();
+  for (const t of parsed.tags) {
+    if (t.source === "frontmatter" && t.valid) present.add(t.canonical);
+  }
+  for (const tag of tags) {
+    const canonical = canonicalTag(tag);
+    if (present.has(canonical)) continue;
+    present.add(canonical);
+    seq.items.push(document.createNode(tag));
+  }
+}
+
+/**
+ * Turn the operations into splices against `text` (BOM-less), each located
+ * afresh — which is what makes re-applying to a changed file possible. Every
+ * setFrontmatter in one write edits the same Document, so the frontmatter
+ * is one splice and targets never overlap.
+ */
+function apply(
+  text: string,
+  operations: Operation[],
+  eol: FileChoices["eol"]
+): Applied {
+  const parsed = outline(text);
+  const splices: Splice[] = [];
+  const frontmatterOps = operations.filter((o) => o.op === "setFrontmatter");
+  if (frontmatterOps.length > 0) {
+    if (parsed.frontmatter === null) {
+      return {
+        ok: false,
+        reason: "noFrontmatter",
+        detail: "the file has no frontmatter; only createFile makes it",
+      };
+    }
+    if (!parsed.frontmatter.parsed) {
+      return {
+        ok: false,
+        reason: "unreadable",
+        detail: `frontmatter does not parse: ${parsed.frontmatter.reason}`,
+      };
+    }
+    const { document } = parsed.frontmatter;
+    if (document.contents !== null && !isMap(document.contents)) {
+      return {
+        ok: false,
+        reason: "unreadable",
+        detail: "frontmatter is not a map of keys",
+      };
+    }
+    for (const op of frontmatterOps) {
+      for (const [key, value] of Object.entries(op.keys ?? {})) {
+        document.set(key, value);
+      }
+      if (op.addTags) addTags(document, parsed, op.addTags);
+    }
+    if (document.contents !== null) {
+      // lineWidth 0: an untouched long scalar is never folded across lines.
+      const yaml = document.toString({ lineWidth: 0 });
+      splices.push({
+        range: parsed.frontmatter.content,
+        text: eol === "crlf" ? yaml.replace(/\n/g, "\r\n") : yaml,
+      });
+    }
+  }
+  return { ok: true, splices };
+}
+
+/** Splice from the highest offset down, so no earlier splice moves a later target. */
+function splice(text: string, splices: Splice[]): string {
+  let out = text;
+  for (const s of [...splices].sort((a, b) => b.range.start - a.range.start)) {
+    out = out.slice(0, s.range.start) + s.text + out.slice(s.range.end);
+  }
+  return out;
+}
+
+/**
+ * What a splice must not have done, checked by re-parsing the result before
+ * it reaches disk (ADR 0008 decision 3): the frontmatter still parses, `kind`
+ * is unchanged, and no owned section is newly duplicated. The block ids an
+ * operation depends on join this check with #122's section operations. A
+ * duplicate the file already had is not the splice's doing and is reported
+ * on the read, not refused here (ADR 0008 decision 10).
+ */
+function verify(
+  before: OutlineResponse,
+  after: OutlineResponse
+): string | null {
+  if (!before.readable) return `the file is unreadable: ${before.reason}`;
+  if (!after.readable) return `the result is unreadable: ${after.reason}`;
+  if (after.kind !== before.kind) {
+    return `kind would change from ${JSON.stringify(before.kind)} to ${JSON.stringify(after.kind)}`;
+  }
+  const duplicated = (r: typeof after) =>
+    r.shape
+      .filter((p) => p.problem === "ownedSectionDuplicated")
+      .map((p) => p.block);
+  const already = new Set(duplicated(before));
+  const fresh = duplicated(after).find((name) => !already.has(name));
+  if (fresh !== undefined) return `owned section duplicated: ${fresh}`;
+  return null;
+}
+
+async function commit(
+  absolute: string,
+  relativePath: string,
+  content: string
+): Promise<WriteResult> {
+  try {
+    await writeAtomically(absolute, content);
+  } catch (cause) {
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't write ${relativePath}: ${errorMessage(cause)}`
+    );
+  }
+  return { written: true, hash: sha256(Buffer.from(content, "utf8")), content };
+}
+
+/** The current bytes of a file the caller has read before, or null when it is gone. */
+async function current(absolute: string): Promise<Buffer | null> {
+  try {
+    return await readFile(absolute);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The write protocol for the splicing operations: re-hash; if the file
+ * changed since the read, re-apply the operations to what is there now —
+ * they locate their targets afresh, which a string patch could not; splice;
+ * re-parse and verify; then temp file + rename. A write that cannot be
+ * re-applied or fails verification is refused with the reason and nothing
+ * touches the disk. Line endings and a BOM are restored from the file as
+ * read; the trailing-newline choice survives because the splice never
+ * reaches the end of the file unless the frontmatter is the whole file, and
+ * then the closing fence is kept as it was.
+ */
+export async function write(
+  vaultPath: string,
+  path: string,
+  { operations, basedOn }: Write
+): Promise<WriteResult> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  const bytes = await current(absolute);
+  if (bytes === null) {
+    return refusal("changedAndUnreapplyable", "the file is no longer there");
+  }
+  const hash = sha256(bytes);
+  const changed = hash !== basedOn;
+  const raw = bytes.toString("utf8");
+  const { text, file } = fileChoices(raw);
+
+  const applied = apply(text, operations, file.eol);
+  if (!applied.ok) {
+    // A file that moved underneath and can no longer take the operation is
+    // one refusal, whatever the operation's own reason was.
+    return refusal(
+      changed ? "changedAndUnreapplyable" : applied.reason,
+      applied.detail
+    );
+  }
+  const content = (file.bom ? BOM : "") + splice(text, applied.splices);
+  const problem = verify(
+    analyse(relativePath, raw, hash),
+    analyse(relativePath, content, "")
+  );
+  if (problem !== null) return refusal("verificationFailed", problem);
+  return commit(absolute, relativePath, content);
+}
+
+/**
+ * The Vault editor's save, and nothing else (ADR 0008 decision 2): the
+ * user's own typing, whole. Any other caller is a bug — the app's own
+ * writes are splices that leave every other byte alone. It skips re-apply
+ * (there is nothing to re-apply) and skips verification (the user's typing
+ * is never refused on shape, ADR 0015 decision 4; a file that lost its shape
+ * is a shape problem on the next read). Its one refusal is a hash mismatch,
+ * which the editor shows as *changed on disk*. The file's BOM and line
+ * endings are restored around the editor's text.
+ */
+export async function replaceFile(
+  vaultPath: string,
+  path: string,
+  content: string,
+  basedOn: string
+): Promise<WriteResult> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  const bytes = await current(absolute);
+  if (bytes === null || sha256(bytes) !== basedOn) {
+    return refusal(
+      "changedOnDisk",
+      `${relativePath} changed since it was read`
+    );
+  }
+  const { file } = fileChoices(bytes.toString("utf8"));
+  const lf = content.replace(/^﻿/, "").replace(/\r\n/g, "\n");
+  const text = file.eol === "crlf" ? lf.replace(/\n/g, "\r\n") : lf;
+  return commit(absolute, relativePath, (file.bom ? BOM : "") + text);
+}
+
+/**
+ * A new object or an app-created Note, written whole: UTF-8, LF, one
+ * trailing newline, no BOM. The only operation that makes frontmatter
+ * (ADR 0006 decision 11). Refuses to replace a file that exists.
+ */
+export async function createFile(
+  vaultPath: string,
+  path: string,
+  content: string
+): Promise<WriteResult> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  if ((await current(absolute)) !== null) {
+    return refusal("alreadyExists", `${relativePath} already exists`);
+  }
+  const text =
+    content.replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\n+$/, "") + "\n";
+  await mkdir(dirname(absolute), { recursive: true });
+  return commit(absolute, relativePath, text);
 }

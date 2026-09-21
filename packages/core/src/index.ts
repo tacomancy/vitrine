@@ -24,8 +24,13 @@ export type {
   Outcome,
   OutlineResponse,
   Range,
+  Operation,
   Relationship,
+  SetFrontmatter,
   ShapeProblem,
   Tag,
+  Write,
+  WriteRefusal,
+  WriteResult,
 } from "./vault-files.js";
 export { startCore } from "./start.js";
