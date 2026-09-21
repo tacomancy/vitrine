@@ -7,7 +7,7 @@
 ## Considered options
 
 - **A worker for `outline()`.** Rejected for now: it bounds the freeze without removing the cost, and it is a § Index change — the build's transaction and the watcher's run would both have to cross a thread — for what a realistic vault never triggers. It stays the answer if some other per-file cost turns out to be unavoidable.
-- **Dropping `gfmAutolinkLiteral`.** Rejected: bare URLs are how a `#` inside `https://…/#fragment` stays out of the tag list (T3g), and the locator should read Markdown as Obsidian does.
+- **Dropping `gfmAutolinkLiteral`.** Rejected: a bare `https://example.com/bare` is a link (`outline.structure.test.ts`), and the locator should read Markdown as Obsidian does. (T3g, a `#` inside a bare URL's fragment, does not depend on it — the tag construct's `previous` rule already refuses a `#` after `/`.)
 - **An email construct of our own that does not split words.** Rejected: micromark's authors already note (`micromark-extension-gfm-autolink-literal`) that the right shape is a pass over events afterwards, as `cmark-gfm` does; that is a rewrite of the extension, not of the resolver, and the resolver's cost is the whole problem.
 
 ## Consequences
