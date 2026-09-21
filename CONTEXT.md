@@ -45,6 +45,10 @@ _Avoid_: Managed section, generated section
 The body of a vault file before its first `##` heading — the whole body of a Question, the text above `## Working answer` on a Research Question. Where the write-back line from a resolved Hypothesis lands, so that it can never fall inside `## Position history` (ADR 0008 decision 2). One of `appendToSection`'s three targets, beside a `##` section and a `###` block.
 _Avoid_: Preamble, intro, body (the lead is part of it)
 
+**Edited section**:
+A `##` section of an app-owned file whose body is the user's prose, which the app replaces whole only because the user edited it on a surface — on a Research Question, `## Working answer`, `## Open threads`, `## Related questions`, and the two sources sections when a source is moved or detached. Never rewritten on the app's own initiative; in Obsidian it is ordinary text. A Working answer is also a Position, so replacing it records a Revision; moving a source is not a Revision (ADR 0020).
+_Avoid_: Owned section (the app rewrites those unprompted), field, form
+
 **Shape problem**:
 An app-owned file missing structure its Kind expects. Four cases today: a Hypothesis without `## Criteria`; a `###` under `## Criteria` without `^c<n>`; an Owned section present twice; a criterion's `outcome::` or `relationship::` holding a value outside its vocabulary. Reported as `{ path, kind, problem, block? }` beside the rest of the Outline, never in place of it; a missing Owned section is not one (ADR 0008 decision 10).
 _Avoid_: Corrupt, malformed, invalid file, unreadable (that is a file whose frontmatter does not parse)
@@ -76,7 +80,7 @@ A PDF in the vault with highlights and annotations stored in the file itself.
 _Avoid_: Paper, document, attachment
 
 **Source stub**:
-A bibliographic record with no PDF attached yet — title, authors, venue, date, link. Created by accepting a Proposal; becomes a Source when a PDF is attached. The same record throughout: attaching changes nothing anyone links to.
+A bibliographic record with no PDF attached yet — title, authors, venue, date, link. Created by accepting a Proposal, or by hand from a Research Question's attach form; becomes a Source when a PDF is attached. The same record throughout: attaching changes nothing anyone links to.
 _Avoid_: Reference, citation, placeholder
 
 **Citekey**:
@@ -151,7 +155,7 @@ A lightweight capture that always carries Provenance. Has a Status. The app's pr
 _Avoid_: Idea, task, todo, item
 
 **Provenance**:
-What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later.
+What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving*, *pursuing* (captured on a Research Question's page — the new Question is a sub-question of it), or *other*.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
 **Unattached**:
@@ -161,10 +165,6 @@ _Avoid_: No provenance (it has one), orphan (a Loose Ends word), untagged
 **Status** (of a Question):
 One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state. Every status is shown as a glyph and a label (`◆` open, `■` promoted, `●` answered, `×` dropped — the label follows the triage verb); only open carries colour, and that colour is the accent. A file with no `status:` is open: it was never triaged (ADR 0009).
 _Avoid_: Overdue, stale (in code — "stale" is only a Scout health term)
-
-**Unattached**:
-The Provenance of a Question captured with no document open — `context: other` and no `from`. Time and place are still a Provenance, so the Inbox shows the word rather than a blank.
-_Avoid_: No provenance, unknown, none
 
 **Partial**:
 A file whose frontmatter says `kind: question` but lacks `question` or `captured`, so it cannot be shown as a row. Listed anyway, by file name and modification time, marked as such — visible rather than dropped. Not a Status, and not counted as a Question (ADR 0009).
@@ -188,19 +188,37 @@ Acting on a Question from the Inbox: promote to Research Question, promote to Hy
 Turning a Question into a Research Question or a Hypothesis. The Question stays as its own record with Status *promoted*, and the new object carries a copy of the Provenance. A Research Question may sharpen into a Hypothesis; that is the expected route.
 
 **Write-back**:
-A resolved Hypothesis answering the Question it came from, and any Research Question in between: each becomes *answered* with one line pointing at the result. Falsified is a real answer.
+A resolved Hypothesis or Resolved Research Question answering the Question it came from, and any Research Question in between: each becomes *answered* with one line pointing at the result. Falsified is a real answer. An abandoned Research Question writes back the same way, and the Question becomes *abandoned*: the Inbox is the record, and *promoted* would be a lie about a pursuit that ended.
 _Avoid_: Close, resolve (that is what happens to the Hypothesis)
 
 **Related** (of a Question):
-Another Question, Note, or Source the user explicitly linked from the Inbox's Link action. Only these count as edges for Coverage; a mention in prose does not.
+Another Question, Note, or Source the user explicitly linked from the Inbox's Link action — or, on a Research Question, listed in `## Related questions`, which is the same edge kept on the page. Only these count as edges for Coverage; a mention in prose does not. Linking writes only the linking side; the other side's backlink is the Index's.
 _Avoid_: Mentioned, connected, see also
+
+**Open thread** (of a Research Question):
+One thing the user still does not know about it, kept as a task-list line so a resolved thread is ticked, not deleted. Never a Question: a thread that deserves Provenance is captured as one, from the page.
+_Avoid_: Todo, sub-question (that is a Question with `pursuing` Provenance)
+
+**Reopen** (a Question):
+Setting a dropped or answered Question back to *open*, keeping whatever answer text it holds.
 
 **Research Question**:
 A promoted Question answered by reading. Holds a Working answer with Position history, supporting Sources, opposing Sources, related questions, and open threads. Supporting and opposing are structurally separate, not a tag on one list.
 _Avoid_: RQ in prose; project
 
 **Working answer**:
-What the user currently believes about a Research Question. Explicitly provisional; a Position.
+What the user currently believes about a Research Question. Explicitly provisional; a Position. When the Research Question is Resolved, the Working answer as it stands is the answer — there is no separate answer field.
+
+**Status** (of a Research Question):
+One of *open*, *answered*, *abandoned*. Never *promoted*: that is the originating Question's word for having spawned it.
+
+**Resolved** (of a Research Question):
+Its Status set to *answered* by the user, taking the Working answer as the answer. Writes back to the Question it was promoted from. Not a Loose end and not derived: the user decides when reading is done.
+_Avoid_: Closed, done, finished
+
+**Supporting / Opposing** (of a source on a Research Question):
+The two sides a source is attached to, and the only two: attaching is the judgement. A paper not yet judged is not evidence and is not attached; it may be Related.
+_Avoid_: Unsorted (the prototype's third side, rejected — ADR 0020), for/against in code
 
 ### Position history
 
