@@ -6,7 +6,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { errorMessage } from "./errors.js";
 import { readQuestion } from "./question-kind.js";
@@ -260,6 +260,30 @@ const lookupKeys = (
   const lname = basename(lpath);
   const lstem = lname.endsWith(".md") ? lname.slice(0, -".md".length) : lname;
   return [lpath, lname, lstem];
+};
+
+/**
+ * The lowercase key a link is looked up by, and re-resolved by when a file
+ * the key names appears or vanishes. A Markdown link Obsidian wrote under
+ * *Relative path to file* begins `./` or `../` and is relative to the
+ * linking file, so the key is the joined, normalised vault path (§ Markdown,
+ * link grammar; #203) — the raw `../` text would match no file and, worse,
+ * would never be found by the refresh that re-resolves links by key. A
+ * wikilink target is always a vault path, and a relative target that climbs
+ * above the vault root keeps its raw text so it stays unresolved.
+ */
+const linkKey = (
+  linkingPath: string,
+  syntax: "wikilink" | "markdown",
+  target: string
+): string => {
+  const ltarget = target.toLowerCase();
+  if (syntax !== "markdown" || !/^\.\.?\//.test(ltarget)) return ltarget;
+  const joined = posix.normalize(
+    posix.join(posix.dirname(linkingPath), target)
+  );
+  if (joined === ".." || joined.startsWith("../")) return ltarget;
+  return joined.toLowerCase();
 };
 
 /** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
@@ -651,7 +675,7 @@ function createIndex(
         path,
         l.syntax,
         l.target,
-        l.target.toLowerCase(),
+        linkKey(path, l.syntax, l.target),
         JSON.stringify(l.heading),
         l.blockId,
         l.alias,
