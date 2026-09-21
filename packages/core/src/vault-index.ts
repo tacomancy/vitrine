@@ -6,11 +6,16 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { errorMessage } from "./errors.js";
 import { readQuestion } from "./question-kind.js";
-import { analyseFile, sha256, type OutlineResponse } from "./vault-files.js";
+import {
+  analyseFile,
+  sha256,
+  type OutlineResponse,
+  type Resolution,
+} from "./vault-files.js";
 
 /**
  * `.vitrine/index.sqlite` (ADR 0014; `docs/architecture.md` § Index): the
@@ -27,7 +32,7 @@ import { analyseFile, sha256, type OutlineResponse } from "./vault-files.js";
  * carrying another number is deleted and rebuilt, which is the migration
  * path — there is no other (ADR 0014 decision 10).
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -102,35 +107,44 @@ export type VaultIndex = {
 const SCHEMA = `
 CREATE TABLE files (
   path TEXT PRIMARY KEY,
+  lpath TEXT NOT NULL, lname TEXT NOT NULL, lstem TEXT NOT NULL,
   markdown INTEGER NOT NULL,
   size INTEGER, mtime REAL, hash TEXT,
   kind TEXT, id TEXT,
   bom INTEGER, eol TEXT, trailing_newline INTEGER,
   indexed_at REAL NOT NULL
 );
+CREATE TABLE frontmatter (path TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, content_start INTEGER NOT NULL, content_end INTEGER NOT NULL, value TEXT NOT NULL);
 CREATE TABLE problems (path TEXT NOT NULL, channel TEXT NOT NULL, kind TEXT, problem TEXT NOT NULL, block TEXT);
 CREATE TABLE fields (path TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL);
 CREATE TABLE headings (path TEXT NOT NULL, level INTEGER NOT NULL, text TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, body_start INTEGER NOT NULL, body_end INTEGER NOT NULL, block TEXT);
 CREATE TABLE blocks (path TEXT NOT NULL, id TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, marker_start INTEGER NOT NULL, marker_end INTEGER NOT NULL);
-CREATE TABLE links (path TEXT NOT NULL, syntax TEXT NOT NULL, target TEXT NOT NULL, heading TEXT NOT NULL, block TEXT, alias TEXT, embed INTEGER NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, resolution TEXT, resolved_path TEXT);
+CREATE TABLE links (path TEXT NOT NULL, syntax TEXT NOT NULL, target TEXT NOT NULL, ltarget TEXT NOT NULL, heading TEXT NOT NULL, block TEXT, alias TEXT, embed INTEGER NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, resolution TEXT, resolved_path TEXT);
 CREATE TABLE tags (path TEXT NOT NULL, canonical TEXT, written TEXT NOT NULL, source TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, invalid TEXT);
 CREATE TABLE fields_inline (path TEXT NOT NULL, block TEXT, key TEXT NOT NULL, value TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, value_start INTEGER NOT NULL, value_end INTEGER NOT NULL);
 CREATE TABLE positions (path TEXT NOT NULL, field TEXT NOT NULL, text TEXT NOT NULL, hash TEXT NOT NULL);
+CREATE TABLE list_items (path TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL);
+CREATE INDEX files_lpath ON files (lpath);
+CREATE INDEX files_lname ON files (lname);
+CREATE INDEX files_lstem ON files (lstem);
+CREATE INDEX frontmatter_path ON frontmatter (path);
 CREATE INDEX problems_path ON problems (path);
 CREATE INDEX problems_channel ON problems (channel);
 CREATE INDEX fields_path ON fields (path);
 CREATE INDEX headings_path ON headings (path);
 CREATE INDEX blocks_path ON blocks (path);
 CREATE INDEX links_path ON links (path);
-CREATE INDEX links_target ON links (target);
+CREATE INDEX links_ltarget ON links (ltarget);
 CREATE INDEX tags_path ON tags (path);
 CREATE INDEX tags_canonical ON tags (canonical);
 CREATE INDEX fields_inline_path ON fields_inline (path);
 CREATE INDEX positions_path ON positions (path);
+CREATE INDEX list_items_path ON list_items (path);
 `;
 
 const TABLES = [
   "files",
+  "frontmatter",
   "problems",
   "fields",
   "headings",
@@ -139,6 +153,7 @@ const TABLES = [
   "tags",
   "fields_inline",
   "positions",
+  "list_items",
 ];
 
 /** The database file and the WAL siblings `index.sqlite*` covers. */
@@ -209,6 +224,21 @@ const entryOf = (
   markdown: path.endsWith(".md"),
   statAt: Date.now(),
 });
+
+/**
+ * The lowercase forms a link target is matched against (§ Markdown, link
+ * grammar): the whole path, the basename, and — for a Markdown file — the
+ * basename without `.md`, so `[[note]]`, `[[note.md]]`, and `[[a/note]]`
+ * all reach `a/note.md` while `[[image.png]]` reaches only `image.png`.
+ */
+const lookupKeys = (
+  path: string
+): [lpath: string, lname: string, lstem: string] => {
+  const lpath = path.toLowerCase();
+  const lname = basename(lpath);
+  const lstem = lname.endsWith(".md") ? lname.slice(0, -".md".length) : lname;
+  return [lpath, lname, lstem];
+};
 
 /** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
 const vaultChanged = (
@@ -310,8 +340,11 @@ function createIndex(
     db.prepare(`DELETE FROM ${table} WHERE path = ?`)
   );
   const insertFile = db.prepare(
-    `INSERT OR REPLACE INTO files (path, markdown, size, mtime, hash, kind, id, bom, eol, trailing_newline, indexed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT OR REPLACE INTO files (path, lpath, lname, lstem, markdown, size, mtime, hash, kind, id, bom, eol, trailing_newline, indexed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insertFrontmatter = db.prepare(
+    "INSERT INTO frontmatter (path, start, end, content_start, content_end, value) VALUES (?, ?, ?, ?, ?, ?)"
   );
   const touchFile = db.prepare(
     "UPDATE files SET size = ?, mtime = ?, indexed_at = ? WHERE path = ?"
@@ -329,7 +362,7 @@ function createIndex(
     "INSERT INTO blocks (path, id, start, end, marker_start, marker_end) VALUES (?, ?, ?, ?, ?, ?)"
   );
   const insertLink = db.prepare(
-    "INSERT INTO links (path, syntax, target, heading, block, alias, embed, start, end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO links (path, syntax, target, ltarget, heading, block, alias, embed, start, end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insertTag = db.prepare(
     "INSERT INTO tags (path, canonical, written, source, start, end, invalid) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -340,9 +373,134 @@ function createIndex(
   const insertPosition = db.prepare(
     "INSERT INTO positions (path, field, text, hash) VALUES (?, ?, ?, ?)"
   );
+  const insertListItem = db.prepare(
+    "INSERT INTO list_items (path, start, end) VALUES (?, ?, ?)"
+  );
   const fileRow = db.prepare(
     "SELECT path, markdown, size, mtime, hash, indexed_at FROM files WHERE path = ?"
   );
+
+  // Resolution (§ Index, Refresh): a derived column recomputed by query
+  // inside the same transaction as the rows — for every link the chunk's
+  // files contain, and for every link whose target names a file the chunk
+  // created, changed, or removed. The linking files are never re-read.
+  const linksIn = db.prepare(
+    "SELECT rowid, path, target, ltarget, heading, block FROM links WHERE path = ?"
+  );
+  const linksTo = db.prepare(
+    "SELECT rowid, path, target, ltarget, heading, block FROM links WHERE ltarget = ?"
+  );
+  const filesByPath = db.prepare(
+    "SELECT path, markdown FROM files WHERE lpath = ? OR lpath = ?"
+  );
+  const filesByName = db.prepare(
+    "SELECT path, markdown FROM files WHERE lname = ? OR lstem = ?"
+  );
+  const hasBlock = db.prepare(
+    "SELECT 1 FROM blocks WHERE path = ? AND id = ? LIMIT 1"
+  );
+  const headingsOf = db.prepare(
+    "SELECT text, start, body_end FROM headings WHERE path = ? ORDER BY start"
+  );
+  const setResolution = db.prepare(
+    "UPDATE links SET resolution = ?, resolved_path = ? WHERE rowid = ?"
+  );
+
+  type LinkRow = {
+    rowid: number;
+    path: string;
+    target: string;
+    ltarget: string;
+    heading: string;
+    block: string | null;
+  };
+  type Candidate = { path: string; markdown: number };
+
+  /** `[[note#H1#H2]]` lands when H1 is in the file and H2 is inside H1's section, and so on down. */
+  const headingPathLands = (path: string, fragments: string[]): boolean => {
+    const headings = headingsOf.all(path) as Array<{
+      text: string;
+      start: number;
+      body_end: number;
+    }>;
+    let from = 0;
+    let until = Number.POSITIVE_INFINITY;
+    for (const fragment of fragments) {
+      // Case-insensitive, surrounding whitespace ignored (L4a–c).
+      const wanted = fragment.trim().toLowerCase();
+      const found = headings.find(
+        (h) =>
+          h.start >= from &&
+          h.start < until &&
+          h.text.trim().toLowerCase() === wanted
+      );
+      if (found === undefined) return false;
+      from = found.start + 1;
+      until = found.body_end;
+    }
+    return true;
+  };
+
+  const resolveOne = (
+    link: LinkRow
+  ): [resolution: Resolution, resolvedPath: string | null] => {
+    let candidates: Candidate[];
+    if (link.target === "") {
+      // `[[#Heading]]`: into the linking file itself.
+      candidates = [{ path: link.path, markdown: 1 }];
+    } else if (link.target.includes("/")) {
+      candidates = filesByPath.all(
+        link.ltarget,
+        `${link.ltarget}.md`
+      ) as Candidate[];
+    } else {
+      candidates = filesByName.all(link.ltarget, link.ltarget) as Candidate[];
+    }
+    if (candidates.length === 0) return ["unresolved", null];
+    // Two files by one bare name: nothing, never the first indexed (L2a,
+    // by design); Loose Ends offers the path-qualified rewrite.
+    if (candidates.length > 1) return ["ambiguous", null];
+    const [{ path, markdown }] = candidates as [Candidate];
+    if (markdown === 1) {
+      // A fragment the file lacks is unresolved: the link points at a
+      // heading or block that is not there, which is what Loose Ends
+      // wants to hear. A fragment on a PDF or image is a viewer hint
+      // (`#page=3`) and is not checked.
+      if (link.block !== null && hasBlock.get(path, link.block) === undefined) {
+        return ["unresolved", null];
+      }
+      const fragments = JSON.parse(link.heading) as string[];
+      if (fragments.length > 0 && !headingPathLands(path, fragments)) {
+        return ["unresolved", null];
+      }
+    }
+    return ["resolved", path];
+  };
+
+  /** Recompute resolution for every link touched by these paths; inside a transaction. */
+  const resolveLinksTouching = (paths: string[]) => {
+    const affected = new Map<number, LinkRow>();
+    const keys = new Set<string>();
+    for (const path of paths) {
+      for (const link of linksIn.all(path) as LinkRow[]) {
+        affected.set(link.rowid, link);
+      }
+      // Every form a target could take to name this path; computed from the
+      // path string, since a vanished path's row is already gone.
+      const [lpath, lname, lstem] = lookupKeys(path);
+      for (const key of [lpath, lname, lstem]) keys.add(key);
+      if (lpath.endsWith(".md")) keys.add(lpath.slice(0, -".md".length));
+    }
+    for (const key of keys) {
+      for (const link of linksTo.all(key) as LinkRow[]) {
+        affected.set(link.rowid, link);
+      }
+    }
+    for (const link of affected.values()) {
+      const [resolution, resolvedPath] = resolveOne(link);
+      setResolution.run(resolution, resolvedPath, link.rowid);
+    }
+  };
 
   const dropRows = (path: string) => {
     for (const statement of deletes) statement.run(path);
@@ -363,6 +521,7 @@ function createIndex(
   ) =>
     insertFile.run(
       path,
+      ...lookupKeys(path),
       row.markdown ? 1 : 0,
       row.size ?? null,
       row.mtime ?? null,
@@ -402,6 +561,17 @@ function createIndex(
       id,
       file: read.file,
     });
+    const front = read.outline.frontmatter;
+    if (front !== null) {
+      insertFrontmatter.run(
+        path,
+        front.range.start,
+        front.range.end,
+        front.content.start,
+        front.content.end,
+        JSON.stringify(front.value)
+      );
+    }
     for (const h of read.outline.headings) {
       insertHeading.run(
         path,
@@ -429,6 +599,7 @@ function createIndex(
         path,
         l.syntax,
         l.target,
+        l.target.toLowerCase(),
         JSON.stringify(l.heading),
         l.blockId,
         l.alias,
@@ -471,6 +642,9 @@ function createIndex(
         f.valueRange.start,
         f.valueRange.end
       );
+    }
+    for (const item of read.outline.listItems) {
+      insertListItem.run(path, item.range.start, item.range.end);
     }
     for (const s of read.shape) {
       insertProblem.run(path, "shape", s.kind, s.problem, s.block ?? null);
@@ -642,6 +816,7 @@ function createIndex(
       transaction(() => {
         for (const path of dropped) dropRows(path);
         for (const read of reads) if (apply(read)) changed.push(read.path);
+        resolveLinksTouching([...dropped, ...changed]);
       });
       if (changed.length > 0 || dropped.length > 0) {
         await raise(vaultChanged(changed, dropped));
@@ -763,6 +938,7 @@ function createIndex(
       transaction(() => {
         dropRows(path);
         insertOutlined(path, { size: s.size, mtime: s.mtimeMs }, hash, content);
+        resolveLinksTouching([path]);
       });
       await raise(vaultChanged([path]));
     },

@@ -23,15 +23,18 @@ function files(dir: string): string[] {
 }
 
 /**
- * A core with the given folder open, ready to outline. The corpus is opened
- * from a temp copy: an open writes the index under `.vitrine/`, which must
- * never land in the checked-in fixture.
+ * A core with the given folder open and indexed, ready to outline. The
+ * corpus is opened from a temp copy: an open writes the index under
+ * `.vitrine/`, which must never land in the checked-in fixture.
  */
 async function opened(vault: string) {
   const c = await core();
   const path = vault === corpus ? await fixtureCopy("obsidian-corpus") : vault;
   const reply = await c.mutate("vault.open", { path });
   expect(reply.error).toBeUndefined();
+  // The outline is assembled from the index (#191), so the build must have
+  // reached every file first.
+  await c.indexed();
   return {
     path,
     raw: (path: string) => c.query<OutlineResponse>("vault.outline", { path }),

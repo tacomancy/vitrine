@@ -17,7 +17,11 @@ export function useCoreEvents() {
       onStarted: () => void queryClient.invalidateQueries(),
       onData: (event) => {
         if (event.type === "vaultChanged") {
+          // Everything read from the index (spec #177 § Renderer); the tag
+          // tree and outlines have no consumer yet, but the rule is one.
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.tags.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.outline.pathFilter());
         }
       },
     })
