@@ -1,0 +1,46 @@
+# The installed Vitrine.app (docs/architecture.md § Packaging). A plain
+# bundle for one Mac: unpacked, arm64, unsigned — `mac.identity` is left
+# unconfigured so electron-builder skips signing when the keychain holds no
+# Developer ID, and a build made on this Mac is never quarantined, so
+# Gatekeeper never evaluates it. If a Team-ID launch failure ever appears,
+# the fallback is the ad-hoc recipe — `mac.identity: "-"` plus an
+# entitlements file with `com.apple.security.cs.disable-library-validation`
+# and `com.apple.security.cs.allow-jit` — never `hardenedRuntime: false`.
+#
+# appId is the future Keychain identity (ADR 0017): changing it after a key
+# is stored orphans the key.
+appId: com.tacomancy.vitrine
+productName: Vitrine
+directories:
+  # Not `build/`: the root .gitignore swallows it, and the icon is tracked.
+  buildResources: resources
+  output: dist
+files:
+  - out/**
+  - package.json
+# The core is staged by `pnpm --filter core --prod deploy stage/core` and
+# carried whole (dist plus its own node_modules) to Contents/Resources/core,
+# where the shell's coreEntry() finds it under process.resourcesPath.
+extraResources:
+  - from: stage/core
+    to: core
+    filter:
+      - dist/**
+      - package.json
+  # electron-builder always drops a FileSet's root node_modules, whatever
+  # the filter says (app-builder-lib util/filter.ts), so the staged
+  # node_modules is its own FileSet. pnpm's bookkeeping files stay out.
+  - from: stage/core/node_modules
+    to: core/node_modules
+    filter:
+      - "**/*"
+      - "!.modules.yaml"
+      - "!.pnpm-workspace-state-v1.json"
+# Off so the core reads out/renderer as real files, and nothing is archived.
+asar: false
+# The shell has no production dependencies; nothing to rebuild.
+npmRebuild: false
+mac:
+  target:
+    - target: dir
+      arch: arm64

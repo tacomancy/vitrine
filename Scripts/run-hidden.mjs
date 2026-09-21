@@ -6,7 +6,11 @@
 //
 //   node Scripts/run-hidden.mjs --snapshot out.png [--vault <folder>]
 //        [--support <folder>] [--after <ms>] [--port <n>] [--drive <file.mjs>]
+//        [--app <path/to/Vitrine.app>]
 //
+// --app       a packaged bundle to drive (pnpm package --no-install leaves
+//             one in packages/shell/dist/mac-arm64/) instead of the built
+//             workspace shell under the node_modules Electron
 // --vault     the folder to open at launch (written to the app-support
 //             folder's last-vault.json, so the window opens on it directly;
 //             without it the window shows First run)
@@ -19,10 +23,10 @@
 // `page` offers: eval(js) → value; key(key, {code, vk, text, modifiers});
 // type(text); wait(js) → polls until truthy; sleep(ms). ⌘ is modifiers 4.
 //
-// Needs `pnpm --filter core... build && pnpm --filter shell build` first: the
-// shell spawns core/dist/main.js, so a stale dist is stale behaviour. Runs
-// under the system Node (22+, for fetch and WebSocket), on macOS only: the
-// Electron binary is the .app the shell package installs.
+// Without --app, needs `pnpm --filter core... build && pnpm --filter shell
+// build` first: the shell spawns core/dist/main.js, so a stale dist is stale
+// behaviour. Runs under the system Node (22+, for fetch and WebSocket), on
+// macOS only: the Electron binary is the .app the shell package installs.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
@@ -58,13 +62,23 @@ if (args.has("vault")) {
   );
 }
 
-const electron = join(
-  repo,
-  "packages/shell/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
-);
+// A packaged bundle carries its own main; the dev launch hands the shell's
+// package to the bare Electron. Either way the same env reaches the same code.
+const launch = args.has("app")
+  ? {
+      executable: join(resolvePath(args.get("app")), "Contents/MacOS/Vitrine"),
+      argv: [],
+    }
+  : {
+      executable: join(
+        repo,
+        "packages/shell/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+      ),
+      argv: [join(repo, "packages/shell")],
+    };
 const child = spawn(
-  electron,
-  [join(repo, "packages/shell"), `--remote-debugging-port=${port}`],
+  launch.executable,
+  [...launch.argv, `--remote-debugging-port=${port}`],
   {
     env: {
       ...process.env,

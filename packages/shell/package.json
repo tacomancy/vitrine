@@ -2,13 +2,16 @@
   "name": "shell",
   "version": "0.0.0",
   "private": true,
+  "description": "A local-first research workspace built around the Question",
+  "author": "Sarah Lehman",
   "main": "./out/main/index.js",
   "scripts": {
     "postinstall": "install-electron",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json",
-    "start": "electron-vite preview"
+    "start": "electron-vite preview",
+    "package": "electron-builder --mac --dir"
   },
   "devDependencies": {
     "@trpc/client": "11.19.0",
@@ -16,6 +19,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "core": "workspace:*",
     "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.6"
