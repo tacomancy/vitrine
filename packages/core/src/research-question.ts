@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { BOM, type Heading, type ListItem, type Outline } from "markdown";
+import { stringify } from "yaml";
 import { errorMessage } from "./errors.js";
 import {
   analyseFile,
@@ -15,8 +16,8 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position. Read-only this ticket (#209); the writes arrive with the
- * tickets that own each section.
+ * Position; and what promotion writes (#210). The section writes arrive
+ * with the tickets that own each section.
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -91,13 +92,83 @@ export const SECTIONS = [
   "Position history",
 ] as const;
 
+const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+/**
+ * The page a promotion creates, whole (§ Vault layout, Research Question):
+ * the Question's keys copied — not re-derived from the index, which may
+ * lag the file — the page's own keys, and the six headings in order with
+ * the Question's `related:` as lines under the fourth. The body is left on
+ * the Question. Pure, so the file can be read off a table of cases.
+ */
+export function composeResearchQuestion(
+  question: Record<string, unknown>,
+  page: { id: string; promotedFrom: string; promoted: string }
+): string {
+  const lines = [
+    "---",
+    `id: ${page.id}`,
+    `kind: ${KIND}`,
+    `question: ${quoted(asString(question["question"]) ?? "")}`,
+    "status: open",
+    `promoted_from: ${quoted(page.promotedFrom)}`,
+    `promoted: ${page.promoted}`,
+  ];
+  // The Provenance, as the Question holds it; a key it lacks is not invented.
+  const captured = question["captured"];
+  if (typeof captured === "string") lines.push(`captured: ${plain(captured)}`);
+  const context = question["context"];
+  if (typeof context === "string") lines.push(`context: ${plain(context)}`);
+  const from = question["from"];
+  if (typeof from === "string") lines.push(`from: ${quoted(from)}`);
+  const pageNumber = question["page"];
+  if (typeof pageNumber === "number") lines.push(`page: ${pageNumber}`);
+  const annotation = question["annotation"];
+  if (typeof annotation === "string") {
+    lines.push(`annotation: ${plain(annotation)}`);
+  }
+  const tags = tagList(question["tags"]);
+  if (tags.length > 0) {
+    lines.push("tags:", ...tags.map((tag) => `  - ${plain(tag)}`));
+  }
+  lines.push("---", "");
+  const related = stringList(question["related"]);
+  for (const name of SECTIONS) {
+    lines.push(`## ${name}`, "");
+    if (name === "Related questions" && related.length > 0) {
+      lines.push(...related.map((link) => `- ${link}`), "");
+    }
+  }
+  return lines.join("\n");
+}
+
+// Always double-quoted, as the Question's own `question:` is: deciding when
+// a plain scalar is safe means carrying YAML's rules, and one wrong call
+// makes the page unreadable. A wikilink starts with `[`, which is why the
+// fixture pages quote `from:` and `promoted_from:` too.
+const quoted = (value: string) =>
+  stringify(value, { lineWidth: 0, defaultStringType: "QUOTE_DOUBLE" }).trim();
+/** Plain where YAML allows it, quoted by `yaml` where it does not. */
+const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
+
+/** A `tags:` value as the file holds it: a list, or the legacy comma string split as § Markdown reads it. */
+function tagList(value: unknown): string[] {
+  if (typeof value === "string") {
+    return value.split(/[\s,]+/).filter((tag) => tag !== "");
+  }
+  return stringList(value);
+}
+
+const stringList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+
 const STATUSES: readonly ResearchQuestionStatus[] = [
   "open",
   "answered",
   "abandoned",
 ];
-
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 /**
  * The page's frontmatter from the file's; the throw's message is the reason

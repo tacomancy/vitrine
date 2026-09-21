@@ -117,6 +117,14 @@ export const router = t.router({
       .mutation(({ ctx, input }) =>
         refusing(ctx.questions.capture(input.text, input.provenance))
       ),
+    // Promote to Research Question (#210): the page written whole, then
+    // the Question marked; a refusal is the typed error the formatter
+    // unpacks, shown on the row.
+    promote: t.procedure
+      .input(pathInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.promote(input.path))
+      ),
   }),
 });
 

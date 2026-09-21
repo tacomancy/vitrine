@@ -1,8 +1,19 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
-import { VaultError } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
+import { readQuestion } from "./question-kind.js";
+import { composeResearchQuestion } from "./research-question.js";
+import {
+  analyseFile,
+  createFile,
+  locate,
+  sha256,
+  write,
+  type WriteResult,
+} from "./vault-files.js";
+import type { VaultIndex } from "./vault-index.js";
 import type { VaultService } from "./vault.js";
 
 /** Where a Question came from. This slice knows one context: Unattached. */
@@ -17,8 +28,13 @@ export type Question = {
   context: Provenance["context"];
 };
 
+/** Where a promotion landed: the new page's path, vault-relative, for the hash. */
+export type Promotion = { path: string };
+
 export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
+  /** Promote to Research Question (#210): the page written whole, then the Question marked. */
+  promote: (path: string) => Promise<Promotion>;
 };
 
 export type QuestionServiceOptions = {
@@ -211,14 +227,129 @@ export function createQuestionService({
     return written;
   }
 
-  return {
-    capture: (text, provenance) => {
-      const run = previous.then(
-        () => capture(text, provenance),
-        () => capture(text, provenance)
+  /**
+   * The page first, whole, then the Question's two keys: a page that could
+   * not be created leaves the Question untouched, and a Question the
+   * protocol would not mark takes the page back with it, so the vault never
+   * holds a page nothing points at. The index is told of both writes before
+   * this returns, so the row reads *promoted* and the page reads at once.
+   */
+  async function promote(
+    vaultPath: string,
+    index: VaultIndex,
+    path: string
+  ): Promise<Promotion> {
+    const { absolute, relativePath } = await locate(vaultPath, path);
+    const bytes = await readFile(absolute).catch((cause: unknown) => {
+      throw new VaultError(
+        "unreadable",
+        `Couldn't read ${relativePath}: ${errorMessage(cause)}`
       );
-      previous = run;
-      return run;
-    },
+    });
+    const read = analyseFile(
+      relativePath,
+      bytes.toString("utf8"),
+      sha256(bytes)
+    );
+    if (!read.readable) {
+      throw new VaultError("unreadable", `${relativePath}: ${read.reason}`);
+    }
+    const fm = (read.outline.frontmatter?.value ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const question = read.kind === "question" ? readQuestion(fm) : null;
+    if (question === null) {
+      throw new VaultError("refused", `${relativePath} is not a Question.`);
+    }
+    if (question.status !== "open") {
+      throw new VaultError(
+        "refused",
+        `${relativePath} is ${question.status}, not open; reopen it first.`
+      );
+    }
+
+    const stem = basename(relativePath, ".md");
+    const content = composeResearchQuestion(fm, {
+      id: newId(),
+      promotedFrom: `[[${stem}]]`,
+      promoted: localIso(now()),
+    });
+    const { pagePath, created } = await createPage(
+      vaultPath,
+      dirname(relativePath),
+      stem,
+      content
+    );
+
+    const marked = await write(vaultPath, relativePath, {
+      basedOn: read.hash,
+      operations: [
+        {
+          op: "setFrontmatter",
+          keys: {
+            status: "promoted",
+            promoted_to: `[[${basename(pagePath, ".md")}]]`,
+          },
+        },
+      ],
+    });
+    if (!marked.written) {
+      await unlink(join(vaultPath, pagePath)).catch(() => undefined);
+      throw new VaultError(
+        "refused",
+        `Couldn't mark ${relativePath} promoted: ${marked.detail}`
+      );
+    }
+    await index.own(pagePath, created.content);
+    await index.own(relativePath, marked.content);
+    return { path: pagePath };
+  }
+
+  /**
+   * The page beside the Question as ` (RQ)`, then ` (RQ) (2)`, …: the name
+   * is the Question's, and a file that already holds it — a note, a
+   * hand-made page — is never replaced.
+   */
+  async function createPage(
+    vaultPath: string,
+    folder: string,
+    stem: string,
+    content: string
+  ): Promise<{ pagePath: string; created: WriteResult & { written: true } }> {
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? `${stem} (RQ)` : `${stem} (RQ) (${n})`;
+      const pagePath = join(folder, `${name}.md`).split(sep).join("/");
+      const created = await createFile(vaultPath, pagePath, content);
+      if (created.written) return { pagePath, created };
+      if (created.reason !== "alreadyExists") {
+        throw new VaultError(
+          "refused",
+          `Couldn't create ${pagePath}: ${created.detail}`
+        );
+      }
+    }
+  }
+
+  /** Captures and promotions run one at a time: both pick a free name in questions/. */
+  function serially<T>(work: () => Promise<T>): Promise<T> {
+    const run = previous.then(work, work);
+    previous = run;
+    return run;
+  }
+
+  return {
+    capture: (text, provenance) => serially(() => capture(text, provenance)),
+    promote: (path) =>
+      serially(async () => {
+        const opened = await vault.opened();
+        if (opened === null) {
+          throw new VaultError(
+            "noVault",
+            "No vault is open. Open a vault first."
+          );
+        }
+        return promote(opened.vault.path, opened.index, path);
+      }),
   };
 }
