@@ -10,3 +10,5 @@ pnpm-lock.yaml
 skills-lock.json
 local-libraries/
 *.md
+# Obsidian-written corpus: committed exactly as Obsidian wrote it (#112).
+packages/core/fixtures/obsidian-corpus/
