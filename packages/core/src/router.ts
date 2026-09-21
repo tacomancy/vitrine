@@ -1,12 +1,17 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import { readOutline } from "./vault-files.js";
 
-export type Context = { vault: VaultService; questions: QuestionService };
+export type Context = {
+  vault: VaultService;
+  questions: QuestionService;
+  events: Events;
+};
 
 const t = initTRPC.context<Context>().create({
   // A refused open or write reaches the client as a plain message plus its
@@ -76,6 +81,13 @@ export const router = t.router({
       const { index } = await requireVault(ctx);
       return index.status();
     }),
+  }),
+  events: t.router({
+    // One SSE stream per renderer, behind the same bearer guard as every
+    // other /trpc request; the renderer reacts by invalidating queries.
+    subscribe: t.procedure.subscription(({ ctx, signal }) =>
+      ctx.events.subscribe(signal)
+    ),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

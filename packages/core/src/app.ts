@@ -2,6 +2,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
+import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { createQuestionService } from "./questions.js";
 import { router, type Context } from "./router.js";
@@ -45,10 +46,28 @@ export function createApp({
   index,
 }: AppOptions): App {
   const app = new Hono();
-  const vault = createVaultService({ host, appSupportDir, index });
+  const events = createEvents();
+  // The index's after-commit listeners feed the stream first, then whatever
+  // the caller hung there (the test harness): both see the committed rows.
+  const vault = createVaultService({
+    host,
+    appSupportDir,
+    index: {
+      ...index,
+      onChanged: async (event) => {
+        events.emit(event);
+        await index?.onChanged?.(event);
+      },
+      onStatus: async () => {
+        events.emit({ type: "vaultStatus" });
+        await index?.onStatus?.();
+      },
+    },
+  });
   const context: Context = {
     vault,
     questions: createQuestionService({ vault, now, newId }),
+    events,
   };
 
   // The renderer is served from the Vite dev server in development and from
