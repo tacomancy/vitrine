@@ -364,7 +364,10 @@ describe("the Research Question Kind on the positionsOf seam", () => {
 });
 
 /** The file's bytes outside one `##` section: what a section save must leave byte-identical. */
-function outside(content: string, section: string): [before: string, after: string] {
+function outside(
+  content: string,
+  section: string
+): [before: string, after: string] {
   const start = content.indexOf(`\n## ${section}\n`);
   if (start === -1) throw new Error(`no ## ${section}`);
   const next = content.indexOf("\n## ", start + 1);
@@ -405,7 +408,10 @@ describe("researchQuestions.tickThread", () => {
       sections: {
         openThreads: {
           threads: [
-            { text: "Have not read Cordi & Rasch 2021 past the abstract.", done: true },
+            {
+              text: "Have not read Cordi & Rasch 2021 past the abstract.",
+              done: true,
+            },
             { text: "Is TMR orthogonal to encoding?", done: true },
             { text: "a thread that is not a task", done: null },
           ],
@@ -511,14 +517,18 @@ describe("researchQuestions.saveSection", () => {
     await c.mutate("researchQuestions.saveSection", {
       path,
       section: "Open threads",
-      body: page.sections.openThreads.text + "\n- [ ] Does the effect survive a nap?",
+      body:
+        page.sections.openThreads.text +
+        "\n- [ ] Does the effect survive a nap?",
       basedOn: page.hash,
     });
     const after = await readFile(join(vault, path), "utf8");
     expect(after).toContain(
       "- [x] Is TMR orthogonal to encoding?\n- a thread that is not a task\n- [ ] Does the effect survive a nap?\n\n## Position history\n\n- 2026-09-21T09:00:00+02:00 · working answer\n  from:\n"
     );
-    expect(outside(after, "Open threads")).toEqual(outside(before, "Open threads"));
+    expect(outside(after, "Open threads")).toEqual(
+      outside(before, "Open threads")
+    );
   });
 
   it("refuses a section that is not an Edited section as an input error", async () => {

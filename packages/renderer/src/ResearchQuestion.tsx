@@ -17,7 +17,7 @@ import {
 import { formatAge } from "./age";
 import { useVaultChanged } from "./events";
 import styles from "./ResearchQuestion.module.css";
-import { replaceRoute } from "./router";
+import { hashOf, replaceRoute } from "./router";
 import { localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -290,6 +290,11 @@ function Outline({ children }: { children: ReactNode }) {
   return <p className={styles.outline}>{children}</p>;
 }
 
+// The Kinds with a surface to open: a Question and a Research Question both
+// live at `#/questions/<path>`. A link resolving to anything else — a Note,
+// a Source — is inert until its surface exists (spec #206 story 56).
+const OPENABLE = new Set(["question", "research-question"]);
+
 /** Source and related lines: the link as written, its note, and what the index says about where it lands. */
 function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
   if (lines.length === 0) return <Outline>{empty}</Outline>;
@@ -301,10 +306,24 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
             <span className={styles.note}>{line.text}</span>
           ) : (
             <>
-              <span className={styles.target}>
-                {line.link.target}
-                {line.link.blockId !== null && `#^${line.link.blockId}`}
-              </span>
+              {line.link.resolvedPath !== null &&
+              OPENABLE.has(line.link.resolvedKind ?? "") ? (
+                <a
+                  className={styles.target}
+                  href={hashOf({
+                    surface: "questions",
+                    path: line.link.resolvedPath,
+                  })}
+                >
+                  {line.link.target}
+                  {line.link.blockId !== null && `#^${line.link.blockId}`}
+                </a>
+              ) : (
+                <span className={styles.target}>
+                  {line.link.target}
+                  {line.link.blockId !== null && `#^${line.link.blockId}`}
+                </span>
+              )}
               {line.link.resolution !== "resolved" && (
                 <span className={styles.resolution}>
                   {line.link.resolution}

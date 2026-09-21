@@ -91,7 +91,7 @@ describe("questions.capture", () => {
 describe("a capture from a Research Question's page", () => {
   const page = "questions/Does slow-wave density predict recall gain (RQ).md";
   const PAGE =
-    "---\nid: rq7m2p9q4w\nkind: research-question\nquestion: \"Does slow-wave density predict recall gain?\"\nstatus: open\ncontext: other\n---\n\n## Working answer\n\n## Supporting sources\n\n## Opposing sources\n\n## Related questions\n\n- [[What counts as a reactivation event]] — shares 2 sources\n\n## Open threads\n\n## Position history\n";
+    '---\nid: rq7m2p9q4w\nkind: research-question\nquestion: "Does slow-wave density predict recall gain?"\nstatus: open\ncontext: other\n---\n\n## Working answer\n\n## Supporting sources\n\n## Opposing sources\n\n## Related questions\n\n- [[What counts as a reactivation event]] — shares 2 sources\n\n## Open threads\n\n## Position history\n';
 
   it("writes `from` and `context: pursuing` on the Question and appends its link under the page's related section, in one call", async () => {
     const c = await core({
@@ -171,7 +171,10 @@ describe("a capture from a Research Question's page", () => {
       { context: "other", researchQuestion: page },
       { context: "pursuing" },
     ]) {
-      const reply = await c.mutate("questions.capture", { text: "x", provenance });
+      const reply = await c.mutate("questions.capture", {
+        text: "x",
+        provenance,
+      });
       expect(reply.error).toBeDefined();
       expect(reply.error?.data.kind).toBeUndefined();
     }

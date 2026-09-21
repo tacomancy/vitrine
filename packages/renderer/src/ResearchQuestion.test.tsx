@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { ResearchQuestionPage } from "core";
+import type { ResearchQuestionPage, ResearchQuestionSections } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
@@ -368,7 +368,7 @@ describe("the page under external change", () => {
 // the two Edited sections are plain text fields, a link to a Question opens
 // it, and a capture made with the page on screen lands under related.
 
-const THREADS = {
+const THREADS: ResearchQuestionSections["openThreads"] = {
   present: true,
   text: "- [ ] Have not read Cordi & Rasch 2021.\n- [x] Is TMR orthogonal to encoding?",
   threads: [
@@ -377,7 +377,9 @@ const THREADS = {
   ],
 };
 
-const withThreads = (openThreads: typeof THREADS): ResearchQuestionPage => ({
+const withThreads = (
+  openThreads: ResearchQuestionSections["openThreads"]
+): ResearchQuestionPage => ({
   ...fresh,
   sections: { ...fresh.sections, openThreads },
 });
@@ -441,7 +443,7 @@ describe("open threads", () => {
   });
 });
 
-const RELATED = {
+const RELATED: ResearchQuestionSections["related"] = {
   present: true,
   text: "- [[What counts as a reactivation event]] — shares 2 sources",
   lines: [
@@ -459,7 +461,9 @@ const RELATED = {
   ],
 };
 
-const withRelated = (related: typeof RELATED): ResearchQuestionPage => ({
+const withRelated = (
+  related: ResearchQuestionSections["related"]
+): ResearchQuestionPage => ({
   ...fresh,
   sections: { ...fresh.sections, related },
 });
@@ -593,5 +597,133 @@ describe("the Edited sections as plain text fields", () => {
         name: "Related questions",
       }).value
     ).toBe("- [[Nowhere]]");
+  });
+});
+
+describe("links on the page", () => {
+  const line = (
+    target: string,
+    resolvedKind: string | null,
+    resolvedPath: string | null
+  ) => ({
+    text: `[[${target}]]`,
+    link: {
+      target,
+      blockId: null,
+      resolution:
+        resolvedPath === null ? ("unresolved" as const) : ("resolved" as const),
+      resolvedPath,
+      resolvedKind,
+    },
+    note: "",
+  });
+
+  it("a link resolving to a Research Question or a Question opens it by hash; one resolving elsewhere is inert", async () => {
+    open(() =>
+      withRelated({
+        present: true,
+        text: "",
+        lines: [
+          line("Other (RQ)", "research-question", "questions/Other (RQ).md"),
+          line("A capture", "question", "questions/A capture.md"),
+          line("A note", null, "notes/A note.md"),
+          line("A paper", "source", "sources/rasch2013.md"),
+          line("Nowhere", null, null),
+        ],
+      })
+    );
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    const links = within(related).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([
+      "Other (RQ)",
+      "A capture",
+    ]);
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "#/questions/questions/Other%20(RQ).md",
+      "#/questions/questions/A%20capture.md",
+    ]);
+    // The rest are text: nothing to click, nothing that pretends to open.
+    expect(related.textContent).toContain("A note");
+    expect(related.textContent).toContain("A paper");
+    expect(related.textContent).toContain("Nowhere");
+    expect(related.textContent).toContain("unresolved");
+
+    fireEvent.click(links[0]!);
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/questions/questions/Other%20(RQ).md")
+    );
+  });
+});
+
+describe("capturing from the page", () => {
+  it("⌘' on the page captures pursuing this Research Question; the new Question lands under related and the keyboard goes back where it was", async () => {
+    let page = withRelated(RELATED);
+    const capture = vi.fn((input: unknown) => {
+      const { text } = input as { text: string };
+      page = withRelated({
+        ...RELATED,
+        text: RELATED.text + `\n- [[${text.replace("?", "")}]]`,
+        lines: [
+          ...RELATED.lines,
+          {
+            text: `[[${text.replace("?", "")}]]`,
+            link: {
+              target: text.replace("?", ""),
+              blockId: null,
+              resolution: "resolved" as const,
+              resolvedPath: `questions/${text.replace("?", "")}.md`,
+              resolvedKind: "question",
+            },
+            note: "",
+          },
+        ],
+      });
+      return {
+        id: "k7m2p9q4wx",
+        path: `${vault.path}/questions/${text.replace("?", "")}.md`,
+        question: text,
+        status: "open",
+        captured: "2026-09-21T10:00:00+02:00",
+        from: "[[Does slow-wave density predict recall gain (RQ)]]",
+        context: "pursuing",
+      };
+    });
+    open(() => page, { "questions.capture": capture });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    const edit = within(related).getByRole("button", { name: "edit" });
+    edit.focus();
+
+    pressCaptureChord();
+    const line = screen.getByRole("form", { name: "Capture" });
+    expect(line.textContent).toContain(
+      "Pursuing · Does slow-wave density predict recall gain (RQ)"
+    );
+    const input = screen.getByRole("textbox", { name: "Question" });
+    fireEvent.change(input, {
+      target: { value: "Does the effect survive a nap?" },
+    });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Question" })).toBeNull()
+    );
+    expect(capture).toHaveBeenCalledExactlyOnceWith({
+      text: "Does the effect survive a nap?",
+      provenance: { context: "pursuing", researchQuestion: PATH },
+    });
+    // Back where it was: the page is not where the Question landed as a row
+    // (ADR 0010), so nothing on it takes the keyboard.
+    expect(document.activeElement).toBe(edit);
+    await waitFor(() =>
+      expect(
+        within(related).getByRole("link", {
+          name: "Does the effect survive a nap",
+        })
+      ).toBeDefined()
+    );
   });
 });

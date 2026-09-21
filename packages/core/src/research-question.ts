@@ -474,7 +474,9 @@ export async function tickThread(
     ticked +
     content.slice(item.range.end, heading.body.end);
   return writeOwn(index, vaultPath, path, {
-    operations: [{ op: "replaceSection", name: "Open threads", body: body.trim() }],
+    operations: [
+      { op: "replaceSection", name: "Open threads", body: body.trim() },
+    ],
     basedOn: hash,
   });
 }
@@ -490,7 +492,11 @@ export async function saveSection(
   index: VaultIndex,
   vaultPath: string,
   path: string,
-  { section: name, body, basedOn }: { section: EditedSection; body: string; basedOn: string }
+  {
+    section: name,
+    body,
+    basedOn,
+  }: { section: EditedSection; body: string; basedOn: string }
 ): Promise<WriteResult> {
   return writeOwn(index, vaultPath, path, {
     operations: [{ op: "replaceSection", name, body: body.trim() }],

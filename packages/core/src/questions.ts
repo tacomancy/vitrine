@@ -12,8 +12,7 @@ import type { VaultService } from "./vault.js";
  * vault-relative path, and the Question is a sub-question of it.
  */
 export type Provenance =
-  | { context: "other" }
-  | { context: "pursuing"; researchQuestion: string };
+  { context: "other" } | { context: "pursuing"; researchQuestion: string };
 
 export type Question = {
   id: string;
