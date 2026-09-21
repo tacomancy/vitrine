@@ -265,26 +265,20 @@ const lookupKeys = (
 
 /**
  * The lowercase key a link is looked up by, and re-resolved by when a file
- * the key names appears or vanishes. A Markdown link Obsidian wrote under
- * *Relative path to file* begins `./` or `../` and is relative to the
- * linking file, so the key is the joined, normalised vault path (§ Markdown,
- * link grammar; #203) — the raw `../` text would match no file and, worse,
- * would never be found by the refresh that re-resolves links by key. A
- * wikilink target is always a vault path, and a relative target that climbs
- * above the vault root keeps its raw text so it stays unresolved.
+ * the key names appears or vanishes. A target beginning `./` or `../` —
+ * how Obsidian writes a Markdown link under *Relative path to file*, and
+ * how it reads a wikilink too (L5h) — is relative to the linking file, so
+ * the key is the joined, normalised vault path (§ Markdown, link grammar;
+ * #203): the raw `../` text would match no file and, worse, would never be
+ * found by the refresh that re-resolves links by key. Surplus `../` above
+ * the vault root is clamped, as Obsidian does (L5g).
  */
-const linkKey = (
-  linkingPath: string,
-  syntax: "wikilink" | "markdown",
-  target: string
-): string => {
-  const ltarget = target.toLowerCase();
-  if (syntax !== "markdown" || !/^\.\.?\//.test(target)) return ltarget;
+const linkKey = (linkingPath: string, target: string): string => {
+  if (!/^\.\.?\//.test(target)) return target.toLowerCase();
   const joined = posix.normalize(
     posix.join(posix.dirname(linkingPath), target)
   );
-  if (joined === ".." || joined.startsWith("../")) return ltarget;
-  return joined.toLowerCase();
+  return joined.replace(/^(\.\.\/)+/, "").toLowerCase();
 };
 
 /** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
@@ -676,7 +670,7 @@ function createIndex(
         path,
         l.syntax,
         l.target,
-        linkKey(path, l.syntax, l.target),
+        linkKey(path, l.target),
         JSON.stringify(l.heading),
         l.blockId,
         l.alias,
