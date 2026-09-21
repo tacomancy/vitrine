@@ -144,18 +144,27 @@ async function locate(
   if (!absolute.endsWith(".md")) {
     throw new VaultError("notMarkdown", `${path} is not a Markdown file.`);
   }
-  // The walks (`list.ts`) skip every symlink, so a single read refuses one
-  // too — the file itself, or any folder on the way to it — rather than
-  // reading through a link the walk would never have listed. A missing file
-  // is not an input error; the read below reports it.
+  // The walks (`list.ts`) skip every symlink, so a single read or write
+  // refuses one too — the file itself, or any folder on the way to it —
+  // rather than going through a link the walk would never have listed. A
+  // missing file is not an input error (the read reports it; createFile
+  // makes it), but its nearest existing ancestor is still checked, or a
+  // new file could land outside the vault through a linked folder.
   try {
-    const [realFile, realVault] = await Promise.all([
-      realpath(absolute),
-      realpath(vaultPath),
-    ]);
+    const realVault = await realpath(vaultPath);
+    let probe = absolute;
+    let real: string | null = null;
+    while (real === null && probe !== vaultPath) {
+      try {
+        real = await realpath(probe);
+      } catch {
+        probe = dirname(probe);
+      }
+    }
     const linked =
-      relative(realVault, realFile) !== relativePath ||
-      (await lstat(absolute)).isSymbolicLink();
+      real !== null &&
+      (relative(realVault, real) !== relative(vaultPath, probe) ||
+        (await lstat(probe)).isSymbolicLink());
     if (linked) {
       throw new VaultError("outsideVault", `${path} is not in the vault.`);
     }
@@ -408,6 +417,13 @@ export type WriteResult =
   | { written: true; hash: string; content: string }
   | { written: false; reason: WriteRefusal; detail: string };
 
+/** Text as the app composes it: no BOM, LF. */
+const asLf = (text: string) =>
+  text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+/** LF text in the line endings the file as read had. */
+const withEol = (lf: string, eol: FileChoices["eol"]) =>
+  eol === "crlf" ? lf.replace(/\n/g, "\r\n") : lf;
+
 const refusal = (reason: WriteRefusal, detail: string): WriteResult => ({
   written: false,
   reason,
@@ -427,7 +443,11 @@ type Applied =
  * is not added again, so the writer never introduces a variant of a tag the
  * user already has (ADR 0008, considered options).
  */
-function addTags(document: Document, parsed: Outline, tags: string[]): void {
+function addTags(
+  document: Document,
+  present: Set<string>,
+  tags: string[]
+): void {
   const existing = document.get("tags", true);
   let seq: YAMLSeq;
   if (isSeq(existing)) {
@@ -440,14 +460,9 @@ function addTags(document: Document, parsed: Outline, tags: string[]): void {
     document.set("tags", seq);
   }
   seq.flow = false;
-  const present = new Set<string>();
-  for (const t of parsed.tags) {
-    if (t.source === "frontmatter" && t.valid) present.add(t.canonical);
-  }
   for (const tag of tags) {
-    const canonical = canonicalTag(tag);
-    if (present.has(canonical)) continue;
-    present.add(canonical);
+    if (present.has(canonicalTag(tag))) continue;
+    present.add(canonicalTag(tag));
     seq.items.push(document.createNode(tag));
   }
 }
@@ -489,18 +504,23 @@ function apply(
         detail: "frontmatter is not a map of keys",
       };
     }
+    // The tags the file carries, by canonical form, kept across every
+    // operation in the write so two of them adding one tag add it once.
+    const present = new Set<string>();
+    for (const t of parsed.tags) {
+      if (t.source === "frontmatter" && t.valid) present.add(t.canonical);
+    }
     for (const op of frontmatterOps) {
       for (const [key, value] of Object.entries(op.keys ?? {})) {
         document.set(key, value);
       }
-      if (op.addTags) addTags(document, parsed, op.addTags);
+      if (op.addTags) addTags(document, present, op.addTags);
     }
     if (document.contents !== null) {
       // lineWidth 0: an untouched long scalar is never folded across lines.
-      const yaml = document.toString({ lineWidth: 0 });
       splices.push({
         range: parsed.frontmatter.content,
-        text: eol === "crlf" ? yaml.replace(/\n/g, "\r\n") : yaml,
+        text: withEol(document.toString({ lineWidth: 0 }), eol),
       });
     }
   }
@@ -604,6 +624,7 @@ export async function write(
     );
   }
   const content = (file.bom ? BOM : "") + splice(text, applied.splices);
+  // The result's hash is computed at commit; verify never reads it.
   const problem = verify(
     analyse(relativePath, raw, hash),
     analyse(relativePath, content, "")
@@ -637,8 +658,7 @@ export async function replaceFile(
     );
   }
   const { file } = fileChoices(bytes.toString("utf8"));
-  const lf = content.replace(/^﻿/, "").replace(/\r\n/g, "\n");
-  const text = file.eol === "crlf" ? lf.replace(/\n/g, "\r\n") : lf;
+  const text = withEol(asLf(content), file.eol);
   return commit(absolute, relativePath, (file.bom ? BOM : "") + text);
 }
 
@@ -656,8 +676,7 @@ export async function createFile(
   if ((await current(absolute)) !== null) {
     return refusal("alreadyExists", `${relativePath} already exists`);
   }
-  const text =
-    content.replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\n+$/, "") + "\n";
+  const text = asLf(content).replace(/\n+$/, "") + "\n";
   await mkdir(dirname(absolute), { recursive: true });
   return commit(absolute, relativePath, text);
 }

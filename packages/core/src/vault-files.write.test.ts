@@ -5,6 +5,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
@@ -289,6 +290,19 @@ describe("setFrontmatter: tags", () => {
     );
   });
 
+  it("adds a tag once even when two operations in one write both add it", async () => {
+    const vault = await vaultWith({ "q.md": "---\nkind: question\n---\n" });
+    written(
+      await write(vault, "q.md", {
+        operations: [addTags(["Topic"]), addTags(["topic", "Other"])],
+        basedOn: await basedOn(vault, "q.md"),
+      })
+    );
+    expect(await bytes(join(vault, "q.md"))).toBe(
+      "---\nkind: question\ntags:\n  - Topic\n  - Other\n---\n"
+    );
+  });
+
   it("creates `tags:` at the end when the file has none, and sets keys in the same write", async () => {
     const vault = await vaultWith({ "q.md": "---\nkind: question\n---\n" });
     written(
@@ -502,6 +516,16 @@ describe("createFile: a new object written whole", () => {
     expect(await bytes(join(vault, "questions/New.md"))).toBe(content);
     expect(result.content).toBe(content);
     expect(result.hash).toBe(sha256(content));
+  });
+
+  it("refuses a path through a symlinked folder that leaves the vault, as a read does — the file does not exist yet, so the folder is what is checked", async () => {
+    const vault = await vaultWith({});
+    const outside = await tmp("outside");
+    await symlink(outside, join(vault, "link"));
+    await expect(
+      createFile(vault, "link/new.md", "Escaped.\n")
+    ).rejects.toMatchObject({ kind: "outsideVault" });
+    expect(await readdir(outside)).toEqual([]);
   });
 
   it("refuses to replace a file that exists", async () => {

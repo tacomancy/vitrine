@@ -4,8 +4,7 @@ import { dirname, join } from "node:path";
 
 /**
  * Write whole, then rename into place: a crash mid-write leaves a temp file
- * the vault scan ignores (it is a dot-entry), never half a file. Shared by
- * the capture (a new Question) and the vault-files writer (#121).
+ * the vault scan ignores (it is a dot-entry), never half a file.
  */
 export async function writeAtomically(
   path: string,
