@@ -94,7 +94,11 @@ export type Criterion = {
  * An app-owned file missing structure its Kind expects — the row beat 1b's
  * `problems` table stores. `block` is the block the problem sits in where
  * one applies: the `^c<n>` of a criterion field, the heading text of an
- * id-less criterion, the name of a duplicated owned section.
+ * id-less criterion, the name of a duplicated owned section. The last two
+ * are a page's own (`research-question.ts`): a section a surface draws that
+ * the file lacks — its heading retyped — or carries twice; the index never
+ * stores them, since a missing section is not a fault of the file's Kind
+ * (ADR 0008 decision 10), only something the page must say it could not show.
  */
 export type ShapeProblem = {
   path: string;
@@ -103,7 +107,9 @@ export type ShapeProblem = {
     | "criteriaMissing"
     | "criterionWithoutId"
     | "ownedSectionDuplicated"
-    | "fieldOutsideVocabulary";
+    | "fieldOutsideVocabulary"
+    | "sectionMissing"
+    | "sectionDuplicated";
   block?: string;
 };
 

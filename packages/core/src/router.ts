@@ -5,6 +5,7 @@ import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
+import { readResearchQuestionPage } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
 
@@ -97,6 +98,14 @@ export const router = t.router({
     subscribe: t.procedure.subscription(({ ctx, signal }) =>
       ctx.events.subscribe(signal)
     ),
+  }),
+  researchQuestions: t.router({
+    // The page: the file's body from disk, each link's resolution from the
+    // index (`research-question.ts`). Read-only until the section tickets.
+    page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(readResearchQuestionPage(index, vault.path, input.path));
+    }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

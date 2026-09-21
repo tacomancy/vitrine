@@ -188,24 +188,6 @@
   cursor: default;
 }
 
-/* *retry* reads as part of its line, not as a control demanding a click. */
-.retry {
-  all: unset;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.retry:focus-visible {
-  outline: 1px solid var(--color-fg-muted);
-  outline-offset: 2px;
-}
-
-.retry:disabled {
-  cursor: default;
-  text-decoration: none;
-}
-
 .unreadable {
   margin: var(--space-2) 0 0;
   padding: 0;

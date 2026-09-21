@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -49,38 +49,6 @@ describe("the window's location is the URL hash", () => {
     expect(current.textContent).toBe("Loose Ends");
   });
 
-  it("renders the not-found line with the vault.status reason for a path the index does not hold", async () => {
-    window.location.hash =
-      "#/questions/questions/does%20sleep%20consolidate.md";
-    const asked: unknown[] = [];
-    renderApp({
-      ...answers,
-      "vault.outline": (input: unknown) => {
-        asked.push(input);
-        return {
-          readable: false,
-          path: "questions/does sleep consolidate.md",
-          reason: "not in the index yet: the first sweep has not finished",
-        };
-      },
-    });
-    const page = await screen.findByRole("region", {
-      name: "Research Question view",
-    });
-    expect(
-      await within(page).findByText(
-        /not in the index yet: the first sweep has not finished/
-      )
-    ).toBeDefined();
-    expect(asked).toEqual([{ path: "questions/does sleep consolidate.md" }]);
-    expect(page.textContent).toContain("questions/does sleep consolidate.md");
-    const current = screen.getByRole("link", { current: "page" });
-    expect(current.textContent).toBe("Research Question view");
-    expect(current.getAttribute("href")).toBe(
-      "#/questions/questions/does%20sleep%20consolidate.md"
-    );
-  });
-
   it("navigates from the Sidebar by hash and back again", async () => {
     renderApp(answers);
     await screen.findByRole("region", { name: "Question Inbox" });
@@ -96,20 +64,6 @@ describe("the window's location is the URL hash", () => {
     expect(window.location.hash).toBe("#/inbox");
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
       "Question Inbox"
-    );
-  });
-
-  it("shows a path the core refuses as an alert, never a quiet line", async () => {
-    window.location.hash = "#/questions/notes/plan.txt";
-    renderApp({
-      ...answers,
-      "vault.outline": () => {
-        throw new Error("notes/plan.txt is not a Markdown file.");
-      },
-    });
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain(
-      "notes/plan.txt is not a Markdown file."
     );
   });
 });

@@ -1,0 +1,17 @@
+/* One quiet mono line each, the same muted colour as the rest of the footer. */
+.line {
+  cursor: default;
+}
+
+/* *retry* reads as part of its line, not as a control demanding a click. */
+.retry {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.retry:focus-visible {
+  outline: 1px solid var(--color-fg-muted);
+  outline-offset: 2px;
+}

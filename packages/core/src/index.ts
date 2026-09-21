@@ -10,6 +10,14 @@ export type {
   QuestionStatus,
 } from "./list.js";
 export type { Provenance, Question } from "./questions.js";
+export type {
+  LinkLine,
+  OpenThread,
+  ResearchQuestionFrontmatter,
+  ResearchQuestionPage,
+  ResearchQuestionSections,
+  ResearchQuestionStatus,
+} from "./research-question.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";
 export type { Vault, VaultStatus, Watching } from "./vault.js";

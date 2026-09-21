@@ -1,9 +1,4 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -19,6 +14,7 @@ import styles from "./Inbox.module.css";
 import { monthYear, provenanceOf, rowsOf } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
+import { useVaultStatusLines } from "./VaultStatusLines";
 
 const ORDERS: readonly Order[] = ["newest", "oldest"];
 
@@ -97,21 +93,9 @@ export function Inbox({
   const unreadable = listing.data?.unreadable ?? [];
   const now = new Date();
 
-  // The vault's state, in the same quiet channel as the unreadable count
-  // (§ Index, Status): a build's progress, and a watcher that is down for
-  // good with its *retry*. Nothing when all is well — a footer that is
-  // always there would teach the eye to skip it.
-  const queryClient = useQueryClient();
-  const status = useQuery(trpc.vault.status.queryOptions());
-  const rewatch = useMutation(
-    trpc.vault.rewatch.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries(trpc.vault.status.pathFilter()),
-    })
-  );
-  const indexing = status.data?.indexing ?? null;
-  const watching = status.data?.watching ?? { ok: true };
-  const hasFooter = unreadable.length > 0 || indexing !== null || !watching.ok;
+  // The vault's state shares the unreadable count's quiet channel.
+  const status = useVaultStatusLines();
+  const hasFooter = unreadable.length > 0 || status.hasLines;
 
   // j/k and the arrows move the selection; ↵ selects the first row when
   // nothing is selected yet. The list is one tab stop.
@@ -235,25 +219,7 @@ export function Inbox({
                 </ul>
               </details>
             )}
-            {indexing !== null && (
-              <span className={styles.footerLine}>
-                indexing… {thousands(indexing.done)} of{" "}
-                {thousands(indexing.total)}
-              </span>
-            )}
-            {!watching.ok && (
-              <span className={styles.footerLine}>
-                not watching — {watching.reason} ·{" "}
-                <button
-                  type="button"
-                  className={styles.retry}
-                  disabled={rewatch.isPending}
-                  onClick={() => rewatch.mutate()}
-                >
-                  retry
-                </button>
-              </span>
-            )}
+            {status.lines}
           </footer>
         )}
       </section>
@@ -264,6 +230,3 @@ export function Inbox({
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
-
-/** `1,250`: the one place the chrome shows a count that can reach thousands. */
-const thousands = (n: number) => n.toLocaleString("en-US");

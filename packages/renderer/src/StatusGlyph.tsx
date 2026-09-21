@@ -5,9 +5,17 @@ import styles from "./StatusGlyph.module.css";
 /**
  * A Question's status as a glyph with its label as the accessible name
  * (BRAND.md law 6). Only open carries colour, and that colour is the accent.
+ * A Research Question shares the glyphs and passes its own label where the
+ * word differs (*abandoned* on the page, *dropped* in the Inbox).
  */
-export function StatusGlyph({ status }: { status: QuestionStatus }) {
-  const { glyph, label } = STATUS[status];
+export function StatusGlyph({
+  status,
+  label = STATUS[status].label,
+}: {
+  status: QuestionStatus;
+  label?: string;
+}) {
+  const { glyph } = STATUS[status];
   return (
     <span
       className={status === "open" ? styles.open : styles.glyph}
