@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     projects: [
       "packages/core",
+      "packages/markdown",
       "packages/renderer",
       {
         test: {

@@ -9,14 +9,16 @@
   "scripts": {
     "dev": "pnpm --filter core build && pnpm --filter shell dev",
     "build": "pnpm -r build",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . && pnpm lint:boundaries",
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:boundaries": "depcruise packages --config .dependency-cruiser.cjs"
   },
   "devDependencies": {
     "@eslint/css": "^2.0.0",
     "@eslint/js": "^10.0.0",
+    "dependency-cruiser": "^18.4.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",

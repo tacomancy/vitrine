@@ -33,6 +33,10 @@ An ordinary Markdown file with links, tags, and backlinks. Obsidian behaviour is
 A slash-separated topic label parsed into a tree (`ml/interpretability/probing`), the same tag whatever its casing. A parent's coverage is the union of its children's.
 _Avoid_: Topic (a tag *is* the topic axis; "topic cluster" is a Scout Queue grouping, not a tag)
 
+**Outline**:
+The app's reading of one Markdown file: its frontmatter, headings and their sections, block ids, links and tags as written, inline fields, and list items, each with the range of source text it covers. Produced by `packages/markdown` from the file's text alone; carries no resolution and nothing Kind-specific. What the Index stores per file, and what `vault.outline` shows.
+_Avoid_: AST, parse tree (it is ranges, not a tree to print back), metadata cache (Obsidian's word for its own)
+
 **Owned section**:
 A `##` section of a vault file that the app rewrites whole — `## Annotations`, `## Position history` — as opposed to the user's prose, which it never touches.
 _Avoid_: Managed section, generated section

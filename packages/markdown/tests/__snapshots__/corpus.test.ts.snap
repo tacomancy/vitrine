@@ -1,0 +1,1319 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`corpus > Sleep and consolidation.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "blockid",
+      "marker": {
+        "end": 48,
+        "start": 40,
+      },
+      "range": {
+        "end": 48,
+        "start": 11,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 80,
+        "start": 10,
+      },
+      "level": 1,
+      "range": {
+        "end": 9,
+        "start": 0,
+      },
+      "text": "Heading",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 80,
+        "start": 56,
+      },
+      "level": 2,
+      "range": {
+        "end": 55,
+        "start": 50,
+      },
+      "text": "H1",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 80,
+        "start": 64,
+      },
+      "level": 3,
+      "range": {
+        "end": 63,
+        "start": 57,
+      },
+      "text": "H2",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > a/Klinzing 2019.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > b/Klinzing 2019.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-generated.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "6ea9c9",
+      "marker": {
+        "end": 37,
+        "start": 30,
+      },
+      "range": {
+        "end": 37,
+        "start": 0,
+      },
+    },
+    {
+      "id": "aa75c2",
+      "marker": {
+        "end": 78,
+        "start": 71,
+      },
+      "range": {
+        "end": 78,
+        "start": 55,
+      },
+    },
+    {
+      "id": "e4e371",
+      "marker": {
+        "end": 142,
+        "start": 135,
+      },
+      "range": {
+        "end": 133,
+        "start": 80,
+      },
+    },
+    {
+      "id": "86acd3",
+      "marker": {
+        "end": 186,
+        "start": 179,
+      },
+      "range": {
+        "end": 177,
+        "start": 144,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [
+    {
+      "range": {
+        "end": 54,
+        "start": 39,
+      },
+    },
+    {
+      "range": {
+        "end": 78,
+        "start": 55,
+      },
+    },
+  ],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-generated-links.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": "6ea9c9",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 28,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-generated",
+    },
+    {
+      "alias": null,
+      "blockId": "aa75c2",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 57,
+        "start": 29,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-generated",
+    },
+    {
+      "alias": null,
+      "blockId": "e4e371",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 86,
+        "start": 58,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-generated",
+    },
+    {
+      "alias": null,
+      "blockId": "86acd3",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 115,
+        "start": 87,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-generated",
+    },
+    {
+      "alias": null,
+      "blockId": "h12",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 144,
+        "start": 117,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-handwritten",
+    },
+    {
+      "alias": null,
+      "blockId": "c3",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 171,
+        "start": 145,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-handwritten",
+    },
+    {
+      "alias": null,
+      "blockId": "my-own-id",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 205,
+        "start": 172,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-handwritten",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-handwritten.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "h12",
+      "marker": {
+        "end": 21,
+        "start": 17,
+      },
+      "range": {
+        "end": 21,
+        "start": 0,
+      },
+    },
+    {
+      "id": "c3",
+      "marker": {
+        "end": 44,
+        "start": 41,
+      },
+      "range": {
+        "end": 44,
+        "start": 23,
+      },
+    },
+    {
+      "id": "my-own-id",
+      "marker": {
+        "end": 70,
+        "start": 60,
+      },
+      "range": {
+        "end": 70,
+        "start": 46,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [
+    {
+      "range": {
+        "end": 70,
+        "start": 46,
+      },
+    },
+  ],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-on-heading.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "c1",
+      "marker": {
+        "end": 35,
+        "start": 32,
+      },
+      "range": {
+        "end": 35,
+        "start": 13,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 63,
+        "start": 12,
+      },
+      "level": 2,
+      "range": {
+        "end": 11,
+        "start": 0,
+      },
+      "text": "Criteria",
+    },
+    {
+      "blockId": "c1",
+      "body": {
+        "end": 63,
+        "start": 36,
+      },
+      "level": 3,
+      "range": {
+        "end": 35,
+        "start": 13,
+      },
+      "text": "Criterion text",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-on-heading-link.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": "c1",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 25,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-on-heading",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > fence-unclosed.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "afterfence",
+      "range": {
+        "end": 80,
+        "start": 69,
+      },
+      "source": "inline",
+      "text": "afterfence",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > links-all-forms.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 422,
+        "start": 15,
+      },
+      "level": 2,
+      "range": {
+        "end": 14,
+        "start": 0,
+      },
+      "text": "Own heading",
+    },
+  ],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 43,
+        "start": 16,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": "alias",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 77,
+        "start": 44,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "Heading",
+      ],
+      "range": {
+        "end": 113,
+        "start": 78,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "H1",
+        "H2",
+      ],
+      "range": {
+        "end": 147,
+        "start": 114,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": "blockid",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 184,
+        "start": 148,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "Own heading",
+      ],
+      "range": {
+        "end": 201,
+        "start": 185,
+      },
+      "syntax": "wikilink",
+      "target": "",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": true,
+      "heading": [],
+      "range": {
+        "end": 230,
+        "start": 202,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": "200",
+      "blockId": null,
+      "embed": true,
+      "heading": [],
+      "range": {
+        "end": 249,
+        "start": 231,
+      },
+      "syntax": "wikilink",
+      "target": "image.png",
+    },
+    {
+      "alias": "md link",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 291,
+        "start": 250,
+      },
+      "syntax": "markdown",
+      "target": "Sleep and consolidation.md",
+    },
+    {
+      "alias": "md link",
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "Heading",
+      ],
+      "range": {
+        "end": 341,
+        "start": 292,
+      },
+      "syntax": "markdown",
+      "target": "Sleep and consolidation.md",
+    },
+    {
+      "alias": "shown",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 376,
+        "start": 342,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > links-case.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 27,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "sleep AND consolidation",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > links-heading-fragment.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "heading",
+      ],
+      "range": {
+        "end": 35,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        " Heading ",
+      ],
+      "range": {
+        "end": 73,
+        "start": 36,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "HEADING",
+      ],
+      "range": {
+        "end": 109,
+        "start": 74,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > links-same-name.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 17,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "Klinzing 2019",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > lt-before-tag.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "comparison",
+      "range": {
+        "end": 25,
+        "start": 14,
+      },
+      "source": "inline",
+      "text": "comparison",
+      "valid": true,
+    },
+    {
+      "canonical": "insidehtml",
+      "range": {
+        "end": 50,
+        "start": 39,
+      },
+      "source": "inline",
+      "text": "insidehtml",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > props-comma-tags.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 36,
+      "start": 4,
+    },
+    "document": {
+      "tags": [
+        "alpha, beta",
+        "gamma",
+      ],
+    },
+    "parsed": true,
+    "range": {
+      "end": 39,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "alpha",
+      "range": {
+        "end": 19,
+        "start": 14,
+      },
+      "source": "frontmatter",
+      "text": "alpha",
+      "valid": true,
+    },
+    {
+      "range": {
+        "end": 25,
+        "start": 20,
+      },
+      "reason": "contains whitespace",
+      "source": "frontmatter",
+      "text": " beta",
+      "valid": false,
+    },
+    {
+      "canonical": "gamma",
+      "range": {
+        "end": 35,
+        "start": 30,
+      },
+      "source": "frontmatter",
+      "text": "gamma",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > props-comment-and-order.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 105,
+      "start": 4,
+    },
+    "document": {
+      "apple": "double quoted",
+      "kind": "hypothesis",
+      "mango": 43,
+      "tags": [
+        "alpha",
+        "beta/nested",
+      ],
+      "zebra": "single quoted",
+    },
+    "parsed": true,
+    "range": {
+      "end": 108,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "alpha",
+      "range": {
+        "end": 78,
+        "start": 73,
+      },
+      "source": "frontmatter",
+      "text": "alpha",
+      "valid": true,
+    },
+    {
+      "canonical": "beta/nested",
+      "range": {
+        "end": 94,
+        "start": 83,
+      },
+      "source": "frontmatter",
+      "text": "beta/nested",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > props-hashtag-in-text-property.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 23,
+      "start": 4,
+    },
+    "document": {
+      "note": "not #a-tag",
+    },
+    "parsed": true,
+    "range": {
+      "end": 26,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > props-legacy-tag-key.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 16,
+      "start": 4,
+    },
+    "document": {
+      "tag": "legacy",
+    },
+    "parsed": true,
+    "range": {
+      "end": 19,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > props-link-value.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 43,
+      "start": 4,
+    },
+    "document": {
+      "related": "[[Sleep and consolidation]]",
+    },
+    "parsed": true,
+    "range": {
+      "end": 46,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > props-list-tags.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 35,
+      "start": 4,
+    },
+    "document": {
+      "tags": [
+        "alpha",
+        "ml/probing",
+      ],
+    },
+    "parsed": true,
+    "range": {
+      "end": 38,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "alpha",
+      "range": {
+        "end": 19,
+        "start": 14,
+      },
+      "source": "frontmatter",
+      "text": "alpha",
+      "valid": true,
+    },
+    {
+      "canonical": "ml/probing",
+      "range": {
+        "end": 34,
+        "start": 24,
+      },
+      "source": "frontmatter",
+      "text": "ml/probing",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > props-tag-with-space.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 36,
+      "start": 4,
+    },
+    "document": {
+      "tags": [
+        "machine learning",
+        "other",
+      ],
+    },
+    "parsed": true,
+    "range": {
+      "end": 39,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "range": {
+        "end": 27,
+        "start": 11,
+      },
+      "reason": "contains whitespace",
+      "source": "frontmatter",
+      "text": "machine learning",
+      "valid": false,
+    },
+    {
+      "canonical": "other",
+      "range": {
+        "end": 34,
+        "start": 29,
+      },
+      "source": "frontmatter",
+      "text": "other",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > props-types.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 107,
+      "start": 4,
+    },
+    "document": {
+      "aliases": [
+        "td",
+      ],
+      "done": true,
+      "due": "1988-11-18",
+      "priority": 3,
+      "reviewed": "1988-11-18T12:34:00",
+      "title": "Types demo",
+    },
+    "parsed": true,
+    "range": {
+      "end": 110,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > shape-bom.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 15,
+      "start": 4,
+    },
+    "document": {
+      "kind": "note",
+    },
+    "parsed": true,
+    "range": {
+      "end": 18,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > shape-crlf.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > shape-frontmatter-not-at-top.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 25,
+        "start": 20,
+      },
+      "level": 2,
+      "range": {
+        "end": 19,
+        "start": 5,
+      },
+      "text": "kind: note",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > shape-no-frontmatter.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > shape-no-trailing-newline.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > tags-excluded-contexts.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 15,
+      "start": 4,
+    },
+    "document": {
+      "kind": "note",
+    },
+    "parsed": true,
+    "range": {
+      "end": 18,
+      "start": 0,
+    },
+  },
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "inwikilink",
+      ],
+      "range": {
+        "end": 256,
+        "start": 218,
+      },
+      "syntax": "wikilink",
+      "target": "Sleep and consolidation",
+    },
+  ],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "control",
+      "range": {
+        "end": 47,
+        "start": 39,
+      },
+      "source": "inline",
+      "text": "control",
+      "valid": true,
+    },
+    {
+      "canonical": "incomment",
+      "range": {
+        "end": 482,
+        "start": 472,
+      },
+      "source": "inline",
+      "text": "incomment",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > tags-invalid.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 102,
+        "start": 83,
+      },
+      "level": 1,
+      "range": {
+        "end": 82,
+        "start": 65,
+      },
+      "text": "heading-not-tag",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "tag",
+      "range": {
+        "end": 42,
+        "start": 37,
+      },
+      "source": "inline",
+      "text": "tag/",
+      "valid": true,
+    },
+    {
+      "canonical": "a//b",
+      "range": {
+        "end": 63,
+        "start": 58,
+      },
+      "source": "inline",
+      "text": "a//b",
+      "valid": true,
+    },
+  ],
+}
+`;
+
+exports[`corpus > tags-valid.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [
+    {
+      "canonical": "simple",
+      "range": {
+        "end": 22,
+        "start": 15,
+      },
+      "source": "inline",
+      "text": "simple",
+      "valid": true,
+    },
+    {
+      "canonical": "with-dash",
+      "range": {
+        "end": 33,
+        "start": 23,
+      },
+      "source": "inline",
+      "text": "with-dash",
+      "valid": true,
+    },
+    {
+      "canonical": "with_underscore",
+      "range": {
+        "end": 50,
+        "start": 34,
+      },
+      "source": "inline",
+      "text": "with_underscore",
+      "valid": true,
+    },
+    {
+      "canonical": "nested/two/levels",
+      "range": {
+        "end": 69,
+        "start": 51,
+      },
+      "source": "inline",
+      "text": "nested/two/levels",
+      "valid": true,
+    },
+    {
+      "canonical": "y1984",
+      "range": {
+        "end": 76,
+        "start": 70,
+      },
+      "source": "inline",
+      "text": "y1984",
+      "valid": true,
+    },
+    {
+      "canonical": "émoji🙂",
+      "range": {
+        "end": 85,
+        "start": 77,
+      },
+      "source": "inline",
+      "text": "émoji🙂",
+      "valid": true,
+    },
+    {
+      "canonical": "ml/probing",
+      "range": {
+        "end": 122,
+        "start": 111,
+      },
+      "source": "inline",
+      "text": "ML/Probing",
+      "valid": true,
+    },
+    {
+      "canonical": "ml/probing",
+      "range": {
+        "end": 138,
+        "start": 127,
+      },
+      "source": "inline",
+      "text": "ml/probing",
+      "valid": true,
+    },
+  ],
+}
+`;
