@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { outline, type Outline } from "../src/index.js";
+import { outline } from "../src/index.js";
 
 const text = (source: string, { start, end }: { start: number; end: number }) =>
   source.slice(start, end);
@@ -158,10 +158,7 @@ describe("outline: headings and sections", () => {
     "# Title *emph*",
     "closing",
   ].join("\n");
-  let result: Outline;
-  it("parses", () => {
-    result = outline(source);
-  });
+  const result = outline(source);
 
   it("gives every heading its level, text, line, and body to the next heading of equal or higher level", () => {
     expect(result.headings.map((h) => [h.level, h.text, h.blockId])).toEqual([

@@ -12,6 +12,7 @@ import {
 } from "yaml";
 
 import { BOM, locateFrontmatter } from "./frontmatter.js";
+import { parseInlineField } from "./inline-field.js";
 import type { InvalidTag, Outline, Tag } from "./outline-types.js";
 import { parseMarkdownLinkTarget } from "./link.js";
 import type { Range } from "./range.js";
@@ -173,18 +174,22 @@ export function outline(source: string): Outline {
         break;
       }
       case "inlineField": {
-        const marker = rangeOf(node);
-        const lineEnd = endOfLine(source, marker.end);
-        const value = source.slice(marker.end, lineEnd).trimEnd();
-        const start = marker.start;
+        // The tokenizer saw `key::`; the grammar function reads the line.
+        const start = rangeOf(node).start;
+        const lineEnd = endOfLine(source, start);
+        const field = parseInlineField(source.slice(start, lineEnd));
+        if (!field) break;
         const under = result.headings.find(
           (h) => h.level === 3 && h.range.start <= start && start < h.body.end
         );
         result.inlineFields.push({
-          key: node.key,
-          value,
+          key: field.key,
+          value: field.value,
           range: { start, end: lineEnd },
-          valueRange: { start: marker.end, end: marker.end + value.length },
+          valueRange: {
+            start: start + field.valueStart,
+            end: start + field.valueStart + field.value.length,
+          },
           under: under?.blockId ?? null,
         });
         break;

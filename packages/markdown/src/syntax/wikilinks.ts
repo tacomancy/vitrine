@@ -25,17 +25,17 @@ declare module "micromark-util-types" {
 }
 
 /** mdast node for `[[target#heading|alias]]` or `![[embed]]`, parsed and unresolved. */
-export interface Wikilink extends Node, ParsedWikilink {
+export interface WikilinkNode extends Node, ParsedWikilink {
   type: "wikilink";
   embed: boolean;
 }
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    wikilink: Wikilink;
+    wikilink: WikilinkNode;
   }
   interface RootContentMap {
-    wikilink: Wikilink;
+    wikilink: WikilinkNode;
   }
 }
 
@@ -160,12 +160,12 @@ const enterWikilink: Handle = function (token) {
 };
 
 const enterEmbedMarker: Handle = function () {
-  (this.stack[this.stack.length - 1] as Wikilink).embed = true;
+  (this.stack[this.stack.length - 1] as WikilinkNode).embed = true;
 };
 
 const exitContent: Handle = function (token) {
   Object.assign(
-    this.stack[this.stack.length - 1] as Wikilink,
+    this.stack[this.stack.length - 1] as WikilinkNode,
     parseWikilink(this.sliceSerialize(token))
   );
 };

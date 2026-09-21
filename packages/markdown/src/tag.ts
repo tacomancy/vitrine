@@ -22,13 +22,6 @@ const ASCII_PUNCTUATION_OUTSIDE_TAGS: ReadonlySet<number> = new Set(
   [..."'!\"#$%&()*+,.:;<=>?@^`{|}~[]\\"].map((c) => c.charCodeAt(0))
 );
 
-/** How far a tag starting at `from` runs: the index of its first non-tag character. */
-export function tagEnd(text: string, from: number): number {
-  let i = from;
-  while (i < text.length && isTagCharacter(text.charCodeAt(i))) i++;
-  return i;
-}
-
 /** NFC, then lowercased, trailing slashes dropped: `#ML/Probing` and `#ml/probing` are one tag (T1b). */
 export function canonicalTag(text: string): string {
   return stripTrailingSlashes(text.normalize("NFC")).toLowerCase();

@@ -23,7 +23,7 @@ declare module "micromark-util-types" {
 }
 
 /** mdast node for an inline `#tag`. */
-export interface Tag extends Node {
+export interface TagNode extends Node {
   type: "tag";
   /** The tag as written, without its `#`. */
   text: string;
@@ -31,10 +31,10 @@ export interface Tag extends Node {
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    tag: Tag;
+    tag: TagNode;
   }
   interface RootContentMap {
-    tag: Tag;
+    tag: TagNode;
   }
 }
 
@@ -99,7 +99,7 @@ const enterTag: Handle = function (token) {
 };
 
 const exitTagText: Handle = function (token) {
-  const node = this.stack[this.stack.length - 1] as Tag;
+  const node = this.stack[this.stack.length - 1] as TagNode;
   node.text = this.sliceSerialize(token);
 };
 

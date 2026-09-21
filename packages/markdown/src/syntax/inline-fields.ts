@@ -14,6 +14,8 @@ import type {
   Tokenizer,
 } from "micromark-util-types";
 
+import { isInlineFieldKeyCharacter } from "../inline-field.js";
+
 declare module "micromark-util-types" {
   interface TokenTypeMap {
     inlineField: "inlineField";
@@ -27,28 +29,18 @@ declare module "micromark-util-types" {
  * line. The value is the rest of the line, tokenized as ordinary text so a
  * link or tag inside it is still seen; the outline slices it from the source.
  */
-export interface InlineField extends Node {
+export interface InlineFieldNode extends Node {
   type: "inlineField";
   key: string;
 }
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    inlineField: InlineField;
+    inlineField: InlineFieldNode;
   }
   interface RootContentMap {
-    inlineField: InlineField;
+    inlineField: InlineFieldNode;
   }
-}
-
-function isKeyCharacter(code: number): boolean {
-  return (
-    (code >= 0x30 && code <= 0x39) ||
-    (code >= 0x41 && code <= 0x5a) ||
-    (code >= 0x61 && code <= 0x7a) ||
-    code === 0x5f ||
-    code === 0x2d
-  );
 }
 
 /** micromark syntax extension: `key:: value` on a line of its own. */
@@ -59,7 +51,7 @@ export function inlineFields(): Extension {
   };
   const text: Record<number, Construct> = {};
   for (let code = 0; code < 0x80; code++) {
-    if (isKeyCharacter(code)) text[code] = construct;
+    if (isInlineFieldKeyCharacter(code)) text[code] = construct;
   }
   return { text };
 }
@@ -91,7 +83,7 @@ const tokenizeInlineField: Tokenizer = function (
   }
 
   function key(code: Code): State | undefined {
-    if (code !== codes.eof && isKeyCharacter(code)) {
+    if (code !== codes.eof && isInlineFieldKeyCharacter(code)) {
       effects.consume(code);
       return key;
     }
@@ -124,7 +116,7 @@ const enterInlineField: Handle = function (token) {
 };
 
 const exitKey: Handle = function (token) {
-  (this.stack[this.stack.length - 1] as InlineField).key =
+  (this.stack[this.stack.length - 1] as InlineFieldNode).key =
     this.sliceSerialize(token);
 };
 

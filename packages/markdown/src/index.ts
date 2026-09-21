@@ -1,4 +1,4 @@
-export { canonicalTag, isTagCharacter, parseTag, tagEnd } from "./tag.js";
+export { canonicalTag, isTagCharacter, parseTag } from "./tag.js";
 export type { ParsedTag } from "./tag.js";
 export { parseMarkdownLinkTarget, parseWikilink } from "./link.js";
 export type {
@@ -7,7 +7,7 @@ export type {
   ParsedWikilink,
 } from "./link.js";
 export { isBlockIdCharacter, parseBlockId } from "./block-id.js";
-export { parseInlineField } from "./inline-field.js";
+export { isInlineFieldKeyCharacter, parseInlineField } from "./inline-field.js";
 export type { ParsedInlineField } from "./inline-field.js";
 export { BOM, locateFrontmatter } from "./frontmatter.js";
 export type { FrontmatterLocation } from "./frontmatter.js";

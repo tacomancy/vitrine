@@ -24,16 +24,12 @@ export function locateFrontmatter(source: string): FrontmatterLocation | null {
   const opening = OPENING_FENCE.exec(source.slice(start));
   if (!opening) return null;
   const contentStart = start + opening[0].length;
+  // Searching from the content start keeps the opening fence from closing itself.
   CLOSING_FENCE.lastIndex = contentStart;
-  let closing: RegExpExecArray | null;
-  while ((closing = CLOSING_FENCE.exec(source)) !== null) {
-    // `m` lets `^` match after any line ending, but the opening fence must not
-    // close itself: only a `---` at or past the content start counts.
-    if (closing.index < contentStart) continue;
-    return {
-      range: { start, end: closing.index + closing[0].length },
-      content: { start: contentStart, end: closing.index },
-    };
-  }
-  return null;
+  const closing = CLOSING_FENCE.exec(source);
+  if (!closing) return null;
+  return {
+    range: { start, end: closing.index + closing[0].length },
+    content: { start: contentStart, end: closing.index },
+  };
 }

@@ -25,17 +25,17 @@ declare module "micromark-util-types" {
 }
 
 /** mdast node for a `^id` marker at the end of a line. Which block it names is the outline's call. */
-export interface BlockId extends Node {
+export interface BlockIdNode extends Node {
   type: "blockId";
   id: string;
 }
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    blockId: BlockId;
+    blockId: BlockIdNode;
   }
   interface RootContentMap {
-    blockId: BlockId;
+    blockId: BlockIdNode;
   }
 }
 
@@ -131,7 +131,7 @@ const enterBlockId: Handle = function (token) {
 };
 
 const exitValue: Handle = function (token) {
-  (this.stack[this.stack.length - 1] as BlockId).id =
+  (this.stack[this.stack.length - 1] as BlockIdNode).id =
     this.sliceSerialize(token);
 };
 
