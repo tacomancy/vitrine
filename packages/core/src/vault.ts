@@ -169,6 +169,8 @@ export function createVaultService({
         settleMs,
         watch,
         onSettled: (paths) => o.index.refresh(paths),
+        onBatchFailed: (reason) =>
+          console.error(`vitrine-core: the watcher failed: ${reason}`),
         onError: (reason) => {
           if (overtaken(o)) return;
           o.watcher = null;

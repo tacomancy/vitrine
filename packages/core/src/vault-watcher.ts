@@ -23,9 +23,8 @@ import { errorMessage } from "./errors.js";
  * Health is the vault service's (`vault.ts`): this module's contract is that
  * `watchVault` rejects when the watch could not be brought up live, and that
  * `onError` is called once, after the watcher has closed itself, when a watch
- * that was live has died — FSEvents reporting an error or overflow, or a
- * settled batch the index could not apply. Either way nothing more will be
- * delivered, and the caller decides whether to reopen (#190).
+ * that was live has died — FSEvents reporting an error or overflow. Nothing
+ * more will be delivered, and the caller decides whether to reopen (#190).
  */
 
 /** Quiet for this long, with two stats agreeing, before a file is read (§ Watcher and Ingest). */
@@ -46,6 +45,8 @@ export type WatcherOptions = {
   onSettled: (paths: string[]) => Promise<void>;
   /** The watcher is dead and has closed itself; nothing more will arrive. */
   onError: (reason: string) => void;
+  /** A settled batch the index could not apply; the watch itself is fine (#188). */
+  onBatchFailed: (reason: string) => void;
   /** `fs.watch`, or a test's wrapper of it that fails what it made or refuses to make one. */
   watch?: typeof fsWatch | undefined;
 };
@@ -91,7 +92,13 @@ async function pdfFolderOutside(root: string): Promise<string | null> {
 
 export async function watchVault(
   root: string,
-  { settleMs, onSettled, onError, watch = fsWatch }: WatcherOptions
+  {
+    settleMs,
+    onSettled,
+    onError,
+    onBatchFailed,
+    watch = fsWatch,
+  }: WatcherOptions
 ): Promise<Watcher> {
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
   let timer: NodeJS.Timeout | null = null;
@@ -125,12 +132,10 @@ export async function watchVault(
       })
     );
     if (settled.length > 0 && !closed) {
-      // A batch the index could not apply leaves the index behind the disk
-      // with no event to say so, which is exactly what a dead watch does —
-      // so it is reported the same way, and the caller's sweep is what
-      // brings the same files back into view.
+      // A batch the index could not apply is reported, not fatal: the next
+      // batch, or the next open's sweep, will see the same files again.
       await onSettled(settled.sort()).catch((error: unknown) =>
-        fail(`a settled batch was not applied: ${errorMessage(error)}`)
+        onBatchFailed(`a settled batch was not applied: ${errorMessage(error)}`)
       );
     }
     schedule();
