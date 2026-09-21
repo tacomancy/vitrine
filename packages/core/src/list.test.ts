@@ -29,6 +29,7 @@ describe("questions.list", () => {
       questions: [],
       partial: [],
       unreadable: [],
+      shape: [],
     });
   });
 
@@ -67,6 +68,7 @@ describe("questions.list", () => {
       questions: [],
       partial: [],
       unreadable: [],
+      shape: [],
     });
   });
 
@@ -235,6 +237,37 @@ describe("questions.list", () => {
     const listing = await c.list();
     expect(listing.unreadable).toEqual([]);
     expect(listing.questions.map((q) => q.question)).toEqual(["Marked"]);
+  });
+
+  it("answers as vault.outline does on the package's fence rule: a blank line before --- is body (S2), trailing whitespace on a fence is allowed", async () => {
+    const vault = await tmp("fence-rule");
+    await writeFile(
+      join(vault, "Not at top.md"),
+      "\n" + questionFile("Not at top", "2026-01-01T00:00:00Z")
+    );
+    await writeFile(
+      join(vault, "Padded fences.md"),
+      "---  \nkind: question\nquestion: Padded\ncaptured: 2026-01-01T00:00:00Z\n---\t\nbody\n"
+    );
+    await writeFile(
+      join(vault, "Fence at eof.md"),
+      "---\nkind: question\nquestion: At eof\ncaptured: 2026-01-01T00:00:00Z\n---"
+    );
+    const c = await opened(vault);
+    const listing = await c.list();
+    expect(listing.unreadable).toEqual([]);
+    expect(listing.partial).toEqual([]);
+    expect(listing.questions.map((q) => q.question).sort()).toEqual([
+      "At eof",
+      "Padded",
+    ]);
+  });
+
+  it("reports shape[] beside partial[] and unreadable[], empty for every Question", async () => {
+    const vault = join(fixtures, "obsidian-vault");
+    const c = await opened(vault);
+    const listing = await c.list();
+    expect(listing.shape).toEqual([]);
   });
 
   it("refuses when no vault is open", async () => {
