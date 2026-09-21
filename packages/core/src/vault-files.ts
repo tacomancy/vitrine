@@ -705,9 +705,15 @@ function locateSectionOp(
       const at = text.startsWith(eol, body.start)
         ? body.start + eol.length
         : body.start;
+      // The entry joins the list it lands on; ahead of prose it closes
+      // with a blank line, or the prose would be a lazy continuation of
+      // the entry's last paragraph and read as part of it.
+      const lineEnd = text.indexOf(eol, at);
+      const nextLine = text.slice(at, lineEnd === -1 ? text.length : lineEnd);
+      const beforeProse = /\S/.test(nextLine) && !LIST_LINE.test(nextLine);
       return {
         range: { start: at, end: at },
-        text: composedBody(op.entry, eol),
+        text: composedBody(op.entry, eol) + (beforeProse ? eol : ""),
       };
     }
     case "appendToSection": {

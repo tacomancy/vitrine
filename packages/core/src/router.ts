@@ -5,13 +5,17 @@ import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
-import { readResearchQuestionPage } from "./research-question.js";
+import {
+  readResearchQuestionPage,
+  type ResearchQuestionService,
+} from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
 
 export type Context = {
   vault: VaultService;
   questions: QuestionService;
+  researchQuestions: ResearchQuestionService;
   events: Events;
 };
 
@@ -37,6 +41,13 @@ const listInput = z
 const captureInput = z.object({
   text: z.string().trim().min(1, "Question text is empty."),
   provenance: z.object({ context: z.literal("other") }).strict(),
+});
+
+// The working answer as typed, with the hash of the page it was typed over.
+const saveWorkingAnswerInput = z.object({
+  path: z.string(),
+  text: z.string(),
+  basedOn: z.string(),
 });
 
 const noVault = () =>
@@ -101,11 +112,24 @@ export const router = t.router({
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
-    // index (`research-question.ts`). Read-only until the section tickets.
+    // index (`research-question.ts`).
     page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
       const { vault, index } = await requireVault(ctx);
       return refusing(readResearchQuestionPage(index, vault.path, input.path));
     }),
+    // One write per save: the section replaced, the Revision recorded
+    // (#213). A refusal is the reply, not an error — the page shows it.
+    saveWorkingAnswer: t.procedure
+      .input(saveWorkingAnswerInput)
+      .mutation(({ ctx, input }) =>
+        refusing(
+          ctx.researchQuestions.saveWorkingAnswer(
+            input.path,
+            input.text,
+            input.basedOn
+          )
+        )
+      ),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

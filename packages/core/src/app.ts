@@ -6,7 +6,11 @@ import { cors } from "hono/cors";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { createQuestionService } from "./questions.js";
-import { KIND, researchQuestionPositions } from "./research-question.js";
+import {
+  createResearchQuestionService,
+  KIND,
+  researchQuestionPositions,
+} from "./research-question.js";
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
 import type { IndexOptions } from "./vault-index.js";
@@ -23,6 +27,8 @@ export type AppOptions = {
   newId?: () => string;
   /** The watcher's settle window in ms; tests shorten it as they pin `now`. */
   settleMs?: number;
+  /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
+  coalesceMs?: number;
   /** `fs.watch`, or a test's wrapper of it that fails a watch or refuses one (#190). */
   watch?: typeof fsWatch;
   /**
@@ -50,6 +56,7 @@ export function createApp({
   now,
   newId,
   settleMs,
+  coalesceMs,
   watch,
   index,
 }: AppOptions): App {
@@ -84,6 +91,11 @@ export function createApp({
   const context: Context = {
     vault,
     questions: createQuestionService({ vault, now, newId }),
+    researchQuestions: createResearchQuestionService({
+      vault,
+      now,
+      coalesceMs,
+    }),
     events,
   };
 

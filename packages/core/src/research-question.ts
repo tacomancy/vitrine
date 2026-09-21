@@ -1,13 +1,24 @@
 import { readFile } from "node:fs/promises";
 import { BOM, type Heading, type ListItem, type Outline } from "markdown";
-import { errorMessage } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
+import {
+  coalesce,
+  formatRevision,
+  readRevisions,
+  topLevelItems,
+  type Revision,
+} from "./position-history.js";
+import type { VaultService } from "./vault.js";
 import {
   analyseFile,
   locate,
   sha256,
+  write,
   type FileOutline,
+  type Operation,
   type Resolution,
   type ShapeProblem,
+  type WriteRefusal,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
@@ -15,8 +26,9 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position. Read-only this ticket (#209); the writes arrive with the
- * tickets that own each section.
+ * Position — and, from #213, how a save of `## Working answer` records its
+ * Revision. The other sections' writes arrive with the tickets that own
+ * them.
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -61,8 +73,12 @@ export type ResearchQuestionSections = {
   opposing: { present: boolean; lines: LinkLine[] };
   related: { present: boolean; lines: LinkLine[] };
   openThreads: { present: boolean; threads: OpenThread[] };
-  /** The section's body verbatim; parsing it into Revisions is the history module's. */
-  positionHistory: { present: boolean; text: string };
+  /**
+   * The section's body verbatim, and the entries that parse from it,
+   * newest first (`position-history.ts`); an item that is not an entry is
+   * left out here and left in place in the file.
+   */
+  positionHistory: { present: boolean; text: string; entries: Revision[] };
 };
 
 export type ResearchQuestionPage =
@@ -174,31 +190,6 @@ export function researchQuestionPositions(
   return [{ field: "working answer", text: bodyText(content, heading) }];
 }
 
-/**
- * The top-level list items inside a section: those within its body that
- * no other item contains. A nested item belongs to its parent line — a
- * source's note may run on to an indented line, and that is the note's.
- */
-function topLevelItems(
-  outline: Pick<Outline, "listItems">,
-  heading: Heading
-): ListItem[] {
-  const inside = outline.listItems.filter(
-    (item) =>
-      item.range.start >= heading.body.start &&
-      item.range.end <= heading.body.end
-  );
-  return inside.filter(
-    (item) =>
-      !inside.some(
-        (other) =>
-          other !== item &&
-          other.range.start <= item.range.start &&
-          other.range.end >= item.range.end
-      )
-  );
-}
-
 const MARKER = /^\s*[-*+]\s+/;
 const TASK = /^\[( |x|X)\]\s*/;
 // The separator the app writes between a link and its note; a line without
@@ -247,6 +238,18 @@ function openThread(content: string, item: ListItem): OpenThread {
   const task = TASK.exec(text);
   if (task === null) return { text, done: null };
   return { text: text.slice(task[0].length), done: task[1] !== " " };
+}
+
+/** The entries under `## Position history`, in file order; the items that are not entries are skipped. */
+function revisionsOf(
+  content: string,
+  outline: Pick<Outline, "listItems">,
+  heading: Heading | undefined
+): Revision[] {
+  if (heading === undefined) return [];
+  return readRevisions(content, outline, heading)
+    .map((item) => item.revision)
+    .filter((r): r is Revision => r !== null);
 }
 
 /**
@@ -347,8 +350,149 @@ export async function readResearchQuestionPage(
       positionHistory: {
         present: history !== undefined,
         text: bodyText(content, history),
+        entries: revisionsOf(content, outline, history),
       },
     },
     problems,
+  };
+}
+
+export type SaveResult =
+  | { written: true; hash: string }
+  | { written: false; reason: WriteRefusal; detail: string };
+
+export type ResearchQuestionService = {
+  /**
+   * Save `## Working answer` as the user typed it, recording the Revision
+   * (spec #206 stories 14, 31, 32): one write, `basedOn` the hash the page
+   * was given. Text the file already holds is not a save.
+   */
+  saveWorkingAnswer: (
+    path: string,
+    text: string,
+    basedOn: string
+  ) => Promise<SaveResult>;
+};
+
+export type ResearchQuestionServiceOptions = {
+  vault: VaultService;
+  now?: (() => Date) | undefined;
+  /** ADR 0006 decision 5's coalescing window; tests pass a short one. */
+  coalesceMs?: number | undefined;
+};
+
+/** Thirty minutes (ADR 0006 decision 5) — a number in code, per spec #206. */
+export const COALESCE_MS = 30 * 60 * 1000;
+
+const FIELD = "working answer";
+
+export function createResearchQuestionService({
+  vault,
+  now = () => new Date(),
+  coalesceMs = COALESCE_MS,
+}: ResearchQuestionServiceOptions): ResearchQuestionService {
+  // Saves run one at a time: two landing together would each read the
+  // same head entry and both prepend, where the second should re-stamp.
+  let previous: Promise<unknown> = Promise.resolve();
+
+  async function saveWorkingAnswer(
+    path: string,
+    typed: string,
+    basedOn: string
+  ): Promise<SaveResult> {
+    const opened = await vault.opened();
+    if (opened === null) {
+      throw new VaultError("noVault", "No vault is open. Open a vault first.");
+    }
+    const vaultPath = opened.vault.path;
+    const { absolute, relativePath } = await locate(vaultPath, path);
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(absolute);
+    } catch (error) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: errorMessage(error),
+      };
+    }
+    const raw = bytes.toString("utf8");
+    const read = analyseFile(relativePath, raw, sha256(bytes));
+    if (!read.readable) {
+      return { written: false, reason: "unreadable", detail: read.reason };
+    }
+    if (read.kind !== KIND) {
+      return {
+        written: false,
+        reason: "unreadable",
+        detail: `not a Research Question: kind is ${read.kind ?? "absent"}`,
+      };
+    }
+    const content = read.file.bom ? raw.slice(BOM.length) : raw;
+    const { outline } = read;
+    const text = typed.replace(/\r\n/g, "\n").trim();
+    // The Position as the file holds it now: what the Revision is *from*.
+    // The page was given this same text unless the file changed underneath,
+    // which the write protocol catches (#215 turns that into a line).
+    const from = bodyText(content, section(outline, "Working answer").heading);
+    if (from === text) return { written: true, hash: read.hash };
+
+    const operations: Operation[] = [
+      { op: "replaceSection", name: "Working answer", body: text },
+      ...historyOperation(content, outline, { field: FIELD, from, at: now() }),
+    ];
+    const result = await write(vaultPath, relativePath, {
+      operations,
+      basedOn,
+    });
+    if (!result.written) return result;
+    // Indexed from the content just written, as a capture is (ADR 0014):
+    // the `positions` row follows the save before the reply, and the
+    // watcher recognises the file's hash as the app's own.
+    await opened.index.own(relativePath, result.content);
+    return { written: true, hash: result.hash };
+  }
+
+  /**
+   * The history's part of one save (ADR 0020 decision 2): a new entry is
+   * prepended; a save inside the window re-stamps the head entry, which
+   * means the owned section is replaced whole — with every other byte of
+   * it, hand-typed lines included, spliced back as it was.
+   */
+  function historyOperation(
+    content: string,
+    outline: Pick<Outline, "headings" | "listItems">,
+    save: { field: string; from: string; at: Date }
+  ): Operation[] {
+    const history = section(outline, "Position history").heading;
+    const items =
+      history === undefined ? [] : readRevisions(content, outline, history);
+    const head = items[0];
+    const { coalesced, revision } = coalesce(head?.revision ?? null, {
+      ...save,
+      windowMs: coalesceMs,
+    });
+    const entry = formatRevision(revision);
+    if (!coalesced || history === undefined || head === undefined) {
+      return [{ op: "prependEntry", section: "Position history", entry }];
+    }
+    const body =
+      content.slice(history.body.start, head.range.start) +
+      entry +
+      content.slice(head.range.end, history.body.end);
+    return [
+      { op: "replaceSection", name: "Position history", body: body.trim() },
+    ];
+  }
+
+  return {
+    saveWorkingAnswer: (path, text, basedOn) => {
+      const run = previous.then(
+        () => saveWorkingAnswer(path, text, basedOn),
+        () => saveWorkingAnswer(path, text, basedOn)
+      );
+      previous = run;
+      return run;
+    },
   };
 }
