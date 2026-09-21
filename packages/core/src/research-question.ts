@@ -5,9 +5,11 @@ import {
   analyseFile,
   locate,
   sha256,
+  write,
   type FileOutline,
   type Resolution,
   type ShapeProblem,
+  type WriteResult,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
@@ -15,8 +17,8 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position. Read-only this ticket (#209); the writes arrive with the
- * tickets that own each section.
+ * Position; and the section writes this Kind makes on the user's behalf —
+ * each an Edited section replaced whole (ADR 0020 decision 4).
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -47,6 +49,8 @@ export type LinkLine = {
     blockId: string | null;
     resolution: Resolution;
     resolvedPath: string | null;
+    /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
+    resolvedKind: string | null;
   } | null;
   note: string;
 };
@@ -59,8 +63,9 @@ export type ResearchQuestionSections = {
   workingAnswer: { present: boolean; text: string };
   supporting: { present: boolean; lines: LinkLine[] };
   opposing: { present: boolean; lines: LinkLine[] };
-  related: { present: boolean; lines: LinkLine[] };
-  openThreads: { present: boolean; threads: OpenThread[] };
+  /** `text` is the section's body as the plain text field edits it; `lines` its reading. */
+  related: { present: boolean; text: string; lines: LinkLine[] };
+  openThreads: { present: boolean; text: string; threads: OpenThread[] };
   /** The section's body verbatim; parsing it into Revisions is the history module's. */
   positionHistory: { present: boolean; text: string };
 };
@@ -231,12 +236,21 @@ function linkLine(
   );
   if (link === undefined) return { text, link: null, note: text };
   const note = text.slice(link.range.end - textStart).replace(SEPARATOR, "");
+  const resolved = index.resolve(path, link);
+  const resolvedKind =
+    resolved.resolvedPath === null
+      ? null
+      : (index.select<{ kind: string | null }>(
+          "SELECT kind FROM files WHERE path = ?",
+          resolved.resolvedPath
+        )[0]?.kind ?? null);
   return {
     text,
     link: {
       target: link.target,
       blockId: link.blockId,
-      ...index.resolve(path, link),
+      ...resolved,
+      resolvedKind,
     },
     note: note.trim(),
   };
@@ -333,10 +347,12 @@ export async function readResearchQuestionPage(
       },
       related: {
         present: found["Related questions"] !== undefined,
+        text: bodyText(content, found["Related questions"]),
         lines: lines(found["Related questions"]),
       },
       openThreads: {
         present: threads !== undefined,
+        text: bodyText(content, threads),
         threads:
           threads === undefined
             ? []
@@ -351,4 +367,133 @@ export async function readResearchQuestionPage(
     },
     problems,
   };
+}
+
+/** The sections a plain text field on the page saves whole; Working answer joins with its Revision (#213). */
+export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
+export type EditedSection = (typeof EDITED_SECTIONS)[number];
+
+/**
+ * The page's read of a file for a write: the outline the operation is
+ * located against and the hash it is `basedOn`. Null when the file cannot
+ * be read as a page, with the refusal to answer with.
+ */
+async function readForWrite(
+  vaultPath: string,
+  path: string
+): Promise<
+  | { ok: true; content: string; outline: FileOutline; hash: string }
+  | { ok: false; result: WriteResult }
+> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return {
+      ok: false,
+      result: {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: `${relativePath}: ${errorMessage(error)}`,
+      },
+    };
+  }
+  const raw = bytes.toString("utf8");
+  const read = analyseFile(relativePath, raw, sha256(bytes));
+  if (!read.readable) {
+    return {
+      ok: false,
+      result: { written: false, reason: "unreadable", detail: read.reason },
+    };
+  }
+  return {
+    ok: true,
+    content: read.file.bom ? raw.slice(BOM.length) : raw,
+    outline: read.outline,
+    hash: read.hash,
+  };
+}
+
+/** One write through the protocol, then the index told of the app's own write, as a capture does. */
+async function writeOwn(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  operation: Parameters<typeof write>[2]
+): Promise<WriteResult> {
+  const result = await write(vaultPath, path, operation);
+  if (result.written) {
+    const { relativePath } = await locate(vaultPath, path);
+    await index.own(relativePath, result.content);
+  }
+  return result;
+}
+
+/**
+ * Tick or untick one thread: the task marker on the line whose text is
+ * `text` is rewritten and `## Open threads` replaced whole, an Edited
+ * section, so a resolved thread stays beside what was learned (CONTEXT.md
+ * *Open thread*). The thread is named by its text, not its position, so a
+ * file edited underneath still takes the tick where it was meant — or
+ * refuses, when the thread is no longer there to take it.
+ */
+export async function tickThread(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  { text, done }: { text: string; done: boolean }
+): Promise<WriteResult> {
+  const read = await readForWrite(vaultPath, path);
+  if (!read.ok) return read.result;
+  const { content, outline, hash } = read;
+  const { heading } = section(outline, "Open threads");
+  const item =
+    heading === undefined
+      ? undefined
+      : topLevelItems(outline, heading).find((candidate) => {
+          const thread = openThread(content, candidate);
+          return thread.done !== null && thread.text === text;
+        });
+  if (heading === undefined || item === undefined) {
+    return {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: `no open thread reads "${text}"`,
+    };
+  }
+  // The marker sits right after the list marker; the rest of the line and
+  // every other line of the section are the user's and go back as they were.
+  const line = content.slice(item.range.start, item.range.end);
+  const marker = MARKER.exec(line)?.[0] ?? "";
+  const ticked =
+    line.slice(0, marker.length) +
+    line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
+  const body =
+    content.slice(heading.body.start, item.range.start) +
+    ticked +
+    content.slice(item.range.end, heading.body.end);
+  return writeOwn(index, vaultPath, path, {
+    operations: [{ op: "replaceSection", name: "Open threads", body: body.trim() }],
+    basedOn: hash,
+  });
+}
+
+/**
+ * An Edited section saved as the user's own typing: `replaceSection` with
+ * the body the plain text field holds, `basedOn` the hash the page was
+ * given, and no Revision — these sections are prose, not Positions (ADR
+ * 0020 decision 4). A file changed underneath is the protocol's to re-apply
+ * or refuse; the refusal comes back as data for the page to show in place.
+ */
+export async function saveSection(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  { section: name, body, basedOn }: { section: EditedSection; body: string; basedOn: string }
+): Promise<WriteResult> {
+  return writeOwn(index, vaultPath, path, {
+    operations: [{ op: "replaceSection", name, body: body.trim() }],
+    basedOn,
+  });
 }
