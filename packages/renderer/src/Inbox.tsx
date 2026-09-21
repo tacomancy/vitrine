@@ -1,8 +1,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import type { Order, Question } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
+import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
 import { monthYear, provenanceOf, rowsOf } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
@@ -16,11 +23,34 @@ const ORDERS: readonly Order[] = ["newest", "oldest"];
  * nothing that counts what is owed. `landed` is the Question the capture
  * line just wrote: it becomes the selection and the list takes the keyboard.
  */
-export function Inbox({ landed }: { landed: Question | null }) {
+export function Inbox({
+  landed,
+  vaultPath,
+}: {
+  landed: Question | null;
+  vaultPath: string;
+}) {
   const trpc = useTRPC();
   const [order, setOrder] = useState<Order>("newest");
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+
+  // The selection is a path (ADR 0010), so a rename outside the app must
+  // move it before the re-query lands, or the renamed row would arrive
+  // unselected. A removed selection needs nothing: the row's absence is the
+  // message, and `selectedRow` below is already null.
+  useVaultChanged(
+    useCallback(
+      ({ renamed }) => {
+        for (const { from, to } of renamed) {
+          setSelected((path) =>
+            path === `${vaultPath}/${from}` ? `${vaultPath}/${to}` : path
+          );
+        }
+      },
+      [vaultPath]
+    )
+  );
 
   // A new landing moves the selection to it. Adjusted during render rather
   // than in an effect, so the row is selected in the same paint it appears

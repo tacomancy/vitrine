@@ -308,6 +308,112 @@ describe("a folder is one event", () => {
   });
 });
 
+describe("a rename is one event, and the row follows it", () => {
+  it("fs.rename of a Question inside the settle window is one vaultChanged with renamed, nothing removed, and the row under the new path", async () => {
+    const { vault, c, stream } = await watching({
+      "questions/Q.md": questionFile("Moving"),
+    });
+    await rename(
+      join(vault, "questions", "Q.md"),
+      join(vault, "questions", "Moved.md")
+    );
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [{ from: "questions/Q.md", to: "questions/Moved.md" }],
+    });
+    const listing = await c.query<Listing>("questions.list");
+    expect(
+      (listing.result?.data as Listing).questions.map((q) => [
+        q.question,
+        q.path,
+      ])
+    ).toEqual([["Moving", join(vault, "questions", "Moved.md")]]);
+    stream.close();
+  });
+
+  it("a rename that also edits the file is removed plus changed, by design", async () => {
+    const { vault, stream, questions } = await watching({
+      "questions/Q.md": questionFile("Before"),
+    });
+    await rename(
+      join(vault, "questions", "Q.md"),
+      join(vault, "questions", "Moved.md")
+    );
+    await writeFile(
+      join(vault, "questions", "Moved.md"),
+      questionFile("Moved and edited")
+    );
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: ["questions/Moved.md"],
+      removed: ["questions/Q.md"],
+      renamed: [],
+    });
+    expect(await questions()).toEqual(["Moved and edited"]);
+    stream.close();
+  });
+
+  it("a plain Note and a non-Markdown file pair the same way", async () => {
+    const { vault, stream } = await watching({
+      "notes/Loose thought.md": "# A note\n\nNo kind, no frontmatter.\n",
+      "assets/plot.png": "\x89PNG not really\n",
+    });
+    await rename(
+      join(vault, "notes", "Loose thought.md"),
+      join(vault, "notes", "Kept thought.md")
+    );
+    await rename(
+      join(vault, "assets", "plot.png"),
+      join(vault, "assets", "figure-1.png")
+    );
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [
+        { from: "assets/plot.png", to: "assets/figure-1.png" },
+        { from: "notes/Loose thought.md", to: "notes/Kept thought.md" },
+      ],
+    });
+    stream.close();
+  });
+
+  it("two files swapped by rename in one batch each find their new path", async () => {
+    const { vault, c, stream } = await watching({
+      "questions/A.md": questionFile("Was A", "2026-09-01T09:00:00Z"),
+      "questions/B.md": questionFile("Was B, longer", "2026-09-02T09:00:00Z"),
+    });
+    const a = join(vault, "questions", "A.md");
+    const b = join(vault, "questions", "B.md");
+    const aside = join(vault, "questions", "swap.tmp");
+    await rename(a, aside);
+    await rename(b, a);
+    await rename(aside, b);
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [
+        { from: "questions/B.md", to: "questions/A.md" },
+        { from: "questions/A.md", to: "questions/B.md" },
+      ],
+    });
+    const listing = await c.query<Listing>("questions.list");
+    expect(
+      (listing.result?.data as Listing).questions.map((q) => [
+        q.question,
+        q.path,
+      ])
+    ).toEqual([
+      ["Was B, longer", a],
+      ["Was A", b],
+    ]);
+    stream.close();
+  });
+});
+
 describe("the two watches and the sweep", () => {
   it("a PDF written through a symlinked sources/pdf outside the root is a row at sources/pdf/<name>", async () => {
     const outside = await tmp("pdf-folder");

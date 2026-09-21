@@ -1,4 +1,4 @@
-import { act, cleanup, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { empty, question as q, renderApp, rows, vault } from "./fake-core";
 
@@ -57,6 +57,101 @@ describe("the event stream in the renderer", () => {
     await vi.waitFor(() => {
       expect(current.mock.calls.length).toBeGreaterThan(beforeCurrent);
       expect(list.mock.calls.length).toBeGreaterThan(beforeList);
+    });
+  });
+
+  describe("the selection under external change", () => {
+    const a = q(
+      "Does slow-wave density predict recall gain?",
+      "2026-09-19T08:00:00Z"
+    );
+    const b = q("Is theta during REM detectable?", "2026-07-19T12:00:00Z");
+    const c = q(
+      "Who first reported reward-based triage?",
+      "2025-01-19T12:00:00Z"
+    );
+
+    it("a selected row whose path is in renamed is still selected under `to` after the re-query", async () => {
+      let listing = { ...empty, questions: [a, b, c] };
+      const { stream } = renderApp({
+        "vault.current": vault,
+        "questions.list": () => listing,
+      });
+      const items = await rows();
+      fireEvent.click(items[1]!);
+      expect(items[1]?.getAttribute("aria-selected")).toBe("true");
+
+      // One batch: the selected file renamed, another deleted — the deletion
+      // is what makes the re-query visible, so the assertion after it is on
+      // the new list and not the old one.
+      const moved = {
+        ...b,
+        path: `${vault.path}/questions/Renamed in Obsidian.md`,
+      };
+      listing = { ...empty, questions: [a, moved] };
+      act(() => {
+        stream.push({
+          type: "vaultChanged",
+          changed: [],
+          removed: ["questions/Who first reported reward-based triage?.md"],
+          renamed: [
+            {
+              from: "questions/Is theta during REM detectable?.md",
+              to: "questions/Renamed in Obsidian.md",
+            },
+          ],
+        });
+      });
+      await vi.waitFor(() => {
+        expect(screen.getAllByRole("option")).toHaveLength(2);
+      });
+      expect(
+        screen
+          .getAllByRole("option")
+          .map((r) => r.getAttribute("aria-selected"))
+      ).toEqual(["false", "true"]);
+      expect(screen.getByRole("complementary").textContent).toContain(
+        "Is theta during REM detectable?"
+      );
+    });
+
+    it("a selected row whose path is in removed clears the selection, focus where it was, and j/k still act on the list", async () => {
+      let listing = { ...empty, questions: [a, b, c] };
+      const { stream } = renderApp({
+        "vault.current": vault,
+        "questions.list": () => listing,
+      });
+      const items = await rows();
+      const list = screen.getByRole("listbox", { name: "Questions" });
+      list.focus();
+      fireEvent.click(items[1]!);
+      expect(items[1]?.getAttribute("aria-selected")).toBe("true");
+      expect(document.activeElement).toBe(list);
+
+      listing = { ...empty, questions: [a, c] };
+      act(() => {
+        stream.push({
+          type: "vaultChanged",
+          changed: [],
+          removed: ["questions/Is theta during REM detectable?.md"],
+          renamed: [],
+        });
+      });
+      await vi.waitFor(() => {
+        const after = screen.getAllByRole("option");
+        expect(after).toHaveLength(2);
+        expect(
+          after.every((r) => r.getAttribute("aria-selected") === "false")
+        ).toBe(true);
+      });
+      expect(document.activeElement).toBe(list);
+      expect(screen.getByRole("complementary").textContent).toBe("");
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+
+      fireEvent.keyDown(list, { key: "j" });
+      const after = await rows();
+      expect(after[0]?.getAttribute("aria-selected")).toBe("true");
     });
   });
 });
