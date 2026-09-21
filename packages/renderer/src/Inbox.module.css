@@ -157,16 +157,53 @@
   color: var(--color-fg-muted);
 }
 
+/*
+ * The footer channel: the unreadable count, a build's progress, a watcher
+ * that is down. One quiet mono line each, side by side; the same muted
+ * colour for all of them — a broken watcher is a fact to act on, not an
+ * alarm, and nothing here is red (design-prompts § what to push back on).
+ */
 .footer {
   flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
   padding: var(--space-2) var(--space-5) var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
 
+.unreadableDetails {
+  /* Opened, its list takes the row below the other lines. */
+  flex: 1 1 auto;
+}
+
+.unreadableDetails[open] {
+  flex-basis: 100%;
+}
+
 .footerLine {
   cursor: default;
+}
+
+/* *retry* reads as part of its line, not as a control demanding a click. */
+.retry {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.retry:focus-visible {
+  outline: 1px solid var(--color-fg-muted);
+  outline-offset: 2px;
+}
+
+.retry:disabled {
+  cursor: default;
+  text-decoration: none;
 }
 
 .unreadable {

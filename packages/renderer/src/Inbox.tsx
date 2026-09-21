@@ -1,4 +1,9 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -91,6 +96,22 @@ export function Inbox({
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
   const unreadable = listing.data?.unreadable ?? [];
   const now = new Date();
+
+  // The vault's state, in the same quiet channel as the unreadable count
+  // (§ Index, Status): a build's progress, and a watcher that is down for
+  // good with its *retry*. Nothing when all is well — a footer that is
+  // always there would teach the eye to skip it.
+  const queryClient = useQueryClient();
+  const status = useQuery(trpc.vault.status.queryOptions());
+  const rewatch = useMutation(
+    trpc.vault.rewatch.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries(trpc.vault.status.pathFilter()),
+    })
+  );
+  const indexing = status.data?.indexing ?? null;
+  const watching = status.data?.watching ?? { ok: true };
+  const hasFooter = unreadable.length > 0 || indexing !== null || !watching.ok;
 
   // j/k and the arrows move the selection; ↵ selects the first row when
   // nothing is selected yet. The list is one tab stop.
@@ -196,21 +217,44 @@ export function Inbox({
             </li>
           ))}
         </ul>
-        {unreadable.length > 0 && (
-          <details className={styles.footer}>
-            <summary className={styles.footerLine}>
-              {unreadable.length} {unreadable.length === 1 ? "file" : "files"}{" "}
-              could not be read
-            </summary>
-            <ul className={styles.unreadable}>
-              {unreadable.map((file) => (
-                <li key={file.path}>
-                  <span>{file.path}</span>
-                  <span className={styles.reason}>{file.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
+        {hasFooter && (
+          <footer className={styles.footer}>
+            {unreadable.length > 0 && (
+              <details className={styles.unreadableDetails}>
+                <summary className={styles.footerLine}>
+                  {unreadable.length}{" "}
+                  {unreadable.length === 1 ? "file" : "files"} could not be read
+                </summary>
+                <ul className={styles.unreadable}>
+                  {unreadable.map((file) => (
+                    <li key={file.path}>
+                      <span>{file.path}</span>
+                      <span className={styles.reason}>{file.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {indexing !== null && (
+              <span className={styles.footerLine}>
+                indexing… {thousands(indexing.done)} of{" "}
+                {thousands(indexing.total)}
+              </span>
+            )}
+            {!watching.ok && (
+              <span className={styles.footerLine}>
+                not watching — {watching.reason} ·{" "}
+                <button
+                  type="button"
+                  className={styles.retry}
+                  disabled={rewatch.isPending}
+                  onClick={() => rewatch.mutate()}
+                >
+                  retry
+                </button>
+              </span>
+            )}
+          </footer>
         )}
       </section>
       <Detail row={selectedRow} />
@@ -220,3 +264,6 @@ export function Inbox({
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
+
+/** `1,250`: the one place the chrome shows a count that can reach thousands. */
+const thousands = (n: number) => n.toLocaleString("en-US");

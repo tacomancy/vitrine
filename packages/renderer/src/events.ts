@@ -28,6 +28,8 @@ export function useCoreEvents(): Set<Listener> {
         if (event.type === "vaultChanged") {
           for (const listen of listeners.current) listen(event);
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+        } else if (event.type === "vaultStatus") {
+          void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
         }
       },
     })
