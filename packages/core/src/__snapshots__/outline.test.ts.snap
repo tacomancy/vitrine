@@ -210,7 +210,200 @@ exports[`vault.outline over the corpus > blocks-generated.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > blocks-generated.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "28076363432f87b3a9d271076f7fabd8292eeee34b7b8eefad3b4220c006598e",
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "6ea9c9",
+        "marker": {
+          "end": 37,
+          "start": 30,
+        },
+        "range": {
+          "end": 37,
+          "start": 0,
+        },
+      },
+      {
+        "id": "aa75c2",
+        "marker": {
+          "end": 78,
+          "start": 71,
+        },
+        "range": {
+          "end": 78,
+          "start": 55,
+        },
+      },
+      {
+        "id": "e4e371",
+        "marker": {
+          "end": 142,
+          "start": 135,
+        },
+        "range": {
+          "end": 133,
+          "start": 80,
+        },
+      },
+      {
+        "id": "86acd3",
+        "marker": {
+          "end": 186,
+          "start": 179,
+        },
+        "range": {
+          "end": 177,
+          "start": 144,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [
+      {
+        "range": {
+          "end": 54,
+          "start": 39,
+        },
+      },
+      {
+        "range": {
+          "end": 78,
+          "start": 55,
+        },
+      },
+    ],
+    "tags": [],
+  },
+  "path": "blocks-generated.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > blocks-generated-links.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "35766df10faaba917fe4eb68b86920be3f62049871903cba2215583728ece214",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": "6ea9c9",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 28,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "aa75c2",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 57,
+          "start": 29,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "e4e371",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 86,
+          "start": 58,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "86acd3",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 115,
+          "start": 87,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "h12",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 144,
+          "start": 117,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+      {
+        "alias": null,
+        "blockId": "c3",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 171,
+          "start": 145,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+      {
+        "alias": null,
+        "blockId": "my-own-id",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 205,
+          "start": 172,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-generated-links.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-generated-links.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -450,6 +643,70 @@ exports[`vault.outline over the corpus > blocks-on-heading.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > blocks-on-heading.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "14fe33cb345c79c3ed30efb70a063dad96153017ac9bc8a4aa6eb2d4ec5b09ac",
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "c1",
+        "marker": {
+          "end": 35,
+          "start": 32,
+        },
+        "range": {
+          "end": 35,
+          "start": 13,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 63,
+          "start": 12,
+        },
+        "level": 2,
+        "range": {
+          "end": 11,
+          "start": 0,
+        },
+        "text": "Criteria",
+      },
+      {
+        "blockId": "c1",
+        "body": {
+          "end": 63,
+          "start": 36,
+        },
+        "level": 3,
+        "range": {
+          "end": 35,
+          "start": 13,
+        },
+        "text": "Criterion text",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-on-heading.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > blocks-on-heading-link.md: snapshot 1`] = `
 {
   "criteria": [],
@@ -488,7 +745,81 @@ exports[`vault.outline over the corpus > blocks-on-heading-link.md: snapshot 1`]
 }
 `;
 
+exports[`vault.outline over the corpus > blocks-on-heading-link.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "e081d50ef55ac6f65b9e3a153b4c15747fd36fe5fe642f74c23fc4414a63e483",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": "c1",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 25,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-on-heading",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-on-heading-link.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > fence-unclosed.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "b978d79b5ede19c40ae544ba9e6add8d0b64a8a182da1b7908ba1ad97709e3e2",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "afterfence",
+        "range": {
+          "end": 80,
+          "start": 69,
+        },
+        "source": "inline",
+        "text": "afterfence",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "fence-unclosed.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > fence-unclosed.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -743,7 +1074,113 @@ exports[`vault.outline over the corpus > links-case.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > links-case.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "982109af886290bf576345cd46c6e5d5d0a2dce276a9b7da9f60d32c09c676a6",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 27,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "sleep AND consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-case.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > links-heading-fragment.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "53856d8235679da85c722c3743155df9474ac0e66aa8c6e5b65006fdc8398165",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "heading",
+        ],
+        "range": {
+          "end": 35,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          " Heading ",
+        ],
+        "range": {
+          "end": 73,
+          "start": 36,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "HEADING",
+        ],
+        "range": {
+          "end": 109,
+          "start": 74,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-heading-fragment.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > links-heading-fragment.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -895,7 +1332,124 @@ exports[`vault.outline over the corpus > lt-before-tag.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > lt-before-tag.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "6dd1a8ec82e991d7c2e32ffb11113aac6e285977c9ca016fd750515b8c61617d",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "comparison",
+        "range": {
+          "end": 25,
+          "start": 14,
+        },
+        "source": "inline",
+        "text": "comparison",
+        "valid": true,
+      },
+      {
+        "canonical": "insidehtml",
+        "range": {
+          "end": 50,
+          "start": 39,
+        },
+        "source": "inline",
+        "text": "insidehtml",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "lt-before-tag.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > props-comma-tags.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "e896ac7aa9dca6bd71c6f01ea68d26108c027431d58b53b9de0a3f15ac9b75fa",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 36,
+        "start": 4,
+      },
+      "range": {
+        "end": 39,
+        "start": 0,
+      },
+      "value": {
+        "tags": [
+          "alpha, beta",
+          "gamma",
+        ],
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "alpha",
+        "range": {
+          "end": 19,
+          "start": 14,
+        },
+        "source": "frontmatter",
+        "text": "alpha",
+        "valid": true,
+      },
+      {
+        "range": {
+          "end": 25,
+          "start": 20,
+        },
+        "reason": "contains whitespace",
+        "source": "frontmatter",
+        "text": " beta",
+        "valid": false,
+      },
+      {
+        "canonical": "gamma",
+        "range": {
+          "end": 35,
+          "start": 30,
+        },
+        "source": "frontmatter",
+        "text": "gamma",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-comma-tags.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-comma-tags.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -1270,6 +1824,67 @@ exports[`vault.outline over the corpus > props-tag-with-space.md: snapshot 1`] =
 }
 `;
 
+exports[`vault.outline over the corpus > props-tag-with-space.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "6a11cf611e97b4f3d861c111ce5aca34075039b10aacaa286325f6069a71ebd4",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 36,
+        "start": 4,
+      },
+      "range": {
+        "end": 39,
+        "start": 0,
+      },
+      "value": {
+        "tags": [
+          "machine learning",
+          "other",
+        ],
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "range": {
+          "end": 27,
+          "start": 11,
+        },
+        "reason": "contains whitespace",
+        "source": "frontmatter",
+        "text": "machine learning",
+        "valid": false,
+      },
+      {
+        "canonical": "other",
+        "range": {
+          "end": 34,
+          "start": 29,
+        },
+        "source": "frontmatter",
+        "text": "other",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-tag-with-space.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > props-types.md: snapshot 1`] = `
 {
   "criteria": [],
@@ -1351,7 +1966,69 @@ exports[`vault.outline over the corpus > shape-bom.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > shape-bom.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "9db6212ae2c240fce38d3b596c89b772875816a69af278e1d6f4813f256d552a",
+  "kind": "note",
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 15,
+        "start": 4,
+      },
+      "range": {
+        "end": 18,
+        "start": 0,
+      },
+      "value": {
+        "kind": "note",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-bom.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > shape-crlf.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "cccd87b71181dd072e4fdc4355bcb9a50c7848cb9b6103ffa5f4db264bd15438",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-crlf.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-crlf.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -1415,6 +2092,45 @@ exports[`vault.outline over the corpus > shape-frontmatter-not-at-top.md: snapsh
 }
 `;
 
+exports[`vault.outline over the corpus > shape-frontmatter-not-at-top.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "fe8dbb3e40f97b7e23ed9ca419017483f1829f63c53b555b59e25434dac18cc7",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 25,
+          "start": 20,
+        },
+        "level": 2,
+        "range": {
+          "end": 19,
+          "start": 5,
+        },
+        "text": "kind: note",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-frontmatter-not-at-top.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > shape-no-frontmatter.md: snapshot 1`] = `
 {
   "criteria": [],
@@ -1440,7 +2156,57 @@ exports[`vault.outline over the corpus > shape-no-frontmatter.md: snapshot 1`] =
 }
 `;
 
+exports[`vault.outline over the corpus > shape-no-frontmatter.md: snapshot 2`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "174406cf69347e0df62e71ef7eebb2aebb8db088754bed56bfdff3c9d4849f6c",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-no-frontmatter.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > shape-no-trailing-newline.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "68c7815bdc261651befcb20ad5dfb11a3b754b326ca16973ace169fb67ca8505",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-no-trailing-newline.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-no-trailing-newline.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {
@@ -1539,6 +2305,66 @@ exports[`vault.outline over the corpus > tags-excluded-contexts.md: snapshot 1`]
 `;
 
 exports[`vault.outline over the corpus > tags-invalid.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "hash": "1622e471a4ad935e34a752dd659d82437c10f46151cf5a3eeb5ed38a4f174d41",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 102,
+          "start": 83,
+        },
+        "level": 1,
+        "range": {
+          "end": 82,
+          "start": 65,
+        },
+        "text": "heading-not-tag",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "tag",
+        "range": {
+          "end": 42,
+          "start": 37,
+        },
+        "source": "inline",
+        "text": "tag/",
+        "valid": true,
+      },
+      {
+        "canonical": "a//b",
+        "range": {
+          "end": 63,
+          "start": 58,
+        },
+        "source": "inline",
+        "text": "a//b",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "tags-invalid.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > tags-invalid.md: snapshot 2`] = `
 {
   "criteria": [],
   "file": {

@@ -49,6 +49,15 @@ export type CoreOptions = Partial<
   }
 >;
 
+// Every core a test file started, so `closeCores` can tear them down: a
+// watcher left open keeps reporting into later tests.
+const cores: Array<() => void> = [];
+
+/** Tear down every core started so far; for a suite's `afterEach`. */
+export function closeCores(): void {
+  for (const close of cores.splice(0)) close();
+}
+
 /**
  * The core in-process, driven as a caller would drive it: plain requests
  * with the bearer token, no socket. Every test asserts on the reply and on
@@ -82,7 +91,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
     const res = await app.request(url, { headers });
     return (await res.json()) as Reply<T>;
   };
-  const { app } = createApp({
+  const { app, close } = createApp({
     token,
     host: opts.host ?? fakeHost(null),
     appSupportDir,
@@ -108,6 +117,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       },
     },
   });
+  cores.push(close);
   return {
     appSupportDir,
     query,
@@ -163,7 +173,8 @@ async function openEventStream(
 ): Promise<EventStream> {
   const controller = new AbortController();
   const res = await request(controller.signal);
-  if (res.status !== 200 || res.body === null) {
+  const body: ReadableStream<Uint8Array> | null = res.body;
+  if (res.status !== 200 || body === null) {
     throw new Error(`events.subscribe answered ${res.status}`);
   }
   const queue: CoreEvent[] = [];
@@ -177,7 +188,7 @@ async function openEventStream(
     else queue.push(event);
   };
   const consume = async () => {
-    const reader = res.body!.getReader();
+    const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     for (;;) {

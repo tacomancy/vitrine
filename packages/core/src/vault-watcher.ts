@@ -1,5 +1,5 @@
 import { watch, type FSWatcher } from "node:fs";
-import { realpath, stat } from "node:fs/promises";
+import { realpath, stat, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { errorMessage } from "./errors.js";
 
@@ -12,6 +12,13 @@ import { errorMessage } from "./errors.js";
  * two stats agreeing (decision 5). Everything that settles in the same tick
  * is one Batch. What the batch means for the index is `vault-index.ts`'s
  * `refresh`; nothing here reads a file's content.
+ *
+ * `watchVault` resolves only once the watch is *live*. libuv brings its
+ * FSEvents stream up on another thread after `fs.watch` returns — and tears
+ * it down and recreates it whenever a handle is added — so an event in that
+ * gap is lost with no error. The vault service must sweep only after that
+ * gap (*watch, then sweep*, decision 3), and Node gives no signal for it, so
+ * one is made: a probe file under `.vitrine/` whose own event is waited for.
  */
 
 /** Quiet for this long, with two stats agreeing, before a file is read (§ Watcher and Ingest). */
@@ -19,6 +26,12 @@ export const SETTLE_MS = 2000;
 
 /** The one folder whose symlink is followed, so an iCloud or Dropbox PDF folder is watched. */
 const PDF_FOLDER = "sources/pdf";
+
+/** The probe that proves the watch live; a dot-entry, so nothing downstream ever sees it. */
+const PROBE = ".vitrine/.watch";
+/** How often the probe is touched while no event has come, and for how long before giving up. */
+const PROBE_TICK_MS = 50;
+const PROBE_TIMEOUT_MS = 5000;
 
 export type WatcherOptions = {
   settleMs: number;
@@ -83,7 +96,7 @@ export async function watchVault(
     let earliest = Infinity;
     for (const { dueAt } of pending.values())
       earliest = Math.min(earliest, dueAt);
-    timer = setTimeout(fire, Math.max(0, earliest - Date.now()));
+    timer = setTimeout(() => void fire(), Math.max(0, earliest - Date.now()));
   };
 
   const fire = async () => {
@@ -120,6 +133,8 @@ export async function watchVault(
     schedule();
   };
 
+  let probed: (() => void) | null = null;
+
   /** The listener for one `fs.watch`; `rebase` turns its filenames into vault-relative paths. */
   const listener =
     (watched: string, rebase: (relativeToWatched: string) => string) =>
@@ -129,7 +144,9 @@ export async function watchVault(
       const relativeToWatched = isAbsolute(name)
         ? relative(watched, name)
         : name;
-      void hint(rebase(relativeToWatched.split(sep).join("/")));
+      const path = rebase(relativeToWatched.split(sep).join("/"));
+      if (path === PROBE) probed?.();
+      void hint(path);
     };
 
   const watchers: FSWatcher[] = [];
@@ -156,9 +173,47 @@ export async function watchVault(
     for (const watcher of watchers.splice(0)) watcher.close();
   };
 
+  /**
+   * Touch the probe until an event arrives, then remove it. Rewritten every
+   * tick rather than written once: the stream only reports events later
+   * than its own creation, so a probe written into the gap is never
+   * reported, while the next touch after the gap is. Silence past the
+   * timeout is not a failure here — the sweep still runs — but is worth a
+   * line, since a watch that never delivers is what #190's `watching` is for.
+   */
+  const live = async () => {
+    const probe = join(root, PROBE);
+    let seen = false;
+    let wake: () => void = () => undefined;
+    probed = () => {
+      seen = true;
+      wake();
+    };
+    const deadline = Date.now() + PROBE_TIMEOUT_MS;
+    while (!seen && !closed && Date.now() < deadline) {
+      try {
+        await writeFile(probe, String(Date.now()));
+      } catch (error) {
+        onError(`the watch probe could not be written: ${errorMessage(error)}`);
+        break;
+      }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        setTimeout(resolve, PROBE_TICK_MS);
+      });
+    }
+    probed = null;
+    if (!seen && !closed) {
+      onError("the watch gave no sign of life; sweeping anyway");
+    }
+    await unlink(probe).catch(() => undefined);
+  };
+
   // The root is watched before anything is awaited, so nothing written while
-  // the PDF folder's real path is resolved can slip past.
+  // the probe and the PDF folder's real path are resolved can slip past —
+  // once the watch is live, which is what the probe waits for.
   start(root, (path) => path);
+  await live();
   const pdfReal = await pdfFolderOutside(root);
   if (pdfReal !== null && !closed) {
     start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);

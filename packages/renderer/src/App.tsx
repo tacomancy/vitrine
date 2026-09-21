@@ -3,6 +3,7 @@ import type { Question } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
+import { useCoreEvents } from "./events";
 import { FirstRun } from "./FirstRun";
 import { Inbox } from "./Inbox";
 import { Sidebar } from "./Sidebar";
@@ -13,6 +14,7 @@ export function App() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const vault = useQuery(trpc.vault.current.queryOptions());
+  useCoreEvents();
   // The last Question the capture line wrote. The Inbox re-reads the vault
   // and makes it the selection, so the user sees it land (brief § Question
   // Inbox: "everything captured recently, newest first").

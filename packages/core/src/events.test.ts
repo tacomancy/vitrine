@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { core, tmp } from "./test-core.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { closeCores, core, tmp } from "./test-core.js";
 
 // The event stream at the harness seam (spec #177, ADR 0013 decision 11): one
 // SSE subscription per renderer, guarded by the bearer header, carrying a
 // discriminated union on `type`.
+
+afterEach(closeCores);
 
 describe("events.subscribe", () => {
   it("is 401 without the bearer header, before any router code", async () => {

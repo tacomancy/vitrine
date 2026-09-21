@@ -7,9 +7,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
-import { core, tmp, type CoreOptions } from "./test-core.js";
+import { closeCores, core, tmp, type CoreOptions } from "./test-core.js";
 import type { VaultChanged } from "./vault-index.js";
 
 // The watcher at the harness seam (spec #177 § Testing decisions): a real
@@ -17,6 +17,8 @@ import type { VaultChanged } from "./vault-index.js";
 // the event stream — never a sleep.
 
 type Vault = { name: string; path: string };
+
+afterEach(closeCores);
 
 const SETTLE_MS = 40;
 

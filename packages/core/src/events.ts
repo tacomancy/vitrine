@@ -13,7 +13,7 @@ export type CoreEvent =
 
 export type Events = {
   emit: (event: CoreEvent) => void;
-  /** Every event from now until the signal aborts; nothing is replayed. */
+  /** Every event from this call until the signal aborts; nothing is replayed. */
   subscribe: (signal: AbortSignal | undefined) => AsyncIterable<CoreEvent>;
 };
 
@@ -24,30 +24,35 @@ export function createEvents(): Events {
     emit: (event) => {
       for (const deliver of subscribers) deliver(event);
     },
-    subscribe: (signal) => ({
-      [Symbol.asyncIterator]: async function* () {
-        const queue: CoreEvent[] = [];
-        let wake: (() => void) | null = null;
-        const deliver = (event: CoreEvent) => {
-          queue.push(event);
-          wake?.();
-        };
-        subscribers.add(deliver);
-        signal?.addEventListener("abort", () => wake?.(), { once: true });
-        try {
-          while (!signal?.aborted) {
-            const event = queue.shift();
-            if (event !== undefined) {
-              yield event;
-              continue;
+    subscribe: (signal) => {
+      // Registered here, not when the stream first pulls: an event raised
+      // between the procedure resolving and the SSE producer's first read
+      // would otherwise be lost, and the renderer told nothing.
+      const queue: CoreEvent[] = [];
+      let wake: (() => void) | null = null;
+      const deliver = (event: CoreEvent) => {
+        queue.push(event);
+        wake?.();
+      };
+      subscribers.add(deliver);
+      signal?.addEventListener("abort", () => wake?.(), { once: true });
+      return {
+        [Symbol.asyncIterator]: async function* () {
+          try {
+            while (!signal?.aborted) {
+              const event = queue.shift();
+              if (event !== undefined) {
+                yield event;
+                continue;
+              }
+              await new Promise<void>((resolve) => (wake = resolve));
+              wake = null;
             }
-            await new Promise<void>((resolve) => (wake = resolve));
-            wake = null;
+          } finally {
+            subscribers.delete(deliver);
           }
-        } finally {
-          subscribers.delete(deliver);
-        }
-      },
-    }),
+        },
+      };
+    },
   };
 }
