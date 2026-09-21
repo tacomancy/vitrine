@@ -21,6 +21,20 @@ describe("parseInlineField", () => {
     expect(parseInlineField(line)).toEqual(expected);
   });
 
+  it("a trailing `^id` is the block's marker, not part of the value — as on a heading line", () => {
+    expect(parseInlineField("outcome:: not met ^my-id")).toEqual({
+      key: "outcome",
+      value: "not met",
+      valueStart: 10,
+    });
+    // Only at the very end, set off by whitespace; `^` inside the value is prose.
+    expect(parseInlineField("outcome:: a^b")).toEqual({
+      key: "outcome",
+      value: "a^b",
+      valueStart: 10,
+    });
+  });
+
   it("splits at the first `::`", () => {
     expect(parseInlineField("a::b:: c")).toEqual({
       key: "a",

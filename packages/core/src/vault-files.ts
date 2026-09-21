@@ -647,15 +647,12 @@ function locateSectionOp(
       const next = parsed.headings.find(
         (h) => h.range.start === heading.body.end
       );
-      const body = bodyText(op.body, eol);
+      const body = composedBody(op.body, eol);
       // A blank line after the heading, the body, a blank line before the
       // next heading; at the end of the file the trailing-newline choice
       // is restored afterwards (`restoreTrailingNewline`).
-      const replacement = next
-        ? eol + body + eol
-        : body === ""
-          ? ""
-          : eol + body;
+      const replacement =
+        body === "" ? (next ? eol : "") : eol + body + (next ? eol : "");
       return { range: heading.body, text: replacement };
     }
     case "prependEntry": {
@@ -663,20 +660,23 @@ function locateSectionOp(
       if (!heading) return appendSection(text, op.section, op.entry, eol);
       const { body } = heading;
       if (!/\S/.test(text.slice(body.start, body.end))) {
-        // An empty section gets the blank line the app's convention puts
-        // after a heading; whatever blank lines it had stay.
-        return {
-          range: { start: heading.range.end, end: heading.range.end },
-          text: eol + eol + lines(op.entry, eol),
-        };
+        return intoEmptySection(
+          text,
+          heading,
+          composedLines(op.entry, eol),
+          eol
+        );
       }
       const at = text.startsWith(eol, body.start)
         ? body.start + eol.length
         : body.start;
-      return { range: { start: at, end: at }, text: bodyText(op.entry, eol) };
+      return {
+        range: { start: at, end: at },
+        text: composedBody(op.entry, eol),
+      };
     }
     case "appendToSection": {
-      const line = lines(op.line, eol);
+      const line = composedLines(op.line, eol);
       const { target } = op;
       if (target === "lead") {
         const first = parsed.headings.find((h) => h.level === 2);
@@ -718,14 +718,7 @@ function locateSectionOp(
         heading.body.start,
         heading.body.end
       );
-      if (last === null) {
-        // An empty section: the app's blank line after the heading, then
-        // the line; blank lines the section already had stay.
-        return {
-          range: { start: heading.range.end, end: heading.range.end },
-          text: eol + eol + line,
-        };
-      }
+      if (last === null) return intoEmptySection(text, heading, line, eol);
       return appendLine(text, parsed, last, line, eol);
     }
     case "setInlineField": {
@@ -774,14 +767,36 @@ function endOfLastNonBlankLine(
   from: number,
   to: number
 ): number | null {
-  const slice = text.slice(from, to);
-  const match = /\S(?=\s*$)/.exec(slice);
-  if (!match) return null;
-  const at = from + match.index;
-  const eolAt = /\r\n|\n|\r/g;
-  eolAt.lastIndex = at;
-  const found = eolAt.exec(text);
-  return found && found.index < to ? found.index : to;
+  let at = to - 1;
+  while (at >= from && /\s/.test(text[at]!)) at -= 1;
+  if (at < from) return null;
+  const lineEnd = text.indexOf("\n", at);
+  if (lineEnd === -1 || lineEnd >= to) return to;
+  return text[lineEnd - 1] === "\r" ? lineEnd - 1 : lineEnd;
+}
+
+/**
+ * Content into a section with nothing in it: the app's blank line after the
+ * heading, the content, and — when the section runs straight into the next
+ * heading — the blank line before that too. Blank lines the section
+ * already had stay where they are.
+ */
+function intoEmptySection(
+  text: string,
+  heading: Heading,
+  content: string,
+  eol: string
+): Splice {
+  const { body } = heading;
+  const next = body.end < text.length;
+  // The heading's own line ending plus the body's blank lines: one more is
+  // needed before the next heading only when the body had none.
+  const breaks = text.slice(body.start, body.end).split(eol).length - 1;
+  const after = next && breaks === 0 ? eol : "";
+  return {
+    range: { start: heading.range.end, end: heading.range.end },
+    text: eol + eol + content + after,
+  };
 }
 
 const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/;
@@ -828,23 +843,27 @@ function appendSection(
   body: string,
   eol: string
 ): Splice {
+  let end = text.length;
   let trailing = 0;
-  while (text.endsWith(eol.repeat(trailing + 1))) trailing += 1;
+  while (text.endsWith(eol, end)) {
+    end -= eol.length;
+    trailing += 1;
+  }
   const separator = text === "" ? "" : eol.repeat(Math.max(0, 2 - trailing));
   return {
     range: { start: text.length, end: text.length },
-    text: separator + `## ${name}` + eol + eol + bodyText(body, eol),
+    text: separator + `## ${name}` + eol + eol + composedBody(body, eol),
   };
 }
 
 /** Text as the app composes it (LF, however it ends) in the file's line endings, without a trailing one. */
-function lines(text: string, eol: string): string {
+function composedLines(text: string, eol: string): string {
   return asLf(text).replace(/\n+$/, "").replace(/\n/g, eol);
 }
 
-/** `lines`, ending in exactly one line ending — or empty when blank. */
-function bodyText(body: string, eol: string): string {
-  const text = lines(body, eol);
+/** `composedLines`, ending in exactly one line ending — or empty when blank. */
+function composedBody(body: string, eol: string): string {
+  const text = composedLines(body, eol);
   return text === "" ? "" : text + eol;
 }
 
@@ -900,14 +919,17 @@ function verify(
   }
   const sectionCount = (r: typeof after, name: string) =>
     r.outline.headings.filter((h) => h.level === 2 && h.text === name).length;
-  for (const name of new Set(targetedSections(operations))) {
+  const targets = operations.map(targetOf);
+  const sections = targets.flatMap((t) => (t.section ? [t.section] : []));
+  const blockIds = targets.flatMap((t) => (t.block ? [t.block] : []));
+  for (const name of new Set(sections)) {
     const expected = Math.max(1, sectionCount(before, name));
     const found = sectionCount(after, name);
     if (found !== expected) {
       return `## ${name}: expected ${expected} heading(s) after the write, found ${found}`;
     }
   }
-  for (const id of new Set(dependedOnBlockIds(operations))) {
+  for (const id of new Set(blockIds)) {
     if (!after.outline.blockIds.some((b) => b.id === id)) {
       return `block id ^${id} would be lost`;
     }
@@ -921,35 +943,32 @@ function verify(
   return null;
 }
 
-function targetedSections(operations: Operation[]): string[] {
-  const names: string[] = [];
-  for (const op of operations) {
-    if (op.op === "replaceSection") names.push(op.name);
-    else if (op.op === "prependEntry") names.push(op.section);
-    else if (op.op === "appendToSection" && typeof op.target === "object") {
-      if ("section" in op.target) names.push(op.target.section);
-    } else if (op.op === "setInlineField") names.push("Criteria");
+/** The `##` section and the block id an operation's outcome depends on, for verification. */
+function targetOf(op: Operation): { section?: string; block?: string } {
+  switch (op.op) {
+    case "setFrontmatter":
+      return {};
+    case "replaceSection":
+      return { section: op.name };
+    case "prependEntry":
+      return { section: op.section };
+    case "appendToSection":
+      return op.target === "lead" ? {} : op.target;
+    case "setInlineField":
+      return { section: "Criteria", block: op.blockId };
   }
-  return names;
-}
-
-function dependedOnBlockIds(operations: Operation[]): string[] {
-  const ids: string[] = [];
-  for (const op of operations) {
-    if (op.op === "setInlineField") ids.push(op.blockId);
-    else if (op.op === "appendToSection" && typeof op.target === "object") {
-      if ("block" in op.target) ids.push(op.target.block);
-    }
-  }
-  return ids;
 }
 
 async function commit(
   absolute: string,
   relativePath: string,
-  content: string,
-  shape: ShapeProblem[]
+  content: string
 ): Promise<WriteResult> {
+  // What the write did to the file's shape is reported whichever path
+  // wrote it — `replaceFile` included, which is never refused on shape
+  // (ADR 0015 decision 4) but still says what the save left behind.
+  const after = analyse(relativePath, content, "");
+  const shape = after.readable ? after.shape : [];
   try {
     await writeAtomically(absolute, content);
   } catch (cause) {
@@ -1011,15 +1030,13 @@ export async function write(
   }
   const content = (file.bom ? BOM : "") + applied.content;
   // The result's hash is computed at commit; verify never reads it.
-  const after = analyse(relativePath, content, "");
-  const problem = verify(analyse(relativePath, raw, hash), after, operations);
-  if (problem !== null) return refusal("verificationFailed", problem);
-  return commit(
-    absolute,
-    relativePath,
-    content,
-    after.readable ? after.shape : []
+  const problem = verify(
+    analyse(relativePath, raw, hash),
+    analyse(relativePath, content, ""),
+    operations
   );
+  if (problem !== null) return refusal("verificationFailed", problem);
+  return commit(absolute, relativePath, content);
 }
 
 /**
@@ -1048,16 +1065,7 @@ export async function replaceFile(
   }
   const { file } = fileChoices(bytes.toString("utf8"));
   const text = withEol(asLf(content), file.eol);
-  const written = (file.bom ? BOM : "") + text;
-  // Never refused on shape (ADR 0015 decision 4), but what the save did to
-  // the shape is still reported.
-  const after = analyse(relativePath, written, "");
-  return commit(
-    absolute,
-    relativePath,
-    written,
-    after.readable ? after.shape : []
-  );
+  return commit(absolute, relativePath, (file.bom ? BOM : "") + text);
 }
 
 /**
@@ -1076,11 +1084,5 @@ export async function createFile(
   }
   const text = asLf(content).replace(/\n+$/, "") + "\n";
   await mkdir(dirname(absolute), { recursive: true });
-  const after = analyse(relativePath, text, "");
-  return commit(
-    absolute,
-    relativePath,
-    text,
-    after.readable ? after.shape : []
-  );
+  return commit(absolute, relativePath, text);
 }

@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { Outline } from "markdown";
@@ -10,7 +9,15 @@ import {
   type Operation,
   type WriteResult,
 } from "./vault-files.js";
-import { fixtures, tmp } from "./test-core.js";
+import {
+  basedOn,
+  bytes,
+  corpusCopy as copyOf,
+  refused,
+  sha256,
+  vaultWith,
+  written,
+} from "./test-core.js";
 
 // The four section operations at the module seam (#122): every assertion is
 // on the bytes of the file afterwards or the result a caller sees. "Nothing
@@ -19,7 +26,9 @@ import { fixtures, tmp } from "./test-core.js";
 
 // The write's own locating is right, so the only way to see verification
 // catch a wrong splice is to make the locator wrong once: `tamper` rewrites
-// the next outline the writer asks for, then steps aside.
+// the next outline the writer asks for, then steps aside. It relies on the
+// write parsing for frontmatter only when there is a frontmatter operation,
+// so the first parse it makes is the section operation's.
 const fault = vi.hoisted(() => ({
   tamper: null as ((outline: Outline) => void) | null,
 }));
@@ -37,48 +46,6 @@ vi.mock("markdown", async (importOriginal) => {
     },
   };
 });
-
-const corpus = join(fixtures, "obsidian-corpus");
-
-async function vaultWith(files: Record<string, string>): Promise<string> {
-  const vault = await tmp("sections");
-  for (const [name, content] of Object.entries(files)) {
-    await mkdir(join(vault, name, ".."), { recursive: true });
-    await writeFile(join(vault, name), content);
-  }
-  return vault;
-}
-
-/** A temp vault holding a copy of one corpus file, untouched by Obsidian since. */
-async function copyOf(
-  name: string
-): Promise<{ vault: string; original: string }> {
-  const vault = await tmp("corpus-copy");
-  await copyFile(join(corpus, name), join(vault, name));
-  return { vault, original: await readFile(join(vault, name), "utf8") };
-}
-
-const sha256 = (bytes: Buffer | string) =>
-  createHash("sha256").update(bytes).digest("hex");
-const bytes = (path: string) => readFile(path, "utf8");
-
-async function basedOn(vault: string, path: string): Promise<string> {
-  const read = await readOutline(vault, path);
-  if (!read.readable) throw new Error(`unreadable: ${read.reason}`);
-  return read.hash;
-}
-
-function written(result: WriteResult) {
-  if (!result.written) {
-    throw new Error(`refused: ${result.reason} — ${result.detail}`);
-  }
-  return result;
-}
-
-function refused(result: WriteResult) {
-  if (result.written) throw new Error("expected a refusal");
-  return result;
-}
 
 /** Apply one operation to a file and return the bytes afterwards. */
 async function applied(
@@ -770,6 +737,19 @@ describe("setInlineField", () => {
     );
   });
 
+  it("leaves a block id the user put at the end of the field line where it is — only the value changes", async () => {
+    const original =
+      "---\nkind: hypothesis\n---\n## Criteria\n\n### One ^c1\nrelationship:: confirming\noutcome:: inconclusive ^my-id\n";
+    const vault = await vaultWith({ "h.md": original });
+    const { after, result } = await applied(
+      vault,
+      "h.md",
+      setOutcome("c1", "met")
+    );
+    written(result);
+    expect(after).toBe(original.replace("inconclusive ^my-id", "met ^my-id"));
+  });
+
   it("refuses a block id that is not a criterion: a `^c<n>` outside `## Criteria`, a `###` with another id, a paragraph's id", async () => {
     const original = [
       "---",
@@ -1025,5 +1005,35 @@ describe("EOL and BOM through a section operation", () => {
     expect(after).toBe(
       "﻿---\r\nkind: hypothesis\r\n---\r\n## Criteria\r\n\r\n### One ^c1\r\noutcome:: met\r\n\r\n- [[run]] — note\r\n\r\n## Position history\r\n\r\n- new\r\n  from: before\r\n- old\r\n\r\n## Annotations\r\n\r\n- a\r\n- b\r\n"
     );
+  });
+});
+
+describe("blank lines around an owned section, at the edges", () => {
+  it("replaceSection with an empty body between two headings leaves one blank line, not two", async () => {
+    const vault = await vaultWith({
+      "s.md": "---\nkind: source\n---\n## Annotations\n\n- gone\n\n## After\n",
+    });
+    expect(
+      (await applied(vault, "s.md", replaceSection("Annotations", ""))).after
+    ).toBe("---\nkind: source\n---\n## Annotations\n\n## After\n");
+  });
+
+  it("a line into an empty section that runs straight into the next heading gets a blank line on both sides", async () => {
+    const vault = await vaultWith({
+      "tight.md": "---\nkind: source\n---\n## Annotations\n## After\n",
+      "one.md": "---\nkind: source\n---\n## Annotations\n\n## After\n",
+    });
+    expect(
+      (
+        await applied(
+          vault,
+          "tight.md",
+          appendToSection({ section: "Annotations" }, "- x")
+        )
+      ).after
+    ).toBe("---\nkind: source\n---\n## Annotations\n\n- x\n\n## After\n");
+    expect(
+      (await applied(vault, "one.md", prependEntry("Annotations", "- x"))).after
+    ).toBe("---\nkind: source\n---\n## Annotations\n\n- x\n\n## After\n");
   });
 });

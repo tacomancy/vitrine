@@ -1,24 +1,21 @@
-import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
-import {
-  copyFile,
-  mkdir,
-  readdir,
-  readFile,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import {
-  createFile,
-  readOutline,
-  replaceFile,
-  write,
-  type WriteResult,
-} from "./vault-files.js";
+import { createFile, readOutline, replaceFile, write } from "./vault-files.js";
 import { VaultError } from "./vault.js";
-import { fixtures, tmp } from "./test-core.js";
+import {
+  basedOn,
+  bytes,
+  corpusCopy as copyOf,
+  fixtures,
+  hashOf,
+  refused,
+  sha256,
+  tmp,
+  vaultWith,
+  written,
+} from "./test-core.js";
 
 // The write protocol at the module seam (#121): every assertion is on the
 // bytes of the file afterwards, the result a caller sees, or the outline the
@@ -36,48 +33,6 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const corpus = join(fixtures, "obsidian-corpus");
-
-async function vaultWith(files: Record<string, string>): Promise<string> {
-  const vault = await tmp("write");
-  for (const [name, content] of Object.entries(files)) {
-    await mkdir(join(vault, name, ".."), { recursive: true });
-    await writeFile(join(vault, name), content);
-  }
-  return vault;
-}
-
-/** A temp vault holding a copy of one corpus file, untouched by Obsidian since. */
-async function copyOf(
-  name: string
-): Promise<{ vault: string; original: string }> {
-  const vault = await tmp("corpus-copy");
-  await copyFile(join(corpus, name), join(vault, name));
-  return { vault, original: await readFile(join(vault, name), "utf8") };
-}
-
-const sha256 = (bytes: Buffer | string) =>
-  createHash("sha256").update(bytes).digest("hex");
-const hashOf = async (path: string) => sha256(await readFile(path));
-const bytes = (path: string) => readFile(path, "utf8");
-
-/** The hash a caller carries into a write: what the read gave it. */
-async function basedOn(vault: string, path: string): Promise<string> {
-  const read = await readOutline(vault, path);
-  if (!read.readable) throw new Error(`unreadable: ${read.reason}`);
-  return read.hash;
-}
-
-function written(result: WriteResult) {
-  if (!result.written) {
-    throw new Error(`refused: ${result.reason} — ${result.detail}`);
-  }
-  return result;
-}
-
-function refused(result: WriteResult) {
-  if (result.written) throw new Error("expected a refusal");
-  return result;
-}
 
 const setFrontmatter = (keys: Record<string, unknown>) =>
   ({ op: "setFrontmatter", keys }) as const;
