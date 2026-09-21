@@ -2,13 +2,15 @@ import { chmod, mkdir, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
-import { core, fixtures, tmp } from "./test-core.js";
+import { core, fixtureCopy, tmp } from "./test-core.js";
 
-/** A core with the given folder open, ready to list. */
+/** A core with the given folder open and its index built, ready to list. */
 async function opened(vault: string) {
   const c = await core();
   const reply = await c.mutate("vault.open", { path: vault });
   expect(reply.error).toBeUndefined();
+  // The rows are the index's (ADR 0014); it is built in the background.
+  await c.indexed();
   return {
     list: async (input?: { order: "newest" | "oldest" }) => {
       const reply = await c.query<Listing>("questions.list", input);
@@ -34,7 +36,7 @@ describe("questions.list", () => {
   });
 
   it("finds the Question Obsidian wrote outside questions/, and nothing else", async () => {
-    const vault = join(fixtures, "obsidian-vault");
+    const vault = await fixtureCopy("obsidian-vault");
     const c = await opened(vault);
     const listing = await c.list();
     expect(listing.partial).toEqual([]);
@@ -264,7 +266,7 @@ describe("questions.list", () => {
   });
 
   it("reports shape[] beside partial[] and unreadable[], empty for every Question", async () => {
-    const vault = join(fixtures, "obsidian-vault");
+    const vault = await fixtureCopy("obsidian-vault");
     const c = await opened(vault);
     const listing = await c.list();
     expect(listing.shape).toEqual([]);
