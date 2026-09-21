@@ -99,6 +99,22 @@ describe("README rows: links, resolved", () => {
     ]);
   });
 
+  it("L5a–i — a link beginning ./ or ../ resolves relative to the linking file, in either syntax; surplus ../ clamps at the vault root (#203)", async () => {
+    const c = await opened(await fixtureCopy("obsidian-corpus"));
+    const sleep = "Sleep and consolidation.md";
+    expect(await resolutions(c, "nested/deep/links-relative.md")).toEqual([
+      ["../../Sleep and consolidation.md", ...resolved(sleep)],
+      ["../../links-case.md", ...resolved("links-case.md")],
+      ["../../a/Klinzing 2019.md", ...resolved("a/Klinzing 2019.md")],
+      ["./Relative sibling.md", ...resolved("nested/deep/Relative sibling.md")],
+      ["../Relative parent.md", ...resolved("nested/Relative parent.md")],
+      ["../../Sleep and consolidation.md", ...resolved(sleep)],
+      ["../../Sleep and consolidation.md", "unresolved", null],
+      ["../../../Sleep and consolidation.md", ...resolved(sleep)],
+      ["../../Sleep and consolidation", ...resolved(sleep)],
+    ]);
+  });
+
   it("B2, B3a–c, B1 — #^id resolves to the block, a ^c1 on a ### line included", async () => {
     const c = await opened(await fixtureCopy("obsidian-corpus"));
     expect(await resolutions(c, "blocks-on-heading-link.md")).toEqual([
@@ -242,6 +258,55 @@ describe("resolution follows the vault without re-outlining the linking file", (
     expect((await resolutions(c, "Forms.md"))[5]).toEqual([
       "",
       ...resolved("Forms.md"),
+    ]);
+    events.close();
+  });
+
+  it("from a root-level file, ./ and a clamped ../ both name the root; a ./ wikilink resolves too (#203)", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await writeFile(
+      join(vault, "Root.md"),
+      "[here](./links-case.md) [above](../links-case.md) [[./links-case]]\n"
+    );
+    const c = await opened(vault);
+    expect(await resolutions(c, "Root.md")).toEqual([
+      ["./links-case.md", ...resolved("links-case.md")],
+      ["../links-case.md", ...resolved("links-case.md")],
+      ["./links-case", ...resolved("links-case.md")],
+    ]);
+  });
+
+  it("a relative Markdown link follows its target's creation, rename, and removal (#203)", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await mkdir(join(vault, "nested", "deep"), { recursive: true });
+    await writeFile(
+      join(vault, "nested", "deep", "Rel.md"),
+      "[later](../../Later.md) [moved](../Moved.md)\n"
+    );
+    await writeFile(join(vault, "nested", "Moved.md"), "moved\n");
+    const c = await opened(vault);
+    expect(await resolutions(c, "nested/deep/Rel.md")).toEqual([
+      ["../../Later.md", "unresolved", null],
+      ["../Moved.md", ...resolved("nested/Moved.md")],
+    ]);
+    const events = await c.events();
+    await writeFile(join(vault, "Later.md"), "later\n");
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "nested/deep/Rel.md")).toEqual([
+      ["../../Later.md", ...resolved("Later.md")],
+      ["../Moved.md", ...resolved("nested/Moved.md")],
+    ]);
+    await rename(join(vault, "nested", "Moved.md"), join(vault, "Moved.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "nested/deep/Rel.md")).toEqual([
+      ["../../Later.md", ...resolved("Later.md")],
+      ["../Moved.md", "unresolved", null],
+    ]);
+    await rm(join(vault, "Later.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "nested/deep/Rel.md")).toEqual([
+      ["../../Later.md", "unresolved", null],
+      ["../Moved.md", "unresolved", null],
     ]);
     events.close();
   });

@@ -6,7 +6,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { errorMessage } from "./errors.js";
 import { readQuestion } from "./question-kind.js";
@@ -125,6 +125,7 @@ CREATE TABLE problems (path TEXT NOT NULL, channel TEXT NOT NULL, kind TEXT, pro
 CREATE TABLE fields (path TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL);
 CREATE TABLE headings (path TEXT NOT NULL, level INTEGER NOT NULL, text TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, body_start INTEGER NOT NULL, body_end INTEGER NOT NULL, block TEXT);
 CREATE TABLE blocks (path TEXT NOT NULL, id TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, marker_start INTEGER NOT NULL, marker_end INTEGER NOT NULL);
+-- ltarget: the lookup key (see linkKey), not just the lowercased target.
 CREATE TABLE links (path TEXT NOT NULL, syntax TEXT NOT NULL, target TEXT NOT NULL, ltarget TEXT NOT NULL, heading TEXT NOT NULL, block TEXT, alias TEXT, embed INTEGER NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, resolution TEXT, resolved_path TEXT);
 CREATE TABLE tags (path TEXT NOT NULL, canonical TEXT, written TEXT NOT NULL, source TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, invalid TEXT);
 CREATE TABLE fields_inline (path TEXT NOT NULL, block TEXT, key TEXT NOT NULL, value TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, value_start INTEGER NOT NULL, value_end INTEGER NOT NULL);
@@ -260,6 +261,24 @@ const lookupKeys = (
   const lname = basename(lpath);
   const lstem = lname.endsWith(".md") ? lname.slice(0, -".md".length) : lname;
   return [lpath, lname, lstem];
+};
+
+/**
+ * The lowercase key a link is looked up by, and re-resolved by when a file
+ * the key names appears or vanishes. A target beginning `./` or `../` —
+ * how Obsidian writes a Markdown link under *Relative path to file*, and
+ * how it reads a wikilink too (L5h) — is relative to the linking file, so
+ * the key is the joined, normalised vault path (§ Markdown, link grammar;
+ * #203): the raw `../` text would match no file and, worse, would never be
+ * found by the refresh that re-resolves links by key. Surplus `../` above
+ * the vault root is clamped, as Obsidian does (L5g).
+ */
+const linkKey = (linkingPath: string, target: string): string => {
+  if (!/^\.\.?\//.test(target)) return target.toLowerCase();
+  const joined = posix.normalize(
+    posix.join(posix.dirname(linkingPath), target)
+  );
+  return joined.replace(/^(\.\.\/)+/, "").toLowerCase();
 };
 
 /** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
@@ -651,7 +670,7 @@ function createIndex(
         path,
         l.syntax,
         l.target,
-        l.target.toLowerCase(),
+        linkKey(path, l.target),
         JSON.stringify(l.heading),
         l.blockId,
         l.alias,
