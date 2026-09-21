@@ -9,7 +9,9 @@ import { outline } from "../src/outline.js";
 // resolver merges the fragments afterwards. Unpatched, that merge is one
 // splice per run — quadratic in a paragraph's lines: 32,000 lines took ~7.6 s
 // on the reference machine, ~0.4 s with `patches/micromark@4.0.2.patch`
-// (#196), which folds the fragments in a single pass.
+// (#196), which folds the fragments in a single pass. The bound is loose
+// because CI's runner is ~5× slower (2.4 s there); what it must catch is the
+// patch silently no longer applying, which is tens of seconds.
 describe("outline: cost per paragraph", () => {
   it("outlines a 32,000-line paragraph in linear time", () => {
     const line = "The body, read once by the indexer.\n";
@@ -19,6 +21,6 @@ describe("outline: cost per paragraph", () => {
     outline(line.repeat(32_000));
     const elapsed = performance.now() - started;
 
-    expect(elapsed).toBeLessThan(2_000);
+    expect(elapsed).toBeLessThan(10_000);
   });
 });
