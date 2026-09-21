@@ -87,9 +87,6 @@ export async function watchVault(
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
   let timer: NodeJS.Timeout | null = null;
   let closed = false;
-  // Batches apply one after another, so a later batch never overtakes an
-  // earlier one on its way to the index.
-  let applying: Promise<void> = Promise.resolve();
 
   const schedule = () => {
     if (timer !== null || pending.size === 0 || closed) return;
@@ -119,8 +116,11 @@ export async function watchVault(
       })
     );
     if (settled.length > 0 && !closed) {
-      applying = applying.then(() => onSettled(settled.sort()));
-      await applying;
+      // A batch the index could not apply is reported, not fatal: the next
+      // batch, or the next open's sweep, will see the same files again.
+      await onSettled(settled.sort()).catch((error: unknown) =>
+        onError(`a settled batch was not applied: ${errorMessage(error)}`)
+      );
     }
     schedule();
   };
@@ -194,8 +194,9 @@ export async function watchVault(
       try {
         await writeFile(probe, String(Date.now()));
       } catch (error) {
+        probed = null;
         onError(`the watch probe could not be written: ${errorMessage(error)}`);
-        break;
+        return;
       }
       await new Promise<void>((resolve) => {
         wake = resolve;
@@ -209,14 +210,14 @@ export async function watchVault(
     await unlink(probe).catch(() => undefined);
   };
 
-  // The root is watched before anything is awaited, so nothing written while
-  // the probe and the PDF folder's real path are resolved can slip past —
-  // once the watch is live, which is what the probe waits for.
+  // Both watches are started before the probe: adding a handle recreates
+  // the shared stream, so proving the root live and then adding the PDF
+  // folder would reopen the gap the probe exists to close.
   start(root, (path) => path);
-  await live();
   const pdfReal = await pdfFolderOutside(root);
   if (pdfReal !== null && !closed) {
     start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);
   }
+  await live();
   return { close };
 }

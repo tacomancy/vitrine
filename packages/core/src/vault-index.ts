@@ -200,12 +200,32 @@ type FilesRow = {
   indexed_at: number;
 };
 
+const entryOf = (
+  path: string,
+  s: { size: number; mtimeMs: number }
+): Entry => ({
+  size: s.size,
+  mtime: s.mtimeMs,
+  markdown: path.endsWith(".md"),
+  statAt: Date.now(),
+});
+
+/** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
+const vaultChanged = (
+  changed: string[],
+  removed: string[] = []
+): VaultChanged => ({ type: "vaultChanged", changed, removed, renamed: [] });
+
 /**
- * Every non-dot entry under the vault, never through a symlink, with the
- * stat the sweep compares. A folder that cannot be listed is reported as an
- * unreadable path rather than skipped.
+ * Every non-dot entry under a folder of the vault (the whole vault by
+ * default), never through a symlink, with the stat the sweep compares. A
+ * folder that cannot be listed is reported as an unreadable path rather
+ * than skipped.
  */
-async function walk(root: string): Promise<{
+async function walk(
+  root: string,
+  from = ""
+): Promise<{
   entries: Map<string, Entry>;
   unlistable: Array<{ path: string; reason: string }>;
 }> {
@@ -233,16 +253,11 @@ async function walk(root: string): Promise<{
           unlistable.push({ path, reason: errorMessage(error) });
           continue;
         }
-        entries.set(path, {
-          size: s.size,
-          mtime: s.mtimeMs,
-          markdown: entry.name.endsWith(".md"),
-          statAt: Date.now(),
-        });
+        entries.set(path, entryOf(path, s));
       }
     }
   }
-  await visit("");
+  await visit(from);
   return { entries, unlistable };
 }
 
@@ -602,29 +617,36 @@ function createIndex(
     return { work, removed };
   };
 
-  /** Read and apply `work` in chunks, raising `vaultChanged` for each chunk that changed rows. */
+  /**
+   * Apply what `reconcile` found: the vanished paths go with the first
+   * chunk's transaction and event, so a delete-plus-create that settled
+   * together is one `vaultChanged` (and #189 can pair a rename inside it);
+   * every further chunk is its own transaction and event. A chunk that
+   * changed no row — every path a touch or an own write — raises nothing.
+   */
   const applyChunked = async (
-    work: string[],
+    { work, removed }: { work: string[]; removed: string[] },
     entries: Map<string, Entry>,
-    afterChunk: (chunk: string[]) => Promise<void>
+    afterChunk: (chunk: string[]) => Promise<void> = () => Promise.resolve()
   ) => {
+    const chunks: string[][] = [];
     for (let at = 0; at < work.length; at += chunkSize) {
-      const chunk = work.slice(at, at + chunkSize);
+      chunks.push(work.slice(at, at + chunkSize));
+    }
+    if (chunks.length === 0 && removed.length > 0) chunks.push([]);
+    for (const [n, chunk] of chunks.entries()) {
       const reads = await readAll(chunk, entries);
       if (closed) return;
       const changed: string[] = [];
+      const dropped = n === 0 ? removed : [];
       transaction(() => {
+        for (const path of dropped) dropRows(path);
         for (const read of reads) if (apply(read)) changed.push(read.path);
       });
-      if (changed.length > 0) {
-        await raise({
-          type: "vaultChanged",
-          changed,
-          removed: [],
-          renamed: [],
-        });
+      if (changed.length > 0 || dropped.length > 0) {
+        await raise(vaultChanged(changed, dropped));
       }
-      await afterChunk(chunk);
+      await afterChunk([...dropped, ...chunk]);
     }
   };
 
@@ -653,53 +675,53 @@ function createIndex(
       for (const { path, reason } of unlistable) {
         insertProblem.run(path, "unreadable", null, reason, null);
       }
-      for (const path of removed) dropRows(path);
     });
-    if (removed.length > 0) {
-      progress = { done: removed.length, total: progress.total };
-      await raise({ type: "vaultChanged", changed: [], removed, renamed: [] });
-      await raiseStatus();
-    }
 
-    await applyChunked(work, entries, async (chunk) => {
+    await applyChunked({ work, removed }, entries, async (applied) => {
       progress = {
-        done: (progress?.done ?? 0) + chunk.length,
+        done: (progress?.done ?? 0) + applied.length,
         total: progress?.total ?? 0,
       };
       await raiseStatus();
     });
   }
 
-  /** A settled Batch: the same comparison as the sweep, over its paths alone. */
+  const rowsUnder = db.prepare(
+    "SELECT path, markdown, size, mtime, hash, indexed_at FROM files WHERE path = ? OR path LIKE ? ESCAPE '\\'"
+  );
+  const likePrefix = (path: string) => path.replace(/[\\%_]/g, "\\$&") + "/%";
+
+  /**
+   * A settled Batch: the same comparison as the sweep, over its paths alone.
+   * A path is compared with everything the index holds at or under it,
+   * because a folder dragged out of the vault or into it is one event for
+   * the folder, not one per file (Finder's delete is a move to the Trash).
+   */
   async function runRefresh(paths: string[]): Promise<void> {
     const entries = new Map<string, Entry>();
-    const known: FilesRow[] = [];
+    const known = new Map<string, FilesRow>();
     for (const path of paths) {
-      const row = fileRow.get(path) as FilesRow | undefined;
-      if (row !== undefined) known.push(row);
+      for (const row of rowsUnder.all(path, likePrefix(path)) as FilesRow[]) {
+        known.set(row.path, row);
+      }
+      let s;
       try {
-        const s = await stat(join(vaultPath, path));
-        if (!s.isFile()) continue;
-        entries.set(path, {
-          size: s.size,
-          mtime: s.mtimeMs,
-          markdown: path.endsWith(".md"),
-          statAt: Date.now(),
-        });
+        s = await stat(join(vaultPath, path));
       } catch {
-        // Gone, or never a file: with a row it is removed, without one it
-        // was a temp file the batch caught mid-flight and nothing is owed.
+        // Gone: what the index held there is removed. Nothing held there —
+        // a temp file the batch caught mid-flight — and nothing is owed.
+        continue;
+      }
+      if (s.isFile()) {
+        entries.set(path, entryOf(path, s));
+      } else if (s.isDirectory()) {
+        for (const [p, entry] of (await walk(vaultPath, path)).entries) {
+          entries.set(p, entry);
+        }
       }
     }
     if (closed) return;
-    const { work, removed } = reconcile(entries, known);
-    if (removed.length > 0) {
-      transaction(() => {
-        for (const path of removed) dropRows(path);
-      });
-      await raise({ type: "vaultChanged", changed: [], removed, renamed: [] });
-    }
-    await applyChunked(work, entries, () => Promise.resolve());
+    await applyChunked(reconcile(entries, [...known.values()]), entries);
   }
 
   // The sweep and every batch write one after another: a batch that ran
@@ -742,12 +764,7 @@ function createIndex(
         dropRows(path);
         insertOutlined(path, { size: s.size, mtime: s.mtimeMs }, hash, content);
       });
-      await raise({
-        type: "vaultChanged",
-        changed: [path],
-        removed: [],
-        renamed: [],
-      });
+      await raise(vaultChanged([path]));
     },
     status: () => ({
       indexing: progress,

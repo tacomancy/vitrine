@@ -109,6 +109,10 @@ export function createVaultService({
     }
   }
 
+  // Bumped by every install and by close, so an install still waiting on
+  // its watcher can tell it has been overtaken and discard what it made.
+  let generation = 0;
+
   function teardown(): void {
     opened?.watcher.close();
     opened?.index.close();
@@ -116,22 +120,35 @@ export function createVaultService({
   }
 
   /**
-   * Install the new vault and start its build. The previous vault's
-   * resources go first: one index handle and one watcher per process,
-   * never two on different vaults. The order is *watch, then sweep* (ADR
-   * 0013 decision 3): a file written during the sweep is then either seen
-   * by the walk or delivered as an event, never missed by both.
+   * Install the new vault and start its build. The watcher comes up first —
+   * *watch, then sweep* (ADR 0013 decision 3), so a file written during the
+   * sweep is either seen by the walk or delivered as an event, never missed
+   * by both — and only then does the previous vault go: one index handle and
+   * one watcher per vault, and the old vault answers until the new one can.
    */
   async function install(vault: Vault, index: VaultIndex): Promise<void> {
+    const mine = ++generation;
+    let watcher: Watcher;
+    try {
+      watcher = await watchVault(vault.path, {
+        settleMs,
+        onSettled: (paths) => index.refresh(paths),
+        // Reopening and reporting `watching` is #190; until then the failure
+        // is at least in the core's log, never swallowed.
+        onError: (reason) =>
+          console.error(`vitrine-core: the watcher failed: ${reason}`),
+      });
+    } catch (cause) {
+      index.close();
+      throw cause;
+    }
+    if (mine !== generation) {
+      // A later open or the exit got here first; nothing of ours is wanted.
+      watcher.close();
+      index.close();
+      return;
+    }
     teardown();
-    const watcher = await watchVault(vault.path, {
-      settleMs,
-      onSettled: (paths) => index.refresh(paths),
-      // Reopening and reporting `watching` is #190; until then the failure
-      // is at least in the core's log, never swallowed.
-      onError: (reason) =>
-        console.error(`vitrine-core: the watcher failed: ${reason}`),
-    });
     opened = { vault, index, watcher };
     // Never awaited: the app opens at once and indexes in the background
     // (ADR 0014 decision 10). The sweep reports its own failure as a
@@ -192,6 +209,9 @@ export function createVaultService({
       await restored;
       return opened;
     },
-    close: teardown,
+    close: () => {
+      generation++;
+      teardown();
+    },
   };
 }

@@ -16,7 +16,7 @@ describe("events.subscribe", () => {
     expect(res.status).toBe(401);
   });
 
-  it("carries one vaultChanged for a capture, raised after the row is in questions.list", async () => {
+  it("carries the one vaultChanged a capture raises, naming the file", async () => {
     const vault = await tmp("stream-capture");
     const c = await core();
     await c.mutate("vault.open", { path: vault });

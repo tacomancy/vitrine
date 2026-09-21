@@ -50,8 +50,8 @@ export function createApp({
 }: AppOptions): App {
   const app = new Hono();
   const events = createEvents();
-  // The index's after-commit listeners feed the stream first, then whatever
-  // the caller hung there (the test harness): both see the committed rows.
+  // The stream is fed before whatever the caller hung on the same seam
+  // (the test harness), so a test's listener runs after the renderer's.
   const vault = createVaultService({
     host,
     appSupportDir,

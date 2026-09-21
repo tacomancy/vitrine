@@ -242,6 +242,72 @@ describe("what settles together is one Batch, and only a real change is one", ()
   });
 });
 
+describe("a folder is one event", () => {
+  it("a folder moved out of the vault in Finder removes every row under it, in one vaultChanged", async () => {
+    const { vault, stream, questions } = await watching({
+      "old/A.md": questionFile("A", "2026-09-01T09:00:00Z"),
+      "old/deeper/B.md": questionFile("B", "2026-09-02T09:00:00Z"),
+      "Keep.md": questionFile("Keep", "2026-09-03T09:00:00Z"),
+    });
+    expect(await questions()).toEqual(["Keep", "B", "A"]);
+
+    // Finder's delete and its drag out are both one rename of the folder:
+    // one event, for the folder alone.
+    await rename(join(vault, "old"), join(await tmp("trash"), "old"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: ["old/A.md", "old/deeper/B.md"],
+      renamed: [],
+    });
+    expect(await questions()).toEqual(["Keep"]);
+    stream.close();
+  });
+
+  it("a folder moved into the vault indexes every file under it", async () => {
+    const { vault, stream, questions } = await watching();
+    const outside = await tmp("moved-in");
+    await mkdir(join(outside, "nested"));
+    await writeFile(
+      join(outside, "C.md"),
+      questionFile("C", "2026-09-01T09:00:00Z")
+    );
+    await writeFile(
+      join(outside, "nested", "D.md"),
+      questionFile("D", "2026-09-02T09:00:00Z")
+    );
+
+    await rename(outside, join(vault, "arrived"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: ["arrived/C.md", "arrived/nested/D.md"],
+      removed: [],
+      renamed: [],
+    });
+    expect(await questions()).toEqual(["D", "C"]);
+    stream.close();
+  });
+
+  it("a file replaced by a differently named one in the same batch is one event with both", async () => {
+    const { vault, stream, questions } = await watching({
+      "questions/Old.md": questionFile("Old"),
+    });
+    await rm(join(vault, "questions", "Old.md"));
+    await writeFile(
+      join(vault, "questions", "New.md"),
+      questionFile("New, not Old")
+    );
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: ["questions/New.md"],
+      removed: ["questions/Old.md"],
+      renamed: [],
+    });
+    expect(await questions()).toEqual(["New, not Old"]);
+    stream.close();
+  });
+});
+
 describe("the two watches and the sweep", () => {
   it("a PDF written through a symlinked sources/pdf outside the root is a row at sources/pdf/<name>", async () => {
     const outside = await tmp("pdf-folder");
