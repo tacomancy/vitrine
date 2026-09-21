@@ -16,9 +16,10 @@ import { analyseFile, sha256, type OutlineResponse } from "./vault-files.js";
  * `.vitrine/index.sqlite` (ADR 0014; `docs/architecture.md` § Index): the
  * disposable record of what the vault's Markdown contains, and the read path
  * for every list a surface shows. This module is the one writer, fed from
- * two places — the open-time sweep here, and the app's own writes through
- * `own()` — so a row is never written by code that did not also outline the
- * file. Nothing here ever writes to a vault file.
+ * three places — the open-time sweep here, the watcher's settled batches
+ * through `refresh()`, and the app's own writes through `own()` — so a row is
+ * never written by code that did not also outline the file. Nothing here
+ * ever writes to a vault file.
  */
 
 /**
@@ -78,6 +79,14 @@ export type VaultIndex = {
    * the vault is current; never rejects — a failure is a status reason.
    */
   sweep: () => Promise<void>;
+  /**
+   * Apply a settled watcher Batch: stat each path and compare to `files`,
+   * hash and re-outline what differs, drop what is gone (ADR 0013 decision
+   * 4). A path whose stat or hash matches its row changes nothing and is
+   * named in no event — how an own write, a touch, and a byte-identical
+   * sync rewrite all no-op. Runs after any sweep or batch already in flight.
+   */
+  refresh: (paths: string[]) => Promise<void>;
   /**
    * Index a file the app just wrote, from the content it wrote, before the
    * write's caller returns: this is what makes the row's stat record match
@@ -536,21 +545,22 @@ function createIndex(
       })
     );
 
-  /** One read file into its rows; inside a transaction. */
-  const apply = ({ path, entry, bytes, error, readAt }: Read) => {
+  /** One read file into its rows; inside a transaction. True when what a surface reads changed. */
+  const apply = ({ path, entry, bytes, error, readAt }: Read): boolean => {
     const existing = fileRow.get(path) as FilesRow | undefined;
     // An own write that landed after this read already holds newer rows
     // than the bytes read here; its record wins.
-    if (existing !== undefined && existing.indexed_at >= readAt) return;
+    if (existing !== undefined && existing.indexed_at >= readAt) return false;
     if (!entry.markdown) {
+      if (existing !== undefined) return false;
       putFile(path, { markdown: false });
-      return;
+      return true;
     }
     if (bytes === null) {
       dropRows(path);
       putFile(path, { markdown: true, size: entry.size, mtime: entry.mtime });
       insertProblem.run(path, "unreadable", null, error ?? "unreadable", null);
-      return;
+      return true;
     }
     const hash = sha256(bytes);
     // A touch, a sync client's byte-identical rewrite: the stat moved and
@@ -560,20 +570,22 @@ function createIndex(
       if (existing.indexed_at < entry.statAt) {
         touchFile.run(entry.size, entry.mtime, Date.now(), path);
       }
-      return;
+      return false;
     }
     dropRows(path);
     insertOutlined(path, entry, hash, bytes.toString("utf8"));
+    return true;
   };
 
-  async function runSweep(): Promise<void> {
-    const { entries, unlistable } = await walk(vaultPath);
-    if (closed) return;
-    const known = db
-      .prepare(
-        "SELECT path, markdown, size, mtime, hash, indexed_at FROM files"
-      )
-      .all() as FilesRow[];
+  /**
+   * What a set of stat-ted entries means against `files`: the paths to read
+   * again, and the known paths that are gone. Shared by the sweep (every
+   * file) and a batch (the settled ones).
+   */
+  const reconcile = (
+    entries: Map<string, Entry>,
+    known: FilesRow[]
+  ): { work: string[]; removed: string[] } => {
     const byPath = new Map(known.map((row) => [row.path, row]));
     const work: string[] = [];
     for (const [path, entry] of entries) {
@@ -587,6 +599,46 @@ function createIndex(
     const removed = known
       .map((row) => row.path)
       .filter((path) => !entries.has(path));
+    return { work, removed };
+  };
+
+  /** Read and apply `work` in chunks, raising `vaultChanged` for each chunk that changed rows. */
+  const applyChunked = async (
+    work: string[],
+    entries: Map<string, Entry>,
+    afterChunk: (chunk: string[]) => Promise<void>
+  ) => {
+    for (let at = 0; at < work.length; at += chunkSize) {
+      const chunk = work.slice(at, at + chunkSize);
+      const reads = await readAll(chunk, entries);
+      if (closed) return;
+      const changed: string[] = [];
+      transaction(() => {
+        for (const read of reads) if (apply(read)) changed.push(read.path);
+      });
+      if (changed.length > 0) {
+        await raise({
+          type: "vaultChanged",
+          changed,
+          removed: [],
+          renamed: [],
+        });
+      }
+      await afterChunk(chunk);
+    }
+  };
+
+  const allKnown = () =>
+    db
+      .prepare(
+        "SELECT path, markdown, size, mtime, hash, indexed_at FROM files"
+      )
+      .all() as FilesRow[];
+
+  async function runSweep(): Promise<void> {
+    const { entries, unlistable } = await walk(vaultPath);
+    if (closed) return;
+    const { work, removed } = reconcile(entries, allKnown());
     progress = { done: 0, total: work.length + removed.length };
     await raiseStatus();
     if (closed) return;
@@ -609,37 +661,77 @@ function createIndex(
       await raiseStatus();
     }
 
-    for (let at = 0; at < work.length; at += chunkSize) {
-      const chunk = work.slice(at, at + chunkSize);
-      const reads = await readAll(chunk, entries);
-      if (closed) return;
-      transaction(() => {
-        for (const read of reads) apply(read);
-      });
-      progress = { done: progress.done + chunk.length, total: progress.total };
-      await raise({
-        type: "vaultChanged",
-        changed: chunk,
-        removed: [],
-        renamed: [],
-      });
+    await applyChunked(work, entries, async (chunk) => {
+      progress = {
+        done: (progress?.done ?? 0) + chunk.length,
+        total: progress?.total ?? 0,
+      };
       await raiseStatus();
-    }
+    });
   }
 
-  return {
-    sweep: async () => {
-      if (sweep !== "pending") return;
-      sweep = "running";
+  /** A settled Batch: the same comparison as the sweep, over its paths alone. */
+  async function runRefresh(paths: string[]): Promise<void> {
+    const entries = new Map<string, Entry>();
+    const known: FilesRow[] = [];
+    for (const path of paths) {
+      const row = fileRow.get(path) as FilesRow | undefined;
+      if (row !== undefined) known.push(row);
       try {
-        await runSweep();
-        sweep = "done";
-      } catch (error) {
-        sweep = { failed: errorMessage(error) };
+        const s = await stat(join(vaultPath, path));
+        if (!s.isFile()) continue;
+        entries.set(path, {
+          size: s.size,
+          mtime: s.mtimeMs,
+          markdown: path.endsWith(".md"),
+          statAt: Date.now(),
+        });
+      } catch {
+        // Gone, or never a file: with a row it is removed, without one it
+        // was a temp file the batch caught mid-flight and nothing is owed.
       }
-      progress = null;
-      if (!closed) await raiseStatus();
+    }
+    if (closed) return;
+    const { work, removed } = reconcile(entries, known);
+    if (removed.length > 0) {
+      transaction(() => {
+        for (const path of removed) dropRows(path);
+      });
+      await raise({ type: "vaultChanged", changed: [], removed, renamed: [] });
+    }
+    await applyChunked(work, entries, () => Promise.resolve());
+  }
+
+  // The sweep and every batch write one after another: a batch that ran
+  // inside the sweep's walk-to-commit gap could otherwise index a file the
+  // sweep is about to drop as unseen.
+  let writes: Promise<void> = Promise.resolve();
+  const serially = (work: () => Promise<void>) => {
+    const run = writes.then(work, work);
+    writes = run;
+    return run;
+  };
+
+  return {
+    sweep: () => {
+      if (sweep !== "pending") return Promise.resolve();
+      sweep = "running";
+      return serially(async () => {
+        try {
+          await runSweep();
+          sweep = "done";
+        } catch (error) {
+          sweep = { failed: errorMessage(error) };
+        }
+        progress = null;
+        if (!closed) await raiseStatus();
+      });
     },
+    refresh: (paths) =>
+      serially(async () => {
+        if (closed) return;
+        await runRefresh(paths);
+      }),
     own: async (path, content) => {
       const s = await stat(join(vaultPath, path));
       // The vault was switched or the app is exiting between the write and

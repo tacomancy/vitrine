@@ -19,6 +19,8 @@ export type AppOptions = {
   /** The clock and id source; tests pin them so a written file is predictable. */
   now?: () => Date;
   newId?: () => string;
+  /** The watcher's settle window in ms; tests shorten it as they pin `now`. */
+  settleMs?: number;
   /**
    * The index's seams (`vault-index.ts`): the chunk size a test shortens,
    * the `positionsOf` registry, and the after-commit listeners the event
@@ -29,7 +31,7 @@ export type AppOptions = {
 
 export type App = {
   app: Hono;
-  /** Tear down the open vault's resources: the index handle, and the watcher once it lands. */
+  /** Tear down the open vault's resources: the watcher and the index handle. */
   close: () => void;
 };
 
@@ -43,6 +45,7 @@ export function createApp({
   appSupportDir,
   now,
   newId,
+  settleMs,
   index,
 }: AppOptions): App {
   const app = new Hono();
@@ -52,6 +55,7 @@ export function createApp({
   const vault = createVaultService({
     host,
     appSupportDir,
+    settleMs,
     index: {
       ...index,
       onChanged: async (event) => {
