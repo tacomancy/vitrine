@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { errorMessage, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
+import { SETTLE_MS, watchVault, type Watcher } from "./vault-watcher.js";
 import {
   IndexOpenError,
   openIndex,
@@ -24,6 +25,8 @@ export type VaultServiceOptions = {
   /** Where the core keeps its own state; the remembered vault path lives here. */
   appSupportDir: string;
   index?: IndexOptions | undefined;
+  /** The watcher's settle window; tests shorten it (ADR 0013 decision 5). */
+  settleMs?: number | undefined;
 };
 
 export type VaultService = {
@@ -64,13 +67,14 @@ async function validateFolder(path: string): Promise<void> {
 /** The last vault opened, so the next launch skips First run. */
 const LAST_VAULT_FILE = "last-vault.json";
 
-/** Everything held per open vault; the watcher (#188) joins the index here. */
-export type Opened = { vault: Vault; index: VaultIndex };
+/** Everything held per open vault, torn down together by the next `open` or exit. */
+export type Opened = { vault: Vault; index: VaultIndex; watcher: Watcher };
 
 export function createVaultService({
   host,
   appSupportDir,
   index: indexOptions,
+  settleMs = SETTLE_MS,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -105,14 +109,47 @@ export function createVaultService({
     }
   }
 
-  /**
-   * Install the new vault and start its build. The previous vault's
-   * resources go first: one index handle per process, never two on
-   * different vaults.
-   */
-  function install(vault: Vault, index: VaultIndex): void {
+  // Bumped by every install and by close, so an install still waiting on
+  // its watcher can tell it has been overtaken and discard what it made.
+  let generation = 0;
+
+  function teardown(): void {
+    opened?.watcher.close();
     opened?.index.close();
-    opened = { vault, index };
+    opened = null;
+  }
+
+  /**
+   * Install the new vault and start its build. The watcher comes up first —
+   * *watch, then sweep* (ADR 0013 decision 3), so a file written during the
+   * sweep is either seen by the walk or delivered as an event, never missed
+   * by both — and only then does the previous vault go: one index handle and
+   * one watcher per vault, and the old vault answers until the new one can.
+   */
+  async function install(vault: Vault, index: VaultIndex): Promise<void> {
+    const mine = ++generation;
+    let watcher: Watcher;
+    try {
+      watcher = await watchVault(vault.path, {
+        settleMs,
+        onSettled: (paths) => index.refresh(paths),
+        // Reopening and reporting `watching` is #190; until then the failure
+        // is at least in the core's log, never swallowed.
+        onError: (reason) =>
+          console.error(`vitrine-core: the watcher failed: ${reason}`),
+      });
+    } catch (cause) {
+      index.close();
+      throw cause;
+    }
+    if (mine !== generation) {
+      // A later open or the exit got here first; nothing of ours is wanted.
+      watcher.close();
+      index.close();
+      return;
+    }
+    teardown();
+    opened = { vault, index, watcher };
     // Never awaited: the app opens at once and indexes in the background
     // (ADR 0014 decision 10). The sweep reports its own failure as a
     // status reason rather than rejecting.
@@ -133,7 +170,7 @@ export function createVaultService({
       return;
     }
     try {
-      install({ name: basename(path), path }, await openResources(path));
+      await install({ name: basename(path), path }, await openResources(path));
     } catch (cause) {
       console.error(`vitrine-core: ${errorMessage(cause)}`);
     }
@@ -154,7 +191,7 @@ export function createVaultService({
       throw cause;
     }
     const vault = { name: basename(absolute), path: absolute };
-    install(vault, index);
+    await install(vault, index);
     return vault;
   }
 
@@ -173,8 +210,8 @@ export function createVaultService({
       return opened;
     },
     close: () => {
-      opened?.index.close();
-      opened = null;
+      generation++;
+      teardown();
     },
   };
 }

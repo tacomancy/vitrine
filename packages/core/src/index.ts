@@ -1,4 +1,5 @@
 export { createApp, type App, type AppOptions } from "./app.js";
+export type { CoreEvent } from "./events.js";
 export type { Host } from "./host.js";
 export type { CoreMessage, CoreReadyMessage, ShellMessage } from "./main.js";
 export type {

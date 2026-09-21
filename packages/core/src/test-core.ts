@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
 import type { Host } from "./host.js";
 import { readOutline, type WriteResult } from "./vault-files.js";
+import type { CoreEvent } from "./events.js";
 import type { PositionsOf, VaultChanged } from "./vault-index.js";
 import type { VaultStatus } from "./vault.js";
 
@@ -48,6 +49,15 @@ export type CoreOptions = Partial<
   }
 >;
 
+// Every core a test file started, so `closeCores` can tear them down: a
+// watcher left open keeps reporting into later tests.
+const cores: Array<() => void> = [];
+
+/** Tear down every core started so far; for a suite's `afterEach`. */
+export function closeCores(): void {
+  for (const close of cores.splice(0)) close();
+}
+
 /**
  * The core in-process, driven as a caller would drive it: plain requests
  * with the bearer token, no socket. Every test asserts on the reply and on
@@ -59,8 +69,12 @@ export async function core(opts: CoreOptions = {}): Promise<{
   appSupportDir: string;
   query: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
   mutate: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
+  /** A request as given, no token added: for what the guard does before the router. */
+  raw: (path: string, init?: RequestInit) => Promise<Response>;
   indexed: () => Promise<void>;
   changes: VaultChanged[];
+  /** Subscribe to `events.subscribe`; resolves once the stream is connected. */
+  events: () => Promise<EventStream>;
 }> {
   const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
   const changes: VaultChanged[] = [];
@@ -77,12 +91,13 @@ export async function core(opts: CoreOptions = {}): Promise<{
     const res = await app.request(url, { headers });
     return (await res.json()) as Reply<T>;
   };
-  const { app } = createApp({
+  const { app, close } = createApp({
     token,
     host: opts.host ?? fakeHost(null),
     appSupportDir,
     ...(opts.now ? { now: opts.now } : {}),
     ...(opts.newId ? { newId: opts.newId } : {}),
+    ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,
@@ -102,6 +117,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       },
     },
   });
+  cores.push(close);
   return {
     appSupportDir,
     query,
@@ -113,6 +129,14 @@ export async function core(opts: CoreOptions = {}): Promise<{
       });
       return (await res.json()) as Reply<T>;
     },
+    raw: async (path, init) => app.request(path, init),
+    events: () =>
+      openEventStream(async (signal) =>
+        app.request("/trpc/events.subscribe", {
+          headers: { ...headers, accept: "text/event-stream" },
+          signal,
+        })
+      ),
     indexed: async () => {
       // Registered before the status is read, so an event that lands
       // during the read is not missed; a waiter left behind by an early
@@ -124,6 +148,89 @@ export async function core(opts: CoreOptions = {}): Promise<{
       await current;
     },
     changes,
+  };
+}
+
+/**
+ * The core's event stream as a caller reads it: `next()` is the next event
+ * (of one type, when named), awaited rather than slept for — every wait in a
+ * watcher test is on one of these.
+ */
+export type EventStream = {
+  next: <T extends CoreEvent["type"]>(
+    type?: T
+  ) => Promise<Extract<CoreEvent, { type: T }>>;
+  close: () => void;
+};
+
+/**
+ * Read tRPC's SSE framing off a fetch Response: each message is `event:`
+ * and `data:` lines closed by a blank line; the `connected`, `ping`, and
+ * `return` messages carry no event of ours.
+ */
+async function openEventStream(
+  request: (signal: AbortSignal) => Promise<Response>
+): Promise<EventStream> {
+  const controller = new AbortController();
+  const res = await request(controller.signal);
+  const body: ReadableStream<Uint8Array> | null = res.body;
+  if (res.status !== 200 || body === null) {
+    throw new Error(`events.subscribe answered ${res.status}`);
+  }
+  const queue: CoreEvent[] = [];
+  const waiters: Array<(event: CoreEvent) => void> = [];
+  let connected: () => void = () => undefined;
+  const opened = new Promise<void>((resolve) => (connected = resolve));
+
+  const deliver = (event: CoreEvent) => {
+    const waiter = waiters.shift();
+    if (waiter) waiter(event);
+    else queue.push(event);
+  };
+  const consume = async () => {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      let at: number;
+      while ((at = buffer.indexOf("\n\n")) !== -1) {
+        const message = buffer.slice(0, at);
+        buffer = buffer.slice(at + 2);
+        let kind: string | null = null;
+        let data = "";
+        for (const line of message.split("\n")) {
+          if (line.startsWith("event: ")) kind = line.slice(7);
+          else if (line.startsWith("data: ")) data += line.slice(6);
+        }
+        if (kind === "connected") connected();
+        else if (kind === null && data !== "") {
+          deliver(JSON.parse(data) as CoreEvent);
+        }
+      }
+    }
+  };
+  void consume().catch(() => undefined);
+  await opened;
+
+  const next = () =>
+    new Promise<CoreEvent>((resolve) => {
+      const queued = queue.shift();
+      if (queued) resolve(queued);
+      else waiters.push(resolve);
+    });
+  return {
+    next: async <T extends CoreEvent["type"]>(type?: T) => {
+      for (;;) {
+        const event = await next();
+        if (type === undefined || event.type === type) {
+          return event as Extract<CoreEvent, { type: T }>;
+        }
+      }
+    },
+    close: () => controller.abort(),
   };
 }
 

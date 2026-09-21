@@ -16,9 +16,10 @@ import { analyseFile, sha256, type OutlineResponse } from "./vault-files.js";
  * `.vitrine/index.sqlite` (ADR 0014; `docs/architecture.md` § Index): the
  * disposable record of what the vault's Markdown contains, and the read path
  * for every list a surface shows. This module is the one writer, fed from
- * two places — the open-time sweep here, and the app's own writes through
- * `own()` — so a row is never written by code that did not also outline the
- * file. Nothing here ever writes to a vault file.
+ * three places — the open-time sweep here, the watcher's settled batches
+ * through `refresh()`, and the app's own writes through `own()` — so a row is
+ * never written by code that did not also outline the file. Nothing here
+ * ever writes to a vault file.
  */
 
 /**
@@ -78,6 +79,14 @@ export type VaultIndex = {
    * the vault is current; never rejects — a failure is a status reason.
    */
   sweep: () => Promise<void>;
+  /**
+   * Apply a settled watcher Batch: stat each path and compare to `files`,
+   * hash and re-outline what differs, drop what is gone (ADR 0013 decision
+   * 4). A path whose stat or hash matches its row changes nothing and is
+   * named in no event — how an own write, a touch, and a byte-identical
+   * sync rewrite all no-op. Runs after any sweep or batch already in flight.
+   */
+  refresh: (paths: string[]) => Promise<void>;
   /**
    * Index a file the app just wrote, from the content it wrote, before the
    * write's caller returns: this is what makes the row's stat record match
@@ -191,12 +200,32 @@ type FilesRow = {
   indexed_at: number;
 };
 
+const entryOf = (
+  path: string,
+  s: { size: number; mtimeMs: number }
+): Entry => ({
+  size: s.size,
+  mtime: s.mtimeMs,
+  markdown: path.endsWith(".md"),
+  statAt: Date.now(),
+});
+
+/** A vault-relative path with a vault-relative `changed`/`removed` event around it. */
+const vaultChanged = (
+  changed: string[],
+  removed: string[] = []
+): VaultChanged => ({ type: "vaultChanged", changed, removed, renamed: [] });
+
 /**
- * Every non-dot entry under the vault, never through a symlink, with the
- * stat the sweep compares. A folder that cannot be listed is reported as an
- * unreadable path rather than skipped.
+ * Every non-dot entry under a folder of the vault (the whole vault by
+ * default), never through a symlink, with the stat the sweep compares. A
+ * folder that cannot be listed is reported as an unreadable path rather
+ * than skipped.
  */
-async function walk(root: string): Promise<{
+async function walk(
+  root: string,
+  from = ""
+): Promise<{
   entries: Map<string, Entry>;
   unlistable: Array<{ path: string; reason: string }>;
 }> {
@@ -224,16 +253,11 @@ async function walk(root: string): Promise<{
           unlistable.push({ path, reason: errorMessage(error) });
           continue;
         }
-        entries.set(path, {
-          size: s.size,
-          mtime: s.mtimeMs,
-          markdown: entry.name.endsWith(".md"),
-          statAt: Date.now(),
-        });
+        entries.set(path, entryOf(path, s));
       }
     }
   }
-  await visit("");
+  await visit(from);
   return { entries, unlistable };
 }
 
@@ -536,21 +560,22 @@ function createIndex(
       })
     );
 
-  /** One read file into its rows; inside a transaction. */
-  const apply = ({ path, entry, bytes, error, readAt }: Read) => {
+  /** One read file into its rows; inside a transaction. True when what a surface reads changed. */
+  const apply = ({ path, entry, bytes, error, readAt }: Read): boolean => {
     const existing = fileRow.get(path) as FilesRow | undefined;
     // An own write that landed after this read already holds newer rows
     // than the bytes read here; its record wins.
-    if (existing !== undefined && existing.indexed_at >= readAt) return;
+    if (existing !== undefined && existing.indexed_at >= readAt) return false;
     if (!entry.markdown) {
+      if (existing !== undefined) return false;
       putFile(path, { markdown: false });
-      return;
+      return true;
     }
     if (bytes === null) {
       dropRows(path);
       putFile(path, { markdown: true, size: entry.size, mtime: entry.mtime });
       insertProblem.run(path, "unreadable", null, error ?? "unreadable", null);
-      return;
+      return true;
     }
     const hash = sha256(bytes);
     // A touch, a sync client's byte-identical rewrite: the stat moved and
@@ -560,20 +585,22 @@ function createIndex(
       if (existing.indexed_at < entry.statAt) {
         touchFile.run(entry.size, entry.mtime, Date.now(), path);
       }
-      return;
+      return false;
     }
     dropRows(path);
     insertOutlined(path, entry, hash, bytes.toString("utf8"));
+    return true;
   };
 
-  async function runSweep(): Promise<void> {
-    const { entries, unlistable } = await walk(vaultPath);
-    if (closed) return;
-    const known = db
-      .prepare(
-        "SELECT path, markdown, size, mtime, hash, indexed_at FROM files"
-      )
-      .all() as FilesRow[];
+  /**
+   * What a set of stat-ted entries means against `files`: the paths to read
+   * again, and the known paths that are gone. Shared by the sweep (every
+   * file) and a batch (the settled ones).
+   */
+  const reconcile = (
+    entries: Map<string, Entry>,
+    known: FilesRow[]
+  ): { work: string[]; removed: string[] } => {
     const byPath = new Map(known.map((row) => [row.path, row]));
     const work: string[] = [];
     for (const [path, entry] of entries) {
@@ -587,6 +614,53 @@ function createIndex(
     const removed = known
       .map((row) => row.path)
       .filter((path) => !entries.has(path));
+    return { work, removed };
+  };
+
+  /**
+   * Apply what `reconcile` found: the vanished paths go with the first
+   * chunk's transaction and event, so a delete-plus-create that settled
+   * together is one `vaultChanged` (and #189 can pair a rename inside it);
+   * every further chunk is its own transaction and event. A chunk that
+   * changed no row — every path a touch or an own write — raises nothing.
+   */
+  const applyChunked = async (
+    { work, removed }: { work: string[]; removed: string[] },
+    entries: Map<string, Entry>,
+    afterChunk: (chunk: string[]) => Promise<void> = () => Promise.resolve()
+  ) => {
+    const chunks: string[][] = [];
+    for (let at = 0; at < work.length; at += chunkSize) {
+      chunks.push(work.slice(at, at + chunkSize));
+    }
+    if (chunks.length === 0 && removed.length > 0) chunks.push([]);
+    for (const [n, chunk] of chunks.entries()) {
+      const reads = await readAll(chunk, entries);
+      if (closed) return;
+      const changed: string[] = [];
+      const dropped = n === 0 ? removed : [];
+      transaction(() => {
+        for (const path of dropped) dropRows(path);
+        for (const read of reads) if (apply(read)) changed.push(read.path);
+      });
+      if (changed.length > 0 || dropped.length > 0) {
+        await raise(vaultChanged(changed, dropped));
+      }
+      await afterChunk([...dropped, ...chunk]);
+    }
+  };
+
+  const allKnown = () =>
+    db
+      .prepare(
+        "SELECT path, markdown, size, mtime, hash, indexed_at FROM files"
+      )
+      .all() as FilesRow[];
+
+  async function runSweep(): Promise<void> {
+    const { entries, unlistable } = await walk(vaultPath);
+    if (closed) return;
+    const { work, removed } = reconcile(entries, allKnown());
     progress = { done: 0, total: work.length + removed.length };
     await raiseStatus();
     if (closed) return;
@@ -601,45 +675,85 @@ function createIndex(
       for (const { path, reason } of unlistable) {
         insertProblem.run(path, "unreadable", null, reason, null);
       }
-      for (const path of removed) dropRows(path);
     });
-    if (removed.length > 0) {
-      progress = { done: removed.length, total: progress.total };
-      await raise({ type: "vaultChanged", changed: [], removed, renamed: [] });
-      await raiseStatus();
-    }
 
-    for (let at = 0; at < work.length; at += chunkSize) {
-      const chunk = work.slice(at, at + chunkSize);
-      const reads = await readAll(chunk, entries);
-      if (closed) return;
-      transaction(() => {
-        for (const read of reads) apply(read);
-      });
-      progress = { done: progress.done + chunk.length, total: progress.total };
-      await raise({
-        type: "vaultChanged",
-        changed: chunk,
-        removed: [],
-        renamed: [],
-      });
+    await applyChunked({ work, removed }, entries, async (applied) => {
+      progress = {
+        done: (progress?.done ?? 0) + applied.length,
+        total: progress?.total ?? 0,
+      };
       await raiseStatus();
-    }
+    });
   }
 
-  return {
-    sweep: async () => {
-      if (sweep !== "pending") return;
-      sweep = "running";
-      try {
-        await runSweep();
-        sweep = "done";
-      } catch (error) {
-        sweep = { failed: errorMessage(error) };
+  const rowsUnder = db.prepare(
+    "SELECT path, markdown, size, mtime, hash, indexed_at FROM files WHERE path = ? OR path LIKE ? ESCAPE '\\'"
+  );
+  const likePrefix = (path: string) => path.replace(/[\\%_]/g, "\\$&") + "/%";
+
+  /**
+   * A settled Batch: the same comparison as the sweep, over its paths alone.
+   * A path is compared with everything the index holds at or under it,
+   * because a folder dragged out of the vault or into it is one event for
+   * the folder, not one per file (Finder's delete is a move to the Trash).
+   */
+  async function runRefresh(paths: string[]): Promise<void> {
+    const entries = new Map<string, Entry>();
+    const known = new Map<string, FilesRow>();
+    for (const path of paths) {
+      for (const row of rowsUnder.all(path, likePrefix(path)) as FilesRow[]) {
+        known.set(row.path, row);
       }
-      progress = null;
-      if (!closed) await raiseStatus();
+      let s;
+      try {
+        s = await stat(join(vaultPath, path));
+      } catch {
+        // Gone: what the index held there is removed. Nothing held there —
+        // a temp file the batch caught mid-flight — and nothing is owed.
+        continue;
+      }
+      if (s.isFile()) {
+        entries.set(path, entryOf(path, s));
+      } else if (s.isDirectory()) {
+        for (const [p, entry] of (await walk(vaultPath, path)).entries) {
+          entries.set(p, entry);
+        }
+      }
+    }
+    if (closed) return;
+    await applyChunked(reconcile(entries, [...known.values()]), entries);
+  }
+
+  // The sweep and every batch write one after another: a batch that ran
+  // inside the sweep's walk-to-commit gap could otherwise index a file the
+  // sweep is about to drop as unseen.
+  let writes: Promise<void> = Promise.resolve();
+  const serially = (work: () => Promise<void>) => {
+    const run = writes.then(work, work);
+    writes = run;
+    return run;
+  };
+
+  return {
+    sweep: () => {
+      if (sweep !== "pending") return Promise.resolve();
+      sweep = "running";
+      return serially(async () => {
+        try {
+          await runSweep();
+          sweep = "done";
+        } catch (error) {
+          sweep = { failed: errorMessage(error) };
+        }
+        progress = null;
+        if (!closed) await raiseStatus();
+      });
     },
+    refresh: (paths) =>
+      serially(async () => {
+        if (closed) return;
+        await runRefresh(paths);
+      }),
     own: async (path, content) => {
       const s = await stat(join(vaultPath, path));
       // The vault was switched or the app is exiting between the write and
@@ -650,12 +764,7 @@ function createIndex(
         dropRows(path);
         insertOutlined(path, { size: s.size, mtime: s.mtimeMs }, hash, content);
       });
-      await raise({
-        type: "vaultChanged",
-        changed: [path],
-        removed: [],
-        renamed: [],
-      });
+      await raise(vaultChanged([path]));
     },
     status: () => ({
       indexing: progress,
