@@ -1,0 +1,1685 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`vault.outline over the corpus > Sleep and consolidation.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "blockid",
+        "marker": {
+          "end": 48,
+          "start": 40,
+        },
+        "range": {
+          "end": 48,
+          "start": 11,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 80,
+          "start": 10,
+        },
+        "level": 1,
+        "range": {
+          "end": 9,
+          "start": 0,
+        },
+        "text": "Heading",
+      },
+      {
+        "blockId": null,
+        "body": {
+          "end": 80,
+          "start": 56,
+        },
+        "level": 2,
+        "range": {
+          "end": 55,
+          "start": 50,
+        },
+        "text": "H1",
+      },
+      {
+        "blockId": null,
+        "body": {
+          "end": 80,
+          "start": 64,
+        },
+        "level": 3,
+        "range": {
+          "end": 63,
+          "start": 57,
+        },
+        "text": "H2",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "Sleep and consolidation.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > a/Klinzing 2019.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "a/Klinzing 2019.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > b/Klinzing 2019.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "b/Klinzing 2019.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-generated.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "6ea9c9",
+        "marker": {
+          "end": 37,
+          "start": 30,
+        },
+        "range": {
+          "end": 37,
+          "start": 0,
+        },
+      },
+      {
+        "id": "aa75c2",
+        "marker": {
+          "end": 78,
+          "start": 71,
+        },
+        "range": {
+          "end": 78,
+          "start": 55,
+        },
+      },
+      {
+        "id": "e4e371",
+        "marker": {
+          "end": 142,
+          "start": 135,
+        },
+        "range": {
+          "end": 133,
+          "start": 80,
+        },
+      },
+      {
+        "id": "86acd3",
+        "marker": {
+          "end": 186,
+          "start": 179,
+        },
+        "range": {
+          "end": 177,
+          "start": 144,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [
+      {
+        "range": {
+          "end": 54,
+          "start": 39,
+        },
+      },
+      {
+        "range": {
+          "end": 78,
+          "start": 55,
+        },
+      },
+    ],
+    "tags": [],
+  },
+  "path": "blocks-generated.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-generated-links.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": "6ea9c9",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 28,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "aa75c2",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 57,
+          "start": 29,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "e4e371",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 86,
+          "start": 58,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "86acd3",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 115,
+          "start": 87,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-generated",
+      },
+      {
+        "alias": null,
+        "blockId": "h12",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 144,
+          "start": 117,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+      {
+        "alias": null,
+        "blockId": "c3",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 171,
+          "start": 145,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+      {
+        "alias": null,
+        "blockId": "my-own-id",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 205,
+          "start": 172,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-handwritten",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-generated-links.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-handwritten.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "h12",
+        "marker": {
+          "end": 21,
+          "start": 17,
+        },
+        "range": {
+          "end": 21,
+          "start": 0,
+        },
+      },
+      {
+        "id": "c3",
+        "marker": {
+          "end": 44,
+          "start": 41,
+        },
+        "range": {
+          "end": 44,
+          "start": 23,
+        },
+      },
+      {
+        "id": "my-own-id",
+        "marker": {
+          "end": 70,
+          "start": 60,
+        },
+        "range": {
+          "end": 70,
+          "start": 46,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [
+      {
+        "range": {
+          "end": 70,
+          "start": 46,
+        },
+      },
+    ],
+    "tags": [],
+  },
+  "path": "blocks-handwritten.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-on-heading.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [
+      {
+        "id": "c1",
+        "marker": {
+          "end": 35,
+          "start": 32,
+        },
+        "range": {
+          "end": 35,
+          "start": 13,
+        },
+      },
+    ],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 63,
+          "start": 12,
+        },
+        "level": 2,
+        "range": {
+          "end": 11,
+          "start": 0,
+        },
+        "text": "Criteria",
+      },
+      {
+        "blockId": "c1",
+        "body": {
+          "end": 63,
+          "start": 36,
+        },
+        "level": 3,
+        "range": {
+          "end": 35,
+          "start": 13,
+        },
+        "text": "Criterion text",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-on-heading.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > blocks-on-heading-link.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": "c1",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 25,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "blocks-on-heading",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "blocks-on-heading-link.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > fence-unclosed.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "afterfence",
+        "range": {
+          "end": 80,
+          "start": 69,
+        },
+        "source": "inline",
+        "text": "afterfence",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "fence-unclosed.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > links-all-forms.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 422,
+          "start": 15,
+        },
+        "level": 2,
+        "range": {
+          "end": 14,
+          "start": 0,
+        },
+        "text": "Own heading",
+      },
+    ],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 43,
+          "start": 16,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": "alias",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 77,
+          "start": 44,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "Heading",
+        ],
+        "range": {
+          "end": 113,
+          "start": 78,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "H1",
+          "H2",
+        ],
+        "range": {
+          "end": 147,
+          "start": 114,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": "blockid",
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 184,
+          "start": 148,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "Own heading",
+        ],
+        "range": {
+          "end": 201,
+          "start": 185,
+        },
+        "syntax": "wikilink",
+        "target": "",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": true,
+        "heading": [],
+        "range": {
+          "end": 230,
+          "start": 202,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": "200",
+        "blockId": null,
+        "embed": true,
+        "heading": [],
+        "range": {
+          "end": 249,
+          "start": 231,
+        },
+        "syntax": "wikilink",
+        "target": "image.png",
+      },
+      {
+        "alias": "md link",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 291,
+          "start": 250,
+        },
+        "syntax": "markdown",
+        "target": "Sleep and consolidation.md",
+      },
+      {
+        "alias": "md link",
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "Heading",
+        ],
+        "range": {
+          "end": 341,
+          "start": 292,
+        },
+        "syntax": "markdown",
+        "target": "Sleep and consolidation.md",
+      },
+      {
+        "alias": "shown",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 376,
+          "start": 342,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-all-forms.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > links-case.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 27,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "sleep AND consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-case.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > links-heading-fragment.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "heading",
+        ],
+        "range": {
+          "end": 35,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          " Heading ",
+        ],
+        "range": {
+          "end": 73,
+          "start": 36,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "HEADING",
+        ],
+        "range": {
+          "end": 109,
+          "start": 74,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-heading-fragment.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > links-same-name.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 17,
+          "start": 0,
+        },
+        "syntax": "wikilink",
+        "target": "Klinzing 2019",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "links-same-name.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > lt-before-tag.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "comparison",
+        "range": {
+          "end": 25,
+          "start": 14,
+        },
+        "source": "inline",
+        "text": "comparison",
+        "valid": true,
+      },
+      {
+        "canonical": "insidehtml",
+        "range": {
+          "end": 50,
+          "start": 39,
+        },
+        "source": "inline",
+        "text": "insidehtml",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "lt-before-tag.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-comma-tags.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 36,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 39,
+        "start": 0,
+      },
+      "value": {
+        "tags": [
+          "alpha, beta",
+          "gamma",
+        ],
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "alpha",
+        "range": {
+          "end": 19,
+          "start": 14,
+        },
+        "source": "frontmatter",
+        "text": "alpha",
+        "valid": true,
+      },
+      {
+        "range": {
+          "end": 25,
+          "start": 20,
+        },
+        "reason": "contains whitespace",
+        "source": "frontmatter",
+        "text": " beta",
+        "valid": false,
+      },
+      {
+        "canonical": "gamma",
+        "range": {
+          "end": 35,
+          "start": 30,
+        },
+        "source": "frontmatter",
+        "text": "gamma",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-comma-tags.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-comment-and-order.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": "hypothesis",
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 105,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 108,
+        "start": 0,
+      },
+      "value": {
+        "apple": "double quoted",
+        "kind": "hypothesis",
+        "mango": 43,
+        "tags": [
+          "alpha",
+          "beta/nested",
+        ],
+        "zebra": "single quoted",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "alpha",
+        "range": {
+          "end": 78,
+          "start": 73,
+        },
+        "source": "frontmatter",
+        "text": "alpha",
+        "valid": true,
+      },
+      {
+        "canonical": "beta/nested",
+        "range": {
+          "end": 94,
+          "start": 83,
+        },
+        "source": "frontmatter",
+        "text": "beta/nested",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-comment-and-order.md",
+  "readable": true,
+  "shape": [
+    {
+      "kind": "hypothesis",
+      "path": "props-comment-and-order.md",
+      "problem": "criteriaMissing",
+    },
+  ],
+}
+`;
+
+exports[`vault.outline over the corpus > props-hashtag-in-text-property.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 23,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 26,
+        "start": 0,
+      },
+      "value": {
+        "note": "not #a-tag",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "props-hashtag-in-text-property.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-legacy-tag-key.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 16,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 19,
+        "start": 0,
+      },
+      "value": {
+        "tag": "legacy",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "props-legacy-tag-key.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-link-value.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 43,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 46,
+        "start": 0,
+      },
+      "value": {
+        "related": "[[Sleep and consolidation]]",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "props-link-value.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-list-tags.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 35,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 38,
+        "start": 0,
+      },
+      "value": {
+        "tags": [
+          "alpha",
+          "ml/probing",
+        ],
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "alpha",
+        "range": {
+          "end": 19,
+          "start": 14,
+        },
+        "source": "frontmatter",
+        "text": "alpha",
+        "valid": true,
+      },
+      {
+        "canonical": "ml/probing",
+        "range": {
+          "end": 34,
+          "start": 24,
+        },
+        "source": "frontmatter",
+        "text": "ml/probing",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-list-tags.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-tag-with-space.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 36,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 39,
+        "start": 0,
+      },
+      "value": {
+        "tags": [
+          "machine learning",
+          "other",
+        ],
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "range": {
+          "end": 27,
+          "start": 11,
+        },
+        "reason": "contains whitespace",
+        "source": "frontmatter",
+        "text": "machine learning",
+        "valid": false,
+      },
+      {
+        "canonical": "other",
+        "range": {
+          "end": 34,
+          "start": 29,
+        },
+        "source": "frontmatter",
+        "text": "other",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "props-tag-with-space.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > props-types.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 107,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 110,
+        "start": 0,
+      },
+      "value": {
+        "aliases": [
+          "td",
+        ],
+        "done": true,
+        "due": "1988-11-18",
+        "priority": 3,
+        "reviewed": "1988-11-18T12:34:00",
+        "title": "Types demo",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "props-types.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-bom.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": "note",
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 15,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 18,
+        "start": 0,
+      },
+      "value": {
+        "kind": "note",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-bom.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-crlf.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-crlf.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-frontmatter-not-at-top.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 25,
+          "start": 20,
+        },
+        "level": 2,
+        "range": {
+          "end": 19,
+          "start": 5,
+        },
+        "text": "kind: note",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-frontmatter-not-at-top.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-no-frontmatter.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-no-frontmatter.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > shape-no-trailing-newline.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "shape-no-trailing-newline.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > tags-excluded-contexts.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": "note",
+  "outline": {
+    "blockIds": [],
+    "frontmatter": {
+      "content": {
+        "end": 15,
+        "start": 4,
+      },
+      "parsed": true,
+      "range": {
+        "end": 18,
+        "start": 0,
+      },
+      "value": {
+        "kind": "note",
+      },
+    },
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "inwikilink",
+        ],
+        "range": {
+          "end": 256,
+          "start": 218,
+        },
+        "syntax": "wikilink",
+        "target": "Sleep and consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "control",
+        "range": {
+          "end": 47,
+          "start": 39,
+        },
+        "source": "inline",
+        "text": "control",
+        "valid": true,
+      },
+      {
+        "canonical": "incomment",
+        "range": {
+          "end": 482,
+          "start": 472,
+        },
+        "source": "inline",
+        "text": "incomment",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "tags-excluded-contexts.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > tags-invalid.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": false,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [
+      {
+        "blockId": null,
+        "body": {
+          "end": 102,
+          "start": 83,
+        },
+        "level": 1,
+        "range": {
+          "end": 82,
+          "start": 65,
+        },
+        "text": "heading-not-tag",
+      },
+    ],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "tag",
+        "range": {
+          "end": 42,
+          "start": 37,
+        },
+        "source": "inline",
+        "text": "tag/",
+        "valid": true,
+      },
+      {
+        "canonical": "a//b",
+        "range": {
+          "end": 63,
+          "start": 58,
+        },
+        "source": "inline",
+        "text": "a//b",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "tags-invalid.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > tags-valid.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [
+      {
+        "canonical": "simple",
+        "range": {
+          "end": 22,
+          "start": 15,
+        },
+        "source": "inline",
+        "text": "simple",
+        "valid": true,
+      },
+      {
+        "canonical": "with-dash",
+        "range": {
+          "end": 33,
+          "start": 23,
+        },
+        "source": "inline",
+        "text": "with-dash",
+        "valid": true,
+      },
+      {
+        "canonical": "with_underscore",
+        "range": {
+          "end": 50,
+          "start": 34,
+        },
+        "source": "inline",
+        "text": "with_underscore",
+        "valid": true,
+      },
+      {
+        "canonical": "nested/two/levels",
+        "range": {
+          "end": 69,
+          "start": 51,
+        },
+        "source": "inline",
+        "text": "nested/two/levels",
+        "valid": true,
+      },
+      {
+        "canonical": "y1984",
+        "range": {
+          "end": 76,
+          "start": 70,
+        },
+        "source": "inline",
+        "text": "y1984",
+        "valid": true,
+      },
+      {
+        "canonical": "émoji🙂",
+        "range": {
+          "end": 85,
+          "start": 77,
+        },
+        "source": "inline",
+        "text": "émoji🙂",
+        "valid": true,
+      },
+      {
+        "canonical": "ml/probing",
+        "range": {
+          "end": 122,
+          "start": 111,
+        },
+        "source": "inline",
+        "text": "ML/Probing",
+        "valid": true,
+      },
+      {
+        "canonical": "ml/probing",
+        "range": {
+          "end": 138,
+          "start": 127,
+        },
+        "source": "inline",
+        "text": "ml/probing",
+        "valid": true,
+      },
+    ],
+  },
+  "path": "tags-valid.md",
+  "readable": true,
+  "shape": [],
+}
+`;

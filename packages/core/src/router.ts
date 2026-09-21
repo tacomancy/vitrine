@@ -3,6 +3,7 @@ import { z } from "zod";
 import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
+import { readOutline } from "./vault-files.js";
 
 export type Context = { vault: VaultService; questions: QuestionService };
 
@@ -54,6 +55,16 @@ export const router = t.router({
       .input(pathInput)
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
+    outline: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const vault = await ctx.vault.current();
+      if (vault === null) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No vault is open.",
+        });
+      }
+      return refusing(readOutline(vault.path, input.path));
+    }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

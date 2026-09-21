@@ -19,7 +19,7 @@
 // `page` offers: eval(js) → value; key(key, {code, vk, text, modifiers});
 // type(text); wait(js) → polls until truthy; sleep(ms). ⌘ is modifiers 4.
 //
-// Needs `pnpm --filter core build && pnpm --filter shell build` first: the
+// Needs `pnpm --filter core... build && pnpm --filter shell build` first: the
 // shell spawns core/dist/main.js, so a stale dist is stale behaviour. Runs
 // under the system Node (22+, for fetch and WebSocket), on macOS only: the
 // Electron binary is the .app the shell package installs.

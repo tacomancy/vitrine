@@ -7,7 +7,7 @@ How an agent launches Vitrine to see a change working, without a window appearin
 1. **Build both packages.** The shell spawns `packages/core/dist/main.js` as a file, so a stale `dist` is stale behaviour:
 
    ```bash
-   pnpm --filter core build && pnpm --filter shell build
+   pnpm --filter core... build && pnpm --filter shell build
    ```
 
 2. **Launch hidden, drive, capture.** `Scripts/run-hidden.mjs` starts the Electron binary with `VITRINE_SNAPSHOT` (the window is never shown; the page is captured to a PNG and the app quits), `VITRINE_SNAPSHOT_AFTER` (how long the page gets first) and `--remote-debugging-port`, then drives the page over the Chrome DevTools Protocol:

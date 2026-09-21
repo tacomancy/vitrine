@@ -214,6 +214,9 @@ importers:
       hono:
         specifier: ^4.13.8
         version: 4.13.8
+      markdown:
+        specifier: workspace:*
+        version: link:../markdown
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
