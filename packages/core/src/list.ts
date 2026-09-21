@@ -93,6 +93,12 @@ const MAX_FRONTMATTER = 64 * 1024;
  * lines are fences is the package's rule, the one `vault.outline` reads by,
  * so both procedures give one answer to a BOM (S4a) or a blank line before
  * the fence (S2). Null when the file has no block.
+ *
+ * One deliberate divergence: an opening fence that is never closed is "no
+ * frontmatter" to `vault.outline`, which holds the whole file, but is a
+ * fault here — this reader gives up at MAX_FRONTMATTER and cannot tell a
+ * missing closing fence from a distant one, and a guess would drop the
+ * file quietly rather than surface it in `unreadable[]`.
  */
 async function readFrontmatter(path: string): Promise<string | null> {
   const handle = await open(path, "r");
@@ -106,10 +112,11 @@ async function readFrontmatter(path: string): Promise<string | null> {
       const eof = bytesRead < CHUNK;
       text += decoder.write(buffer.subarray(0, bytesRead));
       if (eof) text += decoder.end();
-      if (!opensFrontmatter(text)) return null;
+      // The opening fence sits in the first chunk or nowhere.
+      if (text.length <= CHUNK && !opensFrontmatter(text)) return null;
       const located = locateFrontmatter(text);
       // A `---` ending exactly where this read ended may be the head of a
-      // longer line; only the end of the file settles it.
+      // longer line; more bytes, or the end of the file, settle it.
       if (located && (eof || located.range.end < text.length)) {
         return text.slice(located.content.start, located.content.end);
       }

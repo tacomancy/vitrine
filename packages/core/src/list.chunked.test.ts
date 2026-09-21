@@ -6,6 +6,8 @@ import { core, tmp } from "./test-core.js";
 
 // The bytes every `open()`ed handle has read, so a test can assert on how
 // much of a file the Inbox looked at — the one thing the reply cannot show.
+// In its own file because `vi.mock` is module-global: the other list tests
+// should run against the real `open`.
 const bytesRead = { total: 0 };
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -41,6 +43,8 @@ describe("questions.list reads to the closing fence and no further", () => {
     expect(reply.result?.data.questions.map((q) => q.question)).toEqual([
       "Heavy",
     ]);
-    expect(bytesRead.total).toBeLessThan(body.length / 10);
+    // The block fits in one 4 KiB chunk; a second read would mean the
+    // reader went looking past the closing fence.
+    expect(bytesRead.total).toBeLessThanOrEqual(4096);
   });
 });
