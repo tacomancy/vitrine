@@ -1,7 +1,9 @@
 import { open, readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { locateFrontmatter, opensFrontmatter } from "markdown";
 import { parse as parseYaml } from "yaml";
+import type { ShapeProblem } from "./vault-files.js";
 
 export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
 
@@ -30,6 +32,12 @@ export type Listing = {
   questions: ListedQuestion[];
   partial: PartialQuestion[];
   unreadable: Array<{ path: string; reason: string }>;
+  /**
+   * Files short of their Kind's structure, as `vault.outline` reports them.
+   * Every read procedure carries the same three channels; a Question has no
+   * owned sections and no criteria, so nothing lands here today.
+   */
+  shape: ShapeProblem[];
 };
 
 export type Order = "newest" | "oldest";
@@ -79,15 +87,12 @@ const CHUNK = 4096;
 // whole file looking for a closing fence that is never coming.
 const MAX_FRONTMATTER = 64 * 1024;
 
-// The fence sits at byte 0, after a BOM if any (ADR 0008).
-const OPEN_FENCE = /^\uFEFF?---\r?\n/;
-const CLOSE_FENCE = /\r?\n---\r?\n/;
-// A file may end on its closing fence with no newline after it.
-const CLOSE_FENCE_AT_EOF = /\r?\n---$/;
-
 /**
  * The YAML between the opening and closing `---` fences, read in chunks so
- * the body past the block is never loaded. Null when the file has no block.
+ * the body past the block is never loaded (ADR 0009 decision 1). Which
+ * lines are fences is the package's rule, the one `vault.outline` reads by,
+ * so both procedures give one answer to a BOM (S4a) or a blank line before
+ * the fence (S2). Null when the file has no block.
  */
 async function readFrontmatter(path: string): Promise<string | null> {
   const handle = await open(path, "r");
@@ -101,15 +106,13 @@ async function readFrontmatter(path: string): Promise<string | null> {
       const eof = bytesRead < CHUNK;
       text += decoder.write(buffer.subarray(0, bytesRead));
       if (eof) text += decoder.end();
-      const opened = OPEN_FENCE.exec(text);
-      if (!opened) return null;
-      // The YAML starts after the opening fence and runs to the newline that
-      // precedes the closing one.
-      const start = opened[0].length - (opened[0].endsWith("\r\n") ? 2 : 1);
-      const rest = text.slice(start);
-      const close =
-        CLOSE_FENCE.exec(rest) ?? (eof ? CLOSE_FENCE_AT_EOF.exec(rest) : null);
-      if (close) return text.slice(start, start + close.index + 1);
+      if (!opensFrontmatter(text)) return null;
+      const located = locateFrontmatter(text);
+      // A `---` ending exactly where this read ended may be the head of a
+      // longer line; only the end of the file settles it.
+      if (located && (eof || located.range.end < text.length)) {
+        return text.slice(located.content.start, located.content.end);
+      }
       if (eof || text.length > MAX_FRONTMATTER) {
         throw new Error("frontmatter block is not closed");
       }
@@ -180,7 +183,12 @@ export async function listQuestions(
   vaultPath: string,
   order: Order
 ): Promise<Listing> {
-  const listing: Listing = { questions: [], partial: [], unreadable: [] };
+  const listing: Listing = {
+    questions: [],
+    partial: [],
+    unreadable: [],
+    shape: [],
+  };
   for (const path of await markdownFiles(vaultPath, listing.unreadable)) {
     try {
       const fm = await parseFrontmatter(path);

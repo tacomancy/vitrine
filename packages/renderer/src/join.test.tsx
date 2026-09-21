@@ -33,7 +33,7 @@ function renderVault(initial: ReturnType<typeof q>[]) {
         (order === "oldest" ? 1 : -1) *
         (Date.parse(a.captured) - Date.parse(b.captured))
     );
-    return { questions, partial: [], unreadable: [] };
+    return { questions, partial: [], unreadable: [], shape: [] };
   });
   const capture = vi.fn((input: unknown) => {
     const { text } = input as { text: string };
