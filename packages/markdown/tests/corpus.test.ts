@@ -199,6 +199,9 @@ describe("README rows: frontmatter", () => {
 describe("README rows: body tags", () => {
   it("T1a–d — the distinct tags of tags-valid.md, one for both casings, emoji counted", () => {
     const result = of("tags-valid.md");
+    // T1a: 7 distinct in the pane (the set below); the cache lists 8
+    // occurrences, which is the number the row first recorded (#158).
+    expect(result.tags.filter((t) => t.valid)).toHaveLength(8);
     expect(new Set(canonical(result))).toEqual(
       new Set([
         "simple",
