@@ -1,11 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   LinkLine,
   OpenThread,
   ResearchQuestionFrontmatter,
+  Revision,
   ShapeProblem,
 } from "core";
-import { useCallback, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { formatAge } from "./age";
 import { useVaultChanged } from "./events";
 import styles from "./ResearchQuestion.module.css";
@@ -17,12 +24,14 @@ import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
  * The Research Question view (brief § Surfaces; prompt 3; ADR 0020): one
- * page per promoted question, at `#/questions/<path>`. This slice is the
- * page read (#209) — the question, its provenance and status, and the six
- * sections as the file holds them. The most common state is a freshly
- * promoted page with almost nothing in it, so an empty section is drawn as
- * a quiet outline with one sentence on what belongs there, never as a gap.
- * Every section becomes editable in the tickets that own it.
+ * page per promoted question, at `#/questions/<path>`. The page read (#209)
+ * — the question, its provenance and status, and the six sections as the
+ * file holds them — and, from #213, the working answer as a text field
+ * whose every save the core records as a Revision. The most common state
+ * is a freshly promoted page with almost nothing in it, so an empty section
+ * is drawn as a quiet outline with one sentence on what belongs there,
+ * never as a gap. The other sections become editable in the tickets that
+ * own them.
  */
 export function ResearchQuestion({ path }: { path: string }) {
   const trpc = useTRPC();
@@ -71,25 +80,19 @@ export function ResearchQuestion({ path }: { path: string }) {
       )}
       {readable !== null && (
         <div className={styles.scroll}>
-          <Header frontmatter={readable.frontmatter} />
+          <Header
+            frontmatter={readable.frontmatter}
+            entries={readable.sections.positionHistory.entries}
+          />
           <Section
             name="Working answer"
             present={readable.sections.workingAnswer.present}
           >
-            {readable.sections.workingAnswer.text === "" ? (
-              <Outline>
-                Nothing written yet. What you currently believe goes here —
-                provisional, and every change to it is kept.
-              </Outline>
-            ) : (
-              <div className={styles.answer}>
-                {paragraphs(readable.sections.workingAnswer.text).map(
-                  (p, i) => (
-                    <p key={i}>{p}</p>
-                  )
-                )}
-              </div>
-            )}
+            <WorkingAnswer
+              path={readable.path}
+              hash={readable.hash}
+              text={readable.sections.workingAnswer.text}
+            />
           </Section>
           <div className={styles.sides}>
             <Section
@@ -162,8 +165,14 @@ export function ResearchQuestion({ path }: { path: string }) {
   );
 }
 
-/** The question in the serif, then where and when it was first wondered, then its status. */
-function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
+/** The question in the serif, then where and when it was first wondered, then its status and how settled the answer is. */
+function Header({
+  frontmatter,
+  entries,
+}: {
+  frontmatter: ResearchQuestionFrontmatter;
+  entries: Revision[];
+}) {
   const now = new Date();
   return (
     <header className={styles.header}>
@@ -178,6 +187,7 @@ function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
         {frontmatter.promoted !== undefined && (
           <span>promoted {formatAge(frontmatter.promoted, now)}</span>
         )}
+        <span>{revisionLine(entries)}</span>
       </div>
       <h1 className={styles.question}>{frontmatter.question}</h1>
       <p className={styles.provenance}>{provenanceLine(frontmatter)}</p>
@@ -209,6 +219,116 @@ function whileDoing(fm: ResearchQuestionFrontmatter): string {
   return fm.context === "other" ? where : `while ${fm.context} ${where}`;
 }
 
+const FIELD = "working answer";
+
+/**
+ * `revision 3 of 3 · held since 8 September 2026`, derived from the
+ * entries (spec #206 story 18): the answer on the page is always the latest
+ * revision, held since the newest entry — the first in the section, as the
+ * app writes them — recorded it.
+ */
+function revisionLine(entries: Revision[]): string {
+  const own = entries.filter((e) => e.field === FIELD);
+  const newest = own[0];
+  if (newest === undefined) return "no revisions yet";
+  return `revision ${own.length} of ${own.length} · held since ${localDate(newest.at)}`;
+}
+
+/**
+ * The working answer as a plain text field (§ Research Question view and
+ * triage, Editing on the page): autosave on blur, ⌘↵ saves now, esc
+ * reverts unsaved typing. A save carries the hash the page was given; the
+ * core diffs and records the Revision, so nothing here knows the grammar.
+ * A refusal is a line under the field with its reason, and the typing
+ * stays — never silent, never lost (CLAUDE.md § Invariants).
+ */
+function WorkingAnswer({
+  path,
+  hash,
+  text,
+}: {
+  path: string;
+  hash: string;
+  text: string;
+}) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  // Null while the field shows the file's text; the typing otherwise.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  // Set while a save is in flight, so a blur right after ⌘↵ is one save.
+  const inFlight = useRef(false);
+  const save = useMutation(
+    trpc.researchQuestions.saveWorkingAnswer.mutationOptions({
+      onSuccess: async (result, { text: saved }) => {
+        if (!result.written) {
+          setRefusal(`not saved — ${result.detail}`);
+          return;
+        }
+        setRefusal(null);
+        await queryClient.invalidateQueries(
+          trpc.researchQuestions.page.queryFilter({ path })
+        );
+        // Typing that went on past the save is kept; the field shows the
+        // re-read page only when it holds what was typed.
+        setDraft((current) => (current === saved ? null : current));
+      },
+      onError: (error) => setRefusal(`not saved — ${error.message}`),
+    })
+  );
+
+  const commit = () => {
+    if (draft === null || inFlight.current) return;
+    if (draft.trim() === text) {
+      setDraft(null);
+      return;
+    }
+    inFlight.current = true;
+    save.mutate(
+      { path, text: draft, basedOn: hash },
+      {
+        onSettled: () => {
+          inFlight.current = false;
+        },
+      }
+    );
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && event.metaKey) {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setDraft(null);
+    }
+  };
+  const shown = draft ?? text;
+  return (
+    <>
+      {shown === "" && (
+        <Outline>
+          Nothing written yet. What you currently believe goes here —
+          provisional, and every change to it is kept.
+        </Outline>
+      )}
+      <textarea
+        className={styles.field}
+        aria-labelledby="rq-working-answer"
+        value={shown}
+        rows={shown === "" ? 2 : undefined}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={onKeyDown}
+      />
+      {refusal !== null && (
+        <p role="status" className={styles.refusal}>
+          {refusal}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** The history's base line, derived from the frontmatter and never written as an entry (spec #206 story 39). */
 function baseLine(fm: ResearchQuestionFrontmatter): string {
   const when = fm.promoted === undefined ? "" : `, ${localDate(fm.promoted)}`;
@@ -225,12 +345,6 @@ function linkText(from: string): string {
   const alias = inner.split("|")[1];
   return alias ?? inner;
 }
-
-const paragraphs = (text: string) =>
-  text
-    .split(/\n[ \t]*\n/)
-    .map((p) => p.trim())
-    .filter((p) => p !== "");
 
 /**
  * One of the six, as a landmark so the outline is navigable. A section the

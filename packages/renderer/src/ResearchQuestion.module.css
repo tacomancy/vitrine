@@ -112,22 +112,42 @@
   color: var(--color-fg-muted);
 }
 
-.answer {
+/*
+ * The working answer is a text field that reads as the answer: the serif
+ * against the accent rule, no box of its own, sized to its content so
+ * editing it is editing the text on the page (prompt 3: as fast as editing
+ * a text field). Focus is the rule brightening, not an outline around a box.
+ */
+.field {
+  display: block;
+  width: 100%;
   max-width: 64ch;
-  border-left: 2px solid var(--color-accent);
-  padding-left: var(--space-4);
+  min-height: calc(2 * var(--leading-relaxed) * var(--text-md));
+  field-sizing: content;
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border: 0;
+  border-left: 2px solid var(--color-line);
+  border-radius: 0;
+  background: transparent;
+  resize: none;
   font-family: var(--font-serif);
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
   color: var(--color-fg);
 }
 
-.answer p {
-  margin: 0;
+.field:focus {
+  outline: none;
+  border-left-color: var(--color-accent);
 }
 
-.answer p + p {
-  margin-top: var(--space-3);
+/* A refused save, under the field, in the footer's voice: a reason, never red. */
+.refusal {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
 }
 
 .lines {
