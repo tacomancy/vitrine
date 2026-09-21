@@ -28,7 +28,7 @@ The installed `/Applications/Vitrine.app` is the user's daily driver, and `pnpm 
 
 ## What to use as a vault
 
-Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsidian/`, a note, and one Question outside `questions/`, so an open shows a row before anything is captured. Never point a run at the user's real vault. A failing write is simulated with `chmod 500` on `questions/`; restore it after.
+Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsidian/`, a note, one Question outside `questions/` (so an open shows a row before anything is captured), and one freshly promoted Research Question under `questions/` for `#/questions/…`. Never point a run at the user's real vault. A failing write is simulated with `chmod 500` on `questions/`; restore it after.
 
 ## What cannot be driven this way
 

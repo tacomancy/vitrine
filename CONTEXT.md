@@ -50,7 +50,7 @@ A `##` section of an app-owned file whose body is the user's prose, which the ap
 _Avoid_: Owned section (the app rewrites those unprompted), field, form
 
 **Shape problem**:
-An app-owned file missing structure its Kind expects. Four cases today: a Hypothesis without `## Criteria`; a `###` under `## Criteria` without `^c<n>`; an Owned section present twice; a criterion's `outcome::` or `relationship::` holding a value outside its vocabulary. Reported as `{ path, kind, problem, block? }` beside the rest of the Outline, never in place of it; a missing Owned section is not one (ADR 0008 decision 10).
+An app-owned file missing structure its Kind expects. Four cases the Index records: a Hypothesis without `## Criteria`; a `###` under `## Criteria` without `^c<n>`; an Owned section present twice; a criterion's `outcome::` or `relationship::` holding a value outside its vocabulary. Two more a page reports for itself and the Index never stores: a section the page draws whose heading is not in the file (retyped), and an Edited section present twice. Reported as `{ path, kind, problem, block? }` beside the rest of the Outline, never in place of it; a missing Owned section is not one (ADR 0008 decision 10) — the app appends it — but a page still says it could not show it.
 _Avoid_: Corrupt, malformed, invalid file, unreadable (that is a file whose frontmatter does not parse)
 
 **Write**:

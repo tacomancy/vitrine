@@ -96,7 +96,7 @@
 .outline {
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--color-line-control);
+  border: 1px dashed var(--color-line);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
