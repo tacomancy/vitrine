@@ -13,3 +13,6 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - "@types/node@24.13.6"
+
+patchedDependencies:
+  micromark@4.0.2: patches/micromark@4.0.2.patch
