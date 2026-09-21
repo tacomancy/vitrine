@@ -256,8 +256,9 @@ describe("outline: headings and sections", () => {
     ]);
   });
 
-  it("sees `key:: value` inside a list item as a field, but not mid-line", () => {
-    const list = "- outcome:: met\n\nsee outcome:: met\n";
+  it("sees `key:: value` inside a list item as a field, but not mid-line, in a heading, or in a callout", () => {
+    const list =
+      "- outcome:: met\n\nsee outcome:: met\n\n## outcome:: met\n\n> outcome:: met\n";
     expect(outline(list).inlineFields.map((f) => [f.key, f.value])).toEqual([
       ["outcome", "met"],
     ]);

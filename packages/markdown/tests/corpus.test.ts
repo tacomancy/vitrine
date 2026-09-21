@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { YAMLSeq } from "yaml";
 
 import { outline, type Outline } from "../src/index.js";
 
@@ -106,6 +107,15 @@ describe("README rows: frontmatter", () => {
     ]);
   });
 
+  it("F2a — after the panel edit, `tags:` is a sequence with the comma entry unsplit", () => {
+    const result = of("props-comma-tags.md");
+    if (!result.frontmatter?.parsed) throw new Error("unreadable");
+    expect(result.frontmatter.document.get("tags")).toBeInstanceOf(YAMLSeq);
+    expect(result.frontmatter.document.toJS()).toEqual({
+      tags: ["alpha, beta", "gamma"],
+    });
+  });
+
   it("F2b — `alpha, beta` yields alpha; beta is not counted, and is recorded as invalid here", () => {
     expect(canonical(of("props-comma-tags.md"))).toEqual([
       "alpha",
@@ -114,10 +124,29 @@ describe("README rows: frontmatter", () => {
     ]);
   });
 
+  it("F3a — `tag: legacy` survived the round trip and reads as a plain key", () => {
+    const result = of("props-legacy-tag-key.md");
+    if (!result.frontmatter?.parsed) throw new Error("unreadable");
+    expect(result.frontmatter.document.get("tag")).toBe("legacy");
+  });
+
   it("F3b — `tag:` is ignored", () => {
     const result = of("props-legacy-tag-key.md");
     expect(result.frontmatter?.parsed).toBe(true);
     expect(canonical(result)).toEqual([]);
+  });
+
+  it("F4a, F4c–f — what the panel edit left: no comments, no quotes, no blank line, a 2-space list", () => {
+    const source = read("props-comment-and-order.md");
+    const result = outline(source);
+    if (!result.frontmatter?.parsed) throw new Error("unreadable");
+    const yaml = slice(source, result.frontmatter.content);
+    expect(yaml).not.toContain("#"); // F4a: none
+    expect(yaml).toContain("zebra: single quoted\n"); // F4c: no
+    expect(yaml).toContain("apple: double quoted\n"); // F4d: no
+    expect(yaml).not.toMatch(/\n\n/); // F4e: no
+    expect(yaml).toContain("\n  - alpha\n"); // F4f: 2-space
+    expect(result.frontmatter.document.commentBefore ?? null).toBeNull();
   });
 
   it("F4b — key order is the file's", () => {

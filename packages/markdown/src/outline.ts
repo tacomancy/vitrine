@@ -174,7 +174,12 @@ export function outline(source: string): Outline {
         break;
       }
       case "inlineField": {
-        // The tokenizer saw `key::`; the grammar function reads the line.
+        // A field is a paragraph line: `## key:: v` is a heading and
+        // `> key:: v` is a callout's prose. The tokenizer saw `key::`; the
+        // grammar function reads the line.
+        const container = ancestors[ancestors.length - 2];
+        if (ancestors[ancestors.length - 1]?.type !== "paragraph") break;
+        if (container?.type === "blockquote") break;
         const start = rangeOf(node).start;
         const lineEnd = endOfLine(source, start);
         const field = parseInlineField(source.slice(start, lineEnd));
