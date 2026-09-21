@@ -357,6 +357,10 @@ One row on the Loose Ends dashboard: something incomplete or broken with a one-c
 **Coverage**:
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
+**Origins**:
+A reading of the Question Map: Provenance aggregated across every Question regardless of Status — which sources and contexts the wondering came from, ranked by how many Questions each produced. Endogenous, like Coverage. Read beside the matrix: an Origin high on the list whose Coverage is thin is a source worth going back to. Carries no other statistic (how often a source was read, how many sessions a context had) — those are accumulation. The flow funnel the brief placed beside it was cut (#92).
+_Avoid_: Provenance panel (Provenance is the per-Question fact; Origins is the aggregate), funnel, flow
+
 **Lexicon**:
 The Terms a Tag is measured and searched by: derived from the titles and abstracts of the Tag's papers, with author keywords as extra votes when known, and the user's Seeds and Exclusions applied. One set per Tag, compiled into each Structured source's own syntax. Flat, never inherited from the parent. Visible and editable; a Tag without one is *unplaced*, never low (ADR 0018).
 _Avoid_: Keyword set (a keyword is author-supplied; a Term need not be), vocabulary, topic model
