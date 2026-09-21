@@ -1,3 +1,7 @@
+/** The message of whatever was thrown, for a reason a user will read. */
+export const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export type VaultErrorKind =
   | "notAFolder"
   | "unreadable"

@@ -25,6 +25,9 @@ export function listQuestions(
 ): Listing {
   const absolute = (path: string) => join(vaultPath, path);
 
+  // Assembled key by key: `readQuestion` is the only writer of `fields`
+  // rows for a Question, so every key here is one of `ListedQuestion`'s and
+  // every value has already passed its vocabulary.
   const questions = new Map<string, ListedQuestion>();
   for (const row of index.select<{ path: string; key: string; value: string }>(
     "SELECT path, key, value FROM fields WHERE path IN (SELECT path FROM files WHERE kind = 'question') ORDER BY path"

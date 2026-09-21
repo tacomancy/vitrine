@@ -202,9 +202,12 @@ export function createQuestionService({
     // The capture lands in the Inbox before this returns (ADR 0010): the
     // index is written from the content just written, in one transaction,
     // and the watcher will recognise the file's hash as the app's own.
-    await vault
-      .index()
-      ?.own(relative(current.path, written.path).split(sep).join("/"), content);
+    await (
+      await vault.opened()
+    )?.index.own(
+      relative(current.path, written.path).split(sep).join("/"),
+      content
+    );
     return written;
   }
 

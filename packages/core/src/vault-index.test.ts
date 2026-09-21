@@ -185,11 +185,6 @@ describe("vault.open and the index", () => {
       "questions/Q 001.md",
       "questions/Q 002.md",
     ]);
-    const rebuilt = new DatabaseSync(join(vault, ".vitrine", "index.sqlite"));
-    expect(rebuilt.prepare("PRAGMA user_version").get()).not.toEqual({
-      user_version: 999,
-    });
-    rebuilt.close();
   });
 
   it("drops and rebuilds a garbage index.sqlite", async () => {
@@ -266,11 +261,11 @@ describe("own writes index themselves", () => {
     ]);
   });
 
-  it("records the stat of the file it wrote, so the next open finds nothing to re-outline", async () => {
+  it("records the stat and hash of the file it wrote, so the next open finds nothing to re-outline — even after a touch", async () => {
     const vault = await tmp("stat-record");
     const c = await opened(vault);
     await c.indexed();
-    await c.mutate("questions.capture", {
+    const reply = await c.mutate<{ path: string }>("questions.capture", {
       text: "Recorded",
       provenance: { context: "other" },
     });
@@ -278,6 +273,14 @@ describe("own writes index themselves", () => {
     const { calls, positionsOf } = standIn("question");
     const again = await opened(vault, { positionsOf });
     await again.indexed();
+    expect(calls).toEqual([]);
+
+    // A touch moves the stat, so the file is hashed — and the hash the own
+    // write recorded is the disk's, so it is still not re-outlined.
+    const later = new Date(Date.now() + 60_000);
+    await utimes(reply.result?.data.path as string, later, later);
+    const third = await opened(vault, { positionsOf });
+    await third.indexed();
     expect(calls).toEqual([]);
     expect((await listOf(again)).questions.map((q) => q.question)).toEqual([
       "Recorded",

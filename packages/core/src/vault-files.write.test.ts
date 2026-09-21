@@ -3,7 +3,7 @@ import { readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createFile, readOutline, replaceFile, write } from "./vault-files.js";
-import { VaultError } from "./vault.js";
+import { VaultError } from "./errors.js";
 import {
   basedOn,
   bytes,

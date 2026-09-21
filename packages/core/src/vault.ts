@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { VaultError } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
 import {
   IndexOpenError,
@@ -9,8 +9,6 @@ import {
   type IndexStatus,
   type VaultIndex,
 } from "./vault-index.js";
-
-export { VaultError, type VaultErrorKind } from "./errors.js";
 
 export type Vault = { name: string; path: string };
 
@@ -33,9 +31,8 @@ export type VaultService = {
   open: (path: string) => Promise<Vault>;
   /** Ask the host for a folder and open it; null when the user cancelled. */
   pick: () => Promise<Vault | null>;
-  /** The open vault's index; null when no vault is open. */
-  index: () => VaultIndex | null;
-  status: () => Promise<VaultStatus | null>;
+  /** The open vault with its index, or null: what a procedure that needs both asks for. */
+  opened: () => Promise<Opened | null>;
   /** Tear down the open vault's resources; called on exit. The next `open` does the same. */
   close: () => void;
 };
@@ -68,7 +65,7 @@ async function validateFolder(path: string): Promise<void> {
 const LAST_VAULT_FILE = "last-vault.json";
 
 /** Everything held per open vault; the watcher (#188) joins the index here. */
-type Opened = { vault: Vault; index: VaultIndex };
+export type Opened = { vault: Vault; index: VaultIndex };
 
 export function createVaultService({
   host,
@@ -123,16 +120,22 @@ export function createVaultService({
   }
 
   // A remembered vault that has moved or gone is First run, not a fault, so
-  // its failure is swallowed here and nowhere else.
+  // its failure is swallowed here and nowhere else. One whose `.vitrine/`
+  // can no longer be written is a fault with nowhere to show yet — no vault
+  // is open, so `vault.status` cannot carry it — so it reaches the core's
+  // log and the user sees First run; reopening the folder says why.
   const restored = (async () => {
     const path = await remembered();
     if (path === null) return;
     try {
       await validateFolder(path);
-      const index = await openResources(path);
-      install({ name: basename(path), path }, index);
     } catch {
-      opened = null;
+      return;
+    }
+    try {
+      install({ name: basename(path), path }, await openResources(path));
+    } catch (cause) {
+      console.error(`vitrine-core: ${errorMessage(cause)}`);
     }
   })();
 
@@ -165,10 +168,9 @@ export function createVaultService({
       const path = await host.pickFolder();
       return path === null ? null : open(path);
     },
-    index: () => opened?.index ?? null,
-    status: async () => {
+    opened: async () => {
       await restored;
-      return opened?.index.status() ?? null;
+      return opened;
     },
     close: () => {
       opened?.index.close();

@@ -3,9 +3,8 @@ import { z } from "zod";
 import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
-import type { VaultService, VaultStatus } from "./vault.js";
+import type { VaultService } from "./vault.js";
 import { readOutline } from "./vault-files.js";
-import type { VaultIndex } from "./vault-index.js";
 
 export type Context = { vault: VaultService; questions: QuestionService };
 
@@ -33,16 +32,16 @@ const captureInput = z.object({
   provenance: z.object({ context: z.literal("other") }).strict(),
 });
 
-/** The open vault, or the PRECONDITION_FAILED a procedure that needs one raises. */
+/** The open vault and its index, or the PRECONDITION_FAILED a procedure that needs them raises. */
 async function requireVault(ctx: Context) {
-  const vault = await ctx.vault.current();
-  if (vault === null) {
+  const opened = await ctx.vault.opened();
+  if (opened === null) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message: "No vault is open.",
     });
   }
-  return vault;
+  return opened;
 }
 
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
@@ -70,22 +69,18 @@ export const router = t.router({
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
     outline: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
-      const vault = await requireVault(ctx);
+      const { vault } = await requireVault(ctx);
       return refusing(readOutline(vault.path, input.path));
     }),
     status: t.procedure.query(async ({ ctx }) => {
-      await requireVault(ctx);
-      return (await ctx.vault.status()) as VaultStatus;
+      const { index } = await requireVault(ctx);
+      return index.status();
     }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
-      const vault = await requireVault(ctx);
-      return listQuestions(
-        ctx.vault.index() as VaultIndex,
-        vault.path,
-        input.order
-      );
+      const { vault, index } = await requireVault(ctx);
+      return listQuestions(index, vault.path, input.order);
     }),
     capture: t.procedure
       .input(captureInput)

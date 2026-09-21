@@ -17,7 +17,7 @@ import {
   type Tag,
 } from "markdown";
 import { writeAtomically } from "./atomic-write.js";
-import { VaultError } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
 
 /**
  * The core's reading of one Markdown file: the outline `packages/markdown`
@@ -191,10 +191,6 @@ function fileChoices(raw: string): { text: string; file: FileChoices } {
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * The criteria of a Hypothesis and what is wrong with them. Only a `###`
  * inside `## Criteria` is a criterion, and only a field under a `### … ^c<n>`
@@ -284,7 +280,8 @@ function duplicatedOwnedSections(
   return shape;
 }
 
-const sha256 = (bytes: Buffer | string) =>
+/** SHA-256 hex of a file's bytes: the hash every read, write, and index row carries. */
+export const sha256 = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
 
 /**

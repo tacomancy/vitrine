@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   mkdir,
   readdir,
@@ -9,8 +8,9 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { errorMessage } from "./errors.js";
 import { readQuestion } from "./question-kind.js";
-import { analyseFile, type OutlineResponse } from "./vault-files.js";
+import { analyseFile, sha256, type OutlineResponse } from "./vault-files.js";
 
 /**
  * `.vitrine/index.sqlite` (ADR 0014; `docs/architecture.md` § Index): the
@@ -132,12 +132,6 @@ const TABLES = [
   "positions",
 ];
 
-const sha256 = (bytes: Buffer | string) =>
-  createHash("sha256").update(bytes).digest("hex");
-
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
-
 /** The database file and the WAL siblings `index.sqlite*` covers. */
 const indexFiles = (folder: string) =>
   ["index.sqlite", "index.sqlite-wal", "index.sqlite-shm"].map((name) =>
@@ -186,7 +180,8 @@ async function openDatabase(folder: string): Promise<DatabaseSync> {
   return db;
 }
 
-type Entry = { size: number; mtime: number; markdown: boolean };
+/** One file as the sweep found it; `statAt` dates the stat so a fresher own-write record is never overwritten by it. */
+type Entry = { size: number; mtime: number; markdown: boolean; statAt: number };
 type FilesRow = {
   path: string;
   markdown: number;
@@ -233,6 +228,7 @@ async function walk(root: string): Promise<{
           size: s.size,
           mtime: s.mtimeMs,
           markdown: entry.name.endsWith(".md"),
+          statAt: Date.now(),
         });
       }
     }
@@ -328,6 +324,33 @@ function createIndex(
     for (const statement of deletes) statement.run(path);
   };
 
+  /** A `files` row; everything but the path is null for a non-Markdown file or one that could not be read. */
+  const putFile = (
+    path: string,
+    row: {
+      markdown: boolean;
+      size?: number;
+      mtime?: number;
+      hash?: string;
+      kind?: string | null;
+      id?: string | null;
+      file?: { bom: boolean; eol: string; trailingNewline: boolean };
+    }
+  ) =>
+    insertFile.run(
+      path,
+      row.markdown ? 1 : 0,
+      row.size ?? null,
+      row.mtime ?? null,
+      row.hash ?? null,
+      row.kind ?? null,
+      row.id ?? null,
+      row.file ? (row.file.bom ? 1 : 0) : null,
+      row.file?.eol ?? null,
+      row.file ? (row.file.trailingNewline ? 1 : 0) : null,
+      Date.now()
+    );
+
   /** Every row one Markdown file yields, from its content; inside a transaction. */
   const insertOutlined = (
     path: string,
@@ -336,21 +359,8 @@ function createIndex(
     content: string
   ) => {
     const read = analyseFile(path, content, hash);
-    const now = Date.now();
     if (!read.readable) {
-      insertFile.run(
-        path,
-        1,
-        size,
-        mtime,
-        hash,
-        null,
-        null,
-        null,
-        null,
-        null,
-        now
-      );
+      putFile(path, { markdown: true, size, mtime, hash });
       insertProblem.run(path, "unreadable", null, read.reason, null);
       return;
     }
@@ -359,19 +369,15 @@ function createIndex(
       unknown
     >;
     const id = typeof fm["id"] === "string" ? fm["id"] : null;
-    insertFile.run(
-      path,
-      1,
+    putFile(path, {
+      markdown: true,
       size,
       mtime,
       hash,
-      read.kind,
+      kind: read.kind,
       id,
-      read.file.bom ? 1 : 0,
-      read.file.eol,
-      read.file.trailingNewline ? 1 : 0,
-      now
-    );
+      file: read.file,
+    });
     for (const h of read.outline.headings) {
       insertHeading.run(
         path,
@@ -537,44 +543,23 @@ function createIndex(
     // than the bytes read here; its record wins.
     if (existing !== undefined && existing.indexed_at >= readAt) return;
     if (!entry.markdown) {
-      insertFile.run(
-        path,
-        0,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        Date.now()
-      );
+      putFile(path, { markdown: false });
       return;
     }
     if (bytes === null) {
       dropRows(path);
-      insertFile.run(
-        path,
-        1,
-        entry.size,
-        entry.mtime,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        Date.now()
-      );
+      putFile(path, { markdown: true, size: entry.size, mtime: entry.mtime });
       insertProblem.run(path, "unreadable", null, error ?? "unreadable", null);
       return;
     }
     const hash = sha256(bytes);
     // A touch, a sync client's byte-identical rewrite: the stat moved and
-    // nothing else, so record the stat and keep the rows (ADR 0013 d.4).
+    // nothing else, so record the stat and keep the rows (ADR 0013 d.4) —
+    // unless an own write recorded a fresher stat since this one was taken.
     if (existing?.hash === hash) {
-      touchFile.run(entry.size, entry.mtime, Date.now(), path);
+      if (existing.indexed_at < entry.statAt) {
+        touchFile.run(entry.size, entry.mtime, Date.now(), path);
+      }
       return;
     }
     dropRows(path);
@@ -604,6 +589,7 @@ function createIndex(
       .filter((path) => !entries.has(path));
     progress = { done: 0, total: work.length + removed.length };
     await raiseStatus();
+    if (closed) return;
 
     // Folders that could not be listed are problems with no file behind
     // them; the sweep is the only thing that learns of them, so it owns
@@ -656,6 +642,9 @@ function createIndex(
     },
     own: async (path, content) => {
       const s = await stat(join(vaultPath, path));
+      // The vault was switched or the app is exiting between the write and
+      // its indexing; the next open's sweep picks the file up by stat.
+      if (closed) return;
       const hash = sha256(Buffer.from(content, "utf8"));
       transaction(() => {
         dropRows(path);
