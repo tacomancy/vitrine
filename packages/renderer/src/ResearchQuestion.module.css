@@ -7,6 +7,11 @@
   background: var(--color-bg-surface);
 }
 
+/* The page holds focus on arrival; the ring would frame the whole surface. */
+.page:focus-visible {
+  outline: none;
+}
+
 .scroll {
   flex: 1;
   min-height: 0;

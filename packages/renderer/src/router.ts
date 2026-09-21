@@ -65,6 +65,15 @@ export function replaceRoute(route: Route): void {
   window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
 
+/**
+ * Move the window to a route with a history entry: where a triage action
+ * lands — a promotion goes to its page, and back returns to the Inbox.
+ */
+export function pushRoute(route: Route): void {
+  window.history.pushState(null, "", hashOf(route));
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
 /** Where the window is, kept in step with the hash. */
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, readHash);
