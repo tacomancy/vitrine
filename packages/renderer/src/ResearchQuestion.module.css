@@ -1,0 +1,28 @@
+.page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.title {
+  height: 52px;
+  margin: 0;
+  padding: 0 var(--space-5);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* The not-found line: the path in mono, the reason after it, one quiet line. */
+.absent {
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

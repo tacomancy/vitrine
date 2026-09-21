@@ -1,42 +1,55 @@
+import { hashOf, INBOX, LOOSE_ENDS, type Location } from "./router";
 import styles from "./Sidebar.module.css";
 
-// The eight surfaces, in CONTEXT.md's order. Only the Inbox exists yet; the
-// rest are drawn disabled so the product's shape is visible while nothing
-// inert can be reached — they are plain list items, not controls.
-const SURFACES = [
-  "Home",
-  "Question Inbox",
-  "Reader",
-  "Research Question view",
-  "Hypothesis view",
-  "Experiment view",
-  "Scout Queue",
-  "Vault",
-] as const;
+// The eight surfaces in CONTEXT.md's order, then the one dashboard that has
+// an address; the Sidebar stands in for Home until beat 12. An entry with a
+// destination is a link; the rest are drawn inert so the product's shape is
+// visible — plain list items, not controls. The Research Question view has
+// no destination of its own (a page needs a path): it lights when a page is
+// open and is inert otherwise.
+type Entry = { name: string; to?: Location; lit?: (at: Location) => boolean };
 
-const LIVE = "Question Inbox";
+const SURFACES: readonly Entry[] = [
+  { name: "Home" },
+  { name: "Question Inbox", to: INBOX },
+  { name: "Reader" },
+  { name: "Research Question view", lit: (at) => at.surface === "questions" },
+  { name: "Hypothesis view" },
+  { name: "Experiment view" },
+  { name: "Scout Queue" },
+  { name: "Vault" },
+];
 
-export function Sidebar() {
+const DASHBOARDS: readonly Entry[] = [{ name: "Loose Ends", to: LOOSE_ENDS }];
+
+export function Sidebar({ location }: { location: Location }) {
+  const item = ({ name, to, lit }: Entry) => {
+    const current = to ? to.surface === location.surface : lit?.(location);
+    const href = current ? hashOf(location) : to ? hashOf(to) : null;
+    return href === null ? (
+      <li key={name} className={styles.disabled}>
+        <span className={styles.dot} />
+        {name}
+      </li>
+    ) : (
+      <li key={name}>
+        <a
+          href={href}
+          className={current ? styles.current : styles.live}
+          aria-current={current ? "page" : undefined}
+        >
+          <span className={styles.dot} />
+          {name}
+        </a>
+      </li>
+    );
+  };
   return (
     <nav className={styles.sidebar} aria-label="Surfaces">
       <div className={styles.label}>Surfaces</div>
-      <ul className={styles.list}>
-        {SURFACES.map((surface) =>
-          surface === LIVE ? (
-            <li key={surface}>
-              <a href="#inbox" className={styles.live} aria-current="page">
-                <span className={styles.dot} />
-                {surface}
-              </a>
-            </li>
-          ) : (
-            <li key={surface} className={styles.disabled}>
-              <span className={styles.dot} />
-              {surface}
-            </li>
-          )
-        )}
-      </ul>
+      <ul className={styles.list}>{SURFACES.map(item)}</ul>
+      <div className={styles.label}>Dashboards</div>
+      <ul className={styles.list}>{DASHBOARDS.map(item)}</ul>
     </nav>
   );
 }
