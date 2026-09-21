@@ -713,6 +713,155 @@ exports[`corpus > lt-before-tag.md: outline snapshot 1`] = `
 }
 `;
 
+exports[`corpus > nested/Relative parent.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > nested/deep/Relative sibling.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > nested/deep/links-relative.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": "up two, encoded",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 55,
+        "start": 0,
+      },
+      "syntax": "markdown",
+      "target": "../../Sleep and consolidation.md",
+    },
+    {
+      "alias": "up two, no space",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 95,
+        "start": 56,
+      },
+      "syntax": "markdown",
+      "target": "../../links-case.md",
+    },
+    {
+      "alias": "up one, sideways",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 142,
+        "start": 96,
+      },
+      "syntax": "markdown",
+      "target": "../../a/Klinzing 2019.md",
+    },
+    {
+      "alias": "sibling",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 177,
+        "start": 143,
+      },
+      "syntax": "markdown",
+      "target": "./Relative sibling.md",
+    },
+    {
+      "alias": "up one",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 211,
+        "start": 178,
+      },
+      "syntax": "markdown",
+      "target": "../Relative parent.md",
+    },
+    {
+      "alias": "up two, heading",
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "Heading",
+      ],
+      "range": {
+        "end": 275,
+        "start": 212,
+      },
+      "syntax": "markdown",
+      "target": "../../Sleep and consolidation.md",
+    },
+    {
+      "alias": "up two, missing heading",
+      "blockId": null,
+      "embed": false,
+      "heading": [
+        "Missing",
+      ],
+      "range": {
+        "end": 347,
+        "start": 276,
+      },
+      "syntax": "markdown",
+      "target": "../../Sleep and consolidation.md",
+    },
+    {
+      "alias": "escapes the vault",
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 408,
+        "start": 348,
+      },
+      "syntax": "markdown",
+      "target": "../../../Sleep and consolidation.md",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 442,
+        "start": 409,
+      },
+      "syntax": "wikilink",
+      "target": "../../Sleep and consolidation",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
 exports[`corpus > props-comma-tags.md: outline snapshot 1`] = `
 {
   "blockIds": [],
