@@ -191,9 +191,13 @@ async function openDatabase(folder: string): Promise<DatabaseSync> {
 
 /**
  * One file as the sweep found it; `statAt` dates the stat so a fresher
- * own-write record is never overwritten by it. `evicted` is a file whose
- * bytes are not on disk (a sync client keeping it online-only, ADR 0013
- * decision 6): it is recorded by stat alone and never read.
+ * own-write record is never overwritten by it. `evicted` is a non-Markdown
+ * file whose bytes are not on disk (a sync client keeping it online-only,
+ * ADR 0013 decision 6): recorded by path alone and never read, so the next
+ * sweep looks at it again. Markdown is always read — the app needs its
+ * content, and reading is what brings it down. The test is `blocks`, which
+ * a filesystem with delayed allocation also reports as 0 for a moment after
+ * a write; recording no stat is what keeps that moment from sticking.
  */
 type Entry = {
   size: number;
@@ -218,7 +222,7 @@ const entryOf = (
   size: s.size,
   mtime: s.mtimeMs,
   markdown: path.endsWith(".md"),
-  evicted: s.blocks === 0 && s.size > 0,
+  evicted: !path.endsWith(".md") && s.blocks === 0 && s.size > 0,
   statAt: Date.now(),
 });
 
@@ -606,6 +610,11 @@ function createIndex(
       return false;
     }
     if (!entry.markdown) {
+      if (entry.evicted) {
+        if (existing !== undefined) return false;
+        putFile(path, { markdown: false });
+        return true;
+      }
       putFile(path, {
         markdown: false,
         size: entry.size,
