@@ -283,6 +283,20 @@ describe("vault.outline is assembled from the index", () => {
     }
   });
 
+  it("stores a kind: the app does not know verbatim, with no problem row", async () => {
+    const vault = await tmp("unknown-kind");
+    await writeFile(
+      join(vault, "Mine.md"),
+      "---\nkind: recipe\n---\n## Steps\n"
+    );
+    const c = await opened(vault);
+    expect(await readable(c, "Mine.md")).toMatchObject({
+      kind: "recipe",
+      shape: [],
+      criteria: [],
+    });
+  });
+
   it("agrees with vault.tags about every corpus file's tags", async () => {
     const vault = await fixtureCopy("obsidian-corpus");
     const c = await opened(vault);

@@ -57,7 +57,6 @@ type TagRow = {
 type Building = {
   canonical: string;
   segment: string;
-  parent: Building | null;
   exclusive: number;
   inclusive: number;
   files: Set<string>;
@@ -109,7 +108,6 @@ export function tagTree(index: VaultIndex): TagTree {
       node = {
         canonical,
         segment,
-        parent,
         exclusive: 0,
         inclusive: 0,
         files: new Set(),

@@ -485,8 +485,10 @@ function createIndex(
       for (const link of linksIn.all(path) as LinkRow[]) {
         affected.set(link.rowid, link);
       }
-      // Every form a target could take to name this path; computed from the
-      // path string, since a vanished path's row is already gone.
+      // Every form a target could take to name this path, computed from the
+      // path string since a vanished path's row is already gone: the three
+      // `files` columns, plus the path without `.md` — the form
+      // `filesByPath` reaches by appending `.md` to the target.
       const [lpath, lname, lstem] = lookupKeys(path);
       for (const key of [lpath, lname, lstem]) keys.add(key);
       if (lpath.endsWith(".md")) keys.add(lpath.slice(0, -".md".length));

@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { closeCores, core, fixtureCopy } from "./test-core.js";
+import { closeCores, core, fixtureCopy, tmp } from "./test-core.js";
 import type { TagNode, TagTree } from "./vault-tags.js";
 
 // Golden tests for `vault.tags` over the Obsidian-written corpus (#191, the
@@ -165,6 +165,21 @@ describe("vault.tags over the corpus", () => {
     expect(tag.occurrences).toEqual([
       { path: "tags-invalid.md", written: "tag/", source: "inline" },
     ]);
+  });
+});
+
+describe("display casing ties", () => {
+  it("go to the canonical form when it was written, else to the form that sorts first", async () => {
+    const vault = await tmp("ties");
+    await writeFile(join(vault, "One.md"), "#Foo and #foo\n");
+    await writeFile(join(vault, "Two.md"), "#Bar and #BAR\n");
+    const c = await core();
+    const reply = await c.mutate("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+    await c.indexed();
+    const tree = await treeOf(c);
+    expect(node(tree, "foo").display).toBe("foo");
+    expect(node(tree, "bar").display).toBe("BAR");
   });
 });
 
