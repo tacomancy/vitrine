@@ -3,7 +3,7 @@ import type { Question } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
-import { useCoreEvents } from "./events";
+import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
 import { Inbox } from "./Inbox";
 import { Sidebar } from "./Sidebar";
@@ -14,7 +14,7 @@ export function App() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const vault = useQuery(trpc.vault.current.queryOptions());
-  useCoreEvents();
+  const listeners = useCoreEvents();
   // The last Question the capture line wrote. The Inbox re-reads the vault
   // and makes it the selection, so the user sees it land (brief § Question
   // Inbox: "everything captured recently, newest first").
@@ -48,13 +48,15 @@ export function App() {
   }
 
   return (
-    <div className={styles.window}>
-      <TitleBar title={vault.data.name} />
-      <div className={styles.panes}>
-        <Sidebar />
-        <Inbox landed={landed} />
+    <VaultChangedListeners value={listeners}>
+      <div className={styles.window}>
+        <TitleBar title={vault.data.name} />
+        <div className={styles.panes}>
+          <Sidebar />
+          <Inbox landed={landed} vaultPath={vault.data.path} />
+        </div>
+        <CaptureLine onCaptured={onCaptured} />
       </div>
-      <CaptureLine onCaptured={onCaptured} />
-    </div>
+    </VaultChangedListeners>
   );
 }

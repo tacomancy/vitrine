@@ -1,8 +1,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import type { Order, Question } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
+import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
 import { monthYear, provenanceOf, rowsOf } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
@@ -16,11 +23,37 @@ const ORDERS: readonly Order[] = ["newest", "oldest"];
  * nothing that counts what is owed. `landed` is the Question the capture
  * line just wrote: it becomes the selection and the list takes the keyboard.
  */
-export function Inbox({ landed }: { landed: Question | null }) {
+export function Inbox({
+  landed,
+  vaultPath,
+}: {
+  landed: Question | null;
+  vaultPath: string;
+}) {
   const trpc = useTRPC();
   const [order, setOrder] = useState<Order>("newest");
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+
+  // The selection is a path (ADR 0010), so a rename outside the app must
+  // move it before the re-query lands, or the renamed row would arrive
+  // unselected. A removed selection is cleared rather than left to dangle:
+  // the row's absence is the whole message, and a file that comes back
+  // later (a sync flap, an undo) should not arrive already selected.
+  useVaultChanged(
+    useCallback(
+      ({ renamed, removed }) => {
+        const absolute = (path: string) => `${vaultPath}/${path}`;
+        setSelected((path) => {
+          if (path === null) return null;
+          if (removed.some((gone) => absolute(gone) === path)) return null;
+          const move = renamed.find(({ from }) => absolute(from) === path);
+          return move === undefined ? path : absolute(move.to);
+        });
+      },
+      [vaultPath]
+    )
+  );
 
   // A new landing moves the selection to it. Adjusted during render rather
   // than in an effect, so the row is selected in the same paint it appears
