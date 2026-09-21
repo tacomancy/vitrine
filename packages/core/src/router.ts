@@ -5,7 +5,8 @@ import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
-import { readOutline } from "./vault-files.js";
+import { outlineFromIndex } from "./vault-outline.js";
+import { tagTree } from "./vault-tags.js";
 
 export type Context = {
   vault: VaultService;
@@ -72,8 +73,8 @@ export const router = t.router({
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
     outline: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
-      const { vault } = await requireVault(ctx);
-      return refusing(readOutline(vault.path, input.path));
+      const { vault, index } = await requireVault(ctx);
+      return refusing(outlineFromIndex(index, vault.path, input.path));
     }),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();
@@ -84,6 +85,10 @@ export const router = t.router({
     rewatch: t.procedure.mutation(async ({ ctx }) => {
       await requireVault(ctx);
       await ctx.vault.rewatch();
+    }),
+    tags: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return tagTree(index);
     }),
   }),
   events: t.router({

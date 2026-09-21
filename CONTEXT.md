@@ -61,6 +61,14 @@ _Avoid_: Conflict, merge, stale (a Scout health word)
 A bare wikilink whose name matches more than one file. Resolves to nothing and surfaces as a Loose end rather than picking one.
 _Avoid_: Broken link (that is an unresolved one), conflict
 
+**Unresolved link**:
+A link that lands on nothing: no file has the name or path, or the file is there and lacks the `#Heading` or `#^id` the link names. The third resolution state beside *resolved* and *ambiguous*; computed by the Index across the vault, never by one file's Outline.
+_Avoid_: Broken link, dead link, dangling link
+
+**Implicit tag**:
+A tag present in the tree only because a descendant is — `ml` when the vault carries `ml/probing` and nothing tagged `ml` itself. Has the union of its children's files and an exclusive count of zero; shown like any other node so the hierarchy is real wherever the user tagged.
+_Avoid_: Virtual tag, synthetic parent, folder
+
 ### Sources and reading
 
 **Source**:

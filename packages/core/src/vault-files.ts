@@ -29,7 +29,7 @@ import { errorMessage, VaultError } from "./errors.js";
  * The response shape is fixed by this module so that beat 1b's re-assembly
  * of `vault.outline` from the index (ADR 0014) is invisible to callers.
  */
-export type OutlineResponse =
+export type OutlineResponse<L extends Link = Link> =
   | {
       readable: true;
       /** Vault-relative, as the index keys it. */
@@ -39,12 +39,25 @@ export type OutlineResponse =
       /** SHA-256 of the bytes on disk, hex: what a write is `basedOn`. */
       hash: string;
       file: FileChoices;
-      outline: FileOutline;
+      outline: FileOutline<L>;
       /** The Kind's criteria; empty for every other Kind. */
       criteria: Criterion[];
       shape: ShapeProblem[];
     }
   | { readable: false; path: string; reason: string };
+
+/**
+ * Where a link lands across the vault (§ Markdown, link grammar): one file
+ * by path or basename → `resolved`; several by basename → `ambiguous`,
+ * which resolves to nothing rather than picking one; none, or a `#Heading`
+ * or `#^id` the file lacks → `unresolved`. `resolvedPath` is filled only
+ * when `resolved`. The index computes it; a single file's outline cannot.
+ */
+export type Resolution = "resolved" | "ambiguous" | "unresolved";
+export type ResolvedLink = Link & {
+  resolution: Resolution;
+  resolvedPath: string | null;
+};
 
 /** What the writer restores so a file's encoding never changes because the app touched it. */
 export type FileChoices = {
@@ -58,8 +71,12 @@ export type FileChoices = {
  * value: what crosses the RPC boundary. Frontmatter that does not parse
  * never gets this far — the file is unreadable — so there is no unparsed arm.
  */
-export type FileOutline = Omit<Outline, "frontmatter"> & {
+export type FileOutline<L extends Link = Link> = Omit<
+  Outline,
+  "frontmatter" | "links"
+> & {
   frontmatter: { range: Range; content: Range; value: unknown } | null;
+  links: L[];
 };
 
 export type Relationship = "confirming" | "falsifying" | "diagnostic";
@@ -127,7 +144,7 @@ const CRITERION_ID = /^c\d+$/;
  * walks never follow one, so a single read must not either), or a file that
  * is not Markdown.
  */
-async function locate(
+export async function locate(
   vaultPath: string,
   path: string
 ): Promise<{ absolute: string; relativePath: string }> {
@@ -144,7 +161,7 @@ async function locate(
   if (!absolute.endsWith(".md")) {
     throw new VaultError("notMarkdown", `${path} is not a Markdown file.`);
   }
-  // The walks (`list.ts`) skip every symlink, so a single read or write
+  // The index's walk skips every symlink, so a single read or write
   // refuses one too — the file itself, or any folder on the way to it —
   // rather than going through a link the walk would never have listed. A
   // missing file is not an input error (the read reports it; createFile
@@ -200,7 +217,7 @@ function fileChoices(raw: string): { text: string; file: FileChoices } {
 function readCriteria(
   path: string,
   kind: string,
-  parsed: Outline
+  parsed: Pick<Outline, "headings" | "inlineFields">
 ): { criteria: Criterion[]; shape: ShapeProblem[] } {
   const criteria: Criterion[] = [];
   const shape: ShapeProblem[] = [];
@@ -261,7 +278,7 @@ function readCriteria(
 function duplicatedOwnedSections(
   path: string,
   kind: string,
-  parsed: Outline
+  parsed: Pick<Outline, "headings">
 ): ShapeProblem[] {
   const shape: ShapeProblem[] = [];
   for (const name of OWNED_SECTIONS[kind] ?? []) {
@@ -351,17 +368,6 @@ export function analyseFile(
     };
   }
 
-  const shape: ShapeProblem[] = [];
-  let criteria: Criterion[] = [];
-  if (kind !== null) {
-    if (kind === "hypothesis") {
-      const read = readCriteria(relativePath, kind, parsed);
-      criteria = read.criteria;
-      shape.push(...read.shape);
-    }
-    shape.push(...duplicatedOwnedSections(relativePath, kind, parsed));
-  }
-
   return {
     readable: true,
     path: relativePath,
@@ -369,9 +375,31 @@ export function analyseFile(
     hash,
     file,
     outline: { ...parsed, frontmatter },
-    criteria,
-    shape,
+    ...deriveKind(relativePath, kind, parsed),
   };
+}
+
+/**
+ * What the core adds to an outline for its Kind — the criteria and the
+ * shape problems. Applied here to a fresh outline and by `vault-outline.ts`
+ * to one re-assembled from the index, so the two can never disagree.
+ */
+export function deriveKind(
+  path: string,
+  kind: string | null,
+  parsed: Pick<Outline, "headings" | "inlineFields">
+): { criteria: Criterion[]; shape: ShapeProblem[] } {
+  const shape: ShapeProblem[] = [];
+  let criteria: Criterion[] = [];
+  if (kind !== null) {
+    if (kind === "hypothesis") {
+      const read = readCriteria(path, kind, parsed);
+      criteria = read.criteria;
+      shape.push(...read.shape);
+    }
+    shape.push(...duplicatedOwnedSections(path, kind, parsed));
+  }
+  return { criteria, shape };
 }
 
 /**

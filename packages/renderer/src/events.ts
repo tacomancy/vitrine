@@ -27,7 +27,11 @@ export function useCoreEvents(): Set<Listener> {
       onData: (event) => {
         if (event.type === "vaultChanged") {
           for (const listen of listeners.current) listen(event);
+          // Everything read from the index (spec #177 § Renderer); the tag
+          // tree and outlines have no consumer yet, but the rule is one.
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.tags.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.outline.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
         }
