@@ -9,8 +9,12 @@ import { errorMessage } from "./errors.js";
  * path when `sources/pdf` is a symlink out of the vault (decision 15). Every
  * event is a hint: the kind is ignored, the path is stat-ted, and a path is
  * handed on only once it has *settled* — no events for the settle window and
- * two stats agreeing (decision 5). Everything that settles in the same tick
- * is one Batch. What the batch means for the index is `vault-index.ts`'s
+ * two stats agreeing (decision 5). A Batch is everything settled by the
+ * time nothing else is pending — or, when something is always pending, by
+ * the time its oldest settled path has waited one more window. A rename is
+ * two events, and inotify delivers them a moment apart where FSEvents
+ * coalesces them; closing at the tick the first fell due split the pair
+ * (#189). What the batch means for the index is `vault-index.ts`'s
  * `refresh`; nothing here reads a file's content.
  *
  * `watchVault` resolves only once the watch is *live*. libuv brings its
@@ -101,12 +105,22 @@ export async function watchVault(
   }: WatcherOptions
 ): Promise<Watcher> {
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
+  /** Settled and waiting for the batch to close: path → when it settled. */
+  const settled = new Map<string, number>();
   let timer: NodeJS.Timeout | null = null;
   let closed = false;
 
+  /** When the batch must close even if something is still pending. */
+  const closeBy = () => {
+    let oldest = Infinity;
+    for (const at of settled.values()) oldest = Math.min(oldest, at);
+    return oldest + settleMs;
+  };
+
   const schedule = () => {
-    if (timer !== null || pending.size === 0 || closed) return;
-    let earliest = Infinity;
+    if (timer !== null || closed) return;
+    if (pending.size === 0 && settled.size === 0) return;
+    let earliest = closeBy();
     for (const { dueAt } of pending.values())
       earliest = Math.min(earliest, dueAt);
     timer = setTimeout(() => void fire(), Math.max(0, earliest - Date.now()));
@@ -116,7 +130,6 @@ export async function watchVault(
     timer = null;
     const now = Date.now();
     const due = [...pending].filter(([, record]) => record.dueAt <= now);
-    const settled: string[] = [];
     await Promise.all(
       due.map(async ([path, record]) => {
         const fresh = await statKey(join(root, path));
@@ -125,16 +138,20 @@ export async function watchVault(
         if (pending.get(path) !== record) return;
         if (sameStat(fresh, record.stat)) {
           pending.delete(path);
-          settled.push(path);
+          settled.set(path, now);
         } else {
           pending.set(path, { stat: fresh, dueAt: Date.now() + settleMs });
         }
       })
     );
-    if (settled.length > 0 && !closed) {
+    const closing =
+      settled.size > 0 && (pending.size === 0 || closeBy() <= Date.now());
+    if (closing && !closed) {
+      const batch = [...settled.keys()].sort();
+      settled.clear();
       // A batch the index could not apply is reported, not fatal: the next
       // batch, or the next open's sweep, will see the same files again.
-      await onSettled(settled.sort()).catch((error: unknown) =>
+      await onSettled(batch).catch((error: unknown) =>
         onBatchFailed(`a settled batch was not applied: ${errorMessage(error)}`)
       );
     }
@@ -145,6 +162,8 @@ export async function watchVault(
     if (closed || isDotEntry(path)) return;
     const fresh = await statKey(join(root, path));
     if (closed) return;
+    // A path that had settled is being written again: it waits afresh.
+    settled.delete(path);
     pending.set(path, { stat: fresh, dueAt: Date.now() + settleMs });
     schedule();
   };
@@ -183,6 +202,7 @@ export async function watchVault(
     if (timer !== null) clearTimeout(timer);
     timer = null;
     pending.clear();
+    settled.clear();
     for (const watcher of watchers.splice(0)) watcher.close();
   };
   /**

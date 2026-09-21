@@ -237,10 +237,10 @@ export function createVaultService({
     }
     teardown();
     opened = o;
+    // The sweep's own first status event is the open's: nothing is raised
+    // here, so the first `vaultStatus` after an open still means "the walk
+    // is done", which is what the watch-then-sweep test writes on.
     void index.sweep();
-    // Not awaited: a listener that answers by reading `vault.status` waits
-    // on `restored`, which may be waiting on this very install.
-    void raiseStatus();
   }
 
   // A remembered vault that has moved or gone is First run, not a fault, so
