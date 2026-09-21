@@ -4,14 +4,14 @@ import { describe, expect, it } from "vitest";
 import { inlineFields } from "../src/syntax/inline-fields.js";
 
 // `outline()` runs synchronously inside the index build (ADR 0014), so one
-// long note must not freeze the core. The tree comes out the same either way
-// — what a regression costs is time, so time is what this bounds. The
-// inline-field construct is registered on every key character; without its
-// `previous` hook each word start split the line into `data` tokens, which
-// micromark then merged with one splice per line: quadratic in a paragraph's
-// lines. 32,000 lines took ~20 s under vitest on the reference machine,
-// ~0.4 s once fixed. (gfm's autolink literal splits at word starts too, at a
-// smaller constant; that is upstream and outside this bound.)
+// long note must not freeze the core. This bounds the inline-field construct
+// alone, not `outline()`: the tree comes out the same either way, so what a
+// regression costs is time, and gfm's autolink literal adds its own upstream
+// per-paragraph term that would swamp an end-to-end bound (#196). Without
+// the construct's `previous` hook each word start split the line into `data`
+// tokens that micromark merged with one splice per line — quadratic in a
+// paragraph's lines: 32,000 lines took ~20 s under vitest on the reference
+// machine, ~0.4 s once fixed.
 describe("inline fields: cost per paragraph", () => {
   it("tokenizes a 32,000-line paragraph in linear time", () => {
     const line = "The body, read once by the indexer.\n";

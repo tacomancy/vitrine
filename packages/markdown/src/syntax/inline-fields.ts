@@ -85,6 +85,8 @@ const tokenizeInlineField: Tokenizer = function (
   return start;
 
   function start(code: Code): State | undefined {
+    // Redundant with the construct's `previous` hook on the text path, kept
+    // so the tokenizer stays correct wherever the hook is not consulted.
     if (!atLineStart(previous)) return nok(code);
     effects.enter("inlineField");
     effects.enter("inlineFieldKey");
