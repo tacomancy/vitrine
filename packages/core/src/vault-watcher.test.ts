@@ -1,4 +1,11 @@
-import { mkdir, rename, rm, utimes, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  rename,
+  rm,
+  symlink,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
@@ -230,5 +237,72 @@ describe("what settles together is one Batch, and only a real change is one", ()
       renamed: [],
     });
     stream.close();
+  });
+});
+
+describe("the two watches and the sweep", () => {
+  it("a PDF written through a symlinked sources/pdf outside the root is a row at sources/pdf/<name>", async () => {
+    const outside = await tmp("pdf-folder");
+    const vault = await tmp("linked");
+    await mkdir(join(vault, "sources"));
+    await symlink(outside, join(vault, "sources", "pdf"));
+    const c = await core({ settleMs: SETTLE_MS });
+    await c.mutate<Vault>("vault.open", { path: vault });
+    await c.indexed();
+    const stream = await c.events();
+
+    await writeFile(join(outside, "klinzing2019.pdf"), "%PDF-1.4\n");
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: ["sources/pdf/klinzing2019.pdf"],
+      removed: [],
+      renamed: [],
+    });
+    stream.close();
+  });
+
+  it("a file added between vault open and the sweep's end is indexed: watch, then sweep", async () => {
+    const vault = await tmp("racing");
+    await mkdir(join(vault, "questions"));
+    for (let n = 1; n <= 3; n++) {
+      await writeFile(
+        join(vault, "questions", `Q ${n}.md`),
+        questionFile(`Q ${n}`, `2026-01-0${n}T09:00:00Z`)
+      );
+    }
+    // The first status event is raised once the sweep has walked the vault
+    // and before it reads anything: a file written now is one the walk did
+    // not see, so only a watcher already running can find it. Written from
+    // the callback, so the timing is pinned rather than hoped for.
+    let written = false;
+    const c = await core({
+      settleMs: SETTLE_MS,
+      onVaultStatus: async () => {
+        if (written) return;
+        written = true;
+        await writeFile(
+          join(vault, "questions", "Late.md"),
+          questionFile("Late")
+        );
+      },
+    });
+    const reply = await c.mutate<Vault>("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+    await c.indexed();
+    expect(written).toBe(true);
+
+    const stream = await c.events();
+    if (!c.changes.some((e) => e.changed.includes("questions/Late.md"))) {
+      // Its batch is still settling: wait on the stream, not on a timer.
+      for (;;) {
+        const event = await stream.next("vaultChanged");
+        if (event.changed.includes("questions/Late.md")) break;
+      }
+    }
+    stream.close();
+    const listing = await c.query<Listing>("questions.list");
+    expect(
+      (listing.result?.data as Listing).questions.map((q) => q.question)
+    ).toEqual(["Late", "Q 3", "Q 2", "Q 1"]);
   });
 });
