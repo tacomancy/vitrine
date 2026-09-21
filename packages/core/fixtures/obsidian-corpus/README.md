@@ -30,7 +30,7 @@ Obsidian version: 1.13.7 (installer 1.8.10), macOS, 2026-09-21. Rows were answer
 
 | id  | file                      | question                                                      | answer with                          | observed     |
 | --- | ------------------------- | ------------------------------------------------------------- | ------------------------------------ | ------------ |
-| T1a | tags-valid.md             | how many distinct tags does the Tags view show for this file? | number                               | 8            |
+| T1a | tags-valid.md             | how many distinct tags does the Tags view show for this file? | number                               | 7 — `simple`, `with-dash`, `with_underscore`, `nested/two/levels`, `y1984`, `émoji🙂`, `ml/probing`. First recorded as 8, which is the cache's `tags` count for the file: 8 occurrences, both casings of `ml/probing` listed (#158, re-read from the pane 2026-09-21) |
 | T1b | tags-valid.md             | `#ML/Probing` and `#ml/probing` — one entry or two?           | `one` / `two`                        | one — the cache lists both occurrences |
 | T1c | tags-valid.md             | if one, which casing does the view display?                   | as displayed                         | `ml` → `probing`, lowercase, count 3 (both casings here plus props-list-tags) |
 | T1d | tags-valid.md             | is `émoji🙂` counted?                                         | `counted` / `not-counted`            | counted      |
