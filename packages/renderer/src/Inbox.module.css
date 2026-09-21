@@ -144,9 +144,13 @@
   text-overflow: ellipsis;
 }
 
-/* The status word on a triaged row; on a promoted one it is the way to its page. */
+/* The way to a promoted row's page: a link, in the link colour (BRAND.md law 2). */
 .page {
-  color: inherit;
+  color: var(--color-link);
+  text-decoration: none;
+}
+
+.page:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -183,7 +187,8 @@
 
 /*
  * The footer channel: the triage keys, the unreadable count, a build's
- * progress, a watcher that is down. One quiet mono line each, side by side; the same muted
+ * progress, a watcher that is down. One quiet mono line each, side by
+ * side; the same muted
  * colour for all of them — a broken watcher is a fact to act on, not an
  * alarm, and nothing here is red (design-prompts § what to push back on).
  */
@@ -199,7 +204,6 @@
   color: var(--color-fg-muted);
 }
 
-/* One triage key each, in the order the prototype lists them. */
 .key {
   cursor: default;
 }

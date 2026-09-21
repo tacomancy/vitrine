@@ -43,11 +43,14 @@ export function Inbox({
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   // A triage write the core refused, shown on its row until the selection
-  // moves or the next attempt: never silent, never a dialog.
+  // moves or the next attempt: never silent, never a dialog. Dropped during
+  // render the moment the selection leaves the row, so coming back to it
+  // never resurrects a reason that is no longer current.
   const [refusal, setRefusal] = useState<{
     path: string;
     message: string;
   } | null>(null);
+  if (refusal !== null && refusal.path !== selected) setRefusal(null);
 
   // Promote to Research Question (#210): the core writes the page and marks
   // the Question; the window moves to the page, which takes the keyboard
@@ -134,7 +137,6 @@ export function Inbox({
     let next: number | null = null;
     switch (event.key) {
       case "p": {
-        event.preventDefault();
         if (
           selectedRow?.kind !== "question" ||
           selectedRow.question.status !== "open" ||
@@ -142,6 +144,7 @@ export function Inbox({
         ) {
           return;
         }
+        event.preventDefault();
         setRefusal(null);
         promote.mutate({ path: selectedRow.path });
         return;
@@ -241,7 +244,7 @@ export function Inbox({
                 </>
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
-              {refusal?.path === row.path && row.path === selected && (
+              {refusal?.path === row.path && (
                 <p className={styles.refusal} role="alert">
                   {refusal.message}
                 </p>

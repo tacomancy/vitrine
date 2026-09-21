@@ -103,8 +103,8 @@ describe("promote to Research Question", () => {
     expect(screen.queryByRole("region", { name: "Question Inbox" })).toBeNull();
   });
 
-  it("a refused promote shows its reason on the row, the selection stays, and the window stays on the Inbox", async () => {
-    renderInbox([open], () => {
+  it("a refused promote shows its reason on the row, the selection stays, and the window stays on the Inbox — and the reason is gone once the selection has moved", async () => {
+    renderInbox([open, promoted], () => {
       throw new Error(
         "Couldn't mark questions/Does slow-wave density predict recall gain.md promoted: the file changed underneath"
       );
@@ -118,6 +118,11 @@ describe("promote to Research Question", () => {
     expect(first.getAttribute("aria-selected")).toBe("true");
     expect(window.location.hash).toBe("#/inbox");
     expect(document.activeElement).toBe(list);
+
+    fireEvent.keyDown(list, { key: "j" });
+    fireEvent.keyDown(list, { key: "k" });
+    expect(first.getAttribute("aria-selected")).toBe("true");
+    expect(within(first).queryByRole("alert")).toBeNull();
   });
 
   it("does nothing on a row that is not open, or when nothing is selected", async () => {

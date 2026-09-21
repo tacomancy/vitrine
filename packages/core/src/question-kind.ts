@@ -41,7 +41,8 @@ const STATUSES: readonly QuestionStatus[] = [
   "abandoned",
 ];
 
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
+/** The value when it is a string; a Kind reader's "present and readable" test. */
+export const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 /** The frontmatter keys the app reads on a Question: what the index stores per row. */
 export type QuestionFields = {
