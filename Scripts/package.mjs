@@ -51,14 +51,14 @@ function run(command, args, cwd = repo) {
   if (status !== 0) process.exit(status ?? 1);
 }
 
-const osascript = (script) =>
-  execFileSync("osascript", ["-e", script], { encoding: "utf8" }).trim();
-
-/** Whether a Vitrine — the installed one, by bundle id — is running. */
+/**
+ * Whether the installed Vitrine is running: by its executable path, so the
+ * dev Electron never matches and no Apple event is needed to ask (sending
+ * one to System Events is a separate automation permission).
+ */
 const vitrineRunning = () =>
-  osascript(
-    `tell application "System Events" to (count of (processes whose bundle identifier is "${bundleId}")) > 0`
-  ) === "true";
+  spawnSync("pgrep", ["-f", join(installed, "Contents/MacOS/Vitrine")])
+    .status === 0;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -105,14 +105,18 @@ if (!existsSync(bundle)) {
 
 if (vitrineRunning()) {
   console.log("package: asking the running Vitrine to quit…");
-  try {
-    // The Apple event's own timeout is minutes; ours is the poll below.
-    osascript(
-      `with timeout of 10 seconds\n tell application id "${bundleId}" to quit\nend timeout`
-    );
-  } catch {
-    // A refused or unanswered quit lands in the check below.
-  }
+  // The Apple event's own timeout is minutes; ours is the poll below. If the
+  // event cannot be delivered at all (automation not authorized), the app
+  // keeps running and the check below says so — never a quieter fallback.
+  const asked = spawnSync(
+    "osascript",
+    [
+      "-e",
+      `with timeout of 10 seconds\n tell application id "${bundleId}" to quit\nend timeout`,
+    ],
+    { encoding: "utf8" }
+  );
+  if (asked.status !== 0) console.error(asked.stderr.trim());
   const until = Date.now() + 10_000;
   while (vitrineRunning() && Date.now() < until) await sleep(250);
   if (vitrineRunning()) {
