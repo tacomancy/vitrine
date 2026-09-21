@@ -47,6 +47,12 @@ declare module "mdast" {
 export function inlineFields(): Extension {
   const construct: Construct = {
     name: "inlineField",
+    // The text tokenizer consults `previous` before it even attempts a
+    // construct; without it every key character mid-line is a break, a line
+    // splinters into one `data` token per character, and micromark's merge
+    // of adjacent data tokens splices the paragraph's event array once per
+    // line — quadratic in a paragraph's lines, which stalls the index build.
+    previous: atLineStart,
     tokenize: tokenizeInlineField,
   };
   const text: Record<number, Construct> = {};
@@ -64,6 +70,10 @@ export function inlineFieldsFromMarkdown(): FromMarkdownExtension {
   };
 }
 
+function atLineStart(previous: Code): boolean {
+  return previous === codes.eof || markdownLineEnding(previous);
+}
+
 const tokenizeInlineField: Tokenizer = function (
   this: TokenizeContext,
   effects,
@@ -75,8 +85,7 @@ const tokenizeInlineField: Tokenizer = function (
   return start;
 
   function start(code: Code): State | undefined {
-    if (!(previous === codes.eof || markdownLineEnding(previous)))
-      return nok(code);
+    if (!atLineStart(previous)) return nok(code);
     effects.enter("inlineField");
     effects.enter("inlineFieldKey");
     return key(code);
