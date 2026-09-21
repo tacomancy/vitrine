@@ -55,6 +55,16 @@ const subscribe = (onChange: () => void) => {
 
 const readHash = () => window.location.hash;
 
+/**
+ * Move the window to a route without a history entry: for a surface whose
+ * file was renamed under it, so the address follows the file and back does
+ * not return to a name that is gone.
+ */
+export function replaceRoute(route: Route): void {
+  window.history.replaceState(null, "", hashOf(route));
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
 /** Where the window is, kept in step with the hash. */
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, readHash);
@@ -64,10 +74,7 @@ export function useRoute(): Route {
   // named nothing.
   useEffect(() => {
     const canonical = hashOf(route);
-    if (hash !== canonical) {
-      window.history.replaceState(null, "", canonical);
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    }
+    if (hash !== canonical) replaceRoute(route);
   }, [hash, route]);
   return route;
 }

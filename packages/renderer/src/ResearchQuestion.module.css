@@ -7,22 +7,200 @@
   background: var(--color-bg-surface);
 }
 
-.title {
-  height: 52px;
-  margin: 0;
-  padding: 0 var(--space-5);
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-7) var(--space-8);
   display: flex;
-  align-items: center;
-  font-size: var(--text-md);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
-/* The not-found line: the path in mono, the reason after it, one quiet line. */
-.absent,
-.path {
+/* The header: the kicker line, the question at display size, its provenance. */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 72ch;
+}
+
+.kicker,
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.status {
+  gap: var(--space-1);
+}
+
+/* The question in the serif at display size: it reads as text, not a field. */
+.question {
   margin: 0;
-  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-display);
+  color: var(--color-fg);
+}
+
+/* Provenance is the fact no other tool keeps: visible on every visit, never loud. */
+.provenance {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Supporting and opposing side by side: the split is structural, not a tag. */
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+/*
+ * An empty section is a quiet outline around one sentence, not a greyed-out
+ * heading and not a gap: a freshly promoted page is a page in its normal
+ * state (prompt 3). Dashed and at the line colour so it recedes; the radius
+ * is the surfaces' own.
+ */
+.outline {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-line-control);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-muted);
+  max-width: 64ch;
+}
+
+/* A section the file lacks says so in the same quiet voice as the footer. */
+.missing {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.answer {
+  max-width: 64ch;
+  border-left: 2px solid var(--color-accent);
+  padding-left: var(--space-4);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg);
+}
+
+.answer p {
+  margin: 0;
+}
+
+.answer p + p {
+  margin-top: var(--space-3);
+}
+
+.lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.line,
+.thread {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-fg);
+}
+
+.target {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-link);
+}
+
+/* Where a link lands is said in words, in the muted mono — never a colour. */
+.resolution {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.note {
+  color: var(--color-fg-secondary);
+}
+
+.box {
+  font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+/* A resolved thread stays: ticked, never struck through or removed. */
+.done {
+  color: var(--color-fg-secondary);
+}
+
+/* The history as the file holds it, until its own slice renders it as a narrative. */
+.history {
+  margin: 0;
+  max-width: 72ch;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-fg-secondary);
+}
+
+.baseLine {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* The not-found and absence lines: the path in mono, the reason after it, one quiet line. */
+.absent {
+  margin: 0;
+  padding: var(--space-3) var(--space-7);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
@@ -31,8 +209,25 @@
 /* A refusal from the core, in the same voice as the Inbox's failed read. */
 .refused {
   margin: 0;
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-7);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg);
+}
+
+/* The footer channel, as the Inbox draws it: quiet mono lines, never red. */
+.footer {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  padding: var(--space-2) var(--space-7) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.footerLine {
+  cursor: default;
 }
