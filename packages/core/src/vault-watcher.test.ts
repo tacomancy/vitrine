@@ -171,6 +171,24 @@ describe("what settles together is one Batch, and only a real change is one", ()
     stream.close();
   });
 
+  it("two writes a moment apart, both inside the settle window, are one Batch", async () => {
+    const { vault, stream } = await watching();
+    await mkdir(join(vault, "questions"));
+    // Staggered as inotify delivers a rename's two events (FSEvents
+    // coalesces them): the second lands after the first's window has begun
+    // but before it has closed. The stagger is the input, not a wait.
+    await writeFile(join(vault, "questions", "A.md"), questionFile("A"));
+    await new Promise((r) => setTimeout(r, SETTLE_MS / 3));
+    await writeFile(join(vault, "questions", "B.md"), questionFile("B"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: ["questions/A.md", "questions/B.md"],
+      removed: [],
+      renamed: [],
+    });
+    stream.close();
+  });
+
   it("questions.capture raises one vaultChanged; the watcher's own event for the file raises no second", async () => {
     const { vault, c, stream, questions } = await watching();
     const reply = await c.mutate<{ path: string }>("questions.capture", {
