@@ -19,13 +19,12 @@ export function coreEntry(options: {
 }
 
 /**
- * The core's state folder. Anything that is not the installed bundle —
- * `pnpm dev`, a built shell under run-hidden, `electron-vite preview` — gets
- * `Vitrine (dev)`, so a development build remembers its own vault and never
- * opens the real one beside the installed app (two instances on one vault
- * would be two writers to the same index). An explicit
- * `VITRINE_APP_SUPPORT_DIR` wins over both, which is what run-hidden's temp
- * folder relies on.
+ * The core's state folder. Anything that is not the installed bundle gets
+ * `Vitrine (dev)`, so a development build beside the installed app never
+ * opens the same vault (two instances would be two writers to one index).
+ * An explicit `VITRINE_APP_SUPPORT_DIR` wins, which is what run-hidden's
+ * temp folder relies on; an empty one counts as unset so the core is never
+ * handed "" as a path.
  */
 export function stateFolder(options: {
   explicit: string | undefined;
