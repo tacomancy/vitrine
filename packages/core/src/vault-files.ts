@@ -373,6 +373,27 @@ function analyse(
   };
 }
 
+/**
+ * The next id in one of the app's counters — `h` for Annotations, `c` for
+ * criteria — for a file: one above the highest `^<prefix><digits>` already
+ * there, `<prefix>1` when there is none. The user may have written into
+ * the namespace by hand; starting above it is what makes collision a
+ * non-event rather than a reason for an uglier prefix (ADR 0008 decision
+ * 11). Never reused: the caller records what it hands out.
+ */
+export function nextBlockId(
+  outline: Pick<Outline, "blockIds">,
+  prefix: string
+): string {
+  const numbered = new RegExp(`^${prefix}(\\d+)$`);
+  let highest = 0;
+  for (const { id } of outline.blockIds) {
+    const match = numbered.exec(id);
+    if (match) highest = Math.max(highest, Number(match[1]));
+  }
+  return `${prefix}${highest + 1}`;
+}
+
 // ---------------------------------------------------------------------------
 // The write side (ADR 0008 decisions 2–3; `docs/architecture.md` § Markdown).
 
@@ -390,8 +411,68 @@ export type SetFrontmatter = {
   addTags?: string[];
 };
 
-/** The splicing operations. #122 adds the four section operations; the set is closed by ADR 0008. */
-export type Operation = SetFrontmatter;
+/**
+ * Rewrite an owned section whole — `## Annotations`, `## Position history`
+ * for the pressure valve. The heading line stays; the body between it and
+ * the next heading of level ≤ 2 is replaced by `body`, set off by one blank
+ * line on each side (the app's convention inside a section it owns).
+ */
+export type ReplaceSection = {
+  op: "replaceSection";
+  /** The `##` text, exact and case-sensitive. */
+  name: string;
+  body: string;
+};
+
+/**
+ * A Revision into `## Position history`, newest first (ADR 0006 decision 5):
+ * the entry goes directly under the heading line, after the blank line the
+ * file keeps there if it keeps one, and whatever was first becomes second.
+ */
+export type PrependEntry = {
+  op: "prependEntry";
+  /** The `##` text, exact and case-sensitive. */
+  section: string;
+  entry: string;
+};
+
+/**
+ * A line at the end of a `##` section (an Artifact line, a source line), of
+ * a `###` block (an Evidence line under `^c<n>`), or of the *lead* — the
+ * body before the first `##`, where the write-back line from a resolved
+ * Hypothesis goes so that it never lands inside `## Position history`
+ * (ADR 0008 decision 2). The line joins a list it follows and otherwise
+ * starts its own block, so it can neither continue the user's paragraph
+ * nor unseat a block id at the end of one.
+ */
+export type AppendToSection = {
+  op: "appendToSection";
+  target: "lead" | { section: string } | { block: string };
+  line: string;
+};
+
+/**
+ * `outcome::` or `relationship::` under the criterion carrying `^c<n>` —
+ * a `###` inside `## Criteria`, the only place the app reads a `key::
+ * value` (ADR 0006 decision 2). Replaces the value range only; a criterion
+ * without the field gets the line, under its other field or the heading.
+ */
+export type SetInlineField = {
+  op: "setInlineField";
+  /** Without the `^`: `c3`. */
+  blockId: string;
+} & (
+  | { field: "outcome"; value: Outcome }
+  | { field: "relationship"; value: Relationship }
+);
+
+/** The splicing operations — the set is closed by ADR 0008 decision 2. */
+export type Operation =
+  | SetFrontmatter
+  | ReplaceSection
+  | PrependEntry
+  | AppendToSection
+  | SetInlineField;
 
 /** One hash-checked application of operations to a file. */
 export type Write = {
@@ -405,16 +486,20 @@ export type WriteRefusal =
   | "verificationFailed"
   | "changedOnDisk"
   | "noFrontmatter"
+  | "notACriterion"
+  | "blockNotFound"
   | "unreadable"
   | "alreadyExists";
 
 /**
  * `content` and `hash` are what beat 1b's index consumes to record an own
- * write synchronously (ADR 0014, update 2026-09-20). On a refusal nothing
+ * write synchronously (ADR 0014, update 2026-09-20). `shape` is the file's
+ * shape problems as written — how a duplicated owned section the write
+ * worked around is reported (ADR 0008 decision 10). On a refusal nothing
  * touched the disk.
  */
 export type WriteResult =
-  | { written: true; hash: string; content: string }
+  | { written: true; hash: string; content: string; shape: ShapeProblem[] }
   | { written: false; reason: WriteRefusal; detail: string };
 
 /** Text as the app composes it: no BOM, LF. */
@@ -468,20 +553,20 @@ function addTags(
 }
 
 /**
- * Turn the operations into splices against `text` (BOM-less), each located
- * afresh — which is what makes re-applying to a changed file possible. Every
- * setFrontmatter in one write edits the same Document, so the frontmatter
- * is one splice and targets never overlap.
+ * Turn the frontmatter operations into one splice against `text` (BOM-less),
+ * located afresh — which is what makes re-applying to a changed file
+ * possible. Every setFrontmatter in one write edits the same Document, so
+ * the frontmatter is one splice.
  */
-function apply(
+function applyFrontmatter(
   text: string,
   operations: Operation[],
   eol: FileChoices["eol"]
 ): Applied {
-  const parsed = outline(text);
   const splices: Splice[] = [];
   const frontmatterOps = operations.filter((o) => o.op === "setFrontmatter");
   if (frontmatterOps.length > 0) {
+    const parsed = outline(text);
     if (parsed.frontmatter === null) {
       return {
         ok: false,
@@ -536,31 +621,342 @@ function splice(text: string, splices: Splice[]): string {
   return out;
 }
 
+const EOL_OF: Record<FileChoices["eol"], string> = { lf: "\n", crlf: "\r\n" };
+
+/** The first `##` heading with this exact text — the owned one when there are two (ADR 0008 decision 10). */
+function ownedSection(parsed: Outline, name: string): Heading | undefined {
+  return parsed.headings.find((h) => h.level === 2 && h.text === name);
+}
+
+/**
+ * One section operation as a splice against `text`, located afresh. Section
+ * operations are applied one at a time, each against a fresh outline, so
+ * that two of them aimed at the same spot — two entries prepended in one
+ * write — land in operation order instead of at one shared offset.
+ */
+function locateSectionOp(
+  text: string,
+  op: Exclude<Operation, SetFrontmatter>,
+  eol: string
+): Splice | { reason: WriteRefusal; detail: string } {
+  const parsed = outline(text);
+  switch (op.op) {
+    case "replaceSection": {
+      const heading = ownedSection(parsed, op.name);
+      if (!heading) return appendSection(text, op.name, op.body, eol);
+      const next = parsed.headings.find(
+        (h) => h.range.start === heading.body.end
+      );
+      const body = composedBody(op.body, eol);
+      // A blank line after the heading, the body, a blank line before the
+      // next heading; at the end of the file the trailing-newline choice
+      // is restored afterwards (`restoreTrailingNewline`).
+      const replacement =
+        body === "" ? (next ? eol : "") : eol + body + (next ? eol : "");
+      return { range: heading.body, text: replacement };
+    }
+    case "prependEntry": {
+      const heading = ownedSection(parsed, op.section);
+      if (!heading) return appendSection(text, op.section, op.entry, eol);
+      const { body } = heading;
+      if (!/\S/.test(text.slice(body.start, body.end))) {
+        return intoEmptySection(
+          text,
+          heading,
+          composedLines(op.entry, eol),
+          eol
+        );
+      }
+      const at = text.startsWith(eol, body.start)
+        ? body.start + eol.length
+        : body.start;
+      return {
+        range: { start: at, end: at },
+        text: composedBody(op.entry, eol),
+      };
+    }
+    case "appendToSection": {
+      const line = composedLines(op.line, eol);
+      const { target } = op;
+      if (target === "lead") {
+        const first = parsed.headings.find((h) => h.level === 2);
+        const start = parsed.frontmatter
+          ? afterLineEnding(text, parsed.frontmatter.range.end)
+          : 0;
+        const end = first ? first.range.start : text.length;
+        const last = endOfLastNonBlankLine(text, start, end);
+        if (last !== null) return appendLine(text, parsed, last, line, eol);
+        if (first) {
+          return {
+            range: { start: first.range.start, end: first.range.start },
+            text: line + eol + eol,
+          };
+        }
+        const atLineStart = start === 0 || text.endsWith(eol, start);
+        return {
+          range: { start, end: start },
+          text: (atLineStart ? "" : eol) + line + eol,
+        };
+      }
+      let heading: Heading | undefined;
+      if ("section" in target) {
+        heading = ownedSection(parsed, target.section);
+        if (!heading) return appendSection(text, target.section, line, eol);
+      } else {
+        heading = parsed.headings.find(
+          (h) => h.level === 3 && h.blockId === target.block
+        );
+        if (!heading) {
+          return {
+            reason: "blockNotFound",
+            detail: `no ### block carries ^${target.block}`,
+          };
+        }
+      }
+      const last = endOfLastNonBlankLine(
+        text,
+        heading.body.start,
+        heading.body.end
+      );
+      if (last === null) return intoEmptySection(text, heading, line, eol);
+      return appendLine(text, parsed, last, line, eol);
+    }
+    case "setInlineField": {
+      const heading = criterionHeading(parsed, op.blockId);
+      if (!heading) {
+        return {
+          reason: "notACriterion",
+          detail: `^${op.blockId} is not a ### … ^c<n> inside ## Criteria`,
+        };
+      }
+      const fields = parsed.inlineFields.filter(
+        (f) =>
+          f.under === op.blockId &&
+          f.range.start >= heading.body.start &&
+          f.range.end <= heading.body.end
+      );
+      const field = fields.find((f) => f.key === op.field);
+      if (field) return { range: field.valueRange, text: op.value };
+      const line = `${op.field}:: ${op.value}`;
+      const at =
+        fields.length > 0
+          ? Math.max(...fields.map((f) => f.range.end))
+          : heading.range.end;
+      return { range: { start: at, end: at }, text: eol + line };
+    }
+  }
+}
+
+/** The `### … ^c<n>` inside `## Criteria` carrying this id — a criterion by ADR 0006 decision 2 — or undefined. */
+function criterionHeading(parsed: Outline, id: string): Heading | undefined {
+  if (!CRITERION_ID.test(id)) return undefined;
+  const criteria = ownedSection(parsed, "Criteria");
+  if (!criteria) return undefined;
+  return parsed.headings.find(
+    (h) =>
+      h.level === 3 &&
+      h.blockId === id &&
+      h.range.start >= criteria.body.start &&
+      h.range.end <= criteria.body.end
+  );
+}
+
+/** The end of the last line in [from, to) holding a non-whitespace character, or null when there is none. */
+function endOfLastNonBlankLine(
+  text: string,
+  from: number,
+  to: number
+): number | null {
+  let at = to - 1;
+  while (at >= from && /\s/.test(text[at]!)) at -= 1;
+  if (at < from) return null;
+  const lineEnd = text.indexOf("\n", at);
+  if (lineEnd === -1 || lineEnd >= to) return to;
+  return text[lineEnd - 1] === "\r" ? lineEnd - 1 : lineEnd;
+}
+
+/**
+ * Content into a section with nothing in it: the app's blank line after the
+ * heading, the content, and — when the section runs straight into the next
+ * heading — the blank line before that too. Blank lines the section
+ * already had stay where they are.
+ */
+function intoEmptySection(
+  text: string,
+  heading: Heading,
+  content: string,
+  eol: string
+): Splice {
+  const { body } = heading;
+  const next = body.end < text.length;
+  // The heading's own line ending plus the body's blank lines: one more is
+  // needed before the next heading only when the body had none.
+  const breaks = text.slice(body.start, body.end).split(eol).length - 1;
+  const after = next && breaks === 0 ? eol : "";
+  return {
+    range: { start: heading.range.end, end: heading.range.end },
+    text: eol + eol + content + after,
+  };
+}
+
+const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/;
+
+/**
+ * A line after the line ending at `at`: directly below it when both are list
+ * items, so Evidence and source lines read as one list beside the user's;
+ * otherwise after a blank line, so the line neither continues the user's
+ * paragraph nor unseats a `^id` at the end of it.
+ */
+function appendLine(
+  text: string,
+  parsed: Outline,
+  at: number,
+  line: string,
+  eol: string
+): Splice {
+  const inList = parsed.listItems.some(
+    (item) => item.range.start < at && at <= item.range.end
+  );
+  const joins = inList && LIST_LINE.test(line);
+  return {
+    range: { start: at, end: at },
+    text: (joins ? eol : eol + eol) + line,
+  };
+}
+
+function afterLineEnding(text: string, offset: number): number {
+  if (text.startsWith("\r\n", offset)) return offset + 2;
+  if (text[offset] === "\n" || text[offset] === "\r") return offset + 1;
+  return offset;
+}
+
+/**
+ * A section the app needs but the file lacks — or has under a heading the
+ * user renamed, which is the same thing — goes at the end of the file after
+ * one blank line, never at a canonical position, because appending is the
+ * one placement that cannot be wrong about an order the user chose
+ * (ADR 0008 decision 10).
+ */
+function appendSection(
+  text: string,
+  name: string,
+  body: string,
+  eol: string
+): Splice {
+  let end = text.length;
+  let trailing = 0;
+  while (text.endsWith(eol, end)) {
+    end -= eol.length;
+    trailing += 1;
+  }
+  const separator = text === "" ? "" : eol.repeat(Math.max(0, 2 - trailing));
+  return {
+    range: { start: text.length, end: text.length },
+    text: separator + `## ${name}` + eol + eol + composedBody(body, eol),
+  };
+}
+
+/** Text as the app composes it (LF, however it ends) in the file's line endings, without a trailing one. */
+function composedLines(text: string, eol: string): string {
+  return asLf(text).replace(/\n+$/, "").replace(/\n/g, eol);
+}
+
+/** `composedLines`, ending in exactly one line ending — or empty when blank. */
+function composedBody(body: string, eol: string): string {
+  const text = composedLines(body, eol);
+  return text === "" ? "" : text + eol;
+}
+
+/** The file's trailing-newline choice, whatever the last splice did at the end of the file. */
+function restoreTrailingNewline(text: string, file: FileChoices): string {
+  const eol = EOL_OF[file.eol];
+  if (file.trailingNewline) {
+    return text === "" || text.endsWith(eol) ? text : text + eol;
+  }
+  return text.endsWith(eol) ? text.slice(0, -eol.length) : text;
+}
+
+/** All operations applied to `text`, or the first refusal. */
+function apply(
+  text: string,
+  operations: Operation[],
+  file: FileChoices
+):
+  | { ok: true; content: string }
+  | { ok: false; reason: WriteRefusal; detail: string } {
+  const frontmatter = applyFrontmatter(text, operations, file.eol);
+  if (!frontmatter.ok) return frontmatter;
+  let out = splice(text, frontmatter.splices);
+  const eol = EOL_OF[file.eol];
+  for (const op of operations) {
+    if (op.op === "setFrontmatter") continue;
+    const located = locateSectionOp(out, op, eol);
+    if ("reason" in located) return { ok: false, ...located };
+    out = splice(out, [located]);
+  }
+  return { ok: true, content: restoreTrailingNewline(out, file) };
+}
+
 /**
  * What a splice must not have done, checked by re-parsing the result before
- * it reaches disk (ADR 0008 decision 3): the frontmatter still parses, `kind`
- * is unchanged, and no owned section is newly duplicated. The block ids an
- * operation depends on join this check with #122's section operations. A
- * duplicate the file already had is not the splice's doing and is reported
- * on the read, not refused here (ADR 0008 decision 10).
+ * it reaches disk (ADR 0008 decision 3): the frontmatter still parses,
+ * `kind` is unchanged, every `##` section an operation targeted is there
+ * exactly once (or as many times as before, when the file already had a
+ * duplicate — that is reported on the read, not refused here, ADR 0008
+ * decision 10), every block id an operation depends on is still there, and
+ * the file has no shape problem it did not have before. This is the guard
+ * against a fence or heading eaten by an off-by-one, silently.
  */
 function verify(
   before: OutlineResponse,
-  after: OutlineResponse
+  after: OutlineResponse,
+  operations: Operation[]
 ): string | null {
   if (!before.readable) return `the file is unreadable: ${before.reason}`;
   if (!after.readable) return `the result is unreadable: ${after.reason}`;
   if (after.kind !== before.kind) {
     return `kind would change from ${JSON.stringify(before.kind)} to ${JSON.stringify(after.kind)}`;
   }
-  const duplicated = (r: typeof after) =>
-    r.shape
-      .filter((p) => p.problem === "ownedSectionDuplicated")
-      .map((p) => p.block);
-  const already = new Set(duplicated(before));
-  const fresh = duplicated(after).find((name) => !already.has(name));
-  if (fresh !== undefined) return `owned section duplicated: ${fresh}`;
+  const sectionCount = (r: typeof after, name: string) =>
+    r.outline.headings.filter((h) => h.level === 2 && h.text === name).length;
+  const targets = operations.map(targetOf);
+  const sections = targets.flatMap((t) => (t.section ? [t.section] : []));
+  const blockIds = targets.flatMap((t) => (t.block ? [t.block] : []));
+  for (const name of new Set(sections)) {
+    const expected = Math.max(1, sectionCount(before, name));
+    const found = sectionCount(after, name);
+    if (found !== expected) {
+      return `## ${name}: expected ${expected} heading(s) after the write, found ${found}`;
+    }
+  }
+  for (const id of new Set(blockIds)) {
+    if (!after.outline.blockIds.some((b) => b.id === id)) {
+      return `block id ^${id} would be lost`;
+    }
+  }
+  const key = (p: ShapeProblem) => `${p.problem}:${p.block ?? ""}`;
+  const already = new Set(before.shape.map(key));
+  const fresh = after.shape.find((p) => !already.has(key(p)));
+  if (fresh !== undefined) {
+    return `shape problem introduced: ${fresh.problem}${fresh.block === undefined ? "" : ` (${fresh.block})`}`;
+  }
   return null;
+}
+
+/** The `##` section and the block id an operation's outcome depends on, for verification. */
+function targetOf(op: Operation): { section?: string; block?: string } {
+  switch (op.op) {
+    case "setFrontmatter":
+      return {};
+    case "replaceSection":
+      return { section: op.name };
+    case "prependEntry":
+      return { section: op.section };
+    case "appendToSection":
+      return op.target === "lead" ? {} : op.target;
+    case "setInlineField":
+      return { section: "Criteria", block: op.blockId };
+  }
 }
 
 async function commit(
@@ -568,6 +964,11 @@ async function commit(
   relativePath: string,
   content: string
 ): Promise<WriteResult> {
+  // What the write did to the file's shape is reported whichever path
+  // wrote it — `replaceFile` included, which is never refused on shape
+  // (ADR 0015 decision 4) but still says what the save left behind.
+  const after = analyse(relativePath, content, "");
+  const shape = after.readable ? after.shape : [];
   try {
     await writeAtomically(absolute, content);
   } catch (cause) {
@@ -576,7 +977,12 @@ async function commit(
       `Couldn't write ${relativePath}: ${errorMessage(cause)}`
     );
   }
-  return { written: true, hash: sha256(Buffer.from(content, "utf8")), content };
+  return {
+    written: true,
+    hash: sha256(Buffer.from(content, "utf8")),
+    content,
+    shape,
+  };
 }
 
 /** The current bytes of a file the caller has read before, or null when it is gone. */
@@ -591,13 +997,12 @@ async function current(absolute: string): Promise<Buffer | null> {
 /**
  * The write protocol for the splicing operations: re-hash; if the file
  * changed since the read, re-apply the operations to what is there now —
- * they locate their targets afresh, which a string patch could not; splice;
- * re-parse and verify; then temp file + rename. A write that cannot be
- * re-applied or fails verification is refused with the reason and nothing
- * touches the disk. Line endings and a BOM are restored from the file as
- * read; the trailing-newline choice survives because the splice never
- * reaches the end of the file unless the frontmatter is the whole file, and
- * then the closing fence is kept as it was.
+ * they locate their targets afresh, which a string patch could not; splice
+ * (the frontmatter as one splice, then each section operation against a
+ * fresh outline); re-parse and verify; then temp file + rename. A write
+ * that cannot be re-applied or fails verification is refused with the
+ * reason and nothing touches the disk. Line endings, a BOM, and the
+ * trailing-newline choice are restored from the file as read.
  */
 export async function write(
   vaultPath: string,
@@ -614,7 +1019,7 @@ export async function write(
   const raw = bytes.toString("utf8");
   const { text, file } = fileChoices(raw);
 
-  const applied = apply(text, operations, file.eol);
+  const applied = apply(text, operations, file);
   if (!applied.ok) {
     // A file that moved underneath and can no longer take the operation is
     // one refusal, whatever the operation's own reason was.
@@ -623,11 +1028,12 @@ export async function write(
       applied.detail
     );
   }
-  const content = (file.bom ? BOM : "") + splice(text, applied.splices);
+  const content = (file.bom ? BOM : "") + applied.content;
   // The result's hash is computed at commit; verify never reads it.
   const problem = verify(
     analyse(relativePath, raw, hash),
-    analyse(relativePath, content, "")
+    analyse(relativePath, content, ""),
+    operations
   );
   if (problem !== null) return refusal("verificationFailed", problem);
   return commit(absolute, relativePath, content);

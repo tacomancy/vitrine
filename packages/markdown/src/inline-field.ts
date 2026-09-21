@@ -14,9 +14,11 @@ export function isInlineFieldKeyCharacter(code: number): boolean {
   );
 }
 
+const TRAILING_BLOCK_ID = /\s+\^[A-Za-z0-9-]+$/;
+
 export interface ParsedInlineField {
   key: string;
-  /** The rest of the line, trailing whitespace dropped. */
+  /** The rest of the line, trailing whitespace and a trailing `^id` dropped. */
   value: string;
   /** Where the value begins in `line`: after the `::` and the spaces that follow it. */
   valueStart: number;
@@ -34,9 +36,8 @@ export function parseInlineField(line: string): ParsedInlineField | null {
   if (keyEnd === 0 || !line.startsWith("::", keyEnd)) return null;
   let valueStart = keyEnd + 2;
   while (line[valueStart] === " " || line[valueStart] === "\t") valueStart++;
-  return {
-    key: line.slice(0, keyEnd),
-    value: line.slice(valueStart).trimEnd(),
-    valueStart,
-  };
+  // A `^id` ending the line is the block's marker, not the value — as on a
+  // heading line — so a writer replacing the value leaves it standing.
+  const value = line.slice(valueStart).trimEnd().replace(TRAILING_BLOCK_ID, "");
+  return { key: line.slice(0, keyEnd), value, valueStart };
 }
