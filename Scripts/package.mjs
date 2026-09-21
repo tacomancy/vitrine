@@ -15,8 +15,9 @@
 // fresh bundle left in packages/shell/dist/mac-arm64/ for a manual drag.
 // Nothing is ever force-quit.
 //
-// Runs under the system Node (24+, which strips the types from launch.ts
-// so the build-version resolver is shared with the shell, not copied).
+// Runs under the system Node (22.18+, which strips the types from launch.ts
+// by default, so the build-version resolver is shared with the shell rather
+// than copied).
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -108,7 +109,7 @@ if (vitrineRunning()) {
   // The Apple event's own timeout is minutes; ours is the poll below. If the
   // event cannot be delivered at all (automation not authorized), the app
   // keeps running and the check below says so — never a quieter fallback.
-  const asked = spawnSync(
+  const quitRequest = spawnSync(
     "osascript",
     [
       "-e",
@@ -116,7 +117,7 @@ if (vitrineRunning()) {
     ],
     { encoding: "utf8" }
   );
-  if (asked.status !== 0) console.error(asked.stderr.trim());
+  if (quitRequest.status !== 0) console.error(quitRequest.stderr.trim());
   const until = Date.now() + 10_000;
   while (vitrineRunning() && Date.now() < until) await sleep(250);
   if (vitrineRunning()) {

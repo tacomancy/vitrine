@@ -10,8 +10,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json",
-    "start": "electron-vite preview",
-    "package": "electron-builder --mac --dir"
+    "start": "electron-vite preview"
   },
   "devDependencies": {
     "@trpc/client": "11.19.0",
