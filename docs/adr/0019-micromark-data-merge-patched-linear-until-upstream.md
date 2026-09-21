@@ -13,4 +13,4 @@
 ## Consequences
 
 - **+** Every micromark consumer in the app is linear per paragraph, gfm included, and `packages/markdown` needs no knowledge of the fix.
-- **−** The patch pins to micromark 4.0.2 (`pnpm-workspace.yaml` `patchedDependencies`): a bump must re-derive it with `pnpm patch` — both `lib/` and `dev/` builds, since vitest resolves the `development` export condition — or drop it once the same change lands upstream. The performance tests fail loudly if it silently stops applying.
+- **−** The patch pins to micromark 4.0.2 (`pnpm-workspace.yaml` `patchedDependencies`): a bump must re-derive it with `pnpm patch` — both `lib/` and `dev/` builds, since vitest resolves the `development` export condition — or drop it once the same change lands upstream (proposed as [micromark/micromark#233](https://github.com/micromark/micromark/pull/233)). The performance tests fail loudly if it silently stops applying.
