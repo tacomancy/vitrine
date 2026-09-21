@@ -98,4 +98,18 @@ describe("the window's location is the URL hash", () => {
       "Question Inbox"
     );
   });
+
+  it("shows a path the core refuses as an alert, never a quiet line", async () => {
+    window.location.hash = "#/questions/notes/plan.txt";
+    renderApp({
+      ...answers,
+      "vault.outline": () => {
+        throw new Error("notes/plan.txt is not a Markdown file.");
+      },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "notes/plan.txt is not a Markdown file."
+    );
+  });
 });

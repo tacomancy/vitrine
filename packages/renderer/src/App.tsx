@@ -8,7 +8,7 @@ import { FirstRun } from "./FirstRun";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ResearchQuestion } from "./ResearchQuestion";
-import { useLocation } from "./router";
+import { useRoute } from "./router";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 import { useTRPC } from "./trpc";
@@ -18,7 +18,7 @@ export function App() {
   const queryClient = useQueryClient();
   const vault = useQuery(trpc.vault.current.queryOptions());
   const listeners = useCoreEvents();
-  const location = useLocation();
+  const route = useRoute();
   // The last Question the capture line wrote. The Inbox re-reads the vault
   // and makes it the selection, so the user sees it land (brief § Question
   // Inbox: "everything captured recently, newest first").
@@ -56,14 +56,14 @@ export function App() {
       <div className={styles.window}>
         <TitleBar title={vault.data.name} />
         <div className={styles.panes}>
-          <Sidebar location={location} />
-          {location.surface === "inbox" && (
+          <Sidebar route={route} />
+          {route.surface === "inbox" && (
             <Inbox landed={landed} vaultPath={vault.data.path} />
           )}
-          {location.surface === "questions" && (
-            <ResearchQuestion path={location.path} />
+          {route.surface === "questions" && (
+            <ResearchQuestion path={route.path} />
           )}
-          {location.surface === "loose-ends" && <LooseEnds />}
+          {route.surface === "loose-ends" && <LooseEnds />}
         </div>
         <CaptureLine onCaptured={onCaptured} />
       </div>

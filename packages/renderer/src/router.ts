@@ -6,32 +6,32 @@ import { useEffect, useSyncExternalStore } from "react";
  * is the single source of truth for *where*, so a surface is an address that
  * can be copied. Everything else stays React state — no library, no store.
  */
-export type Location =
+export type Route =
   | { surface: "inbox" }
   | { surface: "questions"; path: string }
   | { surface: "loose-ends" };
 
-export const INBOX: Location = { surface: "inbox" };
-export const LOOSE_ENDS: Location = { surface: "loose-ends" };
+export const INBOX: Route = { surface: "inbox" };
+export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 
 const QUESTIONS = "#/questions/";
 
-/** The hash for a location; the path is vault-relative and encoded per segment. */
-export function hashOf(location: Location): string {
-  switch (location.surface) {
+/** The hash for a route; the path is vault-relative and encoded per segment. */
+export function hashOf(route: Route): string {
+  switch (route.surface) {
     case "inbox":
       return "#/inbox";
     case "loose-ends":
       return "#/loose-ends";
     case "questions":
       return (
-        QUESTIONS + location.path.split("/").map(encodeURIComponent).join("/")
+        QUESTIONS + route.path.split("/").map(encodeURIComponent).join("/")
       );
   }
 }
 
-/** The location a hash names; anything unrecognised is the Inbox. */
-export function parseHash(hash: string): Location {
+/** The route a hash names; anything unrecognised is the Inbox. */
+function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
   if (hash.startsWith(QUESTIONS)) {
     try {
@@ -55,24 +55,19 @@ const subscribe = (onChange: () => void) => {
 
 const readHash = () => window.location.hash;
 
-/** Go somewhere; the new location is a history entry, as a link's would be. */
-export function navigate(location: Location) {
-  window.location.hash = hashOf(location);
-}
-
-/** The window's location, kept in step with the hash. */
-export function useLocation(): Location {
+/** Where the window is, kept in step with the hash. */
+export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, readHash);
-  const location = parseHash(hash);
+  const route = parseHash(hash);
   // An empty or unknown hash reads as `#/inbox` once the window has decided
   // where it is; replaced, not pushed, so back does not land on a hash that
   // named nothing.
   useEffect(() => {
-    const canonical = hashOf(location);
+    const canonical = hashOf(route);
     if (hash !== canonical) {
       window.history.replaceState(null, "", canonical);
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     }
-  }, [hash, location]);
-  return location;
+  }, [hash, route]);
+  return route;
 }

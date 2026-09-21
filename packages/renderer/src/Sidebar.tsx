@@ -1,4 +1,4 @@
-import { hashOf, INBOX, LOOSE_ENDS, type Location } from "./router";
+import { hashOf, INBOX, LOOSE_ENDS, type Route } from "./router";
 import styles from "./Sidebar.module.css";
 
 // The eight surfaces in CONTEXT.md's order, then the one dashboard that has
@@ -7,7 +7,7 @@ import styles from "./Sidebar.module.css";
 // visible — plain list items, not controls. The Research Question view has
 // no destination of its own (a page needs a path): it lights when a page is
 // open and is inert otherwise.
-type Entry = { name: string; to?: Location; lit?: (at: Location) => boolean };
+type Entry = { name: string; to?: Route; lit?: (at: Route) => boolean };
 
 const SURFACES: readonly Entry[] = [
   { name: "Home" },
@@ -22,10 +22,10 @@ const SURFACES: readonly Entry[] = [
 
 const DASHBOARDS: readonly Entry[] = [{ name: "Loose Ends", to: LOOSE_ENDS }];
 
-export function Sidebar({ location }: { location: Location }) {
+export function Sidebar({ route }: { route: Route }) {
   const item = ({ name, to, lit }: Entry) => {
-    const current = to ? to.surface === location.surface : lit?.(location);
-    const href = current ? hashOf(location) : to ? hashOf(to) : null;
+    const current = to ? to.surface === route.surface : lit?.(route);
+    const href = current ? hashOf(route) : to ? hashOf(to) : null;
     return href === null ? (
       <li key={name} className={styles.disabled}>
         <span className={styles.dot} />

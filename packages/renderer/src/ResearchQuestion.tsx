@@ -17,9 +17,10 @@ export function ResearchQuestion({ path }: { path: string }) {
       <h1 id="research-question-title" className={styles.title}>
         Research Question view
       </h1>
+      {/* A refused read is a failure, not an absence: it must not read as a quiet page. */}
       {outline.isError && (
-        <p className={styles.absent}>
-          {path} — {outline.error.message}
+        <p className={styles.refused} role="alert">
+          {outline.error.message}
         </p>
       )}
       {outline.data?.readable === false && (
@@ -28,7 +29,7 @@ export function ResearchQuestion({ path }: { path: string }) {
         </p>
       )}
       {outline.data?.readable === true && (
-        <p className={styles.absent}>{outline.data.path}</p>
+        <p className={styles.path}>{outline.data.path}</p>
       )}
     </section>
   );
