@@ -228,10 +228,10 @@ const FIELD = "working answer";
  * app writes them — recorded it.
  */
 function revisionLine(entries: Revision[]): string {
-  const own = entries.filter((e) => e.field === FIELD);
-  const newest = own[0];
+  const ofField = entries.filter((e) => e.field === FIELD);
+  const newest = ofField[0];
   if (newest === undefined) return "no revisions yet";
-  return `revision ${own.length} of ${own.length} · held since ${localDate(newest.at)}`;
+  return `revision ${ofField.length} of ${ofField.length} · held since ${localDate(newest.at)}`;
 }
 
 /**
@@ -449,6 +449,8 @@ function describeProblem(problem: ShapeProblem): string {
     case "sectionDuplicated":
     case "ownedSectionDuplicated":
       return `${block} is in the file twice`;
+    case "historyEntryUnparsed":
+      return `a line under Position history is not a revision (${block})`;
     default:
       return `${problem.problem}${block === "" ? "" : ` (${block})`}`;
   }

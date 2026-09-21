@@ -7,6 +7,7 @@ import {
   readRevisions,
   topLevelItems,
   type Revision,
+  type Save,
 } from "./position-history.js";
 import type { VaultService } from "./vault.js";
 import {
@@ -240,24 +241,85 @@ function openThread(content: string, item: ListItem): OpenThread {
   return { text: text.slice(task[0].length), done: task[1] !== " " };
 }
 
-/** The entries under `## Position history`, in file order; the items that are not entries are skipped. */
+/**
+ * The entries under `## Position history`, in file order, and — as a shape
+ * problem naming its first line — each item that is not one, so a hand
+ * edit to the history is never silently discarded (§ Vault layout,
+ * Position history). The item itself stays in the file.
+ */
 function revisionsOf(
+  path: string,
   content: string,
   outline: Pick<Outline, "listItems">,
   heading: Heading | undefined
-): Revision[] {
-  if (heading === undefined) return [];
-  return readRevisions(content, outline, heading)
-    .map((item) => item.revision)
-    .filter((r): r is Revision => r !== null);
+): { entries: Revision[]; problems: ShapeProblem[] } {
+  const entries: Revision[] = [];
+  const problems: ShapeProblem[] = [];
+  if (heading === undefined) return { entries, problems };
+  for (const { range, revision } of readRevisions(content, outline, heading)) {
+    if (revision !== null) {
+      entries.push(revision);
+    } else {
+      const firstLine = content.slice(range.start, range.end).split(/\r?\n/)[0];
+      problems.push({
+        path,
+        kind: KIND,
+        problem: "historyEntryUnparsed",
+        ...(firstLine === undefined ? {} : { block: firstLine }),
+      });
+    }
+  }
+  return { entries, problems };
+}
+
+/** The file's text as outlined — BOM-less, so the outline's offsets index it — with its outline. */
+type PageFile = {
+  content: string;
+  outline: FileOutline;
+  hash: string;
+  shape: ShapeProblem[];
+};
+
+/**
+ * A Research Question file from disk, or why it is not one. The body is
+ * read from disk — it is what the page shows and edits, and the hash a
+ * later write is `basedOn` — and outlined from those same bytes, so a
+ * section's range can never come from one version of the file and its
+ * text from another.
+ */
+async function readPageFile(
+  absolute: string,
+  relativePath: string
+): Promise<{ ok: true; file: PageFile } | { ok: false; reason: string }> {
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return { ok: false, reason: errorMessage(error) };
+  }
+  const raw = bytes.toString("utf8");
+  const read = analyseFile(relativePath, raw, sha256(bytes));
+  if (!read.readable) return { ok: false, reason: read.reason };
+  if (read.kind !== KIND) {
+    return {
+      ok: false,
+      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
+    };
+  }
+  return {
+    ok: true,
+    file: {
+      content: read.file.bom ? raw.slice(BOM.length) : raw,
+      outline: read.outline,
+      hash: read.hash,
+      shape: read.shape,
+    },
+  };
 }
 
 /**
- * The page as the file holds it. The body is read from disk — it is what
- * the page shows and edits, and the hash a later write is `basedOn` — and
- * outlined from those same bytes, so a section's range can never come from
- * one version of the file and its text from another; the index supplies
- * only what a single file cannot know, where each link lands.
+ * The page as the file holds it; the index supplies only what a single
+ * file cannot know, where each link lands.
  */
 export async function readResearchQuestionPage(
   index: VaultIndex,
@@ -265,35 +327,19 @@ export async function readResearchQuestionPage(
   path: string
 ): Promise<ResearchQuestionPage> {
   const { absolute, relativePath } = await locate(vaultPath, path);
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(absolute);
-  } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
-  }
-  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
-  if (!read.readable) return read;
-  if (read.kind !== KIND) {
-    return {
-      readable: false,
-      path: relativePath,
-      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
-    };
-  }
+  const read = await readPageFile(absolute, relativePath);
+  if (!read.ok)
+    return { readable: false, path: relativePath, reason: read.reason };
+  const { content, outline, hash } = read.file;
   let frontmatter: ResearchQuestionFrontmatter;
   try {
     frontmatter = readResearchQuestion(
-      (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>
+      (outline.frontmatter?.value ?? {}) as Record<string, unknown>
     );
   } catch (error) {
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
-
-  // The offsets are into the BOM-less text `analyseFile` outlined.
-  const raw = bytes.toString("utf8");
-  const content = read.file.bom ? raw.slice(BOM.length) : raw;
-  const { outline } = read;
-  const problems: ShapeProblem[] = [...read.shape];
+  const problems: ShapeProblem[] = [...read.file.shape];
   const found = {} as Record<(typeof SECTIONS)[number], Heading | undefined>;
   for (const name of SECTIONS) {
     const { heading, count } = section(outline, name);
@@ -315,11 +361,17 @@ export async function readResearchQuestionPage(
           linkLine(index, relativePath, outline, content, item)
         );
   const threads = found["Open threads"];
-  const history = found["Position history"];
+  const history = revisionsOf(
+    relativePath,
+    content,
+    outline,
+    found["Position history"]
+  );
+  problems.push(...history.problems);
   return {
     readable: true,
     path: relativePath,
-    hash: read.hash,
+    hash,
     frontmatter,
     sections: {
       workingAnswer: {
@@ -348,9 +400,9 @@ export async function readResearchQuestionPage(
               ),
       },
       positionHistory: {
-        present: history !== undefined,
-        text: bodyText(content, history),
-        entries: revisionsOf(content, outline, history),
+        present: found["Position history"] !== undefined,
+        text: bodyText(content, found["Position history"]),
+        entries: history.entries,
       },
     },
     problems,
@@ -406,36 +458,19 @@ export function createResearchQuestionService({
     }
     const vaultPath = opened.vault.path;
     const { absolute, relativePath } = await locate(vaultPath, path);
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(absolute);
-    } catch (error) {
-      return {
-        written: false,
-        reason: "changedAndUnreapplyable",
-        detail: errorMessage(error),
-      };
-    }
-    const raw = bytes.toString("utf8");
-    const read = analyseFile(relativePath, raw, sha256(bytes));
-    if (!read.readable) {
+    const read = await readPageFile(absolute, relativePath);
+    if (!read.ok) {
       return { written: false, reason: "unreadable", detail: read.reason };
     }
-    if (read.kind !== KIND) {
-      return {
-        written: false,
-        reason: "unreadable",
-        detail: `not a Research Question: kind is ${read.kind ?? "absent"}`,
-      };
-    }
-    const content = read.file.bom ? raw.slice(BOM.length) : raw;
-    const { outline } = read;
+    const { content, outline, hash } = read.file;
     const text = typed.replace(/\r\n/g, "\n").trim();
     // The Position as the file holds it now: what the Revision is *from*.
     // The page was given this same text unless the file changed underneath,
     // which the write protocol catches (#215 turns that into a line).
     const from = bodyText(content, section(outline, "Working answer").heading);
-    if (from === text) return { written: true, hash: read.hash };
+    // Nothing to write, so nothing to base on: the file's hash is the
+    // page's fresh view of it, whatever hash the page carried in.
+    if (from === text) return { written: true, hash };
 
     const operations: Operation[] = [
       { op: "replaceSection", name: "Working answer", body: text },
@@ -462,16 +497,17 @@ export function createResearchQuestionService({
   function historyOperation(
     content: string,
     outline: Pick<Outline, "headings" | "listItems">,
-    save: { field: string; from: string; at: Date }
+    save: Save
   ): Operation[] {
     const history = section(outline, "Position history").heading;
     const items =
       history === undefined ? [] : readRevisions(content, outline, history);
     const head = items[0];
-    const { coalesced, revision } = coalesce(head?.revision ?? null, {
-      ...save,
-      windowMs: coalesceMs,
-    });
+    const { coalesced, revision } = coalesce(
+      head?.revision ?? null,
+      save,
+      coalesceMs
+    );
     const entry = formatRevision(revision);
     if (!coalesced || history === undefined || head === undefined) {
       return [{ op: "prependEntry", section: "Position history", entry }];

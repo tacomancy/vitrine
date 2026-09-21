@@ -98,6 +98,11 @@ describe("the Revision grammar", () => {
     });
   }
 
+  it("parses an entry as a CRLF file holds it: the reader never sees the writer's LF", () => {
+    const crlf = table[2]!.text.replace(/\n/g, "\r\n");
+    expect(parseRevision(crlf)).toEqual(table[2]!.revision);
+  });
+
   it("does not parse what is not an entry: no timestamp, no field, no from:", () => {
     expect(parseRevision("- a note someone typed")).toBeNull();
     expect(parseRevision("- 2026-07-02T09:10:00+02:00")).toBeNull();
@@ -158,12 +163,11 @@ describe("coalescing (ADR 0020 decision 2)", () => {
 
   it("a save inside the window re-stamps the head entry and keeps its from:", () => {
     expect(
-      coalesce(head, {
-        field: "working answer",
-        from: "after the first save",
-        at: at(10),
-        windowMs: 30 * minute,
-      })
+      coalesce(
+        head,
+        { field: "working answer", from: "after the first save", at: at(10) },
+        30 * minute
+      )
     ).toEqual({
       coalesced: true,
       revision: { ...head, at: localIso(at(10)) },
@@ -175,9 +179,9 @@ describe("coalescing (ADR 0020 decision 2)", () => {
       field: "working answer",
       from: "after the first save",
       at: at(31),
-      windowMs: 30 * minute,
     };
-    const opened = coalesce(head, fresh);
+    const window = 30 * minute;
+    const opened = coalesce(head, fresh, window);
     expect(opened.coalesced).toBe(false);
     expect(opened.revision).toMatchObject({
       field: "working answer",
@@ -185,20 +189,23 @@ describe("coalescing (ADR 0020 decision 2)", () => {
       from: "after the first save",
     });
     expect(
-      coalesce(head, { ...fresh, at: at(10), field: "claim" }).coalesced
+      coalesce(head, { ...fresh, at: at(10), field: "claim" }, window).coalesced
     ).toBe(false);
     expect(
-      coalesce({ ...head, why: "explained" }, { ...fresh, at: at(10) })
+      coalesce({ ...head, why: "explained" }, { ...fresh, at: at(10) }, window)
         .coalesced
     ).toBe(false);
-    expect(coalesce(null, { ...fresh, at: at(10) }).coalesced).toBe(false);
+    expect(coalesce(null, { ...fresh, at: at(10) }, window).coalesced).toBe(
+      false
+    );
   });
 
   it("a head whose timestamp does not parse is never re-stamped", () => {
     expect(
       coalesce(
         { ...head, at: "yesterday" },
-        { field: "working answer", from: "x", at: at(1), windowMs: minute }
+        { field: "working answer", from: "x", at: at(1) },
+        minute
       ).coalesced
     ).toBe(false);
   });

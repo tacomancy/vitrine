@@ -276,6 +276,25 @@ describe("researchQuestions.page", () => {
     expect(page.sections.workingAnswer.text).toBe("first");
   });
 
+  it("an item under the history that is not an entry is left out of the entries and reported as a shape problem naming its first line", async () => {
+    const path = "questions/hand (RQ).md";
+    const hand =
+      FRONTMATTER +
+      "\n## Working answer\n\n## Supporting sources\n\n## Opposing sources\n\n## Related questions\n\n## Open threads\n\n## Position history\n\n- 2026-09-21T09:00:00+02:00 · working answer\n  from:\n- a note someone typed\n  on two lines\n";
+    const { page } = await openedPage({ [path]: hand }, path);
+    expect(page.readable).toBe(true);
+    if (!page.readable) return;
+    expect(page.sections.positionHistory.entries.length).toBe(1);
+    expect(page.problems).toEqual([
+      {
+        path,
+        kind: "research-question",
+        problem: "historyEntryUnparsed",
+        block: "- a note someone typed",
+      },
+    ]);
+  });
+
   it("a file that is not a Research Question, or lacks its question, is not readable as a page", async () => {
     const question = "questions/q.md";
     const noQuestion = "questions/noq (RQ).md";
@@ -547,7 +566,7 @@ describe("researchQuestions.saveWorkingAnswer", () => {
     await rm(join(vault, path));
     expect(await save("Later.", stale)).toMatchObject({
       written: false,
-      reason: "changedAndUnreapplyable",
+      reason: "unreadable",
     });
   });
 });

@@ -109,7 +109,8 @@ export type ShapeProblem = {
     | "ownedSectionDuplicated"
     | "fieldOutsideVocabulary"
     | "sectionMissing"
-    | "sectionDuplicated";
+    | "sectionDuplicated"
+    | "historyEntryUnparsed";
   block?: string;
 };
 

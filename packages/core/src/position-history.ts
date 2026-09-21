@@ -53,7 +53,8 @@ export function formatRevision(revision: Revision): string {
  * the caller can leave it in place rather than lose it.
  */
 export function parseRevision(item: string): Revision | null {
-  const lines = item.split("\n");
+  // The item is the file's bytes, so a CRLF file's lines end in `\r`.
+  const lines = item.split(/\r?\n/);
   const first = FIRST_LINE.exec(lines[0] ?? "");
   if (first === null) return null;
   let why: string | null = null;
@@ -120,12 +121,12 @@ export function readRevisions(
   }));
 }
 
+/** One save of one field, as the history sees it. */
 export type Save = {
   field: string;
   /** The field's text before this save. */
   from: string;
   at: Date;
-  windowMs: number;
 };
 
 /**
@@ -140,12 +141,13 @@ export type Save = {
  */
 export function coalesce(
   head: Revision | null,
-  save: Save
+  save: Save,
+  windowMs: number
 ): { coalesced: boolean; revision: Revision } {
   const at = localIso(save.at);
   if (head !== null && head.field === save.field && head.why === null) {
     const since = save.at.getTime() - Date.parse(head.at);
-    if (!Number.isNaN(since) && since >= 0 && since < save.windowMs) {
+    if (!Number.isNaN(since) && since >= 0 && since < windowMs) {
       return { coalesced: true, revision: { ...head, at } };
     }
   }
