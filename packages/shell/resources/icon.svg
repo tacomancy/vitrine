@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Vitrine app icon">
+  <title>Vitrine app icon</title>
+  <!--
+    The Case (docs/reference/branding/assets/mark-case.svg, copied whole,
+    never edited) on a solid ink plate drawn to Apple's icon grid: a 1024
+    canvas, an 824 pt rounded square, ~185 pt radius. The mask is drawn in
+    because macOS applies none to an app icon. The mark is scaled 9× and
+    centred on its own content box (x 4–60, y 8–60 in the 64-unit source),
+    which keeps BRAND.md's clearspace — the plinth height, 1/10 of the
+    mark — clear of the plate's edge many times over.
+  -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#09111D"/>
+  <g transform="translate(224 206) scale(9)">
+    <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FCD37D"/><stop offset="55%" stop-color="#C49726"/>
+      <stop offset="100%" stop-color="#836202"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#053274"/><stop offset="100%" stop-color="#020713"/></linearGradient></defs>
+    <path d="M8,54 L8,26 L16,26 L16,17 L24,17 L24,8 L40,8 L40,17 L48,17 L48,26 L56,26 L56,54 Z" fill="url(#b)"/>
+    <path d="M14,54 L14,30 L21,30 L21,22 L28,22 L28,14 L36,14 L36,22 L43,22 L43,30 L50,30 L50,54 Z" fill="url(#g)"/>
+    <path d="M23,29 L32,47 L41,29" fill="none" stroke="url(#b)" stroke-width="4.2"/>
+    <rect x="4" y="54" width="56" height="6" fill="url(#b)"/>
+  </g>
+</svg>

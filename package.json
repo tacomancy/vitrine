@@ -4,10 +4,11 @@
   "type": "module",
   "packageManager": "pnpm@12.4.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "pnpm --filter core... build && pnpm --filter shell dev",
+    "package": "node Scripts/package.mjs",
     "build": "pnpm -r build",
     "lint": "eslint . && prettier --check . && pnpm lint:boundaries",
     "format": "prettier --write .",
