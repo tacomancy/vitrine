@@ -6,6 +6,7 @@ import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import { readOutline } from "./vault-files.js";
+import { tagTree } from "./vault-tags.js";
 
 export type Context = {
   vault: VaultService;
@@ -80,6 +81,10 @@ export const router = t.router({
     status: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
       return index.status();
+    }),
+    tags: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return tagTree(index);
     }),
   }),
   events: t.router({
