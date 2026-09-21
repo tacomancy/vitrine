@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { writeAtomically } from "./atomic-write.js";
 import { VaultError, type VaultService } from "./vault.js";
 
 /** Where a Question came from. This slice knows one context: Unattached. */
@@ -129,21 +130,6 @@ async function freePath(folder: string, name: string): Promise<string> {
     candidate = join(folder, `${name} (${n}).md`);
   }
   return candidate;
-}
-
-/**
- * Write whole, then rename into place: a crash mid-write leaves a temp file
- * the vault scan ignores (it is a dot-entry), never a half Question.
- */
-async function writeAtomically(path: string, content: string): Promise<void> {
-  const temp = join(dirname(path), `.${randomBytes(6).toString("hex")}.tmp`);
-  await writeFile(temp, content, { flag: "wx" });
-  try {
-    await rename(temp, path);
-  } catch (cause) {
-    await unlink(temp).catch(() => undefined);
-    throw cause;
-  }
 }
 
 export function createQuestionService({

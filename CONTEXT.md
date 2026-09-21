@@ -45,6 +45,10 @@ _Avoid_: Managed section, generated section
 An app-owned file missing structure its Kind expects. Four cases today: a Hypothesis without `## Criteria`; a `###` under `## Criteria` without `^c<n>`; an Owned section present twice; a criterion's `outcome::` or `relationship::` holding a value outside its vocabulary. Reported as `{ path, kind, problem, block? }` beside the rest of the Outline, never in place of it; a missing Owned section is not one (ADR 0008 decision 10).
 _Avoid_: Corrupt, malformed, invalid file, unreadable (that is a file whose frontmatter does not parse)
 
+**Write**:
+One hash-checked application of operations to a vault file — `{ operations[], basedOn }`, where `basedOn` is the hash of the Outline the operations were computed from. Re-applied to the current content if the file changed underneath, verified by re-parsing, written atomically; refused with a reason when it cannot be re-applied or fails verification, and then nothing touches the disk. The result carries the content as written and its hash, for the Index to record an own write. `replaceFile` (the Vault editor's save) and `createFile` are the two whole-file exceptions: the first is refused only when the file is Changed on disk, the second only when the file exists.
+_Avoid_: Patch, diff (a string patch cannot find its target again; an operation can), save (that is the editor's word for its `replaceFile`)
+
 **Changed on disk**:
 The state of a file open in the Vault editor with unsaved typing whose bytes on disk no longer match what the editor was given — an Obsidian edit, a sync, the app's own splice. Shown as a line, never a dialog; resolved as *keep mine* or *take the disk copy*, and until then nothing is written. A clean editor simply reloads.
 _Avoid_: Conflict, merge, stale (a Scout health word)
