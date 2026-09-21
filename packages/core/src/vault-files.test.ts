@@ -1,21 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readOutline, type OutlineResponse } from "./vault-files.js";
-import { tmp } from "./test-core.js";
+import { vaultWith } from "./test-core.js";
 
 // The module seam: one file's outline plus what only the core knows — its
 // Kind, the shape problems its Kind implies, and the file-level choices the
 // writer (#121) restores. Everything asserted here is what a caller sees.
-
-async function vaultWith(files: Record<string, string>): Promise<string> {
-  const vault = await tmp("files");
-  for (const [name, content] of Object.entries(files)) {
-    await mkdir(join(vault, name, ".."), { recursive: true });
-    await writeFile(join(vault, name), content);
-  }
-  return vault;
-}
 
 function readable(response: OutlineResponse) {
   if (!response.readable) throw new Error(`unreadable: ${response.reason}`);

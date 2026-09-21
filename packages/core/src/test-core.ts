@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
 import type { Host } from "./host.js";
+import { readOutline, type WriteResult } from "./vault-files.js";
 
 const token = "test-token";
 export const fixtures = join(
@@ -94,4 +102,52 @@ export async function fingerprint(root: string): Promise<string[]> {
   }
   await walk(root);
   return out.sort();
+}
+
+// Helpers the vault-files tests share: a temp vault, a corpus copy, and the
+// hash a caller carries into a write.
+
+export const sha256 = (bytes: Buffer | string) =>
+  createHash("sha256").update(bytes).digest("hex");
+export const hashOf = async (path: string) => sha256(await readFile(path));
+export const bytes = (path: string) => readFile(path, "utf8");
+
+/** A temp vault holding these files, written as given. */
+export async function vaultWith(
+  files: Record<string, string>
+): Promise<string> {
+  const vault = await tmp("vault");
+  for (const [name, content] of Object.entries(files)) {
+    await mkdir(join(vault, name, ".."), { recursive: true });
+    await writeFile(join(vault, name), content);
+  }
+  return vault;
+}
+
+/** A temp vault holding a copy of one Obsidian-corpus file, untouched by Obsidian since. */
+export async function corpusCopy(
+  name: string
+): Promise<{ vault: string; original: string }> {
+  const vault = await tmp("corpus-copy");
+  await copyFile(join(fixtures, "obsidian-corpus", name), join(vault, name));
+  return { vault, original: await readFile(join(vault, name), "utf8") };
+}
+
+/** The hash a caller carries into a write: what the read gave it. */
+export async function basedOn(vault: string, path: string): Promise<string> {
+  const read = await readOutline(vault, path);
+  if (!read.readable) throw new Error(`unreadable: ${read.reason}`);
+  return read.hash;
+}
+
+export function written(result: WriteResult) {
+  if (!result.written) {
+    throw new Error(`refused: ${result.reason} — ${result.detail}`);
+  }
+  return result;
+}
+
+export function refused(result: WriteResult) {
+  if (result.written) throw new Error("expected a refusal");
+  return result;
 }
