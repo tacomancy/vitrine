@@ -7,6 +7,7 @@ export default defineConfig({
       "packages/core",
       "packages/markdown",
       "packages/renderer",
+      "packages/shell",
       {
         test: {
           name: "tooling",

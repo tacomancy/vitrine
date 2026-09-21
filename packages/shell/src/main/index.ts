@@ -16,12 +16,17 @@ import {
 } from "electron";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { coreEntry, stateFolder } from "./launch.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
 
 // The shell's only runtime tie to the core is this path to its built entry;
 // the `core` dependency above is type-only, for the message contract.
-const CORE_ENTRY = join(__dirname, "../../../core/dist/main.js");
+const CORE_ENTRY = coreEntry({
+  isPackaged: app.isPackaged,
+  resourcesPath: process.resourcesPath,
+  mainDir: __dirname,
+});
 const RENDERER_DIR = join(__dirname, "../renderer");
 const PRELOAD = join(__dirname, "../preload/index.js");
 
@@ -48,10 +53,21 @@ async function pickFolder(): Promise<string | null> {
 
 /** Spawn the core out of process, so a crash there never takes the window down. */
 function spawnCore(): Promise<Session> {
+  // The shell always says which state folder to use, so the core's own
+  // default is only ever reached by a core started by hand.
+  const appSupportDir = stateFolder({
+    explicit: process.env.VITRINE_APP_SUPPORT_DIR,
+    isPackaged: app.isPackaged,
+    appData: app.getPath("appData"),
+  });
   return new Promise((resolve) => {
     const core: UtilityProcess = utilityProcess.fork(CORE_ENTRY, [], {
       serviceName: "vitrine-core",
-      env: { ...process.env, VITRINE_STATIC_DIR: RENDERER_DIR },
+      env: {
+        ...process.env,
+        VITRINE_STATIC_DIR: RENDERER_DIR,
+        VITRINE_APP_SUPPORT_DIR: appSupportDir,
+      },
     });
     const reply = (message: ShellMessage) => core.postMessage(message);
     core.on("message", (message: CoreMessage) => {
