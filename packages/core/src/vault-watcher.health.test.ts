@@ -89,6 +89,28 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     expect(await questions()).toEqual(["During the outage"]);
   });
 
+  it("a recovered fault on a quiet vault shows no indexing progress: no trace", async () => {
+    const fs = injectable();
+    const progress: Array<VaultStatus["indexing"]> = [];
+    const c0 = { c: null as Awaited<ReturnType<typeof core>> | null };
+    const { c } = await opened({
+      watch: fs.watch,
+      onVaultStatus: async () => {
+        if (c0.c === null) return;
+        progress.push(
+          (await c0.c.query<VaultStatus>("vault.status")).result!.data.indexing
+        );
+      },
+    });
+    c0.c = c;
+    const stream = await c.events();
+    fs.fail("FSEvents stream stopped");
+    await stream.next("vaultStatus");
+    await c.indexed();
+    stream.close();
+    expect(progress.every((p) => p === null)).toBe(true);
+  });
+
   it("a reopen that fails is not watching, with the reason, and the index is not current", async () => {
     const fs = injectable();
     const { c, status } = await opened({ watch: fs.watch });

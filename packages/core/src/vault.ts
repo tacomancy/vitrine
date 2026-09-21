@@ -317,7 +317,11 @@ export function createVaultService({
     },
     rewatch: async () => {
       await restored;
-      if (opened === null || opened.watcher !== null) return;
+      // Nothing to do while a watcher is live or the automatic reopen is
+      // still under way: a second start would leave one of the two orphaned.
+      if (opened === null || opened.watcher !== null || opened.reopening) {
+        return;
+      }
       await watchAndSweep(opened, false);
     },
     close: () => {

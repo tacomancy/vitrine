@@ -307,7 +307,12 @@ function createIndex(
   }: IndexOptions
 ): VaultIndex {
   let closed = false;
-  let sweep: "pending" | "running" | "done" | { failed: string } = "pending";
+  let sweep: "pending" | "done" | { failed: string } = "pending";
+  // Sweeps asked for and not yet finished. Every request runs — a sweep
+  // asked for while one runs is not folded into it, because a file that
+  // landed in a folder the running walk had already listed would then be
+  // missed until the next open (ADR 0013 decision 3: watch, then sweep).
+  let sweepsQueued = 0;
   // Batches settled but not yet applied — ADR 0014 decision 11's third
   // reason. Counted from the call, not from the write lock, so a batch
   // queued behind a sweep already counts.
@@ -669,7 +674,10 @@ function createIndex(
     const { entries, unlistable } = await walk(vaultPath);
     if (closed) return;
     const { work, removed } = reconcile(entries, allKnown());
-    progress = { done: 0, total: work.length + removed.length };
+    // A sweep with nothing to apply shows no progress: the catch-up after a
+    // recovered watcher fault, on a quiet vault, must leave no trace.
+    const total = work.length + removed.length;
+    progress = total > 0 ? { done: 0, total } : null;
     await raiseStatus();
     if (closed) return;
 
@@ -744,16 +752,15 @@ function createIndex(
 
   return {
     sweep: () => {
-      // A sweep asked for while one runs is answered by that one: both would
-      // compare the same disk to the same rows.
-      if (sweep === "running") return writes;
-      sweep = "running";
+      sweepsQueued++;
       return serially(async () => {
         try {
           await runSweep();
           sweep = "done";
         } catch (error) {
           sweep = { failed: errorMessage(error) };
+        } finally {
+          sweepsQueued--;
         }
         progress = null;
         if (!closed) await raiseStatus();
@@ -781,7 +788,7 @@ function createIndex(
     status: () => ({
       indexing: progress,
       current:
-        sweep === "pending" || sweep === "running"
+        sweep === "pending" || sweepsQueued > 0
           ? { ok: false, reason: "a sweep has not completed" }
           : typeof sweep === "object"
             ? { ok: false, reason: `the sweep failed: ${sweep.failed}` }

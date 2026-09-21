@@ -245,6 +245,9 @@ export async function watchVault(
       start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);
     }
     await live();
+    // A death that landed while the probe was being removed closed the
+    // watch without a throw; it must not be handed back as live.
+    if (diedStarting !== null) throw new Error(diedStarting);
   } catch (cause) {
     close();
     throw cause;
