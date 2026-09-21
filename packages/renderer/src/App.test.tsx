@@ -99,7 +99,12 @@ describe("the window with a vault open", () => {
   it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {
     renderApp({
       "vault.current": vault,
-      "questions.list": { questions: [], partial: [], unreadable: [] },
+      "questions.list": {
+        questions: [],
+        partial: [],
+        unreadable: [],
+        shape: [],
+      },
     });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(inbox.textContent).toContain("0 questions");

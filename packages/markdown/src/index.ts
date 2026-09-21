@@ -9,7 +9,7 @@ export type {
 export { isBlockIdCharacter, parseBlockId } from "./block-id.js";
 export { isInlineFieldKeyCharacter, parseInlineField } from "./inline-field.js";
 export type { ParsedInlineField } from "./inline-field.js";
-export { BOM, locateFrontmatter } from "./frontmatter.js";
+export { BOM, locateFrontmatter, opensFrontmatter } from "./frontmatter.js";
 export type { FrontmatterLocation } from "./frontmatter.js";
 export type { Range } from "./range.js";
 export { outline } from "./outline.js";

@@ -54,7 +54,7 @@ export const vault = {
   path: "/v/consolidation-vault",
 };
 
-export const empty = { questions: [], partial: [], unreadable: [] };
+export const empty = { questions: [], partial: [], unreadable: [], shape: [] };
 
 export const question = (
   text: string,

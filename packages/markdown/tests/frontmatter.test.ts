@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { locateFrontmatter } from "../src/index.js";
+import { locateFrontmatter, opensFrontmatter } from "../src/index.js";
 
 // The fence rule: `---` at offset 0 (after an optional BOM), closed by a line
 // that is `---`; a blank line before the opening fence means no frontmatter
@@ -62,5 +62,19 @@ describe("locateFrontmatter", () => {
       range: { start: 0, end: 14 },
       content: { start: 4, end: 11 },
     });
+  });
+});
+
+// A reader that takes a file in chunks needs to know, before the closing
+// fence has arrived, whether there is a block to wait for at all.
+describe("opensFrontmatter", () => {
+  it("is the opening half of the same rule", () => {
+    expect(opensFrontmatter("---\nkind: note\n")).toBe(true);
+    expect(opensFrontmatter("﻿---\r\nkind: note\r\n")).toBe(true);
+    expect(opensFrontmatter("---  \nkind: note\n")).toBe(true);
+    expect(opensFrontmatter("\n---\nkind: note\n")).toBe(false);
+    expect(opensFrontmatter(" ---\nkind: note\n")).toBe(false);
+    expect(opensFrontmatter("--- x\nkind: note\n")).toBe(false);
+    expect(opensFrontmatter("# Heading\n")).toBe(false);
   });
 });
