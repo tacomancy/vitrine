@@ -29,6 +29,7 @@
 }
 
 .live,
+.current,
 .disabled {
   display: flex;
   align-items: center;
@@ -39,16 +40,24 @@
   line-height: var(--leading-ui);
 }
 
-.live {
+.live,
+.current {
   color: var(--color-fg);
-  font-weight: 600;
   text-decoration: none;
+}
+
+.current {
+  font-weight: 600;
   background: var(--color-bg-raised);
 }
 
 /* Brass marks the active nav item and nothing else here (BRAND.md law 3). */
-.live .dot {
+.current .dot {
   background: var(--color-accent);
+}
+
+.label + .list + .label {
+  padding-top: var(--space-4);
 }
 
 .disabled {

@@ -73,7 +73,8 @@ describe("the window with a vault open", () => {
     );
   });
 
-  it("lists the eight surfaces with only Question Inbox live", async () => {
+  it("lists the eight surfaces and Loose Ends; only entries with an address are links", async () => {
+    window.history.replaceState(null, "", "/");
     renderApp({ "vault.current": vault });
     const nav = await screen.findByRole("navigation", { name: "Surfaces" });
     const items = Array.from(nav.querySelectorAll("li")).map(
@@ -88,9 +89,16 @@ describe("the window with a vault open", () => {
       "Experiment view",
       "Scout Queue",
       "Vault",
+      "Loose Ends",
     ]);
     const links = screen.getAllByRole("link");
-    expect(links.map((a) => a.textContent)).toEqual(["Question Inbox"]);
+    expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Question Inbox", "#/inbox"],
+      ["Loose Ends", "#/loose-ends"],
+    ]);
+    expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
+      "Question Inbox"
+    );
     expect(nav.querySelectorAll("button, [tabindex]")).toHaveLength(0);
     expect(nav.textContent).not.toContain("⌘K");
     expect(nav.textContent).not.toContain("THREADS");
