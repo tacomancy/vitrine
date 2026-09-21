@@ -41,6 +41,10 @@ _Avoid_: AST, parse tree (it is ranges, not a tree to print back), metadata cach
 A `##` section of a vault file that the app rewrites whole — `## Annotations`, `## Position history` — as opposed to the user's prose, which it never touches.
 _Avoid_: Managed section, generated section
 
+**Lead**:
+The body of a vault file before its first `##` heading — the whole body of a Question, the text above `## Working answer` on a Research Question. Where the write-back line from a resolved Hypothesis lands, so that it can never fall inside `## Position history` (ADR 0008 decision 2). One of `appendToSection`'s three targets, beside a `##` section and a `###` block.
+_Avoid_: Preamble, intro, body (the lead is part of it)
+
 **Shape problem**:
 An app-owned file missing structure its Kind expects. Four cases today: a Hypothesis without `## Criteria`; a `###` under `## Criteria` without `^c<n>`; an Owned section present twice; a criterion's `outcome::` or `relationship::` holding a value outside its vocabulary. Reported as `{ path, kind, problem, block? }` beside the rest of the Outline, never in place of it; a missing Owned section is not one (ADR 0008 decision 10).
 _Avoid_: Corrupt, malformed, invalid file, unreadable (that is a file whose frontmatter does not parse)
