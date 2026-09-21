@@ -943,6 +943,212 @@ exports[`vault.outline over the corpus > lt-before-tag.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > nested/Relative parent.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "70ed59b0b77967f4b2fd9c2bc18e39e853d851b418c6a91c70058cb6a9b8ce78",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "nested/Relative parent.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > nested/deep/Relative sibling.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "b27be97d09bf0de67027238281d8d755373ea78d1782a82284452bc9cc0f7afd",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "nested/deep/Relative sibling.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
+exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "4e228d426721e6159082b80ce87c3dc1af4f020602220f0ffb0949ae2e0d7a4f",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [
+      {
+        "alias": "up two, encoded",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 55,
+          "start": 0,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "Sleep and consolidation.md",
+        "syntax": "markdown",
+        "target": "../../Sleep and consolidation.md",
+      },
+      {
+        "alias": "up two, no space",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 95,
+          "start": 56,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "links-case.md",
+        "syntax": "markdown",
+        "target": "../../links-case.md",
+      },
+      {
+        "alias": "up one, sideways",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 142,
+          "start": 96,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "a/Klinzing 2019.md",
+        "syntax": "markdown",
+        "target": "../../a/Klinzing 2019.md",
+      },
+      {
+        "alias": "sibling",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 177,
+          "start": 143,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "nested/deep/Relative sibling.md",
+        "syntax": "markdown",
+        "target": "./Relative sibling.md",
+      },
+      {
+        "alias": "up one",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 211,
+          "start": 178,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "nested/Relative parent.md",
+        "syntax": "markdown",
+        "target": "../Relative parent.md",
+      },
+      {
+        "alias": "up two, heading",
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "Heading",
+        ],
+        "range": {
+          "end": 275,
+          "start": 212,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "Sleep and consolidation.md",
+        "syntax": "markdown",
+        "target": "../../Sleep and consolidation.md",
+      },
+      {
+        "alias": "up two, missing heading",
+        "blockId": null,
+        "embed": false,
+        "heading": [
+          "Missing",
+        ],
+        "range": {
+          "end": 347,
+          "start": 276,
+        },
+        "resolution": "unresolved",
+        "resolvedPath": null,
+        "syntax": "markdown",
+        "target": "../../Sleep and consolidation.md",
+      },
+      {
+        "alias": "escapes the vault",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 408,
+          "start": 348,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "Sleep and consolidation.md",
+        "syntax": "markdown",
+        "target": "../../../Sleep and consolidation.md",
+      },
+      {
+        "alias": null,
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 442,
+          "start": 409,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "Sleep and consolidation.md",
+        "syntax": "wikilink",
+        "target": "../../Sleep and consolidation",
+      },
+    ],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "nested/deep/links-relative.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > props-comma-tags.md: snapshot 1`] = `
 {
   "criteria": [],
