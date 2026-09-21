@@ -4,3 +4,5 @@ build/
 node_modules/
 dist/
 out/
+# pnpm deploy's staged core, electron-builder's input (packages/shell/stage/)
+stage/

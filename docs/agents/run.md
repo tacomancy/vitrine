@@ -2,6 +2,8 @@
 
 How an agent launches Vitrine to see a change working, without a window appearing beside the user's work. This is the launch path the `run` skill should take for this project; `pnpm dev` and the browser preview both open a visible window and are for the user, not for verification.
 
+The installed `/Applications/Vitrine.app` is the user's daily driver, and `pnpm package` is how it is updated: build, stage the core, bundle, ask the running app to quit, replace the bundle, relaunch (`Scripts/package.mjs`; `docs/architecture.md` § Packaging). It opens a window on purpose, so it is the user's command, not a verification step — an agent runs at most `pnpm package --no-install` and drives the bundle it leaves behind, below.
+
 ## The path
 
 1. **Build both packages.** The shell spawns `packages/core/dist/main.js` as a file, so a stale `dist` is stale behaviour:
@@ -16,6 +18,7 @@ How an agent launches Vitrine to see a change working, without a window appearin
    node Scripts/run-hidden.mjs --snapshot out.png --vault /path/to/scratch-vault --drive drive.mjs
    ```
 
+   - `--app <path/to/Vitrine.app>` drives a packaged bundle instead — its own executable, the core it carries under `Contents/Resources/core` — with the same `page` object. `pnpm package --no-install` leaves one in `packages/shell/dist/mac-arm64/`. The bundle is `app.isPackaged`, so this is the only way to see the packaged branches (core entry, state folder) run; the explicit app-support folder still wins there, so the remembered vault is never touched.
    - `--vault` writes `last-vault.json` into the app-support folder so the window opens on that vault; leave it out to see First run.
    - `--support` names the app-support folder; by default a fresh temp folder, so `~/Library/Application Support/Vitrine` — the user's remembered vault — is never touched. Reuse one folder across launches to test "relaunch and it is still there".
    - `--drive` is a module whose default export is `async (page) => {}`, run once the page has painted. `page.eval(js)` reads anything (text, `aria-selected`, `getComputedStyle` against the tokens); `page.key`, `page.type` and `page.wait` press, type and poll. `⌘'` is `page.key("'", { code: "Quote", vk: 222, modifiers: 4 })`; `↵` is `page.key("Enter", { vk: 13, text: "\r" })`.
