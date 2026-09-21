@@ -943,6 +943,31 @@ exports[`vault.outline over the corpus > lt-before-tag.md: snapshot 1`] = `
 }
 `;
 
+exports[`vault.outline over the corpus > nested/Relative parent.md: snapshot 1`] = `
+{
+  "criteria": [],
+  "file": {
+    "bom": false,
+    "eol": "lf",
+    "trailingNewline": true,
+  },
+  "hash": "70ed59b0b77967f4b2fd9c2bc18e39e853d851b418c6a91c70058cb6a9b8ce78",
+  "kind": null,
+  "outline": {
+    "blockIds": [],
+    "frontmatter": null,
+    "headings": [],
+    "inlineFields": [],
+    "links": [],
+    "listItems": [],
+    "tags": [],
+  },
+  "path": "nested/Relative parent.md",
+  "readable": true,
+  "shape": [],
+}
+`;
+
 exports[`vault.outline over the corpus > nested/deep/Relative sibling.md: snapshot 1`] = `
 {
   "criteria": [],
@@ -976,7 +1001,7 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
     "eol": "lf",
     "trailingNewline": true,
   },
-  "hash": "4121a08ef135ff6bc3a9d18b30736272105a6a9a58c813697359f9b18d218a0f",
+  "hash": "4e228d426721e6159082b80ce87c3dc1af4f020602220f0ffb0949ae2e0d7a4f",
   "kind": null,
   "outline": {
     "blockIds": [],
@@ -1041,6 +1066,20 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
         "target": "./Relative sibling.md",
       },
       {
+        "alias": "up one",
+        "blockId": null,
+        "embed": false,
+        "heading": [],
+        "range": {
+          "end": 211,
+          "start": 178,
+        },
+        "resolution": "resolved",
+        "resolvedPath": "nested/Relative parent.md",
+        "syntax": "markdown",
+        "target": "../Relative parent.md",
+      },
+      {
         "alias": "up two, heading",
         "blockId": null,
         "embed": false,
@@ -1048,8 +1087,8 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
           "Heading",
         ],
         "range": {
-          "end": 241,
-          "start": 178,
+          "end": 275,
+          "start": 212,
         },
         "resolution": "resolved",
         "resolvedPath": "Sleep and consolidation.md",
@@ -1064,8 +1103,8 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
           "Missing",
         ],
         "range": {
-          "end": 313,
-          "start": 242,
+          "end": 347,
+          "start": 276,
         },
         "resolution": "unresolved",
         "resolvedPath": null,
@@ -1078,8 +1117,8 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
         "embed": false,
         "heading": [],
         "range": {
-          "end": 374,
-          "start": 314,
+          "end": 408,
+          "start": 348,
         },
         "resolution": "unresolved",
         "resolvedPath": null,
@@ -1092,8 +1131,8 @@ exports[`vault.outline over the corpus > nested/deep/links-relative.md: snapshot
         "embed": false,
         "heading": [],
         "range": {
-          "end": 408,
-          "start": 375,
+          "end": 442,
+          "start": 409,
         },
         "resolution": "unresolved",
         "resolvedPath": null,

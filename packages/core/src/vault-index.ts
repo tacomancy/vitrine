@@ -125,6 +125,7 @@ CREATE TABLE problems (path TEXT NOT NULL, channel TEXT NOT NULL, kind TEXT, pro
 CREATE TABLE fields (path TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL);
 CREATE TABLE headings (path TEXT NOT NULL, level INTEGER NOT NULL, text TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, body_start INTEGER NOT NULL, body_end INTEGER NOT NULL, block TEXT);
 CREATE TABLE blocks (path TEXT NOT NULL, id TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, marker_start INTEGER NOT NULL, marker_end INTEGER NOT NULL);
+-- ltarget: the lookup key (see linkKey), not just the lowercased target.
 CREATE TABLE links (path TEXT NOT NULL, syntax TEXT NOT NULL, target TEXT NOT NULL, ltarget TEXT NOT NULL, heading TEXT NOT NULL, block TEXT, alias TEXT, embed INTEGER NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, resolution TEXT, resolved_path TEXT);
 CREATE TABLE tags (path TEXT NOT NULL, canonical TEXT, written TEXT NOT NULL, source TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, invalid TEXT);
 CREATE TABLE fields_inline (path TEXT NOT NULL, block TEXT, key TEXT NOT NULL, value TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, value_start INTEGER NOT NULL, value_end INTEGER NOT NULL);
@@ -278,7 +279,7 @@ const linkKey = (
   target: string
 ): string => {
   const ltarget = target.toLowerCase();
-  if (syntax !== "markdown" || !/^\.\.?\//.test(ltarget)) return ltarget;
+  if (syntax !== "markdown" || !/^\.\.?\//.test(target)) return ltarget;
   const joined = posix.normalize(
     posix.join(posix.dirname(linkingPath), target)
   );

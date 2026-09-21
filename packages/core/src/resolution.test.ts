@@ -99,7 +99,7 @@ describe("README rows: links, resolved", () => {
     ]);
   });
 
-  it("L5a–h — a Markdown link beginning ./ or ../ resolves relative to the linking file; one that escapes the vault, and a ../ wikilink, do not (#203)", async () => {
+  it("L5a–i — a Markdown link beginning ./ or ../ resolves relative to the linking file; one that escapes the vault, and a ../ wikilink, do not (#203)", async () => {
     const c = await opened(await fixtureCopy("obsidian-corpus"));
     const sleep = "Sleep and consolidation.md";
     expect(await resolutions(c, "nested/deep/links-relative.md")).toEqual([
@@ -107,6 +107,7 @@ describe("README rows: links, resolved", () => {
       ["../../links-case.md", ...resolved("links-case.md")],
       ["../../a/Klinzing 2019.md", ...resolved("a/Klinzing 2019.md")],
       ["./Relative sibling.md", ...resolved("nested/deep/Relative sibling.md")],
+      ["../Relative parent.md", ...resolved("nested/Relative parent.md")],
       ["../../Sleep and consolidation.md", ...resolved(sleep)],
       ["../../Sleep and consolidation.md", "unresolved", null],
       ["../../../Sleep and consolidation.md", "unresolved", null],
@@ -259,6 +260,19 @@ describe("resolution follows the vault without re-outlining the linking file", (
       ...resolved("Forms.md"),
     ]);
     events.close();
+  });
+
+  it("from a root-level file, ./ names the root and ../ escapes it (#203)", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await writeFile(
+      join(vault, "Root.md"),
+      "[here](./links-case.md) [above](../links-case.md)\n"
+    );
+    const c = await opened(vault);
+    expect(await resolutions(c, "Root.md")).toEqual([
+      ["./links-case.md", ...resolved("links-case.md")],
+      ["../links-case.md", "unresolved", null],
+    ]);
   });
 
   it("a relative Markdown link follows its target's creation, rename, and removal (#203)", async () => {

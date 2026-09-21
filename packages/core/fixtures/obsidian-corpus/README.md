@@ -82,6 +82,7 @@ Obsidian version: 1.13.7 (installer 1.8.10), macOS, 2026-09-21. Rows were answer
 | L5b | nested/deep/links-relative.md | `[…](../../links-case.md)`                                   | `resolves` / `unresolved`  | resolves — inferred, not yet observed (#203) |
 | L5c | nested/deep/links-relative.md | `[…](../../a/Klinzing%202019.md)` — up, then into a sibling folder | `resolves` / `unresolved` | resolves — inferred, not yet observed (#203) |
 | L5d | nested/deep/links-relative.md | `[…](./Relative%20sibling.md)`                               | `resolves` / `unresolved`  | resolves — inferred, not yet observed (#203) |
+| L5i | nested/deep/links-relative.md | `[…](../Relative%20parent.md)` — a single `../`             | `resolves` / `unresolved`  | resolves — inferred, not yet observed (#203) |
 | L5e | nested/deep/links-relative.md | `[…](../../Sleep%20and%20consolidation.md#Heading)`          | `resolves` / `unresolved`  | resolves — inferred, not yet observed (#203) |
 | L5f | nested/deep/links-relative.md | `[…](../../Sleep%20and%20consolidation.md#Missing)`          | `resolves` / `unresolved`  | unresolved — inferred, not yet observed (#203) |
 | L5g | nested/deep/links-relative.md | `[…](../../../Sleep%20and%20consolidation.md)` — climbs above the vault root | `resolves` / `unresolved` | unresolved — inferred, not yet observed (#203) |
