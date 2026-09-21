@@ -1,223 +1,85 @@
-import { open, readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { StringDecoder } from "node:string_decoder";
-import { locateFrontmatter, opensFrontmatter } from "markdown";
-import { parse as parseYaml } from "yaml";
+import type { ListedQuestion, Listing, Order } from "./question-kind.js";
 import type { ShapeProblem } from "./vault-files.js";
+import type { VaultIndex } from "./vault-index.js";
 
-export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
-
-/**
- * A Question as the Inbox lists it: frontmatter fields, nothing from the
- * body. Wider than the `Question` a capture writes (`questions.ts`), because
- * a file another tool wrote may lack an id and may carry any status.
- */
-export type ListedQuestion = {
-  /** Absent on a file another tool wrote without one; the path identifies it. */
-  id?: string;
-  path: string;
-  question: string;
-  status: QuestionStatus;
-  captured: string;
-  context: string;
-  from?: string;
-  page?: number;
-  annotation?: string;
-};
-
-/** A `kind: question` file missing what a row needs; shown by name and mtime. */
-export type PartialQuestion = { path: string; name: string; mtime: string };
-
-export type Listing = {
-  questions: ListedQuestion[];
-  partial: PartialQuestion[];
-  unreadable: Array<{ path: string; reason: string }>;
-  /**
-   * Files short of their Kind's structure, as `vault.outline` reports them.
-   * Every read procedure carries the same three channels; a Question has no
-   * owned sections and no criteria, so nothing lands here today.
-   */
-  shape: ShapeProblem[];
-};
-
-export type Order = "newest" | "oldest";
-
-const STATUSES: readonly QuestionStatus[] = [
-  "open",
-  "promoted",
-  "answered",
-  "abandoned",
-];
+export type {
+  ListedQuestion,
+  Listing,
+  Order,
+  PartialQuestion,
+  QuestionStatus,
+} from "./question-kind.js";
 
 /**
- * Every `.md` file under the vault, skipping dot-entries (files and folders
- * alike — `.obsidian/`, `.git/`, `.vitrine/`) and never following symlinks.
- * A folder that cannot be listed is reported, not skipped.
+ * Every Question in the vault, wherever it sits (ADR 0006 decision 1), as a
+ * query over the index (ADR 0014 decision 3): no file is read here. The
+ * three problem channels come from the `problems` table the indexer filled
+ * in the same transaction as each file's rows. Paths are absolute, as the
+ * Inbox has always shown them; the index keys by vault-relative path.
  */
-async function markdownFiles(
-  root: string,
-  unreadable: Listing["unreadable"]
-): Promise<string[]> {
-  const files: string[] = [];
-  async function walk(dir: string) {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch (error) {
-      unreadable.push({ path: dir, reason: errorMessage(error) });
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) await walk(full);
-      else if (entry.isFile() && entry.name.endsWith(".md")) files.push(full);
-    }
-  }
-  await walk(root);
-  return files.sort();
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-const CHUNK = 4096;
-// A frontmatter block longer than this is not one; stop rather than read a
-// whole file looking for a closing fence that is never coming.
-const MAX_FRONTMATTER = 64 * 1024;
-
-/**
- * The YAML between the opening and closing `---` fences, read in chunks so
- * the body past the block is never loaded (ADR 0009 decision 1). Which
- * lines are fences is the package's rule, the one `vault.outline` reads by,
- * so both procedures give one answer to a BOM (S4a) or a blank line before
- * the fence (S2). Null when the file has no block.
- *
- * One deliberate divergence: an opening fence that is never closed is "no
- * frontmatter" to `vault.outline`, which holds the whole file, but is a
- * fault here — this reader gives up at MAX_FRONTMATTER and cannot tell a
- * missing closing fence from a distant one, and a guess would drop the
- * file quietly rather than surface it in `unreadable[]`.
- */
-async function readFrontmatter(path: string): Promise<string | null> {
-  const handle = await open(path, "r");
-  try {
-    // Decoded incrementally: a multibyte character can straddle two reads.
-    const decoder = new StringDecoder("utf8");
-    const buffer = Buffer.alloc(CHUNK);
-    let text = "";
-    for (;;) {
-      const { bytesRead } = await handle.read(buffer, 0, CHUNK, null);
-      const eof = bytesRead < CHUNK;
-      text += decoder.write(buffer.subarray(0, bytesRead));
-      if (eof) text += decoder.end();
-      // The opening fence sits in the first chunk or nowhere.
-      if (text.length <= CHUNK && !opensFrontmatter(text)) return null;
-      const located = locateFrontmatter(text);
-      // A `---` ending exactly where this read ended may be the head of a
-      // longer line; more bytes, or the end of the file, settle it.
-      if (located && (eof || located.range.end < text.length)) {
-        return text.slice(located.content.start, located.content.end);
-      }
-      if (eof || text.length > MAX_FRONTMATTER) {
-        throw new Error("frontmatter block is not closed");
-      }
-    }
-  } finally {
-    await handle.close();
-  }
-}
-
-type Frontmatter = Record<string, unknown>;
-
-async function parseFrontmatter(path: string): Promise<Frontmatter | null> {
-  const yaml = await readFrontmatter(path);
-  if (yaml === null) return null;
-  const parsed: unknown = parseYaml(yaml);
-  if (parsed === null || parsed === undefined) return {};
-  if (typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("frontmatter is not a map of keys");
-  }
-  return parsed as Frontmatter;
-}
-
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
-
-/**
- * The Question a frontmatter block describes; null when `question` or
- * `captured` is missing (the file is Partial). A key that is present but
- * holds a value the vocabulary cannot read is a fault to report, not a gap.
- */
-function toQuestion(path: string, fm: Frontmatter): ListedQuestion | null {
-  const question = asString(fm["question"]);
-  const captured = asString(fm["captured"]);
-  if (question === undefined || captured === undefined) return null;
-  if (Number.isNaN(Date.parse(captured))) {
-    throw new Error(`captured is not a date: ${captured}`);
-  }
-  // A Question that was never triaged is open, so a file with no status is.
-  const status = fm["status"] === undefined ? "open" : fm["status"];
-  if (!STATUSES.includes(status as QuestionStatus)) {
-    throw new Error(
-      `status is not open, promoted, answered, or abandoned: ${JSON.stringify(status)}`
-    );
-  }
-  const q: ListedQuestion = {
-    path,
-    question,
-    status: status as QuestionStatus,
-    captured,
-    // No context recorded means nothing was open: time and place are the
-    // whole Provenance, which is what `other` says.
-    context: asString(fm["context"]) ?? "other",
-  };
-  const id = asString(fm["id"]);
-  if (id !== undefined) q.id = id;
-  const from = asString(fm["from"]);
-  if (from !== undefined) q.from = from;
-  if (typeof fm["page"] === "number") q.page = fm["page"];
-  const annotation = asString(fm["annotation"]);
-  if (annotation !== undefined) q.annotation = annotation;
-  return q;
-}
-
-/**
- * Every Question in the vault, wherever it sits (ADR 0006 decision 1). A file
- * that cannot be read or parsed is reported, never dropped; nothing is written.
- */
-export async function listQuestions(
+export function listQuestions(
+  index: VaultIndex,
   vaultPath: string,
   order: Order
-): Promise<Listing> {
-  const listing: Listing = {
-    questions: [],
-    partial: [],
-    unreadable: [],
-    shape: [],
-  };
-  for (const path of await markdownFiles(vaultPath, listing.unreadable)) {
-    try {
-      const fm = await parseFrontmatter(path);
-      if (fm === null || fm["kind"] !== "question") continue;
-      const question = toQuestion(path, fm);
-      if (question) {
-        listing.questions.push(question);
-      } else {
-        const { mtime } = await stat(path);
-        listing.partial.push({
-          path,
-          name: basename(path, ".md"),
-          mtime: mtime.toISOString(),
-        });
-      }
-    } catch (error) {
-      listing.unreadable.push({ path, reason: errorMessage(error) });
-    }
+): Listing {
+  const absolute = (path: string) => join(vaultPath, path);
+
+  // Assembled key by key: `readQuestion` is the only writer of `fields`
+  // rows for a Question, so every key here is one of `ListedQuestion`'s and
+  // every value has already passed its vocabulary.
+  const questions = new Map<string, ListedQuestion>();
+  for (const row of index.select<{ path: string; key: string; value: string }>(
+    "SELECT path, key, value FROM fields WHERE path IN (SELECT path FROM files WHERE kind = 'question') ORDER BY path"
+  )) {
+    const q =
+      questions.get(row.path) ??
+      ({ path: absolute(row.path) } as ListedQuestion);
+    (q as Record<string, unknown>)[row.key] = JSON.parse(row.value) as unknown;
+    questions.set(row.path, q);
   }
+
+  const partial = index
+    .select<{ path: string; mtime: number }>(
+      "SELECT p.path, f.mtime FROM problems p JOIN files f USING (path) WHERE p.channel = 'partial'"
+    )
+    .map(({ path, mtime }) => ({
+      path: absolute(path),
+      name: basename(path, ".md"),
+      mtime: new Date(mtime).toISOString(),
+    }));
+
+  const unreadable = index
+    .select<{ path: string; problem: string }>(
+      "SELECT path, problem FROM problems WHERE channel = 'unreadable' ORDER BY path"
+    )
+    .map(({ path, problem }) => ({ path: absolute(path), reason: problem }));
+
+  const shape = index
+    .select<{
+      path: string;
+      kind: string;
+      problem: string;
+      block: string | null;
+    }>(
+      "SELECT path, kind, problem, block FROM problems WHERE channel = 'shape' ORDER BY path"
+    )
+    .map(({ path, kind, problem, block }): ShapeProblem => ({
+      path,
+      kind,
+      problem: problem as ShapeProblem["problem"],
+      ...(block === null ? {} : { block }),
+    }));
+
   const byTime = (a: string, b: string) =>
     (order === "newest" ? -1 : 1) * (Date.parse(a) - Date.parse(b));
-  listing.questions.sort((a, b) => byTime(a.captured, b.captured));
-  listing.partial.sort((a, b) => byTime(a.mtime, b.mtime));
+  const listing: Listing = {
+    questions: [...questions.values()].sort((a, b) =>
+      byTime(a.captured, b.captured)
+    ),
+    partial: partial.sort((a, b) => byTime(a.mtime, b.mtime)),
+    unreadable,
+    shape,
+  };
   return listing;
 }

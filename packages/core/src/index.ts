@@ -1,4 +1,4 @@
-export { createApp } from "./app.js";
+export { createApp, type App, type AppOptions } from "./app.js";
 export type { Host } from "./host.js";
 export type { CoreMessage, CoreReadyMessage, ShellMessage } from "./main.js";
 export type {
@@ -10,7 +10,14 @@ export type {
 } from "./list.js";
 export type { Provenance, Question } from "./questions.js";
 export type { AppRouter } from "./router.js";
-export type { Vault, VaultErrorKind } from "./vault.js";
+export type { VaultErrorKind } from "./errors.js";
+export type { Vault, VaultStatus } from "./vault.js";
+export type {
+  IndexStatus,
+  Position,
+  PositionsOf,
+  VaultChanged,
+} from "./vault-index.js";
 export type {
   BlockId,
   Criterion,

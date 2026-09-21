@@ -17,7 +17,7 @@ import {
   type Tag,
 } from "markdown";
 import { writeAtomically } from "./atomic-write.js";
-import { VaultError } from "./vault.js";
+import { errorMessage, VaultError } from "./errors.js";
 
 /**
  * The core's reading of one Markdown file: the outline `packages/markdown`
@@ -191,10 +191,6 @@ function fileChoices(raw: string): { text: string; file: FileChoices } {
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * The criteria of a Hypothesis and what is wrong with them. Only a `###`
  * inside `## Criteria` is a criterion, and only a field under a `### … ^c<n>`
@@ -284,7 +280,8 @@ function duplicatedOwnedSections(
   return shape;
 }
 
-const sha256 = (bytes: Buffer | string) =>
+/** SHA-256 hex of a file's bytes: the hash every read, write, and index row carries. */
+export const sha256 = (bytes: Buffer | string) =>
   createHash("sha256").update(bytes).digest("hex");
 
 /**
@@ -303,11 +300,15 @@ export async function readOutline(
   } catch (error) {
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
-  return analyse(relativePath, bytes.toString("utf8"), sha256(bytes));
+  return analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
 }
 
-/** The core's reading of one file's text; what `readOutline` and the write's verify step share. */
-function analyse(
+/**
+ * The core's reading of one file's text: what `readOutline`, the write's
+ * verify step, and the index (which holds the content it just read or wrote)
+ * share. `hash` is carried through unexamined.
+ */
+export function analyseFile(
   relativePath: string,
   raw: string,
   hash: string
@@ -967,7 +968,7 @@ async function commit(
   // What the write did to the file's shape is reported whichever path
   // wrote it — `replaceFile` included, which is never refused on shape
   // (ADR 0015 decision 4) but still says what the save left behind.
-  const after = analyse(relativePath, content, "");
+  const after = analyseFile(relativePath, content, "");
   const shape = after.readable ? after.shape : [];
   try {
     await writeAtomically(absolute, content);
@@ -1031,8 +1032,8 @@ export async function write(
   const content = (file.bom ? BOM : "") + applied.content;
   // The result's hash is computed at commit; verify never reads it.
   const problem = verify(
-    analyse(relativePath, raw, hash),
-    analyse(relativePath, content, ""),
+    analyseFile(relativePath, raw, hash),
+    analyseFile(relativePath, content, ""),
     operations
   );
   if (problem !== null) return refusal("verificationFailed", problem);

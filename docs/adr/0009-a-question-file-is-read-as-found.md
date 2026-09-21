@@ -13,6 +13,8 @@ ADR 0006 says a file is a Question because its frontmatter says so, and that the
 5. **A wrong value makes the file Unreadable.** A `captured` that is not a date, or a `status` outside *open · promoted · answered · abandoned*, is a fault to report with its reason, beside a file that cannot be opened or whose frontmatter does not parse. Treating it as Partial would label it "question or captured missing", which is untrue; dropping it is forbidden.
 6. **Nothing is counted as owed.** Partial and Unreadable files are listed and counted where they sit; the Inbox's one number counts Questions that exist.
 
+**Update 2026-09-21 (#185).** Decision 1's reader is superseded by ADR 0014: the Inbox is a query over `index.sqlite`, and the index outlines the whole file once, at open or on change, rather than each list reading to the closing fence. Decisions 2–6 hold unchanged — they are applied by the indexer when it meets a `kind: question` file (`packages/core/src/question-kind.ts`), and the Partial and Unreadable outcomes land in the `problems` table beside the file's rows.
+
 ## Considered options
 
 - **A missing `status` as Partial.** Rejected: Obsidian's Properties panel and a hand-written file both plausibly omit it, and the file is a perfectly good open Question.

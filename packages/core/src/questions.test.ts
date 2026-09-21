@@ -89,13 +89,15 @@ describe("questions.capture", () => {
 });
 
 describe("the first write into a vault", () => {
-  it("creates questions/ and .vitrine/vault.json — and an open before it creates nothing", async () => {
+  it("creates questions/ and .vitrine/vault.json — and an open before it creates only the index's folder", async () => {
     const c = await core({
       now: () => at,
       newId: ids("q0000id000", "vault0id00"),
     });
     const vault = await openVault(c);
-    expect(await fingerprint(vault)).toEqual([]);
+    // `.vitrine/` holds the index from the open on (ADR 0014); the marker
+    // that makes the folder a Vitrine vault is still the first capture's.
+    expect(await fingerprint(vault)).toEqual([".vitrine/"]);
 
     await c.mutate("questions.capture", {
       text: "First",
@@ -231,12 +233,12 @@ describe("randomId (pure)", () => {
   });
 });
 
-describe("a write that fails", () => {
-  const restore: Array<() => Promise<void>> = [];
-  afterEach(async () => {
-    for (const fn of restore.splice(0)) await fn();
-  });
+const restore: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  for (const fn of restore.splice(0)) await fn();
+});
 
+describe("a write that fails", () => {
   it("is typed writeFailed, carries the reason, and leaves the vault as it was", async () => {
     const c = await core();
     const vault = await openVault(c);
@@ -279,7 +281,7 @@ describe("the capture input", () => {
 
     expect(reply.error).toBeDefined();
     expect(reply.error?.data.kind).toBeUndefined();
-    expect(await fingerprint(vault)).toEqual([]);
+    expect(await fingerprint(vault)).toEqual([".vitrine/"]);
   });
 });
 
@@ -287,8 +289,10 @@ describe("a capture happens whole or not at all", () => {
   it("removes the Question again when the vault marker cannot follow it", async () => {
     const c = await core();
     const vault = await openVault(c);
-    // A file where `.vitrine/` must go: the marker cannot be created.
-    await writeFile(join(vault, ".vitrine"), "");
+    // The index's folder exists from the open; the marker cannot be written
+    // into it.
+    await chmod(join(vault, ".vitrine"), 0o500);
+    restore.push(() => chmod(join(vault, ".vitrine"), 0o700));
     const before = await fingerprint(vault);
 
     const reply = await c.mutate("questions.capture", {
@@ -325,12 +329,14 @@ describe("a capture happens whole or not at all", () => {
 describe("a capture lands in the list", () => {
   it("is the first Question under newest, captured within the test's clock window", async () => {
     const c = await core();
-    const vault = await openVault(c);
+    const vault = await tmp("vault");
     await mkdir(join(vault, "questions"));
     await writeFile(
       join(vault, "questions", "Earlier.md"),
       "---\nkind: question\nquestion: Earlier\nstatus: open\ncaptured: 2026-01-01T00:00:00+00:00\ncontext: other\n---\n"
     );
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
     const before = Date.now();
 
     const captured = await c.mutate<Question>("questions.capture", {
