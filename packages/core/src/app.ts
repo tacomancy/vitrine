@@ -1,3 +1,4 @@
+import type { watch as fsWatch } from "node:fs";
 import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -21,6 +22,8 @@ export type AppOptions = {
   newId?: () => string;
   /** The watcher's settle window in ms; tests shorten it as they pin `now`. */
   settleMs?: number;
+  /** `fs.watch`, or a test's wrapper of it that fails a watch or refuses one (#190). */
+  watch?: typeof fsWatch;
   /**
    * The index's seams (`vault-index.ts`): the chunk size a test shortens,
    * the `positionsOf` registry, and the after-commit listeners the event
@@ -46,6 +49,7 @@ export function createApp({
   now,
   newId,
   settleMs,
+  watch,
   index,
 }: AppOptions): App {
   const app = new Hono();
@@ -56,6 +60,7 @@ export function createApp({
     host,
     appSupportDir,
     settleMs,
+    watch,
     index: {
       ...index,
       onChanged: async (event) => {

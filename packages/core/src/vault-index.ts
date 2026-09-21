@@ -59,7 +59,11 @@ export type VaultChanged = {
 export type IndexStatus = {
   /** Non-null while a build runs: files applied so far, of how many. */
   indexing: { done: number; total: number } | null;
-  /** Whether the index may be trusted to say a file is not there (ADR 0014 decision 11). */
+  /**
+   * Whether the index may be trusted to say a file is not there (ADR 0014
+   * decision 11), as far as the index itself can tell: the sweep and the
+   * batches. The watcher's health is the vault service's to add.
+   */
   current: { ok: true } | { ok: false; reason: string };
 };
 
@@ -74,9 +78,11 @@ export type IndexOptions = {
 
 export type VaultIndex = {
   /**
-   * The open-time build: compare every non-dot file's stat to `files`,
-   * re-outline what differs, drop what is gone, in chunks. Resolves when
-   * the vault is current; never rejects — a failure is a status reason.
+   * The build: compare every non-dot file's stat to `files`, re-outline
+   * what differs, drop what is gone, in chunks. At open, and again after a
+   * watcher failure, when it is the catch-up for whatever the watch missed
+   * (ADR 0013 decision 3). Resolves when the sweep is done; never rejects —
+   * a failure is a status reason.
    */
   sweep: () => Promise<void>;
   /**
@@ -301,9 +307,11 @@ function createIndex(
   }: IndexOptions
 ): VaultIndex {
   let closed = false;
-  // Only the open-time sweep decides `current` today; the watcher's health
-  // and unapplied batches join it with #190.
   let sweep: "pending" | "running" | "done" | { failed: string } = "pending";
+  // Batches settled but not yet applied — ADR 0014 decision 11's third
+  // reason. Counted from the call, not from the write lock, so a batch
+  // queued behind a sweep already counts.
+  let batchesInFlight = 0;
   let progress: IndexStatus["indexing"] = null;
 
   const deletes = TABLES.map((table) =>
@@ -736,7 +744,9 @@ function createIndex(
 
   return {
     sweep: () => {
-      if (sweep !== "pending") return Promise.resolve();
+      // A sweep asked for while one runs is answered by that one: both would
+      // compare the same disk to the same rows.
+      if (sweep === "running") return writes;
       sweep = "running";
       return serially(async () => {
         try {
@@ -749,11 +759,13 @@ function createIndex(
         if (!closed) await raiseStatus();
       });
     },
-    refresh: (paths) =>
-      serially(async () => {
+    refresh: (paths) => {
+      batchesInFlight++;
+      return serially(async () => {
         if (closed) return;
         await runRefresh(paths);
-      }),
+      }).finally(() => batchesInFlight--);
+    },
     own: async (path, content) => {
       const s = await stat(join(vaultPath, path));
       // The vault was switched or the app is exiting between the write and
@@ -769,14 +781,13 @@ function createIndex(
     status: () => ({
       indexing: progress,
       current:
-        sweep === "done"
-          ? { ok: true }
+        sweep === "pending" || sweep === "running"
+          ? { ok: false, reason: "a sweep has not completed" }
           : typeof sweep === "object"
-            ? {
-                ok: false,
-                reason: `the open-time sweep failed: ${sweep.failed}`,
-              }
-            : { ok: false, reason: "the open-time sweep has not completed" },
+            ? { ok: false, reason: `the sweep failed: ${sweep.failed}` }
+            : batchesInFlight > 0
+              ? { ok: false, reason: "a settled batch is not yet applied" }
+              : { ok: true },
     }),
     select: <T>(sql: string, ...params: Array<string | number | null>) =>
       db.prepare(sql).all(...params) as T[],

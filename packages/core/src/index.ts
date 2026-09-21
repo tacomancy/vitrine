@@ -12,7 +12,7 @@ export type {
 export type { Provenance, Question } from "./questions.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";
-export type { Vault, VaultStatus } from "./vault.js";
+export type { Vault, VaultStatus, Watching } from "./vault.js";
 export type {
   IndexStatus,
   Position,

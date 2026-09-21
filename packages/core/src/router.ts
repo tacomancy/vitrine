@@ -78,8 +78,13 @@ export const router = t.router({
       return refusing(readOutline(vault.path, input.path));
     }),
     status: t.procedure.query(async ({ ctx }) => {
-      const { index } = await requireVault(ctx);
-      return index.status();
+      await requireVault(ctx);
+      return (await ctx.vault.status())!;
+    }),
+    // The footer's *retry* on `not watching`: reopen the watcher and sweep.
+    rewatch: t.procedure.mutation(async ({ ctx }) => {
+      await requireVault(ctx);
+      await ctx.vault.rewatch();
     }),
   }),
   events: t.router({

@@ -1,3 +1,4 @@
+import type { watch as fsWatch } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { errorMessage, VaultError } from "./errors.js";
@@ -13,12 +14,15 @@ import {
 
 export type Vault = { name: string; path: string };
 
+/** Whether changes made outside the app are reaching the index; false is *Not watching* (`CONTEXT.md`). */
+export type Watching = { ok: true } | { ok: false; reason: string };
+
 /**
- * What `vault.status()` answers (`docs/architecture.md` § Index). `watching`
- * joins with the watcher (#190); `current` is here from the start so that
- * beat 5's Ingest reads it from the one place (spec #177).
+ * What `vault.status()` answers (`docs/architecture.md` § Index). `current`
+ * is the index's, with the watcher's health folded in, so that beat 5's
+ * Ingest reads every reason ADR 0014 decision 11 names from one place.
  */
-export type VaultStatus = IndexStatus;
+export type VaultStatus = IndexStatus & { watching: Watching };
 
 export type VaultServiceOptions = {
   host: Host;
@@ -27,6 +31,8 @@ export type VaultServiceOptions = {
   index?: IndexOptions | undefined;
   /** The watcher's settle window; tests shorten it (ADR 0013 decision 5). */
   settleMs?: number | undefined;
+  /** `fs.watch`, or a test's wrapper that fails or refuses a watch (#190). */
+  watch?: typeof fsWatch | undefined;
 };
 
 export type VaultService = {
@@ -36,6 +42,10 @@ export type VaultService = {
   pick: () => Promise<Vault | null>;
   /** The open vault with its index, or null: what a procedure that needs both asks for. */
   opened: () => Promise<Opened | null>;
+  /** `vault.status`, for the open vault; null when none is. */
+  status: () => Promise<VaultStatus | null>;
+  /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
+  rewatch: () => Promise<void>;
   /** Tear down the open vault's resources; called on exit. The next `open` does the same. */
   close: () => void;
 };
@@ -67,14 +77,28 @@ async function validateFolder(path: string): Promise<void> {
 /** The last vault opened, so the next launch skips First run. */
 const LAST_VAULT_FILE = "last-vault.json";
 
-/** Everything held per open vault, torn down together by the next `open` or exit. */
-export type Opened = { vault: Vault; index: VaultIndex; watcher: Watcher };
+/**
+ * Everything held per open vault, torn down together by the next `open` or
+ * exit. `watcher` is null while none is live: between a failure and its
+ * reopen, or for good when the reopen failed (`watching.ok` false).
+ */
+export type Opened = {
+  vault: Vault;
+  index: VaultIndex;
+  watcher: Watcher | null;
+  watching: Watching;
+  /** A failed watcher is being reopened; the index is not current meanwhile. */
+  reopening: boolean;
+  /** The install this belongs to; a stale one is overtaken and discards what it makes. */
+  generation: number;
+};
 
 export function createVaultService({
   host,
   appSupportDir,
   index: indexOptions,
   settleMs = SETTLE_MS,
+  watch,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -110,50 +134,111 @@ export function createVaultService({
   }
 
   // Bumped by every install and by close, so an install still waiting on
-  // its watcher can tell it has been overtaken and discard what it made.
+  // its watcher — or a watcher reporting its death later — can tell it has
+  // been overtaken and discard what it made.
   let generation = 0;
+  const overtaken = (o: Opened) => o.generation !== generation;
 
   function teardown(): void {
-    opened?.watcher.close();
+    opened?.watcher?.close();
     opened?.index.close();
     opened = null;
   }
 
+  /** Watcher state changed: the renderer re-reads `vault.status` (§ Watcher and Ingest). */
+  const raiseStatus = async () => {
+    await indexOptions?.onStatus?.();
+  };
+
   /**
-   * Install the new vault and start its build. The watcher comes up first —
-   * *watch, then sweep* (ADR 0013 decision 3), so a file written during the
+   * Bring a watcher up for `o`. A watch that cannot be brought up live does
+   * not refuse the vault: it is *not watching*, the sweep still runs so
+   * what is on disk is at least read once, and only `current` says the
+   * rows may not be trusted.
+   *
+   * `retried` marks a watcher that is itself the one automatic reopen. Its
+   * own death is not reopened again but reported: one reopen recovers a
+   * transient FSEvents fault, and anything that kills two watches in a row
+   * is something the user should see and retry deliberately, rather than a
+   * loop of reopen-and-sweep the footer never shows.
+   */
+  async function startWatcher(o: Opened, retried: boolean): Promise<void> {
+    o.watcher = null;
+    try {
+      const watcher = await watchVault(o.vault.path, {
+        settleMs,
+        watch,
+        onSettled: (paths) => o.index.refresh(paths),
+        onError: (reason) => {
+          if (overtaken(o)) return;
+          o.watcher = null;
+          if (retried) {
+            o.watching = { ok: false, reason };
+            void raiseStatus();
+            return;
+          }
+          o.reopening = true;
+          void raiseStatus();
+          void watchAndSweep(o, true);
+        },
+      });
+      if (overtaken(o)) {
+        watcher.close();
+        return;
+      }
+      o.watcher = watcher;
+      o.watching = { ok: true };
+    } catch (cause) {
+      o.watching = { ok: false, reason: errorMessage(cause) };
+    }
+  }
+
+  /**
+   * *Watch, then sweep* (ADR 0013 decision 3): a file written during the
    * sweep is either seen by the walk or delivered as an event, never missed
-   * by both — and only then does the previous vault go: one index handle and
-   * one watcher per vault, and the old vault answers until the new one can.
+   * by both. Used for the reopen after a failure and for `rewatch`; the
+   * open-time run is `install`, which swaps the vault in between the two.
+   */
+  async function watchAndSweep(o: Opened, retried: boolean): Promise<void> {
+    await startWatcher(o, retried);
+    if (overtaken(o)) return;
+    o.reopening = false;
+    // Never awaited: the app opens at once and indexes in the background
+    // (ADR 0014 decision 10). The sweep reports its own failure as a
+    // status reason rather than rejecting. Started before the status is
+    // raised, so a reader woken by the event never sees the watcher back
+    // and the index current with the catch-up still to come.
+    void o.index.sweep();
+    await raiseStatus();
+  }
+
+  /**
+   * Install the new vault and start its build. The watcher comes up first
+   * and only then does the previous vault go: one index handle and one
+   * watcher per vault, and the old vault answers until the new one can.
    */
   async function install(vault: Vault, index: VaultIndex): Promise<void> {
-    const mine = ++generation;
-    let watcher: Watcher;
-    try {
-      watcher = await watchVault(vault.path, {
-        settleMs,
-        onSettled: (paths) => index.refresh(paths),
-        // Reopening and reporting `watching` is #190; until then the failure
-        // is at least in the core's log, never swallowed.
-        onError: (reason) =>
-          console.error(`vitrine-core: the watcher failed: ${reason}`),
-      });
-    } catch (cause) {
-      index.close();
-      throw cause;
-    }
-    if (mine !== generation) {
+    const o: Opened = {
+      vault,
+      index,
+      watcher: null,
+      watching: { ok: true },
+      reopening: false,
+      generation: ++generation,
+    };
+    await startWatcher(o, false);
+    if (overtaken(o)) {
       // A later open or the exit got here first; nothing of ours is wanted.
-      watcher.close();
+      o.watcher?.close();
       index.close();
       return;
     }
     teardown();
-    opened = { vault, index, watcher };
-    // Never awaited: the app opens at once and indexes in the background
-    // (ADR 0014 decision 10). The sweep reports its own failure as a
-    // status reason rather than rejecting.
+    opened = o;
     void index.sweep();
+    // Not awaited: a listener that answers by reading `vault.status` waits
+    // on `restored`, which may be waiting on this very install.
+    void raiseStatus();
   }
 
   // A remembered vault that has moved or gone is First run, not a fault, so
@@ -208,6 +293,32 @@ export function createVaultService({
     opened: async () => {
       await restored;
       return opened;
+    },
+    status: async () => {
+      await restored;
+      if (opened === null) return null;
+      const { indexing, current } = opened.index.status();
+      // Every reason ADR 0014 decision 11 names, the index's first: an
+      // unfinished sweep is the larger gap, and the sweep after a reopen is
+      // what closes the watcher's.
+      const watcherReason = !opened.watching.ok
+        ? `not watching: ${opened.watching.reason}`
+        : opened.reopening
+          ? "the watcher is being reopened"
+          : null;
+      return {
+        indexing,
+        watching: opened.watching,
+        current:
+          current.ok && watcherReason !== null
+            ? { ok: false, reason: watcherReason }
+            : current,
+      };
+    },
+    rewatch: async () => {
+      await restored;
+      if (opened === null || opened.watcher !== null) return;
+      await watchAndSweep(opened, false);
     },
     close: () => {
       generation++;

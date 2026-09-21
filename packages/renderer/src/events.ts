@@ -18,6 +18,8 @@ export function useCoreEvents() {
       onData: (event) => {
         if (event.type === "vaultChanged") {
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+        } else if (event.type === "vaultStatus") {
+          void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
         }
       },
     })

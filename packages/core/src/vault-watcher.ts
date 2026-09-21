@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "node:fs";
+import { watch as fsWatch, type FSWatcher } from "node:fs";
 import { realpath, stat, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { errorMessage } from "./errors.js";
@@ -19,6 +19,13 @@ import { errorMessage } from "./errors.js";
  * gap is lost with no error. The vault service must sweep only after that
  * gap (*watch, then sweep*, decision 3), and Node gives no signal for it, so
  * one is made: a probe file under `.vitrine/` whose own event is waited for.
+ *
+ * Health is the vault service's (`vault.ts`): this module's contract is that
+ * `watchVault` rejects when the watch could not be brought up live, and that
+ * `onError` is called once, after the watcher has closed itself, when a watch
+ * that was live has died — FSEvents reporting an error or overflow, or a
+ * settled batch the index could not apply. Either way nothing more will be
+ * delivered, and the caller decides whether to reopen (#190).
  */
 
 /** Quiet for this long, with two stats agreeing, before a file is read (§ Watcher and Ingest). */
@@ -37,8 +44,10 @@ export type WatcherOptions = {
   settleMs: number;
   /** A settled Batch of vault-relative paths; awaited before the next fires. */
   onSettled: (paths: string[]) => Promise<void>;
-  /** The watch itself failed; #190 turns this into `watching`. */
+  /** The watcher is dead and has closed itself; nothing more will arrive. */
   onError: (reason: string) => void;
+  /** `fs.watch`, or a test's wrapper of it that fails what it made or refuses to make one. */
+  watch?: typeof fsWatch | undefined;
 };
 
 export type Watcher = { close: () => void };
@@ -82,7 +91,7 @@ async function pdfFolderOutside(root: string): Promise<string | null> {
 
 export async function watchVault(
   root: string,
-  { settleMs, onSettled, onError }: WatcherOptions
+  { settleMs, onSettled, onError, watch = fsWatch }: WatcherOptions
 ): Promise<Watcher> {
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
   let timer: NodeJS.Timeout | null = null;
@@ -116,10 +125,12 @@ export async function watchVault(
       })
     );
     if (settled.length > 0 && !closed) {
-      // A batch the index could not apply is reported, not fatal: the next
-      // batch, or the next open's sweep, will see the same files again.
+      // A batch the index could not apply leaves the index behind the disk
+      // with no event to say so, which is exactly what a dead watch does —
+      // so it is reported the same way, and the caller's sweep is what
+      // brings the same files back into view.
       await onSettled(settled.sort()).catch((error: unknown) =>
-        onError(`a settled batch was not applied: ${errorMessage(error)}`)
+        fail(`a settled batch was not applied: ${errorMessage(error)}`)
       );
     }
     schedule();
@@ -159,10 +170,7 @@ export async function watchVault(
       { recursive: true },
       listener(folder, rebase)
     );
-    watcher.on("error", (error) => {
-      close();
-      onError(errorMessage(error));
-    });
+    watcher.on("error", (error) => fail(errorMessage(error)));
     watchers.push(watcher);
   };
   const close = () => {
@@ -172,14 +180,29 @@ export async function watchVault(
     pending.clear();
     for (const watcher of watchers.splice(0)) watcher.close();
   };
+  /**
+   * Dead: closed first, so nothing is delivered after the report. A death
+   * while the watch is still being proved live is `watchVault`'s rejection
+   * rather than a report — the caller has no watcher yet to be told about.
+   */
+  let starting = true;
+  let diedStarting: string | null = null;
+  const fail = (reason: string) => {
+    if (closed) return;
+    close();
+    if (starting) diedStarting = reason;
+    else onError(reason);
+  };
 
   /**
    * Touch the probe until an event arrives, then remove it. Rewritten every
    * tick rather than written once: the stream only reports events later
    * than its own creation, so a probe written into the gap is never
    * reported, while the next touch after the gap is. Silence past the
-   * timeout is not a failure here — the sweep still runs — but is worth a
-   * line, since a watch that never delivers is what #190's `watching` is for.
+   * timeout is a watch that does not deliver — a volume FSEvents cannot
+   * follow, say — and a watch that does not deliver is *not watching*: the
+   * vault is still opened and swept, but nothing made outside the app will
+   * reach the index until a retry proves otherwise.
    */
   const live = async () => {
     const probe = join(root, PROBE);
@@ -190,34 +213,42 @@ export async function watchVault(
       wake();
     };
     const deadline = Date.now() + PROBE_TIMEOUT_MS;
-    while (!seen && !closed && Date.now() < deadline) {
-      try {
-        await writeFile(probe, String(Date.now()));
-      } catch (error) {
-        probed = null;
-        onError(`the watch probe could not be written: ${errorMessage(error)}`);
-        return;
+    try {
+      while (!seen && !closed && Date.now() < deadline) {
+        try {
+          await writeFile(probe, String(Date.now()));
+        } catch (error) {
+          throw new Error(
+            `the watch probe could not be written: ${errorMessage(error)}`
+          );
+        }
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+          setTimeout(resolve, PROBE_TICK_MS);
+        });
       }
-      await new Promise<void>((resolve) => {
-        wake = resolve;
-        setTimeout(resolve, PROBE_TICK_MS);
-      });
+      if (diedStarting !== null) throw new Error(diedStarting);
+      if (!seen) throw new Error("the watch gave no sign of life");
+    } finally {
+      probed = null;
+      await unlink(probe).catch(() => undefined);
     }
-    probed = null;
-    if (!seen && !closed) {
-      onError("the watch gave no sign of life; sweeping anyway");
-    }
-    await unlink(probe).catch(() => undefined);
   };
 
   // Both watches are started before the probe: adding a handle recreates
   // the shared stream, so proving the root live and then adding the PDF
   // folder would reopen the gap the probe exists to close.
-  start(root, (path) => path);
-  const pdfReal = await pdfFolderOutside(root);
-  if (pdfReal !== null && !closed) {
-    start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);
+  try {
+    start(root, (path) => path);
+    const pdfReal = await pdfFolderOutside(root);
+    if (pdfReal !== null && !closed) {
+      start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);
+    }
+    await live();
+  } catch (cause) {
+    close();
+    throw cause;
   }
-  await live();
+  starting = false;
   return { close };
 }
