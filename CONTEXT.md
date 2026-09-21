@@ -82,6 +82,22 @@ _Avoid_: Ingest event, batch (in UI copy)
 Quiet for long enough — no watcher events, two stats agreeing — that a sync client or Preview is judged to have finished writing it. Nothing is read or hashed before it settles.
 _Avoid_: Stable, debounced
 
+**Batch** (of the watcher):
+The files that settled together, applied to the Index as one transaction and announced as one change. For PDFs a Batch is also one Ingest run and waits a run window for stragglers; a Markdown Batch closes the moment its files settle.
+_Avoid_: Debounce group, changeset
+
+**Own write**:
+A change to a vault file the app made itself, recognised by the watcher because the file's hash is the one the app recorded when it wrote. Indexed at the moment of writing, so the watcher has nothing to do when it sees it.
+_Avoid_: Echo, self-event, expected write
+
+**Rename** (as the watcher sees it):
+A file that vanished at one path and appeared at another with the same content in one Batch. Paired for every file; a surface holding the old path follows it to the new one.
+_Avoid_: Move (Finder's word; the same thing), delete-plus-create
+
+**Not watching**:
+The state in which the watcher has failed and could not be reopened, so changes made outside the app are not reaching the Index. Shown in the footer channel with the reason and a *retry*; never allowed to look like a quiet vault.
+_Avoid_: Offline, disconnected, stale
+
 **Sweep**:
 A stat-only pass over files comparing size and modification time to what the app recorded, catching up what the watcher could not see — at vault open, after a watcher failure, and over the PDF folder when the window regains focus. Reads no content. Never a timer.
 _Avoid_: Poll, rescan, full scan
