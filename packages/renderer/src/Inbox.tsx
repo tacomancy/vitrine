@@ -1,8 +1,20 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import type { Order, Question } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
+import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
 import { monthYear, provenanceOf, rowsOf } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
@@ -16,11 +28,37 @@ const ORDERS: readonly Order[] = ["newest", "oldest"];
  * nothing that counts what is owed. `landed` is the Question the capture
  * line just wrote: it becomes the selection and the list takes the keyboard.
  */
-export function Inbox({ landed }: { landed: Question | null }) {
+export function Inbox({
+  landed,
+  vaultPath,
+}: {
+  landed: Question | null;
+  vaultPath: string;
+}) {
   const trpc = useTRPC();
   const [order, setOrder] = useState<Order>("newest");
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+
+  // The selection is a path (ADR 0010), so a rename outside the app must
+  // move it before the re-query lands, or the renamed row would arrive
+  // unselected. A removed selection is cleared rather than left to dangle:
+  // the row's absence is the whole message, and a file that comes back
+  // later (a sync flap, an undo) should not arrive already selected.
+  useVaultChanged(
+    useCallback(
+      ({ renamed, removed }) => {
+        const absolute = (path: string) => `${vaultPath}/${path}`;
+        setSelected((path) => {
+          if (path === null) return null;
+          if (removed.some((gone) => absolute(gone) === path)) return null;
+          const move = renamed.find(({ from }) => absolute(from) === path);
+          return move === undefined ? path : absolute(move.to);
+        });
+      },
+      [vaultPath]
+    )
+  );
 
   // A new landing moves the selection to it. Adjusted during render rather
   // than in an effect, so the row is selected in the same paint it appears
@@ -58,6 +96,22 @@ export function Inbox({ landed }: { landed: Question | null }) {
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
   const unreadable = listing.data?.unreadable ?? [];
   const now = new Date();
+
+  // The vault's state, in the same quiet channel as the unreadable count
+  // (§ Index, Status): a build's progress, and a watcher that is down for
+  // good with its *retry*. Nothing when all is well — a footer that is
+  // always there would teach the eye to skip it.
+  const queryClient = useQueryClient();
+  const status = useQuery(trpc.vault.status.queryOptions());
+  const rewatch = useMutation(
+    trpc.vault.rewatch.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries(trpc.vault.status.pathFilter()),
+    })
+  );
+  const indexing = status.data?.indexing ?? null;
+  const watching = status.data?.watching ?? { ok: true };
+  const hasFooter = unreadable.length > 0 || indexing !== null || !watching.ok;
 
   // j/k and the arrows move the selection; ↵ selects the first row when
   // nothing is selected yet. The list is one tab stop.
@@ -163,21 +217,44 @@ export function Inbox({ landed }: { landed: Question | null }) {
             </li>
           ))}
         </ul>
-        {unreadable.length > 0 && (
-          <details className={styles.footer}>
-            <summary className={styles.footerLine}>
-              {unreadable.length} {unreadable.length === 1 ? "file" : "files"}{" "}
-              could not be read
-            </summary>
-            <ul className={styles.unreadable}>
-              {unreadable.map((file) => (
-                <li key={file.path}>
-                  <span>{file.path}</span>
-                  <span className={styles.reason}>{file.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
+        {hasFooter && (
+          <footer className={styles.footer}>
+            {unreadable.length > 0 && (
+              <details className={styles.unreadableDetails}>
+                <summary className={styles.footerLine}>
+                  {unreadable.length}{" "}
+                  {unreadable.length === 1 ? "file" : "files"} could not be read
+                </summary>
+                <ul className={styles.unreadable}>
+                  {unreadable.map((file) => (
+                    <li key={file.path}>
+                      <span>{file.path}</span>
+                      <span className={styles.reason}>{file.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {indexing !== null && (
+              <span className={styles.footerLine}>
+                indexing… {thousands(indexing.done)} of{" "}
+                {thousands(indexing.total)}
+              </span>
+            )}
+            {!watching.ok && (
+              <span className={styles.footerLine}>
+                not watching — {watching.reason} ·{" "}
+                <button
+                  type="button"
+                  className={styles.retry}
+                  disabled={rewatch.isPending}
+                  onClick={() => rewatch.mutate()}
+                >
+                  retry
+                </button>
+              </span>
+            )}
+          </footer>
         )}
       </section>
       <Detail row={selectedRow} />
@@ -187,3 +264,6 @@ export function Inbox({ landed }: { landed: Question | null }) {
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
+
+/** `1,250`: the one place the chrome shows a count that can reach thousands. */
+const thousands = (n: number) => n.toLocaleString("en-US");

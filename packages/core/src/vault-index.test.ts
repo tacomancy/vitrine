@@ -146,7 +146,13 @@ describe("vault.open and the index", () => {
 
     await c.indexed();
     expect(seen).toEqual([250, 260]);
-    expect(progress).toContainEqual({ done: 250, total: 260 });
+    // vaultStatus on every chunk and when the build finishes (#190): the
+    // walk's count, each chunk's tally, then the null that ends it.
+    expect(progress.filter((p) => p !== null)).toEqual([
+      { done: 0, total: 260 },
+      { done: 250, total: 260 },
+      { done: 260, total: 260 },
+    ]);
     expect(progress.at(-1)).toBeNull();
     expect((await listOf(c)).questions).toHaveLength(260);
   });
@@ -162,6 +168,7 @@ describe("vault.open and the index", () => {
     await c.indexed();
     expect(await statusOf(c)).toEqual({
       indexing: null,
+      watching: { ok: true },
       current: { ok: true },
     });
   });
@@ -196,6 +203,7 @@ describe("vault.open and the index", () => {
     expect((await listOf(c)).questions).toHaveLength(2);
     expect(await statusOf(c)).toEqual({
       indexing: null,
+      watching: { ok: true },
       current: { ok: true },
     });
   });

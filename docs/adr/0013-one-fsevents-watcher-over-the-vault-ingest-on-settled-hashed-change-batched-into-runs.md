@@ -25,6 +25,8 @@ The brief makes Ingest something the file does to the app, never the user (`desi
 
 **Update 2026-09-20 (beat 1b grill).** Decision 9's "Notes and PDFs only" restricts what a pairing *does*, not what is paired: every file is paired by hash within a batch, and every pairing is reported as `renamed` on `vaultChanged`, so a surface holding a path — the Inbox's selection, later the Vault editor's open file — follows a rename of an app-owned Kind too. Decision 5's run window is PDF-only: a Markdown batch closes at settle, since the index sends no notification to batch for. Decision 11's `vaultChanged` payload is `{ changed[], removed[], renamed[] }` and a `vaultStatus` event joins the union. `docs/architecture.md` § Watcher and Ingest.
 
+**Update 2026-09-21 (#189).** Pairing every file by hash needs a hash for every file, so decision 4's record now lives in `files` for a non-Markdown file too — beside the sidecar's, for a PDF, once beat 5 writes one. Decision 6's eviction test (`blocks === 0 && size > 0`) is applied at once to non-Markdown files, so the sweep never materialises an online-only file to hash it; an evicted file carries its path alone until its bytes are on disk. Markdown is always read. A consequence: a changed PDF raises `vaultChanged { changed }` from this ticket on, though nothing consumes it until Ingest.
+
 ## Considered options
 
 - **`@parcel/watcher`.** Rejected, decision 2: a native module for a distinction the pipeline discards.

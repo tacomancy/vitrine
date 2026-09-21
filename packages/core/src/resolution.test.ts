@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -215,6 +215,34 @@ describe("resolution follows the vault without re-outlining the linking file", (
     });
     expect(after.hash).toBe(before.hash);
     expect(outlined).toEqual(["Linker.md"]);
+    events.close();
+  });
+
+  it("a file renamed in Obsidian (paired by hash, #189) loses the links that named it, gains the ones that name it now, and its own [[#Heading]] follows", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await writeFile(join(vault, "Ahead.md"), "[[Consolidation]]\n");
+    const c = await opened(vault);
+    expect(await resolutions(c, "Ahead.md")).toEqual([
+      ["Consolidation", "unresolved", null],
+    ]);
+    const events = await c.events();
+    await rename(
+      join(vault, "Sleep and consolidation.md"),
+      join(vault, "Consolidation.md")
+    );
+    await rename(join(vault, "links-all-forms.md"), join(vault, "Forms.md"));
+    const event = await events.next("vaultChanged");
+    expect(event.renamed).toHaveLength(2);
+    expect(await resolutions(c, "Ahead.md")).toEqual([
+      ["Consolidation", ...resolved("Consolidation.md")],
+    ]);
+    expect(await resolutions(c, "links-case.md")).toEqual([
+      ["sleep AND consolidation", "unresolved", null],
+    ]);
+    expect((await resolutions(c, "Forms.md"))[5]).toEqual([
+      "",
+      ...resolved("Forms.md"),
+    ]);
     events.close();
   });
 

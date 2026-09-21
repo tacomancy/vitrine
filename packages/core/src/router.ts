@@ -38,15 +38,13 @@ const captureInput = z.object({
   provenance: z.object({ context: z.literal("other") }).strict(),
 });
 
+const noVault = () =>
+  new TRPCError({ code: "PRECONDITION_FAILED", message: "No vault is open." });
+
 /** The open vault and its index, or the PRECONDITION_FAILED a procedure that needs them raises. */
 async function requireVault(ctx: Context) {
   const opened = await ctx.vault.opened();
-  if (opened === null) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "No vault is open.",
-    });
-  }
+  if (opened === null) throw noVault();
   return opened;
 }
 
@@ -79,8 +77,14 @@ export const router = t.router({
       return refusing(outlineFromIndex(index, vault.path, input.path));
     }),
     status: t.procedure.query(async ({ ctx }) => {
-      const { index } = await requireVault(ctx);
-      return index.status();
+      const status = await ctx.vault.status();
+      if (status === null) throw noVault();
+      return status;
+    }),
+    // The footer's *retry* on `not watching`: reopen the watcher and sweep.
+    rewatch: t.procedure.mutation(async ({ ctx }) => {
+      await requireVault(ctx);
+      await ctx.vault.rewatch();
     }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
