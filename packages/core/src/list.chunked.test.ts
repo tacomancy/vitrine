@@ -36,10 +36,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 describe("questions.list is a query over the index", () => {
   it("reads no file at all: the one read of a heavy file was the index's, at open (ADR 0014 decision 3)", async () => {
     const vault = await tmp("large-body");
-    // Paragraphs, not one 50,000-line paragraph: `outline()` is quadratic
-    // in a paragraph's length today (flagged separately), and the point
-    // here is the byte count, not the parse.
-    const body = "The body, read once by the indexer.\n\n".repeat(50_000);
+    // Paragraphs, not one long paragraph: `outline()` is quadratic in a
+    // paragraph's length today (flagged separately), and the point here is
+    // the byte count, not the parse — a few thousand is heavy enough and
+    // still fits CI's clock.
+    const body = "The body, read once by the indexer.\n\n".repeat(5_000);
     const file = `---\nkind: question\nquestion: Heavy\ncaptured: 2026-01-01T00:00:00Z\n---\n${body}`;
     await writeFile(join(vault, "Heavy.md"), file);
     const c = await core();
