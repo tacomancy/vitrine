@@ -5,9 +5,8 @@ import { inlineFields } from "../src/syntax/inline-fields.js";
 
 // `outline()` runs synchronously inside the index build (ADR 0014), so one
 // long note must not freeze the core. This bounds the inline-field construct
-// alone, not `outline()`: the tree comes out the same either way, so what a
-// regression costs is time, and gfm's autolink literal adds its own upstream
-// per-paragraph term that would swamp an end-to-end bound (#196). Without
+// alone (`outline.performance.test.ts` bounds the whole locator): the tree
+// comes out the same either way, so what a regression costs is time. Without
 // the construct's `previous` hook each word start split the line into `data`
 // tokens that micromark merged with one splice per line — quadratic in a
 // paragraph's lines: 32,000 lines took ~20 s under vitest on the reference
