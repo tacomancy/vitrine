@@ -13,6 +13,7 @@ import { readQuestion } from "./question-kind.js";
 import {
   analyseFile,
   sha256,
+  type Link,
   type OutlineResponse,
   type Resolution,
 } from "./vault-files.js";
@@ -28,11 +29,12 @@ import {
  */
 
 /**
- * `PRAGMA user_version`. Bump on any change to the tables below: an index
- * carrying another number is deleted and rebuilt, which is the migration
- * path — there is no other (ADR 0014 decision 10).
+ * `PRAGMA user_version`. Bump on any change to the tables below, or to what
+ * a Kind derives into them: an index carrying another number is deleted and
+ * rebuilt, which is the migration path — there is no other (ADR 0014
+ * decision 10). 3: the Research Question's Position rows (#209).
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -107,6 +109,16 @@ export type VaultIndex = {
   status: () => IndexStatus;
   /** A read-only query; the surfaces compose their own SELECTs over the tables. */
   select: <T>(sql: string, ...params: Array<string | number | null>) => T[];
+  /**
+   * Where one link lands, by the same rules the `links` rows are resolved
+   * by: for a link read off a file the index may not have caught up with
+   * (a page read inside the settle window), so a surface never has to
+   * resolve one itself or show a resolution the index would not.
+   */
+  resolve: (
+    linkingPath: string,
+    link: Pick<Link, "target" | "heading" | "blockId">
+  ) => { resolution: Resolution; resolvedPath: string | null };
   close: () => void;
 };
 
@@ -1118,6 +1130,17 @@ function createIndex(
     }),
     select: <T>(sql: string, ...params: Array<string | number | null>) =>
       db.prepare(sql).all(...params) as T[],
+    resolve: (linkingPath, link) => {
+      const [resolution, resolvedPath] = resolveOne({
+        rowid: 0,
+        path: linkingPath,
+        target: link.target,
+        ltarget: linkKey(linkingPath, link.target),
+        heading: JSON.stringify(link.heading),
+        block: link.blockId,
+      });
+      return { resolution, resolvedPath };
+    },
     close: () => {
       closed = true;
       db.close();

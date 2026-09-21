@@ -6,6 +6,7 @@ import { cors } from "hono/cors";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { createQuestionService } from "./questions.js";
+import { KIND, researchQuestionPositions } from "./research-question.js";
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
 import type { IndexOptions } from "./vault-index.js";
@@ -63,6 +64,13 @@ export function createApp({
     watch,
     index: {
       ...index,
+      // The Kinds with a Position (§ Index): the Research Question's
+      // `## Working answer` is the first. A test's stand-in may add to or
+      // override the registry, never lose it.
+      positionsOf: {
+        [KIND]: researchQuestionPositions,
+        ...index?.positionsOf,
+      },
       onChanged: async (event) => {
         events.emit(event);
         await index?.onChanged?.(event);
