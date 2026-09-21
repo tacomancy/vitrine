@@ -11,4 +11,21 @@ export type {
 export type { Provenance, Question } from "./questions.js";
 export type { AppRouter } from "./router.js";
 export type { Vault, VaultErrorKind } from "./vault.js";
+export type {
+  BlockId,
+  Criterion,
+  FileChoices,
+  FileOutline,
+  Heading,
+  InlineField,
+  InvalidTag,
+  Link,
+  ListItem,
+  Outcome,
+  OutlineResponse,
+  Range,
+  Relationship,
+  ShapeProblem,
+  Tag,
+} from "./vault-files.js";
 export { startCore } from "./start.js";

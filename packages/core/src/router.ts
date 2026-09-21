@@ -3,6 +3,7 @@ import { z } from "zod";
 import { listQuestions } from "./list.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError, type VaultService } from "./vault.js";
+import { readOutline } from "./vault-files.js";
 
 export type Context = { vault: VaultService; questions: QuestionService };
 
@@ -30,6 +31,18 @@ const captureInput = z.object({
   provenance: z.object({ context: z.literal("other") }).strict(),
 });
 
+/** The open vault, or the PRECONDITION_FAILED a procedure that needs one raises. */
+async function requireVault(ctx: Context) {
+  const vault = await ctx.vault.current();
+  if (vault === null) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No vault is open.",
+    });
+  }
+  return vault;
+}
+
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
 async function refusing<T>(work: Promise<T>): Promise<T> {
   try {
@@ -54,16 +67,14 @@ export const router = t.router({
       .input(pathInput)
       .mutation(({ ctx, input }) => refusing(ctx.vault.open(input.path))),
     pick: t.procedure.mutation(({ ctx }) => refusing(ctx.vault.pick())),
+    outline: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const vault = await requireVault(ctx);
+      return refusing(readOutline(vault.path, input.path));
+    }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
-      const vault = await ctx.vault.current();
-      if (vault === null) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No vault is open.",
-        });
-      }
+      const vault = await requireVault(ctx);
       return listQuestions(vault.path, input.order);
     }),
     capture: t.procedure
