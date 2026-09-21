@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No Node types on purpose: the package runs in the renderer too, and a
+    // `node:` import must fail here before dependency-cruiser sees it.
+    "types": [],
+    "lib": ["ES2023"]
+  },
+  "include": ["src", "vitest.config.ts"]
+}
