@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
+import { candidates } from "./picker.js";
 import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
@@ -56,6 +57,16 @@ const captureInput = z.object({
       .strict(),
   ]),
 });
+
+// `kinds` absent is "anything the vault holds"; an empty array is the
+// caller narrowing to nothing, which is not the same thing.
+const candidatesInput = z.object({
+  query: z.string(),
+  kinds: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+});
+
+const linkInput = z.object({ path: z.string(), target: z.string() });
 
 /** *Answer in place*: the one line the user typed, never empty. */
 const answerInput = z.object({
@@ -123,6 +134,21 @@ export const router = t.router({
       ctx.events.subscribe(signal)
     ),
   }),
+  // The one picker over the index's `files` table (#211): the caller
+  // names the Kinds to narrow to, and the rows come back capped with the
+  // count, so a list that was cut can say so.
+  picker: t.router({
+    candidates: t.procedure
+      .input(candidatesInput)
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return candidates(index, {
+          query: input.query,
+          ...(input.kinds === undefined ? {} : { kinds: input.kinds }),
+          ...(input.exclude === undefined ? {} : { exclude: input.exclude }),
+        });
+      }),
+  }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
     // index (`research-question.ts`).
@@ -179,6 +205,13 @@ export const router = t.router({
       .input(captureInput)
       .mutation(({ ctx, input }) =>
         refusing(ctx.questions.capture(input.text, input.provenance))
+      ),
+    // Link (#211): the picker's choice appended to the Question's
+    // `related`, one write through the protocol.
+    link: t.procedure
+      .input(linkInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.link(input.path, input.target))
       ),
     // Promote to Research Question (#210): the page written whole, then
     // the Question marked; a refusal is the typed error the formatter
