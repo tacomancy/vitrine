@@ -1,4 +1,6 @@
 .inbox {
+  /* The Link picker floats over the list inside this surface. */
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;

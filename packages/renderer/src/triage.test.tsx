@@ -224,7 +224,9 @@ describe("the row and the footer", () => {
     renderInbox([open, dropped, answered]);
     await rows();
     const footer = screen.getByRole("contentinfo");
-    expect(footer.textContent).toBe("j/k movep promotea answerd dropr reopen");
+    expect(footer.textContent).toBe(
+      "j/k movep promotel linka answerd dropr reopen"
+    );
     expect(footer.querySelector("[role=alert]")).toBeNull();
   });
 

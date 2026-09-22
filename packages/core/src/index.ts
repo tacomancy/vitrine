@@ -9,6 +9,8 @@ export type {
   PartialQuestion,
   QuestionStatus,
 } from "./list.js";
+export type { Linked } from "./link.js";
+export type { Candidate, CandidateKind, Candidates } from "./picker.js";
 export type { Provenance, Question, Triage } from "./questions.js";
 export type {
   LinkLine,
