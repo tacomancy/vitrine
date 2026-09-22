@@ -46,7 +46,7 @@ The body of a vault file before its first `##` heading — the whole body of a Q
 _Avoid_: Preamble, intro, body (the lead is part of it)
 
 **Edited section**:
-A `##` section of an app-owned file whose body is the user's prose, which the app replaces whole only because the user edited it on a surface — on a Research Question, `## Working answer`, `## Open threads`, `## Related questions`, and the two sources sections when a source is moved or detached. Never rewritten on the app's own initiative; in Obsidian it is ordinary text. A Working answer is also a Position, so replacing it records a Revision; moving a source is not a Revision (ADR 0020).
+A `##` section of an app-owned file whose body is the user's prose, which the app replaces whole only because the user edited it on a surface — on a Research Question, `## Working answer`, `## Open threads`, `## Related questions`, and the two sources sections when a source is moved or detached. Never rewritten on the app's own initiative; in Obsidian it is ordinary text. A Working answer is also a Position, so replacing it records a Revision; moving a source is not a Revision (ADR 0020). A save of one carries the section's text as the surface read it beside the Write's `basedOn`: replacing a section whole is the one write a stale re-apply could land wrongly, so a section changed underneath is refused for the surface to show as Changed on disk, never overwritten.
 _Avoid_: Owned section (the app rewrites those unprompted), field, form
 
 **Shape problem**:
@@ -202,6 +202,9 @@ _Avoid_: Todo, sub-question (that is a Question with `pursuing` Provenance)
 **Reopen** (a Question):
 Setting a dropped or answered Question back to *open*, keeping whatever answer text it holds.
 
+**Reopen** (a Research Question):
+Setting a Resolved or Abandoned page back to *open*, and nothing else: the body, the Position history, and the Write-back line on its Question all stay where they are, so resolving is a status and not an archive. The Question's own status is the Inbox's to reopen. `answered` stays too, as the day the page was last resolved; the next Resolve overwrites it.
+
 **Research Question**:
 A promoted Question answered by reading. Holds a Working answer with Position history, supporting Sources, opposing Sources, related questions, and open threads. Supporting and opposing are structurally separate, not a tag on one list.
 _Avoid_: RQ in prose; project
@@ -215,6 +218,10 @@ One of *open*, *answered*, *abandoned*. Never *promoted*: that is the originatin
 **Resolved** (of a Research Question):
 Its Status set to *answered* by the user, taking the Working answer as the answer. Writes back to the Question it was promoted from. Not a Loose end and not derived: the user decides when reading is done.
 _Avoid_: Closed, done, finished
+
+**Abandoned** (of a Research Question):
+Its Status set to *abandoned* by the user: reading ended without an answer. Writes back exactly as Resolved does, and the Question becomes *abandoned* too. Carries no date of its own — the day is in the Write-back line, as a dropped Question's is.
+_Avoid_: Cancelled, failed, archived
 
 **Supporting / Opposing** (of a source on a Research Question):
 The two sides a source is attached to, and the only two: attaching is the judgement. A paper not yet judged is not evidence and is not attached; it may be Related.
@@ -376,6 +383,10 @@ One of the eight screens: Home, Question Inbox, Reader, Research Question view, 
 
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
+
+**Picker**:
+The one keyboard list of vault files three places open — Link from the Inbox, attaching a Source to a Research Question, `[[` inside a why line. Name-contains over the Index, a Kind glyph per row and a Source's PDF beside it, narrowed by whoever opened it to the Kinds it will accept and away from the file the user is standing on. Never a search: matching a title or a body is the Vault editor's beat.
+_Avoid_: Search, autocomplete, quick open, palette (the command palette is a different thing)
 
 **Loose end**:
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
