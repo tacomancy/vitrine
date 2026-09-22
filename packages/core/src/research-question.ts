@@ -3,7 +3,7 @@ import { basename, dirname, join, sep } from "node:path";
 import { BOM, type Heading, type ListItem, type Outline } from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
-import { asString, readQuestion } from "./question-kind.js";
+import { asString, readQuestionForWrite } from "./question-kind.js";
 import {
   coalesce,
   formatRevision,
@@ -735,31 +735,15 @@ export async function promoteQuestion(
   /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
   { promoted, newId }: { promoted: string; newId: () => string }
 ): Promise<Promotion> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  const bytes = await readFile(absolute).catch((cause: unknown) => {
-    throw new VaultError(
-      "unreadable",
-      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
-    );
-  });
-  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
-  if (!read.readable) {
-    throw new VaultError("unreadable", `${relativePath}: ${read.reason}`);
-  }
-  const fm = (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
-  const question = read.kind === "question" ? readQuestion(fm) : null;
-  if (question === null) {
-    throw new VaultError("refused", `${relativePath} is not a Question.`);
-  }
-  if (question.status !== "open") {
-    throw new VaultError(
-      "refused",
-      `${relativePath} is ${question.status}, not open; reopen it first.`
-    );
-  }
+  const {
+    path: relativePath,
+    hash,
+    frontmatter: fm,
+    outline,
+  } = await readQuestionForWrite(vaultPath, path, ["open"]);
 
   const stem = basename(relativePath, ".md");
-  const tags = read.outline.tags
+  const tags = outline.tags
     .filter((t) => t.valid && t.source === "frontmatter")
     .map((t) => t.text);
   const content = composeResearchQuestion(fm, tags, {
@@ -775,7 +759,7 @@ export async function promoteQuestion(
   );
 
   const marked = await write(vaultPath, relativePath, {
-    basedOn: read.hash,
+    basedOn: hash,
     operations: [
       {
         op: "setFrontmatter",

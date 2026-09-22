@@ -1,9 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { parseWikilink } from "markdown";
-import { errorMessage, VaultError } from "./errors.js";
-import { readQuestion } from "./question-kind.js";
-import { analyseFile, locate, sha256, write } from "./vault-files.js";
+import { VaultError } from "./errors.js";
+import { readQuestionForWrite, type QuestionStatus } from "./question-kind.js";
+import { locate, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -23,18 +22,33 @@ export type Linked = {
   linked: boolean;
 };
 
+/**
+ * Every Status: linking is not a state change, so there is no Status it
+ * does not apply to — where promote wants an open Question and reopen a
+ * triaged one (§ Research Question view and triage).
+ */
+const ANY_STATUS: readonly QuestionStatus[] = [
+  "open",
+  "promoted",
+  "answered",
+  "abandoned",
+];
+
 export async function linkQuestion(
   vaultPath: string,
   index: VaultIndex,
   questionPath: string,
   targetPath: string
 ): Promise<Linked> {
-  const question = await locate(vaultPath, questionPath);
+  // The same read, and the same refusals, as every other triage action
+  // (#212): a file that is not readable or is not a Question says so in
+  // one voice, whichever key the user pressed.
+  const found = await readQuestionForWrite(vaultPath, questionPath, ANY_STATUS);
   const target = await locate(vaultPath, targetPath);
-  if (question.relativePath === target.relativePath) {
+  if (found.path === target.relativePath) {
     throw new VaultError(
       "refused",
-      `${question.relativePath} cannot be related to itself.`
+      `${found.path} cannot be related to itself.`
     );
   }
   // The target must be a file the Index knows, because the link text below
@@ -51,44 +65,17 @@ export async function linkQuestion(
     );
   }
 
-  const bytes = await readFile(question.absolute).catch((cause: unknown) => {
-    throw new VaultError(
-      "unreadable",
-      `Couldn't read ${question.relativePath}: ${errorMessage(cause)}`
-    );
-  });
-  const read = analyseFile(
-    question.relativePath,
-    bytes.toString("utf8"),
-    sha256(bytes)
-  );
-  if (!read.readable) {
-    throw new VaultError(
-      "unreadable",
-      `${question.relativePath}: ${read.reason}`
-    );
-  }
-  const fm = (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
-  if (read.kind !== "question" || readQuestion(fm) === null) {
-    throw new VaultError(
-      "refused",
-      `${question.relativePath} is not a Question.`
-    );
-  }
-
-  const related = relatedList(fm["related"], question.relativePath);
-  const link = linkText(index, question.relativePath, target.relativePath);
+  const related = relatedList(found.frontmatter["related"], found.path);
+  const link = linkText(index, found.path, target.relativePath);
   const already = related.some(
     (entry) =>
       entry === link ||
-      resolves(index, question.relativePath, entry) === target.relativePath
+      resolves(index, found.path, entry) === target.relativePath
   );
-  if (already) {
-    return { path: question.relativePath, target: link, linked: false };
-  }
+  if (already) return { path: found.path, target: link, linked: false };
 
-  const result = await write(vaultPath, question.relativePath, {
-    basedOn: read.hash,
+  const result = await write(vaultPath, found.path, {
+    basedOn: found.hash,
     operations: [
       { op: "setFrontmatter", keys: { related: [...related, link] } },
     ],
@@ -96,11 +83,11 @@ export async function linkQuestion(
   if (!result.written) {
     throw new VaultError(
       "refused",
-      `Couldn't link ${question.relativePath}: ${result.detail}`
+      `Couldn't link ${found.path}: ${result.detail}`
     );
   }
-  await index.own(question.relativePath, result.content);
-  return { path: question.relativePath, target: link, linked: true };
+  await index.own(found.path, result.content);
+  return { path: found.path, target: link, linked: true };
 }
 
 /**

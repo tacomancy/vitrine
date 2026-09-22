@@ -1,4 +1,12 @@
-import type { ShapeProblem } from "./vault-files.js";
+import { readFile } from "node:fs/promises";
+import { errorMessage, VaultError } from "./errors.js";
+import {
+  analyseFile,
+  locate,
+  sha256,
+  type FileOutline,
+  type ShapeProblem,
+} from "./vault-files.js";
 
 export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
 
@@ -99,4 +107,74 @@ export function readQuestion(
   const promotedTo = asString(fm["promoted_to"]);
   if (promotedTo !== undefined) q.promotedTo = promotedTo;
   return q;
+}
+
+/** A Question read from disk for a write: what every triage action needs of it. */
+export type QuestionFile = {
+  /** Vault-relative, as the index keys it. */
+  path: string;
+  /** SHA-256 of the bytes read: what the write is `basedOn`. */
+  hash: string;
+  /** The frontmatter as the file holds it, for a caller that copies keys. */
+  frontmatter: Record<string, unknown>;
+  /** The outline of those same bytes, so a range and its text never disagree. */
+  outline: FileOutline;
+  question: QuestionFields;
+};
+
+/**
+ * The Question a triage key names, or the refusal the row shows. Every way
+ * a triage action can be turned away is decided here — the file is not
+ * readable, it is not a Question, its Status does not allow the action —
+ * so promote, answer, drop and reopen say the same things for the same
+ * reasons (§ Research Question view and triage). The Statuses each action
+ * allows are that section's; the caller names them.
+ */
+export async function readQuestionForWrite(
+  vaultPath: string,
+  path: string,
+  allowed: readonly QuestionStatus[]
+): Promise<QuestionFile> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  const bytes = await readFile(absolute).catch((cause: unknown) => {
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
+    );
+  });
+  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
+  if (!read.readable) {
+    throw new VaultError("unreadable", `${relativePath}: ${read.reason}`);
+  }
+  const frontmatter = (read.outline.frontmatter?.value ?? {}) as Record<
+    string,
+    unknown
+  >;
+  let question: QuestionFields | null;
+  try {
+    question = read.kind === "question" ? readQuestion(frontmatter) : null;
+  } catch (cause) {
+    // A key present but unreadable is a fault to report, not a gap: the
+    // file says it is a Question and the app cannot act on it.
+    throw new VaultError(
+      "unreadable",
+      `${relativePath}: ${errorMessage(cause)}`
+    );
+  }
+  if (question === null) {
+    throw new VaultError("refused", `${relativePath} is not a Question.`);
+  }
+  if (!allowed.includes(question.status)) {
+    throw new VaultError(
+      "refused",
+      `${relativePath} is ${question.status}, not ${allowed.join(" or ")}.`
+    );
+  }
+  return {
+    path: relativePath,
+    hash: read.hash,
+    frontmatter,
+    outline: read.outline,
+    question,
+  };
 }

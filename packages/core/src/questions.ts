@@ -4,9 +4,15 @@ import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
 import { linkQuestion, type Linked } from "./link.js";
+import {
+  readQuestionForWrite,
+  type QuestionFile,
+  type QuestionStatus,
+} from "./question-kind.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
 import { localIso } from "./time.js";
-import { readOutline, write } from "./vault-files.js";
+import { readOutline, write, type Operation } from "./vault-files.js";
+import type { VaultIndex } from "./vault-index.js";
 import type { VaultService } from "./vault.js";
 
 /**
@@ -28,12 +34,21 @@ export type Question = {
   context: Provenance["context"];
 };
 
+/** Where a triage write landed: the Question's path, vault-relative. */
+export type Triage = { path: string };
+
 export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
   /** Link (#211): a wikilink appended to the Question's `related`, the linking side only. */
   link: (path: string, target: string) => Promise<Linked>;
+  /** Answer in place (#212): the typed line into the lead, then the two keys. */
+  answer: (path: string, line: string) => Promise<Triage>;
+  /** Drop (#212): `status: abandoned`, and nothing else touched. */
+  drop: (path: string) => Promise<Triage>;
+  /** Reopen (#212): `status: open`, the body — the answer text included — left as it is. */
+  reopen: (path: string) => Promise<Triage>;
 };
 
 export type QuestionServiceOptions = {
@@ -137,6 +152,36 @@ async function freePath(folder: string, name: string): Promise<string> {
     candidate = join(folder, `${name} (${n}).md`);
   }
   return candidate;
+}
+
+// Which Statuses each triage action allows (§ Research Question view and
+// triage). A promoted Question is in neither set: it is left to its page,
+// whose resolve and abandon write back to both files.
+const OPEN: readonly QuestionStatus[] = ["open"];
+const TRIAGED: readonly QuestionStatus[] = ["answered", "abandoned"];
+
+/**
+ * One triage write through the protocol, and the index told of it before
+ * this returns so the row reads its new Status without waiting for the
+ * watcher. A write the protocol would not make is the refusal, with its
+ * detail — never silent.
+ */
+async function triage(
+  vaultPath: string,
+  index: VaultIndex,
+  { path, hash }: QuestionFile,
+  verb: string,
+  operations: Operation[]
+): Promise<Triage> {
+  const result = await write(vaultPath, path, { basedOn: hash, operations });
+  if (!result.written) {
+    throw new VaultError(
+      "refused",
+      `Couldn't ${verb} ${path}: ${result.detail}`
+    );
+  }
+  await index.own(path, result.content);
+  return { path };
 }
 
 export function createQuestionService({
@@ -287,29 +332,69 @@ export function createQuestionService({
     return run;
   }
 
-  /** The open vault, or the typed refusal a write that needs one raises. */
-  async function requireOpen() {
-    const opened = await vault.opened();
-    if (opened === null) {
+  /** The open vault, or the refusal every procedure that writes raises. */
+  async function opened() {
+    const open = await vault.opened();
+    if (open === null) {
       throw new VaultError("noVault", "No vault is open. Open a vault first.");
     }
-    return opened;
+    return open;
   }
 
+  // Answer, drop and reopen are not serialised with captures: they write to
+  // a file that already exists and pick no name, so nothing can collide.
+  // Link is the exception — see its comment below.
   return {
     capture: (text, provenance) => serially(() => capture(text, provenance)),
     promote: (path) =>
       serially(async () => {
-        const opened = await requireOpen();
-        return promoteQuestion(opened.vault.path, opened.index, path, {
+        const open = await opened();
+        return promoteQuestion(open.vault.path, open.index, path, {
           promoted: localIso(now()),
           newId,
         });
       }),
+    // Serialised, where answer, drop and reopen are not: a link reads
+    // `related` and writes the list back, so two arriving together would
+    // each plan against a `related` that no longer exists by the time the
+    // second lands, and one link would be lost. The protocol's hash check
+    // cannot catch that — re-apply faithfully applies operations that were
+    // correct when they were computed — which is why the page has a queue
+    // of its own too (`research-question.ts`).
     link: (path, target) =>
       serially(async () => {
-        const opened = await requireOpen();
-        return linkQuestion(opened.vault.path, opened.index, path, target);
+        const open = await opened();
+        return linkQuestion(open.vault.path, open.index, path, target);
       }),
+    answer: async (path, line) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, OPEN);
+      return triage(open.path, index, found, "answer", [
+        // The lead, never inside a `##` section the user keeps below it
+        // (ADR 0008 decision 2): an answer is not a note under a heading.
+        { op: "appendToSection", target: "lead", line },
+        {
+          op: "setFrontmatter",
+          keys: { status: "answered", answered: localIso(now()) },
+        },
+      ]);
+    },
+    drop: async (path) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, OPEN);
+      return triage(open.path, index, found, "drop", [
+        { op: "setFrontmatter", keys: { status: "abandoned" } },
+      ]);
+    },
+    reopen: async (path) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, TRIAGED);
+      // `answered:` stays: no operation removes a key, and the Status is
+      // what says the Question is open again. The body — the answer text
+      // included — is not touched at all (CONTEXT.md *Reopen*).
+      return triage(open.path, index, found, "reopen", [
+        { op: "setFrontmatter", keys: { status: "open" } },
+      ]);
+    },
   };
 }
