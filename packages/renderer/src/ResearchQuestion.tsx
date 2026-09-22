@@ -278,45 +278,65 @@ function WorkingAnswer({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const diskCopy = useDiskCopy(path);
   // Null while the field shows the file's text; the typing otherwise.
   const [draft, setDraft] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+  // Up while the *changed on disk* line is: autosave is suspended until
+  // one of its two actions is chosen (#215).
+  const [conflict, setConflict] = useState(false);
+  // What the typing is a change *to*, captured when the field went dirty
+  // and not re-taken from a re-read underneath it — an Obsidian edit to
+  // another section must not make this save look based on the new file.
+  const [base, setBase] = useState<Base | null>(null);
   // Set while a save is in flight, so a blur right after ⌘↵ is one save.
   const inFlight = useRef(false);
   const save = useMutation(
     trpc.researchQuestions.saveWorkingAnswer.mutationOptions({
-      onSuccess: async (result, { text: saved }) => {
+      onSuccess: async (result, { text: saved, basedOn }) => {
         if (!result.written) {
-          setRefusal(`not saved — ${result.detail}`);
+          if (result.reason === "changedAndUnreapplyable") setConflict(true);
+          else setRefusal(`not saved — ${result.detail}`);
           return;
         }
         setRefusal(null);
+        setConflict(false);
         await queryClient.invalidateQueries(
           trpc.researchQuestions.page.queryFilter({ path })
         );
         // Typing that went on past the save is kept; the field shows the
-        // re-read page only when it holds what was typed.
+        // re-read page only when it holds what was typed. Typing that
+        // stayed is now a change to what this save put on disk.
         setDraft((current) => (current === saved ? null : current));
+        setBase((current) =>
+          current === null || current.hash === basedOn
+            ? { hash: result.hash, text: saved.trim() }
+            : current
+        );
       },
       onError: (error) => setRefusal(`not saved — ${error.message}`),
     })
   );
 
-  const commit = () => {
-    if (draft === null || inFlight.current) return;
-    if (draft.trim() === text) {
-      setDraft(null);
-      return;
-    }
+  const send = (text: string, on: Base) => {
     inFlight.current = true;
     save.mutate(
-      { path, text: draft, basedOn: hash },
+      { path, text, basedOn: on.hash, was: on.text },
       {
         onSettled: () => {
           inFlight.current = false;
         },
       }
     );
+  };
+  const commit = () => {
+    if (draft === null || inFlight.current || conflict) return;
+    if (draft.trim() === text) {
+      setDraft(null);
+      setBase(null);
+      return;
+    }
+    send(draft, base ?? { hash, text });
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && event.metaKey) {
@@ -325,7 +345,27 @@ function WorkingAnswer({
     } else if (event.key === "Escape") {
       event.preventDefault();
       setDraft(null);
+      setBase(null);
     }
+  };
+  const type = (typed: string) => {
+    setBase((current) => current ?? { hash, text });
+    setDraft(typed);
+  };
+  // *Keep mine*: the disk copy read afresh, then the typing saved over it.
+  const keepMine = async () => {
+    const disk = await diskCopy("Working answer");
+    setConflict(false);
+    if (disk === null || draft === null) return;
+    setBase(disk);
+    send(draft, disk);
+  };
+  // *Take the disk copy*: the typing let go, the field showing the file.
+  const takeTheDiskCopy = async () => {
+    await diskCopy("Working answer");
+    setConflict(false);
+    setDraft(null);
+    setBase(null);
   };
   const shown = draft ?? text;
   return (
@@ -341,10 +381,16 @@ function WorkingAnswer({
         aria-labelledby="rq-working-answer"
         value={shown}
         rows={shown === "" ? 2 : undefined}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => type(event.target.value)}
         onBlur={commit}
         onKeyDown={onKeyDown}
       />
+      {conflict && (
+        <ChangedOnDisk
+          keepMine={() => void keepMine()}
+          takeTheDiskCopy={() => void takeTheDiskCopy()}
+        />
+      )}
       {refusal !== null && (
         <p role="status" className={styles.refusal}>
           {refusal}
@@ -467,6 +513,68 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
   );
 }
 
+/** The Edited sections, and the page field that holds each one's text. */
+type Editable = "Working answer" | "Open threads" | "Related questions";
+
+/** What a field is editing against: the file's hash and the section's text, as it read them. */
+type Base = { hash: string; text: string };
+
+/**
+ * The section as the file holds it now — read afresh, not from the page's
+ * cache, because the point of the read is that the cache is behind. Both
+ * resolutions of *changed on disk* need it: *keep mine* saves over it,
+ * *take the disk copy* shows it. Null when the file can no longer be read
+ * as a page at all; the page's own absence line says so.
+ */
+function useDiskCopy(path: string): (name: Editable) => Promise<Base | null> {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  return async (name) => {
+    const page = await queryClient.fetchQuery({
+      ...trpc.researchQuestions.page.queryOptions({ path }),
+      staleTime: 0,
+    });
+    if (!page.readable) return null;
+    const { workingAnswer, openThreads, related } = page.sections;
+    const text =
+      name === "Working answer"
+        ? workingAnswer.text
+        : name === "Open threads"
+          ? openThreads.text
+          : related.text;
+    return { hash: page.hash, text };
+  };
+}
+
+/**
+ * The Vault editor's *changed on disk* line (ADR 0015 decision 5), inside
+ * the section that refused: the section was edited elsewhere between the
+ * page's read and this save, so re-applying would have replaced those words
+ * with these. Not a modal and not a silent overwrite — the typing stays in
+ * the field, autosave is suspended until one of the two is chosen, and
+ * *keep mine* is the one place a byte the user did not type is overwritten
+ * on their explicit say-so.
+ */
+function ChangedOnDisk({
+  keepMine,
+  takeTheDiskCopy,
+}: {
+  keepMine: () => void;
+  takeTheDiskCopy: () => void;
+}) {
+  return (
+    <p role="status" className={styles.conflict}>
+      <span>changed on disk</span>
+      <button type="button" className={styles.edit} onClick={keepMine}>
+        keep mine
+      </button>
+      <button type="button" className={styles.edit} onClick={takeTheDiskCopy}>
+        take the disk copy
+      </button>
+    </p>
+  );
+}
+
 /**
  * A write the page makes to its own file: the result is the protocol's, and
  * a refusal is kept to show as a line in the section that asked — never a
@@ -474,7 +582,7 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
  * write that landed re-reads the page; the own write's `vaultChanged` does
  * the same, so this is only what makes the re-read immediate.
  */
-function useSectionWrite() {
+function useSectionWrite(onConflict?: () => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -484,6 +592,16 @@ function useSectionWrite() {
       void queryClient.invalidateQueries(
         trpc.researchQuestions.page.pathFilter()
       );
+    } else if (
+      result.reason === "changedAndUnreapplyable" &&
+      onConflict !== undefined
+    ) {
+      // The protocol's one word for "the file moved under this write". A
+      // field save reaches it only by landing on its own section, so the
+      // caller that has a field shows the *changed on disk* line instead
+      // of the plain one; a tick has no field and keeps the plain one.
+      setRefusal(null);
+      onConflict();
     } else {
       setRefusal(`${result.reason} — ${result.detail}`);
     }
@@ -519,13 +637,24 @@ function Editable({
   children: ReactNode;
 }) {
   const trpc = useTRPC();
-  const { refusal, settle, fail } = useSectionWrite();
+  // Up while the *changed on disk* line is: autosave is suspended until
+  // one of its two actions is chosen (#215).
+  const [conflict, setConflict] = useState(false);
+  const { refusal, settle, fail } = useSectionWrite(() => setConflict(true));
   const [draft, setDraft] = useState<string | null>(null);
+  // What the typing is a change *to*: the file as the field opened on it,
+  // kept across a re-read underneath, so an Obsidian edit to another
+  // section does not make this save look based on the new file.
+  const [base, setBase] = useState<Base>({ hash, text });
+  const diskCopy = useDiskCopy(path);
   const editRef = useRef<HTMLButtonElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const editing = draft !== null;
 
-  const close = () => setDraft(null);
+  const close = () => {
+    setDraft(null);
+    setConflict(false);
+  };
   const save = useMutation(
     trpc.researchQuestions.saveSection.mutationOptions({
       onSuccess: (result) => {
@@ -536,14 +665,43 @@ function Editable({
     })
   );
   const submit = () => {
-    if (draft === null || save.isPending) return;
+    if (draft === null || save.isPending || conflict) return;
     // Nothing typed is nothing written: a blur that changed nothing must
     // not rewrite the section, or every glance would be a save.
     if (draft === text) {
       close();
       return;
     }
-    save.mutate({ path, section: name, body: draft, basedOn: hash });
+    save.mutate({
+      path,
+      section: name,
+      body: draft,
+      basedOn: base.hash,
+      was: base.text,
+    });
+  };
+  // *Keep mine*: the disk copy read afresh, then the typing saved over it.
+  const keepMine = async () => {
+    const disk = await diskCopy(name);
+    setConflict(false);
+    if (disk === null || draft === null) return;
+    setBase(disk);
+    save.mutate({
+      path,
+      section: name,
+      body: draft,
+      basedOn: disk.hash,
+      was: disk.text,
+    });
+  };
+  // *Take the disk copy*: the typing replaced by what the file holds, the
+  // field left open on it.
+  const takeTheDiskCopy = async () => {
+    const disk = await diskCopy(name);
+    setConflict(false);
+    if (disk === null) return close();
+    setBase(disk);
+    setDraft(disk.text);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -576,7 +734,10 @@ function Editable({
             ref={editRef}
             type="button"
             className={styles.edit}
-            onClick={() => setDraft(text)}
+            onClick={() => {
+              setBase({ hash, text });
+              setDraft(text);
+            }}
           >
             edit
           </button>
@@ -596,6 +757,12 @@ function Editable({
         />
       ) : (
         children
+      )}
+      {conflict && (
+        <ChangedOnDisk
+          keepMine={() => void keepMine()}
+          takeTheDiskCopy={() => void takeTheDiskCopy()}
+        />
       )}
       <Refusal refusal={refusal} />
     </Section>

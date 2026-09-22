@@ -142,6 +142,10 @@ export const router = t.router({
           section: z.enum(EDITED_SECTIONS),
           body: z.string(),
           basedOn: z.string(),
+          // The section's text as the page read it: what tells a stale
+          // save that re-applies from one that would overwrite an edit
+          // made to this section since (#215).
+          was: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -158,7 +162,13 @@ export const router = t.router({
     // The Working answer is the one Edited section that is also a Position:
     // its save records the Revision in the same write (#213).
     saveWorkingAnswer: t.procedure
-      .input(pathInput.extend({ text: z.string(), basedOn: z.string() }))
+      .input(
+        pathInput.extend({
+          text: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(

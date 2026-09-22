@@ -281,6 +281,21 @@ a.target:focus-visible {
   color: var(--color-fg-muted);
 }
 
+/*
+ * The *changed on disk* line: the refusal's voice with its two actions
+ * beside it, non-modal and in flow under the field (ADR 0015 decision 5).
+ * No hairline and no red — a conflict is a choice to make, not an alarm.
+ */
+.conflict {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
 /* A resolved thread stays: ticked, never struck through or removed. */
 .done {
   color: var(--color-fg-secondary);
