@@ -3,9 +3,15 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
+import {
+  readQuestionForWrite,
+  type QuestionFile,
+  type QuestionStatus,
+} from "./question-kind.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
 import { localIso } from "./time.js";
-import { readOutline, write } from "./vault-files.js";
+import { readOutline, write, type Operation } from "./vault-files.js";
+import type { VaultIndex } from "./vault-index.js";
 import type { VaultService } from "./vault.js";
 
 /**
@@ -27,10 +33,19 @@ export type Question = {
   context: Provenance["context"];
 };
 
+/** Where a triage write landed: the Question's path, vault-relative. */
+export type Triage = { path: string };
+
 export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
+  /** Answer in place (#212): the typed line into the lead, then the two keys. */
+  answer: (path: string, line: string) => Promise<Triage>;
+  /** Drop (#212): `status: abandoned`, and nothing else touched. */
+  drop: (path: string) => Promise<Triage>;
+  /** Reopen (#212): `status: open`, the body — the answer text included — left as it is. */
+  reopen: (path: string) => Promise<Triage>;
 };
 
 export type QuestionServiceOptions = {
@@ -134,6 +149,36 @@ async function freePath(folder: string, name: string): Promise<string> {
     candidate = join(folder, `${name} (${n}).md`);
   }
   return candidate;
+}
+
+// Which Statuses each triage action allows (§ Research Question view and
+// triage). A promoted Question is in neither set: it is left to its page,
+// whose resolve and abandon write back to both files.
+const OPEN: readonly QuestionStatus[] = ["open"];
+const TRIAGED: readonly QuestionStatus[] = ["answered", "abandoned"];
+
+/**
+ * One triage write through the protocol, and the index told of it before
+ * this returns so the row reads its new Status without waiting for the
+ * watcher. A write the protocol would not make is the refusal, with its
+ * detail — never silent.
+ */
+async function triage(
+  vaultPath: string,
+  index: VaultIndex,
+  { path, hash }: QuestionFile,
+  verb: string,
+  operations: Operation[]
+): Promise<Triage> {
+  const result = await write(vaultPath, path, { basedOn: hash, operations });
+  if (!result.written) {
+    throw new VaultError(
+      "refused",
+      `Couldn't ${verb} ${path}: ${result.detail}`
+    );
+  }
+  await index.own(path, result.content);
+  return { path };
 }
 
 export function createQuestionService({
@@ -276,21 +321,56 @@ export function createQuestionService({
     return run;
   }
 
+  /** The open vault, or the refusal every procedure that writes raises. */
+  async function opened() {
+    const open = await vault.opened();
+    if (open === null) {
+      throw new VaultError("noVault", "No vault is open. Open a vault first.");
+    }
+    return open;
+  }
+
+  // Answer, drop and reopen are not serialised with captures: they write to
+  // a file that already exists and pick no name, so nothing can collide.
   return {
     capture: (text, provenance) => serially(() => capture(text, provenance)),
     promote: (path) =>
       serially(async () => {
-        const opened = await vault.opened();
-        if (opened === null) {
-          throw new VaultError(
-            "noVault",
-            "No vault is open. Open a vault first."
-          );
-        }
-        return promoteQuestion(opened.vault.path, opened.index, path, {
+        const open = await opened();
+        return promoteQuestion(open.vault.path, open.index, path, {
           promoted: localIso(now()),
           newId,
         });
       }),
+    answer: async (path, line) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, OPEN);
+      return triage(open.path, index, found, "answer", [
+        // The lead, never inside a `##` section the user keeps below it
+        // (ADR 0008 decision 2): an answer is not a note under a heading.
+        { op: "appendToSection", target: "lead", line },
+        {
+          op: "setFrontmatter",
+          keys: { status: "answered", answered: localIso(now()) },
+        },
+      ]);
+    },
+    drop: async (path) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, OPEN);
+      return triage(open.path, index, found, "drop", [
+        { op: "setFrontmatter", keys: { status: "abandoned" } },
+      ]);
+    },
+    reopen: async (path) => {
+      const { vault: open, index } = await opened();
+      const found = await readQuestionForWrite(open.path, path, TRIAGED);
+      // `answered:` stays: no operation removes a key, and the Status is
+      // what says the Question is open again. The body — the answer text
+      // included — is not touched at all (CONTEXT.md *Reopen*).
+      return triage(open.path, index, found, "reopen", [
+        { op: "setFrontmatter", keys: { status: "open" } },
+      ]);
+    },
   };
 }
