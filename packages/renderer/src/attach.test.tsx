@@ -487,4 +487,28 @@ describe("moving and detaching a source", () => {
       within(supporting).getByRole("button", { name: /detach/i })
     ).toBeTruthy();
   });
+
+  it("says which file has no such block when the citekey landed and the #^id did not", async () => {
+    // The common breakage: an Ingest renumbered the Source's annotations,
+    // so `rasch2013` is right and `^h99` is not. Telling the reader that
+    // nothing carries the name would send them to fix the half that works.
+    const renumbered: LinkLine = {
+      text: "[[rasch2013#^h99]] — the block an Ingest renumbered",
+      link: {
+        target: "rasch2013",
+        blockId: "h99",
+        resolution: "unresolved",
+        resolvedPath: null,
+        candidates: ["sources/rasch2013.md"],
+        resolvedKind: null,
+      },
+      note: "the block an Ingest renumbered",
+    };
+    openHolding({ current: page([renumbered], []) });
+    const supporting = await column("Supporting sources");
+    expect(supporting.textContent).toContain(
+      "sources/rasch2013.md has no ^h99"
+    );
+    expect(supporting.textContent).not.toMatch(/nothing in the vault/i);
+  });
 });

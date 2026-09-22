@@ -1332,3 +1332,99 @@ describe("researchQuestions.moveSource and detachSource", () => {
     expect(unsorted.error).toBeDefined();
   });
 });
+
+// What a source line says when its link did not land (#219; spec #206 story
+// 30). The three cases are told apart by what the *name* reached, because
+// the fix differs — and a fragment that is gone must never read as a
+// citekey that is wrong.
+describe("a source line whose link did not land", () => {
+  const path = "questions/unlanded (RQ).md";
+
+  it("carries the pair an ambiguous name is caught between, and the one file a dead #^id landed on", async () => {
+    const unlanded =
+      FRONTMATTER +
+      "\n## Working answer\n\n## Supporting sources\n\n- [[rasch2013#^h99]] — the block an Ingest renumbered\n- [[nobody2020]] — a citekey with nothing behind it\n\n## Opposing sources\n\n- [[wamsley2019]]\n\n## Related questions\n\n## Open threads\n\n## Position history\n";
+    const { page } = await openedPage(
+      { ...NEIGHBOURS, [path]: unlanded },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const links = [
+      ...page.sections.supporting.lines,
+      ...page.sections.opposing.lines,
+    ].map((line) => line.link);
+
+    // The name landed and the block did not: the file comes back, so the
+    // page can say which one has no `^h99` instead of claiming the vault
+    // holds no `rasch2013`.
+    expect(links[0]).toMatchObject({
+      target: "rasch2013",
+      blockId: "h99",
+      resolution: "unresolved",
+      resolvedPath: null,
+      candidates: ["sources/rasch2013.md"],
+    });
+    // Nothing carries the name: no file to name, so no `candidates` key.
+    expect(links[1]).toEqual({
+      target: "nobody2020",
+      blockId: null,
+      resolution: "unresolved",
+      resolvedPath: null,
+      resolvedKind: null,
+    });
+    expect(links[2]).toMatchObject({
+      resolution: "ambiguous",
+      candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
+    });
+  });
+
+  it("reads a hand-written source line and one the app attached with the same shape", async () => {
+    const byHand =
+      FRONTMATTER +
+      "\n## Working answer\n\n## Supporting sources\n\n- [[rasch2013]] — TMR effects survive encoding controls.\n\n## Opposing sources\n\n## Related questions\n\n## Open threads\n\n## Position history\n";
+    const { c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: byHand },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/rasch2013.md",
+      side: "opposing",
+      note: "TMR effects survive encoding controls.",
+      basedOn: page.hash,
+    });
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    const { supporting, opposing } = read.result.data.sections;
+    // The file, not the app, is the record: one parser reads both, so the
+    // line typed in Obsidian and the line the app wrote are one thing.
+    expect(supporting.lines[0]).toEqual(opposing.lines[0]);
+  });
+
+  it("refuses a move off a side whose own heading was retyped, naming the heading", async () => {
+    const retyped = WELL_FORMED.replace(
+      "## Supporting sources",
+      "## Supporting source"
+    );
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: retyped },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.detachSource",
+      { path, side: "supporting", text: "[[klinzing2019]]", basedOn: page.hash }
+    );
+    expect(reply.result?.data).toMatchObject({ written: false });
+    // The heading is what is gone; saying "no supporting source reads …"
+    // would send the user looking for the line.
+    expect((reply.result?.data as { detail: string }).detail).toBe(
+      "no ## Supporting sources heading was found"
+    );
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+});

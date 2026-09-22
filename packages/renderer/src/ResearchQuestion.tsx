@@ -739,16 +739,23 @@ function Lines({
 }
 
 /**
- * Where a link that did not resolve went instead (spec #206 story 30): the
- * two files a bare name is caught between, or the fact that nothing carries
- * the name at all. *Ambiguous* on its own leaves the user to go looking for
- * the pair, and a mistyped citekey is only fixable once it is named.
+ * Where a link that did not resolve went instead (spec #206 story 30). The
+ * three cases are told apart by what the *name* reached, because the fix
+ * differs: a pair of files wants the path-qualified rewrite, a file whose
+ * `#^id` is gone wants the annotation re-matched, and nothing at all wants
+ * the citekey retyped. Saying "nothing has this name" about the middle one
+ * would send the reader to fix the half that is right.
  */
 function wentNowhere(link: NonNullable<LinkLine["link"]>): string {
-  const candidates = link.candidates ?? [];
-  return link.resolution === "ambiguous" && candidates.length > 0
-    ? candidates.join(" · ")
-    : "nothing in the vault has this name";
+  const reached = link.candidates ?? [];
+  if (link.resolution === "ambiguous") {
+    return reached.length === 0
+      ? "more than one file carries this name"
+      : `caught between ${reached.join(" · ")}`;
+  }
+  const [found] = reached;
+  if (found === undefined) return "nothing in the vault has this name";
+  return `${found} has no ${link.blockId === null ? "such heading" : `^${link.blockId}`}`;
 }
 
 /** The other side; there are only two (ADR 0020 decision 5). */

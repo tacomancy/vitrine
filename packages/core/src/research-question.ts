@@ -78,9 +78,10 @@ export type LinkLine = {
     resolution: Resolution;
     resolvedPath: string | null;
     /**
-     * The files the name reached, when it reached more than one; absent
-     * otherwise. A line that says only *ambiguous* leaves the user to go
-     * looking for the pair it is caught between.
+     * The files the *name* reached, whatever the link then did; absent when
+     * it reached none. Two of them means the name is ambiguous; one beside
+     * an `unresolved` means the name landed and the `#^id` after it did
+     * not — a block an Ingest renumbered, not a citekey to retype.
      */
     candidates?: string[];
     /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
@@ -888,12 +889,13 @@ async function relocate(
 ): Promise<WriteResult> {
   return writeOwn(index, vaultPath, path, ({ content, outline }) => {
     const heading = section(outline, SIDE_SECTION[from]).heading;
-    const matches =
-      heading === undefined
-        ? []
-        : topLevelItems(outline, heading).filter(
-            (item) => itemText(content, item) === text
-          );
+    // A retyped heading is its own refusal, said in those words: falling
+    // through to "no source reads …" would name the line when the heading
+    // is what is gone, and send the user looking for the wrong thing.
+    if (heading === undefined) return noHeading(from);
+    const matches = topLevelItems(outline, heading).filter(
+      (item) => itemText(content, item) === text
+    );
     if (matches.length !== 1) {
       return {
         written: false,
@@ -910,7 +912,7 @@ async function relocate(
       {
         op: "replaceSection",
         name: SIDE_SECTION[from],
-        body: withoutItem(content, (heading as Heading).body, item),
+        body: withoutItem(content, heading.body, item),
       },
     ];
     if (to !== null) {
@@ -919,13 +921,7 @@ async function relocate(
       // putting the moved source below `## Position history`. A retyped
       // heading is already named in the page's problems; this write says
       // so too rather than restructuring the file to get its line in.
-      if (target === undefined) {
-        return {
-          written: false,
-          reason: "changedAndUnreapplyable",
-          detail: `no ## ${SIDE_SECTION[to]} heading was found`,
-        };
-      }
+      if (target === undefined) return noHeading(to);
       const body = bodyText(content, target);
       operations.push({
         op: "replaceSection",
@@ -936,6 +932,13 @@ async function relocate(
     return { operations, basedOn };
   });
 }
+
+/** A side whose heading has been retyped: named as itself, not as a line that is missing. */
+const noHeading = (side: Side): WriteResult => ({
+  written: false,
+  reason: "changedAndUnreapplyable",
+  detail: `no ## ${SIDE_SECTION[side]} heading was found`,
+});
 
 /**
  * The section's body with one item cut out, its line ending with it:

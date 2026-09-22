@@ -121,7 +121,11 @@ export type VaultIndex = {
   ) => {
     resolution: Resolution;
     resolvedPath: string | null;
-    /** The files a name reached when it reached more than one; empty otherwise. */
+    /**
+     * The files the *name* reached, whatever the link then did: two of them
+     * when the name is ambiguous, one when the name landed but the `#^id`
+     * or heading after it did not, none when nothing carries the name.
+     */
     candidates: string[];
   };
   close: () => void;
@@ -520,7 +524,7 @@ function createIndex(
   type Resolved = {
     resolution: Resolution;
     resolvedPath: string | null;
-    /** Named only when the name reached more than one file: what makes it ambiguous. */
+    /** The files the name reached, whatever the link then did (`VaultIndex.resolve`). */
     candidates: string[];
   };
   const landed = (path: string | null, resolution: Resolution): Resolved => ({
@@ -546,7 +550,7 @@ function createIndex(
     // Two files by one bare name: nothing, never the first indexed (L2a,
     // by design); Loose Ends offers the path-qualified rewrite. The files
     // themselves come back with the verdict — a surface that says only
-    // *ambiguous* leaves the user to go looking for the pair — sorted, so
+    // *ambiguous* leaves the reader to go looking for the pair — sorted, so
     // the pair reads the same however the index happened to fill.
     if (candidates.length > 1) {
       return {
@@ -561,12 +565,24 @@ function createIndex(
       // heading or block that is not there, which is what Loose Ends
       // wants to hear. A fragment on a PDF or image is a viewer hint
       // (`#page=3`) and is not checked.
+      // The name landed and the fragment did not. The file comes back all
+      // the same: *nothing carries this name* would be a lie about a link
+      // whose citekey is right and whose block id an Ingest renumbered,
+      // and it would send the reader to retype the half that is correct.
       if (link.block !== null && hasBlock.get(path, link.block) === undefined) {
-        return landed(null, "unresolved");
+        return {
+          resolution: "unresolved",
+          resolvedPath: null,
+          candidates: [path],
+        };
       }
       const fragments = JSON.parse(link.heading) as string[];
       if (fragments.length > 0 && !headingPathLands(path, fragments)) {
-        return landed(null, "unresolved");
+        return {
+          resolution: "unresolved",
+          resolvedPath: null,
+          candidates: [path],
+        };
       }
     }
     return landed(path, "resolved");
