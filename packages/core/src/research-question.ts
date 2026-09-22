@@ -541,6 +541,19 @@ type Plan = (read: PageFile, waiting: PendingRevision[]) => Write | WriteResult;
 // were correct when they were computed and are not any more.
 let previous: Promise<unknown> = Promise.resolve();
 
+/**
+ * A write that changed nothing: the file exactly as it was read. What a
+ * plan answers with when there was nothing to do — typing that matched the
+ * file, a splice with nothing parked — so the caller still gets the file's
+ * fresh hash to base its next write on.
+ */
+const unchanged = (read: PageFile): WriteResult => ({
+  written: true,
+  hash: read.hash,
+  content: read.content,
+  shape: read.shape,
+});
+
 /** The `prependEntry` one pending Revision splices as: a quiet entry, its previous text in full. */
 const spliceOf = (row: PendingRevision): Operation => ({
   op: "prependEntry",
@@ -594,8 +607,14 @@ function writeOwn(
       basedOn: own.basedOn,
     });
     if (result.written) {
-      await index.own(read.relativePath, result.content);
+      // Cleared the moment the bytes are on disk, and before the index is
+      // told: `own()` stats the file and can fail, and rows still parked
+      // after their entries have been written would be spliced a second
+      // time by the next write. A row dropped here is one entry missing
+      // from a history; a row kept is the same entry twice, in a section
+      // whose whole point is that it reads as a train of thought.
       pending.clear(waiting.map((row) => row.id));
+      await index.own(read.relativePath, result.content);
     }
     return result;
   };
@@ -711,9 +730,7 @@ export async function saveWorkingAnswer(
     const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
     // Nothing to write, so nothing to base on: the file's hash is the
     // page's fresh view of it, whatever hash the page carried in.
-    if (from === text) {
-      return { written: true, hash: read.hash, content, shape: read.shape };
-    }
+    if (from === text) return unchanged(read);
     return {
       operations: [
         { op: "replaceSection", name: WORKING_ANSWER, body: text },
@@ -779,12 +796,7 @@ export async function splicePendingRevisions(
   ctx: PageContext,
   path: string
 ): Promise<WriteResult> {
-  return writeOwn(ctx, path, (read) => ({
-    written: true,
-    hash: read.hash,
-    content: read.content,
-    shape: read.shape,
-  }));
+  return writeOwn(ctx, path, unchanged);
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */

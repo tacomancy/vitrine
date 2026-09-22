@@ -57,11 +57,18 @@ export type VaultService = {
   /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
   rewatch: () => Promise<void>;
   /**
-   * Tear down the open vault's resources; called on exit. The next `open`
-   * does the same. Resolves once every Revision an Obsidian edit left
-   * pending has been spliced (#217) — a vault must not close owing one.
+   * Tear down the open vault's resources; the orderly path out. The next
+   * `open` does the same. Resolves once every Revision an Obsidian edit
+   * left pending has been spliced (#217) — a vault must not close owing
+   * one when it had the chance to write it.
    */
   close: () => Promise<void>;
+  /**
+   * Drop the open vault's handles now, splicing nothing: the last resort
+   * for a `process.on("exit")` handler, which cannot await. What was
+   * parked stays parked, and the next open splices it on its first write.
+   */
+  release: () => void;
 };
 
 /** Throws a VaultError unless the path is a folder this process can list. */
@@ -147,6 +154,13 @@ export function createVaultService({
    * build this one does not know — running on would mean losing every
    * Obsidian edit to a Position while pretending the history is complete.
    */
+  const refusingToOpen = (cause: unknown): never => {
+    if (cause instanceof IndexOpenError || cause instanceof QueueOpenError) {
+      throw new VaultError("writeFailed", cause.message);
+    }
+    throw cause;
+  };
+
   async function openResources(absolute: string): Promise<Resources> {
     const pending = await openPendingRevisions(absolute, {
       windowMs: coalesceMs,
@@ -160,12 +174,7 @@ export function createVaultService({
           path
         );
       },
-    }).catch((cause: unknown) => {
-      if (cause instanceof QueueOpenError) {
-        throw new VaultError("writeFailed", cause.message);
-      }
-      throw cause;
-    });
+    }).catch(refusingToOpen);
     let index: VaultIndex;
     try {
       index = await openIndex(absolute, {
@@ -174,10 +183,7 @@ export function createVaultService({
       });
     } catch (cause) {
       pending.close();
-      if (cause instanceof IndexOpenError) {
-        throw new VaultError("writeFailed", cause.message);
-      }
-      throw cause;
+      return refusingToOpen(cause);
     }
     return { index, pending };
   }
@@ -200,8 +206,10 @@ export function createVaultService({
     try {
       await going.pending.flush();
     } catch (cause) {
-      // A vault that has gone away, a file that has: what could not be
-      // spliced stays in the queue for the next open, and is said aloud.
+      // A vault that has gone away, a file that has. Nothing is lost —
+      // what could not be spliced stays in the queue and is owed again at
+      // the next open — and by now there is no surface left to say it on,
+      // so it reaches the core's log, as a failed restore does above.
       console.error(
         `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
       );
@@ -398,6 +406,14 @@ export function createVaultService({
     close: async () => {
       generation++;
       await teardown();
+    },
+    release: () => {
+      generation++;
+      const going = opened;
+      opened = null;
+      going?.watcher?.close();
+      going?.pending.close();
+      going?.index.close();
     },
   };
 }

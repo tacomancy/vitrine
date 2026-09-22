@@ -81,9 +81,14 @@ export type IndexOptions = {
   /** Awaited before the next chunk, so a listener that queries inside sees each commit on its own. */
   onChanged?: ((event: VaultChanged) => void | Promise<void>) | undefined;
   /**
-   * A Position's text changed in a file the app did not write (#217) —
-   * called inside the transaction that records the new text, so the
-   * pending Revision and the row it is a diff against land together.
+   * A Position's text changed in a file the app did not write (#217).
+   * Called from inside the chunk's transaction, but into another database
+   * — `queue.sqlite` is not attached here — so the two commits are not
+   * one: a chunk that rolls back after this leaves a parked row the next
+   * read of the file will diff again. That is why a second change to one
+   * field inside the window re-stamps the parked row instead of adding
+   * another (`pending-revisions.ts`), and why the error the two can
+   * disagree by is a duplicate entry rather than a lost one.
    */
   onPositionChanged?: ((change: PositionChange) => void) | undefined;
   /** Indexing progress changed; the listener re-reads `status()`. */

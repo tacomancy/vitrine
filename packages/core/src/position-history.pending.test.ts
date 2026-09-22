@@ -49,6 +49,7 @@ const entry = (when: Date, from: string) =>
   (from === "" ? "" : "\n" + from.replace(/^(?!$)/gm, "    "));
 
 const SETTLE_MS = 40;
+const ANSWER_HEADING = "## Working answer\n";
 
 /** A vault holding the page, opened, indexed, and subscribed to. */
 async function opened(
@@ -70,9 +71,20 @@ async function opened(
     c,
     stream,
     file: () => readFile(join(vault, PATH), "utf8"),
-    /** Obsidian's edit: a plain write, awaited as far as the index's event. */
+    /**
+     * Obsidian's edit: `## Working answer` retyped and the file written
+     * whole, every other section as it found it — which is what makes the
+     * history it splices into survive the edit. Awaited as far as the
+     * index's event, never slept for.
+     */
     obsidian: async (answer: string) => {
-      await writeFile(join(vault, PATH), page(answer));
+      const before = await readFile(join(vault, PATH), "utf8");
+      const from = before.indexOf(ANSWER_HEADING) + ANSWER_HEADING.length;
+      const to = before.indexOf("\n## Supporting sources");
+      await writeFile(
+        join(vault, PATH),
+        before.slice(0, from) + "\n" + answer + "\n" + before.slice(to)
+      );
       await stream.next("vaultChanged");
     },
     /** An app write to the same file that has nothing to do with the history. */
@@ -213,6 +225,53 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     expect(await file()).toContain(entry(at(5), "Probably both."));
   });
 
+  it("a page save made while one is parked opens its own entry: the Obsidian edit stands between them", async () => {
+    let now = t0;
+    const { file, c, stream, obsidian } = await opened(
+      { [PATH]: page("Probably both.") },
+      { now: () => now }
+    );
+
+    // A save of the page's own, well inside the coalescing window.
+    const save = async (text: string) => {
+      const read = await c.query<ResearchQuestionPage>(
+        "researchQuestions.page",
+        { path: PATH }
+      );
+      const data = read.result?.data as ResearchQuestionPage & {
+        readable: true;
+      };
+      const reply = await c.mutate("researchQuestions.saveWorkingAnswer", {
+        path: PATH,
+        text,
+        basedOn: data.hash,
+      });
+      expect(reply.error).toBeUndefined();
+      await stream.next("vaultChanged");
+    };
+
+    await save("Encoding strength, mostly.");
+    now = at(5);
+    await obsidian("Encoding strength, and consolidation.");
+    now = at(10);
+    await save("Consolidation, mostly.");
+
+    // Three entries, newest first: the second save, the Obsidian edit it
+    // could not coalesce over, and the first save. Re-stamping the head
+    // would have left two and swallowed the edit made outside the app.
+    const written = await file();
+    const history = written.slice(written.indexOf("## Position history"));
+    expect(history).toBe(
+      "## Position history\n\n" +
+        [
+          entry(at(10), "Encoding strength, and consolidation."),
+          entry(at(5), "Encoding strength, mostly."),
+          entry(t0, "Probably both."),
+        ].join("\n") +
+        "\n"
+    );
+  });
+
   it("a refused write answers with its refusal and leaves the entry parked", async () => {
     let now = t0;
     const { vault, c, file, obsidian } = await opened(
@@ -237,9 +296,10 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
   });
 
   it("an own write never raises one: the app's save records its Revision and nothing else", async () => {
-    const { vault, c, file } = await opened(
+    let now = t0;
+    const { vault, c, file, stream, obsidian } = await opened(
       { [PATH]: page("Probably both.") },
-      { now: () => t0 }
+      { now: () => now }
     );
 
     const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
@@ -252,9 +312,23 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
       basedOn: data.hash,
     });
     expect(saved.error).toBeUndefined();
-    expect(pendingRows(vault)).toEqual([]);
+    await stream.next("vaultChanged");
     // One entry, the save's own — not a second one from the index's diff.
     expect((await file()).match(/· working answer/g)).toHaveLength(1);
+
+    // The watcher sees the app's own write too. Nothing is parked when it
+    // has been through the settle window and the batch behind it — which a
+    // later external edit, awaited here, can only have come after.
+    now = at(40);
+    await obsidian("Something else entirely.");
+    expect(pendingRows(vault)).toEqual([
+      {
+        path: PATH,
+        field: "working answer",
+        from_text: "Encoding strength, mostly.",
+        at: localIso(at(40)),
+      },
+    ]);
   });
 });
 
