@@ -1,10 +1,21 @@
 import { readFile, unlink } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import { BOM, type Heading, type ListItem, type Outline } from "markdown";
+import {
+  BOM,
+  parseWikilink,
+  type Heading,
+  type ListItem,
+  type Outline,
+} from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";
-import { asString, readQuestionForWrite } from "./question-kind.js";
+import {
+  asString,
+  readQuestionForWrite,
+  type QuestionFile,
+  type QuestionStatus,
+} from "./question-kind.js";
 import {
   coalesce,
   formatRevision,
@@ -612,11 +623,33 @@ export async function tickThread(
 }
 
 /**
+ * The section as the page had it, against the section as the file holds it
+ * now (#215; ADR 0020 consequences). The protocol re-applies a write whose
+ * `basedOn` is stale by locating targets afresh — which for an Edited
+ * section means replacing it whole, so an edit made to *that* section since
+ * the page read it would be overwritten without a word. The page therefore
+ * sends the text it was editing as well as the hash, and a section that no
+ * longer reads that way refuses: the page shows the Vault editor's *changed
+ * on disk* line inside it (ADR 0015 decision 5) and neither side is lost.
+ * An edit to some other section is no conflict; that write re-applies.
+ */
+function changedUnderneath(now: string, was: string): WriteResult | null {
+  if (now === was) return null;
+  return {
+    written: false,
+    reason: "changedAndUnreapplyable",
+    detail: "the section changed on disk since the page read it",
+  };
+}
+
+/**
  * An Edited section saved as the user's own typing: `replaceSection` with
  * the body the plain text field holds, `basedOn` the hash the page was
  * given, and no Revision — these sections are prose, not Positions (ADR
- * 0020 decision 4). A file changed underneath is the protocol's to re-apply
- * or refuse; the refusal comes back as data for the page to show in place.
+ * 0020 decision 4). `was` is the section's text as the page read it; a
+ * section changed underneath refuses, and anything else the
+ * file did is the protocol's to re-apply. Either refusal comes back as
+ * data for the page to show in place.
  */
 export async function saveSection(
   index: VaultIndex,
@@ -626,12 +659,20 @@ export async function saveSection(
     section: name,
     body,
     basedOn,
-  }: { section: EditedSection; body: string; basedOn: string }
+    was,
+  }: { section: EditedSection; body: string; basedOn: string; was: string }
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, () => ({
-    operations: [{ op: "replaceSection", name, body: body.trim() }],
-    basedOn,
-  }));
+  return writeOwn(index, vaultPath, path, ({ content, outline }) => {
+    const conflict = changedUnderneath(
+      bodyText(content, section(outline, name).heading),
+      was
+    );
+    if (conflict !== null) return conflict;
+    return {
+      operations: [{ op: "replaceSection", name, body: body.trim() }],
+      basedOn,
+    };
+  });
 }
 
 /**
@@ -652,9 +693,16 @@ export async function saveWorkingAnswer(
   {
     text: typed,
     basedOn,
+    was,
     at,
     coalesceMs,
-  }: { text: string; basedOn: string; at: Date; coalesceMs: number }
+  }: {
+    text: string;
+    basedOn: string;
+    was: string;
+    at: Date;
+    coalesceMs: number;
+  }
 ): Promise<WriteResult> {
   const text = typed.replace(/\r\n/g, "\n").trim();
   return writeOwn(index, vaultPath, path, (read) => {
@@ -662,10 +710,17 @@ export async function saveWorkingAnswer(
     // The Position as the file holds it now: what the Revision is *from*.
     const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
     // Nothing to write, so nothing to base on: the file's hash is the
-    // page's fresh view of it, whatever hash the page carried in.
+    // page's fresh view of it, whatever hash the page carried in. Nothing
+    // is lost either, so a section that reached this text by another hand
+    // is no conflict.
     if (from === text) {
       return { written: true, hash: read.hash, content, shape: read.shape };
     }
+    // An answer rewritten underneath would be replaced whole and its text
+    // recorded as this Revision's `from` — a history entry quoting words
+    // the user never saw.
+    const conflict = changedUnderneath(from, was);
+    if (conflict !== null) return conflict;
     return {
       operations: [
         { op: "replaceSection", name: WORKING_ANSWER, body: text },
@@ -757,6 +812,169 @@ export async function attachSource(
 function oneLine(wikilink: string, note: string): string {
   const text = note.replace(/\s*\r?\n\s*/g, " ").trim();
   return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
+}
+
+/** What the write-back reached, or why it reached no Question; `path` is vault-relative. */
+export type WriteBack =
+  { written: true; path: string } | { written: false; reason: string };
+
+/** Resolving is two writes, the page's first: each answers for itself. */
+export type ResolveResult = { page: WriteResult; question: WriteBack };
+
+// The write-back does not care what the Question's Status is: the page is
+// the authority for a pursuit that ended, and a page resolved twice across
+// a reopen must still be able to say so.
+const ANY_STATUS: readonly QuestionStatus[] = [
+  "open",
+  "promoted",
+  "answered",
+  "abandoned",
+];
+
+/**
+ * Resolve or abandon the page (ADR 0020 decision 6; § Vault layout,
+ * Research Question): the Working answer as it stands is the answer — there
+ * is no second field — so this is `status` (and, on *answered*, the date the
+ * page was resolved) and then the write-back to the Question it came from.
+ *
+ * Two writes, the page first, and no rollback between them: a page that was
+ * resolved stays resolved and the write-back says what it could not do, so a
+ * Question that is gone or is not a Question costs the user the line, not
+ * the resolution. *Abandon* sets no `answered:` — the date is in the line —
+ * as *drop* on a Question sets only its status.
+ */
+export async function resolveResearchQuestion(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  /** `at` is the resolution's timestamp, formatted by the caller's clock. */
+  { status, at }: { status: "answered" | "abandoned"; at: string }
+): Promise<ResolveResult> {
+  // The page as the write itself found it: the Question is named by the
+  // page's own frontmatter, and a second read could name one the write
+  // never saw. Kept from inside the queue, where that read happens.
+  const seen: { page: PageFile | null } = { page: null };
+  const page = await writeOwn(index, vaultPath, path, (read) => {
+    seen.page = read;
+    return {
+      operations: [{ op: "setFrontmatter", keys: keysFor(status, at) }],
+      basedOn: read.hash,
+    };
+  });
+  const resolved = seen.page;
+  if (!page.written || resolved === null) {
+    return {
+      page,
+      question: { written: false, reason: "the page was not resolved" },
+    };
+  }
+  const question = await writeBack(index, vaultPath, resolved, { status, at });
+  return { page, question };
+}
+
+/**
+ * The Question the page was promoted from, answered or abandoned with one
+ * line in its *lead* — the body before the first `##`, so the line can never
+ * land inside a section the user keeps (ADR 0008 decision 2). One write:
+ * the keys and the line together, so the Question never carries one without
+ * the other. Outside the page queue, because the file is not this page: a
+ * triage action racing it from the Inbox is what the protocol's hash check
+ * is for, and the loser refuses rather than overwrites.
+ */
+async function writeBack(
+  index: VaultIndex,
+  vaultPath: string,
+  page: PageFile,
+  { status, at }: { status: "answered" | "abandoned"; at: string }
+): Promise<WriteBack> {
+  const fm = (page.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
+  const promotedFrom = asString(fm["promoted_from"]);
+  if (promotedFrom === undefined) {
+    return {
+      written: false,
+      reason: "the page has no promoted_from: there is no Question to answer",
+    };
+  }
+  const inner = /^\[\[(.*)\]\]$/.exec(promotedFrom.trim())?.[1];
+  if (inner === undefined) {
+    return {
+      written: false,
+      reason: `promoted_from is not a wikilink: ${promotedFrom}`,
+    };
+  }
+  // Where the link lands is the index's to say, by the same rule every
+  // `links` row is resolved by — never a guess from the link's text.
+  const { resolution, resolvedPath } = index.resolve(
+    page.relativePath,
+    parseWikilink(inner)
+  );
+  if (resolvedPath === null) {
+    return {
+      written: false,
+      reason: `${promotedFrom} ${
+        resolution === "ambiguous"
+          ? "matches more than one file"
+          : "matches no file in the vault"
+      }`,
+    };
+  }
+  // The same read every triage action makes, with the same refusals — a
+  // write-back is triage the page asked for. Its throw is data here: the
+  // page is already resolved, so this half reports rather than raises.
+  let question: QuestionFile;
+  try {
+    question = await readQuestionForWrite(vaultPath, resolvedPath, ANY_STATUS);
+  } catch (cause) {
+    return { written: false, reason: errorMessage(cause) };
+  }
+  const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
+  const result = await write(vaultPath, question.path, {
+    operations: [
+      { op: "setFrontmatter", keys: keysFor(status, at) },
+      { op: "appendToSection", target: "lead", line },
+    ],
+    basedOn: question.hash,
+  });
+  if (!result.written) {
+    return {
+      written: false,
+      reason: `${question.path}: ${result.reason} — ${result.detail}`,
+    };
+  }
+  await index.own(question.path, result.content);
+  return { written: true, path: question.path };
+}
+
+/**
+ * The keys a resolution sets, the same on the page and on its Question.
+ * *Abandon* sets no date: there is no `abandoned:` key in the vault's
+ * vocabulary (§ Vault layout), the day is in the write-back line, and a
+ * dropped Question likewise carries only its status.
+ */
+const keysFor = (status: "answered" | "abandoned", at: string) =>
+  status === "answered" ? { status, answered: at } : { status };
+
+// The line is prose the user reads, so it carries the day, not the second;
+// the timestamp itself is in `answered:`, where a machine reads it.
+const dateOf = (iso: string) => iso.slice(0, 10);
+
+/**
+ * Reopen the page: `status: open`, and nothing else — the body, the
+ * history, the Question's line, and the page's own `answered` all stay
+ * where they are, because resolving is a status and not an archive (ADR
+ * 0020 decision 6) and no operation removes a key. Setting the Question
+ * back to open is the Inbox's own *reopen* (#212), the surface that owns
+ * the Question's Status.
+ */
+export async function reopenResearchQuestion(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string
+): Promise<WriteResult> {
+  return writeOwn(index, vaultPath, path, (read) => ({
+    operations: [{ op: "setFrontmatter", keys: { status: "open" } }],
+    basedOn: read.hash,
+  }));
 }
 
 /**

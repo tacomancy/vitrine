@@ -20,7 +20,9 @@ export type {
   ResearchQuestionPage,
   ResearchQuestionSections,
   ResearchQuestionStatus,
+  ResolveResult,
   Side,
+  WriteBack,
 } from "./research-question.js";
 export type { Revision } from "./position-history.js";
 export type { AppRouter } from "./router.js";

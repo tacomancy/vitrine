@@ -425,20 +425,23 @@ describe("researchQuestions.saveWorkingAnswer", () => {
       if (!data.readable) throw new Error(data.reason);
       return data;
     };
-    const save = async (text: string, basedOn?: string) => {
+    // What the page was editing: the file's hash and the section's text as
+    // it read them. A caller that passes its own is one that went stale.
+    const based = async () => {
+      const read = await page();
+      return { hash: read.hash, was: read.sections.workingAnswer.text };
+    };
+    const save = async (text: string, on?: { hash: string; was: string }) => {
+      const { hash, was } = on ?? (await based());
       const reply = await c.mutate<Saved>(
         "researchQuestions.saveWorkingAnswer",
-        {
-          path,
-          text,
-          basedOn: basedOn ?? (await page()).hash,
-        }
+        { path, text, basedOn: hash, was }
       );
       expect(reply.error).toBeUndefined();
       return reply.result?.data as Saved;
     };
     const file = () => readFile(join(vault, path), "utf8");
-    return { vault, c, page, save, file };
+    return { vault, c, page, based, save, file };
   }
 
   const entry = (when: Date, from: string) =>
@@ -542,19 +545,24 @@ describe("researchQuestions.saveWorkingAnswer", () => {
     expect(rows).toEqual([{ field: "working answer", text: "Third." }]);
   });
 
-  it("saves in flight together leave one entry and the last text, whichever order they land in", async () => {
-    const { page, save, file } = await opened(() => t0);
-    // Both carry the hash the page was given — it saved twice before the
-    // first reply came back. This is the invariant, not a proof of the
-    // queue in `writeOwn`: the interleaving that would break it (both
-    // planning from the file before either wrote) could not be forced
-    // through this seam, and the assertion holds without the queue too.
-    const hash = (await page()).hash;
+  it("saves in flight together leave one entry and one landed text, whichever order they land in", async () => {
+    const { page, based, save, file } = await opened(() => t0);
+    // Both carry what the page was given — it saved twice before the first
+    // reply came back. This is the invariant, not a proof of the queue in
+    // `writeOwn`: the interleaving that would break it (both planning from
+    // the file before either wrote) could not be forced through this seam.
+    const on = await based();
     const replies = await Promise.all([
-      save("First typing.", hash),
-      save("Second typing.", hash),
+      save("First typing.", on),
+      save("Second typing.", on),
     ]);
-    expect(replies.every((r) => r.written)).toBe(true);
+    // The second to land is a save over a section that changed underneath
+    // — by the first — so it refuses rather than overwriting it. Exactly
+    // one lands, whichever order the HTTP layer chose.
+    expect(replies.filter((r) => r.written)).toHaveLength(1);
+    expect(replies.find((r) => !r.written)).toMatchObject({
+      reason: "changedAndUnreapplyable",
+    });
 
     // Which of the two reaches the queue first is the HTTP layer's to
     // decide, so the invariant is order-independent: one entry, holding
@@ -586,8 +594,8 @@ describe("researchQuestions.saveWorkingAnswer", () => {
   });
 
   it("a stale basedOn over a file that changed elsewhere re-applies and lands (ADR 0008 decision 3); a file that is gone is a refusal with its reason", async () => {
-    const { vault, page, save, file } = await opened(() => t0);
-    const stale = (await page()).hash;
+    const { vault, page, based, save, file } = await opened(() => t0);
+    const stale = await based();
     // Obsidian touched another section since the page read the file.
     await writeFile(
       join(vault, path),
@@ -596,15 +604,53 @@ describe("researchQuestions.saveWorkingAnswer", () => {
         "## Open threads\n\n- [ ] Read Cordi.\n"
       )
     );
-    expect(await save("Typed.", stale)).toMatchObject({ written: true });
+    const landed = await save("Typed.", stale);
+    expect(landed).toMatchObject({ written: true });
     expect(await file()).toContain("- [ ] Read Cordi.");
     expect(await file()).toContain("\nTyped.\n");
+    // The reply's hash is the file as written: the page's next basedOn.
+    expect(landed).toMatchObject({ hash: (await page()).hash });
 
     await rm(join(vault, path));
     expect(await save("Later.", stale)).toMatchObject({
       written: false,
       reason: "unreadable",
     });
+  });
+
+  // The conflict the page shows as *changed on disk* (#215; ADR 0020
+  // consequences): re-apply would replace the section whole, so a Working
+  // answer rewritten underneath would lose the other edit and record a
+  // Revision from text the user never saw.
+  it("refuses a save whose Working answer changed underneath, writes nothing, and records no Revision", async () => {
+    const { vault, page, based, save, file } = await opened(() => t0);
+    const stale = await based();
+    await writeFile(
+      join(vault, path),
+      (await file()).replace(
+        "## Working answer\n",
+        "## Working answer\n\nObsidian wrote this.\n"
+      )
+    );
+    const before = await file();
+    expect(await save("Typed.", stale)).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+    expect(await file()).toBe(before);
+    expect((await page()).sections.positionHistory.entries).toEqual([]);
+
+    // *Keep mine*: the page re-reads and saves again over the disk copy.
+    expect(await save("Typed.")).toMatchObject({ written: true });
+    expect((await page()).sections.workingAnswer.text).toBe("Typed.");
+    expect((await page()).sections.positionHistory.entries).toEqual([
+      {
+        at: localIso(t0),
+        field: "working answer",
+        why: null,
+        from: "Obsidian wrote this.",
+      },
+    ]);
   });
 });
 
@@ -761,6 +807,7 @@ describe("researchQuestions.saveSection", () => {
           page.sections.related.text +
           "\n- [[What counts as a reactivation event]] — the same edge, twice",
         basedOn: page.hash,
+        was: page.sections.related.text,
       }
     );
     expect(reply.error).toBeUndefined();
@@ -805,6 +852,7 @@ describe("researchQuestions.saveSection", () => {
         page.sections.openThreads.text +
         "\n- [ ] Does the effect survive a nap?",
       basedOn: page.hash,
+      was: page.sections.openThreads.text,
     });
     const after = await readFile(join(vault, path), "utf8");
     expect(after).toContain(
@@ -813,6 +861,72 @@ describe("researchQuestions.saveSection", () => {
     expect(outside(after, "Open threads")).toEqual(
       outside(before, "Open threads")
     );
+  });
+
+  // #215: re-apply locates `## Open threads` afresh and would replace it
+  // whole, so the page also sends the text it was editing; a section that
+  // no longer reads that way is the *changed on disk* line, not a loss.
+  it("refuses a save whose section changed underneath with changedAndUnreapplyable and writes nothing", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const was = page.sections.openThreads.text;
+    await writeFile(
+      join(vault, path),
+      (await readFile(join(vault, path), "utf8")).replace(
+        "- a thread that is not a task",
+        "- a thread that is not a task\n- [ ] Obsidian added this."
+      )
+    );
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; reason?: string }>(
+      "researchQuestions.saveSection",
+      {
+        path,
+        section: "Open threads",
+        body: was + "\n- [ ] Typed on the page.",
+        basedOn: page.hash,
+        was,
+      }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+
+  it("re-applies a stale save whose own section did not change and answers with the new hash", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    // Obsidian edited a different section since the page read the file.
+    await writeFile(
+      join(vault, path),
+      (await readFile(join(vault, path), "utf8")).replace(
+        "## Working answer\n",
+        "## Working answer\n\nObsidian wrote this.\n"
+      )
+    );
+    const reply = await c.mutate<{ written: boolean; hash?: string }>(
+      "researchQuestions.saveSection",
+      {
+        path,
+        section: "Open threads",
+        body: page.sections.openThreads.text + "\n- [ ] Typed on the page.",
+        basedOn: page.hash,
+        was: page.sections.openThreads.text,
+      }
+    );
+    expect(reply.result?.data).toMatchObject({ written: true });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(reply.result?.data.hash).toBe(sha256(after));
+    expect(after).toContain("Obsidian wrote this.");
+    expect(after).toContain("- [ ] Typed on the page.");
   });
 
   it("refuses a section that is not an Edited section as an input error", async () => {
@@ -827,6 +941,7 @@ describe("researchQuestions.saveSection", () => {
       section: "Position history",
       body: "",
       basedOn: page.hash,
+      was: "",
     });
     expect(reply.error).toBeDefined();
     expect(await readFile(join(vault, path), "utf8")).toBe(before);
