@@ -68,14 +68,15 @@ describe("the footer channel and vault.status", () => {
     });
   });
 
-  it("shows nothing — no footer at all — when all is well and every file was read", async () => {
+  it("shows no status line — the footer holds only the triage keys — when all is well and every file was read", async () => {
     renderApp({
       "vault.current": vault,
       "questions.list": { ...listing, unreadable: [] },
       "vault.status": well,
     });
     await rows();
-    expect(screen.queryByRole("contentinfo")).toBeNull();
+    const footer = screen.getByRole("contentinfo");
+    expect(footer.textContent).toBe("j/k movep promote");
   });
 
   it("re-reads vault.status when a vaultStatus is pushed", async () => {
@@ -87,7 +88,7 @@ describe("the footer channel and vault.status", () => {
       "vault.status": read,
     });
     await rows();
-    expect(screen.queryByRole("contentinfo")).toBeNull();
+    expect(screen.queryByText(/indexing/)).toBeNull();
 
     status = { ...well, indexing: { done: 3, total: 12 } };
     act(() => stream.push({ type: "vaultStatus" }));

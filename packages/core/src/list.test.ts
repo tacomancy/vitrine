@@ -169,7 +169,7 @@ describe("questions.list", () => {
     expect(listing.unreadable).toEqual([]);
   });
 
-  it("reads the Provenance keys that are present and no others", async () => {
+  it("reads the Provenance keys that are present and no others, and where promoted_to lands", async () => {
     const vault = await tmp("provenance");
     await writeFile(
       join(vault, "From a paper.md"),
@@ -187,6 +187,8 @@ describe("questions.list", () => {
         from: "[[klinzing2019]]",
         page: 7,
         annotation: "h12",
+        // The page the link names is not in this vault.
+        promotedTo: { link: "[[From a paper (RQ)]]", path: null },
       },
     ]);
   });
