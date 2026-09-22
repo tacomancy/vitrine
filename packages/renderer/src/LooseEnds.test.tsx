@@ -28,7 +28,7 @@ const stalled = (path = PATH, title = "What would falsify it?"): LooseEnds => ({
       ],
     },
   ],
-  problem: null,
+  problems: [],
 });
 
 const page: ResearchQuestionPage = {
@@ -64,7 +64,7 @@ const open = (more: Record<string, unknown> = {}) => {
     },
     "researchQuestions.page": () => page,
     "picker.candidates": { rows: [], total: 0 },
-    "looseEnds.rows": { groups: [], problem: null },
+    "looseEnds.rows": { groups: [], problems: [] },
     ...more,
   });
 };
@@ -74,7 +74,7 @@ const dashboard = () => screen.findByRole("region", { name: "Loose Ends" });
 describe("the Loose Ends dashboard", () => {
   it("draws the four groups in the brief's order, counting each and totalling nothing", async () => {
     const rows: LooseEnds = {
-      problem: null,
+      problems: [],
       groups: [
         {
           group: "Broken plumbing",
@@ -179,7 +179,7 @@ describe("the Loose Ends dashboard", () => {
       "looseEnds.rows": () => rows,
       "looseEnds.dismiss": (input: unknown) => {
         dismiss(input);
-        rows = { groups: [], problem: null };
+        rows = { groups: [], problems: [] };
         return undefined;
       },
     });
@@ -200,8 +200,9 @@ describe("the Loose Ends dashboard", () => {
     open({
       "looseEnds.rows": {
         ...stalled(),
-        problem:
+        problems: [
           ".vitrine/dismissals.json could not be read, so nothing is silenced",
+        ],
       },
     });
     const view = await dashboard();

@@ -14,6 +14,10 @@ export type Dismissals = Record<string, Record<string, string>>;
 
 const FILE = ".vitrine/dismissals.json";
 
+/** Why the dashboard is showing rows it may have been told to silence. */
+const unreadable = (why: string) =>
+  `${FILE} could not be read, so nothing is silenced: ${why}`;
+
 /** What the dashboard could read, and — when it could not — why. */
 export type ReadDismissals = {
   dismissals: Dismissals;
@@ -41,13 +45,13 @@ export async function readDismissals(
   } catch (cause) {
     return {
       dismissals: {},
-      problem: `${FILE} could not be read, so nothing is silenced: ${errorMessage(cause)}`,
+      problem: unreadable(errorMessage(cause)),
     };
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     return {
       dismissals: {},
-      problem: `${FILE} could not be read, so nothing is silenced: it is not an object of dismissals`,
+      problem: unreadable("it is not an object of dismissals"),
     };
   }
   // Each value is an object of row kind → timestamp; anything else is one

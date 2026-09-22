@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LooseEndGroup, StalledResearchQuestion } from "core";
+import type {
+  LooseEndGroupName,
+  LooseEndRow,
+  StalledResearchQuestion,
+} from "core";
 import { formatAge } from "./age";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
@@ -18,7 +22,7 @@ import { useTRPC } from "./trpc";
  */
 
 /** Each group's glyph and the line beside it, from prompt 9's punch-list reading. */
-const GROUPS: Record<LooseEndGroup, { glyph: string; note: string }> = {
+const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
   "Broken plumbing": { glyph: "!", note: "these worsen while ignored" },
   "Unfinished reading": { glyph: "◇", note: "acquired but not yet read" },
   "Disconnected material": {
@@ -42,7 +46,7 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
   );
 
   const groups = ends.data?.groups ?? [];
-  const problem = ends.data?.problem ?? null;
+  const problems = ends.data?.problems ?? [];
   const now = new Date();
 
   return (
@@ -57,13 +61,17 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
           {ends.error.message}
         </p>
       )}
-      {/* Rows the user asked never to see again may be among these: that is
-          a failure to report, not one to swallow. */}
-      {problem !== null && (
-        <p className={styles.problem} role="alert">
+      {/* What the dashboard could not judge — a row the user silenced may
+          be here, or one that belongs here may be missing. A failure to
+          report, not one to swallow. */}
+      {problems.map((problem) => (
+        <p key={problem} className={styles.problem} role="alert">
+          <span className={styles.problemGlyph} aria-hidden="true">
+            !
+          </span>{" "}
           {problem}
         </p>
-      )}
+      ))}
       {dismiss.isError && (
         <p className={styles.problem} role="alert">
           {dismiss.error.message}
@@ -94,11 +102,8 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
               <span className={styles.note}>{GROUPS[group].note}</span>
             </div>
             <ul className={styles.rows}>
-              {/* One component per row kind: each kind words its own line
-                  and carries its own resolutions, and a later beat's kind
-                  adds a branch here rather than a flag inside one row. */}
               {rows.map((row) => (
-                <Stalled
+                <Row
                   key={`${row.kind}:${row.subject}`}
                   row={row}
                   now={now}
@@ -114,6 +119,24 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
       </div>
     </section>
   );
+}
+
+/**
+ * One component per row kind: each kind words its own line and carries its
+ * own resolutions. The switch is exhaustive on purpose — a later beat's row
+ * kind is a type error here until it has been given a row of its own, rather
+ * than falling silently into another kind's wording.
+ */
+function Row(props: {
+  row: LooseEndRow;
+  now: Date;
+  onAttach: () => void;
+  onDismiss: () => void;
+}) {
+  switch (props.row.kind) {
+    case "stalled-research-question":
+      return <Stalled {...props} row={props.row} />;
+  }
 }
 
 /** *Promoted, then quiet*: the page, how long it has been waiting, and the two ways out. */

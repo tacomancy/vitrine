@@ -13,8 +13,8 @@ export type { Linked } from "./link.js";
 export type {
   LooseEnds,
   LooseEndGroup,
+  LooseEndGroupName,
   LooseEndRow,
-  LooseEndsGroup,
   StalledResearchQuestion,
 } from "./loose-ends.js";
 export type { Candidate, CandidateKind, Candidates } from "./picker.js";

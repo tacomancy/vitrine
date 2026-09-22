@@ -232,7 +232,9 @@ describe("looseEnds.dismiss — mark deliberate", () => {
     });
 
     const ends = await rows(c);
-    expect(ends.problem).toMatch(/dismissals\.json/);
+    expect(ends.problems).toEqual([
+      expect.stringMatching(/dismissals\.json/) as unknown as string,
+    ]);
     expect(titles(ends)).toEqual(["stale?"]);
 
     // And the write refuses rather than overwriting what it could not read.
@@ -252,7 +254,22 @@ describe("looseEnds.rows — the dashboard's shape", () => {
     const { c } = await opened({
       "q/young (RQ).md": page("young", { promoted: daysAgo(1) }),
     });
-    expect(await rows(c)).toEqual({ groups: [], problem: null });
+    expect(await rows(c)).toEqual({ groups: [], problems: [] });
+  });
+
+  it("names a page it could not read rather than dropping it silently", async () => {
+    const { c } = await opened({
+      "q/broken (RQ).md": page("broken", { promoted: daysAgo(15) }).replace(
+        "status: open",
+        "status: musing"
+      ),
+    });
+
+    const ends = await rows(c);
+    expect(titles(ends)).toEqual([]);
+    expect(ends.problems).toEqual([
+      'q/broken (RQ).md could not be read: status is not open, answered, or abandoned: "musing"',
+    ]);
   });
 
   it("keys a page that carries no id by its path", async () => {

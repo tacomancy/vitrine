@@ -14,7 +14,7 @@ const answers = {
     watching: { ok: true },
     current: { ok: true },
   },
-  "looseEnds.rows": { groups: [], problem: null },
+  "looseEnds.rows": { groups: [], problems: [] },
 };
 
 describe("the window's location is the URL hash", () => {

@@ -1,5 +1,6 @@
 import { dismissed, readDismissals } from "./dismissals.js";
-import { KIND } from "./research-question.js";
+import { errorMessage } from "./errors.js";
+import { KIND, readResearchQuestion } from "./research-question.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -21,7 +22,7 @@ export const GROUPS = [
   "Stalled questions",
 ] as const;
 
-export type LooseEndGroup = (typeof GROUPS)[number];
+export type LooseEndGroupName = (typeof GROUPS)[number];
 
 /**
  * A Research Question promoted and never given a source on either side.
@@ -41,13 +42,21 @@ export type StalledResearchQuestion = {
 
 export type LooseEndRow = StalledResearchQuestion;
 
-export type LooseEndsGroup = { group: LooseEndGroup; rows: LooseEndRow[] };
+export type LooseEndGroup = {
+  group: LooseEndGroupName;
+  rows: LooseEndRow[];
+};
 
 export type LooseEnds = {
   /** Only the groups with rows, in `GROUPS` order. */
-  groups: LooseEndsGroup[];
-  /** Why the dashboard may be showing rows it was told to silence; null when it is not. */
-  problem: string | null;
+  groups: LooseEndGroup[];
+  /**
+   * What the dashboard could not judge: a `dismissals.json` that does not
+   * parse (so rows it was told to silence may be here), or a file whose
+   * frontmatter it could not read (so a row that belongs here may be
+   * missing). Either way it says so rather than looking tidy.
+   */
+  problems: string[];
 };
 
 /**
@@ -69,10 +78,11 @@ export async function looseEnds(
   { now, stalledMs }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
-  const rows = stalledResearchQuestions(index, now, stalledMs).filter(
+  const stalled = stalledResearchQuestions(index, now, stalledMs);
+  const rows = stalled.rows.filter(
     (row) => !dismissed(dismissals, row.subject, row.kind)
   );
-  const byGroup: Record<LooseEndGroup, LooseEndRow[]> = {
+  const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [],
     "Unfinished reading": [],
     "Disconnected material": [],
@@ -82,7 +92,7 @@ export async function looseEnds(
     groups: GROUPS.filter((group) => byGroup[group].length > 0).map(
       (group) => ({ group, rows: byGroup[group] })
     ),
-    problem,
+    problems: [...(problem === null ? [] : [problem]), ...stalled.problems],
   };
 }
 
@@ -93,7 +103,7 @@ function stalledResearchQuestions(
   index: VaultIndex,
   now: Date,
   stalledMs: number
-): StalledResearchQuestion[] {
+): { rows: StalledResearchQuestion[]; problems: string[] } {
   // A source is a link inside one of the two sides' bodies. Unresolved
   // counts: a mistyped citekey is a source that was attached and is worth
   // fixing, which is a different row from never having attached one.
@@ -108,6 +118,7 @@ function stalledResearchQuestions(
       .map((row) => row.path)
   );
   const rows: StalledResearchQuestion[] = [];
+  const problems: string[] = [];
   for (const row of index.select<{
     path: string;
     id: string | null;
@@ -118,22 +129,32 @@ function stalledResearchQuestions(
     KIND
   )) {
     if (fed.has(row.path)) continue;
-    const fm = JSON.parse(row.value) as Record<string, unknown>;
-    // A missing `status:` is open, as the page reader has it; a resolved or
-    // abandoned pursuit is finished, not stalled.
-    if (fm["status"] !== undefined && fm["status"] !== "open") continue;
-    const promoted = fm["promoted"];
-    const question = fm["question"];
-    if (typeof promoted !== "string" || typeof question !== "string") continue;
-    const at = Date.parse(promoted);
+    // The page's own reader, not a second reading of the same keys: a
+    // status this dashboard accepted and the page refused would be two
+    // answers about one file. A file it refuses cannot be judged stalled
+    // or not, so it is named rather than dropped.
+    let page;
+    try {
+      page = readResearchQuestion(
+        JSON.parse(row.value) as Record<string, unknown>
+      );
+    } catch (cause) {
+      problems.push(`${row.path} could not be read: ${errorMessage(cause)}`);
+      continue;
+    }
+    // A resolved or abandoned pursuit is finished, not stalled. A page with
+    // no `promoted:` was never promoted — there is no date to be stalled
+    // since, which is an absence rather than a failure.
+    if (page.status !== "open" || page.promoted === undefined) continue;
+    const at = Date.parse(page.promoted);
     if (Number.isNaN(at) || now.getTime() - at < stalledMs) continue;
     rows.push({
       kind: "stalled-research-question",
       subject: row.id ?? row.path,
       path: row.path,
-      title: question,
-      since: promoted,
+      title: page.question,
+      since: page.promoted,
     });
   }
-  return rows;
+  return { rows, problems };
 }

@@ -29,13 +29,19 @@
   color: var(--color-fg-muted);
 }
 
-/* A failure, not an absence: the dashboard may be showing rows it was told
-   to silence, and that has to read differently from a tidy vault. */
+/* A failure, not an absence. The voice is the footer's — mono, quiet, never
+   red — so the brass mark is what separates it from the tidy-vault line,
+   the same way the balance strip marks a one-sided literature. */
 .problem {
   margin: 0;
   padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+}
+
+.problemGlyph {
+  color: var(--color-accent);
 }
 
 .scroll {
@@ -98,7 +104,8 @@
   gap: var(--space-2);
 }
 
-/* A floating surface with a gutter, not a bordered box (ADR 0008). */
+/* A floating surface with a gutter, not a bordered box: no hairline between
+   rows, and the gutter is what separates them. */
 .row {
   display: flex;
   align-items: flex-start;
