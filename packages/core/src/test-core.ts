@@ -99,6 +99,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
     ...(opts.newId ? { newId: opts.newId } : {}),
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),
+    ...(opts.stalledMs !== undefined ? { stalledMs: opts.stalledMs } : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
     index: {
       chunkSize: opts.chunkSize,

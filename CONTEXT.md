@@ -391,6 +391,9 @@ _Avoid_: Search, autocomplete, quick open, palette (the command palette is a dif
 **Loose end**:
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
 
+**Row kind**:
+What a Loose end is loose *about* — a Research Question with no source, a bare link matching several files — as distinct from the object it names. A dismissal is judged per row kind, so one object can be silenced as one kind and still surface as another.
+
 **Coverage**:
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
