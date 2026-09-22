@@ -6,8 +6,9 @@ import type { VaultIndex } from "./vault-index.js";
  * triage, One picker): a name-contains query over the index's `files`
  * table, narrowed by whoever opened it. Link (#211) asks for Questions,
  * Research Questions, Notes, Sources and stubs; attaching a source asks for
- * Sources and stubs; a why line asks for anything. Name search is all a
- * picker needs — full-text is beat 11's — and no file is read here: like
+ * Sources and stubs; a why line asks for anything. A paper's row also
+ * carries its title to show — shown, never matched: name search is all a
+ * picker needs, and full-text is beat 11's — and no file is read here: like
  * every other list a surface shows, this is an index query (ADR 0014
  * decision 3).
  */
@@ -31,6 +32,14 @@ export type Candidate = {
   name: string;
   kind: CandidateKind;
   /**
+   * On a Source or a stub: its `title:`, for the row to show beside the
+   * citekey — `rasch2013` is not a paper anyone recognises by name. Absent
+   * when the file carries no `title:`, rather than fallen back to the file
+   * name the row already shows. Shown, never searched: matching a title is
+   * the Vault editor's beat (CONTEXT.md *One picker*).
+   */
+  title?: string;
+  /**
    * On a Source or a stub: whether its PDF is in the vault. Derived from
    * `sources/pdf/`, never from the `pdf:` key alone — a key naming a file
    * that is not there would otherwise promise a reader that cannot open.
@@ -47,10 +56,8 @@ export const CANDIDATE_LIMIT = 50;
 /** Where a Source's PDF lives (§ Vault layout): the one synced folder. */
 const PDF_FOLDER = "sources/pdf";
 
-const CARRIES_PDF: ReadonlySet<CandidateKind> = new Set([
-  "source",
-  "source-stub",
-]);
+/** The paper Kinds, which are the ones carrying a `title:` and a `pdf:`. */
+const PAPER: ReadonlySet<CandidateKind> = new Set(["source", "source-stub"]);
 
 export function candidates(
   index: VaultIndex,
@@ -83,7 +90,7 @@ export function candidates(
     ...params
   );
 
-  const pdfs = matched.some((row) => CARRIES_PDF.has(row.kind ?? NOTE))
+  const pdfs = matched.some((row) => PAPER.has(row.kind ?? NOTE))
     ? pdfFiles(index)
     : new Set<string>();
   const leads = (name: string) =>
@@ -95,8 +102,11 @@ export function candidates(
         name: basename(path, ".md"),
         kind: kind ?? NOTE,
       };
-      if (CARRIES_PDF.has(candidate.kind)) {
-        candidate.pdf = pdfOf(frontmatter, pdfs);
+      if (PAPER.has(candidate.kind)) {
+        const keys = frontmatterKeys(frontmatter);
+        const title = keys["title"];
+        if (typeof title === "string" && title !== "") candidate.title = title;
+        candidate.pdf = pdfOf(keys, pdfs);
       }
       return candidate;
     })
@@ -142,9 +152,14 @@ function pdfFiles(index: VaultIndex): Set<string> {
   return new Set(rows.map((row) => row.lpath));
 }
 
-function pdfOf(frontmatter: string | null, pdfs: Set<string>): boolean {
-  if (frontmatter === null) return false;
-  const pdf = (JSON.parse(frontmatter) as Record<string, unknown>)["pdf"];
+/** The row's frontmatter as the index stored it; an absent one is no keys. */
+function frontmatterKeys(frontmatter: string | null): Record<string, unknown> {
+  if (frontmatter === null) return {};
+  return JSON.parse(frontmatter) as Record<string, unknown>;
+}
+
+function pdfOf(keys: Record<string, unknown>, pdfs: Set<string>): boolean {
+  const pdf = keys["pdf"];
   if (typeof pdf !== "string" || pdf === "") return false;
   return pdfs.has(posix.join(PDF_FOLDER, pdf).toLowerCase());
 }

@@ -1,6 +1,5 @@
-import { basename } from "node:path";
-import { parseWikilink } from "markdown";
 import { VaultError } from "./errors.js";
+import { resolvesTo, wikilinkTo } from "./link-text.js";
 import { readQuestionForWrite, type QuestionStatus } from "./question-kind.js";
 import { locate, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -76,26 +75,12 @@ async function link(
       `${found.path} cannot be related to itself.`
     );
   }
-  // The target must be a file the Index knows, because the link text below
-  // is chosen by what the Index says the name reaches: a target it has not
-  // seen would get a bare name that may reach something else entirely.
-  const known = index.select<{ path: string }>(
-    "SELECT path FROM files WHERE path = ?",
-    target.relativePath
-  );
-  if (known.length === 0) {
-    throw new VaultError(
-      "refused",
-      `${target.relativePath} is not a file in the vault.`
-    );
-  }
-
+  const wikilink = wikilinkTo(index, found.path, target.relativePath);
   const related = relatedList(found.frontmatter["related"], found.path);
-  const wikilink = linkText(index, found.path, target.relativePath);
   const already = related.some(
     (entry) =>
       entry === wikilink ||
-      resolves(index, found.path, entry) === target.relativePath
+      resolvesTo(index, found.path, entry) === target.relativePath
   );
   if (already) return { path: found.path, target: wikilink, linked: false };
 
@@ -131,36 +116,4 @@ function relatedList(value: unknown, path: string): string[] {
     "refused",
     `${path}: related is not a list of links; fix it in the file first.`
   );
-}
-
-/**
- * The shortest wikilink that reaches the chosen file and nothing else: the
- * bare name, as Obsidian and the rest of the app write links, unless the
- * Index says that name is ambiguous or lands elsewhere — then the
- * vault-relative path. Picking a name the user chose a *file* for and
- * letting it resolve to another file would be the silent failure the brief
- * forbids, so the choice is checked against the same resolver the `links`
- * column is computed by.
- */
-function linkText(
-  index: VaultIndex,
-  linkingPath: string,
-  targetPath: string
-): string {
-  const bare = basename(targetPath, ".md");
-  if (resolves(index, linkingPath, `[[${bare}]]`) === targetPath) {
-    return `[[${bare}]]`;
-  }
-  return `[[${targetPath.replace(/\.md$/, "")}]]`;
-}
-
-/** Where an entry of `related` lands, or null when it is not a resolving wikilink. */
-function resolves(
-  index: VaultIndex,
-  linkingPath: string,
-  entry: string
-): string | null {
-  const inner = /^\[\[(.*)\]\]$/.exec(entry)?.[1];
-  if (inner === undefined) return null;
-  return index.resolve(linkingPath, parseWikilink(inner)).resolvedPath;
 }
