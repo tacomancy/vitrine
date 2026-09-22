@@ -53,9 +53,8 @@ export function citekeyFor({
   year,
   title,
 }: Pick<StubFields, "authors" | "year" | "title">): string {
-  const first = authorList(authors)[0];
-  const stem =
-    (first === undefined ? "" : fold(surnameOf(first))) || titleWord(title);
+  const first = authorList(authors)[0] ?? "";
+  const stem = fold(surnameOf(first)) || titleWord(title);
   return stem + (year.match(/\d{4}/)?.[0] ?? "");
 }
 
@@ -99,13 +98,19 @@ const UNDECOMPOSED: Record<string, string> = {
   ı: "i",
 };
 
+/** The same letters as a character class, so the two cannot drift apart. */
+const UNDECOMPOSED_LETTERS = new RegExp(
+  `[${Object.keys(UNDECOMPOSED).join("")}]`,
+  "g"
+);
+
 /** Lowercased, diacritics folded away, and everything ASCII cannot spell dropped. */
 function fold(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
-    .replace(/[øđðþæœßłı]/g, (letter) => UNDECOMPOSED[letter] ?? letter)
+    .replace(UNDECOMPOSED_LETTERS, (letter) => UNDECOMPOSED[letter] ?? letter)
     .replace(/[^a-z0-9]/g, "");
 }
 
@@ -117,15 +122,19 @@ const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
  * the ones this path cannot know — a field nobody filled in is absent, not
  * empty. The body is empty: a Scout's accept writes the abstract it was
  * given, and nobody typed one here.
+ *
+ * No `id:`, though § Vault layout says every app-owned object carries one:
+ * the Source / Source stub key list starts at `citekey`, ADR 0016 d.9 pins
+ * the same list for a Scout's accept, and the vault's own stubs have none.
+ * A citekey already identifies a paper, and the two paths must write the
+ * same record. Giving Sources an `id` is a decision for whoever needs one.
  */
 function stubFile(
-  id: string,
   citekey: string,
   { title, authors, year, url }: StubFields
 ): string {
   const lines = [
     "---",
-    `id: ${id}`,
     "kind: source-stub",
     `citekey: ${citekey}`,
     `title: ${plain(title)}`,
@@ -174,10 +183,9 @@ let previous: Promise<unknown> = Promise.resolve();
 export function createSourceStub(
   vaultPath: string,
   index: VaultIndex,
-  fields: StubFields,
-  newId: () => string
+  fields: StubFields
 ): Promise<Stub> {
-  const run = () => makeStub(vaultPath, index, fields, newId);
+  const run = () => makeStub(vaultPath, index, fields);
   // A stub that threw leaves the queue usable for the next one.
   const queued = previous.then(run, run);
   previous = queued;
@@ -187,18 +195,16 @@ export function createSourceStub(
 async function makeStub(
   vaultPath: string,
   index: VaultIndex,
-  fields: StubFields,
-  newId: () => string
+  fields: StubFields
 ): Promise<Stub> {
   const base = citekeyFor(fields);
-  const id = newId();
   for (let n = 0; ; n++) {
     const citekey = base + suffix(n);
     const path = `${FOLDER}/${citekey}.md`;
     const created = await createFile(
       vaultPath,
       path,
-      stubFile(id, citekey, fields)
+      stubFile(citekey, fields)
     );
     if (created.written) {
       await index.own(path, created.content);

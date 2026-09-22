@@ -28,8 +28,6 @@ export type Context = {
   events: Events;
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
-  /** The id every app-owned object carries (§ Vault layout); pinned by tests. */
-  newId: () => string;
   coalesceMs: number;
 };
 
@@ -175,7 +173,7 @@ export const router = t.router({
       .input(stubInput)
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
-        return refusing(createSourceStub(vault.path, index, input, ctx.newId));
+        return refusing(createSourceStub(vault.path, index, input));
       }),
   }),
   researchQuestions: t.router({

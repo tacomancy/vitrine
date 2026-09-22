@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -138,7 +139,7 @@ function NewStub({
   };
   const field = (key: keyof typeof fields) => ({
     value: fields[key],
-    onChange: (event: { target: { value: string } }) =>
+    onChange: (event: ChangeEvent<HTMLInputElement>) =>
       setFields((was) => ({ ...was, [key]: event.target.value })),
     onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === "Enter" && !event.nativeEvent.isComposing) {

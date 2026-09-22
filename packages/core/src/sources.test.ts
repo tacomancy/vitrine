@@ -16,7 +16,9 @@ afterEach(closeCores);
 
 describe("the citekey rule", () => {
   // `<surname><year>`, ASCII-folded and lowercased; the first word of the
-  // title when authors are missing (§ Vault layout).
+  // title when authors are missing (§ Vault layout). The `a`/`b` suffix on
+  // collision is not here and cannot be: which citekeys are taken is a fact
+  // about the disk, so those cases are in `sources.createStub` below.
   const cases: Array<[string, string, string, string]> = [
     ["surname and year", "Jan Born", "2010", "born2010"],
     ["surname last, given first", "Klinzing, Jens G.", "2019", "klinzing2019"],
@@ -49,30 +51,39 @@ describe("the citekey rule", () => {
     );
   });
 
-  it("falls back to the title's first word when no author was typed", () => {
-    expect(
-      citekeyFor({ authors: "", year: "2019", title: "Mechanisms of sleep" })
-    ).toBe("mechanisms2019");
-    // Neither an author nor a year: the title's first word is the whole key,
-    // and a second paper starting the same way takes a suffix on disk.
-    expect(citekeyFor({ authors: "", year: "", title: "Mechanisms" })).toBe(
-      "mechanisms"
-    );
-  });
-
-  it("falls back to `source` when nothing typed survives the folding", () => {
+  // The same table where the title is what the rule falls back to.
+  const titled: Array<[string, string, string, string, string]> = [
+    [
+      "no authors — the title's first word",
+      "",
+      "2019",
+      "Mechanisms of sleep",
+      "mechanisms2019",
+    ],
+    ["no authors and no year", "", "", "Mechanisms of sleep", "mechanisms"],
     // A title in a script ASCII cannot carry still has to name a file.
-    expect(citekeyFor({ authors: "", year: "2019", title: "日本語" })).toBe(
-      "source2019"
-    );
+    ["nothing that survives the folding", "", "2019", "日本語", "source2019"],
+    // The fallback is about what the fold leaves, not about the field being
+    // blank: an author that folds away is an author the file cannot be named
+    // after either.
+    [
+      "an author that folds to nothing",
+      "日本語",
+      "2019",
+      "Mechanisms",
+      "mechanisms2019",
+    ],
+  ];
+
+  it.each(titled)("%s", (_name, authors, year, title, expected) => {
+    expect(citekeyFor({ authors, year, title })).toBe(expected);
   });
 });
 
 /** A core with the fixture vault open and indexed, ready to make a stub. */
 async function opened() {
   const vault = await fixtureCopy("obsidian-vault");
-  let n = 0;
-  const c = await core({ newId: () => `stubid${n++}` });
+  const c = await core();
   const reply = await c.mutate("vault.open", { path: vault });
   expect(reply.error).toBeUndefined();
   await c.indexed();
@@ -117,7 +128,6 @@ describe("sources.createStub", () => {
     expect(await c.read(stub.path)).toBe(
       [
         "---",
-        "id: stubid0",
         "kind: source-stub",
         "citekey: muller2019",
         "title: Memory consolidation during sleep",
@@ -140,7 +150,6 @@ describe("sources.createStub", () => {
     expect(await c.read(stub.path)).toBe(
       [
         "---",
-        "id: stubid0",
         "kind: source-stub",
         "citekey: mechanisms",
         "title: Mechanisms",
