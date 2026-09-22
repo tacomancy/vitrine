@@ -877,3 +877,174 @@ describe("capturing from the page", () => {
     );
   });
 });
+
+// Resolving (#222; ADR 0020 decision 6): the working answer as it stands is
+// the answer, so resolve and abandon are one button each and there is no
+// second field. Resolving is a status, not an archive — the page keeps
+// everything it had and offers to reopen.
+
+// Inferred, not annotated as the union: a fixture built from another one
+// has to keep its readable arm, or `.sections` cannot be read off it.
+const ANSWERED = {
+  ...fresh,
+  frontmatter: {
+    ...fresh.frontmatter,
+    status: "answered" as const,
+    answered: "2026-09-21T10:00:00+02:00",
+  },
+  sections: {
+    ...fresh.sections,
+    workingAnswer: { present: true, text: "Probably both." },
+    positionHistory: {
+      present: true,
+      text: "- 2026-09-21T09:00:00+02:00 · working answer\n  from:",
+      entries: [],
+    },
+  },
+};
+
+describe("resolving, abandoning, and reopening", () => {
+  it("resolves from the page: one call, and the page comes back answered with its history intact", async () => {
+    let page: ResearchQuestionPage = {
+      ...ANSWERED,
+      frontmatter: { ...fresh.frontmatter },
+    };
+    const resolve = vi.fn(() => {
+      page = ANSWERED;
+      return { page: { written: true }, question: { written: true } };
+    });
+    // The Inbox is not mounted here, so the row's own glyph and label are
+    // `Inbox.test.tsx`'s; what this asserts is the page's half.
+    open(() => page, { "researchQuestions.resolve": resolve });
+    const view = await region();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "resolve" })
+    );
+
+    await waitFor(() =>
+      expect(resolve).toHaveBeenCalledExactlyOnceWith({
+        path: PATH,
+        status: "answered",
+      })
+    );
+    // The status line changes, and nothing else on the page is taken away.
+    await waitFor(() =>
+      expect(within(view).getByRole("img", { name: "answered" })).toBeDefined()
+    );
+    expect(view.textContent).toContain("Probably both.");
+    expect(
+      within(view).getByRole("region", { name: "Position history" }).textContent
+    ).toContain("working answer");
+    // A status, not an archive: the Edited sections still open for editing.
+    expect(
+      within(
+        within(view).getByRole("region", { name: "Open threads" })
+      ).getByRole("button", { name: "edit" })
+    ).toBeDefined();
+  });
+
+  it("abandons with the page's own word, and offers reopen once it is resolved", async () => {
+    let page: ResearchQuestionPage = {
+      ...fresh,
+      sections: ANSWERED.sections,
+    };
+    const abandoned: ResearchQuestionPage = {
+      ...page,
+      frontmatter: { ...fresh.frontmatter, status: "abandoned" },
+    };
+    const resolve = vi.fn(() => {
+      page = abandoned;
+      return { page: { written: true }, question: { written: true } };
+    });
+    const reopen = vi.fn(() => {
+      page = { ...abandoned, frontmatter: { ...fresh.frontmatter } };
+      return { written: true, hash: "def", content: "", shape: [] };
+    });
+    open(() => page, {
+      "researchQuestions.resolve": resolve,
+      "researchQuestions.reopen": reopen,
+    });
+    const view = await region();
+    // Nothing to reopen while it is open.
+    expect(within(view).queryByRole("button", { name: "reopen" })).toBeNull();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "abandon" })
+    );
+
+    await waitFor(() =>
+      expect(resolve).toHaveBeenCalledExactlyOnceWith({
+        path: PATH,
+        status: "abandoned",
+      })
+    );
+    await waitFor(() =>
+      expect(within(view).getByRole("img", { name: "abandoned" })).toBeDefined()
+    );
+    expect(within(view).queryByRole("button", { name: "resolve" })).toBeNull();
+
+    fireEvent.click(within(view).getByRole("button", { name: "reopen" }));
+    await waitFor(() =>
+      expect(reopen).toHaveBeenCalledExactlyOnceWith({ path: PATH })
+    );
+    await waitFor(() =>
+      expect(within(view).getByRole("img", { name: "open" })).toBeDefined()
+    );
+  });
+
+  it("a write-back that reached no Question is a line on the page, which stays resolved", async () => {
+    let page: ResearchQuestionPage = {
+      ...fresh,
+      sections: ANSWERED.sections,
+    };
+    open(() => page, {
+      "researchQuestions.resolve": () => {
+        page = ANSWERED;
+        return {
+          page: { written: true },
+          question: {
+            written: false,
+            reason:
+              "[[Does slow-wave density predict recall gain]] matches no file in the vault",
+          },
+        };
+      },
+    });
+    const view = await region();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "resolve" })
+    );
+
+    const line = await within(view).findByRole("status");
+    // The half that did not happen is what the line names: the page *was*
+    // resolved, so "could not resolve" would be a lie about the other half.
+    expect(line.textContent).toBe(
+      "the Question was not marked: [[Does slow-wave density predict recall gain]] matches no file in the vault"
+    );
+    await waitFor(() =>
+      expect(within(view).getByRole("img", { name: "answered" })).toBeDefined()
+    );
+  });
+
+  it("a refused page write says so and leaves the page as it was", async () => {
+    open(() => fresh, {
+      "researchQuestions.resolve": () => ({
+        page: {
+          written: false,
+          reason: "changedAndUnreapplyable",
+          detail: "the file is no longer there",
+        },
+        question: { written: false, reason: "the page was not resolved" },
+      }),
+    });
+    const view = await region();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "resolve" })
+    );
+
+    const line = await within(view).findByRole("status");
+    expect(line.textContent).toBe(
+      "could not resolve: changedAndUnreapplyable — the file is no longer there"
+    );
+    expect(within(view).getByRole("img", { name: "open" })).toBeDefined();
+  });
+});

@@ -202,6 +202,9 @@ _Avoid_: Todo, sub-question (that is a Question with `pursuing` Provenance)
 **Reopen** (a Question):
 Setting a dropped or answered Question back to *open*, keeping whatever answer text it holds.
 
+**Reopen** (a Research Question):
+Setting a Resolved or Abandoned page back to *open*, and nothing else: the body, the Position history, and the Write-back line on its Question all stay where they are, so resolving is a status and not an archive. The Question's own status is the Inbox's to reopen. `answered` stays too, as the day the page was last resolved; the next Resolve overwrites it.
+
 **Research Question**:
 A promoted Question answered by reading. Holds a Working answer with Position history, supporting Sources, opposing Sources, related questions, and open threads. Supporting and opposing are structurally separate, not a tag on one list.
 _Avoid_: RQ in prose; project
@@ -215,6 +218,10 @@ One of *open*, *answered*, *abandoned*. Never *promoted*: that is the originatin
 **Resolved** (of a Research Question):
 Its Status set to *answered* by the user, taking the Working answer as the answer. Writes back to the Question it was promoted from. Not a Loose end and not derived: the user decides when reading is done.
 _Avoid_: Closed, done, finished
+
+**Abandoned** (of a Research Question):
+Its Status set to *abandoned* by the user: reading ended without an answer. Writes back exactly as Resolved does, and the Question becomes *abandoned* too. Carries no date of its own — the day is in the Write-back line, as a dropped Question's is.
+_Avoid_: Cancelled, failed, archived
 
 **Supporting / Opposing** (of a source on a Research Question):
 The two sides a source is attached to, and the only two: attaching is the judgement. A paper not yet judged is not evidence and is not attached; it may be Related.
