@@ -102,6 +102,9 @@ async function opened(
           section: "Open threads",
           body: "- [ ] Read Cordi.",
           basedOn: data.hash,
+          // The section as the page was given it (#215): unchanged here,
+          // so the save is never the conflict line.
+          was: data.sections.openThreads.text,
         }
       );
       expect(saved.error).toBeUndefined();
@@ -245,6 +248,7 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
         path: PATH,
         text,
         basedOn: data.hash,
+        was: data.sections.workingAnswer.text,
       });
       expect(reply.error).toBeUndefined();
       await stream.next("vaultChanged");
@@ -310,6 +314,7 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
       path: PATH,
       text: "Encoding strength, mostly.",
       basedOn: data.hash,
+      was: data.sections.workingAnswer.text,
     });
     expect(saved.error).toBeUndefined();
     await stream.next("vaultChanged");
