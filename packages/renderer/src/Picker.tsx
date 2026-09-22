@@ -133,6 +133,10 @@ export function Picker({
           >
             <KindGlyph kind={candidate.kind} />
             <span className={styles.name}>{candidate.name}</span>
+            {/* A paper's title beside its citekey: `rasch2013` is the name
+                the vault files it under, not one anyone recognises it by.
+                Shown only — what matched is still the name. */}
+            <span className={styles.title}>{candidate.title ?? ""}</span>
             {candidate.pdf !== undefined && (
               <span className={styles.pdf}>
                 {candidate.pdf ? "pdf" : "no pdf"}

@@ -407,6 +407,189 @@ exports[`corpus > fence-unclosed.md: outline snapshot 1`] = `
 }
 `;
 
+exports[`corpus > history-handwritten.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": {
+    "content": {
+      "end": 334,
+      "start": 4,
+    },
+    "document": {
+      "captured": "2026-02-19T16:07:00+01:00",
+      "context": "reading",
+      "from": "[[Rasch & Born 2013]]",
+      "id": "rq4k8m2n7x",
+      "kind": "research-question",
+      "page": 699,
+      "promoted": "2026-03-02T09:14:00+01:00",
+      "promoted_from": "[[Does slow-wave density predict recall gain]]",
+      "question": "Does slow-wave density predict recall gain?",
+      "status": "open",
+      "tags": [
+        "memory/consolidation",
+      ],
+    },
+    "parsed": true,
+    "range": {
+      "end": 337,
+      "start": 0,
+    },
+  },
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 433,
+        "start": 357,
+      },
+      "level": 2,
+      "range": {
+        "end": 356,
+        "start": 339,
+      },
+      "text": "Working answer",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 529,
+        "start": 455,
+      },
+      "level": 2,
+      "range": {
+        "end": 454,
+        "start": 433,
+      },
+      "text": "Supporting sources",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 550,
+        "start": 549,
+      },
+      "level": 2,
+      "range": {
+        "end": 548,
+        "start": 529,
+      },
+      "text": "Opposing sources",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 572,
+        "start": 571,
+      },
+      "level": 2,
+      "range": {
+        "end": 570,
+        "start": 550,
+      },
+      "text": "Related questions",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 644,
+        "start": 588,
+      },
+      "level": 2,
+      "range": {
+        "end": 587,
+        "start": 572,
+      },
+      "text": "Open threads",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 1124,
+        "start": 664,
+      },
+      "level": 2,
+      "range": {
+        "end": 663,
+        "start": 644,
+      },
+      "text": "Position history",
+    },
+  ],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": "h4",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 475,
+        "start": 458,
+      },
+      "syntax": "wikilink",
+      "target": "rasch2013",
+    },
+    {
+      "alias": null,
+      "blockId": "h12",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 796,
+        "start": 778,
+      },
+      "syntax": "wikilink",
+      "target": "cordi2021",
+    },
+  ],
+  "listItems": [
+    {
+      "range": {
+        "end": 527,
+        "start": 456,
+      },
+    },
+    {
+      "range": {
+        "end": 642,
+        "start": 589,
+      },
+    },
+    {
+      "range": {
+        "end": 953,
+        "start": 665,
+      },
+    },
+    {
+      "range": {
+        "end": 1070,
+        "start": 954,
+      },
+    },
+    {
+      "range": {
+        "end": 1124,
+        "start": 1072,
+      },
+    },
+  ],
+  "tags": [
+    {
+      "canonical": "memory/consolidation",
+      "range": {
+        "end": 333,
+        "start": 313,
+      },
+      "source": "frontmatter",
+      "text": "memory/consolidation",
+      "valid": true,
+    },
+  ],
+}
+`;
+
 exports[`corpus > links-all-forms.md: outline snapshot 1`] = `
 {
   "blockIds": [],

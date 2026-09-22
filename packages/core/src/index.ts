@@ -21,6 +21,7 @@ export type {
   ResearchQuestionSections,
   ResearchQuestionStatus,
   ResolveResult,
+  Side,
   WriteBack,
 } from "./research-question.js";
 export type { Revision } from "./position-history.js";

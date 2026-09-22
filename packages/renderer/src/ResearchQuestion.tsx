@@ -18,12 +18,15 @@ import {
   type ReactNode,
 } from "react";
 import { formatAge } from "./age";
+import { AttachSource } from "./AttachSource";
 import { useVaultChanged } from "./events";
+import { PositionHistory } from "./PositionHistory";
 import styles from "./ResearchQuestion.module.css";
 import { hashOf, replaceRoute } from "./router";
-import { localDateTime } from "./rows";
+import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
+import { linkLabel } from "./wikilink";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
@@ -72,6 +75,11 @@ export function ResearchQuestion({ path }: { path: string }) {
     )
   );
 
+  // The attach form, opened by ⌘⇧A from any focus on the page (prompt 3).
+  // A chord rather than a letter: the page is mostly text fields, and a
+  // bare key would be typing.
+  const [attaching, setAttaching] = useState(false);
+
   const data = page.data;
   const readable = removed === null && data?.readable === true ? data : null;
   const problems = readable?.problems ?? [];
@@ -83,6 +91,17 @@ export function ResearchQuestion({ path }: { path: string }) {
       className={styles.page}
       aria-label="Research Question view"
       tabIndex={-1}
+      onKeyDown={(event) => {
+        if (
+          readable !== null &&
+          event.key.toLowerCase() === "a" &&
+          event.metaKey &&
+          event.shiftKey
+        ) {
+          event.preventDefault();
+          setAttaching(true);
+        }
+      }}
     >
       {/* A refused read is a failure, not an absence: it must not read as a quiet page. */}
       {page.isError && (
@@ -115,25 +134,31 @@ export function ResearchQuestion({ path }: { path: string }) {
               text={readable.sections.workingAnswer.text}
             />
           </Section>
-          <div className={styles.sides}>
-            <Section
-              name="Supporting sources"
-              present={readable.sections.supporting.present}
-            >
-              <Lines
-                lines={readable.sections.supporting.lines}
-                empty="Nothing attached yet. Papers that argue for the working answer collect here, each with a note on which finding does."
-              />
-            </Section>
-            <Section
-              name="Opposing sources"
-              present={readable.sections.opposing.present}
-            >
-              <Lines
-                lines={readable.sections.opposing.lines}
-                empty="Nothing yet. When you find a paper that undercuts the answer, it goes here — and a page where nothing does is worth noticing."
-              />
-            </Section>
+          <div className={styles.evidence}>
+            <Balance
+              supporting={readable.sections.supporting.lines.length}
+              opposing={readable.sections.opposing.lines.length}
+            />
+            <div className={styles.sides}>
+              <Section
+                name="Supporting sources"
+                present={readable.sections.supporting.present}
+              >
+                <Lines
+                  lines={readable.sections.supporting.lines}
+                  empty="Nothing attached yet. Papers that argue for the working answer collect here, each with a note on which finding does."
+                />
+              </Section>
+              <Section
+                name="Opposing sources"
+                present={readable.sections.opposing.present}
+              >
+                <Lines
+                  lines={readable.sections.opposing.lines}
+                  empty="Nothing yet. When you find a paper that undercuts the answer, it goes here — and a page where nothing does is worth noticing."
+                />
+              </Section>
+            </div>
           </div>
           <Editable
             name="Related questions"
@@ -164,20 +189,22 @@ export function ResearchQuestion({ path }: { path: string }) {
             name="Position history"
             present={readable.sections.positionHistory.present}
           >
-            {readable.sections.positionHistory.text !== "" && (
-              <pre className={styles.history}>
-                {readable.sections.positionHistory.text}
-              </pre>
-            )}
-            {readable.sections.positionHistory.text === "" && (
-              <Outline>
-                Nothing has changed yet. The first revision is written when the
-                working answer first moves.
-              </Outline>
-            )}
+            <PositionHistory
+              entries={readable.sections.positionHistory.entries}
+              current={{ [FIELD]: readable.sections.workingAnswer.text }}
+            />
+            {/* Always last and always there: the history's floor, derived
+                from the frontmatter and never written as an entry. */}
             <p className={styles.baseLine}>{baseLine(readable.frontmatter)}</p>
           </Section>
         </div>
+      )}
+      {attaching && readable !== null && (
+        <AttachSource
+          path={readable.path}
+          hash={readable.hash}
+          onClose={() => setAttaching(false)}
+        />
       )}
       {hasFooter && (
         <footer className={styles.footer}>
@@ -192,6 +219,65 @@ export function ResearchQuestion({ path }: { path: string }) {
     </section>
   );
 }
+
+/**
+ * The balance strip over the two columns (spec #206 story 28; brief
+ * § Surfaces, prompt 3): the counts in words, and — when one side is empty
+ * and the other is not — a sentence saying what that means. This is the
+ * whole reason the sides are structurally separate rather than a tag on one
+ * bibliography: a literature that only agrees with you must raise its voice
+ * before you have to think to look. A page with nothing on either side is
+ * not one-sided, it is new, and stays quiet.
+ */
+function Balance({
+  supporting,
+  opposing,
+}: {
+  supporting: number;
+  opposing: number;
+}) {
+  const lopsided =
+    (supporting === 0) !== (opposing === 0) ? sideEmpty(supporting) : null;
+  return (
+    <section
+      className={styles.balance}
+      aria-label="Balance of sources"
+      data-lopsided={lopsided === null ? undefined : true}
+    >
+      <p className={styles.balanceCount}>
+        {lopsided !== null && (
+          <span
+            className={styles.lopsidedGlyph}
+            role="img"
+            aria-label="one-sided"
+          >
+            !
+          </span>
+        )}
+        <span>{balanceWords(supporting, opposing)}</span>
+        <span className={styles.balanceKey}>⌘⇧A attach a source</span>
+      </p>
+      {lopsided !== null && <p className={styles.lopsided}>{lopsided}</p>}
+    </section>
+  );
+}
+
+/** `4 supporting · 2 opposing`; a side with none says so in the same breath. */
+function balanceWords(supporting: number, opposing: number): string {
+  if (supporting === 0 && opposing === 0) {
+    return "nothing attached on either side";
+  }
+  return `${counted(supporting, "supporting")} · ${counted(opposing, "opposing")}`;
+}
+
+const counted = (n: number, side: string) =>
+  n === 0 ? `nothing ${side}` : `${n} ${side}`;
+
+/** What a one-sided page means, said as a fact about the reading rather than a fault. */
+const sideEmpty = (supporting: number) =>
+  supporting === 0
+    ? "Nothing attached so far argues for the working answer. That is a property of your reading as much as of the literature."
+    : "Everything attached so far argues for the working answer. That is a property of your reading as much as of the literature.";
 
 /** The question in the serif, then where and when it was first wondered, then its status, how settled the answer is, and the page's own verbs. */
 function Header({
@@ -343,8 +429,8 @@ function whileDoing(fm: ResearchQuestionFrontmatter): string {
   if (fm.from === undefined) return "unattached";
   const where =
     fm.page === undefined
-      ? linkText(fm.from)
-      : `${linkText(fm.from)} · p.${fm.page}`;
+      ? linkLabel(fm.from)
+      : `${linkLabel(fm.from)} · p.${fm.page}`;
   return fm.context === "other" ? where : `while ${fm.context} ${where}`;
 }
 
@@ -514,17 +600,6 @@ function WorkingAnswer({
 function baseLine(fm: ResearchQuestionFrontmatter): string {
   const when = fm.promoted === undefined ? "" : `, ${localDate(fm.promoted)}`;
   return `promoted from a capture made ${whileDoing(fm)}${when}`;
-}
-
-/** `20 September 2026`: the date part of `localDateTime`. */
-const localDate = (iso: string) => localDateTime(iso).split(" · ")[0] ?? "";
-
-/** `[[Rasch & Born 2013]]` → `Rasch & Born 2013`; an alias shows in place of the target. */
-function linkText(from: string): string {
-  const inner = /^\[\[(.*)\]\]$/.exec(from)?.[1];
-  if (inner === undefined) return from;
-  const alias = inner.split("|")[1];
-  return alias ?? inner;
 }
 
 /**
