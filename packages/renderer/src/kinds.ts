@@ -27,3 +27,10 @@ export const LINKABLE: CandidateKind[] = [
   "source",
   "source-stub",
 ];
+
+/**
+ * The Kinds the attach form offers (§ Research Question view and triage):
+ * a paper, with or without its PDF yet. Attaching is the judgement that
+ * something is evidence, and only a Source or a stub can be.
+ */
+export const ATTACHABLE: CandidateKind[] = ["source", "source-stub"];

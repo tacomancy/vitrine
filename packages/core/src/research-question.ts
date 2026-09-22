@@ -3,6 +3,7 @@ import { basename, dirname, join, sep } from "node:path";
 import { BOM, type Heading, type ListItem, type Outline } from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
+import { wikilinkTo } from "./link-text.js";
 import { asString, readQuestionForWrite } from "./question-kind.js";
 import {
   coalesce,
@@ -678,6 +679,80 @@ export async function saveWorkingAnswer(
       basedOn,
     };
   });
+}
+
+/** The two sides a source attaches to, and the only two (ADR 0020 decision 5). */
+export const SIDES = ["supporting", "opposing"] as const;
+export type Side = (typeof SIDES)[number];
+
+/** Each side's heading, as promotion writes it. */
+const SIDE_SECTION: Record<Side, string> = {
+  supporting: "Supporting sources",
+  opposing: "Opposing sources",
+};
+
+/** The Kinds a side can hold: a paper, with or without its PDF yet. */
+const ATTACHABLE = new Set(["source", "source-stub"]);
+
+/**
+ * Attach a source to one side (#218; § Vault layout's source line grammar):
+ * one `appendToSection` writing `- [[citekey]] — why it is here` under the
+ * chosen heading, with the note left off when there is none. There is no
+ * third side, so the side is the judgement the caller has already made and
+ * this write has no default to fall back on (ADR 0020 decision 5).
+ *
+ * The target must be a Source or a stub the Index knows: a side is where
+ * evidence goes, and a Question or a Note landing there would read as
+ * evidence ever after. A paper not yet judged is Related, or nothing.
+ */
+export async function attachSource(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  {
+    target,
+    side,
+    note,
+    basedOn,
+  }: { target: string; side: Side; note: string; basedOn: string }
+): Promise<WriteResult> {
+  const { relativePath: targetPath } = await locate(vaultPath, target);
+  const kind =
+    index.select<{ kind: string | null }>(
+      "SELECT kind FROM files WHERE path = ?",
+      targetPath
+    )[0]?.kind ?? null;
+  // An unknown file is `wikilinkTo`'s refusal to give; say the Kind only
+  // once the Index has a row to say it from.
+  if (kind !== null && !ATTACHABLE.has(kind)) {
+    throw new VaultError(
+      "refused",
+      `${targetPath} is not a Source or a stub; a paper not yet judged is Related, or nothing.`
+    );
+  }
+  return writeOwn(index, vaultPath, path, ({ relativePath }) => {
+    const wikilink = wikilinkTo(index, relativePath, targetPath);
+    return {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { section: SIDE_SECTION[side] },
+          line: oneLine(wikilink, note),
+        },
+      ],
+      basedOn,
+    };
+  });
+}
+
+/**
+ * `- [[citekey]] — note`, on one line whatever was typed: a note carrying a
+ * newline would otherwise end the list item and leave its tail as prose
+ * under the heading, where the next read would not find it as a note.
+ */
+function oneLine(wikilink: string, note: string): string {
+  const text = note.replace(/\s*\r?\n\s*/g, " ").trim();
+  return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
 }
 
 /**

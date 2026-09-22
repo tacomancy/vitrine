@@ -148,6 +148,35 @@ describe("picker.candidates", () => {
     ]);
   });
 
+  it("narrows to Sources and stubs for the attach form, each row saying whether its PDF is there", async () => {
+    const c = await opened(await fixtureCopy("obsidian-vault"));
+    // What attaching a source narrows to: the two Kinds a side can hold, and
+    // nothing else the vault carries (ADR 0020 decision 5).
+    const rows = (
+      await c.candidates({ query: "", kinds: ["source", "source-stub"] })
+    ).rows;
+    expect(rows).toEqual([
+      {
+        path: "sources/born2010.md",
+        name: "born2010",
+        kind: "source",
+        pdf: false,
+      },
+      {
+        path: "sources/klinzing2019.md",
+        name: "klinzing2019",
+        kind: "source-stub",
+        pdf: false,
+      },
+      {
+        path: "sources/rasch2013.md",
+        name: "rasch2013",
+        kind: "source",
+        pdf: true,
+      },
+    ]);
+  });
+
   it("offers no PDF, no image, and nothing under a dot folder: a picker links to Markdown", async () => {
     const c = await opened(await fixtureCopy("obsidian-corpus"));
     expect(shown(await c.candidates({ query: "image" }))).toEqual([]);

@@ -7,10 +7,12 @@ import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
+  attachSource,
   EDITED_SECTIONS,
   readResearchQuestionPage,
   saveSection,
   saveWorkingAnswer,
+  SIDES,
   tickThread,
 } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
@@ -180,6 +182,23 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(tickThread(index, vault.path, input.path, input));
+      }),
+    // Attach a source to one side (#218): one `appendToSection` writing the
+    // line grammar. The side is required and has no third value, so a form
+    // that did not ask is an input error rather than a default.
+    attachSource: t.procedure
+      .input(
+        pathInput.extend({
+          target: z.string().min(1),
+          side: z.enum(SIDES),
+          // A note nobody wrote is the empty one, not a missing key.
+          note: z.string().default(""),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(attachSource(index, vault.path, input.path, input));
       }),
     // The Working answer is the one Edited section that is also a Position:
     // its save records the Revision in the same write (#213).
