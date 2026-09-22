@@ -3,6 +3,12 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { errorMessage, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
+import {
+  openPendingRevisions,
+  QueueOpenError,
+  type PendingRevisions,
+} from "./pending-revisions.js";
+import { splicePendingRevisions } from "./research-question.js";
 import { SETTLE_MS, watchVault, type Watcher } from "./vault-watcher.js";
 import {
   IndexOpenError,
@@ -33,6 +39,10 @@ export type VaultServiceOptions = {
   settleMs?: number | undefined;
   /** `fs.watch`, or a test's wrapper that fails or refuses a watch (#190). */
   watch?: typeof fsWatch | undefined;
+  /** The clock a pending Revision is stamped by (#217); tests pin it. */
+  now?: (() => Date) | undefined;
+  /** How long a file must be quiet before its pending Revisions are spliced (#217). */
+  coalesceMs: number;
 };
 
 export type VaultService = {
@@ -46,8 +56,19 @@ export type VaultService = {
   status: () => Promise<VaultStatus | null>;
   /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
   rewatch: () => Promise<void>;
-  /** Tear down the open vault's resources; called on exit. The next `open` does the same. */
-  close: () => void;
+  /**
+   * Tear down the open vault's resources; the orderly path out. The next
+   * `open` does the same. Resolves once every Revision an Obsidian edit
+   * left pending has been spliced (#217) — a vault must not close owing
+   * one when it had the chance to write it.
+   */
+  close: () => Promise<void>;
+  /**
+   * Drop the open vault's handles now, splicing nothing: the last resort
+   * for a `process.on("exit")` handler, which cannot await. What was
+   * parked stays parked, and the next open splices it on its first write.
+   */
+  release: () => void;
 };
 
 /** Throws a VaultError unless the path is a folder this process can list. */
@@ -85,6 +106,8 @@ const LAST_VAULT_FILE = "last-vault.json";
 export type Opened = {
   vault: Vault;
   index: VaultIndex;
+  /** The Revisions Obsidian edits to this vault still owe their files (#217). */
+  pending: PendingRevisions;
   watcher: Watcher | null;
   watching: Watching;
   /** A failed watcher is being reopened; the index is not current meanwhile. */
@@ -99,6 +122,8 @@ export function createVaultService({
   index: indexOptions,
   settleMs = SETTLE_MS,
   watch,
+  now = () => new Date(),
+  coalesceMs,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -121,16 +146,46 @@ export function createVaultService({
     return null;
   }
 
-  /** A vault whose `.vitrine/` cannot hold the index is refused: it could not hold a Question either. */
-  async function openResources(absolute: string): Promise<VaultIndex> {
-    try {
-      return await openIndex(absolute, indexOptions);
-    } catch (cause) {
-      if (cause instanceof IndexOpenError) {
-        throw new VaultError("writeFailed", cause.message);
-      }
-      throw cause;
+  type Resources = { index: VaultIndex; pending: PendingRevisions };
+
+  /**
+   * A vault whose `.vitrine/` cannot hold the index is refused: it could
+   * not hold a Question either. So is one whose `queue.sqlite` is from a
+   * build this one does not know — running on would mean losing every
+   * Obsidian edit to a Position while pretending the history is complete.
+   */
+  const refusingToOpen = (cause: unknown): never => {
+    if (cause instanceof IndexOpenError || cause instanceof QueueOpenError) {
+      throw new VaultError("writeFailed", cause.message);
     }
+    throw cause;
+  };
+
+  async function openResources(absolute: string): Promise<Resources> {
+    const pending = await openPendingRevisions(absolute, {
+      windowMs: coalesceMs,
+      now,
+      // `index` is assigned before anything can be spliced: nothing is
+      // recorded until the index is running, and the earliest a timer can
+      // fire is a whole window after that.
+      splice: async (path) => {
+        await splicePendingRevisions(
+          { vaultPath: absolute, index, pending },
+          path
+        );
+      },
+    }).catch(refusingToOpen);
+    let index: VaultIndex;
+    try {
+      index = await openIndex(absolute, {
+        ...indexOptions,
+        onPositionChanged: pending.record,
+      });
+    } catch (cause) {
+      pending.close();
+      return refusingToOpen(cause);
+    }
+    return { index, pending };
   }
 
   // Bumped by every install and by close, so an install still waiting on
@@ -139,10 +194,28 @@ export function createVaultService({
   let generation = 0;
   const overtaken = (o: Opened) => o.generation !== generation;
 
-  function teardown(): void {
-    opened?.watcher?.close();
-    opened?.index.close();
+  /**
+   * The open vault's resources, pending Revisions first: the splice is an
+   * own write, so it needs the index and the file both still there.
+   */
+  async function teardown(): Promise<void> {
+    const going = opened;
     opened = null;
+    if (going === null) return;
+    going.watcher?.close();
+    try {
+      await going.pending.flush();
+    } catch (cause) {
+      // A vault that has gone away, a file that has. Nothing is lost —
+      // what could not be spliced stays in the queue and is owed again at
+      // the next open — and by now there is no surface left to say it on,
+      // so it reaches the core's log, as a failed restore does above.
+      console.error(
+        `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
+      );
+    }
+    going.pending.close();
+    going.index.close();
   }
 
   /** Watcher state changed: the renderer re-reads `vault.status` (§ Watcher and Ingest). */
@@ -219,10 +292,12 @@ export function createVaultService({
    * and only then does the previous vault go: one index handle and one
    * watcher per vault, and the old vault answers until the new one can.
    */
-  async function install(vault: Vault, index: VaultIndex): Promise<void> {
+  async function install(vault: Vault, resources: Resources): Promise<void> {
+    const { index, pending } = resources;
     const o: Opened = {
       vault,
       index,
+      pending,
       watcher: null,
       watching: { ok: true },
       reopening: false,
@@ -232,10 +307,11 @@ export function createVaultService({
     if (overtaken(o)) {
       // A later open or the exit got here first; nothing of ours is wanted.
       o.watcher?.close();
+      pending.close();
       index.close();
       return;
     }
-    teardown();
+    await teardown();
     opened = o;
     // The sweep's own first status event is the open's: nothing is raised
     // here, so the first `vaultStatus` after an open still means "the walk
@@ -267,18 +343,19 @@ export function createVaultService({
     await restored;
     const absolute = resolve(path);
     await validateFolder(absolute);
-    const index = await openResources(absolute);
+    const resources = await openResources(absolute);
     // Remembered only here, after validation and the index, so a failed
     // open can never overwrite a good path — and remembered before it
     // becomes current, so an open either happens whole or not at all.
     try {
       await remember(absolute);
     } catch (cause) {
-      index.close();
+      resources.pending.close();
+      resources.index.close();
       throw cause;
     }
     const vault = { name: basename(absolute), path: absolute };
-    await install(vault, index);
+    await install(vault, resources);
     return vault;
   }
 
@@ -326,9 +403,17 @@ export function createVaultService({
       }
       await watchAndSweep(opened, false);
     },
-    close: () => {
+    close: async () => {
       generation++;
-      teardown();
+      await teardown();
+    },
+    release: () => {
+      generation++;
+      const going = opened;
+      opened = null;
+      going?.watcher?.close();
+      going?.pending.close();
+      going?.index.close();
     },
   };
 }
