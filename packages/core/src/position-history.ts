@@ -1,5 +1,5 @@
 import type { Heading, ListItem, Outline, Range } from "markdown";
-import { localIso } from "./questions.js";
+import { localIso } from "./time.js";
 
 /**
  * Position history (brief § Position history; ADR 0006 decision 5; ADR

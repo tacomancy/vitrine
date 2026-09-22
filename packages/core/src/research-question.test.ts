@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ResearchQuestionPage } from "./research-question.js";
-import { localIso } from "./questions.js";
+import { localIso } from "./time.js";
 import { closeCores, core, sha256, tmp, vaultWith } from "./test-core.js";
 
 afterEach(closeCores);

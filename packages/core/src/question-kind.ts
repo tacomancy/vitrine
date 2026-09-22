@@ -7,17 +7,15 @@ export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
  * body. Wider than the `Question` a capture writes (`questions.ts`), because
  * a file another tool wrote may lack an id and may carry any status.
  */
-export type ListedQuestion = {
-  /** Absent on a file another tool wrote without one; the path identifies it. */
-  id?: string;
+export type ListedQuestion = Omit<QuestionFields, "promotedTo"> & {
   path: string;
-  question: string;
-  status: QuestionStatus;
-  captured: string;
-  context: string;
-  from?: string;
-  page?: number;
-  annotation?: string;
+  /**
+   * On a promoted Question: the `promoted_to` link as written, and the
+   * page it resolves to (vault-relative) — null when the index finds no
+   * such file, so the row can say it points at nothing rather than link
+   * into the void.
+   */
+  promotedTo?: { link: string; path: string | null };
 };
 
 /** A `kind: question` file missing what a row needs; shown by name and mtime. */
@@ -43,10 +41,23 @@ const STATUSES: readonly QuestionStatus[] = [
   "abandoned",
 ];
 
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
+/** The value when it is a string; a Kind reader's "present and readable" test. */
+export const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
 
-/** The row's fields, less `path`: what the index stores for a Question. */
-export type QuestionFields = Omit<ListedQuestion, "path">;
+/** The frontmatter keys the app reads on a Question: what the index stores per row. */
+export type QuestionFields = {
+  /** Absent on a file another tool wrote without one; the path identifies it. */
+  id?: string;
+  question: string;
+  status: QuestionStatus;
+  captured: string;
+  context: string;
+  from?: string;
+  page?: number;
+  annotation?: string;
+  /** The `promoted_to` wikilink as the file holds it. */
+  promotedTo?: string;
+};
 
 /**
  * The Question a frontmatter block describes (ADR 0009); null when
@@ -85,5 +96,7 @@ export function readQuestion(
   if (typeof fm["page"] === "number") q.page = fm["page"];
   const annotation = asString(fm["annotation"]);
   if (annotation !== undefined) q.annotation = annotation;
+  const promotedTo = asString(fm["promoted_to"]);
+  if (promotedTo !== undefined) q.promotedTo = promotedTo;
   return q;
 }

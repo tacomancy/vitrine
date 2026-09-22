@@ -1,4 +1,9 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -6,12 +11,13 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import type { Order, Question } from "core";
+import type { ListedQuestion, Order, Question } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
 import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
-import { monthYear, provenanceOf, rowsOf } from "./rows";
+import { hashOf, pushRoute } from "./router";
+import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -32,9 +38,34 @@ export function Inbox({
   vaultPath: string;
 }) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const [order, setOrder] = useState<Order>("newest");
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  // A triage write the core refused, shown on its row until the selection
+  // moves or the next attempt: never silent, never a dialog. Dropped during
+  // render the moment the selection leaves the row, so coming back to it
+  // never resurrects a reason that is no longer current.
+  const [refusal, setRefusal] = useState<{
+    path: string;
+    message: string;
+  } | null>(null);
+  if (refusal !== null && refusal.path !== selected) setRefusal(null);
+
+  // Promote to Research Question (#210): the core writes the page and marks
+  // the Question; the window moves to the page, which takes the keyboard
+  // (ADR 0010's rule for the surface the object landed in). The list is
+  // re-read so the row reads promoted when the user comes back.
+  const promote = useMutation(
+    trpc.questions.promote.mutationOptions({
+      onSuccess: ({ path }) => {
+        void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+        pushRoute({ surface: "questions", path });
+      },
+      onError: (error, { path }) =>
+        setRefusal({ path, message: error.message }),
+    })
+  );
 
   // The selection is a path (ADR 0010), so a rename outside the app must
   // move it before the re-query lands, or the renamed row would arrive
@@ -95,15 +126,29 @@ export function Inbox({
 
   // The vault's state shares the unreadable count's quiet channel.
   const status = useVaultStatusLines();
-  const hasFooter = unreadable.length > 0 || status.hasLines;
 
   // j/k and the arrows move the selection; ↵ selects the first row when
-  // nothing is selected yet. The list is one tab stop.
+  // nothing is selected yet; p promotes the selected open Question. The
+  // list is one tab stop. No key is reserved for promote to Hypothesis: it
+  // is absent, not disabled, until its destination exists (beat 3).
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
     if (rows.length === 0) return;
     const index = rows.findIndex((row) => row.path === selected);
     let next: number | null = null;
     switch (event.key) {
+      case "p": {
+        if (
+          selectedRow?.kind !== "question" ||
+          selectedRow.question.status !== "open" ||
+          promote.isPending
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setRefusal(null);
+        promote.mutate({ path: selectedRow.path });
+        return;
+      }
       case "j":
       case "ArrowDown":
         next = Math.min(index + 1, rows.length - 1);
@@ -188,6 +233,7 @@ export function Inbox({
                   </span>
                   <span className={styles.provenance}>
                     {provenanceOf(row.question)}
+                    <StatusWord question={row.question} />
                   </span>
                 </>
               ) : (
@@ -198,30 +244,38 @@ export function Inbox({
                 </>
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
+              {refusal?.path === row.path && (
+                <p className={styles.refusal} role="alert">
+                  {refusal.message}
+                </p>
+              )}
             </li>
           ))}
         </ul>
-        {hasFooter && (
-          <footer className={styles.footer}>
-            {unreadable.length > 0 && (
-              <details className={styles.unreadableDetails}>
-                <summary className={styles.footerLine}>
-                  {unreadable.length}{" "}
-                  {unreadable.length === 1 ? "file" : "files"} could not be read
-                </summary>
-                <ul className={styles.unreadable}>
-                  {unreadable.map((file) => (
-                    <li key={file.path}>
-                      <span>{file.path}</span>
-                      <span className={styles.reason}>{file.reason}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            {status.lines}
-          </footer>
-        )}
+        {/* The footer channel: the triage keys once, quietly, then whatever
+            the vault has to say. The keys are a legend, not a state, so the
+            footer is always there; the status lines come and go. */}
+        <footer className={styles.footer}>
+          <span className={styles.key}>j/k move</span>
+          <span className={styles.key}>p promote</span>
+          {unreadable.length > 0 && (
+            <details className={styles.unreadableDetails}>
+              <summary className={styles.footerLine}>
+                {unreadable.length} {unreadable.length === 1 ? "file" : "files"}{" "}
+                could not be read
+              </summary>
+              <ul className={styles.unreadable}>
+                {unreadable.map((file) => (
+                  <li key={file.path}>
+                    <span>{file.path}</span>
+                    <span className={styles.reason}>{file.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {status.lines}
+        </footer>
       </section>
       <Detail row={selectedRow} />
     </>
@@ -230,3 +284,30 @@ export function Inbox({
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
+
+/**
+ * The status word beside the Provenance on a row that has been triaged —
+ * open is the default and its accent glyph says so. On a promoted row the
+ * word is the link to its page; a page the index cannot find leaves the
+ * word plain rather than a link into the void.
+ */
+function StatusWord({ question }: { question: ListedQuestion }) {
+  if (question.status === "open") return null;
+  const { label } = STATUS[question.status];
+  const page = question.promotedTo?.path ?? null;
+  return (
+    <>
+      {" · "}
+      {page === null ? (
+        label
+      ) : (
+        <a
+          className={styles.page}
+          href={hashOf({ surface: "questions", path: page })}
+        >
+          {label}
+        </a>
+      )}
+    </>
+  );
+}

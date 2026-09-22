@@ -1,6 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
+import { basename, dirname, join, sep } from "node:path";
 import { BOM, type Heading, type ListItem, type Outline } from "markdown";
+import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
+import { asString, readQuestion } from "./question-kind.js";
 import {
   coalesce,
   formatRevision,
@@ -12,6 +15,7 @@ import {
 import type { VaultService } from "./vault.js";
 import {
   analyseFile,
+  createFile,
   locate,
   sha256,
   write,
@@ -20,6 +24,7 @@ import {
   type Resolution,
   type ShapeProblem,
   type WriteRefusal,
+  type WriteResult,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
@@ -27,9 +32,9 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position — and, from #213, how a save of `## Working answer` records its
- * Revision. The other sections' writes arrive with the tickets that own
- * them.
+ * Position; what promotion writes (#210); and how a save of `## Working
+ * answer` records its Revision (#213). The other sections' writes arrive
+ * with the tickets that own them.
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -108,13 +113,75 @@ export const SECTIONS = [
   "Position history",
 ] as const;
 
+/**
+ * The page a promotion creates, whole (§ Vault layout, Research Question):
+ * the Question's keys copied — not re-derived from the index, which may
+ * lag the file — the page's own keys, and the six headings in order with
+ * the Question's `related:` as lines under the fourth. The body is left on
+ * the Question. `tags` are the Question's as the locator read them, so the
+ * legacy comma string is split by the package's rule, not restated here.
+ * Pure, so the file can be read off a table of cases.
+ */
+export function composeResearchQuestion(
+  question: Record<string, unknown>,
+  tags: string[],
+  page: { id: string; promotedFrom: string; promoted: string }
+): string {
+  const lines = [
+    "---",
+    `id: ${page.id}`,
+    `kind: ${KIND}`,
+    `question: ${quoted(asString(question["question"]) ?? "")}`,
+    "status: open",
+    `promoted_from: ${quoted(page.promotedFrom)}`,
+    `promoted: ${page.promoted}`,
+  ];
+  // The Provenance, as the Question holds it; a key it lacks is not invented.
+  const captured = question["captured"];
+  if (typeof captured === "string") lines.push(`captured: ${plain(captured)}`);
+  const context = question["context"];
+  if (typeof context === "string") lines.push(`context: ${plain(context)}`);
+  const from = question["from"];
+  if (typeof from === "string") lines.push(`from: ${quoted(from)}`);
+  const pageNumber = question["page"];
+  if (typeof pageNumber === "number") lines.push(`page: ${pageNumber}`);
+  const annotation = question["annotation"];
+  if (typeof annotation === "string") {
+    lines.push(`annotation: ${plain(annotation)}`);
+  }
+  if (tags.length > 0) {
+    lines.push("tags:", ...tags.map((tag) => `  - ${plain(tag)}`));
+  }
+  lines.push("---", "");
+  const related = stringList(question["related"]);
+  for (const name of SECTIONS) {
+    lines.push(`## ${name}`, "");
+    if (name === "Related questions" && related.length > 0) {
+      lines.push(...related.map((link) => `- ${link}`), "");
+    }
+  }
+  return lines.join("\n");
+}
+
+// Always double-quoted, as the Question's own `question:` is: deciding when
+// a plain scalar is safe means carrying YAML's rules, and one wrong call
+// makes the page unreadable. A wikilink starts with `[`, which is why the
+// fixture pages quote `from:` and `promoted_from:` too.
+const quoted = (value: string) =>
+  stringify(value, { lineWidth: 0, defaultStringType: "QUOTE_DOUBLE" }).trim();
+/** Plain where YAML allows it, quoted by `yaml` where it does not. */
+const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
+
+const stringList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+
 const STATUSES: readonly ResearchQuestionStatus[] = [
   "open",
   "answered",
   "abandoned",
 ];
-
-const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 /**
  * The page's frontmatter from the file's; the throw's message is the reason
@@ -531,4 +598,113 @@ export function createResearchQuestionService({
       return run;
     },
   };
+}
+
+/** Where a promotion landed: the new page's path, vault-relative, for the hash. */
+export type Promotion = { path: string };
+
+/**
+ * Promote a Question (#210; § Research Question view and triage, Triage
+ * from the Inbox): the page first, whole, then the Question's two keys
+ * through the protocol. A page that could not be created leaves the
+ * Question untouched, and a Question the protocol would not mark takes the
+ * page back with it, so the vault never holds a page nothing points at.
+ * The index is told of both writes before this returns, so the row reads
+ * *promoted* and the page reads at once. The caller serialises this with
+ * captures: both pick a free name in the Question's folder.
+ */
+export async function promoteQuestion(
+  vaultPath: string,
+  index: VaultIndex,
+  path: string,
+  /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
+  { promoted, newId }: { promoted: string; newId: () => string }
+): Promise<Promotion> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  const bytes = await readFile(absolute).catch((cause: unknown) => {
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
+    );
+  });
+  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
+  if (!read.readable) {
+    throw new VaultError("unreadable", `${relativePath}: ${read.reason}`);
+  }
+  const fm = (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
+  const question = read.kind === "question" ? readQuestion(fm) : null;
+  if (question === null) {
+    throw new VaultError("refused", `${relativePath} is not a Question.`);
+  }
+  if (question.status !== "open") {
+    throw new VaultError(
+      "refused",
+      `${relativePath} is ${question.status}, not open; reopen it first.`
+    );
+  }
+
+  const stem = basename(relativePath, ".md");
+  const tags = read.outline.tags
+    .filter((t) => t.valid && t.source === "frontmatter")
+    .map((t) => t.text);
+  const content = composeResearchQuestion(fm, tags, {
+    id: newId(),
+    promotedFrom: `[[${stem}]]`,
+    promoted,
+  });
+  const { pagePath, created } = await createPage(
+    vaultPath,
+    dirname(relativePath),
+    stem,
+    content
+  );
+
+  const marked = await write(vaultPath, relativePath, {
+    basedOn: read.hash,
+    operations: [
+      {
+        op: "setFrontmatter",
+        keys: {
+          status: "promoted",
+          promoted_to: `[[${basename(pagePath, ".md")}]]`,
+        },
+      },
+    ],
+  });
+  if (!marked.written) {
+    await unlink(join(vaultPath, pagePath)).catch(() => undefined);
+    throw new VaultError(
+      "refused",
+      `Couldn't mark ${relativePath} promoted: ${marked.detail}`
+    );
+  }
+  await index.own(pagePath, created.content);
+  await index.own(relativePath, marked.content);
+  return { path: pagePath };
+}
+
+/**
+ * The page beside the Question as ` (RQ)`, then ` (RQ) (2)`, …: the name is
+ * the Question's, and a file that already holds it — a note, a hand-made
+ * page — is never replaced. `createFile` refuses only on that; anything
+ * else it says no to is an I/O fault, reported as one.
+ */
+async function createPage(
+  vaultPath: string,
+  folder: string,
+  stem: string,
+  content: string
+): Promise<{ pagePath: string; created: WriteResult & { written: true } }> {
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? `${stem} (RQ)` : `${stem} (RQ) (${n})`;
+    const pagePath = join(folder, `${name}.md`).split(sep).join("/");
+    const created = await createFile(vaultPath, pagePath, content);
+    if (created.written) return { pagePath, created };
+    if (created.reason !== "alreadyExists") {
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't write ${pagePath}: ${created.detail}`
+      );
+    }
+  }
 }

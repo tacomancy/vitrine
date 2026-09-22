@@ -1,5 +1,11 @@
 import { basename, join } from "node:path";
-import type { ListedQuestion, Listing, Order } from "./question-kind.js";
+import { parseWikilink } from "markdown";
+import type {
+  ListedQuestion,
+  Listing,
+  Order,
+  QuestionFields,
+} from "./question-kind.js";
 import type { ShapeProblem } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -28,15 +34,30 @@ export function listQuestions(
   // Assembled key by key: `readQuestion` is the only writer of `fields`
   // rows for a Question, so every key here is one of `ListedQuestion`'s and
   // every value has already passed its vocabulary.
-  const questions = new Map<string, ListedQuestion>();
+  const fields = new Map<string, QuestionFields>();
   for (const row of index.select<{ path: string; key: string; value: string }>(
     "SELECT path, key, value FROM fields WHERE path IN (SELECT path FROM files WHERE kind = 'question') ORDER BY path"
   )) {
-    const q =
-      questions.get(row.path) ??
-      ({ path: absolute(row.path) } as ListedQuestion);
+    const q = fields.get(row.path) ?? ({} as QuestionFields);
     (q as Record<string, unknown>)[row.key] = JSON.parse(row.value) as unknown;
-    questions.set(row.path, q);
+    fields.set(row.path, q);
+  }
+  // Where `promoted_to` lands is the index's to say, by the same rule every
+  // `links` row is resolved by — never a guess from the link's text.
+  const questions = [...fields].map(
+    ([path, { promotedTo, ...rest }]): ListedQuestion => ({
+      ...rest,
+      path: absolute(path),
+      ...(promotedTo === undefined
+        ? {}
+        : { promotedTo: { link: promotedTo, path: pageOf(path, promotedTo) } }),
+    })
+  );
+  function pageOf(path: string, link: string): string | null {
+    const inner = /^\[\[(.*)\]\]$/.exec(link)?.[1];
+    if (inner === undefined) return null;
+    const { resolvedPath } = index.resolve(path, parseWikilink(inner));
+    return resolvedPath;
   }
 
   const partial = index
@@ -74,9 +95,7 @@ export function listQuestions(
   const byTime = (a: string, b: string) =>
     (order === "newest" ? -1 : 1) * (Date.parse(a) - Date.parse(b));
   const listing: Listing = {
-    questions: [...questions.values()].sort((a, b) =>
-      byTime(a.captured, b.captured)
-    ),
+    questions: questions.sort((a, b) => byTime(a.captured, b.captured)),
     partial: partial.sort((a, b) => byTime(a.mtime, b.mtime)),
     unreadable,
     shape,

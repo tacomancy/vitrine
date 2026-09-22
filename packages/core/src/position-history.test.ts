@@ -7,7 +7,7 @@ import {
   readRevisions,
   type Revision,
 } from "./position-history.js";
-import { localIso } from "./questions.js";
+import { localIso } from "./time.js";
 
 // The Revision grammar (ADR 0020 decision 1; docs/architecture.md § Vault
 // layout, Position history): one list item per entry, `why:` and `from:`

@@ -3,6 +3,8 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { VaultError } from "./errors.js";
+import { promoteQuestion, type Promotion } from "./research-question.js";
+import { localIso } from "./time.js";
 import type { VaultService } from "./vault.js";
 
 /** Where a Question came from. This slice knows one context: Unattached. */
@@ -19,6 +21,8 @@ export type Question = {
 
 export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
+  /** Promote to Research Question (#210): the page written whole, then the Question marked. */
+  promote: (path: string) => Promise<Promotion>;
 };
 
 export type QuestionServiceOptions = {
@@ -55,20 +59,6 @@ export function fileName(text: string, id: string): string {
     name = name.slice(0, cut > 0 ? cut : NAME_LIMIT).trimEnd();
   }
   return name === "" ? id : name;
-}
-
-/** ISO 8601 at seconds precision with the local UTC offset, never `Z`. */
-export function localIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offset = -date.getTimezoneOffset();
-  const sign = offset < 0 ? "-" : "+";
-  const hh = pad(Math.floor(Math.abs(offset) / 60));
-  const mm = pad(Math.abs(offset) % 60);
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
-    `${sign}${hh}:${mm}`
-  );
 }
 
 // Always double-quoted: deciding when a plain scalar is safe means carrying
@@ -211,14 +201,28 @@ export function createQuestionService({
     return written;
   }
 
+  /** Captures and promotions run one at a time: both pick a free name in questions/. */
+  function serially<T>(work: () => Promise<T>): Promise<T> {
+    const run = previous.then(work, work);
+    previous = run;
+    return run;
+  }
+
   return {
-    capture: (text, provenance) => {
-      const run = previous.then(
-        () => capture(text, provenance),
-        () => capture(text, provenance)
-      );
-      previous = run;
-      return run;
-    },
+    capture: (text, provenance) => serially(() => capture(text, provenance)),
+    promote: (path) =>
+      serially(async () => {
+        const opened = await vault.opened();
+        if (opened === null) {
+          throw new VaultError(
+            "noVault",
+            "No vault is open. Open a vault first."
+          );
+        }
+        return promoteQuestion(opened.vault.path, opened.index, path, {
+          promoted: localIso(now()),
+          newId,
+        });
+      }),
   };
 }
