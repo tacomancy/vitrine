@@ -556,12 +556,18 @@ describe("researchQuestions.saveWorkingAnswer", () => {
     ]);
     expect(replies.every((r) => r.written)).toBe(true);
 
+    // Which of the two reaches the queue first is the HTTP layer's to
+    // decide, so the invariant is order-independent: one entry, holding
+    // the text from before either save — neither recorded a Revision from
+    // the other's typing — and one of the two texts on disk, whole.
     const after = await page();
     expect(after.sections.positionHistory.entries).toEqual([
       { at: localIso(t0), field: "working answer", why: null, from: "" },
     ]);
-    expect(after.sections.workingAnswer.text).toBe("Second typing.");
-    expect(await file()).toContain("Second typing.");
+    expect(["First typing.", "Second typing."]).toContain(
+      after.sections.workingAnswer.text
+    );
+    expect(await file()).toContain(after.sections.workingAnswer.text);
   });
 
   it("saving the text the file already holds writes nothing and records no Revision", async () => {
