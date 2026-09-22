@@ -907,6 +907,33 @@ describe("researchQuestions.attachSource", () => {
     );
   });
 
+  it("keeps a pasted note on the line, so its tail is never left as prose", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/rasch2013.md",
+      side: "opposing",
+      // A why pasted out of an abstract: a newline here would end the list
+      // item, and the rest would read back as prose under the heading
+      // rather than as this line's note.
+      note: "  Table 2 reverses\r\n  once preregistered studies are out.  ",
+      basedOn: page.hash,
+    });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "- [[rasch2013]] — Table 2 reverses once preregistered studies are out.\n\n## Related questions"
+    );
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    expect(read.result.data.sections.opposing.lines).toHaveLength(3);
+  });
+
   it("qualifies the link by path when the bare name would reach more than one file", async () => {
     const { vault, c, page } = await openedPage(
       { ...NEIGHBOURS, [path]: WELL_FORMED },

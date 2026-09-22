@@ -159,6 +159,20 @@ describe("attaching a source", () => {
     await attachFrom(answer);
   });
 
+  it("says so when nothing in the vault matches, rather than offering a way to make one", async () => {
+    open(page([], []));
+    const view = await region();
+    const picker = await attachFrom(view);
+    fireEvent.change(within(picker).getByRole("combobox", { name: /find/i }), {
+      target: { value: "cordi2021" },
+    });
+    // *New stub* arrives with the hand-made-stub ticket (ADR 0020 decision
+    // 7); until then the form is honest about having nothing to offer.
+    expect(
+      await within(picker).findByText(/nothing in the vault matches/i)
+    ).toBeTruthy();
+  });
+
   it("asks for the side before it will attach, and writes the note with it", async () => {
     const attach = vi.fn(() => ({ written: true, hash: "def", shape: [] }));
     open(page([], []), { "researchQuestions.attachSource": attach });
