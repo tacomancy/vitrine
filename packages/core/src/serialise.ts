@@ -16,8 +16,12 @@
  * owns it — and the procedure funnels itself through what it returns.
  *
  * Each call makes its own queue. Two procedures whose hazards are
- * unrelated — a link that rewrites one Question's `related`, a page write
- * that rewrites another file — should not be made to wait on each other.
+ * unrelated — a link that rewrites one Question's `related`, a stub
+ * picking a free citekey — should not be made to wait on each other, so
+ * there is no single global queue to funnel them into.
+ *
+ * Note that the read need not be of the file being written: a capture and
+ * a stub both read a *folder* to find a free name, and lose the same way.
  */
 export function serialised(): <T>(work: () => Promise<T>) => Promise<T> {
   let previous: Promise<unknown> = Promise.resolve();

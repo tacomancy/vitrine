@@ -79,6 +79,29 @@
   outline-offset: 2px;
 }
 
+/* A field over bibliographic data: Inter, as the picker's own input is —
+   the serif is for questions and quotations (BRAND.md § Typography). */
+.text {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+  color: var(--color-fg);
+}
+
+/* Authors and year on one line: the year is four characters and a row of
+   its own would make the form taller than the page it floats over. */
+.rest {
+  display: grid;
+  grid-template-columns: 1fr 6rem;
+  gap: var(--space-3);
+}
+
 /* The why in the serif: it is the sentence read again in six months, not
    a form value (BRAND.md § Typography). */
 .note {
