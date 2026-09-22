@@ -5,7 +5,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
-import { createQuestionService } from "./questions.js";
+import { createQuestionService, randomId } from "./questions.js";
 import {
   COALESCE_MS,
   KIND,
@@ -93,6 +93,7 @@ export function createApp({
     questions: createQuestionService({ vault, now, newId }),
     events,
     now: now ?? (() => new Date()),
+    newId: newId ?? randomId,
     coalesceMs: coalesceMs ?? COALESCE_MS,
   };
 
