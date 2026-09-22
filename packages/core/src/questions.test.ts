@@ -88,6 +88,100 @@ describe("questions.capture", () => {
   });
 });
 
+describe("a capture from a Research Question's page", () => {
+  const page = "questions/Does slow-wave density predict recall gain (RQ).md";
+  const PAGE =
+    '---\nid: rq7m2p9q4w\nkind: research-question\nquestion: "Does slow-wave density predict recall gain?"\nstatus: open\ncontext: other\n---\n\n## Working answer\n\n## Supporting sources\n\n## Opposing sources\n\n## Related questions\n\n- [[What counts as a reactivation event]] — shares 2 sources\n\n## Open threads\n\n## Position history\n';
+
+  it("writes `from` and `context: pursuing` on the Question and appends its link under the page's related section, in one call", async () => {
+    const c = await core({
+      now: () => at,
+      newId: ids("k7m2p9q4wx", "vault0id00"),
+    });
+    const vault = await openVault(c);
+    await mkdir(join(vault, "questions"), { recursive: true });
+    await writeFile(join(vault, page), PAGE);
+    await c.indexed();
+
+    const reply = await c.mutate<Question & { from?: string }>(
+      "questions.capture",
+      {
+        text: "Does the effect survive a nap?",
+        provenance: { context: "pursuing", researchQuestion: page },
+      }
+    );
+
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toEqual({
+      id: "k7m2p9q4wx",
+      path: join(vault, "questions", "Does the effect survive a nap.md"),
+      question: "Does the effect survive a nap?",
+      status: "open",
+      captured: "2026-09-19T07:04:00+05:30",
+      from: "[[Does slow-wave density predict recall gain (RQ)]]",
+      context: "pursuing",
+    });
+    expect(
+      await readFile(
+        join(vault, "questions", "Does the effect survive a nap.md"),
+        "utf8"
+      )
+    ).toBe(await readFile(join(fixtures, "pursuing.md"), "utf8"));
+    // Appended to the section, joining the list already there; nothing else moved.
+    expect(await readFile(join(vault, page), "utf8")).toBe(
+      PAGE.replace(
+        "shares 2 sources\n",
+        "shares 2 sources\n- [[Does the effect survive a nap]]\n"
+      )
+    );
+  });
+
+  it("is whole or not at all: a page that cannot take the link leaves no Question behind", async () => {
+    const c = await core({ now: () => at });
+    const vault = await openVault(c);
+    // The page is a Question, not a Research Question: nothing to append to.
+    await mkdir(join(vault, "questions"), { recursive: true });
+    await writeFile(
+      join(vault, page),
+      '---\nkind: question\nquestion: "q"\ncaptured: 2026-08-01T09:00:00+01:00\n---\n'
+    );
+    await c.indexed();
+    const before = await fingerprint(vault);
+
+    const reply = await c.mutate("questions.capture", {
+      text: "Orphaned?",
+      provenance: { context: "pursuing", researchQuestion: page },
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toContain(
+      `${page} is not a Research Question`
+    );
+    // The vault's marker is the first write's and stays; no Question does.
+    const marker = /^\.vitrine\/vault\.json:/;
+    expect((await fingerprint(vault)).filter((e) => !marker.test(e))).toEqual(
+      before
+    );
+  });
+
+  it("refuses a `researchQuestion` on an Unattached capture, and a pursuing capture without one, as input errors", async () => {
+    const c = await core();
+    const vault = await openVault(c);
+    for (const provenance of [
+      { context: "other", researchQuestion: page },
+      { context: "pursuing" },
+    ]) {
+      const reply = await c.mutate("questions.capture", {
+        text: "x",
+        provenance,
+      });
+      expect(reply.error).toBeDefined();
+      expect(reply.error?.data.kind).toBeUndefined();
+    }
+    expect(await fingerprint(vault)).toEqual([".vitrine/"]);
+  });
+});
+
 describe("the first write into a vault", () => {
   it("creates questions/ and .vitrine/vault.json — and an open before it creates only the index's folder", async () => {
     const c = await core({

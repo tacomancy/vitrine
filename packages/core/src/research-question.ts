@@ -21,8 +21,9 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position; and what promotion writes (#210). The section writes arrive
- * with the tickets that own each section.
+ * Position; what promotion writes (#210); and the section writes this Kind
+ * makes on the user's behalf — each an Edited section replaced whole
+ * (ADR 0020 decision 4).
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -53,6 +54,8 @@ export type LinkLine = {
     blockId: string | null;
     resolution: Resolution;
     resolvedPath: string | null;
+    /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
+    resolvedKind: string | null;
   } | null;
   note: string;
 };
@@ -65,8 +68,9 @@ export type ResearchQuestionSections = {
   workingAnswer: { present: boolean; text: string };
   supporting: { present: boolean; lines: LinkLine[] };
   opposing: { present: boolean; lines: LinkLine[] };
-  related: { present: boolean; lines: LinkLine[] };
-  openThreads: { present: boolean; threads: OpenThread[] };
+  /** `text` is the section's body as the plain text field edits it; `lines` its reading. */
+  related: { present: boolean; text: string; lines: LinkLine[] };
+  openThreads: { present: boolean; text: string; threads: OpenThread[] };
   /** The section's body verbatim; parsing it into Revisions is the history module's. */
   positionHistory: { present: boolean; text: string };
 };
@@ -299,12 +303,21 @@ function linkLine(
   );
   if (link === undefined) return { text, link: null, note: text };
   const note = text.slice(link.range.end - textStart).replace(SEPARATOR, "");
+  const resolved = index.resolve(path, link);
+  const resolvedKind =
+    resolved.resolvedPath === null
+      ? null
+      : (index.select<{ kind: string | null }>(
+          "SELECT kind FROM files WHERE path = ?",
+          resolved.resolvedPath
+        )[0]?.kind ?? null);
   return {
     text,
     link: {
       target: link.target,
       blockId: link.blockId,
-      ...index.resolve(path, link),
+      ...resolved,
+      resolvedKind,
     },
     note: note.trim(),
   };
@@ -315,6 +328,58 @@ function openThread(content: string, item: ListItem): OpenThread {
   const task = TASK.exec(text);
   if (task === null) return { text, done: null };
   return { text: text.slice(task[0].length), done: task[1] !== " " };
+}
+
+type PageFile = {
+  readable: true;
+  relativePath: string;
+  /** The text the outline's offsets are into: BOM-less, as the writer splices it. */
+  content: string;
+  outline: FileOutline;
+  hash: string;
+  kind: string;
+  file: { bom: boolean };
+  shape: ShapeProblem[];
+};
+
+/**
+ * One file read as a Research Question, for the page and for every write
+ * the page makes: the bytes, their hash, and the outline of those same
+ * bytes. A file that is not this Kind is not readable as a page, whichever
+ * caller asked — a tick must no more land on a Note with an `## Open
+ * threads` heading than the page may show one.
+ */
+async function readPageFile(
+  vaultPath: string,
+  path: string
+): Promise<PageFile | { readable: false; path: string; reason: string }> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return { readable: false, path: relativePath, reason: errorMessage(error) };
+  }
+  const raw = bytes.toString("utf8");
+  const read = analyseFile(relativePath, raw, sha256(bytes));
+  if (!read.readable) return read;
+  if (read.kind !== KIND) {
+    return {
+      readable: false,
+      path: relativePath,
+      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
+    };
+  }
+  return {
+    readable: true,
+    relativePath,
+    content: read.file.bom ? raw.slice(BOM.length) : raw,
+    outline: read.outline,
+    hash: read.hash,
+    kind: read.kind,
+    file: read.file,
+    shape: read.shape,
+  };
 }
 
 /**
@@ -329,22 +394,9 @@ export async function readResearchQuestionPage(
   vaultPath: string,
   path: string
 ): Promise<ResearchQuestionPage> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(absolute);
-  } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
-  }
-  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
+  const read = await readPageFile(vaultPath, path);
   if (!read.readable) return read;
-  if (read.kind !== KIND) {
-    return {
-      readable: false,
-      path: relativePath,
-      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
-    };
-  }
+  const { relativePath } = read;
   let frontmatter: ResearchQuestionFrontmatter;
   try {
     frontmatter = readResearchQuestion(
@@ -354,10 +406,7 @@ export async function readResearchQuestionPage(
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
 
-  // The offsets are into the BOM-less text `analyseFile` outlined.
-  const raw = bytes.toString("utf8");
-  const content = read.file.bom ? raw.slice(BOM.length) : raw;
-  const { outline } = read;
+  const { content, outline } = read;
   const problems: ShapeProblem[] = [...read.shape];
   const found = {} as Record<(typeof SECTIONS)[number], Heading | undefined>;
   for (const name of SECTIONS) {
@@ -401,10 +450,12 @@ export async function readResearchQuestionPage(
       },
       related: {
         present: found["Related questions"] !== undefined,
+        text: bodyText(content, found["Related questions"]),
         lines: lines(found["Related questions"]),
       },
       openThreads: {
         present: threads !== undefined,
+        text: bodyText(content, threads),
         threads:
           threads === undefined
             ? []
@@ -419,6 +470,109 @@ export async function readResearchQuestionPage(
     },
     problems,
   };
+}
+
+/** The sections a plain text field on the page saves whole; Working answer joins with its Revision (#213). */
+export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
+export type EditedSection = (typeof EDITED_SECTIONS)[number];
+
+/** One write through the protocol, then the index told of the app's own write, as a capture does. */
+async function writeOwn(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  operation: Parameters<typeof write>[2]
+): Promise<WriteResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
+  }
+  const result = await write(vaultPath, path, operation);
+  if (result.written) await index.own(read.relativePath, result.content);
+  return result;
+}
+
+/**
+ * Tick or untick one thread: the task marker on the line whose text is
+ * `text` is rewritten and `## Open threads` replaced whole, an Edited
+ * section, so a resolved thread stays beside what was learned (CONTEXT.md
+ * *Open thread*). The thread is named by its text, not its position, so a
+ * file edited underneath still takes the tick where it was meant — or
+ * refuses, when the thread is no longer there to take it.
+ */
+export async function tickThread(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  { text, done }: { text: string; done: boolean }
+): Promise<WriteResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
+  }
+  const { content, outline, hash } = read;
+  const { heading } = section(outline, "Open threads");
+  const matches =
+    heading === undefined
+      ? []
+      : topLevelItems(outline, heading).filter((candidate) => {
+          const thread = openThread(content, candidate);
+          return thread.done !== null && thread.text === text;
+        });
+  // Two threads with one text: which was meant is not knowable from the
+  // text, and ticking the first would be a guess written to disk.
+  if (matches.length !== 1) {
+    return {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail:
+        matches.length === 0
+          ? `no open thread reads "${text}"`
+          : `${matches.length} open threads read "${text}"`,
+    };
+  }
+  const [item] = matches as [ListItem];
+  const { body: range } = heading as Heading;
+  // The marker sits right after the list marker; the rest of the line and
+  // every other line of the section are the user's and go back as they were.
+  const line = content.slice(item.range.start, item.range.end);
+  const marker = MARKER.exec(line)?.[0] ?? "";
+  const ticked =
+    line.slice(0, marker.length) +
+    line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
+  const body =
+    content.slice(range.start, item.range.start) +
+    ticked +
+    content.slice(item.range.end, range.end);
+  return writeOwn(index, vaultPath, path, {
+    operations: [
+      { op: "replaceSection", name: "Open threads", body: body.trim() },
+    ],
+    basedOn: hash,
+  });
+}
+
+/**
+ * An Edited section saved as the user's own typing: `replaceSection` with
+ * the body the plain text field holds, `basedOn` the hash the page was
+ * given, and no Revision — these sections are prose, not Positions (ADR
+ * 0020 decision 4). A file changed underneath is the protocol's to re-apply
+ * or refuse; the refusal comes back as data for the page to show in place.
+ */
+export async function saveSection(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  {
+    section: name,
+    body,
+    basedOn,
+  }: { section: EditedSection; body: string; basedOn: string }
+): Promise<WriteResult> {
+  return writeOwn(index, vaultPath, path, {
+    operations: [{ op: "replaceSection", name, body: body.trim() }],
+    basedOn,
+  });
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */
