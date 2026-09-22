@@ -10,6 +10,7 @@ import {
   type QuestionStatus,
 } from "./question-kind.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
+import { serialised } from "./serialise.js";
 import { localIso } from "./time.js";
 import { readOutline, write, type Operation } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -189,11 +190,13 @@ export function createQuestionService({
   now = () => new Date(),
   newId = randomId,
 }: QuestionServiceOptions): QuestionService {
-  // Captures run one at a time. Two arriving together (the window and, later,
-  // the iPad) would otherwise both find the same name free and the second
-  // rename would silently replace the first — one record where there should
-  // be two.
-  let previous: Promise<unknown> = Promise.resolve();
+  // Captures and promotions run one at a time: both pick a free name in
+  // questions/. Two arriving together (the window and, later, the iPad)
+  // would otherwise both find the same name free and the second rename
+  // would silently replace the first — one record where there should be
+  // two. The queue is per service, not per module: two services are two
+  // vaults, and a capture in one has no name to lose to the other.
+  const serially = serialised();
 
   /** The file on disk, whole or not at all; its content comes back for the index. */
   async function writeQuestion(
@@ -315,13 +318,6 @@ export function createQuestionService({
     // and the watcher will recognise the file's hash as the app's own.
     await opened?.index.own(relativePath(written.path), content);
     return written;
-  }
-
-  /** Captures and promotions run one at a time: both pick a free name in questions/. */
-  function serially<T>(work: () => Promise<T>): Promise<T> {
-    const run = previous.then(work, work);
-    previous = run;
-    return run;
   }
 
   /** The open vault, or the refusal every procedure that writes raises. */

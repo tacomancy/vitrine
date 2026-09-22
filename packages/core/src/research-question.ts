@@ -25,6 +25,7 @@ import {
   type Revision,
   type Save,
 } from "./position-history.js";
+import { serialised } from "./serialise.js";
 import {
   analyseFile,
   createFile,
@@ -548,10 +549,10 @@ type Plan = (read: PageFile, waiting: PendingRevision[]) => Write | WriteResult;
 // answer changed from, whether the head Revision is still inside its
 // window — so two writes that both read before either wrote would each
 // plan against a file that no longer exists by the time they land: two
-// Revisions where the coalescing rule wants one. The protocol's hash check
-// would not catch it, because re-apply faithfully applies operations that
-// were correct when they were computed and are not any more.
-let previous: Promise<unknown> = Promise.resolve();
+// Revisions where the coalescing rule wants one. The pending splice below
+// reads the same way and is cleared on the same write, so it is inside
+// this queue too (`serialise.ts` for why a hash check does not catch it).
+const serially = serialised();
 
 /**
  * A write that changed nothing: the file exactly as it was read. What a
@@ -630,10 +631,7 @@ function writeOwn(
     }
     return result;
   };
-  // A write that threw leaves the queue usable for the next one.
-  const queued = previous.then(run, run);
-  previous = queued;
-  return queued;
+  return serially(run);
 }
 
 /**
