@@ -37,6 +37,17 @@ export function ResearchQuestion({ path }: { path: string }) {
   const page = useQuery(trpc.researchQuestions.page.queryOptions({ path }));
   const status = useVaultStatusLines();
 
+  // The surface the object landed in takes the keyboard (ADR 0010): a
+  // promotion from the Inbox arrives here, and the page is what should
+  // answer the next key, not the list that is gone. The section is the
+  // focus target until a field on it is, and it wears the brass ring like
+  // the list does; the window mounts the page afresh per address, so every
+  // arrival takes it.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    sectionRef.current?.focus();
+  }, []);
+
   // The page follows its file as the Inbox's selection does (§ Index, Inbox
   // under external change): a rename moves the address so the re-read lands
   // on `to`; a removal is an absence line, not a stale page and not an alarm.
@@ -62,7 +73,12 @@ export function ResearchQuestion({ path }: { path: string }) {
   const hasFooter = problems.length > 0 || status.hasLines;
 
   return (
-    <section className={styles.page} aria-label="Research Question view">
+    <section
+      ref={sectionRef}
+      className={styles.page}
+      aria-label="Research Question view"
+      tabIndex={-1}
+    >
       {/* A refused read is a failure, not an absence: it must not read as a quiet page. */}
       {page.isError && (
         <p className={styles.refused} role="alert">

@@ -13,6 +13,7 @@ export type { Provenance, Question } from "./questions.js";
 export type {
   LinkLine,
   OpenThread,
+  Promotion,
   ResearchQuestionFrontmatter,
   ResearchQuestionPage,
   ResearchQuestionSections,

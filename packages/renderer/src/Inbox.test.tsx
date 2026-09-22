@@ -55,7 +55,7 @@ describe("the Inbox list", () => {
     expect(items.map((r) => r.textContent)).toEqual([
       "◆Does time-of-day confound every nap comparison?Unattachedtoday",
       "◆Is theta during REM detectable in a single session?Unattached2mo",
-      "●Who first reported reward-based memory triage?Unattached1y 8mo",
+      "●Who first reported reward-based memory triage?Unattached · answered1y 8mo",
     ]);
   });
 

@@ -3,6 +3,7 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
+import { promoteQuestion, type Promotion } from "./research-question.js";
 import { readOutline, write } from "./vault-files.js";
 import type { VaultService } from "./vault.js";
 
@@ -27,6 +28,8 @@ export type Question = {
 
 export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
+  /** Promote to Research Question (#210): the page written whole, then the Question marked. */
+  promote: (path: string) => Promise<Promotion>;
 };
 
 export type QuestionServiceOptions = {
@@ -279,14 +282,28 @@ export function createQuestionService({
     return written;
   }
 
+  /** Captures and promotions run one at a time: both pick a free name in questions/. */
+  function serially<T>(work: () => Promise<T>): Promise<T> {
+    const run = previous.then(work, work);
+    previous = run;
+    return run;
+  }
+
   return {
-    capture: (text, provenance) => {
-      const run = previous.then(
-        () => capture(text, provenance),
-        () => capture(text, provenance)
-      );
-      previous = run;
-      return run;
-    },
+    capture: (text, provenance) => serially(() => capture(text, provenance)),
+    promote: (path) =>
+      serially(async () => {
+        const opened = await vault.opened();
+        if (opened === null) {
+          throw new VaultError(
+            "noVault",
+            "No vault is open. Open a vault first."
+          );
+        }
+        return promoteQuestion(opened.vault.path, opened.index, path, {
+          promoted: localIso(now()),
+          newId,
+        });
+      }),
   };
 }
