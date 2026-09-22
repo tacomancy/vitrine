@@ -44,9 +44,9 @@ function renderInbox(
     "vault.current": vault,
     "vault.status": well,
     "questions.list": { ...empty, questions },
-    "questions.answer": () => ({ path: "x", status: "answered" }),
-    "questions.drop": () => ({ path: "x", status: "abandoned" }),
-    "questions.reopen": () => ({ path: "x", status: "open" }),
+    "questions.answer": () => ({ path: "x" }),
+    "questions.drop": () => ({ path: "x" }),
+    "questions.reopen": () => ({ path: "x" }),
     ...procedures,
   });
 }
@@ -64,7 +64,7 @@ const answerInput = () => screen.getByRole("textbox", { name: "Answer" });
 
 describe("answer in place", () => {
   it("a opens one line on the row, ↵ sends the typed line with the selected path, and the line closes with the list back in hand", async () => {
-    const answer = vi.fn(() => ({ path: open.path, status: "answered" }));
+    const answer = vi.fn(() => ({ path: open.path }));
     renderInbox([open], { "questions.answer": answer });
     const { row, list } = await select(0);
 
@@ -86,7 +86,7 @@ describe("answer in place", () => {
   });
 
   it("esc reverts: nothing is written, the line closes, and the selection is where it was", async () => {
-    const answer = vi.fn(() => ({ path: open.path, status: "answered" }));
+    const answer = vi.fn(() => ({ path: open.path }));
     renderInbox([open], { "questions.answer": answer });
     const { row, list } = await select(0);
 
@@ -105,8 +105,8 @@ describe("answer in place", () => {
   });
 
   it("an empty line writes nothing, and the triage keys typed into it are text", async () => {
-    const answer = vi.fn(() => ({ path: open.path, status: "answered" }));
-    const drop = vi.fn(() => ({ path: open.path, status: "abandoned" }));
+    const answer = vi.fn(() => ({ path: open.path }));
+    const drop = vi.fn(() => ({ path: open.path }));
     renderInbox([open], { "questions.answer": answer, "questions.drop": drop });
     const { list } = await select(0);
 
@@ -139,7 +139,7 @@ describe("answer in place", () => {
   });
 
   it("is offered on an open row only", async () => {
-    const answer = vi.fn(() => ({ path: open.path, status: "answered" }));
+    const answer = vi.fn(() => ({ path: open.path }));
     renderInbox([open, dropped], { "questions.answer": answer });
     const { list } = await select(1);
     fireEvent.keyDown(list, { key: "a" });
@@ -150,7 +150,7 @@ describe("answer in place", () => {
 
 describe("drop and reopen", () => {
   it("d drops the selected open row with no dialog", async () => {
-    const drop = vi.fn(() => ({ path: open.path, status: "abandoned" }));
+    const drop = vi.fn(() => ({ path: open.path }));
     renderInbox([open], { "questions.drop": drop });
     const { list } = await select(0);
 
@@ -161,7 +161,7 @@ describe("drop and reopen", () => {
   });
 
   it("r reopens a dropped row and an answered one, and does nothing on an open one", async () => {
-    const reopen = vi.fn(() => ({ path: dropped.path, status: "open" }));
+    const reopen = vi.fn(() => ({ path: dropped.path }));
     renderInbox([open, dropped, answered], { "questions.reopen": reopen });
 
     const { list } = await select(1);
@@ -182,7 +182,7 @@ describe("drop and reopen", () => {
   });
 
   it("d does nothing on a row that is not open", async () => {
-    const drop = vi.fn(() => ({ path: dropped.path, status: "abandoned" }));
+    const drop = vi.fn(() => ({ path: dropped.path }));
     renderInbox([open, dropped], { "questions.drop": drop });
     const { list } = await select(1);
     fireEvent.keyDown(list, { key: "d" });
@@ -217,11 +217,37 @@ describe("the row and the footer", () => {
     );
   });
 
-  it("lists the five keys once, quietly, and nothing that counts what is still open", async () => {
+  // The footer is a legend for the keys that exist. *l link* is #211's and
+  // arrives with it, which is also when this string and `status.test.tsx`'s
+  // copy of it change.
+  it("lists every key it has once, quietly, and nothing that counts what is still open", async () => {
     renderInbox([open, dropped, answered]);
     await rows();
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toBe("j/k movep promotea answerd dropr reopen");
     expect(footer.querySelector("[role=alert]")).toBeNull();
+  });
+
+  it("re-reads the list after a write, so the row carries its new glyph and label", async () => {
+    let status = "open";
+    renderInbox([], {
+      "questions.list": () => ({
+        ...empty,
+        questions: [{ ...open, status }],
+      }),
+      "questions.drop": () => {
+        status = "abandoned";
+        return { path: open.path };
+      },
+    });
+    const { row, list } = await select(0);
+    expect(within(row).getByRole("img", { name: "open" })).toBeDefined();
+
+    fireEvent.keyDown(list, { key: "d" });
+
+    // The row itself is replaced by the re-read, so the assertion is on
+    // the list rather than on the node selected before the write.
+    const dropped = await screen.findByText("Unattached · dropped");
+    expect(dropped).toBeDefined();
   });
 });

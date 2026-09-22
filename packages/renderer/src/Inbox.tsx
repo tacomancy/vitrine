@@ -170,9 +170,11 @@ export function Inbox({
 
   /**
    * The selected row when it is a Question its Status allows the action
-   * on; null otherwise, and the key then does nothing at all. A promoted
-   * Question is left to its page: answering or dropping it here would
-   * leave the page open behind a Question that says it is finished.
+   * on; null otherwise, and the key then does nothing at all — a key that
+   * does not apply is absent, never an error to dismiss. The core refuses
+   * the same combinations (`questions.ts`, OPEN and TRIAGED); § Research
+   * Question view and triage is where both read the rule from, so a change
+   * to it is an edit in two places.
    */
   function actionable(...allowed: QuestionStatus[]) {
     if (selectedRow?.kind !== "question") return null;
