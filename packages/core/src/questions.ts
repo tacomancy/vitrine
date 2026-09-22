@@ -317,15 +317,7 @@ export function createQuestionService({
     return written;
   }
 
-  /**
-   * Writes to a Question run one at a time. Captures and promotions both
-   * pick a free name in `questions/`; a link reads `related` and writes it
-   * back, so two arriving together would each plan against a `related` that
-   * no longer exists by the time the second lands and one link would be
-   * lost. The protocol's hash check cannot catch that — re-apply faithfully
-   * applies operations that were correct when they were computed — which is
-   * the same reason the page has a queue of its own (`research-question.ts`).
-   */
+  /** Captures and promotions run one at a time: both pick a free name in questions/. */
   function serially<T>(work: () => Promise<T>): Promise<T> {
     const run = previous.then(work, work);
     previous = run;
@@ -341,9 +333,11 @@ export function createQuestionService({
     return open;
   }
 
-  // Answer, drop and reopen are not serialised with captures: they write to
-  // a file that already exists and pick no name, so nothing can collide.
-  // Link is the exception — see its comment below.
+  // Answer, drop, reopen and link are not serialised with captures: they
+  // write to a file that already exists and pick no name, so nothing can
+  // collide over a name. Link has a hazard of its own — it reads `related`
+  // and writes the list back — and holds its own queue for it, in
+  // `link.ts`, where the read and the write cannot be pulled apart.
   return {
     capture: (text, provenance) => serially(() => capture(text, provenance)),
     promote: (path) =>
@@ -354,18 +348,10 @@ export function createQuestionService({
           newId,
         });
       }),
-    // Serialised, where answer, drop and reopen are not: a link reads
-    // `related` and writes the list back, so two arriving together would
-    // each plan against a `related` that no longer exists by the time the
-    // second lands, and one link would be lost. The protocol's hash check
-    // cannot catch that — re-apply faithfully applies operations that were
-    // correct when they were computed — which is why the page has a queue
-    // of its own too (`research-question.ts`).
-    link: (path, target) =>
-      serially(async () => {
-        const open = await opened();
-        return linkQuestion(open.vault.path, open.index, path, target);
-      }),
+    link: async (path, target) => {
+      const open = await opened();
+      return linkQuestion(open.vault.path, open.index, path, target);
+    },
     answer: async (path, line) => {
       const { vault: open, index } = await opened();
       const found = await readQuestionForWrite(open.path, path, OPEN);

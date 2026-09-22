@@ -34,7 +34,32 @@ const ANY_STATUS: readonly QuestionStatus[] = [
   "abandoned",
 ];
 
-export async function linkQuestion(
+// Links run one at a time, as the page's writes do (`research-question.ts`).
+// A link reads `related` and writes the whole list back, so two that both
+// read before either wrote would each plan against a `related` that no
+// longer exists by the time the second lands, and the first link would be
+// gone. The protocol's hash check cannot catch it: re-apply faithfully
+// applies operations that were correct when they were computed. The queue
+// lives here rather than in the caller so that reading and writing cannot
+// be pulled apart by a caller that forgets to hold it — answer, drop and
+// reopen need none, because each only sets keys or appends a line.
+let previous: Promise<unknown> = Promise.resolve();
+
+export function linkQuestion(
+  vaultPath: string,
+  index: VaultIndex,
+  questionPath: string,
+  targetPath: string
+): Promise<Linked> {
+  const run = () => link(vaultPath, index, questionPath, targetPath);
+  // A link that threw leaves the queue usable for the next one.
+  const queued = previous.then(run, run);
+  previous = queued;
+  return queued;
+}
+
+/** One link, whole: the read it plans from and the write it plans, inside the queue above. */
+async function link(
   vaultPath: string,
   index: VaultIndex,
   questionPath: string,
@@ -66,18 +91,18 @@ export async function linkQuestion(
   }
 
   const related = relatedList(found.frontmatter["related"], found.path);
-  const link = linkText(index, found.path, target.relativePath);
+  const wikilink = linkText(index, found.path, target.relativePath);
   const already = related.some(
     (entry) =>
-      entry === link ||
+      entry === wikilink ||
       resolves(index, found.path, entry) === target.relativePath
   );
-  if (already) return { path: found.path, target: link, linked: false };
+  if (already) return { path: found.path, target: wikilink, linked: false };
 
   const result = await write(vaultPath, found.path, {
     basedOn: found.hash,
     operations: [
-      { op: "setFrontmatter", keys: { related: [...related, link] } },
+      { op: "setFrontmatter", keys: { related: [...related, wikilink] } },
     ],
   });
   if (!result.written) {
@@ -87,7 +112,7 @@ export async function linkQuestion(
     );
   }
   await index.own(found.path, result.content);
-  return { path: found.path, target: link, linked: true };
+  return { path: found.path, target: wikilink, linked: true };
 }
 
 /**

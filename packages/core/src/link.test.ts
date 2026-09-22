@@ -182,7 +182,9 @@ describe("questions.link", () => {
   // both links read `related` before either wrote, so the second write
   // re-applies an operation that was correct when it was computed and is
   // not any more, and the first link is gone. The protocol's hash check
-  // cannot catch that; only running them one at a time can.
+  // cannot catch that; only running them one at a time can. The queue is
+  // `linkQuestion`'s own, not the service's, so this holds for any caller
+  // — nothing outside `link.ts` has to remember to hold it.
   it("keeps both links when two arrive at once", async () => {
     const c = await opened({
       "notes/Reactivation.md": "# Reactivation\n",
