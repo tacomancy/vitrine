@@ -1,20 +1,26 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
-import { VaultError } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
 import {
   readQuestionForWrite,
   type QuestionFile,
   type QuestionStatus,
 } from "./question-kind.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
-import { write, type Operation } from "./vault-files.js";
+import { localIso } from "./time.js";
+import { readOutline, write, type Operation } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 import type { VaultService } from "./vault.js";
 
-/** Where a Question came from. This slice knows one context: Unattached. */
-export type Provenance = { context: "other" };
+/**
+ * Where a Question came from (CONTEXT.md *Provenance*): Unattached, or
+ * captured on a Research Question's page — `researchQuestion` is that page's
+ * vault-relative path, and the Question is a sub-question of it.
+ */
+export type Provenance =
+  { context: "other" } | { context: "pursuing"; researchQuestion: string };
 
 export type Question = {
   id: string;
@@ -22,6 +28,8 @@ export type Question = {
   question: string;
   status: "open";
   captured: string;
+  /** The wikilink to what was open at capture; absent when Unattached. */
+  from?: string;
   context: Provenance["context"];
 };
 
@@ -76,20 +84,6 @@ export function fileName(text: string, id: string): string {
   return name === "" ? id : name;
 }
 
-/** ISO 8601 at seconds precision with the local UTC offset, never `Z`. */
-export function localIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offset = -date.getTimezoneOffset();
-  const sign = offset < 0 ? "-" : "+";
-  const hh = pad(Math.floor(Math.abs(offset) / 60));
-  const mm = pad(Math.abs(offset) % 60);
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
-    `${sign}${hh}:${mm}`
-  );
-}
-
 // Always double-quoted: deciding when a plain scalar is safe means carrying
 // YAML's rules for leading `-`, `: `, ` #`, numbers, booleans and the rest,
 // and getting one wrong makes a Question unreadable. Quoting is never wrong.
@@ -112,11 +106,16 @@ function questionFile(q: Question): string {
     `question: ${yamlString(q.question)}`,
     `status: ${q.status}`,
     `captured: ${q.captured}`,
+    // A wikilink opens with `[[`, a flow sequence to YAML: always quoted.
+    ...(q.from === undefined ? [] : [`from: ${yamlString(q.from)}`]),
     `context: ${q.context}`,
     "---",
     "",
   ].join("\n");
 }
+
+/** `questions/Name (RQ).md` → `[[Name (RQ)]]`: how a Question names the page it was captured on. */
+const wikilinkTo = (path: string) => `[[${basename(path, ".md")}]]`;
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -233,6 +232,42 @@ export function createQuestionService({
     }
   }
 
+  /**
+   * The other half of a capture made while pursuing: the page's `## Related
+   * questions` gains the new Question's link — on a page that edge is the
+   * section, not a `related:` key (§ Vault layout). One `appendToSection`
+   * through the protocol, `basedOn` a fresh read, so the line joins the
+   * list already there. A page that cannot take it is the capture's
+   * failure, not a quiet half: the caller takes the Question back.
+   */
+  async function linkFromPage(
+    vaultPath: string,
+    pagePath: string,
+    question: Question
+  ): Promise<{ path: string; content: string }> {
+    const page = await readOutline(vaultPath, pagePath);
+    if (!page.readable) throw new Error(`${page.path}: ${page.reason}`);
+    if (page.kind !== "research-question") {
+      throw new Error(
+        `${page.path} is not a Research Question: kind is ${page.kind ?? "absent"}`
+      );
+    }
+    const result = await write(vaultPath, pagePath, {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { section: "Related questions" },
+          line: `- ${wikilinkTo(question.path)}`,
+        },
+      ],
+      basedOn: page.hash,
+    });
+    if (!result.written) {
+      throw new Error(`${page.path}: ${result.reason} — ${result.detail}`);
+    }
+    return { path: page.path, content: result.content };
+  }
+
   async function capture(
     text: string,
     provenance: Provenance
@@ -241,22 +276,41 @@ export function createQuestionService({
     if (current === null) {
       throw new VaultError("noVault", "No vault is open. Open a vault first.");
     }
+    const pursuing =
+      provenance.context === "pursuing" ? provenance.researchQuestion : null;
     const { written, content } = await writeQuestion(current.path, {
       id: newId(),
       question: text.trim(),
       status: "open",
       captured: localIso(now()),
+      ...(pursuing === null ? {} : { from: wikilinkTo(pursuing) }),
       context: provenance.context,
     });
+    const opened = await vault.opened();
+    const relativePath = (path: string) =>
+      relative(current.path, path).split(sep).join("/");
+    if (pursuing !== null) {
+      let page: { path: string; content: string };
+      try {
+        page = await linkFromPage(current.path, pursuing, written);
+      } catch (cause) {
+        // Whole or not at all, as with the vault marker: the text is still
+        // in the capture line, and a retry is never a duplicate. A Question
+        // that could not be taken back is named, so it is never a stray.
+        const message = `Couldn't link the Question from the page: ${errorMessage(cause)}`;
+        const leftover = await unlink(written.path).then(
+          () => "",
+          (error: unknown) =>
+            ` (and ${written.path} could not be removed: ${errorMessage(error)})`
+        );
+        throw new VaultError("writeFailed", message + leftover);
+      }
+      await opened?.index.own(page.path, page.content);
+    }
     // The capture lands in the Inbox before this returns (ADR 0010): the
     // index is written from the content just written, in one transaction,
     // and the watcher will recognise the file's hash as the app's own.
-    await (
-      await vault.opened()
-    )?.index.own(
-      relative(current.path, written.path).split(sep).join("/"),
-      content
-    );
+    await opened?.index.own(relativePath(written.path), content);
     return written;
   }
 

@@ -239,3 +239,36 @@ describe("promotion copies tags as a block sequence", () => {
     expect(page).toContain("tags:\n  - alpha\n  - beta/gamma\n---");
   });
 });
+
+// Where #210 and #221 meet: the page a promotion composes is the page a
+// sub-question is captured on. Neither slice owns this seam, so it is
+// pinned here — the section promotion wrote must be one `appendToSection`
+// can find, and the Question's `related:` line must survive beside it.
+describe("a sub-question captured on a page that was just promoted", () => {
+  it("lands under the related section promotion wrote, beside the Question's copied related line", async () => {
+    const { vault, c } = await openedVault({ [QUESTION_PATH]: QUESTION });
+    await c.mutate("questions.promote", { path: QUESTION_PATH });
+
+    const reply = await c.mutate<{ from?: string; context: string }>(
+      "questions.capture",
+      {
+        text: "Does the effect survive a nap?",
+        provenance: { context: "pursuing", researchQuestion: PAGE_PATH },
+      }
+    );
+
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({
+      from: "[[Does slow-wave density predict recall gain (RQ)]]",
+      context: "pursuing",
+    });
+    expect(await readFile(join(vault, PAGE_PATH), "utf8")).toBe(
+      PAGE.replace(
+        "- [[What counts as a reactivation event]]\n",
+        "- [[What counts as a reactivation event]]\n- [[Does the effect survive a nap]]\n"
+      )
+    );
+    // The Question promotion marked is untouched by the capture.
+    expect(await readFile(join(vault, QUESTION_PATH), "utf8")).toBe(PROMOTED);
+  });
+});
