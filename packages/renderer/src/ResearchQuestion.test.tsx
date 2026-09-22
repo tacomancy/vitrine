@@ -6,9 +6,13 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { ResearchQuestionPage, Revision } from "core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { empty, renderApp, vault } from "./fake-core";
+import type {
+  ResearchQuestionPage,
+  ResearchQuestionSections,
+  Revision,
+} from "core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -41,8 +45,8 @@ const fresh: ResearchQuestionPage = {
     workingAnswer: { present: true, text: "" },
     supporting: { present: true, lines: [] },
     opposing: { present: true, lines: [] },
-    related: { present: true, lines: [] },
-    openThreads: { present: true, threads: [] },
+    related: { present: true, text: "", lines: [] },
+    openThreads: { present: true, text: "", threads: [] },
     positionHistory: { present: true, text: "", entries: [] },
   },
   problems: [],
@@ -58,7 +62,10 @@ const answers = {
   },
 };
 
-const open = (page: () => ResearchQuestionPage) => {
+const open = (
+  page: () => ResearchQuestionPage,
+  more: Record<string, unknown> = {}
+) => {
   window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
   const asked: string[] = [];
   const rendered = renderApp({
@@ -67,6 +74,7 @@ const open = (page: () => ResearchQuestionPage) => {
       asked.push(input.path);
       return page();
     },
+    ...more,
   });
   return { ...rendered, asked };
 };
@@ -137,6 +145,7 @@ describe("the freshly promoted state", () => {
                 blockId: "h4",
                 resolution: "resolved",
                 resolvedPath: "sources/rasch2013.md",
+                resolvedKind: "source",
               },
               note: "TMR effects survive encoding controls.",
             },
@@ -152,6 +161,7 @@ describe("the freshly promoted state", () => {
                 blockId: null,
                 resolution: "ambiguous",
                 resolvedPath: null,
+                resolvedKind: null,
               },
               note: "",
             },
@@ -159,6 +169,7 @@ describe("the freshly promoted state", () => {
         },
         related: {
           present: true,
+          text: "- [[Nowhere]] — a note\n- just prose",
           lines: [
             {
               text: "[[Nowhere]] — a note",
@@ -167,6 +178,7 @@ describe("the freshly promoted state", () => {
                 blockId: null,
                 resolution: "unresolved",
                 resolvedPath: null,
+                resolvedKind: null,
               },
               note: "a note",
             },
@@ -175,6 +187,7 @@ describe("the freshly promoted state", () => {
         },
         openThreads: {
           present: true,
+          text: "- [ ] Have not read Cordi & Rasch 2021.\n- [x] Is TMR orthogonal to encoding?",
           threads: [
             { text: "Have not read Cordi & Rasch 2021.", done: false },
             { text: "Is TMR orthogonal to encoding?", done: true },
@@ -504,6 +517,363 @@ describe("editing the working answer", () => {
     );
     await within(await region()).findByText(
       "revision 3 of 3 · held since 8 September 2026"
+    );
+  });
+});
+
+// Editing on the page (#221; ADR 0020 decision 4): threads tick in place,
+// the two Edited sections are plain text fields, a link to a Question opens
+// it, and a capture made with the page on screen lands under related.
+
+const THREADS: ResearchQuestionSections["openThreads"] = {
+  present: true,
+  text: "- [ ] Have not read Cordi & Rasch 2021.\n- [x] Is TMR orthogonal to encoding?",
+  threads: [
+    { text: "Have not read Cordi & Rasch 2021.", done: false },
+    { text: "Is TMR orthogonal to encoding?", done: true },
+  ],
+};
+
+const withThreads = (
+  openThreads: ResearchQuestionSections["openThreads"]
+): ResearchQuestionPage => ({
+  ...fresh,
+  sections: { ...fresh.sections, openThreads },
+});
+
+describe("open threads", () => {
+  it("ticks a thread in place: the checkbox calls tickThread and the page re-reads it ticked", async () => {
+    let page = withThreads(THREADS);
+    const tick = vi.fn((input: unknown) => {
+      const { text, done } = input as { text: string; done: boolean };
+      page = withThreads({
+        ...THREADS,
+        threads: THREADS.threads.map((t) =>
+          t.text === text ? { ...t, done } : t
+        ),
+      });
+      return { written: true, hash: "def", content: "", shape: [] };
+    });
+    open(() => page, { "researchQuestions.tickThread": tick });
+    const threads = await within(await region()).findByRole("region", {
+      name: "Open threads",
+    });
+    const box = await within(threads).findByRole("checkbox", {
+      name: "Have not read Cordi & Rasch 2021.",
+    });
+    expect(box.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(box);
+    await waitFor(() => expect(box.getAttribute("aria-checked")).toBe("true"));
+    expect(tick).toHaveBeenCalledExactlyOnceWith({
+      path: PATH,
+      text: "Have not read Cordi & Rasch 2021.",
+      done: true,
+    });
+    // Ticked, never removed: both threads are still there.
+    expect(within(threads).getAllByRole("checkbox").length).toBe(2);
+  });
+
+  it("a refused tick is a line in the section, and the thread stays as it was", async () => {
+    open(() => withThreads(THREADS), {
+      "researchQuestions.tickThread": () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: 'no open thread reads "Have not read Cordi & Rasch 2021."',
+      }),
+    });
+    const threads = await within(await region()).findByRole("region", {
+      name: "Open threads",
+    });
+    fireEvent.click(
+      await within(threads).findByRole("checkbox", {
+        name: "Have not read Cordi & Rasch 2021.",
+      })
+    );
+    const line = await within(threads).findByRole("status");
+    expect(line.textContent).toContain("could not save");
+    expect(line.textContent).toContain("no open thread reads");
+    expect(
+      within(threads)
+        .getByRole("checkbox", { name: "Have not read Cordi & Rasch 2021." })
+        .getAttribute("aria-checked")
+    ).toBe("false");
+  });
+});
+
+const RELATED: ResearchQuestionSections["related"] = {
+  present: true,
+  text: "- [[What counts as a reactivation event]] — shares 2 sources",
+  lines: [
+    {
+      text: "[[What counts as a reactivation event]] — shares 2 sources",
+      link: {
+        target: "What counts as a reactivation event",
+        blockId: null,
+        resolution: "resolved" as const,
+        resolvedPath: "questions/What counts as a reactivation event.md",
+        resolvedKind: "question",
+      },
+      note: "shares 2 sources",
+    },
+  ],
+};
+
+const withRelated = (
+  related: ResearchQuestionSections["related"]
+): ResearchQuestionPage => ({
+  ...fresh,
+  sections: { ...fresh.sections, related },
+});
+
+describe("the Edited sections as plain text fields", () => {
+  it("related links edit in place: the field holds the section's text, and ⌘↵ saves it basedOn the page's hash", async () => {
+    let page = withRelated(RELATED);
+    const save = vi.fn((input: unknown) => {
+      const { body } = input as { body: string };
+      page = withRelated({ ...RELATED, text: body });
+      return { written: true, hash: "def", content: "", shape: [] };
+    });
+    open(() => page, { "researchQuestions.saveSection": save });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    fireEvent.click(within(related).getByRole("button", { name: "edit" }));
+    const field = within(related).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Related questions",
+    });
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe(RELATED.text);
+    const typed = RELATED.text + "\n- [[Nowhere]] — a neighbour";
+    fireEvent.change(field, { target: { value: typed } });
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledExactlyOnceWith({
+        path: PATH,
+        section: "Related questions",
+        body: typed,
+        basedOn: "abc",
+      })
+    );
+    // Saved: the field closes and the section reads what was typed.
+    await waitFor(() =>
+      expect(
+        within(related).queryByRole("textbox", { name: "Related questions" })
+      ).toBeNull()
+    );
+    expect(within(related).getByRole("button", { name: "edit" })).toBeDefined();
+  });
+
+  it("open threads: blur saves, and esc reverts unsaved typing without a call", async () => {
+    const save = vi.fn(() => ({
+      written: true,
+      hash: "def",
+      content: "",
+      shape: [],
+    }));
+    open(() => withThreads(THREADS), {
+      "researchQuestions.saveSection": save,
+    });
+    const threads = await within(await region()).findByRole("region", {
+      name: "Open threads",
+    });
+    fireEvent.click(within(threads).getByRole("button", { name: "edit" }));
+    const field = within(threads).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Open threads",
+    });
+    fireEvent.change(field, { target: { value: "- [ ] typed and abandoned" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(
+      within(threads).queryByRole("textbox", { name: "Open threads" })
+    ).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    // The list is as it was, and the edit button has the keyboard back.
+    expect(within(threads).getAllByRole("checkbox").length).toBe(2);
+    expect(document.activeElement).toBe(
+      within(threads).getByRole("button", { name: "edit" })
+    );
+
+    fireEvent.click(within(threads).getByRole("button", { name: "edit" }));
+    const again = within(threads).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Open threads",
+    });
+    expect(again.value).toBe(THREADS.text);
+    const typed = THREADS.text + "\n- [ ] Does the effect survive a nap?";
+    fireEvent.change(again, { target: { value: typed } });
+    fireEvent.blur(again);
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledExactlyOnceWith({
+        path: PATH,
+        section: "Open threads",
+        body: typed,
+        basedOn: "abc",
+      })
+    );
+  });
+
+  it("a blur with nothing changed saves nothing", async () => {
+    const save = vi.fn();
+    open(() => withThreads(THREADS), {
+      "researchQuestions.saveSection": save,
+    });
+    const threads = await within(await region()).findByRole("region", {
+      name: "Open threads",
+    });
+    fireEvent.click(within(threads).getByRole("button", { name: "edit" }));
+    fireEvent.blur(
+      within(threads).getByRole("textbox", { name: "Open threads" })
+    );
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      within(threads).queryByRole("textbox", { name: "Open threads" })
+    ).toBeNull();
+  });
+
+  it("a refused save keeps the field open with the typing and says why in the section", async () => {
+    open(() => withRelated(RELATED), {
+      "researchQuestions.saveSection": () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: "the file is no longer there",
+      }),
+    });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    fireEvent.click(within(related).getByRole("button", { name: "edit" }));
+    const field = within(related).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Related questions",
+    });
+    fireEvent.change(field, { target: { value: "- [[Nowhere]]" } });
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    const line = await within(related).findByRole("status");
+    expect(line.textContent).toContain(
+      "could not save: changedAndUnreapplyable — the file is no longer there"
+    );
+    expect(
+      within(related).getByRole<HTMLTextAreaElement>("textbox", {
+        name: "Related questions",
+      }).value
+    ).toBe("- [[Nowhere]]");
+  });
+});
+
+describe("links on the page", () => {
+  const line = (
+    target: string,
+    resolvedKind: string | null,
+    resolvedPath: string | null
+  ) => ({
+    text: `[[${target}]]`,
+    link: {
+      target,
+      blockId: null,
+      resolution:
+        resolvedPath === null ? ("unresolved" as const) : ("resolved" as const),
+      resolvedPath,
+      resolvedKind,
+    },
+    note: "",
+  });
+
+  it("a link resolving to a Research Question opens it by hash; one resolving elsewhere — a Question has no address yet — is inert", async () => {
+    open(() =>
+      withRelated({
+        present: true,
+        text: "",
+        lines: [
+          line("Other (RQ)", "research-question", "questions/Other (RQ).md"),
+          line("A capture", "question", "questions/A capture.md"),
+          line("A note", null, "notes/A note.md"),
+          line("A paper", "source", "sources/rasch2013.md"),
+          line("Nowhere", null, null),
+        ],
+      })
+    );
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    const links = within(related).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual(["Other (RQ)"]);
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "#/questions/questions/Other%20(RQ).md",
+    ]);
+    // The rest are text: nothing to click, nothing that pretends to open.
+    expect(related.textContent).toContain("A capture");
+    expect(related.textContent).toContain("A note");
+    expect(related.textContent).toContain("A paper");
+    expect(related.textContent).toContain("Nowhere");
+    expect(related.textContent).toContain("unresolved");
+
+    fireEvent.click(links[0]!);
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/questions/questions/Other%20(RQ).md")
+    );
+  });
+});
+
+describe("capturing from the page", () => {
+  it("⌘' on the page captures pursuing this Research Question; the new Question lands under related and the keyboard goes back where it was", async () => {
+    let page = withRelated(RELATED);
+    const capture = vi.fn((input: unknown) => {
+      const { text } = input as { text: string };
+      page = withRelated({
+        ...RELATED,
+        text: RELATED.text + `\n- [[${text.replace("?", "")}]]`,
+        lines: [
+          ...RELATED.lines,
+          {
+            text: `[[${text.replace("?", "")}]]`,
+            link: {
+              target: text.replace("?", ""),
+              blockId: null,
+              resolution: "resolved" as const,
+              resolvedPath: `questions/${text.replace("?", "")}.md`,
+              resolvedKind: "question",
+            },
+            note: "",
+          },
+        ],
+      });
+      return {
+        id: "k7m2p9q4wx",
+        path: `${vault.path}/questions/${text.replace("?", "")}.md`,
+        question: text,
+        status: "open",
+        captured: "2026-09-21T10:00:00+02:00",
+        from: "[[Does slow-wave density predict recall gain (RQ)]]",
+        context: "pursuing",
+      };
+    });
+    open(() => page, { "questions.capture": capture });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    const edit = within(related).getByRole("button", { name: "edit" });
+    edit.focus();
+
+    pressCaptureChord();
+    const line = screen.getByRole("form", { name: "Capture" });
+    expect(line.textContent).toContain(
+      "Pursuing · Does slow-wave density predict recall gain (RQ)"
+    );
+    const input = screen.getByRole("textbox", { name: "Question" });
+    fireEvent.change(input, {
+      target: { value: "Does the effect survive a nap?" },
+    });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Question" })).toBeNull()
+    );
+    expect(capture).toHaveBeenCalledExactlyOnceWith({
+      text: "Does the effect survive a nap?",
+      provenance: { context: "pursuing", researchQuestion: PATH },
+    });
+    // Back where it was: the page is not where the Question landed as a row
+    // (ADR 0010), so nothing on it takes the keyboard.
+    expect(document.activeElement).toBe(edit);
+    await waitFor(() =>
+      expect(related.textContent).toContain("Does the effect survive a nap")
     );
   });
 });

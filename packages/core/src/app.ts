@@ -7,7 +7,7 @@ import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { createQuestionService } from "./questions.js";
 import {
-  createResearchQuestionService,
+  COALESCE_MS,
   KIND,
   researchQuestionPositions,
 } from "./research-question.js";
@@ -91,12 +91,9 @@ export function createApp({
   const context: Context = {
     vault,
     questions: createQuestionService({ vault, now, newId }),
-    researchQuestions: createResearchQuestionService({
-      vault,
-      now,
-      coalesceMs,
-    }),
     events,
+    now: now ?? (() => new Date()),
+    coalesceMs: coalesceMs ?? COALESCE_MS,
   };
 
   // The renderer is served from the Vite dev server in development and from

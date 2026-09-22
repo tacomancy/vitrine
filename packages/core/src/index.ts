@@ -18,7 +18,6 @@ export type {
   ResearchQuestionPage,
   ResearchQuestionSections,
   ResearchQuestionStatus,
-  SaveResult,
 } from "./research-question.js";
 export type { Revision } from "./position-history.js";
 export type { AppRouter } from "./router.js";

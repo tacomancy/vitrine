@@ -6,8 +6,11 @@ import type { QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
+  EDITED_SECTIONS,
   readResearchQuestionPage,
-  type ResearchQuestionService,
+  saveSection,
+  saveWorkingAnswer,
+  tickThread,
 } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
@@ -15,8 +18,10 @@ import { tagTree } from "./vault-tags.js";
 export type Context = {
   vault: VaultService;
   questions: QuestionService;
-  researchQuestions: ResearchQuestionService;
   events: Events;
+  /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
+  now: () => Date;
+  coalesceMs: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -35,19 +40,21 @@ const listInput = z
   .object({ order: z.enum(["newest", "oldest"]).default("newest") })
   .default({ order: "newest" });
 
-// Only Unattached exists yet. `strict` is what makes a `from` key — or any
-// later context — an input error today, so later contexts extend this
-// schema rather than change what callers already rely on.
+// Unattached, or pursuing a Research Question from its page (#221). `strict`
+// is what makes a stray key — or a context no surface has yet — an input
+// error, so later contexts extend this union rather than loosen it.
 const captureInput = z.object({
   text: z.string().trim().min(1, "Question text is empty."),
-  provenance: z.object({ context: z.literal("other") }).strict(),
-});
-
-// The working answer as typed, with the hash of the page it was typed over.
-const saveWorkingAnswerInput = z.object({
-  path: z.string(),
-  text: z.string(),
-  basedOn: z.string(),
+  provenance: z.discriminatedUnion("context", [
+    z.object({ context: z.literal("other") }).strict(),
+    z
+      .object({
+        context: z.literal("pursuing"),
+        /** The page's vault-relative path. */
+        researchQuestion: z.string().min(1),
+      })
+      .strict(),
+  ]),
 });
 
 const noVault = () =>
@@ -117,19 +124,45 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return refusing(readResearchQuestionPage(index, vault.path, input.path));
     }),
-    // One write per save: the section replaced, the Revision recorded
-    // (#213). A refusal is the reply, not an error — the page shows it.
+    // The page's writes answer with the write's own result — a refusal is
+    // data the page shows as a line, never a silent no-op. Both replace an
+    // Edited section whole and record no Revision (ADR 0020 decision 4).
+    // A plain text field's save: the section replaced with what was typed,
+    // `basedOn` the hash the page read. Only the Edited sections without a
+    // Position — Working answer's save records its Revision (#213).
+    saveSection: t.procedure
+      .input(
+        pathInput.extend({
+          section: z.enum(EDITED_SECTIONS),
+          body: z.string(),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(saveSection(index, vault.path, input.path, input));
+      }),
+    // A thread ticked in place, named by its text.
+    tickThread: t.procedure
+      .input(pathInput.extend({ text: z.string(), done: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(tickThread(index, vault.path, input.path, input));
+      }),
+    // The Working answer is the one Edited section that is also a Position:
+    // its save records the Revision in the same write (#213).
     saveWorkingAnswer: t.procedure
-      .input(saveWorkingAnswerInput)
-      .mutation(({ ctx, input }) =>
-        refusing(
-          ctx.researchQuestions.saveWorkingAnswer(
-            input.path,
-            input.text,
-            input.basedOn
-          )
-        )
-      ),
+      .input(pathInput.extend({ text: z.string(), basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          saveWorkingAnswer(index, vault.path, input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        );
+      }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

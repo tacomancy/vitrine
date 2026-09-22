@@ -124,6 +124,7 @@ describe("researchQuestions.page", () => {
             blockId: "h4",
             resolution: "resolved",
             resolvedPath: "sources/rasch2013.md",
+            resolvedKind: "source",
           },
           note: "TMR effects survive encoding controls.",
         },
@@ -134,6 +135,7 @@ describe("researchQuestions.page", () => {
             blockId: null,
             resolution: "resolved",
             resolvedPath: "sources/klinzing2019.md",
+            resolvedKind: "source-stub",
           },
           note: "",
         },
@@ -150,6 +152,7 @@ describe("researchQuestions.page", () => {
             blockId: null,
             resolution: "ambiguous",
             resolvedPath: null,
+            resolvedKind: null,
           },
           note: "Waking rest produces a comparable benefit.",
         },
@@ -162,6 +165,7 @@ describe("researchQuestions.page", () => {
     });
     expect(sections.related).toEqual({
       present: true,
+      text: "- [[What counts as a reactivation event]] — shares 2 sources\n- [[Nowhere]]",
       lines: [
         {
           text: "[[What counts as a reactivation event]] — shares 2 sources",
@@ -170,6 +174,7 @@ describe("researchQuestions.page", () => {
             blockId: null,
             resolution: "resolved",
             resolvedPath: "questions/What counts as a reactivation event.md",
+            resolvedKind: "question",
           },
           note: "shares 2 sources",
         },
@@ -180,6 +185,7 @@ describe("researchQuestions.page", () => {
             blockId: null,
             resolution: "unresolved",
             resolvedPath: null,
+            resolvedKind: null,
           },
           note: "",
         },
@@ -187,6 +193,7 @@ describe("researchQuestions.page", () => {
     });
     expect(sections.openThreads).toEqual({
       present: true,
+      text: "- [ ] Have not read Cordi & Rasch 2021 past the abstract.\n- [x] Is TMR orthogonal to encoding?\n- a thread that is not a task",
       threads: [
         {
           text: "Have not read Cordi & Rasch 2021 past the abstract.",
@@ -223,8 +230,8 @@ describe("researchQuestions.page", () => {
       workingAnswer: { present: true, text: "" },
       supporting: { present: true, lines: [] },
       opposing: { present: true, lines: [] },
-      related: { present: true, lines: [] },
-      openThreads: { present: true, threads: [] },
+      related: { present: true, text: "", lines: [] },
+      openThreads: { present: true, text: "", threads: [] },
       positionHistory: { present: true, text: "", entries: [] },
     });
   });
@@ -544,7 +551,9 @@ describe("researchQuestions.saveWorkingAnswer", () => {
     });
     const before = await file();
     const { hash } = await page();
-    expect(await save("Same.")).toEqual({ written: true, hash });
+    // The reply is a write result like every other page write's; the hash
+    // it carries is the file's, so the page's next save is based on it.
+    expect(await save("Same.")).toMatchObject({ written: true, hash });
     expect(await file()).toBe(before);
   });
 
@@ -568,5 +577,230 @@ describe("researchQuestions.saveWorkingAnswer", () => {
       written: false,
       reason: "unreadable",
     });
+  });
+});
+
+/** The file's bytes outside one `##` section: what a section save must leave byte-identical. */
+function outside(
+  content: string,
+  section: string
+): [before: string, after: string] {
+  const start = content.indexOf(`\n## ${section}\n`);
+  if (start === -1) throw new Error(`no ## ${section}`);
+  const next = content.indexOf("\n## ", start + 1);
+  return [content.slice(0, start), next === -1 ? "" : content.slice(next)];
+}
+
+describe("researchQuestions.tickThread", () => {
+  const path = "questions/Does slow-wave density predict recall gain (RQ).md";
+
+  it("ticks a thread in place and rewrites only ## Open threads", async () => {
+    const { vault, c } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean }>(
+      "researchQuestions.tickThread",
+      {
+        path,
+        text: "Have not read Cordi & Rasch 2021 past the abstract.",
+        done: true,
+      }
+    );
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "## Open threads\n\n- [x] Have not read Cordi & Rasch 2021 past the abstract.\n- [x] Is TMR orthogonal to encoding?\n- a thread that is not a task\n\n## Position history"
+    );
+    expect(outside(after, "Open threads")).toEqual(
+      outside(before, "Open threads")
+    );
+    // The page reads the tick back, and the index saw the app's own write.
+    const page = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    expect(page.result?.data).toMatchObject({
+      sections: {
+        openThreads: {
+          threads: [
+            {
+              text: "Have not read Cordi & Rasch 2021 past the abstract.",
+              done: true,
+            },
+            { text: "Is TMR orthogonal to encoding?", done: true },
+            { text: "a thread that is not a task", done: null },
+          ],
+        },
+      },
+    });
+  });
+
+  it("unticks a thread, never deleting it", async () => {
+    const { vault, c } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    await c.mutate("researchQuestions.tickThread", {
+      path,
+      text: "Is TMR orthogonal to encoding?",
+      done: false,
+    });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "- [ ] Have not read Cordi & Rasch 2021 past the abstract.\n- [ ] Is TMR orthogonal to encoding?\n"
+    );
+  });
+
+  it("refuses two threads with one text rather than guessing which was meant", async () => {
+    const twice = WELL_FORMED.replace(
+      "- [x] Is TMR orthogonal to encoding?\n",
+      "- [x] Is TMR orthogonal to encoding?\n- [ ] Is TMR orthogonal to encoding?\n"
+    );
+    const { vault, c } = await openedPage(
+      { ...NEIGHBOURS, [path]: twice },
+      path
+    );
+    const reply = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.tickThread",
+      { path, text: "Is TMR orthogonal to encoding?", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      detail: '2 open threads read "Is TMR orthogonal to encoding?"',
+    });
+    expect(await readFile(join(vault, path), "utf8")).toBe(twice);
+  });
+
+  it("refuses a file that is not a Research Question, whatever headings it has", async () => {
+    const note = "notes/plan.md";
+    const { vault, c } = await openedPage(
+      { [note]: "## Open threads\n\n- [ ] a thread\n" },
+      note
+    );
+    const reply = await c.mutate<{ written: boolean; reason?: string }>(
+      "researchQuestions.tickThread",
+      { path: note, text: "a thread", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "unreadable",
+    });
+    expect(await readFile(join(vault, note), "utf8")).toBe(
+      "## Open threads\n\n- [ ] a thread\n"
+    );
+  });
+
+  it("refuses when the thread is not in the section, writing nothing", async () => {
+    const { vault, c } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; reason?: string }>(
+      "researchQuestions.tickThread",
+      { path, text: "a thread that is not a task", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+});
+
+describe("researchQuestions.saveSection", () => {
+  const path = "questions/Does slow-wave density predict recall gain (RQ).md";
+
+  it("adding a related line with a note rewrites only ## Related questions, basedOn the page's hash", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    // The page hands the field the section's text, and the field hands back what was typed.
+    expect(page.sections.related.text).toBe(
+      "- [[What counts as a reactivation event]] — shares 2 sources\n- [[Nowhere]]"
+    );
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; hash?: string }>(
+      "researchQuestions.saveSection",
+      {
+        path,
+        section: "Related questions",
+        body:
+          page.sections.related.text +
+          "\n- [[What counts as a reactivation event]] — the same edge, twice",
+        basedOn: page.hash,
+      }
+    );
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "## Related questions\n\n- [[What counts as a reactivation event]] — shares 2 sources\n- [[Nowhere]]\n- [[What counts as a reactivation event]] — the same edge, twice\n\n## Open threads"
+    );
+    expect(outside(after, "Related questions")).toEqual(
+      outside(before, "Related questions")
+    );
+    expect(reply.result?.data.hash).toBe(sha256(after));
+    // Read back: the new line resolves, and says what Kind it lands on.
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    expect(read.result.data.sections.related.lines[2]).toEqual({
+      text: "[[What counts as a reactivation event]] — the same edge, twice",
+      link: {
+        target: "What counts as a reactivation event",
+        blockId: null,
+        resolution: "resolved",
+        resolvedPath: "questions/What counts as a reactivation event.md",
+        resolvedKind: "question",
+      },
+      note: "the same edge, twice",
+    });
+  });
+
+  it("saves ## Open threads with a line added, ticks kept, and no Revision recorded", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    await c.mutate("researchQuestions.saveSection", {
+      path,
+      section: "Open threads",
+      body:
+        page.sections.openThreads.text +
+        "\n- [ ] Does the effect survive a nap?",
+      basedOn: page.hash,
+    });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "- [x] Is TMR orthogonal to encoding?\n- a thread that is not a task\n- [ ] Does the effect survive a nap?\n\n## Position history\n\n- 2026-09-21T09:00:00+02:00 · working answer\n  from:\n"
+    );
+    expect(outside(after, "Open threads")).toEqual(
+      outside(before, "Open threads")
+    );
+  });
+
+  it("refuses a section that is not an Edited section as an input error", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate("researchQuestions.saveSection", {
+      path,
+      section: "Position history",
+      body: "",
+      basedOn: page.hash,
+    });
+    expect(reply.error).toBeDefined();
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
   });
 });

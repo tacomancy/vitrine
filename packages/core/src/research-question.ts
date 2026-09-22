@@ -12,7 +12,6 @@ import {
   type Revision,
   type Save,
 } from "./position-history.js";
-import type { VaultService } from "./vault.js";
 import {
   analyseFile,
   createFile,
@@ -23,7 +22,6 @@ import {
   type Operation,
   type Resolution,
   type ShapeProblem,
-  type WriteRefusal,
   type WriteResult,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
@@ -32,9 +30,10 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * The Research Question Kind (`docs/architecture.md` § Vault layout,
  * § Research Question view and triage; ADR 0020): how the page is read from
  * a `kind: research-question` file, and what the Kind reports as its
- * Position; what promotion writes (#210); and how a save of `## Working
- * answer` records its Revision (#213). The other sections' writes arrive
- * with the tickets that own them.
+ * Position; what promotion writes (#210); and the section writes this Kind
+ * makes on the user's behalf — each an Edited section replaced whole
+ * (ADR 0020 decision 4), the Working answer's save also recording its
+ * Revision (#213).
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -65,6 +64,8 @@ export type LinkLine = {
     blockId: string | null;
     resolution: Resolution;
     resolvedPath: string | null;
+    /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
+    resolvedKind: string | null;
   } | null;
   note: string;
 };
@@ -77,8 +78,9 @@ export type ResearchQuestionSections = {
   workingAnswer: { present: boolean; text: string };
   supporting: { present: boolean; lines: LinkLine[] };
   opposing: { present: boolean; lines: LinkLine[] };
-  related: { present: boolean; lines: LinkLine[] };
-  openThreads: { present: boolean; threads: OpenThread[] };
+  /** `text` is the section's body as the plain text field edits it; `lines` its reading. */
+  related: { present: boolean; text: string; lines: LinkLine[] };
+  openThreads: { present: boolean; text: string; threads: OpenThread[] };
   /**
    * The section's body verbatim, and the entries that parse from it,
    * newest first (`position-history.ts`); an item that is not an entry is
@@ -290,12 +292,21 @@ function linkLine(
   );
   if (link === undefined) return { text, link: null, note: text };
   const note = text.slice(link.range.end - textStart).replace(SEPARATOR, "");
+  const resolved = index.resolve(path, link);
+  const resolvedKind =
+    resolved.resolvedPath === null
+      ? null
+      : (index.select<{ kind: string | null }>(
+          "SELECT kind FROM files WHERE path = ?",
+          resolved.resolvedPath
+        )[0]?.kind ?? null);
   return {
     text,
     link: {
       target: link.target,
       blockId: link.blockId,
-      ...index.resolve(path, link),
+      ...resolved,
+      resolvedKind,
     },
     note: note.trim(),
   };
@@ -306,6 +317,58 @@ function openThread(content: string, item: ListItem): OpenThread {
   const task = TASK.exec(text);
   if (task === null) return { text, done: null };
   return { text: text.slice(task[0].length), done: task[1] !== " " };
+}
+
+type PageFile = {
+  readable: true;
+  relativePath: string;
+  /** The text the outline's offsets are into: BOM-less, as the writer splices it. */
+  content: string;
+  outline: FileOutline;
+  hash: string;
+  kind: string;
+  file: { bom: boolean };
+  shape: ShapeProblem[];
+};
+
+/**
+ * One file read as a Research Question, for the page and for every write
+ * the page makes: the bytes, their hash, and the outline of those same
+ * bytes. A file that is not this Kind is not readable as a page, whichever
+ * caller asked — a tick must no more land on a Note with an `## Open
+ * threads` heading than the page may show one.
+ */
+async function readPageFile(
+  vaultPath: string,
+  path: string
+): Promise<PageFile | { readable: false; path: string; reason: string }> {
+  const { absolute, relativePath } = await locate(vaultPath, path);
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return { readable: false, path: relativePath, reason: errorMessage(error) };
+  }
+  const raw = bytes.toString("utf8");
+  const read = analyseFile(relativePath, raw, sha256(bytes));
+  if (!read.readable) return read;
+  if (read.kind !== KIND) {
+    return {
+      readable: false,
+      path: relativePath,
+      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
+    };
+  }
+  return {
+    readable: true,
+    relativePath,
+    content: read.file.bom ? raw.slice(BOM.length) : raw,
+    outline: read.outline,
+    hash: read.hash,
+    kind: read.kind,
+    file: read.file,
+    shape: read.shape,
+  };
 }
 
 /**
@@ -339,74 +402,32 @@ function revisionsOf(
   return { entries, problems };
 }
 
-/** The file's text as outlined — BOM-less, so the outline's offsets index it — with its outline. */
-type PageFile = {
-  content: string;
-  outline: FileOutline;
-  hash: string;
-  shape: ShapeProblem[];
-};
-
 /**
- * A Research Question file from disk, or why it is not one. The body is
- * read from disk — it is what the page shows and edits, and the hash a
- * later write is `basedOn` — and outlined from those same bytes, so a
- * section's range can never come from one version of the file and its
- * text from another.
- */
-async function readPageFile(
-  absolute: string,
-  relativePath: string
-): Promise<{ ok: true; file: PageFile } | { ok: false; reason: string }> {
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(absolute);
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
-  }
-  const raw = bytes.toString("utf8");
-  const read = analyseFile(relativePath, raw, sha256(bytes));
-  if (!read.readable) return { ok: false, reason: read.reason };
-  if (read.kind !== KIND) {
-    return {
-      ok: false,
-      reason: `not a Research Question: kind is ${read.kind ?? "absent"}`,
-    };
-  }
-  return {
-    ok: true,
-    file: {
-      content: read.file.bom ? raw.slice(BOM.length) : raw,
-      outline: read.outline,
-      hash: read.hash,
-      shape: read.shape,
-    },
-  };
-}
-
-/**
- * The page as the file holds it; the index supplies only what a single
- * file cannot know, where each link lands.
+ * The page as the file holds it. The body is read from disk — it is what
+ * the page shows and edits, and the hash a later write is `basedOn` — and
+ * outlined from those same bytes, so a section's range can never come from
+ * one version of the file and its text from another; the index supplies
+ * only what a single file cannot know, where each link lands.
  */
 export async function readResearchQuestionPage(
   index: VaultIndex,
   vaultPath: string,
   path: string
 ): Promise<ResearchQuestionPage> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  const read = await readPageFile(absolute, relativePath);
-  if (!read.ok)
-    return { readable: false, path: relativePath, reason: read.reason };
-  const { content, outline, hash } = read.file;
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) return read;
+  const { relativePath } = read;
   let frontmatter: ResearchQuestionFrontmatter;
   try {
     frontmatter = readResearchQuestion(
-      (outline.frontmatter?.value ?? {}) as Record<string, unknown>
+      (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>
     );
   } catch (error) {
     return { readable: false, path: relativePath, reason: errorMessage(error) };
   }
-  const problems: ShapeProblem[] = [...read.file.shape];
+
+  const { content, outline } = read;
+  const problems: ShapeProblem[] = [...read.shape];
   const found = {} as Record<(typeof SECTIONS)[number], Heading | undefined>;
   for (const name of SECTIONS) {
     const { heading, count } = section(outline, name);
@@ -438,7 +459,7 @@ export async function readResearchQuestionPage(
   return {
     readable: true,
     path: relativePath,
-    hash,
+    hash: read.hash,
     frontmatter,
     sections: {
       workingAnswer: {
@@ -455,10 +476,12 @@ export async function readResearchQuestionPage(
       },
       related: {
         present: found["Related questions"] !== undefined,
+        text: bodyText(content, found["Related questions"]),
         lines: lines(found["Related questions"]),
       },
       openThreads: {
         present: threads !== undefined,
+        text: bodyText(content, threads),
         threads:
           threads === undefined
             ? []
@@ -476,128 +499,196 @@ export async function readResearchQuestionPage(
   };
 }
 
-export type SaveResult =
-  | { written: true; hash: string }
-  | { written: false; reason: WriteRefusal; detail: string };
-
-export type ResearchQuestionService = {
-  /**
-   * Save `## Working answer` as the user typed it, recording the Revision
-   * (spec #206 stories 14, 31, 32): one write, `basedOn` the hash the page
-   * was given. Text the file already holds is not a save.
-   */
-  saveWorkingAnswer: (
-    path: string,
-    text: string,
-    basedOn: string
-  ) => Promise<SaveResult>;
-};
-
-export type ResearchQuestionServiceOptions = {
-  vault: VaultService;
-  now?: (() => Date) | undefined;
-  /** ADR 0006 decision 5's coalescing window; tests pass a short one. */
-  coalesceMs?: number | undefined;
-};
-
-/** Thirty minutes (ADR 0006 decision 5) — a number in code, per spec #206. */
+/** The sections a plain text field on the page saves whole; Working answer joins with its Revision (#213). */
+export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
+/** Thirty minutes (ADR 0006 decision 5) — a number in code, per spec #206; tests inject a shorter one. */
 export const COALESCE_MS = 30 * 60 * 1000;
-
+/** The Edited section that is also a Position, and the field its Revisions carry. */
+const WORKING_ANSWER = "Working answer";
 const FIELD = "working answer";
+export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
-export function createResearchQuestionService({
-  vault,
-  now = () => new Date(),
-  coalesceMs = COALESCE_MS,
-}: ResearchQuestionServiceOptions): ResearchQuestionService {
-  // Saves run one at a time: two landing together would each read the
-  // same head entry and both prepend, where the second should re-stamp.
-  let previous: Promise<unknown> = Promise.resolve();
-
-  async function saveWorkingAnswer(
-    path: string,
-    typed: string,
-    basedOn: string
-  ): Promise<SaveResult> {
-    const opened = await vault.opened();
-    if (opened === null) {
-      throw new VaultError("noVault", "No vault is open. Open a vault first.");
-    }
-    const vaultPath = opened.vault.path;
-    const { absolute, relativePath } = await locate(vaultPath, path);
-    const read = await readPageFile(absolute, relativePath);
-    if (!read.ok) {
-      return { written: false, reason: "unreadable", detail: read.reason };
-    }
-    const { content, outline, hash } = read.file;
-    const text = typed.replace(/\r\n/g, "\n").trim();
-    // The Position as the file holds it now: what the Revision is *from*.
-    // The page was given this same text unless the file changed underneath,
-    // which the write protocol catches (#215 turns that into a line).
-    const from = bodyText(content, section(outline, "Working answer").heading);
-    // Nothing to write, so nothing to base on: the file's hash is the
-    // page's fresh view of it, whatever hash the page carried in.
-    if (from === text) return { written: true, hash };
-
-    const operations: Operation[] = [
-      { op: "replaceSection", name: "Working answer", body: text },
-      ...historyOperation(content, outline, { field: FIELD, from, at: now() }),
-    ];
-    const result = await write(vaultPath, relativePath, {
-      operations,
-      basedOn,
-    });
-    if (!result.written) return result;
-    // Indexed from the content just written, as a capture is (ADR 0014):
-    // the `positions` row follows the save before the reply, and the
-    // watcher recognises the file's hash as the app's own.
-    await opened.index.own(relativePath, result.content);
-    return { written: true, hash: result.hash };
+/** One write through the protocol, then the index told of the app's own write, as a capture does. */
+async function writeOwn(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  operation: Parameters<typeof write>[2]
+): Promise<WriteResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
   }
+  const result = await write(vaultPath, path, operation);
+  if (result.written) await index.own(read.relativePath, result.content);
+  return result;
+}
 
-  /**
-   * The history's part of one save (ADR 0020 decision 2): a new entry is
-   * prepended; a save inside the window re-stamps the head entry, which
-   * means the owned section is replaced whole — with every other byte of
-   * it, hand-typed lines included, spliced back as it was.
-   */
-  function historyOperation(
-    content: string,
-    outline: Pick<Outline, "headings" | "listItems">,
-    save: Save
-  ): Operation[] {
-    const history = section(outline, "Position history").heading;
-    const items =
-      history === undefined ? [] : readRevisions(content, outline, history);
-    const head = items[0];
-    const { coalesced, revision } = coalesce(
-      head?.revision ?? null,
-      save,
-      coalesceMs
-    );
-    const entry = formatRevision(revision);
-    if (!coalesced || history === undefined || head === undefined) {
-      return [{ op: "prependEntry", section: "Position history", entry }];
-    }
-    const body =
-      content.slice(history.body.start, head.range.start) +
-      entry +
-      content.slice(head.range.end, history.body.end);
-    return [
-      { op: "replaceSection", name: "Position history", body: body.trim() },
-    ];
+/**
+ * Tick or untick one thread: the task marker on the line whose text is
+ * `text` is rewritten and `## Open threads` replaced whole, an Edited
+ * section, so a resolved thread stays beside what was learned (CONTEXT.md
+ * *Open thread*). The thread is named by its text, not its position, so a
+ * file edited underneath still takes the tick where it was meant — or
+ * refuses, when the thread is no longer there to take it.
+ */
+export async function tickThread(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  { text, done }: { text: string; done: boolean }
+): Promise<WriteResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
   }
+  const { content, outline, hash } = read;
+  const { heading } = section(outline, "Open threads");
+  const matches =
+    heading === undefined
+      ? []
+      : topLevelItems(outline, heading).filter((candidate) => {
+          const thread = openThread(content, candidate);
+          return thread.done !== null && thread.text === text;
+        });
+  // Two threads with one text: which was meant is not knowable from the
+  // text, and ticking the first would be a guess written to disk.
+  if (matches.length !== 1) {
+    return {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail:
+        matches.length === 0
+          ? `no open thread reads "${text}"`
+          : `${matches.length} open threads read "${text}"`,
+    };
+  }
+  const [item] = matches as [ListItem];
+  const { body: range } = heading as Heading;
+  // The marker sits right after the list marker; the rest of the line and
+  // every other line of the section are the user's and go back as they were.
+  const line = content.slice(item.range.start, item.range.end);
+  const marker = MARKER.exec(line)?.[0] ?? "";
+  const ticked =
+    line.slice(0, marker.length) +
+    line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
+  const body =
+    content.slice(range.start, item.range.start) +
+    ticked +
+    content.slice(item.range.end, range.end);
+  return writeOwn(index, vaultPath, path, {
+    operations: [
+      { op: "replaceSection", name: "Open threads", body: body.trim() },
+    ],
+    basedOn: hash,
+  });
+}
 
-  return {
-    saveWorkingAnswer: (path, text, basedOn) => {
-      const run = previous.then(
-        () => saveWorkingAnswer(path, text, basedOn),
-        () => saveWorkingAnswer(path, text, basedOn)
-      );
-      previous = run;
-      return run;
-    },
-  };
+/**
+ * An Edited section saved as the user's own typing: `replaceSection` with
+ * the body the plain text field holds, `basedOn` the hash the page was
+ * given, and no Revision — these sections are prose, not Positions (ADR
+ * 0020 decision 4). A file changed underneath is the protocol's to re-apply
+ * or refuse; the refusal comes back as data for the page to show in place.
+ */
+export async function saveSection(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  {
+    section: name,
+    body,
+    basedOn,
+  }: { section: EditedSection; body: string; basedOn: string }
+): Promise<WriteResult> {
+  return writeOwn(index, vaultPath, path, {
+    operations: [{ op: "replaceSection", name, body: body.trim() }],
+    basedOn,
+  });
+}
+
+/**
+ * The Working answer saved, and the Revision it records (#213; ADR 0020
+ * decisions 1–2): one write — `replaceSection` on the section, and the
+ * entry either prepended or, inside the coalescing window, the head
+ * re-stamped by replacing `## Position history` whole with every other
+ * byte of it spliced back. It is `saveSection`'s sibling and differs in
+ * exactly one way: this section is also a Position, so editing it adds to
+ * the history rather than overwriting it (brief § Position history).
+ * Text the file already holds is not a save, so a blur that changed
+ * nothing records nothing.
+ */
+export async function saveWorkingAnswer(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  {
+    text: typed,
+    basedOn,
+    at,
+    coalesceMs,
+  }: { text: string; basedOn: string; at: Date; coalesceMs: number }
+): Promise<WriteResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return { written: false, reason: "unreadable", detail: read.reason };
+  }
+  const { content, outline } = read;
+  const text = typed.replace(/\r\n/g, "\n").trim();
+  // The Position as the file holds it now: what the Revision is *from*.
+  const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
+  // Nothing to write, so nothing to base on: the file's hash is the page's
+  // fresh view of it, whatever hash the page carried in.
+  if (from === text) {
+    return { written: true, hash: read.hash, content, shape: read.shape };
+  }
+  return writeOwn(index, vaultPath, path, {
+    operations: [
+      { op: "replaceSection", name: WORKING_ANSWER, body: text },
+      ...historyOperations(
+        content,
+        outline,
+        { field: FIELD, from, at },
+        coalesceMs
+      ),
+    ],
+    basedOn,
+  });
+}
+
+/**
+ * The history's part of one save. A new entry is prepended; a save inside
+ * the window re-stamps the head entry, which means the owned section is
+ * replaced whole — the operation set has no "edit one entry", and this is
+ * the path a why added after the fact takes too (§ Research Question view
+ * and triage).
+ */
+function historyOperations(
+  content: string,
+  outline: Pick<Outline, "headings" | "listItems">,
+  save: Save,
+  coalesceMs: number
+): Operation[] {
+  const history = section(outline, "Position history").heading;
+  const items =
+    history === undefined ? [] : readRevisions(content, outline, history);
+  const head = items[0];
+  const { coalesced, revision } = coalesce(
+    head?.revision ?? null,
+    save,
+    coalesceMs
+  );
+  const entry = formatRevision(revision);
+  if (!coalesced || history === undefined || head === undefined) {
+    return [{ op: "prependEntry", section: "Position history", entry }];
+  }
+  const body =
+    content.slice(history.body.start, head.range.start) +
+    entry +
+    content.slice(head.range.end, history.body.end);
+  return [
+    { op: "replaceSection", name: "Position history", body: body.trim() },
+  ];
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */
