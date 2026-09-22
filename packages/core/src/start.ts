@@ -40,14 +40,16 @@ export type RunningCore = {
  */
 export function startCore(options: StartOptions = {}): Promise<RunningCore> {
   const token = randomBytes(32).toString("base64url");
-  const { app, close } = createApp({
+  const { app, close, release } = createApp({
     token,
     host: options.host ?? NO_HOST,
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
   });
-  // The index handle is closed on the way out; the vault service's `close`
-  // is where the watcher's teardown joins (#188).
-  process.once("exit", close);
+  // The last-resort teardown for an exit nothing else caught: an `exit`
+  // handler cannot await, so it drops the handles and splices nothing.
+  // The orderly path — which splices what the queue owes (#217) — is
+  // `RunningCore.close` below, and it is the one the shell takes.
+  process.once("exit", release);
   if (options.staticDir !== undefined) {
     // The bundle is served from the same origin as the API, so the renderer
     // needs nothing beyond 'self'. Set here rather than in index.html because
@@ -66,11 +68,12 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
         resolve({
           port: info.port,
           token,
-          close: () =>
-            new Promise((done, fail) => {
-              close();
+          close: async () => {
+            await close();
+            await new Promise<void>((done, fail) => {
               server.close((err) => (err ? fail(err) : done()));
-            }),
+            });
+          },
         });
       }
     );
