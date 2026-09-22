@@ -299,6 +299,51 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     expect(pendingRows(vault)).toHaveLength(1);
   });
 
+  it("a save onto the section the Obsidian edit changed refuses, and the entry stays parked", async () => {
+    let now = t0;
+    const { vault, c, file, obsidian } = await opened(
+      { [PATH]: page("Probably both.") },
+      { now: () => now }
+    );
+
+    // The page read before the edit: what it holds as `was` (#215).
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path: PATH,
+    });
+    const stale = read.result?.data as ResearchQuestionPage & {
+      readable: true;
+    };
+
+    now = at(5);
+    await obsidian("Encoding strength, mostly.");
+
+    // Two mechanisms meet here and must not cancel each other: the save is
+    // refused because it would replace text the page never saw, and the
+    // Revision that edit owes is still owed.
+    const reply = await c.mutate<{ written: boolean; reason: string }>(
+      "researchQuestions.saveWorkingAnswer",
+      {
+        path: PATH,
+        text: "Something the page typed.",
+        basedOn: stale.hash,
+        was: stale.sections.workingAnswer.text,
+      }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+    expect(await file()).toBe(page("Encoding strength, mostly."));
+    expect(pendingRows(vault)).toEqual([
+      {
+        path: PATH,
+        field: "working answer",
+        from_text: "Probably both.",
+        at: localIso(at(5)),
+      },
+    ]);
+  });
+
   it("an own write never raises one: the app's save records its Revision and nothing else", async () => {
     let now = t0;
     const { vault, c, file, stream, obsidian } = await opened(
