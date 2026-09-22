@@ -167,17 +167,20 @@ describe("attaching a source", () => {
     await attachFrom(answer);
   });
 
-  it("says so when nothing in the vault matches, rather than offering a way to make one", async () => {
+  it("says so when nothing in the vault matches, and offers to make one", async () => {
     open(page([], []));
     const view = await region();
     const picker = await attachFrom(view);
     fireEvent.change(within(picker).getByRole("combobox", { name: /find/i }), {
       target: { value: "cordi2021" },
     });
-    // *New stub* arrives with the hand-made-stub ticket (ADR 0020 decision
-    // 7); until then the form is honest about having nothing to offer.
+    // The no-match state is where a paper gets made by hand (#220); the
+    // flow itself is `stub.test.tsx`.
     expect(
       await within(picker).findByText(/nothing in the vault matches/i)
+    ).toBeTruthy();
+    expect(
+      within(picker).getByRole("button", { name: /new stub/i })
     ).toBeTruthy();
   });
 

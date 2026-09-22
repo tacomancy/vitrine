@@ -126,3 +126,17 @@
   margin: 0;
   padding: var(--space-1) var(--space-2);
 }
+
+/* What the caller offers when nothing matched: sapphire, because it is an
+   action (BRAND.md law 2), and beside the line saying why it is here. */
+.new {
+  margin: 0 0 0 var(--space-3);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-inverse);
+  cursor: pointer;
+}

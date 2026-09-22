@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
 import { candidates } from "./picker.js";
+import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
@@ -73,6 +74,17 @@ const candidatesInput = z.object({
 });
 
 const linkInput = z.object({ path: z.string(), target: z.string() });
+
+// The attach form's *new stub*: four fields as typed, the title the only
+// one the record cannot do without — a stub with no title is a citekey and
+// nothing else. The rest default to empty, which is how an absent key is
+// said here rather than a missing one.
+const stubInput = z.object({
+  title: z.string().trim().min(1, "The title is empty."),
+  authors: z.string().trim().default(""),
+  year: z.string().trim().default(""),
+  url: z.string().trim().default(""),
+});
 
 /** *Answer in place*: the one line the user typed, never empty. */
 const answerInput = z.object({
@@ -159,6 +171,16 @@ export const router = t.router({
           ...(input.kinds === undefined ? {} : { kinds: input.kinds }),
           ...(input.exclude === undefined ? {} : { exclude: input.exclude }),
         });
+      }),
+  }),
+  // A stub made by hand (#220; ADR 0020 decision 7): the only path that
+  // creates a paper until Scouts land, and the citekey rule that beat reuses.
+  sources: t.router({
+    createStub: t.procedure
+      .input(stubInput)
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(createSourceStub(vault.path, index, input));
       }),
   }),
   researchQuestions: t.router({
