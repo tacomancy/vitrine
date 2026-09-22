@@ -9,6 +9,7 @@ import {
   EDITED_SECTIONS,
   readResearchQuestionPage,
   saveSection,
+  saveWorkingAnswer,
   tickThread,
 } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
@@ -18,6 +19,9 @@ export type Context = {
   vault: VaultService;
   questions: QuestionService;
   events: Events;
+  /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
+  now: () => Date;
+  coalesceMs: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -115,7 +119,7 @@ export const router = t.router({
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
-    // index (`research-question.ts`). Read-only until the section tickets.
+    // index (`research-question.ts`).
     page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
       const { vault, index } = await requireVault(ctx);
       return refusing(readResearchQuestionPage(index, vault.path, input.path));
@@ -144,6 +148,20 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(tickThread(index, vault.path, input.path, input));
+      }),
+    // The Working answer is the one Edited section that is also a Position:
+    // its save records the Revision in the same write (#213).
+    saveWorkingAnswer: t.procedure
+      .input(pathInput.extend({ text: z.string(), basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          saveWorkingAnswer(index, vault.path, input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        );
       }),
   }),
   questions: t.router({

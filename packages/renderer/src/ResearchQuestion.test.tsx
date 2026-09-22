@@ -6,7 +6,11 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { ResearchQuestionPage, ResearchQuestionSections } from "core";
+import type {
+  ResearchQuestionPage,
+  ResearchQuestionSections,
+  Revision,
+} from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
@@ -43,7 +47,7 @@ const fresh: ResearchQuestionPage = {
     opposing: { present: true, lines: [] },
     related: { present: true, text: "", lines: [] },
     openThreads: { present: true, text: "", threads: [] },
-    positionHistory: { present: true, text: "" },
+    positionHistory: { present: true, text: "", entries: [] },
   },
   problems: [],
 };
@@ -192,11 +196,12 @@ describe("the freshly promoted state", () => {
       },
     }));
     const page = await region();
-    const answer = await within(page).findByRole("region", {
+    const answer = await within(page).findByRole("textbox", {
       name: "Working answer",
     });
-    expect(answer.querySelectorAll("p").length).toBe(2);
-    expect(answer.textContent).toContain("Probably both.");
+    expect((answer as HTMLTextAreaElement).value).toBe(
+      "Probably both.\n\nA second paragraph."
+    );
     const supporting = within(page).getByRole("region", {
       name: "Supporting sources",
     });
@@ -360,6 +365,158 @@ describe("the page under external change", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain(
       "notes/plan.txt is not a Markdown file."
+    );
+  });
+});
+
+// Editing the working answer (#213; spec #206 stories 14, 18, 31): a plain
+// text field — autosave on blur, ⌘↵ saves now, esc reverts — every save
+// `basedOn` the hash the page was given; the header derives "revision N of
+// M · held since" from the entries. The Revision itself is the core's.
+describe("editing the working answer", () => {
+  const withAnswer = (
+    text: string,
+    entries: Revision[],
+    hash = "abc"
+  ): ResearchQuestionPage => ({
+    ...fresh,
+    hash,
+    sections: {
+      ...fresh.sections,
+      workingAnswer: { present: true, text },
+      positionHistory: { present: true, text: "", entries },
+    },
+  });
+
+  type Saved = { path: string; text: string; basedOn: string };
+
+  const editable = (
+    page: () => ResearchQuestionPage,
+    answer: (input: Saved) => unknown = () => ({
+      written: true,
+      hash: "def",
+    })
+  ) => {
+    const saves: Saved[] = [];
+    window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+    renderApp({
+      ...answers,
+      "researchQuestions.page": page,
+      "researchQuestions.saveWorkingAnswer": (input: Saved) => {
+        saves.push(input);
+        return answer(input);
+      },
+    });
+    return { saves };
+  };
+
+  const field = async () =>
+    within(await region()).findByRole("textbox", { name: "Working answer" });
+
+  it("saves on blur with the text typed and the page's hash as basedOn, then shows the page as re-read", async () => {
+    let page = withAnswer("Probably both.", []);
+    const { saves } = editable(() => page);
+    const box = await field();
+    expect((box as HTMLTextAreaElement).value).toBe("Probably both.");
+    page = withAnswer(
+      "Encoding strength, mostly.",
+      [
+        {
+          at: "2026-09-21T10:00:00+02:00",
+          field: "working answer",
+          why: null,
+          from: "Probably both.",
+        },
+      ],
+      "def"
+    );
+    fireEvent.change(box, { target: { value: "Encoding strength, mostly." } });
+    fireEvent.blur(box);
+    await waitFor(() =>
+      expect(saves).toEqual([
+        { path: PATH, text: "Encoding strength, mostly.", basedOn: "abc" },
+      ])
+    );
+    const page1 = await region();
+    await waitFor(() => expect(page1.textContent).toContain("revision 1 of 1"));
+    expect((box as HTMLTextAreaElement).value).toBe(
+      "Encoding strength, mostly."
+    );
+  });
+
+  it("⌘↵ saves now; a blur that follows does not save again", async () => {
+    const { saves } = editable(() => withAnswer("", []));
+    const box = await field();
+    fireEvent.change(box, { target: { value: "Typed." } });
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(saves.length).toBe(1));
+    fireEvent.blur(box);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(saves.length).toBe(1);
+  });
+
+  it("esc reverts unsaved typing and saves nothing; blur over unchanged text saves nothing", async () => {
+    const { saves } = editable(() => withAnswer("Probably both.", []));
+    const box = await field();
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect((box as HTMLTextAreaElement).value).toBe("Probably both.");
+    fireEvent.blur(box);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(saves).toEqual([]);
+  });
+
+  it("a refused save is a line in the section with the reason, and the typing stays", async () => {
+    editable(
+      () => withAnswer("Probably both.", []),
+      () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: "the file is no longer there",
+      })
+    );
+    const box = await field();
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    fireEvent.blur(box);
+    const section = within(await region()).getByRole("region", {
+      name: "Working answer",
+    });
+    await waitFor(() =>
+      expect(section.textContent).toContain(
+        "not saved — the file is no longer there"
+      )
+    );
+    expect((box as HTMLTextAreaElement).value).toBe("Probably not.");
+  });
+
+  it("the header reads revision N of M · held since the newest entry, and 'no revisions yet' before any", async () => {
+    editable(() => withAnswer("", []));
+    await within(await region()).findByText("no revisions yet");
+    cleanup();
+    editable(() =>
+      withAnswer("Third.", [
+        {
+          at: "2026-09-08T10:00:00+02:00",
+          field: "working answer",
+          why: null,
+          from: "Second.",
+        },
+        {
+          at: "2026-08-05T10:00:00+02:00",
+          field: "working answer",
+          why: "explained",
+          from: "First.",
+        },
+        {
+          at: "2026-07-02T10:00:00+02:00",
+          field: "working answer",
+          why: null,
+          from: "",
+        },
+      ])
+    );
+    await within(await region()).findByText(
+      "revision 3 of 3 · held since 8 September 2026"
     );
   });
 });

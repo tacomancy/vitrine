@@ -348,6 +348,24 @@ describe("prependEntry", () => {
     );
   });
 
+  it("ends its entry with a blank line when what follows is prose, so the prose is never a lazy continuation of the entry", async () => {
+    // An entry's last paragraph would otherwise absorb the next unindented
+    // line (CommonMark's lazy continuation), and a Revision would read
+    // back holding a note the user typed under the heading.
+    const vault = await vaultWith({
+      "prose.md":
+        "---\nkind: hypothesis\n---\n## Criteria\n\n### One ^c1\n\n## Position history\n\na note typed by hand\n\n- old\n  from:\n",
+    });
+    const { after } = await applied(
+      vault,
+      "prose.md",
+      prependEntry("Position history", "- new\n  from:\n    First.")
+    );
+    expect(after).toBe(
+      "---\nkind: hypothesis\n---\n## Criteria\n\n### One ^c1\n\n## Position history\n\n- new\n  from:\n    First.\n\na note typed by hand\n\n- old\n  from:\n"
+    );
+  });
+
   it("appends the section at the end of the file when it is absent, then prepends into it", async () => {
     const original = "---\nkind: hypothesis\n---\n## Criteria\n\n### One ^c1\n";
     const vault = await vaultWith({ "h.md": original });

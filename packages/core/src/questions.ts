@@ -4,6 +4,7 @@ import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
+import { localIso } from "./time.js";
 import { readOutline, write } from "./vault-files.js";
 import type { VaultService } from "./vault.js";
 
@@ -66,20 +67,6 @@ export function fileName(text: string, id: string): string {
     name = name.slice(0, cut > 0 ? cut : NAME_LIMIT).trimEnd();
   }
   return name === "" ? id : name;
-}
-
-/** ISO 8601 at seconds precision with the local UTC offset, never `Z`. */
-export function localIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offset = -date.getTimezoneOffset();
-  const sign = offset < 0 ? "-" : "+";
-  const hh = pad(Math.floor(Math.abs(offset) / 60));
-  const mm = pad(Math.abs(offset) % 60);
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
-    `${sign}${hh}:${mm}`
-  );
 }
 
 // Always double-quoted: deciding when a plain scalar is safe means carrying
