@@ -32,7 +32,9 @@
   white-space: nowrap;
 }
 
-/* A name reads as text, not a form field; the brass focus ring is global. */
+/* Inter, not the serif: the serif is for questions and quotations
+   (BRAND.md § Typography; architecture § Fonts), and this is a form field
+   over file names. No border — the brass focus ring is the global one. */
 .input {
   flex: 1;
   min-width: 0;
@@ -42,7 +44,7 @@
   border-radius: var(--radius-md);
   background: var(--color-bg-surface);
   color: var(--color-fg);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--text-md);
   line-height: var(--leading-ui);
 }
@@ -87,8 +89,8 @@
   color: var(--color-fg-muted);
 }
 
+/* A file name, in the interface family like any other list of names. */
 .name {
-  font-family: var(--font-serif);
   font-size: var(--text-sm);
   line-height: var(--leading-ui);
   white-space: nowrap;

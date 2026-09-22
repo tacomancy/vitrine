@@ -32,7 +32,7 @@ export function Picker({
 }) {
   const trpc = useTRPC();
   const [query, setQuery] = useState("");
-  const [at, setAt] = useState(0);
+  const [arrowedTo, setArrowedTo] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Where focus was when the picker opened, put back when it closes —
@@ -59,7 +59,7 @@ export function Picker({
   const rows = listing.data?.rows ?? [];
   const total = listing.data?.total ?? 0;
   // The choice never points past the list a new query returned.
-  const chosen = Math.min(at, Math.max(rows.length - 1, 0));
+  const chosen = Math.min(arrowedTo, Math.max(rows.length - 1, 0));
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return;
@@ -76,11 +76,11 @@ export function Picker({
       }
       case "ArrowDown":
         event.preventDefault();
-        setAt(Math.min(chosen + 1, rows.length - 1));
+        setArrowedTo(Math.min(chosen + 1, rows.length - 1));
         return;
       case "ArrowUp":
         event.preventDefault();
-        setAt(Math.max(chosen - 1, 0));
+        setArrowedTo(Math.max(chosen - 1, 0));
         return;
       default:
         return;
@@ -104,7 +104,7 @@ export function Picker({
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            setAt(0);
+            setArrowedTo(0);
           }}
           onKeyDown={onKeyDown}
         />

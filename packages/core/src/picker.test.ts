@@ -2,7 +2,6 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Candidates, CandidateKind } from "./picker.js";
-import { LINKABLE } from "./picker.js";
 import { closeCores, core, fixtureCopy, tmp } from "./test-core.js";
 
 afterEach(closeCores);
@@ -77,9 +76,15 @@ describe("picker.candidates", () => {
     }
     const c = await opened(vault);
 
-    expect(
-      shown(await c.candidates({ query: "beta", kinds: [...LINKABLE] }))
-    ).toEqual([
+    // What Link narrows to; the renderer is where that list lives.
+    const link: CandidateKind[] = [
+      "question",
+      "research-question",
+      "note",
+      "source",
+      "source-stub",
+    ];
+    expect(shown(await c.candidates({ query: "beta", kinds: link }))).toEqual([
       "note beta note",
       "research-question beta page (RQ)",
       "question beta question",

@@ -21,15 +21,6 @@ import type { VaultIndex } from "./vault-index.js";
  */
 export type CandidateKind = string;
 
-/** The Kinds a Link picker offers (§ Research Question view and triage). */
-export const LINKABLE: readonly CandidateKind[] = [
-  "question",
-  "research-question",
-  "note",
-  "source",
-  "source-stub",
-];
-
 /** A Markdown file with no `kind:`. */
 const NOTE = "note";
 
