@@ -27,8 +27,9 @@ describe("serialised", () => {
       return Promise.resolve("b");
     });
 
-    // The whole point: `b` has been handed over but has not run, because
-    // the read half of `a` is still in flight.
+    // The whole point: `b` has been handed over but has not been called,
+    // because `a` has not settled. A parallel implementation would have
+    // started both by now.
     await Promise.resolve();
     expect(started).toEqual(["a"]);
 
@@ -41,11 +42,24 @@ describe("serialised", () => {
   it("leaves the queue usable after work throws, and the throw reaches only its own caller", async () => {
     const queue = serialised();
 
-    const failed = queue(() => Promise.reject(new Error("boom")));
-    const after = queue(() => Promise.resolve("still running"));
+    const blocked = deferred<never>();
+    const order: string[] = [];
 
+    const failed = queue(() => blocked.promise);
+    const after = queue(() => {
+      order.push("after");
+      return Promise.resolve("still running");
+    });
+
+    // Still queued behind the failing work, not started alongside it: a
+    // throw must not let the next one overtake, only proceed.
+    await Promise.resolve();
+    expect(order).toEqual([]);
+
+    blocked.reject(new Error("boom"));
     await expect(failed).rejects.toThrow("boom");
     expect(await after).toBe("still running");
+    expect(order).toEqual(["after"]);
   });
 
   it("gives each caller its own result", async () => {

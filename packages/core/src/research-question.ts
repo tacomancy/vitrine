@@ -544,14 +544,22 @@ export type PageContext = {
  */
 type Plan = (read: PageFile, waiting: PendingRevision[]) => Write | WriteResult;
 
-// Page writes run one at a time, as captures do (`questions.ts`). Planning
-// a write means reading the file — which thread is ticked, what the Working
-// answer changed from, whether the head Revision is still inside its
-// window — so two writes that both read before either wrote would each
-// plan against a file that no longer exists by the time they land: two
-// Revisions where the coalescing rule wants one. The pending splice below
-// reads the same way and is cleared on the same write, so it is inside
-// this queue too (`serialise.ts` for why a hash check does not catch it).
+// Page writes run one at a time. Planning a write means reading the file —
+// which thread is ticked, what the Working answer changed from, whether the
+// head Revision is still inside its window — so two writes that both read
+// before either wrote would each plan against a file that no longer exists
+// by the time they land: two Revisions where the coalescing rule wants one.
+// The pending splice below reads the same way and is cleared on the same
+// write, so it is inside this queue too (`serialise.ts` for why the
+// protocol's hash check does not catch any of this).
+//
+// One queue at module scope, so every page write in the process waits on
+// every other, not just the ones touching the same file. That is stricter
+// than the hazard — which is per file — and deliberately so: a map of
+// queues by path would have to decide when to forget an entry, and page
+// writes are keystroke-rare, not hot. Contrast `questions.ts`, whose queue
+// is per service because what collides there is a name in one vault's
+// folder, and two services are two vaults.
 const serially = serialised();
 
 /**
