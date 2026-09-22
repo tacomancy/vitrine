@@ -356,14 +356,20 @@ function WorkingAnswer({
   const keepMine = async () => {
     const disk = await diskCopy("Working answer");
     setConflict(false);
-    if (disk === null || draft === null) return;
-    setBase(disk);
-    send(draft, disk);
+    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
+    if (draft === null) return;
+    setBase(disk.base);
+    send(draft, disk.base);
   };
   // *Take the disk copy*: the typing let go, the field showing the file.
+  // The read is also what puts that file in the page's cache — `text`
+  // arrives as a prop, and a field showing the file is one with no draft.
   const takeTheDiskCopy = async () => {
-    await diskCopy("Working answer");
+    const disk = await diskCopy("Working answer");
     setConflict(false);
+    // Nothing to take: the typing stays rather than being dropped for a
+    // copy that could not be read.
+    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
     setDraft(null);
     setBase(null);
   };
@@ -513,28 +519,40 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
   );
 }
 
-/** The Edited sections, and the page field that holds each one's text. */
-type Editable = "Working answer" | "Open threads" | "Related questions";
+/** The Edited sections the page holds a text field for (core's `EditedSection`, plus the Position). */
+type EditableSection = "Working answer" | "Open threads" | "Related questions";
 
 /** What a field is editing against: the file's hash and the section's text, as it read them. */
 type Base = { hash: string; text: string };
+
+/** The disk copy, or why there is none — a read that failed is a line, never a shrug. */
+type DiskCopy = { read: true; base: Base } | { read: false; reason: string };
 
 /**
  * The section as the file holds it now — read afresh, not from the page's
  * cache, because the point of the read is that the cache is behind. Both
  * resolutions of *changed on disk* need it: *keep mine* saves over it,
- * *take the disk copy* shows it. Null when the file can no longer be read
- * as a page at all; the page's own absence line says so.
+ * *take the disk copy* shows it. `changedAndUnreapplyable` also covers a
+ * file that is gone, so this read is where that case separates itself: the
+ * typing stays in the field and the reason is said, rather than a button
+ * that quietly does nothing (CLAUDE.md § Invariants, no silent failures).
  */
-function useDiskCopy(path: string): (name: Editable) => Promise<Base | null> {
+function useDiskCopy(
+  path: string
+): (name: EditableSection) => Promise<DiskCopy> {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return async (name) => {
-    const page = await queryClient.fetchQuery({
-      ...trpc.researchQuestions.page.queryOptions({ path }),
-      staleTime: 0,
-    });
-    if (!page.readable) return null;
+    let page;
+    try {
+      page = await queryClient.fetchQuery({
+        ...trpc.researchQuestions.page.queryOptions({ path }),
+        staleTime: 0,
+      });
+    } catch (error) {
+      return { read: false, reason: (error as Error).message };
+    }
+    if (!page.readable) return { read: false, reason: page.reason };
     const { workingAnswer, openThreads, related } = page.sections;
     const text =
       name === "Working answer"
@@ -542,7 +560,7 @@ function useDiskCopy(path: string): (name: Editable) => Promise<Base | null> {
         : name === "Open threads"
           ? openThreads.text
           : related.text;
-    return { hash: page.hash, text };
+    return { read: true, base: { hash: page.hash, text } };
   };
 }
 
@@ -641,6 +659,7 @@ function Editable({
   // one of its two actions is chosen (#215).
   const [conflict, setConflict] = useState(false);
   const { refusal, settle, fail } = useSectionWrite(() => setConflict(true));
+  const refuse = (message: string) => fail({ message });
   const [draft, setDraft] = useState<string | null>(null);
   // What the typing is a change *to*: the file as the field opened on it,
   // kept across a re-read underneath, so an Obsidian edit to another
@@ -664,6 +683,8 @@ function Editable({
       onError: fail,
     })
   );
+  const send = (body: string, on: Base) =>
+    save.mutate({ path, section: name, body, basedOn: on.hash, was: on.text });
   const submit = () => {
     if (draft === null || save.isPending || conflict) return;
     // Nothing typed is nothing written: a blur that changed nothing must
@@ -672,36 +693,25 @@ function Editable({
       close();
       return;
     }
-    save.mutate({
-      path,
-      section: name,
-      body: draft,
-      basedOn: base.hash,
-      was: base.text,
-    });
+    send(draft, base);
   };
   // *Keep mine*: the disk copy read afresh, then the typing saved over it.
   const keepMine = async () => {
     const disk = await diskCopy(name);
     setConflict(false);
-    if (disk === null || draft === null) return;
-    setBase(disk);
-    save.mutate({
-      path,
-      section: name,
-      body: draft,
-      basedOn: disk.hash,
-      was: disk.text,
-    });
+    if (!disk.read) return refuse(disk.reason);
+    if (draft === null) return;
+    setBase(disk.base);
+    send(draft, disk.base);
   };
   // *Take the disk copy*: the typing replaced by what the file holds, the
-  // field left open on it.
+  // field left open on it. A copy that could not be read replaces nothing.
   const takeTheDiskCopy = async () => {
     const disk = await diskCopy(name);
     setConflict(false);
-    if (disk === null) return close();
-    setBase(disk);
-    setDraft(disk.text);
+    if (!disk.read) return refuse(disk.reason);
+    setBase(disk.base);
+    setDraft(disk.base.text);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return;

@@ -621,7 +621,7 @@ export async function tickThread(
  * on disk* line inside it (ADR 0015 decision 5) and neither side is lost.
  * An edit to some other section is no conflict; that write re-applies.
  */
-function unchanged(now: string, was: string): WriteResult | null {
+function changedUnderneath(now: string, was: string): WriteResult | null {
   if (now === was) return null;
   return {
     written: false,
@@ -635,7 +635,7 @@ function unchanged(now: string, was: string): WriteResult | null {
  * the body the plain text field holds, `basedOn` the hash the page was
  * given, and no Revision — these sections are prose, not Positions (ADR
  * 0020 decision 4). `was` is the section's text as the page read it; a
- * section changed underneath refuses (`unchanged`), and anything else the
+ * section changed underneath refuses, and anything else the
  * file did is the protocol's to re-apply. Either refusal comes back as
  * data for the page to show in place.
  */
@@ -651,7 +651,7 @@ export async function saveSection(
   }: { section: EditedSection; body: string; basedOn: string; was: string }
 ): Promise<WriteResult> {
   return writeOwn(index, vaultPath, path, ({ content, outline }) => {
-    const conflict = unchanged(
+    const conflict = changedUnderneath(
       bodyText(content, section(outline, name).heading),
       was
     );
@@ -707,7 +707,7 @@ export async function saveWorkingAnswer(
     // An answer rewritten underneath would be replaced whole and its text
     // recorded as this Revision's `from` — a history entry quoting words
     // the user never saw.
-    const conflict = unchanged(from, was);
+    const conflict = changedUnderneath(from, was);
     if (conflict !== null) return conflict;
     return {
       operations: [

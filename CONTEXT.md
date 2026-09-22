@@ -46,7 +46,7 @@ The body of a vault file before its first `##` heading — the whole body of a Q
 _Avoid_: Preamble, intro, body (the lead is part of it)
 
 **Edited section**:
-A `##` section of an app-owned file whose body is the user's prose, which the app replaces whole only because the user edited it on a surface — on a Research Question, `## Working answer`, `## Open threads`, `## Related questions`, and the two sources sections when a source is moved or detached. Never rewritten on the app's own initiative; in Obsidian it is ordinary text. A Working answer is also a Position, so replacing it records a Revision; moving a source is not a Revision (ADR 0020).
+A `##` section of an app-owned file whose body is the user's prose, which the app replaces whole only because the user edited it on a surface — on a Research Question, `## Working answer`, `## Open threads`, `## Related questions`, and the two sources sections when a source is moved or detached. Never rewritten on the app's own initiative; in Obsidian it is ordinary text. A Working answer is also a Position, so replacing it records a Revision; moving a source is not a Revision (ADR 0020). A save of one carries the section's text as the surface read it beside the Write's `basedOn`: replacing a section whole is the one write a stale re-apply could land wrongly, so a section changed underneath is refused for the surface to show as Changed on disk, never overwritten.
 _Avoid_: Owned section (the app rewrites those unprompted), field, form
 
 **Shape problem**:

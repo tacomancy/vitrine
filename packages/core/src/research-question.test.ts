@@ -594,7 +594,7 @@ describe("researchQuestions.saveWorkingAnswer", () => {
   });
 
   it("a stale basedOn over a file that changed elsewhere re-applies and lands (ADR 0008 decision 3); a file that is gone is a refusal with its reason", async () => {
-    const { vault, based, save, file } = await opened(() => t0);
+    const { vault, page, based, save, file } = await opened(() => t0);
     const stale = await based();
     // Obsidian touched another section since the page read the file.
     await writeFile(
@@ -604,9 +604,12 @@ describe("researchQuestions.saveWorkingAnswer", () => {
         "## Open threads\n\n- [ ] Read Cordi.\n"
       )
     );
-    expect(await save("Typed.", stale)).toMatchObject({ written: true });
+    const landed = await save("Typed.", stale);
+    expect(landed).toMatchObject({ written: true });
     expect(await file()).toContain("- [ ] Read Cordi.");
     expect(await file()).toContain("\nTyped.\n");
+    // The reply's hash is the file as written: the page's next basedOn.
+    expect(landed).toMatchObject({ hash: (await page()).hash });
 
     await rm(join(vault, path));
     expect(await save("Later.", stale)).toMatchObject({

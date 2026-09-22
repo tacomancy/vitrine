@@ -958,6 +958,79 @@ describe("changed on disk, inside the section", () => {
     );
   });
 
+  it("the working answer keeps what it opened on too: an edit to another section under a dirty field raises no line", async () => {
+    let page: Readable = {
+      ...fresh,
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+      },
+    };
+    const saves: unknown[] = [];
+    const save = vi.fn((input: unknown) => {
+      saves.push(input);
+      return { written: true, hash: "ghi", content: "", shape: [] };
+    });
+    page = { ...page, sections: { ...page.sections, related: RELATED } };
+    const { stream } = open(() => page, {
+      "researchQuestions.saveWorkingAnswer": save,
+    });
+    const answer = await within(await region()).findByRole("region", {
+      name: "Working answer",
+    });
+    const box = within(answer).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Working answer",
+    });
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    // Obsidian touched Related questions; the page re-reads under the
+    // dirty field, which keeps the hash and the text it went dirty on.
+    page = {
+      ...fresh,
+      hash: "xyz",
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+        related: { present: true, text: DISK, lines: [] },
+      },
+    };
+    act(() => stream.push(vaultChanged));
+    const view = await region();
+    await waitFor(() =>
+      expect(
+        within(view).getByRole("region", { name: "Related questions" })
+          .textContent
+      ).toContain("Nothing linked")
+    );
+    fireEvent.blur(box);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(saves[0]).toEqual({
+      path: PATH,
+      text: "Probably not.",
+      basedOn: "abc",
+      was: "Probably both.",
+    });
+    expect(within(answer).queryByRole("status")).toBeNull();
+  });
+
+  it("keep mine over a file that can no longer be read says why and keeps the typing", async () => {
+    let page: ResearchQuestionPage = withRelated(RELATED);
+    const save = vi.fn(() => CONFLICT);
+    const { related, field } = await dirty(save, () => page);
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    await within(related).findByRole("status");
+
+    // `changedAndUnreapplyable` covers a file that is gone as well as a
+    // section that moved; *keep mine* has nothing to save over.
+    page = { readable: false, path: PATH, reason: "not in the vault" };
+    fireEvent.click(within(related).getByRole("button", { name: "keep mine" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        "not in the vault"
+      )
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
   it("take the disk copy on the working answer shows what is on disk", async () => {
     let page: Readable = {
       ...fresh,
