@@ -20,6 +20,7 @@ import {
   write,
   type FileOutline,
   type Operation,
+  type Write,
   type Resolution,
   type ShapeProblem,
   type WriteResult,
@@ -508,20 +509,48 @@ const WORKING_ANSWER = "Working answer";
 const FIELD = "working answer";
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
-/** One write through the protocol, then the index told of the app's own write, as a capture does. */
-async function writeOwn(
+/**
+ * What one page write does to the file it finds: the operations and the
+ * hash they were computed from, or a result to answer with and write
+ * nothing (a refusal, or a save that turned out to change nothing).
+ */
+type Plan = (read: PageFile) => Write | WriteResult;
+
+// Page writes run one at a time, as captures do (`questions.ts`). Planning
+// a write means reading the file — which thread is ticked, what the Working
+// answer changed from, whether the head Revision is still inside its
+// window — so two writes that both read before either wrote would each
+// plan against a file that no longer exists by the time they land: two
+// Revisions where the coalescing rule wants one. The protocol's hash check
+// would not catch it, because re-apply faithfully applies operations that
+// were correct when they were computed and are not any more.
+let previous: Promise<unknown> = Promise.resolve();
+
+/**
+ * One planned write through the protocol, then the index told of the app's
+ * own write, as a capture does — the whole of it inside the queue above.
+ */
+function writeOwn(
   index: VaultIndex,
   vaultPath: string,
   path: string,
-  operation: Parameters<typeof write>[2]
+  plan: Plan
 ): Promise<WriteResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
-    return { written: false, reason: "unreadable", detail: read.reason };
-  }
-  const result = await write(vaultPath, path, operation);
-  if (result.written) await index.own(read.relativePath, result.content);
-  return result;
+  const run = async (): Promise<WriteResult> => {
+    const read = await readPageFile(vaultPath, path);
+    if (!read.readable) {
+      return { written: false, reason: "unreadable", detail: read.reason };
+    }
+    const planned = plan(read);
+    if ("written" in planned) return planned;
+    const result = await write(vaultPath, path, planned);
+    if (result.written) await index.own(read.relativePath, result.content);
+    return result;
+  };
+  // A write that threw leaves the queue usable for the next one.
+  const queued = previous.then(run, run);
+  previous = queued;
+  return queued;
 }
 
 /**
@@ -538,49 +567,46 @@ export async function tickThread(
   path: string,
   { text, done }: { text: string; done: boolean }
 ): Promise<WriteResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
-    return { written: false, reason: "unreadable", detail: read.reason };
-  }
-  const { content, outline, hash } = read;
-  const { heading } = section(outline, "Open threads");
-  const matches =
-    heading === undefined
-      ? []
-      : topLevelItems(outline, heading).filter((candidate) => {
-          const thread = openThread(content, candidate);
-          return thread.done !== null && thread.text === text;
-        });
-  // Two threads with one text: which was meant is not knowable from the
-  // text, and ticking the first would be a guess written to disk.
-  if (matches.length !== 1) {
+  return writeOwn(index, vaultPath, path, ({ content, outline, hash }) => {
+    const { heading } = section(outline, "Open threads");
+    const matches =
+      heading === undefined
+        ? []
+        : topLevelItems(outline, heading).filter((candidate) => {
+            const thread = openThread(content, candidate);
+            return thread.done !== null && thread.text === text;
+          });
+    // Two threads with one text: which was meant is not knowable from the
+    // text, and ticking the first would be a guess written to disk.
+    if (matches.length !== 1) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail:
+          matches.length === 0
+            ? `no open thread reads "${text}"`
+            : `${matches.length} open threads read "${text}"`,
+      };
+    }
+    const [item] = matches as [ListItem];
+    const { body: range } = heading as Heading;
+    // The marker sits right after the list marker; the rest of the line and
+    // every other line of the section are the user's and go back as they were.
+    const line = content.slice(item.range.start, item.range.end);
+    const marker = MARKER.exec(line)?.[0] ?? "";
+    const ticked =
+      line.slice(0, marker.length) +
+      line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
+    const body =
+      content.slice(range.start, item.range.start) +
+      ticked +
+      content.slice(item.range.end, range.end);
     return {
-      written: false,
-      reason: "changedAndUnreapplyable",
-      detail:
-        matches.length === 0
-          ? `no open thread reads "${text}"`
-          : `${matches.length} open threads read "${text}"`,
+      operations: [
+        { op: "replaceSection", name: "Open threads", body: body.trim() },
+      ],
+      basedOn: hash,
     };
-  }
-  const [item] = matches as [ListItem];
-  const { body: range } = heading as Heading;
-  // The marker sits right after the list marker; the rest of the line and
-  // every other line of the section are the user's and go back as they were.
-  const line = content.slice(item.range.start, item.range.end);
-  const marker = MARKER.exec(line)?.[0] ?? "";
-  const ticked =
-    line.slice(0, marker.length) +
-    line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
-  const body =
-    content.slice(range.start, item.range.start) +
-    ticked +
-    content.slice(item.range.end, range.end);
-  return writeOwn(index, vaultPath, path, {
-    operations: [
-      { op: "replaceSection", name: "Open threads", body: body.trim() },
-    ],
-    basedOn: hash,
   });
 }
 
@@ -601,10 +627,10 @@ export async function saveSection(
     basedOn,
   }: { section: EditedSection; body: string; basedOn: string }
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, {
+  return writeOwn(index, vaultPath, path, () => ({
     operations: [{ op: "replaceSection", name, body: body.trim() }],
     basedOn,
-  });
+  }));
 }
 
 /**
@@ -629,30 +655,28 @@ export async function saveWorkingAnswer(
     coalesceMs,
   }: { text: string; basedOn: string; at: Date; coalesceMs: number }
 ): Promise<WriteResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
-    return { written: false, reason: "unreadable", detail: read.reason };
-  }
-  const { content, outline } = read;
   const text = typed.replace(/\r\n/g, "\n").trim();
-  // The Position as the file holds it now: what the Revision is *from*.
-  const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
-  // Nothing to write, so nothing to base on: the file's hash is the page's
-  // fresh view of it, whatever hash the page carried in.
-  if (from === text) {
-    return { written: true, hash: read.hash, content, shape: read.shape };
-  }
-  return writeOwn(index, vaultPath, path, {
-    operations: [
-      { op: "replaceSection", name: WORKING_ANSWER, body: text },
-      ...historyOperations(
-        content,
-        outline,
-        { field: FIELD, from, at },
-        coalesceMs
-      ),
-    ],
-    basedOn,
+  return writeOwn(index, vaultPath, path, (read) => {
+    const { content, outline } = read;
+    // The Position as the file holds it now: what the Revision is *from*.
+    const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
+    // Nothing to write, so nothing to base on: the file's hash is the
+    // page's fresh view of it, whatever hash the page carried in.
+    if (from === text) {
+      return { written: true, hash: read.hash, content, shape: read.shape };
+    }
+    return {
+      operations: [
+        { op: "replaceSection", name: WORKING_ANSWER, body: text },
+        ...historyOperations(
+          content,
+          outline,
+          { field: FIELD, from, at },
+          coalesceMs
+        ),
+      ],
+      basedOn,
+    };
   });
 }
 

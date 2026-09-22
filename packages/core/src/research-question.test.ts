@@ -542,6 +542,28 @@ describe("researchQuestions.saveWorkingAnswer", () => {
     expect(rows).toEqual([{ field: "working answer", text: "Third." }]);
   });
 
+  it("saves in flight together leave one entry and the last text, whichever order they land in", async () => {
+    const { page, save, file } = await opened(() => t0);
+    // Both carry the hash the page was given — it saved twice before the
+    // first reply came back. This is the invariant, not a proof of the
+    // queue in `writeOwn`: the interleaving that would break it (both
+    // planning from the file before either wrote) could not be forced
+    // through this seam, and the assertion holds without the queue too.
+    const hash = (await page()).hash;
+    const replies = await Promise.all([
+      save("First typing.", hash),
+      save("Second typing.", hash),
+    ]);
+    expect(replies.every((r) => r.written)).toBe(true);
+
+    const after = await page();
+    expect(after.sections.positionHistory.entries).toEqual([
+      { at: localIso(t0), field: "working answer", why: null, from: "" },
+    ]);
+    expect(after.sections.workingAnswer.text).toBe("Second typing.");
+    expect(await file()).toContain("Second typing.");
+  });
+
   it("saving the text the file already holds writes nothing and records no Revision", async () => {
     const { page, save, file } = await opened(() => t0, {
       [path]: fresh.replace(
