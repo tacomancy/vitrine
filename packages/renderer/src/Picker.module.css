@@ -69,10 +69,12 @@
   box-sizing: border-box;
   min-height: 28px;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  align-items: center;
+  /* glyph · name · title · pdf. The name takes what it needs and the title
+     what is left, so a long title never pushes the citekey out of view. */
+  grid-template-columns: 16px auto minmax(0, 1fr) auto;
+  align-items: baseline;
   gap: 0 var(--space-3);
-  padding: 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   cursor: default;
 }
@@ -97,6 +99,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-fg);
+}
+
+/* The paper's title, in the reading family and quieter than its citekey:
+   the citekey is what was matched and what gets written, the title is what
+   tells you which paper that is. One line, cut with an ellipsis. */
+.title {
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-fg-secondary);
 }
 
 /* Whether a Source's PDF is there: data, so mono and muted — a Source

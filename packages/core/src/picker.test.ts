@@ -125,6 +125,7 @@ describe("picker.candidates", () => {
         path: "sources/born2010.md",
         name: "born2010",
         kind: "source",
+        title: "Sleep to remember",
         // `pdf: born2010.pdf`, and no such file under sources/pdf/.
         pdf: false,
       },
@@ -132,6 +133,7 @@ describe("picker.candidates", () => {
         path: "sources/rasch2013.md",
         name: "rasch2013",
         kind: "source",
+        title: "About sleep's role in memory",
         pdf: true,
       },
     ]);
@@ -143,6 +145,7 @@ describe("picker.candidates", () => {
         path: "sources/klinzing2019.md",
         name: "klinzing2019",
         kind: "source-stub",
+        title: "Mechanisms of systems memory consolidation during sleep",
         pdf: false,
       },
     ]);
@@ -160,20 +163,52 @@ describe("picker.candidates", () => {
         path: "sources/born2010.md",
         name: "born2010",
         kind: "source",
+        title: "Sleep to remember",
         pdf: false,
       },
       {
         path: "sources/klinzing2019.md",
         name: "klinzing2019",
         kind: "source-stub",
+        title: "Mechanisms of systems memory consolidation during sleep",
         pdf: false,
       },
       {
         path: "sources/rasch2013.md",
         name: "rasch2013",
         kind: "source",
+        title: "About sleep's role in memory",
         pdf: true,
       },
+    ]);
+  });
+
+  it("carries a paper's title for the row to show, and nothing for a Kind that has none", async () => {
+    const vault = await tmp("titles");
+    await writeFile(
+      join(vault, "untitled2020.md"),
+      "---\nkind: source-stub\ncitekey: untitled2020\n---\n"
+    );
+    await writeFile(
+      join(vault, "A plain note.md"),
+      "---\ntitle: Not a paper\n---\n\nA note.\n"
+    );
+    const c = await opened(vault);
+
+    // A stub with no `title:` says nothing rather than inventing one from
+    // the file name, which the row already shows.
+    expect((await c.candidates({ query: "untitled" })).rows).toEqual([
+      {
+        path: "untitled2020.md",
+        name: "untitled2020",
+        kind: "source-stub",
+        pdf: false,
+      },
+    ]);
+    // `title:` is a paper's key. A Note carrying one is not a paper, and the
+    // row is the file name it has always been.
+    expect((await c.candidates({ query: "plain note" })).rows).toEqual([
+      { path: "A plain note.md", name: "A plain note", kind: "note" },
     ]);
   });
 

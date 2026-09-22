@@ -30,12 +30,14 @@ const CANDIDATES: Candidate[] = [
     path: "sources/rasch2013.md",
     name: "rasch2013",
     kind: "source",
+    title: "About sleep's role in memory",
     pdf: true,
   },
   {
     path: "sources/klinzing2019.md",
     name: "klinzing2019",
     kind: "source-stub",
+    // A stub with no `title:` yet: the row is its citekey and nothing more.
     pdf: false,
   },
 ];
@@ -143,10 +145,16 @@ describe("attaching a source", () => {
       // The page can hardly be evidence for itself.
       exclude: [PATH],
     });
-    expect(await within(picker).findByText("rasch2013")).toBeTruthy();
-    // PDF presence per row, as the one picker shows it everywhere.
-    expect(picker.textContent).toContain("pdf");
-    expect(picker.textContent).toContain("no pdf");
+    // The citekey, then the paper's title beside it — `rasch2013` is not a
+    // name anyone recognises a paper by — then whether its PDF is there.
+    expect(
+      (await within(picker).findAllByRole("option")).map(
+        (row) => row.textContent
+      )
+    ).toEqual([
+      "●rasch2013About sleep's role in memorypdf",
+      "○klinzing2019no pdf",
+    ]);
     fireEvent.keyDown(within(picker).getByRole("combobox", { name: /find/i }), {
       key: "Escape",
     });
