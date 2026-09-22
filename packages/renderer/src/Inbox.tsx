@@ -16,6 +16,8 @@ import { formatAge } from "./age";
 import { Detail } from "./Detail";
 import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
+import { LINKABLE } from "./kinds";
+import { Picker } from "./Picker";
 import { hashOf, pushRoute } from "./router";
 import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
@@ -51,6 +53,10 @@ export function Inbox({
     message: string;
   } | null>(null);
   if (refusal !== null && refusal.path !== selected) setRefusal(null);
+  // Open while the Link picker is up. The picker puts the keyboard back on
+  // the list itself, so closing it is all this has to do.
+  const [linking, setLinking] = useState(false);
+  if (linking && selected === null) setLinking(false);
   // *Answer in place*: one line open on a row, holding the text until ↵
   // writes it or esc discards it. A row at a time, and only the selected
   // one, so the selection moving closes it.
@@ -98,6 +104,17 @@ export function Inbox({
   const reopen = useMutation(
     trpc.questions.reopen.mutationOptions({
       onSuccess: onWritten,
+      onError: onRefused,
+    })
+  );
+  // Link (#211): the picker's choice appended to the selected Question's
+  // `related`. Only the linking side is written; the backlink is the
+  // index's (CONTEXT.md *Related*). Re-read on settle rather than on
+  // success alone, because the refusal a link can draw — the file changed
+  // underneath — is itself a row that has moved on.
+  const link = useMutation(
+    trpc.questions.link.mutationOptions({
+      onSettled: onWritten,
       onError: onRefused,
     })
   );
@@ -224,6 +241,16 @@ export function Inbox({
         event.preventDefault();
         setRefusal(null);
         reopen.mutate({ path: row.path });
+        return;
+      }
+      case "l": {
+        // Every Status: linking is not a state change, so unlike the other
+        // four keys there is no Status it does not apply to.
+        const row = actionable("open", "promoted", "answered", "abandoned");
+        if (row === null || link.isPending) return;
+        event.preventDefault();
+        setRefusal(null);
+        setLinking(true);
         return;
       }
       case "j":
@@ -397,6 +424,7 @@ export function Inbox({
         <footer className={styles.footer}>
           <span className={styles.key}>j/k move</span>
           <span className={styles.key}>p promote</span>
+          <span className={styles.key}>l link</span>
           <span className={styles.key}>a answer</span>
           <span className={styles.key}>d drop</span>
           <span className={styles.key}>r reopen</span>
@@ -418,6 +446,22 @@ export function Inbox({
           )}
           {status.lines}
         </footer>
+        {linking && selectedRow?.kind === "question" && (
+          <Picker
+            label="Link to"
+            kinds={LINKABLE}
+            // A Question cannot be related to itself, so it is not offered.
+            exclude={[selectedRow.path.slice(vaultPath.length + 1)]}
+            onChoose={(candidate) => {
+              setLinking(false);
+              link.mutate({
+                path: selectedRow.path,
+                target: candidate.path,
+              });
+            }}
+            onClose={() => setLinking(false)}
+          />
+        )}
       </section>
       <Detail row={selectedRow} />
     </>

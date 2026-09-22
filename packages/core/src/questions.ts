@@ -3,6 +3,7 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
+import { linkQuestion, type Linked } from "./link.js";
 import {
   readQuestionForWrite,
   type QuestionFile,
@@ -40,6 +41,8 @@ export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
+  /** Link (#211): a wikilink appended to the Question's `related`, the linking side only. */
+  link: (path: string, target: string) => Promise<Linked>;
   /** Answer in place (#212): the typed line into the lead, then the two keys. */
   answer: (path: string, line: string) => Promise<Triage>;
   /** Drop (#212): `status: abandoned`, and nothing else touched. */
@@ -330,8 +333,11 @@ export function createQuestionService({
     return open;
   }
 
-  // Answer, drop and reopen are not serialised with captures: they write to
-  // a file that already exists and pick no name, so nothing can collide.
+  // Answer, drop, reopen and link are not serialised with captures: they
+  // write to a file that already exists and pick no name, so nothing can
+  // collide over a name. Link has a hazard of its own — it reads `related`
+  // and writes the list back — and holds its own queue for it, in
+  // `link.ts`, where the read and the write cannot be pulled apart.
   return {
     capture: (text, provenance) => serially(() => capture(text, provenance)),
     promote: (path) =>
@@ -342,6 +348,10 @@ export function createQuestionService({
           newId,
         });
       }),
+    link: async (path, target) => {
+      const open = await opened();
+      return linkQuestion(open.vault.path, open.index, path, target);
+    },
     answer: async (path, line) => {
       const { vault: open, index } = await opened();
       const found = await readQuestionForWrite(open.path, path, OPEN);
