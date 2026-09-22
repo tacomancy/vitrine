@@ -894,7 +894,7 @@ describe("the position history", () => {
 
   const explained = entry(
     "2026-08-05",
-    "Cordi's funnel plot — mostly small-study bias. [[cordi2021#^h12]]",
+    "Cordi's funnel plot — mostly small-study bias. [[cordi2021#^h12]], against [[wamsley2019|the 2019 null]]",
     "Probably both, but the designs are underpowered."
   );
   const quiet = [
@@ -923,8 +923,10 @@ describe("the position history", () => {
     expect(lead.textContent).toContain("5 August 2026");
     expect(lead.textContent).toContain("A third the size claimed.");
     expect(lead.textContent).toContain("Cordi's funnel plot");
-    // The why's links read as links, brackets and block id stripped of nothing.
+    // The why's links read as links, through the same grammar the rest of
+    // the page reads one with: the block id kept, an alias in place of its target.
     expect(within(lead).getByText("cordi2021#^h12")).toBeTruthy();
+    expect(within(lead).getByText("the 2019 null")).toBeTruthy();
     expect(lead.textContent).toContain(
       "from — Probably both, but the designs are underpowered."
     );

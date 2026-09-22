@@ -23,6 +23,7 @@ import { hashOf, replaceRoute } from "./router";
 import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
+import { linkLabel } from "./wikilink";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
@@ -235,8 +236,8 @@ function whileDoing(fm: ResearchQuestionFrontmatter): string {
   if (fm.from === undefined) return "unattached";
   const where =
     fm.page === undefined
-      ? linkText(fm.from)
-      : `${linkText(fm.from)} · p.${fm.page}`;
+      ? linkLabel(fm.from)
+      : `${linkLabel(fm.from)} · p.${fm.page}`;
   return fm.context === "other" ? where : `while ${fm.context} ${where}`;
 }
 
@@ -354,14 +355,6 @@ function WorkingAnswer({
 function baseLine(fm: ResearchQuestionFrontmatter): string {
   const when = fm.promoted === undefined ? "" : `, ${localDate(fm.promoted)}`;
   return `promoted from a capture made ${whileDoing(fm)}${when}`;
-}
-
-/** `[[Rasch & Born 2013]]` → `Rasch & Born 2013`; an alias shows in place of the target. */
-function linkText(from: string): string {
-  const inner = /^\[\[(.*)\]\]$/.exec(from)?.[1];
-  if (inner === undefined) return from;
-  const alias = inner.split("|")[1];
-  return alias ?? inner;
 }
 
 /**

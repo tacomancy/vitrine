@@ -300,6 +300,9 @@ importers:
       eventsource:
         specifier: ^5.1.1
         version: 5.1.1
+      markdown:
+        specifier: workspace:*
+        version: link:../markdown
       react:
         specifier: ^19.3.0
         version: 19.3.0

@@ -1,8 +1,11 @@
 /*
  * The Position history as a narrative (prompt 3): a date column, then the
- * entry itself at full width. No timeline rule and no dots — the prototype's
- * spine is a hairline, and BRAND.md law 5 has none; the dates in the mono
- * column carry the sequence on their own.
+ * entry itself at full width. The prototype's timeline — a spine down the
+ * page with a dot per entry — is not drawn: surfaces here float with a
+ * gutter rather than being divided by a line (`App.module.css`), and the
+ * dates in the mono column carry the sequence on their own. The short rule
+ * running into a collapsed trail stays: it is that run's own mark, not a
+ * divider, and BRAND.md law 5 counts a hairline rule as geometry.
  */
 
 .filter {

@@ -8,6 +8,7 @@ import {
 } from "./history";
 import styles from "./PositionHistory.module.css";
 import { localDate } from "./rows";
+import { linkLabel } from "./wikilink";
 
 /**
  * The Position history rendered in place as a narrative (brief § Position
@@ -30,6 +31,9 @@ export function PositionHistory({
   current: Record<string, string>;
 }) {
   const [explainedOnly, setExplainedOnly] = useState(false);
+  // Nothing to filter and no trail to draw: the base line the caller puts
+  // under this says where the page came from, and that is the whole history.
+  const empty = entries.length === 0;
   // The chain that gives each entry the text it moved *to* is computed over
   // every entry, then filtered: hiding the trail must not change what the
   // explained Revisions say the answer became.
@@ -40,7 +44,7 @@ export function PositionHistory({
   // than one; on a Research Question every entry is the working answer.
   const fields = new Set(entries.map((entry) => entry.field));
 
-  if (entries.length === 0) return null;
+  if (empty) return null;
   return (
     <>
       <div className={styles.filter} role="group" aria-label="Show">
@@ -69,10 +73,14 @@ export function PositionHistory({
   );
 }
 
-// An entry has no id; its timestamp is its identity (ADR 0020 decision 2),
-// and a run is identified by its newest.
+// An entry has no id; its timestamp identifies it *within its field* (ADR
+// 0020 decision 2), so the key is both — one write that stamps two fields
+// would otherwise give two rows one key. A run is keyed by its newest.
+const idOf = (revision: Revision) => `${revision.at} ${revision.field}`;
 const keyOf = (row: HistoryRow) =>
-  row.kind === "explained" ? row.revision.at : `quiet ${row.revisions[0]?.at}`;
+  row.kind === "explained"
+    ? idOf(row.revision)
+    : `quiet ${row.revisions[0] === undefined ? "" : idOf(row.revisions[0])}`;
 
 function Row({ row, named }: { row: HistoryRow; named: boolean }) {
   if (row.kind === "explained") {
@@ -106,8 +114,11 @@ function Quiet({
   named: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const newest = revisions[0] as Revision;
-  const oldest = revisions[revisions.length - 1] as Revision;
+  // `historyRows` never makes an empty run, so the head is the run's newest
+  // and its last is the oldest; both are the same entry in a run of one.
+  const newest = revisions[0];
+  const oldest = revisions[revisions.length - 1];
+  if (newest === undefined || oldest === undefined) return null;
   return (
     <li className={styles.entry}>
       <When
@@ -128,7 +139,7 @@ function Quiet({
         {open && (
           <ul className={styles.expanded}>
             {revisions.map((revision) => (
-              <li key={revision.at} className={styles.quiet}>
+              <li key={idOf(revision)} className={styles.quiet}>
                 <span className={styles.when}>{localDate(revision.at)}</span>
                 <From from={revision.from} />
               </li>
@@ -171,16 +182,17 @@ function From({ from }: { from: string }) {
 
 // A why is one line the user typed, and `[[` links inside it are how a
 // Revision names what changed its mind (§ Research Question view and
-// triage). They read as links; where each lands is not known here, so
-// nothing pretends they open.
-const WIKILINK = /\[\[([^\]]+)\]\]/g;
+// triage). Only where one *starts* is found here; how it reads is
+// `linkLabel`'s, over the package's grammar. They read as links; where each
+// lands is not known here, so nothing pretends they open.
+const WIKILINK = /\[\[(.*?)\]\]/g;
 
 function Why({ text }: { text: string }) {
   const parts: (string | { link: string })[] = [];
   let last = 0;
   for (const match of text.matchAll(WIKILINK)) {
     if (match.index > last) parts.push(text.slice(last, match.index));
-    parts.push({ link: match[1] as string });
+    parts.push({ link: linkLabel(match[1] ?? "") });
     last = match.index + match[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
