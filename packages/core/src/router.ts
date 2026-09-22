@@ -39,6 +39,12 @@ const captureInput = z.object({
   provenance: z.object({ context: z.literal("other") }).strict(),
 });
 
+/** *Answer in place*: the one line the user typed, never empty. */
+const answerInput = z.object({
+  path: z.string(),
+  line: z.string().trim().min(1, "The answer is empty."),
+});
+
 const noVault = () =>
   new TRPCError({ code: "PRECONDITION_FAILED", message: "No vault is open." });
 
@@ -125,6 +131,19 @@ export const router = t.router({
       .mutation(({ ctx, input }) =>
         refusing(ctx.questions.promote(input.path))
       ),
+    // The last three triage keys (#212): each is one write through the
+    // protocol, each refusal the typed error the formatter unpacks.
+    answer: t.procedure
+      .input(answerInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.answer(input.path, input.line))
+      ),
+    drop: t.procedure
+      .input(pathInput)
+      .mutation(({ ctx, input }) => refusing(ctx.questions.drop(input.path))),
+    reopen: t.procedure
+      .input(pathInput)
+      .mutation(({ ctx, input }) => refusing(ctx.questions.reopen(input.path))),
   }),
 });
 

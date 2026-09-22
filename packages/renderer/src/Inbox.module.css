@@ -156,6 +156,45 @@
 }
 
 /*
+ * *Answer in place*: one line under the question it answers, so what is
+ * being answered stays legible while the answer is typed. It takes the
+ * row's text column and everything right of it, as a refusal does.
+ */
+.answer {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 0 var(--space-2);
+}
+
+.answerInput {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-surface);
+  color: var(--color-fg);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+}
+
+.answerInput:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 0;
+}
+
+.answerHint {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/*
  * A write the core refused, on the row it was for: the reason in the same
  * quiet mono, in the foreground colour so it reads as a fact to act on,
  * never red (design-prompts § what to push back on).

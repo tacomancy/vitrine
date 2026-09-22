@@ -9,7 +9,7 @@ export type {
   PartialQuestion,
   QuestionStatus,
 } from "./list.js";
-export type { Provenance, Question } from "./questions.js";
+export type { Provenance, Question, Triage } from "./questions.js";
 export type {
   LinkLine,
   OpenThread,
