@@ -28,6 +28,7 @@
 .kicker,
 .status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   font-family: var(--font-mono);
@@ -40,6 +41,51 @@
 
 .status {
   gap: var(--space-1);
+}
+
+/* Resolve / abandon / reopen, at the end of the kicker line as the prototype
+   puts them: the page's own verbs, in the kicker's voice, never a dialog. */
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.action {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-sunken);
+  font: inherit;
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.action:hover:enabled {
+  color: var(--color-fg);
+}
+
+.action:focus-visible {
+  color: var(--color-fg);
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  cursor: default;
+}
+
+/* A write that did not happen, said under the kicker rather than in a dialog. */
+.wroteNothing {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-fg-muted);
 }
 
 /* The question in the serif at display size: it reads as text, not a field. */

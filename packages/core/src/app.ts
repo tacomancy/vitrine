@@ -85,6 +85,7 @@ export function createApp({
     vault,
     questions: createQuestionService({ vault, now, newId }),
     events,
+    now: now ?? (() => new Date()),
   };
 
   // The renderer is served from the Vite dev server in development and from

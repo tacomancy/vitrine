@@ -18,6 +18,8 @@ export type {
   ResearchQuestionPage,
   ResearchQuestionSections,
   ResearchQuestionStatus,
+  ResolveResult,
+  WriteBack,
 } from "./research-question.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";

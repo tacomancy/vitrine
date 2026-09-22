@@ -8,9 +8,11 @@ import {
   analyseFile,
   createFile,
   locate,
+  readOutline,
   sha256,
   write,
   type FileOutline,
+  type Operation,
   type Resolution,
   type ShapeProblem,
   type WriteResult,
@@ -476,18 +478,27 @@ export async function readResearchQuestionPage(
 export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
-/** One write through the protocol, then the index told of the app's own write, as a capture does. */
+/**
+ * One write through the protocol, then the index told of the app's own
+ * write, as a capture does. `basedOn` is the caller's when the write is
+ * against text the user was shown — a stale one is how a save learns the
+ * file moved underneath — and otherwise the hash of the read this makes.
+ */
 async function writeOwn(
   index: VaultIndex,
   vaultPath: string,
   path: string,
-  operation: Parameters<typeof write>[2]
+  operations: Operation[],
+  basedOn?: string
 ): Promise<WriteResult> {
   const read = await readPageFile(vaultPath, path);
   if (!read.readable) {
     return { written: false, reason: "unreadable", detail: read.reason };
   }
-  const result = await write(vaultPath, path, operation);
+  const result = await write(vaultPath, read.relativePath, {
+    operations,
+    basedOn: basedOn ?? read.hash,
+  });
   if (result.written) await index.own(read.relativePath, result.content);
   return result;
 }
@@ -544,12 +555,13 @@ export async function tickThread(
     content.slice(range.start, item.range.start) +
     ticked +
     content.slice(item.range.end, range.end);
-  return writeOwn(index, vaultPath, path, {
-    operations: [
-      { op: "replaceSection", name: "Open threads", body: body.trim() },
-    ],
-    basedOn: hash,
-  });
+  return writeOwn(
+    index,
+    vaultPath,
+    path,
+    [{ op: "replaceSection", name: "Open threads", body: body.trim() }],
+    hash
+  );
 }
 
 /**
@@ -569,10 +581,158 @@ export async function saveSection(
     basedOn,
   }: { section: EditedSection; body: string; basedOn: string }
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, {
-    operations: [{ op: "replaceSection", name, body: body.trim() }],
-    basedOn,
+  return writeOwn(
+    index,
+    vaultPath,
+    path,
+    [{ op: "replaceSection", name, body: body.trim() }],
+    basedOn
+  );
+}
+
+/** What the write-back reached, or why it reached no Question; `path` is vault-relative. */
+export type WriteBack =
+  { written: true; path: string } | { written: false; reason: string };
+
+/** Resolving is two writes, the page's first: each answers for itself. */
+export type ResolveResult = { page: WriteResult; question: WriteBack };
+
+/**
+ * Resolve or abandon the page (ADR 0020 decision 6; § Vault layout,
+ * Research Question): the Working answer as it stands is the answer — there
+ * is no second field — so this is `status` (and, on *answered*, the date the
+ * page was resolved) and then the write-back to the Question it came from.
+ *
+ * Two writes, the page first, and no rollback between them: a page that was
+ * resolved stays resolved and the write-back says what it could not do, so a
+ * Question that is gone or is not a Question costs the user the line, not
+ * the resolution. *Abandon* sets no `answered:` — the date is in the line —
+ * as *drop* on a Question sets only its status.
+ */
+export async function resolveResearchQuestion(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  /** `at` is the resolution's timestamp, formatted by the caller's clock. */
+  { status, at }: { status: "answered" | "abandoned"; at: string }
+): Promise<ResolveResult> {
+  const read = await readPageFile(vaultPath, path);
+  if (!read.readable) {
+    return {
+      page: { written: false, reason: "unreadable", detail: read.reason },
+      question: { written: false, reason: "the page was not resolved" },
+    };
+  }
+  const keys = status === "answered" ? { status, answered: at } : { status };
+  const page = await write(vaultPath, read.relativePath, {
+    operations: [{ op: "setFrontmatter", keys }],
+    basedOn: read.hash,
   });
+  if (!page.written) {
+    return {
+      page,
+      question: { written: false, reason: "the page was not resolved" },
+    };
+  }
+  await index.own(read.relativePath, page.content);
+  const question = await writeBack(index, vaultPath, read, { status, at });
+  return { page, question };
+}
+
+/**
+ * The Question the page was promoted from, answered or abandoned with one
+ * line in its *lead* — the body before the first `##`, so the line can never
+ * land inside a section the user keeps (ADR 0008 decision 2). One write:
+ * the keys and the line together, so the Question never carries one without
+ * the other.
+ */
+async function writeBack(
+  index: VaultIndex,
+  vaultPath: string,
+  page: PageFile,
+  { status, at }: { status: "answered" | "abandoned"; at: string }
+): Promise<WriteBack> {
+  const fm = (page.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
+  const promotedFrom = asString(fm["promoted_from"]);
+  if (promotedFrom === undefined) {
+    return {
+      written: false,
+      reason: "the page has no promoted_from: there is no Question to answer",
+    };
+  }
+  const target = linkTarget(promotedFrom);
+  const { resolution, resolvedPath } = index.resolve(page.relativePath, {
+    target,
+    heading: [],
+    blockId: null,
+  });
+  if (resolvedPath === null) {
+    return {
+      written: false,
+      reason: `${promotedFrom} ${
+        resolution === "ambiguous"
+          ? "matches more than one file"
+          : "matches no file in the vault"
+      }`,
+    };
+  }
+  const question = await readOutline(vaultPath, resolvedPath);
+  if (!question.readable) {
+    return { written: false, reason: `${resolvedPath}: ${question.reason}` };
+  }
+  if (question.kind !== "question") {
+    return {
+      written: false,
+      reason: `${resolvedPath} is not a Question: kind is ${question.kind ?? "absent"}`,
+    };
+  }
+  const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
+  const result = await write(vaultPath, resolvedPath, {
+    operations: [
+      {
+        op: "setFrontmatter",
+        keys: status === "answered" ? { status, answered: at } : { status },
+      },
+      { op: "appendToSection", target: "lead", line },
+    ],
+    basedOn: question.hash,
+  });
+  if (!result.written) {
+    return {
+      written: false,
+      reason: `${resolvedPath}: ${result.reason} — ${result.detail}`,
+    };
+  }
+  await index.own(question.path, result.content);
+  return { written: true, path: question.path };
+}
+
+/** `[[Name|alias]]` → `Name`; a value written as plain text is the name itself. */
+function linkTarget(value: string): string {
+  const trimmed = value.trim();
+  const inner = /^\[\[(.*)\]\]$/.exec(trimmed)?.[1] ?? trimmed;
+  return (inner.split("|")[0] ?? "").split("#")[0]?.trim() ?? "";
+}
+
+// The line is prose the user reads, so it carries the day, not the second;
+// the timestamp itself is in `answered:`, where a machine reads it.
+const dateOf = (iso: string) => iso.slice(0, 10);
+
+/**
+ * Reopen the page: `status: open`, and nothing else — the body, the history,
+ * and the Question's line all stay where they are, because resolving is a
+ * status and not an archive (ADR 0020 decision 6). The Question keeps
+ * whatever the write-back left it; setting *it* back to open is the Inbox's
+ * own *reopen* (#212), which is the surface that owns the Question's status.
+ */
+export async function reopenResearchQuestion(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string
+): Promise<WriteResult> {
+  return writeOwn(index, vaultPath, path, [
+    { op: "setFrontmatter", keys: { status: "open" } },
+  ]);
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */

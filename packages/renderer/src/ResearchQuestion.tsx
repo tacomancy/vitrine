@@ -3,6 +3,8 @@ import type {
   LinkLine,
   OpenThread,
   ResearchQuestionFrontmatter,
+  ResearchQuestionStatus,
+  ResolveResult,
   ShapeProblem,
   WriteResult,
 } from "core";
@@ -95,7 +97,7 @@ export function ResearchQuestion({ path }: { path: string }) {
       )}
       {readable !== null && (
         <div className={styles.scroll}>
-          <Header frontmatter={readable.frontmatter} />
+          <Header path={readable.path} frontmatter={readable.frontmatter} />
           <Section
             name="Working answer"
             present={readable.sections.workingAnswer.present}
@@ -194,7 +196,13 @@ export function ResearchQuestion({ path }: { path: string }) {
 }
 
 /** The question in the serif, then where and when it was first wondered, then its status. */
-function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
+function Header({
+  path,
+  frontmatter,
+}: {
+  path: string;
+  frontmatter: ResearchQuestionFrontmatter;
+}) {
   const now = new Date();
   return (
     <header className={styles.header}>
@@ -209,10 +217,111 @@ function Header({ frontmatter }: { frontmatter: ResearchQuestionFrontmatter }) {
         {frontmatter.promoted !== undefined && (
           <span>promoted {formatAge(frontmatter.promoted, now)}</span>
         )}
+        <Resolving path={path} status={frontmatter.status} />
       </div>
       <h1 className={styles.question}>{frontmatter.question}</h1>
       <p className={styles.provenance}>{provenanceLine(frontmatter)}</p>
     </header>
+  );
+}
+
+/**
+ * Resolve, abandon, reopen (ADR 0020 decision 6; § Vault layout, Research
+ * Question): the Working answer as it stands is the answer, so each is one
+ * button and there is no second field. Resolving writes the page and then
+ * the Question it came from; a write-back that reached no Question is a line
+ * here, because the page is resolved either way and the user is the only one
+ * who can put that right. Reopen is offered whenever the page is resolved —
+ * resolving is a status, not an archive.
+ */
+function Resolving({
+  path,
+  status,
+}: {
+  path: string;
+  status: ResearchQuestionStatus;
+}) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const reread = () => {
+    void queryClient.invalidateQueries(
+      trpc.researchQuestions.page.pathFilter()
+    );
+    // The Inbox's row reads the Question, whose status the write-back moved.
+    void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+  };
+  const fail = (error: { message: string }) => setRefusal(error.message);
+  const resolve = useMutation(
+    trpc.researchQuestions.resolve.mutationOptions({
+      onSuccess: (result: ResolveResult) => {
+        reread();
+        if (!result.page.written) {
+          setRefusal(
+            `could not resolve: ${result.page.reason} — ${result.page.detail}`
+          );
+        } else if (!result.question.written) {
+          setRefusal(`the Question was not marked: ${result.question.reason}`);
+        } else setRefusal(null);
+      },
+      onError: fail,
+    })
+  );
+  const reopen = useMutation(
+    trpc.researchQuestions.reopen.mutationOptions({
+      onSuccess: (result: WriteResult) => {
+        reread();
+        setRefusal(
+          result.written
+            ? null
+            : `could not reopen: ${result.reason} — ${result.detail}`
+        );
+      },
+      onError: fail,
+    })
+  );
+  const busy = resolve.isPending || reopen.isPending;
+  return (
+    <>
+      <span className={styles.actions}>
+        {status === "open" ? (
+          <>
+            <button
+              type="button"
+              className={styles.action}
+              disabled={busy}
+              onClick={() => resolve.mutate({ path, status: "answered" })}
+            >
+              resolve
+            </button>
+            <button
+              type="button"
+              className={styles.action}
+              disabled={busy}
+              onClick={() => resolve.mutate({ path, status: "abandoned" })}
+            >
+              abandon
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className={styles.action}
+            disabled={busy}
+            onClick={() => reopen.mutate({ path })}
+          >
+            reopen
+          </button>
+        )}
+      </span>
+      {/* The line sits under the kicker, in the footer's voice: a write that
+          did not happen is said where it was asked for. */}
+      {refusal !== null && (
+        <p role="status" className={styles.wroteNothing}>
+          {refusal}
+        </p>
+      )}
+    </>
   );
 }
 

@@ -2,12 +2,14 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
-import type { QuestionService } from "./questions.js";
+import { localIso, type QuestionService } from "./questions.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
   EDITED_SECTIONS,
   readResearchQuestionPage,
+  reopenResearchQuestion,
+  resolveResearchQuestion,
   saveSection,
   tickThread,
 } from "./research-question.js";
@@ -18,6 +20,8 @@ export type Context = {
   vault: VaultService;
   questions: QuestionService;
   events: Events;
+  /** The clock a procedure stamps a write with; a test pins it. */
+  now: () => Date;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -138,6 +142,27 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return refusing(saveSection(index, vault.path, input.path, input));
       }),
+    // Resolve or abandon (#222; ADR 0020 decision 6): the page's keys, then
+    // the write-back to the Question it came from. Two results, because the
+    // second can fail after the first landed — a page whose Question is gone
+    // is resolved, and says what it could not write.
+    resolve: t.procedure
+      .input(pathInput.extend({ status: z.enum(["answered", "abandoned"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          resolveResearchQuestion(index, vault.path, input.path, {
+            status: input.status,
+            at: localIso(ctx.now()),
+          })
+        );
+      }),
+    // Resolving is a status, not an archive: reopen puts the page back to
+    // open and leaves every other byte — and the Question's line — alone.
+    reopen: t.procedure.input(pathInput).mutation(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(reopenResearchQuestion(index, vault.path, input.path));
+    }),
     // A thread ticked in place, named by its text.
     tickThread: t.procedure
       .input(pathInput.extend({ text: z.string(), done: z.boolean() }))
