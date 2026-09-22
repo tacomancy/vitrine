@@ -53,9 +53,9 @@ const page: ResearchQuestionPage = {
     workingAnswer: { present: true, text: "" },
     supporting: { present: true, lines: [] },
     opposing: { present: true, lines: [] },
-    related: { present: true, lines: [] },
-    openThreads: { present: true, threads: [] },
-    positionHistory: { present: true, text: "" },
+    related: { present: true, text: "", lines: [] },
+    openThreads: { present: true, text: "", threads: [] },
+    positionHistory: { present: true, text: "", entries: [] },
   },
   problems: [],
 };

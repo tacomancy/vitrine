@@ -178,6 +178,28 @@ describe("questions.link", () => {
     expect(listing.questions[0]?.status).toBe("open");
   });
 
+  // The hazard #213 built the page's write queue for, on the Question:
+  // both links read `related` before either wrote, so the second write
+  // re-applies an operation that was correct when it was computed and is
+  // not any more, and the first link is gone. The protocol's hash check
+  // cannot catch that; only running them one at a time can.
+  it("keeps both links when two arrive at once", async () => {
+    const c = await opened({
+      "notes/Reactivation.md": "# Reactivation\n",
+    });
+
+    const [first, second] = await Promise.all([
+      c.link({ path: QUESTION_PATH, target: NOTE_PATH }),
+      c.link({ path: QUESTION_PATH, target: "notes/Reactivation.md" }),
+    ]);
+
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeUndefined();
+    const after = await c.read(QUESTION_PATH);
+    expect(after).toContain('- "[[Sleep and consolidation]]"');
+    expect(after).toContain('- "[[Reactivation]]"');
+  });
+
   it("refuses when no vault is open", async () => {
     const c = await core();
     const reply = await c.mutate<Linked>("questions.link", {

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Question } from "core";
+import type { Provenance, Question } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
@@ -26,8 +26,22 @@ export function App() {
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+    // A capture made on a page appended its link there (§ Vault layout).
+    void queryClient.invalidateQueries(
+      trpc.researchQuestions.page.pathFilter()
+    );
     setLanded(question);
   };
+
+  // What the capture line records as Provenance (CONTEXT.md): pursuing the
+  // page at this address, otherwise Unattached. The address names a file,
+  // not a Kind; a capture on a page that is not a Research Question is
+  // refused by the core, loudly, in the capture line. The Reader will add
+  // *reading* here when it exists.
+  const provenance: Provenance =
+    route.surface === "questions"
+      ? { context: "pursuing", researchQuestion: route.path }
+      : { context: "other" };
 
   // Nothing is drawn until the core has answered: a First run that flashes
   // before a remembered vault appears would say something untrue.
@@ -65,7 +79,7 @@ export function App() {
           )}
           {route.surface === "loose-ends" && <LooseEnds />}
         </div>
-        <CaptureLine onCaptured={onCaptured} />
+        <CaptureLine provenance={provenance} onCaptured={onCaptured} />
       </div>
     </VaultChangedListeners>
   );

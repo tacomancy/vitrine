@@ -28,14 +28,20 @@
 .kicker,
 .status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--color-fg-muted);
+}
+
+/* A kicker item wraps as a whole — "promoted 1d" is one fact, not two words. */
+.kicker > span {
+  white-space: nowrap;
 }
 
 .status {
@@ -77,6 +83,58 @@
   gap: var(--space-5);
 }
 
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+/* *edit* beside the label, in the label's voice; it takes the keyboard back when the field closes. */
+.edit {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.edit:hover,
+.edit:focus-visible {
+  color: var(--color-fg);
+  outline: none;
+}
+
+/*
+ * The plain text field: the section's lines as the file holds them, in the
+ * mono so a `- [ ]` reads as what it is. No hairline (BRAND.md law 5):
+ * the field is a lighter surface with the surfaces' radius.
+ */
+.field {
+  width: 100%;
+  max-width: 64ch;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-fg);
+  resize: vertical;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
+}
+
 .label {
   margin: 0;
   font-family: var(--font-mono);
@@ -112,22 +170,42 @@
   color: var(--color-fg-muted);
 }
 
-.answer {
+/*
+ * The working answer is a text field that reads as the answer: the serif
+ * against the accent rule, no box of its own, sized to its content so
+ * editing it is editing the text on the page (prompt 3: as fast as editing
+ * a text field). Focus is the rule brightening, not an outline around a box.
+ */
+.field {
+  display: block;
+  width: 100%;
   max-width: 64ch;
-  border-left: 2px solid var(--color-accent);
-  padding-left: var(--space-4);
+  min-height: calc(2 * var(--leading-relaxed) * var(--text-md));
+  field-sizing: content;
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border: 0;
+  border-left: 2px solid var(--color-line);
+  border-radius: 0;
+  background: transparent;
+  resize: none;
   font-family: var(--font-serif);
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
   color: var(--color-fg);
 }
 
-.answer p {
-  margin: 0;
+.field:focus {
+  outline: none;
+  border-left-color: var(--color-accent);
 }
 
-.answer p + p {
-  margin-top: var(--space-3);
+/* A refused save, under the field, in the footer's voice: a reason, never red. */
+.refusal {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
 }
 
 .lines {
@@ -150,10 +228,18 @@
   color: var(--color-fg);
 }
 
+/* A link target in the mono; one that opens a surface is an anchor, the rest read the same and do nothing. */
 .target {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-link);
+  text-decoration: none;
+}
+
+a.target:hover,
+a.target:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
 /* Where a link lands is said in words, in the muted mono — never a colour. */
@@ -169,8 +255,29 @@
   color: var(--color-fg-secondary);
 }
 
+/* The tick is a plain glyph button: no box around the box. */
 .box {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* A refused write, said inside the section that asked, in the footer's voice. */
+.refusal {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
 

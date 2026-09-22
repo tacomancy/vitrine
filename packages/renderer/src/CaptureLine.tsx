@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import type { Question } from "core";
+import type { Provenance, Question } from "core";
 import {
   useCallback,
   useEffect,
@@ -17,11 +17,15 @@ import { useTRPC } from "./trpc";
  * Closing puts focus back where it was; the surface the Question lands in
  * may then take it (ADR 0010). Mounted once, window-wide. What happens to a
  * Question once written is the window's business, not the line's: it
- * reports the landing and closes.
+ * reports the landing and closes. `provenance` is what the window says was
+ * open when the chord was pressed: the chip shows it, and the Question
+ * carries it.
  */
 export function CaptureLine({
+  provenance,
   onCaptured,
 }: {
+  provenance: Provenance;
   onCaptured: (question: Question) => void;
 }) {
   const trpc = useTRPC();
@@ -82,7 +86,7 @@ export function CaptureLine({
     // exactly where they were, text and all.
     if (trimmed === "" || capture.isPending) return;
     capture.mutate(
-      { text: trimmed, provenance: { context: "other" } },
+      { text: trimmed, provenance },
       {
         onSuccess: (question) => {
           close();
@@ -115,7 +119,7 @@ export function CaptureLine({
       <div className={styles.row}>
         <span className={styles.label}>Capture</span>
         <span className={styles.chip}>
-          Unattached · {formatDateTime(openedAt)}
+          {chipText(provenance)} · {formatDateTime(openedAt)}
         </span>
         <input
           ref={inputRef}
@@ -136,4 +140,11 @@ export function CaptureLine({
       )}
     </form>
   );
+}
+
+/** `Unattached`, or `Pursuing · <the page's file name>`: what the Provenance will say. */
+function chipText(provenance: Provenance): string {
+  if (provenance.context === "other") return "Unattached";
+  const stem = provenance.researchQuestion.split("/").pop() ?? "";
+  return `Pursuing · ${stem.replace(/\.md$/, "")}`;
 }
