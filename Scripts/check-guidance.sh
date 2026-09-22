@@ -30,15 +30,33 @@ else
   say "skip: frozen-tier diff ($base is not a known ref)"
 fi
 
-# 2. Every skill CLAUDE.md names in backticks resolves to a vendored skill.
-#    Only the Development loop and Review cadence sections name skills.
+# 2. Every skill CLAUDE.md names in backticks resolves to a vendored skill, and
+#    is one the agent can actually invoke. Only the Development loop and Review
+#    cadence sections name skills.
+#
+#    Existing on disk is not enough: these sections are run by the agent, so a
+#    skill flagged user-only leaves the documented step with nothing to run.
+#    Upstream sets those flags on user-facing entry points; a skill named here
+#    is not one. The truthy/quote variants below are deliberate -- a re-vendor
+#    writing `True` or `"yes"` must fail loudly, not pass. ADR 0021.
 skills_dir=.agents/skills
 sections="$(awk '/^## Development loop/,/^## Code standard/' CLAUDE.md; awk '/^## Review cadence/,/^## Parallel work/' CLAUDE.md)"
 for name in $(printf '%s' "$sections" | grep -o '`[a-z][a-z0-9-]*`' | tr -d '`' | sort -u); do
   # Not every backticked word is a skill: a word that is also a path in the
   # repo (a file, a directory) is left alone.
   [ -e "$name" ] && continue
-  [ -f "$skills_dir/$name/SKILL.md" ] || bad "CLAUDE.md names \`$name\` but $skills_dir/$name/SKILL.md does not exist"
+  skill="$skills_dir/$name/SKILL.md"
+  if [ ! -f "$skill" ]; then
+    bad "CLAUDE.md names \`$name\` but $skill does not exist"
+    continue
+  fi
+  if grep -qiE '^disable-model-invocation:[[:space:]]*['"'"'"]?(true|yes)' "$skill"; then
+    bad "CLAUDE.md names \`$name\` as a skill to run, but $skill disables model invocation, so the agent cannot invoke it"
+  fi
+  policy="$skills_dir/$name/agents/openai.yaml"
+  if [ -f "$policy" ] && grep -qiE '^[[:space:]]*allow_implicit_invocation:[[:space:]]*['"'"'"]?(false|no)' "$policy"; then
+    bad "CLAUDE.md names \`$name\` as a skill to run, but $policy sets allow_implicit_invocation: false, so the agent cannot invoke it"
+  fi
 done
 
 # 3. Every .claude/skills link resolves.
