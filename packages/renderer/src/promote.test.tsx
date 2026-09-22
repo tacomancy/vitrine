@@ -55,7 +55,7 @@ const page: ResearchQuestionPage = {
     opposing: { present: true, lines: [] },
     related: { present: true, text: "", lines: [] },
     openThreads: { present: true, text: "", threads: [] },
-    positionHistory: { present: true, text: "" },
+    positionHistory: { present: true, text: "", entries: [] },
   },
   problems: [],
 };

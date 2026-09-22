@@ -9,7 +9,7 @@ export type {
   PartialQuestion,
   QuestionStatus,
 } from "./list.js";
-export type { Provenance, Question } from "./questions.js";
+export type { Provenance, Question, Triage } from "./questions.js";
 export type {
   LinkLine,
   OpenThread,
@@ -21,6 +21,7 @@ export type {
   ResolveResult,
   WriteBack,
 } from "./research-question.js";
+export type { Revision } from "./position-history.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";
 export type { Vault, VaultStatus, Watching } from "./vault.js";

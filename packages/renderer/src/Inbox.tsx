@@ -11,7 +11,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import type { ListedQuestion, Order, Question } from "core";
+import type { ListedQuestion, Order, Question, QuestionStatus } from "core";
 import { formatAge } from "./age";
 import { Detail } from "./Detail";
 import { useVaultChanged } from "./events";
@@ -51,6 +51,14 @@ export function Inbox({
     message: string;
   } | null>(null);
   if (refusal !== null && refusal.path !== selected) setRefusal(null);
+  // *Answer in place*: one line open on a row, holding the text until ↵
+  // writes it or esc discards it. A row at a time, and only the selected
+  // one, so the selection moving closes it.
+  const [answering, setAnswering] = useState<{
+    path: string;
+    text: string;
+  } | null>(null);
+  if (answering !== null && answering.path !== selected) setAnswering(null);
 
   // Promote to Research Question (#210): the core writes the page and marks
   // the Question; the window moves to the page, which takes the keyboard
@@ -64,6 +72,33 @@ export function Inbox({
       },
       onError: (error, { path }) =>
         setRefusal({ path, message: error.message }),
+    })
+  );
+
+  // The last three triage keys (#212): each is one write, and each leaves
+  // the row where it is — only promotion moves the window. The list is
+  // re-read so the row carries its new glyph and label.
+  const onWritten = () =>
+    void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+  const onRefused = (error: { message: string }, { path }: { path: string }) =>
+    setRefusal({ path, message: error.message });
+
+  const answer = useMutation(
+    trpc.questions.answer.mutationOptions({
+      onSuccess: onWritten,
+      onError: onRefused,
+    })
+  );
+  const drop = useMutation(
+    trpc.questions.drop.mutationOptions({
+      onSuccess: onWritten,
+      onError: onRefused,
+    })
+  );
+  const reopen = useMutation(
+    trpc.questions.reopen.mutationOptions({
+      onSuccess: onWritten,
+      onError: onRefused,
     })
   );
 
@@ -100,6 +135,12 @@ export function Inbox({
   useEffect(() => {
     if (landed !== null) listRef.current?.focus();
   }, [landed]);
+  const answerRef = useRef<HTMLInputElement>(null);
+  const answeringPath = answering?.path ?? null;
+  useEffect(() => {
+    if (answeringPath !== null) answerRef.current?.focus();
+  }, [answeringPath]);
+
   // Switching the sort re-queries; the old list stays until the new one lands
   // rather than flashing empty.
   const listing = useQuery({
@@ -127,26 +168,62 @@ export function Inbox({
   // The vault's state shares the unreadable count's quiet channel.
   const status = useVaultStatusLines();
 
+  /**
+   * The selected row when it is a Question its Status allows the action
+   * on; null otherwise, and the key then does nothing at all — a key that
+   * does not apply is absent, never an error to dismiss. The core refuses
+   * the same combinations (`questions.ts`, OPEN and TRIAGED); § Research
+   * Question view and triage is where both read the rule from, so a change
+   * to it is an edit in two places.
+   */
+  function actionable(...allowed: QuestionStatus[]) {
+    if (selectedRow?.kind !== "question") return null;
+    return allowed.includes(selectedRow.question.status) ? selectedRow : null;
+  }
+
   // j/k and the arrows move the selection; ↵ selects the first row when
-  // nothing is selected yet; p promotes the selected open Question. The
-  // list is one tab stop. No key is reserved for promote to Hypothesis: it
-  // is absent, not disabled, until its destination exists (beat 3).
+  // nothing is selected yet; p promotes, a answers in place, d drops, r
+  // reopens. The list is one tab stop. No key is reserved for promote to
+  // Hypothesis: it is absent, not disabled, until its destination exists
+  // (beat 3).
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
+    // The answer line is open and has the keyboard; its own keys reach it
+    // and bubble to here, where every one of them is text.
+    if (answering !== null) return;
     if (rows.length === 0) return;
     const index = rows.findIndex((row) => row.path === selected);
     let next: number | null = null;
     switch (event.key) {
       case "p": {
-        if (
-          selectedRow?.kind !== "question" ||
-          selectedRow.question.status !== "open" ||
-          promote.isPending
-        ) {
-          return;
-        }
+        const row = actionable("open");
+        if (row === null || promote.isPending) return;
         event.preventDefault();
         setRefusal(null);
-        promote.mutate({ path: selectedRow.path });
+        promote.mutate({ path: row.path });
+        return;
+      }
+      case "a": {
+        const row = actionable("open");
+        if (row === null || answer.isPending) return;
+        event.preventDefault();
+        setRefusal(null);
+        setAnswering({ path: row.path, text: "" });
+        return;
+      }
+      case "d": {
+        const row = actionable("open");
+        if (row === null || drop.isPending) return;
+        event.preventDefault();
+        setRefusal(null);
+        drop.mutate({ path: row.path });
+        return;
+      }
+      case "r": {
+        const row = actionable("answered", "abandoned");
+        if (row === null || reopen.isPending) return;
+        event.preventDefault();
+        setRefusal(null);
+        reopen.mutate({ path: row.path });
         return;
       }
       case "j":
@@ -165,6 +242,39 @@ export function Inbox({
     }
     event.preventDefault();
     setSelected(rows[next]?.path ?? null);
+  }
+
+  /** ↵: the typed line, trimmed. A stray ↵ never answers with nothing. */
+  function submitAnswer() {
+    const line = answering?.text.trim() ?? "";
+    if (answering === null || line === "" || answer.isPending) return;
+    setRefusal(null);
+    answer.mutate(
+      { path: answering.path, line },
+      {
+        // The line closes only on a write that landed, and the list takes
+        // the keyboard back; a refusal keeps the typing where it is, as
+        // the capture line does.
+        onSuccess: () => {
+          setAnswering(null);
+          listRef.current?.focus();
+        },
+      }
+    );
+  }
+
+  function onAnswerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      submitAnswer();
+    } else if (event.key === "Escape") {
+      // esc discards the typing and writes nothing; the list takes the
+      // keyboard back with the row still selected.
+      event.preventDefault();
+      setAnswering(null);
+      listRef.current?.focus();
+    }
   }
 
   return (
@@ -244,6 +354,35 @@ export function Inbox({
                 </>
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
+              {answering?.path === row.path && (
+                <form
+                  className={styles.answer}
+                  aria-label="Answer in place"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    submitAnswer();
+                  }}
+                >
+                  <input
+                    ref={answerRef}
+                    className={styles.answerInput}
+                    type="text"
+                    aria-label="Answer"
+                    autoComplete="off"
+                    value={answering.text}
+                    onChange={(event) =>
+                      setAnswering({
+                        path: row.path,
+                        text: event.target.value,
+                      })
+                    }
+                    onKeyDown={onAnswerKeyDown}
+                  />
+                  <span className={styles.answerHint}>
+                    ↵ answer · esc discards
+                  </span>
+                </form>
+              )}
               {refusal?.path === row.path && (
                 <p className={styles.refusal} role="alert">
                   {refusal.message}
@@ -258,6 +397,9 @@ export function Inbox({
         <footer className={styles.footer}>
           <span className={styles.key}>j/k move</span>
           <span className={styles.key}>p promote</span>
+          <span className={styles.key}>a answer</span>
+          <span className={styles.key}>d drop</span>
+          <span className={styles.key}>r reopen</span>
           {unreadable.length > 0 && (
             <details className={styles.unreadableDetails}>
               <summary className={styles.footerLine}>

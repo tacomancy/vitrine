@@ -2,7 +2,8 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
-import { localIso, type QuestionService } from "./questions.js";
+import type { QuestionService } from "./questions.js";
+import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
@@ -11,6 +12,7 @@ import {
   reopenResearchQuestion,
   resolveResearchQuestion,
   saveSection,
+  saveWorkingAnswer,
   tickThread,
 } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
@@ -20,8 +22,9 @@ export type Context = {
   vault: VaultService;
   questions: QuestionService;
   events: Events;
-  /** The clock a procedure stamps a write with; a test pins it. */
+  /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
+  coalesceMs: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -55,6 +58,12 @@ const captureInput = z.object({
       })
       .strict(),
   ]),
+});
+
+/** *Answer in place*: the one line the user typed, never empty. */
+const answerInput = z.object({
+  path: z.string(),
+  line: z.string().trim().min(1, "The answer is empty."),
 });
 
 const noVault = () =>
@@ -119,7 +128,7 @@ export const router = t.router({
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
-    // index (`research-question.ts`). Read-only until the section tickets.
+    // index (`research-question.ts`).
     page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
       const { vault, index } = await requireVault(ctx);
       return refusing(readResearchQuestionPage(index, vault.path, input.path));
@@ -170,6 +179,20 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return refusing(tickThread(index, vault.path, input.path, input));
       }),
+    // The Working answer is the one Edited section that is also a Position:
+    // its save records the Revision in the same write (#213).
+    saveWorkingAnswer: t.procedure
+      .input(pathInput.extend({ text: z.string(), basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          saveWorkingAnswer(index, vault.path, input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        );
+      }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {
@@ -189,6 +212,19 @@ export const router = t.router({
       .mutation(({ ctx, input }) =>
         refusing(ctx.questions.promote(input.path))
       ),
+    // The last three triage keys (#212): each is one write through the
+    // protocol, each refusal the typed error the formatter unpacks.
+    answer: t.procedure
+      .input(answerInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.answer(input.path, input.line))
+      ),
+    drop: t.procedure
+      .input(pathInput)
+      .mutation(({ ctx, input }) => refusing(ctx.questions.drop(input.path))),
+    reopen: t.procedure
+      .input(pathInput)
+      .mutation(({ ctx, input }) => refusing(ctx.questions.reopen(input.path))),
   }),
 });
 

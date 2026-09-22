@@ -9,16 +9,29 @@ import {
 } from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
-import { asString, readQuestion } from "./question-kind.js";
+import {
+  asString,
+  readQuestionForWrite,
+  type QuestionFile,
+  type QuestionStatus,
+} from "./question-kind.js";
+import {
+  coalesce,
+  formatRevision,
+  readRevisions,
+  topLevelItems,
+  type Revision,
+  type Save,
+} from "./position-history.js";
 import {
   analyseFile,
   createFile,
   locate,
-  readOutline,
   sha256,
   write,
   type FileOutline,
   type Operation,
+  type Write,
   type Resolution,
   type ShapeProblem,
   type WriteResult,
@@ -31,7 +44,8 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  * a `kind: research-question` file, and what the Kind reports as its
  * Position; what promotion writes (#210); and the section writes this Kind
  * makes on the user's behalf — each an Edited section replaced whole
- * (ADR 0020 decision 4).
+ * (ADR 0020 decision 4), the Working answer's save also recording its
+ * Revision (#213).
  */
 
 export type ResearchQuestionStatus = "open" | "answered" | "abandoned";
@@ -79,8 +93,12 @@ export type ResearchQuestionSections = {
   /** `text` is the section's body as the plain text field edits it; `lines` its reading. */
   related: { present: boolean; text: string; lines: LinkLine[] };
   openThreads: { present: boolean; text: string; threads: OpenThread[] };
-  /** The section's body verbatim; parsing it into Revisions is the history module's. */
-  positionHistory: { present: boolean; text: string };
+  /**
+   * The section's body verbatim, and the entries that parse from it,
+   * newest first (`position-history.ts`); an item that is not an entry is
+   * left out here and left in place in the file.
+   */
+  positionHistory: { present: boolean; text: string; entries: Revision[] };
 };
 
 export type ResearchQuestionPage =
@@ -254,31 +272,6 @@ export function researchQuestionPositions(
   return [{ field: "working answer", text: bodyText(content, heading) }];
 }
 
-/**
- * The top-level list items inside a section: those within its body that
- * no other item contains. A nested item belongs to its parent line — a
- * source's note may run on to an indented line, and that is the note's.
- */
-function topLevelItems(
-  outline: Pick<Outline, "listItems">,
-  heading: Heading
-): ListItem[] {
-  const inside = outline.listItems.filter(
-    (item) =>
-      item.range.start >= heading.body.start &&
-      item.range.end <= heading.body.end
-  );
-  return inside.filter(
-    (item) =>
-      !inside.some(
-        (other) =>
-          other !== item &&
-          other.range.start <= item.range.start &&
-          other.range.end >= item.range.end
-      )
-  );
-}
-
 const MARKER = /^\s*[-*+]\s+/;
 const TASK = /^\[( |x|X)\]\s*/;
 // The separator the app writes between a link and its note; a line without
@@ -391,6 +384,37 @@ async function readPageFile(
 }
 
 /**
+ * The entries under `## Position history`, in file order, and — as a shape
+ * problem naming its first line — each item that is not one, so a hand
+ * edit to the history is never silently discarded (§ Vault layout,
+ * Position history). The item itself stays in the file.
+ */
+function revisionsOf(
+  path: string,
+  content: string,
+  outline: Pick<Outline, "listItems">,
+  heading: Heading | undefined
+): { entries: Revision[]; problems: ShapeProblem[] } {
+  const entries: Revision[] = [];
+  const problems: ShapeProblem[] = [];
+  if (heading === undefined) return { entries, problems };
+  for (const { range, revision } of readRevisions(content, outline, heading)) {
+    if (revision !== null) {
+      entries.push(revision);
+    } else {
+      const firstLine = content.slice(range.start, range.end).split(/\r?\n/)[0];
+      problems.push({
+        path,
+        kind: KIND,
+        problem: "historyEntryUnparsed",
+        ...(firstLine === undefined ? {} : { block: firstLine }),
+      });
+    }
+  }
+  return { entries, problems };
+}
+
+/**
  * The page as the file holds it. The body is read from disk — it is what
  * the page shows and edits, and the hash a later write is `basedOn` — and
  * outlined from those same bytes, so a section's range can never come from
@@ -437,7 +461,13 @@ export async function readResearchQuestionPage(
           linkLine(index, relativePath, outline, content, item)
         );
   const threads = found["Open threads"];
-  const history = found["Position history"];
+  const history = revisionsOf(
+    relativePath,
+    content,
+    outline,
+    found["Position history"]
+  );
+  problems.push(...history.problems);
   return {
     readable: true,
     path: relativePath,
@@ -472,8 +502,9 @@ export async function readResearchQuestionPage(
               ),
       },
       positionHistory: {
-        present: history !== undefined,
-        text: bodyText(content, history),
+        present: found["Position history"] !== undefined,
+        text: bodyText(content, found["Position history"]),
+        entries: history.entries,
       },
     },
     problems,
@@ -482,52 +513,55 @@ export async function readResearchQuestionPage(
 
 /** The sections a plain text field on the page saves whole; Working answer joins with its Revision (#213). */
 export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
+/** Thirty minutes (ADR 0006 decision 5) — a number in code, per spec #206; tests inject a shorter one. */
+export const COALESCE_MS = 30 * 60 * 1000;
+/** The Edited section that is also a Position, and the field its Revisions carry. */
+const WORKING_ANSWER = "Working answer";
+const FIELD = "working answer";
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
 /**
- * One write through the protocol, then the index told of the app's own
- * write, as a capture does. `basedOn` is the caller's when the write is
- * against text the user was shown — a stale one is how a save learns the
- * file moved underneath — and otherwise the hash of the read this makes.
+ * What one page write does to the file it finds: the operations and the
+ * hash they were computed from, or a result to answer with and write
+ * nothing (a refusal, or a save that turned out to change nothing).
  */
-async function writeOwn(
+type Plan = (read: PageFile) => Write | WriteResult;
+
+// Page writes run one at a time, as captures do (`questions.ts`). Planning
+// a write means reading the file — which thread is ticked, what the Working
+// answer changed from, whether the head Revision is still inside its
+// window — so two writes that both read before either wrote would each
+// plan against a file that no longer exists by the time they land: two
+// Revisions where the coalescing rule wants one. The protocol's hash check
+// would not catch it, because re-apply faithfully applies operations that
+// were correct when they were computed and are not any more.
+let previous: Promise<unknown> = Promise.resolve();
+
+/**
+ * One planned write through the protocol, then the index told of the app's
+ * own write, as a capture does — the whole of it inside the queue above.
+ */
+function writeOwn(
   index: VaultIndex,
   vaultPath: string,
   path: string,
-  operations: Operation[],
-  basedOn?: string
+  plan: Plan
 ): Promise<WriteResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
-    return { written: false, reason: "unreadable", detail: read.reason };
-  }
-  return writeRead(
-    index,
-    vaultPath,
-    { path: read.relativePath, hash: read.hash },
-    operations,
-    basedOn
-  );
-}
-
-/**
- * The write itself, against a file the caller has already read: what the
- * caller that needs that read afterwards — resolving, which writes the page
- * and then the Question its frontmatter names — shares with `writeOwn`.
- */
-async function writeRead(
-  index: VaultIndex,
-  vaultPath: string,
-  read: { path: string; hash: string },
-  operations: Operation[],
-  basedOn?: string
-): Promise<WriteResult> {
-  const result = await write(vaultPath, read.path, {
-    operations,
-    basedOn: basedOn ?? read.hash,
-  });
-  if (result.written) await index.own(read.path, result.content);
-  return result;
+  const run = async (): Promise<WriteResult> => {
+    const read = await readPageFile(vaultPath, path);
+    if (!read.readable) {
+      return { written: false, reason: "unreadable", detail: read.reason };
+    }
+    const planned = plan(read);
+    if ("written" in planned) return planned;
+    const result = await write(vaultPath, path, planned);
+    if (result.written) await index.own(read.relativePath, result.content);
+    return result;
+  };
+  // A write that threw leaves the queue usable for the next one.
+  const queued = previous.then(run, run);
+  previous = queued;
+  return queued;
 }
 
 /**
@@ -544,51 +578,47 @@ export async function tickThread(
   path: string,
   { text, done }: { text: string; done: boolean }
 ): Promise<WriteResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
-    return { written: false, reason: "unreadable", detail: read.reason };
-  }
-  const { content, outline, hash } = read;
-  const { heading } = section(outline, "Open threads");
-  const matches =
-    heading === undefined
-      ? []
-      : topLevelItems(outline, heading).filter((candidate) => {
-          const thread = openThread(content, candidate);
-          return thread.done !== null && thread.text === text;
-        });
-  // Two threads with one text: which was meant is not knowable from the
-  // text, and ticking the first would be a guess written to disk.
-  if (matches.length !== 1) {
+  return writeOwn(index, vaultPath, path, ({ content, outline, hash }) => {
+    const { heading } = section(outline, "Open threads");
+    const matches =
+      heading === undefined
+        ? []
+        : topLevelItems(outline, heading).filter((candidate) => {
+            const thread = openThread(content, candidate);
+            return thread.done !== null && thread.text === text;
+          });
+    // Two threads with one text: which was meant is not knowable from the
+    // text, and ticking the first would be a guess written to disk.
+    if (matches.length !== 1) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail:
+          matches.length === 0
+            ? `no open thread reads "${text}"`
+            : `${matches.length} open threads read "${text}"`,
+      };
+    }
+    const [item] = matches as [ListItem];
+    const { body: range } = heading as Heading;
+    // The marker sits right after the list marker; the rest of the line and
+    // every other line of the section are the user's and go back as they were.
+    const line = content.slice(item.range.start, item.range.end);
+    const marker = MARKER.exec(line)?.[0] ?? "";
+    const ticked =
+      line.slice(0, marker.length) +
+      line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
+    const body =
+      content.slice(range.start, item.range.start) +
+      ticked +
+      content.slice(item.range.end, range.end);
     return {
-      written: false,
-      reason: "changedAndUnreapplyable",
-      detail:
-        matches.length === 0
-          ? `no open thread reads "${text}"`
-          : `${matches.length} open threads read "${text}"`,
+      operations: [
+        { op: "replaceSection", name: "Open threads", body: body.trim() },
+      ],
+      basedOn: hash,
     };
-  }
-  const [item] = matches as [ListItem];
-  const { body: range } = heading as Heading;
-  // The marker sits right after the list marker; the rest of the line and
-  // every other line of the section are the user's and go back as they were.
-  const line = content.slice(item.range.start, item.range.end);
-  const marker = MARKER.exec(line)?.[0] ?? "";
-  const ticked =
-    line.slice(0, marker.length) +
-    line.slice(marker.length).replace(TASK, done ? "[x] " : "[ ] ");
-  const body =
-    content.slice(range.start, item.range.start) +
-    ticked +
-    content.slice(item.range.end, range.end);
-  return writeOwn(
-    index,
-    vaultPath,
-    path,
-    [{ op: "replaceSection", name: "Open threads", body: body.trim() }],
-    hash
-  );
+  });
 }
 
 /**
@@ -608,13 +638,57 @@ export async function saveSection(
     basedOn,
   }: { section: EditedSection; body: string; basedOn: string }
 ): Promise<WriteResult> {
-  return writeOwn(
-    index,
-    vaultPath,
-    path,
-    [{ op: "replaceSection", name, body: body.trim() }],
-    basedOn
-  );
+  return writeOwn(index, vaultPath, path, () => ({
+    operations: [{ op: "replaceSection", name, body: body.trim() }],
+    basedOn,
+  }));
+}
+
+/**
+ * The Working answer saved, and the Revision it records (#213; ADR 0020
+ * decisions 1–2): one write — `replaceSection` on the section, and the
+ * entry either prepended or, inside the coalescing window, the head
+ * re-stamped by replacing `## Position history` whole with every other
+ * byte of it spliced back. It is `saveSection`'s sibling and differs in
+ * exactly one way: this section is also a Position, so editing it adds to
+ * the history rather than overwriting it (brief § Position history).
+ * Text the file already holds is not a save, so a blur that changed
+ * nothing records nothing.
+ */
+export async function saveWorkingAnswer(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  {
+    text: typed,
+    basedOn,
+    at,
+    coalesceMs,
+  }: { text: string; basedOn: string; at: Date; coalesceMs: number }
+): Promise<WriteResult> {
+  const text = typed.replace(/\r\n/g, "\n").trim();
+  return writeOwn(index, vaultPath, path, (read) => {
+    const { content, outline } = read;
+    // The Position as the file holds it now: what the Revision is *from*.
+    const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
+    // Nothing to write, so nothing to base on: the file's hash is the
+    // page's fresh view of it, whatever hash the page carried in.
+    if (from === text) {
+      return { written: true, hash: read.hash, content, shape: read.shape };
+    }
+    return {
+      operations: [
+        { op: "replaceSection", name: WORKING_ANSWER, body: text },
+        ...historyOperations(
+          content,
+          outline,
+          { field: FIELD, from, at },
+          coalesceMs
+        ),
+      ],
+      basedOn,
+    };
+  });
 }
 
 /** What the write-back reached, or why it reached no Question; `path` is vault-relative. */
@@ -623,6 +697,16 @@ export type WriteBack =
 
 /** Resolving is two writes, the page's first: each answers for itself. */
 export type ResolveResult = { page: WriteResult; question: WriteBack };
+
+// The write-back does not care what the Question's Status is: the page is
+// the authority for a pursuit that ended, and a page resolved twice across
+// a reopen must still be able to say so.
+const ANY_STATUS: readonly QuestionStatus[] = [
+  "open",
+  "promoted",
+  "answered",
+  "abandoned",
+];
 
 /**
  * Resolve or abandon the page (ADR 0020 decision 6; § Vault layout,
@@ -643,26 +727,25 @@ export async function resolveResearchQuestion(
   /** `at` is the resolution's timestamp, formatted by the caller's clock. */
   { status, at }: { status: "answered" | "abandoned"; at: string }
 ): Promise<ResolveResult> {
-  const read = await readPageFile(vaultPath, path);
-  if (!read.readable) {
+  // The page as the write itself found it: the Question is named by the
+  // page's own frontmatter, and a second read could name one the write
+  // never saw. Kept from inside the queue, where that read happens.
+  const seen: { page: PageFile | null } = { page: null };
+  const page = await writeOwn(index, vaultPath, path, (read) => {
+    seen.page = read;
     return {
-      page: { written: false, reason: "unreadable", detail: read.reason },
-      question: { written: false, reason: "the page was not resolved" },
+      operations: [{ op: "setFrontmatter", keys: keysFor(status, at) }],
+      basedOn: read.hash,
     };
-  }
-  const page = await writeRead(
-    index,
-    vaultPath,
-    { path: read.relativePath, hash: read.hash },
-    [{ op: "setFrontmatter", keys: keysFor(status, at) }]
-  );
-  if (!page.written) {
+  });
+  const resolved = seen.page;
+  if (!page.written || resolved === null) {
     return {
       page,
       question: { written: false, reason: "the page was not resolved" },
     };
   }
-  const question = await writeBack(index, vaultPath, read, { status, at });
+  const question = await writeBack(index, vaultPath, resolved, { status, at });
   return { page, question };
 }
 
@@ -671,7 +754,9 @@ export async function resolveResearchQuestion(
  * line in its *lead* — the body before the first `##`, so the line can never
  * land inside a section the user keeps (ADR 0008 decision 2). One write:
  * the keys and the line together, so the Question never carries one without
- * the other.
+ * the other. Outside the page queue, because the file is not this page: a
+ * triage action racing it from the Inbox is what the protocol's hash check
+ * is for, and the loser refuses rather than overwrites.
  */
 async function writeBack(
   index: VaultIndex,
@@ -710,27 +795,30 @@ async function writeBack(
       }`,
     };
   }
-  const question = await readOutline(vaultPath, resolvedPath);
-  if (!question.readable) {
-    return { written: false, reason: `${resolvedPath}: ${question.reason}` };
-  }
-  if (question.kind !== "question") {
-    return {
-      written: false,
-      reason: `${resolvedPath} is not a Question: kind is ${question.kind ?? "absent"}`,
-    };
+  // The same read every triage action makes, with the same refusals — a
+  // write-back is triage the page asked for. Its throw is data here: the
+  // page is already resolved, so this half reports rather than raises.
+  let question: QuestionFile;
+  try {
+    question = await readQuestionForWrite(vaultPath, resolvedPath, ANY_STATUS);
+  } catch (cause) {
+    return { written: false, reason: errorMessage(cause) };
   }
   const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
-  const result = await writeRead(index, vaultPath, question, [
-    { op: "setFrontmatter", keys: keysFor(status, at) },
-    { op: "appendToSection", target: "lead", line },
-  ]);
+  const result = await write(vaultPath, question.path, {
+    operations: [
+      { op: "setFrontmatter", keys: keysFor(status, at) },
+      { op: "appendToSection", target: "lead", line },
+    ],
+    basedOn: question.hash,
+  });
   if (!result.written) {
     return {
       written: false,
-      reason: `${resolvedPath}: ${result.reason} — ${result.detail}`,
+      reason: `${question.path}: ${result.reason} — ${result.detail}`,
     };
   }
+  await index.own(question.path, result.content);
   return { written: true, path: question.path };
 }
 
@@ -748,20 +836,57 @@ const keysFor = (status: "answered" | "abandoned", at: string) =>
 const dateOf = (iso: string) => iso.slice(0, 10);
 
 /**
- * Reopen the page: `status: open`, and nothing else — the body, the history,
- * and the Question's line all stay where they are, because resolving is a
- * status and not an archive (ADR 0020 decision 6). The Question keeps
- * whatever the write-back left it; setting *it* back to open is the Inbox's
- * own *reopen* (#212), which is the surface that owns the Question's status.
+ * Reopen the page: `status: open`, and nothing else — the body, the
+ * history, the Question's line, and the page's own `answered` all stay
+ * where they are, because resolving is a status and not an archive (ADR
+ * 0020 decision 6) and no operation removes a key. Setting the Question
+ * back to open is the Inbox's own *reopen* (#212), the surface that owns
+ * the Question's Status.
  */
 export async function reopenResearchQuestion(
   index: VaultIndex,
   vaultPath: string,
   path: string
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, [
-    { op: "setFrontmatter", keys: { status: "open" } },
-  ]);
+  return writeOwn(index, vaultPath, path, (read) => ({
+    operations: [{ op: "setFrontmatter", keys: { status: "open" } }],
+    basedOn: read.hash,
+  }));
+}
+
+/**
+ * The history's part of one save. A new entry is prepended; a save inside
+ * the window re-stamps the head entry, which means the owned section is
+ * replaced whole — the operation set has no "edit one entry", and this is
+ * the path a why added after the fact takes too (§ Research Question view
+ * and triage).
+ */
+function historyOperations(
+  content: string,
+  outline: Pick<Outline, "headings" | "listItems">,
+  save: Save,
+  coalesceMs: number
+): Operation[] {
+  const history = section(outline, "Position history").heading;
+  const items =
+    history === undefined ? [] : readRevisions(content, outline, history);
+  const head = items[0];
+  const { coalesced, revision } = coalesce(
+    head?.revision ?? null,
+    save,
+    coalesceMs
+  );
+  const entry = formatRevision(revision);
+  if (!coalesced || history === undefined || head === undefined) {
+    return [{ op: "prependEntry", section: "Position history", entry }];
+  }
+  const body =
+    content.slice(history.body.start, head.range.start) +
+    entry +
+    content.slice(head.range.end, history.body.end);
+  return [
+    { op: "replaceSection", name: "Position history", body: body.trim() },
+  ];
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */
@@ -784,31 +909,15 @@ export async function promoteQuestion(
   /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
   { promoted, newId }: { promoted: string; newId: () => string }
 ): Promise<Promotion> {
-  const { absolute, relativePath } = await locate(vaultPath, path);
-  const bytes = await readFile(absolute).catch((cause: unknown) => {
-    throw new VaultError(
-      "unreadable",
-      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
-    );
-  });
-  const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
-  if (!read.readable) {
-    throw new VaultError("unreadable", `${relativePath}: ${read.reason}`);
-  }
-  const fm = (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
-  const question = read.kind === "question" ? readQuestion(fm) : null;
-  if (question === null) {
-    throw new VaultError("refused", `${relativePath} is not a Question.`);
-  }
-  if (question.status !== "open") {
-    throw new VaultError(
-      "refused",
-      `${relativePath} is ${question.status}, not open; reopen it first.`
-    );
-  }
+  const {
+    path: relativePath,
+    hash,
+    frontmatter: fm,
+    outline,
+  } = await readQuestionForWrite(vaultPath, path, ["open"]);
 
   const stem = basename(relativePath, ".md");
-  const tags = read.outline.tags
+  const tags = outline.tags
     .filter((t) => t.valid && t.source === "frontmatter")
     .map((t) => t.text);
   const content = composeResearchQuestion(fm, tags, {
@@ -824,7 +933,7 @@ export async function promoteQuestion(
   );
 
   const marked = await write(vaultPath, relativePath, {
-    basedOn: read.hash,
+    basedOn: hash,
     operations: [
       {
         op: "setFrontmatter",
