@@ -3,6 +3,7 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { VaultError } from "./errors.js";
+import { linkQuestion, type Linked } from "./link.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
 import type { VaultService } from "./vault.js";
 
@@ -22,6 +23,8 @@ export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
+  /** Link (#211): a wikilink appended to the Question's `related`, the linking side only. */
+  link: (path: string, target: string) => Promise<Linked>;
 };
 
 export type QuestionServiceOptions = {
@@ -221,21 +224,30 @@ export function createQuestionService({
     return run;
   }
 
+  /** The open vault, or the typed refusal a write that needs one raises. */
+  async function requireOpen() {
+    const opened = await vault.opened();
+    if (opened === null) {
+      throw new VaultError("noVault", "No vault is open. Open a vault first.");
+    }
+    return opened;
+  }
+
   return {
     capture: (text, provenance) => serially(() => capture(text, provenance)),
     promote: (path) =>
       serially(async () => {
-        const opened = await vault.opened();
-        if (opened === null) {
-          throw new VaultError(
-            "noVault",
-            "No vault is open. Open a vault first."
-          );
-        }
+        const opened = await requireOpen();
         return promoteQuestion(opened.vault.path, opened.index, path, {
           promoted: localIso(now()),
           newId,
         });
       }),
+    // Not serialised: a link picks no file name, so it cannot collide with
+    // a capture or a promotion the way those two collide with each other.
+    link: async (path, target) => {
+      const opened = await requireOpen();
+      return linkQuestion(opened.vault.path, opened.index, path, target);
+    },
   };
 }
