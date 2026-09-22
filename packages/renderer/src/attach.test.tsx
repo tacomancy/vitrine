@@ -321,3 +321,170 @@ describe("the balance strip", () => {
     }
   });
 });
+
+// Moving a source to the other side and detaching one (#219; spec #206
+// story 27), and what a line whose link lands nowhere — or on two files —
+// says in place of the paper it meant (story 30).
+describe("moving and detaching a source", () => {
+  /** The page, from a holder the test rewrites the way a re-read would. */
+  const openHolding = (
+    holder: { current: ResearchQuestionPage },
+    more: Record<string, unknown> = {}
+  ) => {
+    window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+    return renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "vault.status": {
+        indexing: null,
+        watching: { ok: true },
+        current: { ok: true },
+      },
+      "researchQuestions.page": () => holder.current,
+      "picker.candidates": matching,
+      ...more,
+    });
+  };
+
+  const column = async (name: string) =>
+    within(await region()).getByRole("region", { name });
+
+  it("moves a line to the other side with the page's hash, and the columns and the strip follow", async () => {
+    const supporting = sourceLine("rasch2013", "TMR survives encoding.");
+    const holder = { current: page([supporting], []) };
+    const move = vi.fn(() => {
+      holder.current = page([], [supporting]);
+      return { written: true, hash: "def", shape: [] };
+    });
+    openHolding(holder, { "researchQuestions.moveSource": move });
+
+    expect(
+      (await screen.findByRole("region", { name: /balance/i })).textContent
+    ).toContain("1 supporting · nothing opposing");
+    fireEvent.click(
+      within(await column("Supporting sources")).getByRole("button", {
+        name: /move to opposing/i,
+      })
+    );
+    await waitFor(() =>
+      expect(move).toHaveBeenCalledWith({
+        path: PATH,
+        from: "supporting",
+        text: "[[rasch2013]] — TMR survives encoding.",
+        basedOn: "abc",
+      })
+    );
+    // The write's re-read is what redraws: both columns and the strip above
+    // them come from the same page read.
+    await waitFor(async () =>
+      expect(
+        (await screen.findByRole("region", { name: /balance/i })).textContent
+      ).toContain("nothing supporting · 1 opposing")
+    );
+    expect(
+      within(await column("Opposing sources")).getByRole("button", {
+        name: /move to supporting/i,
+      })
+    ).toBeTruthy();
+  });
+
+  it("detaches a line, and the side it left says it is empty again", async () => {
+    const opposing = sourceLine("wamsley2019", "Waking rest does as well.");
+    const holder = { current: page([], [opposing]) };
+    const detach = vi.fn(() => {
+      holder.current = page([], []);
+      return { written: true, hash: "def", shape: [] };
+    });
+    openHolding(holder, { "researchQuestions.detachSource": detach });
+
+    fireEvent.click(
+      within(await column("Opposing sources")).getByRole("button", {
+        name: /detach/i,
+      })
+    );
+    await waitFor(() =>
+      expect(detach).toHaveBeenCalledWith({
+        path: PATH,
+        side: "opposing",
+        text: "[[wamsley2019]] — Waking rest does as well.",
+        basedOn: "abc",
+      })
+    );
+    await waitFor(async () =>
+      expect(
+        (await screen.findByRole("region", { name: /balance/i })).textContent
+      ).toContain("nothing attached on either side")
+    );
+  });
+
+  it("shows a refused move as a line in the column rather than a silent no-op", async () => {
+    const holder = { current: page([sourceLine("rasch2013", "")], []) };
+    openHolding(holder, {
+      "researchQuestions.moveSource": () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: 'no supporting source reads "[[rasch2013]]"',
+      }),
+    });
+    fireEvent.click(
+      within(await column("Supporting sources")).getByRole("button", {
+        name: /move to opposing/i,
+      })
+    );
+    expect((await screen.findByRole("status")).textContent).toContain(
+      'no supporting source reads "[[rasch2013]]"'
+    );
+  });
+
+  it("offers neither verb on a line under the heading that is not a source", async () => {
+    const prose: LinkLine = {
+      text: "a line that is not a source",
+      link: null,
+      note: "a line that is not a source",
+    };
+    openHolding({ current: page([prose], []) });
+    const supporting = await column("Supporting sources");
+    expect(supporting.textContent).toContain("a line that is not a source");
+    expect(within(supporting).queryByRole("button")).toBeNull();
+  });
+
+  it("names the two files an ambiguous link is caught between, and says what an unresolved one found", async () => {
+    const ambiguous: LinkLine = {
+      text: "[[wamsley2019]]",
+      link: {
+        target: "wamsley2019",
+        blockId: null,
+        resolution: "ambiguous",
+        resolvedPath: null,
+        candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
+        resolvedKind: null,
+      },
+      note: "",
+    };
+    const mistyped: LinkLine = {
+      text: "[[rasch213]] — a citekey with a digit dropped",
+      link: {
+        target: "rasch213",
+        blockId: null,
+        resolution: "unresolved",
+        resolvedPath: null,
+        resolvedKind: null,
+      },
+      note: "a citekey with a digit dropped",
+    };
+    openHolding({ current: page([mistyped], [ambiguous]) });
+
+    const opposing = await column("Opposing sources");
+    expect(opposing.textContent).toContain("ambiguous");
+    expect(opposing.textContent).toContain("a/wamsley2019.md");
+    expect(opposing.textContent).toContain("sources/wamsley2019.md");
+    // Still a line the user can act on: a mistyped citekey is fixed by
+    // detaching it and attaching the paper that was meant.
+    const supporting = await column("Supporting sources");
+    expect(supporting.textContent).toContain("unresolved");
+    expect(supporting.textContent).toMatch(/nothing in the vault/i);
+    expect(
+      within(supporting).getByRole("button", { name: /detach/i })
+    ).toBeTruthy();
+  });
+});

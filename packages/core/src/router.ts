@@ -9,7 +9,9 @@ import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
   attachSource,
+  detachSource,
   EDITED_SECTIONS,
+  moveSource,
   readResearchQuestionPage,
   reopenResearchQuestion,
   resolveResearchQuestion,
@@ -227,6 +229,34 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(attachSource(index, vault.path, input.path, input));
+      }),
+    // Move a source to the other side, or detach it (#219): the line is
+    // named by its text, not its position, so a file edited underneath
+    // takes the move where it was meant or refuses. Neither records a
+    // Revision (ADR 0020 decision 4).
+    moveSource: t.procedure
+      .input(
+        pathInput.extend({
+          from: z.enum(SIDES),
+          text: z.string().min(1),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(moveSource(index, vault.path, input.path, input));
+      }),
+    detachSource: t.procedure
+      .input(
+        pathInput.extend({
+          side: z.enum(SIDES),
+          text: z.string().min(1),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(detachSource(index, vault.path, input.path, input));
       }),
     // The Working answer is the one Edited section that is also a Position:
     // its save records the Revision in the same write (#213).

@@ -118,7 +118,12 @@ export type VaultIndex = {
   resolve: (
     linkingPath: string,
     link: Pick<Link, "target" | "heading" | "blockId">
-  ) => { resolution: Resolution; resolvedPath: string | null };
+  ) => {
+    resolution: Resolution;
+    resolvedPath: string | null;
+    /** The files a name reached when it reached more than one; empty otherwise. */
+    candidates: string[];
+  };
   close: () => void;
 };
 
@@ -512,9 +517,19 @@ function createIndex(
     return true;
   };
 
-  const resolveOne = (
-    link: Omit<LinkRow, "rowid">
-  ): [resolution: Resolution, resolvedPath: string | null] => {
+  type Resolved = {
+    resolution: Resolution;
+    resolvedPath: string | null;
+    /** Named only when the name reached more than one file: what makes it ambiguous. */
+    candidates: string[];
+  };
+  const landed = (path: string | null, resolution: Resolution): Resolved => ({
+    resolution,
+    resolvedPath: path,
+    candidates: [],
+  });
+
+  const resolveOne = (link: Omit<LinkRow, "rowid">): Resolved => {
     let candidates: Candidate[];
     if (link.target === "") {
       // `[[#Heading]]`: into the linking file itself.
@@ -527,10 +542,19 @@ function createIndex(
     } else {
       candidates = filesByName.all(link.ltarget, link.ltarget) as Candidate[];
     }
-    if (candidates.length === 0) return ["unresolved", null];
+    if (candidates.length === 0) return landed(null, "unresolved");
     // Two files by one bare name: nothing, never the first indexed (L2a,
-    // by design); Loose Ends offers the path-qualified rewrite.
-    if (candidates.length > 1) return ["ambiguous", null];
+    // by design); Loose Ends offers the path-qualified rewrite. The files
+    // themselves come back with the verdict — a surface that says only
+    // *ambiguous* leaves the user to go looking for the pair — sorted, so
+    // the pair reads the same however the index happened to fill.
+    if (candidates.length > 1) {
+      return {
+        resolution: "ambiguous",
+        resolvedPath: null,
+        candidates: candidates.map((c) => c.path).sort(),
+      };
+    }
     const [{ path, markdown }] = candidates as [Candidate];
     if (markdown === 1) {
       // A fragment the file lacks is unresolved: the link points at a
@@ -538,14 +562,14 @@ function createIndex(
       // wants to hear. A fragment on a PDF or image is a viewer hint
       // (`#page=3`) and is not checked.
       if (link.block !== null && hasBlock.get(path, link.block) === undefined) {
-        return ["unresolved", null];
+        return landed(null, "unresolved");
       }
       const fragments = JSON.parse(link.heading) as string[];
       if (fragments.length > 0 && !headingPathLands(path, fragments)) {
-        return ["unresolved", null];
+        return landed(null, "unresolved");
       }
     }
-    return ["resolved", path];
+    return landed(path, "resolved");
   };
 
   /** Recompute resolution for every link touched by these paths; inside a transaction. */
@@ -570,7 +594,7 @@ function createIndex(
       }
     }
     for (const link of affected.values()) {
-      const [resolution, resolvedPath] = resolveOne(link);
+      const { resolution, resolvedPath } = resolveOne(link);
       setResolution.run(resolution, resolvedPath, link.rowid);
     }
   };
@@ -1130,16 +1154,14 @@ function createIndex(
     }),
     select: <T>(sql: string, ...params: Array<string | number | null>) =>
       db.prepare(sql).all(...params) as T[],
-    resolve: (linkingPath, link) => {
-      const [resolution, resolvedPath] = resolveOne({
+    resolve: (linkingPath, link) =>
+      resolveOne({
         path: linkingPath,
         target: link.target,
         ltarget: linkKey(linkingPath, link.target),
         heading: JSON.stringify(link.heading),
         block: link.blockId,
-      });
-      return { resolution, resolvedPath };
-    },
+      }),
     close: () => {
       closed = true;
       db.close();
