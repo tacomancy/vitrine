@@ -385,7 +385,7 @@ One of the eight screens: Home, Question Inbox, Reader, Research Question view, 
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
 
 **Picker**:
-The one keyboard list of vault files three places open — Link from the Inbox, attaching a Source to a Research Question, `[[` inside a why line. Name-contains over the Index, a Kind glyph per row and a Source's PDF beside it, narrowed by whoever opened it to the Kinds it will accept and away from the file the user is standing on. Never a search: matching a title or a body is the Vault editor's beat.
+The one keyboard list of vault files three places open — Link from the Inbox, attaching a Source to a Research Question, `[[` inside a why line. Name-contains over the Index, a Kind glyph per row, and — on a Source or a stub — its title and whether its PDF is there beside it, narrowed by whoever opened it to the Kinds it will accept and away from the file the user is standing on. The title is shown, not matched. Never a search: matching a title or a body is the Vault editor's beat.
 _Avoid_: Search, autocomplete, quick open, palette (the command palette is a different thing)
 
 **Loose end**:

@@ -947,3 +947,195 @@ describe("researchQuestions.saveSection", () => {
     expect(await readFile(join(vault, path), "utf8")).toBe(before);
   });
 });
+
+describe("researchQuestions.attachSource", () => {
+  const path = "questions/Does slow-wave density predict recall gain (RQ).md";
+
+  it("writes the line grammar under the chosen side, leaving the other side and every other section byte-identical", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; hash?: string }>(
+      "researchQuestions.attachSource",
+      {
+        path,
+        target: "sources/rasch2013.md",
+        side: "opposing",
+        note: "Table 2 reverses once preregistered studies are separated out.",
+        basedOn: page.hash,
+      }
+    );
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "- a line that is not a source\n- [[rasch2013]] — Table 2 reverses once preregistered studies are separated out.\n\n## Related questions"
+    );
+    expect(outside(after, "Opposing sources")).toEqual(
+      outside(before, "Opposing sources")
+    );
+    // Read back: the new line is a source line like any other.
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    expect(read.result.data.sections.opposing.lines[2]).toEqual({
+      text: "[[rasch2013]] — Table 2 reverses once preregistered studies are separated out.",
+      link: {
+        target: "rasch2013",
+        blockId: null,
+        resolution: "resolved",
+        resolvedPath: "sources/rasch2013.md",
+        resolvedKind: "source",
+      },
+      note: "Table 2 reverses once preregistered studies are separated out.",
+    });
+  });
+
+  it("attaches without a note as a bare link, and a stub attaches like a Source", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/klinzing2019.md",
+      side: "supporting",
+      basedOn: page.hash,
+    });
+    expect(reply.error).toBeUndefined();
+    const after = await readFile(join(vault, path), "utf8");
+    // The same source twice is a line twice: where Link writes `related`
+    // whole and so must not repeat itself, a side is a list of judgements —
+    // one paper can carry two findings, each with its own why, and deciding
+    // which of two lines was meant is not this write's to make.
+    expect(after).toContain(
+      "## Supporting sources\n\n- [[rasch2013#^h4]] — TMR effects survive encoding controls.\n- [[klinzing2019]]\n- [[klinzing2019]]\n\n## Opposing sources"
+    );
+    expect(outside(after, "Supporting sources")).toEqual(
+      outside(before, "Supporting sources")
+    );
+  });
+
+  it("keeps a pasted note on the line, so its tail is never left as prose", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/rasch2013.md",
+      side: "opposing",
+      // A why pasted out of an abstract: a newline here would end the list
+      // item, and the rest would read back as prose under the heading
+      // rather than as this line's note.
+      note: "  Table 2 reverses\r\n  once preregistered studies are out.  ",
+      basedOn: page.hash,
+    });
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "- [[rasch2013]] — Table 2 reverses once preregistered studies are out.\n\n## Related questions"
+    );
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    expect(read.result.data.sections.opposing.lines).toHaveLength(3);
+  });
+
+  it("qualifies the link by path when the bare name would reach more than one file", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/wamsley2019.md",
+      side: "supporting",
+      basedOn: page.hash,
+    });
+    expect(await readFile(join(vault, path), "utf8")).toContain(
+      "- [[sources/wamsley2019]]\n"
+    );
+  });
+
+  it("refuses a target the index does not hold, and one that is not a Source or a stub", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+
+    const missing = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/nobody2020.md",
+      side: "supporting",
+      basedOn: page.hash,
+    });
+    expect(missing.error?.message).toContain("not a file in the vault");
+
+    // Attaching is the judgement that a paper is evidence; a Question is not
+    // one, and lands under ## Related questions or nowhere (ADR 0020).
+    const question = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "questions/What counts as a reactivation event.md",
+      side: "supporting",
+      basedOn: page.hash,
+    });
+    expect(question.error?.message).toContain("not a Source or a stub");
+
+    // A Note is how the index stores a Markdown file that declares no
+    // `kind:` — a null column, not a missing row. It is refused for the
+    // same reason as the Question, and by the same words.
+    const note = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "a/wamsley2019.md",
+      side: "opposing",
+      basedOn: page.hash,
+    });
+    expect(note.error?.message).toContain("not a Source or a stub");
+
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+
+  it("refuses a page that is not a Research Question, and a side outside the two", async () => {
+    const note = "notes/Sleep and consolidation.md";
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED, [note]: "A note.\n" },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+
+    const wrongKind = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.attachSource",
+      {
+        path: note,
+        target: "sources/rasch2013.md",
+        side: "supporting",
+        basedOn: page.hash,
+      }
+    );
+    expect(wrongKind.result?.data).toMatchObject({
+      written: false,
+      reason: "unreadable",
+    });
+
+    // There is no third side, so one is an input error, not a new heading.
+    const unsorted = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/rasch2013.md",
+      side: "unsorted",
+      basedOn: page.hash,
+    });
+    expect(unsorted.error).toBeDefined();
+    expect(await readFile(join(vault, note), "utf8")).toBe("A note.\n");
+  });
+});
