@@ -694,6 +694,9 @@ const SIDE_SECTION: Record<Side, string> = {
 /** The Kinds a side can hold: a paper, with or without its PDF yet. */
 const ATTACHABLE = new Set(["source", "source-stub"]);
 
+/** What the index calls a Markdown file that declares no `kind:` — a null column, not a missing row. */
+const NOTE = "note";
+
 /**
  * Attach a source to one side (#218; § Vault layout's source line grammar):
  * one `appendToSection` writing `- [[citekey]] — why it is here` under the
@@ -717,14 +720,15 @@ export async function attachSource(
   }: { target: string; side: Side; note: string; basedOn: string }
 ): Promise<WriteResult> {
   const { relativePath: targetPath } = await locate(vaultPath, target);
-  const kind =
-    index.select<{ kind: string | null }>(
-      "SELECT kind FROM files WHERE path = ?",
-      targetPath
-    )[0]?.kind ?? null;
-  // An unknown file is `wikilinkTo`'s refusal to give; say the Kind only
-  // once the Index has a row to say it from.
-  if (kind !== null && !ATTACHABLE.has(kind)) {
+  const row = index.select<{ kind: string | null }>(
+    "SELECT kind FROM files WHERE path = ?",
+    targetPath
+  )[0];
+  // A file the Index has no row for is `wikilinkTo`'s refusal to give — it
+  // says so in the same words Link does. A row it *has* is asked its Kind,
+  // and a null column is a Note, which is a Kind like any other here and
+  // not the absence of one.
+  if (row !== undefined && !ATTACHABLE.has(row.kind ?? NOTE)) {
     throw new VaultError(
       "refused",
       `${targetPath} is not a Source or a stub; a paper not yet judged is Related, or nothing.`

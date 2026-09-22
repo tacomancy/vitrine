@@ -895,6 +895,10 @@ describe("researchQuestions.attachSource", () => {
     });
     expect(reply.error).toBeUndefined();
     const after = await readFile(join(vault, path), "utf8");
+    // The same source twice is a line twice: where Link writes `related`
+    // whole and so must not repeat itself, a side is a list of judgements —
+    // one paper can carry two findings, each with its own why, and deciding
+    // which of two lines was meant is not this write's to make.
     expect(after).toContain(
       "## Supporting sources\n\n- [[rasch2013#^h4]] — TMR effects survive encoding controls.\n- [[klinzing2019]]\n- [[klinzing2019]]\n\n## Opposing sources"
     );
@@ -945,6 +949,17 @@ describe("researchQuestions.attachSource", () => {
       basedOn: page.hash,
     });
     expect(question.error?.message).toContain("not a Source or a stub");
+
+    // A Note is how the index stores a Markdown file that declares no
+    // `kind:` — a null column, not a missing row. It is refused for the
+    // same reason as the Question, and by the same words.
+    const note = await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "a/wamsley2019.md",
+      side: "opposing",
+      basedOn: page.hash,
+    });
+    expect(note.error?.message).toContain("not a Source or a stub");
 
     expect(await readFile(join(vault, path), "utf8")).toBe(before);
   });
