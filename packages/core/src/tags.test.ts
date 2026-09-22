@@ -49,6 +49,7 @@ describe("vault.tags over the corpus", () => {
       "gamma",
       "incomment",
       "insidehtml",
+      "memory",
       "ml",
       "nested",
       "other",

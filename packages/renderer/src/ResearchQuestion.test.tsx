@@ -99,7 +99,7 @@ describe("the freshly promoted state", () => {
     expect(page.textContent).not.toMatch(/\b0 (sources|threads|questions)/);
   });
 
-  it("draws the six sections as outlines, each with one sentence on what belongs there", async () => {
+  it("draws the empty sections as outlines, each with one sentence on what belongs there", async () => {
     open(() => fresh);
     const page = await region();
     const names = [
@@ -108,7 +108,6 @@ describe("the freshly promoted state", () => {
       "Opposing sources",
       "Related questions",
       "Open threads",
-      "Position history",
     ];
     for (const name of names) {
       const section = await within(page).findByRole("region", { name });
@@ -116,7 +115,9 @@ describe("the freshly promoted state", () => {
       const sentence = within(section).getByText(/\.\s*$/);
       expect(sentence.textContent?.length).toBeGreaterThan(20);
     }
-    // The history's base line is derived from the frontmatter, never an entry.
+    // The sixth is the exception: a history with nothing in it is its base
+    // line, which says where the page came from — an outline around that
+    // would be an emptiness the line has already explained (#214).
     const history = within(page).getByRole("region", {
       name: "Position history",
     });
@@ -874,6 +875,115 @@ describe("capturing from the page", () => {
     expect(document.activeElement).toBe(edit);
     await waitFor(() =>
       expect(related.textContent).toContain("Does the effect survive a nap")
+    );
+  });
+});
+
+// The history rendered in place as a narrative (#214; spec #206 stories
+// 37–39; prompt 3 "a train of thought, not a diff log"): explained
+// Revisions lead at full width, quiet ones collapse into a trail that
+// expands, a filter puts the narrative on its own, and the base line under
+// it all is derived from the frontmatter rather than written as an entry.
+describe("the position history", () => {
+  const entry = (
+    date: string,
+    why: string | null,
+    from: string,
+    field = "working answer"
+  ): Revision => ({ at: `${date}T10:00:00+02:00`, field, why, from });
+
+  const explained = entry(
+    "2026-08-05",
+    "Cordi's funnel plot — mostly small-study bias. [[cordi2021#^h12]]",
+    "Probably both, but the designs are underpowered."
+  );
+  const quiet = [
+    entry("2026-07-02", null, "Mostly consolidation."),
+    entry("2026-06-20", null, "Consolidation, surely."),
+  ];
+  const first = entry("2026-02-19", "First real position.", "");
+
+  const withHistory = (entries: Revision[]): ResearchQuestionPage => ({
+    ...fresh,
+    sections: {
+      ...fresh.sections,
+      workingAnswer: { present: true, text: "A third the size claimed." },
+      positionHistory: { present: true, text: "…", entries },
+    },
+  });
+
+  const history = async () =>
+    within(await region()).findByRole("region", { name: "Position history" });
+
+  it("leads with the explained Revisions at full width — what the answer became, the why with its links, and what it moved from", async () => {
+    open(() => withHistory([explained, ...quiet, first]));
+    const section = await history();
+    const entries = within(section).getAllByRole("listitem");
+    const lead = entries[0] as HTMLElement;
+    expect(lead.textContent).toContain("5 August 2026");
+    expect(lead.textContent).toContain("A third the size claimed.");
+    expect(lead.textContent).toContain("Cordi's funnel plot");
+    // The why's links read as links, brackets and block id stripped of nothing.
+    expect(within(lead).getByText("cordi2021#^h12")).toBeTruthy();
+    expect(lead.textContent).toContain(
+      "from — Probably both, but the designs are underpowered."
+    );
+    // The oldest entry moved the answer from nothing: it is the first position.
+    const last = entries[entries.length - 1] as HTMLElement;
+    expect(last.textContent).toContain("first position");
+    expect(last.textContent).not.toContain("from —");
+  });
+
+  it("collapses a run of quiet Revisions into a count and a span that expands on demand", async () => {
+    open(() => withHistory([explained, ...quiet, first]));
+    const section = await history();
+    const trail = within(section).getByRole("button", {
+      name: /quiet revisions/,
+    });
+    expect(trail.textContent).toContain("2 quiet revisions over 12 days");
+    expect(trail.getAttribute("aria-expanded")).toBe("false");
+    expect(section.textContent).not.toContain("Mostly consolidation.");
+
+    fireEvent.click(trail);
+    expect(trail.getAttribute("aria-expanded")).toBe("true");
+    expect(section.textContent).toContain("2 July 2026");
+    expect(section.textContent).toContain("from — Mostly consolidation.");
+  });
+
+  it("the filter puts the narrative on its own, and everything brings the trail back", async () => {
+    open(() => withHistory([explained, ...quiet, first]));
+    const section = await history();
+    const only = within(section).getByRole("button", {
+      name: "explained only",
+    });
+    fireEvent.click(only);
+    expect(only.getAttribute("aria-pressed")).toBe("true");
+    expect(
+      within(section).queryByRole("button", { name: /quiet revisions/ })
+    ).toBeNull();
+    expect(section.textContent).toContain("Cordi's funnel plot");
+
+    fireEvent.click(
+      within(section).getByRole("button", { name: "everything" })
+    );
+    expect(
+      within(section).getByRole("button", { name: /quiet revisions/ })
+    ).toBeTruthy();
+  });
+
+  it("a history with no entries is the base line alone — no filter, no trail, no empty section", async () => {
+    open(() => withHistory([]));
+    const section = await history();
+    expect(section.textContent).toContain(
+      "promoted from a capture made while reading Rasch & Born 2013 · p.699, 20 September 2026"
+    );
+    expect(within(section).queryAllByRole("listitem")).toEqual([]);
+    expect(
+      within(section).queryByRole("button", { name: "everything" })
+    ).toBeNull();
+    // Nothing else: no outline around an emptiness the base line already explains.
+    expect(section.textContent).toBe(
+      "Position historypromoted from a capture made while reading Rasch & Born 2013 · p.699, 20 September 2026"
     );
   });
 });

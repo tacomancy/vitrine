@@ -17,9 +17,10 @@ import {
 } from "react";
 import { formatAge } from "./age";
 import { useVaultChanged } from "./events";
+import { PositionHistory } from "./PositionHistory";
 import styles from "./ResearchQuestion.module.css";
 import { hashOf, replaceRoute } from "./router";
-import { localDateTime } from "./rows";
+import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -161,17 +162,12 @@ export function ResearchQuestion({ path }: { path: string }) {
             name="Position history"
             present={readable.sections.positionHistory.present}
           >
-            {readable.sections.positionHistory.text !== "" && (
-              <pre className={styles.history}>
-                {readable.sections.positionHistory.text}
-              </pre>
-            )}
-            {readable.sections.positionHistory.text === "" && (
-              <Outline>
-                Nothing has changed yet. The first revision is written when the
-                working answer first moves.
-              </Outline>
-            )}
+            <PositionHistory
+              entries={readable.sections.positionHistory.entries}
+              current={{ [FIELD]: readable.sections.workingAnswer.text }}
+            />
+            {/* Always last and always there: the history's floor, derived
+                from the frontmatter and never written as an entry. */}
             <p className={styles.baseLine}>{baseLine(readable.frontmatter)}</p>
           </Section>
         </div>
@@ -359,9 +355,6 @@ function baseLine(fm: ResearchQuestionFrontmatter): string {
   const when = fm.promoted === undefined ? "" : `, ${localDate(fm.promoted)}`;
   return `promoted from a capture made ${whileDoing(fm)}${when}`;
 }
-
-/** `20 September 2026`: the date part of `localDateTime`. */
-const localDate = (iso: string) => localDateTime(iso).split(" · ")[0] ?? "";
 
 /** `[[Rasch & Born 2013]]` → `Rasch & Born 2013`; an alias shows in place of the target. */
 function linkText(from: string): string {
