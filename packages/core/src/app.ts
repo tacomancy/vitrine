@@ -41,8 +41,12 @@ export type AppOptions = {
 
 export type App = {
   app: Hono;
-  /** Tear down the open vault's resources: the watcher and the index handle. */
-  close: () => void;
+  /**
+   * Tear down the open vault's resources: the watcher, the two database
+   * handles, and — first — the splice of anything the queue still owes
+   * (#217), which is why this resolves rather than returning.
+   */
+  close: () => Promise<void>;
 };
 
 /**
@@ -64,11 +68,16 @@ export function createApp({
   const events = createEvents();
   // The stream is fed before whatever the caller hung on the same seam
   // (the test harness), so a test's listener runs after the renderer's.
+  const window = coalesceMs ?? COALESCE_MS;
   const vault = createVaultService({
     host,
     appSupportDir,
     settleMs,
     watch,
+    ...(now ? { now } : {}),
+    // The window a page save coalesces by is the window an Obsidian edit
+    // must be quiet for before it is spliced (#217): one number, one seam.
+    coalesceMs: window,
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's
@@ -93,7 +102,7 @@ export function createApp({
     questions: createQuestionService({ vault, now, newId }),
     events,
     now: now ?? (() => new Date()),
-    coalesceMs: coalesceMs ?? COALESCE_MS,
+    coalesceMs: window,
   };
 
   // The renderer is served from the Vite dev server in development and from

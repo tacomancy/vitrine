@@ -45,9 +45,10 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     host: options.host ?? NO_HOST,
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
   });
-  // The index handle is closed on the way out; the vault service's `close`
-  // is where the watcher's teardown joins (#188).
-  process.once("exit", close);
+  // The last-resort teardown for an exit nothing else caught. `close` is
+  // async — it splices what the queue owes (#217) — and an `exit` handler
+  // cannot await, so the orderly path is `RunningCore.close` below.
+  process.once("exit", () => void close());
   if (options.staticDir !== undefined) {
     // The bundle is served from the same origin as the API, so the renderer
     // needs nothing beyond 'self'. Set here rather than in index.html because
@@ -66,11 +67,12 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
         resolve({
           port: info.port,
           token,
-          close: () =>
-            new Promise((done, fail) => {
-              close();
+          close: async () => {
+            await close();
+            await new Promise<void>((done, fail) => {
               server.close((err) => (err ? fail(err) : done()));
-            }),
+            });
+          },
         });
       }
     );

@@ -9,6 +9,7 @@ import {
 import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { errorMessage } from "./errors.js";
+import type { PositionChange } from "./pending-revisions.js";
 import { readQuestion } from "./question-kind.js";
 import {
   analyseFile,
@@ -79,6 +80,12 @@ export type IndexOptions = {
   positionsOf?: PositionsOf | undefined;
   /** Awaited before the next chunk, so a listener that queries inside sees each commit on its own. */
   onChanged?: ((event: VaultChanged) => void | Promise<void>) | undefined;
+  /**
+   * A Position's text changed in a file the app did not write (#217) —
+   * called inside the transaction that records the new text, so the
+   * pending Revision and the row it is a diff against land together.
+   */
+  onPositionChanged?: ((change: PositionChange) => void) | undefined;
   /** Indexing progress changed; the listener re-reads `status()`. */
   onStatus?: (() => void | Promise<void>) | undefined;
 };
@@ -389,6 +396,7 @@ function createIndex(
     positionsOf = {},
     onChanged,
     onStatus,
+    onPositionChanged,
   }: IndexOptions
 ): VaultIndex {
   let closed = false;
@@ -446,6 +454,9 @@ function createIndex(
   );
   const fileRow = db.prepare(
     "SELECT path, markdown, size, mtime, hash, indexed_at FROM files WHERE path = ?"
+  );
+  const positionsOfPath = db.prepare(
+    "SELECT field, text FROM positions WHERE path = ?"
   );
   const moves = TABLES.map((table) =>
     db.prepare(`UPDATE ${table} SET path = ? WHERE path = ?`)
@@ -825,7 +836,33 @@ function createIndex(
   const overtaken = (existing: FilesRow | undefined, read: Read) =>
     existing !== undefined && existing.indexed_at >= read.readAt;
 
-  /** One read file into its rows; inside a transaction. True when what a surface reads changed. */
+  /**
+   * The Positions this file lost text from (#217). Only a field the file
+   * held before and still holds counts: a `## Working answer` heading
+   * retyped drops the row and brings it back, and reading that as "the
+   * answer was cleared and then rewritten" would put two Revisions in the
+   * history for one typo. A field appearing for the first time has nothing
+   * to have changed *from*.
+   */
+  const reportPositionChanges = (
+    path: string,
+    before: Position[],
+    after: Position[]
+  ) => {
+    for (const now of after) {
+      const was = before.find((p) => p.field === now.field);
+      if (was !== undefined && was.text !== now.text) {
+        onPositionChanged?.({ path, field: now.field, from: was.text });
+      }
+    }
+  };
+
+  /**
+   * One read file into its rows; inside a transaction. True when what a
+   * surface reads changed. This is the external path — the sweep and the
+   * watcher's batches — and the only one that diffs Positions: the app's
+   * own writes go through `own()`, which records their Revision itself.
+   */
   const apply = ({ path, entry, hash, bytes, error }: Read): boolean => {
     const existing = fileRow.get(path) as FilesRow | undefined;
     // A touch, a sync client's byte-identical rewrite: the stat moved and
@@ -851,6 +888,7 @@ function createIndex(
       });
       return true;
     }
+    const positionsBefore = positionsOfPath.all(path) as Position[];
     dropRows(path);
     if (bytes === null || hash === null) {
       putFile(path, { markdown: true, size: entry.size, mtime: entry.mtime });
@@ -858,6 +896,11 @@ function createIndex(
       return true;
     }
     insertOutlined(path, entry, hash, bytes.toString("utf8"));
+    reportPositionChanges(
+      path,
+      positionsBefore,
+      positionsOfPath.all(path) as Position[]
+    );
     return true;
   };
 
