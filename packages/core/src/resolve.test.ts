@@ -261,6 +261,9 @@ describe("researchQuestions.reopen", () => {
     expect(page.slice(page.indexOf("## Working answer"))).toBe(
       PAGE.slice(PAGE.indexOf("## Working answer"))
     );
+    // `answered` stays: it is the day the page was last resolved, and the
+    // next resolve overwrites it (CONTEXT.md *Reopen* of a Research Question).
+    expect(page).toContain("answered: 2026-09-21T10:00:00+05:30");
     // The Question is not rewritten: its own reopen is the Inbox's (#212).
     expect(await readFile(join(vault, QUESTION_PATH), "utf8")).toBe(question);
   });

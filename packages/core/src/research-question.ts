@@ -1,6 +1,12 @@
 import { readFile, unlink } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import { BOM, type Heading, type ListItem, type Outline } from "markdown";
+import {
+  BOM,
+  parseWikilink,
+  type Heading,
+  type ListItem,
+  type Outline,
+} from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
 import { asString, readQuestion } from "./question-kind.js";
@@ -495,11 +501,32 @@ async function writeOwn(
   if (!read.readable) {
     return { written: false, reason: "unreadable", detail: read.reason };
   }
-  const result = await write(vaultPath, read.relativePath, {
+  return writeRead(
+    index,
+    vaultPath,
+    { path: read.relativePath, hash: read.hash },
+    operations,
+    basedOn
+  );
+}
+
+/**
+ * The write itself, against a file the caller has already read: what the
+ * caller that needs that read afterwards — resolving, which writes the page
+ * and then the Question its frontmatter names — shares with `writeOwn`.
+ */
+async function writeRead(
+  index: VaultIndex,
+  vaultPath: string,
+  read: { path: string; hash: string },
+  operations: Operation[],
+  basedOn?: string
+): Promise<WriteResult> {
+  const result = await write(vaultPath, read.path, {
     operations,
     basedOn: basedOn ?? read.hash,
   });
-  if (result.written) await index.own(read.relativePath, result.content);
+  if (result.written) await index.own(read.path, result.content);
   return result;
 }
 
@@ -623,18 +650,18 @@ export async function resolveResearchQuestion(
       question: { written: false, reason: "the page was not resolved" },
     };
   }
-  const keys = status === "answered" ? { status, answered: at } : { status };
-  const page = await write(vaultPath, read.relativePath, {
-    operations: [{ op: "setFrontmatter", keys }],
-    basedOn: read.hash,
-  });
+  const page = await writeRead(
+    index,
+    vaultPath,
+    { path: read.relativePath, hash: read.hash },
+    [{ op: "setFrontmatter", keys: keysFor(status, at) }]
+  );
   if (!page.written) {
     return {
       page,
       question: { written: false, reason: "the page was not resolved" },
     };
   }
-  await index.own(read.relativePath, page.content);
   const question = await writeBack(index, vaultPath, read, { status, at });
   return { page, question };
 }
@@ -660,12 +687,19 @@ async function writeBack(
       reason: "the page has no promoted_from: there is no Question to answer",
     };
   }
-  const target = linkTarget(promotedFrom);
-  const { resolution, resolvedPath } = index.resolve(page.relativePath, {
-    target,
-    heading: [],
-    blockId: null,
-  });
+  const inner = /^\[\[(.*)\]\]$/.exec(promotedFrom.trim())?.[1];
+  if (inner === undefined) {
+    return {
+      written: false,
+      reason: `promoted_from is not a wikilink: ${promotedFrom}`,
+    };
+  }
+  // Where the link lands is the index's to say, by the same rule every
+  // `links` row is resolved by — never a guess from the link's text.
+  const { resolution, resolvedPath } = index.resolve(
+    page.relativePath,
+    parseWikilink(inner)
+  );
   if (resolvedPath === null) {
     return {
       written: false,
@@ -687,32 +721,27 @@ async function writeBack(
     };
   }
   const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
-  const result = await write(vaultPath, resolvedPath, {
-    operations: [
-      {
-        op: "setFrontmatter",
-        keys: status === "answered" ? { status, answered: at } : { status },
-      },
-      { op: "appendToSection", target: "lead", line },
-    ],
-    basedOn: question.hash,
-  });
+  const result = await writeRead(index, vaultPath, question, [
+    { op: "setFrontmatter", keys: keysFor(status, at) },
+    { op: "appendToSection", target: "lead", line },
+  ]);
   if (!result.written) {
     return {
       written: false,
       reason: `${resolvedPath}: ${result.reason} — ${result.detail}`,
     };
   }
-  await index.own(question.path, result.content);
   return { written: true, path: question.path };
 }
 
-/** `[[Name|alias]]` → `Name`; a value written as plain text is the name itself. */
-function linkTarget(value: string): string {
-  const trimmed = value.trim();
-  const inner = /^\[\[(.*)\]\]$/.exec(trimmed)?.[1] ?? trimmed;
-  return (inner.split("|")[0] ?? "").split("#")[0]?.trim() ?? "";
-}
+/**
+ * The keys a resolution sets, the same on the page and on its Question.
+ * *Abandon* sets no date: there is no `abandoned:` key in the vault's
+ * vocabulary (§ Vault layout), the day is in the write-back line, and a
+ * dropped Question likewise carries only its status.
+ */
+const keysFor = (status: "answered" | "abandoned", at: string) =>
+  status === "answered" ? { status, answered: at } : { status };
 
 // The line is prose the user reads, so it carries the day, not the second;
 // the timestamp itself is in `answered:`, where a machine reads it.

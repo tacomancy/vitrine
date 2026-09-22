@@ -753,6 +753,8 @@ describe("resolving, abandoning, and reopening", () => {
       page = ANSWERED;
       return { page: { written: true }, question: { written: true } };
     });
+    // The Inbox is not mounted here, so the row's own glyph and label are
+    // `Inbox.test.tsx`'s; what this asserts is the page's half.
     open(() => page, { "researchQuestions.resolve": resolve });
     const view = await region();
     fireEvent.click(
@@ -773,6 +775,12 @@ describe("resolving, abandoning, and reopening", () => {
     expect(
       within(view).getByRole("region", { name: "Position history" }).textContent
     ).toContain("working answer");
+    // A status, not an archive: the Edited sections still open for editing.
+    expect(
+      within(
+        within(view).getByRole("region", { name: "Open threads" })
+      ).getByRole("button", { name: "edit" })
+    ).toBeDefined();
   });
 
   it("abandons with the page's own word, and offers reopen once it is resolved", async () => {
@@ -847,7 +855,11 @@ describe("resolving, abandoning, and reopening", () => {
     );
 
     const line = await within(view).findByRole("status");
-    expect(line.textContent).toContain("matches no file in the vault");
+    // The half that did not happen is what the line names: the page *was*
+    // resolved, so "could not resolve" would be a lie about the other half.
+    expect(line.textContent).toBe(
+      "the Question was not marked: [[Does slow-wave density predict recall gain]] matches no file in the vault"
+    );
     await waitFor(() =>
       expect(within(view).getByRole("img", { name: "answered" })).toBeDefined()
     );
@@ -870,7 +882,9 @@ describe("resolving, abandoning, and reopening", () => {
     );
 
     const line = await within(view).findByRole("status");
-    expect(line.textContent).toContain("the file is no longer there");
+    expect(line.textContent).toBe(
+      "could not resolve: changedAndUnreapplyable — the file is no longer there"
+    );
     expect(within(view).getByRole("img", { name: "open" })).toBeDefined();
   });
 });

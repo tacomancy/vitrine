@@ -243,44 +243,42 @@ function Resolving({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [refusal, setRefusal] = useState<string | null>(null);
-  const reread = () => {
-    void queryClient.invalidateQueries(
-      trpc.researchQuestions.page.pathFilter()
-    );
-    // The Inbox's row reads the Question, whose status the write-back moved.
+  const resolving = usePageWrite("resolve");
+  const reopening = usePageWrite("reopen");
+  // The write-back moves the Question's status, which the Inbox's row reads.
+  const rereadRow = () =>
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
-  };
-  const fail = (error: { message: string }) => setRefusal(error.message);
   const resolve = useMutation(
     trpc.researchQuestions.resolve.mutationOptions({
       onSuccess: (result: ResolveResult) => {
-        reread();
-        if (!result.page.written) {
-          setRefusal(
-            `could not resolve: ${result.page.reason} — ${result.page.detail}`
+        resolving.settle(result.page);
+        rereadRow();
+        // The page is resolved even when its Question could not be marked,
+        // so the line names the half that did not happen — *could not
+        // resolve* would be a lie about the half that did.
+        if (result.page.written && !result.question.written) {
+          resolving.say(
+            `the Question was not marked: ${result.question.reason}`
           );
-        } else if (!result.question.written) {
-          setRefusal(`the Question was not marked: ${result.question.reason}`);
-        } else setRefusal(null);
+        }
       },
-      onError: fail,
+      onError: resolving.fail,
     })
   );
   const reopen = useMutation(
     trpc.researchQuestions.reopen.mutationOptions({
       onSuccess: (result: WriteResult) => {
-        reread();
-        setRefusal(
-          result.written
-            ? null
-            : `could not reopen: ${result.reason} — ${result.detail}`
-        );
+        reopening.settle(result);
+        rereadRow();
       },
-      onError: fail,
+      onError: reopening.fail,
     })
   );
   const busy = resolve.isPending || reopen.isPending;
+  const ask = (next: "answered" | "abandoned") => {
+    reopening.clear();
+    resolve.mutate({ path, status: next });
+  };
   return (
     <>
       <span className={styles.actions}>
@@ -290,7 +288,7 @@ function Resolving({
               type="button"
               className={styles.action}
               disabled={busy}
-              onClick={() => resolve.mutate({ path, status: "answered" })}
+              onClick={() => ask("answered")}
             >
               resolve
             </button>
@@ -298,7 +296,7 @@ function Resolving({
               type="button"
               className={styles.action}
               disabled={busy}
-              onClick={() => resolve.mutate({ path, status: "abandoned" })}
+              onClick={() => ask("abandoned")}
             >
               abandon
             </button>
@@ -308,19 +306,19 @@ function Resolving({
             type="button"
             className={styles.action}
             disabled={busy}
-            onClick={() => reopen.mutate({ path })}
+            onClick={() => {
+              resolving.clear();
+              reopen.mutate({ path });
+            }}
           >
             reopen
           </button>
         )}
       </span>
-      {/* The line sits under the kicker, in the footer's voice: a write that
-          did not happen is said where it was asked for. */}
-      {refusal !== null && (
-        <p role="status" className={styles.wroteNothing}>
-          {refusal}
-        </p>
-      )}
+      {/* Under the kicker rather than in a dialog: a write that did not
+          happen is said where it was asked for. */}
+      <Refusal refusal={resolving.refusal} className={styles.inKicker} />
+      <Refusal refusal={reopening.refusal} className={styles.inKicker} />
     </>
   );
 }
@@ -470,29 +468,36 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
 
 /**
  * A write the page makes to its own file: the result is the protocol's, and
- * a refusal is kept to show as a line in the section that asked — never a
+ * a refusal is kept to show as a line where it was asked for — never a
  * silent no-op (brief § Ingest review's rule, applied to every write). A
  * write that landed re-reads the page; the own write's `vaultChanged` does
- * the same, so this is only what makes the re-read immediate.
+ * the same, so this is only what makes the re-read immediate. `verb` is the
+ * word the refusal line uses, because *could not save* is wrong for a
+ * resolve and the line must say what did not happen.
  */
-function useSectionWrite() {
+function usePageWrite(verb: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<string | null>(null);
+  const reread = () =>
+    void queryClient.invalidateQueries(
+      trpc.researchQuestions.page.pathFilter()
+    );
+  const refused = (detail: string) =>
+    setRefusal(`could not ${verb}: ${detail}`);
   const settle = (result: WriteResult) => {
     if (result.written) {
       setRefusal(null);
-      void queryClient.invalidateQueries(
-        trpc.researchQuestions.page.pathFilter()
-      );
-    } else {
-      setRefusal(`${result.reason} — ${result.detail}`);
-    }
+      reread();
+    } else refused(`${result.reason} — ${result.detail}`);
   };
   return {
     refusal,
     settle,
-    fail: (error: { message: string }) => setRefusal(error.message),
+    /** A line in the caller's own words, for what `verb` would say wrong. */
+    say: setRefusal,
+    clear: () => setRefusal(null),
+    fail: (error: { message: string }) => refused(error.message),
   };
 }
 
@@ -520,7 +525,7 @@ function Editable({
   children: ReactNode;
 }) {
   const trpc = useTRPC();
-  const { refusal, settle, fail } = useSectionWrite();
+  const { refusal, settle, fail } = usePageWrite("save");
   const [draft, setDraft] = useState<string | null>(null);
   const editRef = useRef<HTMLButtonElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
@@ -603,12 +608,26 @@ function Editable({
   );
 }
 
-/** The section's refusal line, in the footer's quiet voice, inside the section it belongs to. */
-function Refusal({ refusal }: { refusal: string | null }) {
+/** A refusal line, in the footer's quiet voice, where the write was asked for. */
+function Refusal({
+  refusal,
+  className,
+}: {
+  refusal: string | null;
+  /** What the line needs where it sits; the kicker's own row is one. */
+  className?: string | undefined;
+}) {
   if (refusal === null) return null;
   return (
-    <p role="status" className={styles.refusal}>
-      could not save: {refusal}
+    <p
+      role="status"
+      className={
+        className === undefined
+          ? styles.refusal
+          : `${styles.refusal} ${className}`
+      }
+    >
+      {refusal}
     </p>
   );
 }
@@ -629,7 +648,7 @@ function Threads({
   empty: string;
 }) {
   const trpc = useTRPC();
-  const { refusal, settle, fail } = useSectionWrite();
+  const { refusal, settle, fail } = usePageWrite("save");
   const tick = useMutation(
     trpc.researchQuestions.tickThread.mutationOptions({
       onSuccess: settle,

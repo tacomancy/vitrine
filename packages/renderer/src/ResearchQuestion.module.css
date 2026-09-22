@@ -77,15 +77,11 @@
   cursor: default;
 }
 
-/* A write that did not happen, said under the kicker rather than in a dialog. */
-.wroteNothing {
+/* The refusal line on its own row of the kicker, out from under its caps. */
+.inKicker {
   flex-basis: 100%;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
   letter-spacing: normal;
   text-transform: none;
-  color: var(--color-fg-muted);
 }
 
 /* The question in the serif at display size: it reads as text, not a field. */
