@@ -40,7 +40,7 @@ Never silently violate these:
 
 ## Development loop
 
-Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving). Run in this order, per tracer-bullet slice:
+Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving, or stops being invocable by the agent — ADR 0021). Run in this order, per tracer-bullet slice:
 
 1. **`grill-with-docs`** — pressure-test the slice's plan, one question at a time, before code exists. It writes new terms to `CONTEXT.md` and decisions to `docs/adr/` as they are resolved. `grill-me` is the same interview without the doc writes; use it for questions that aren't about this codebase yet (the stack choice, for instance). Detour through `prototype` on a `prototype/<name>` branch when a question needs a runnable answer.
 2. **`to-spec`** — turn the interview into a spec and publish it as a GitHub issue. No implementation starts without a spec issue.
