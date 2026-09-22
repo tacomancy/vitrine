@@ -24,7 +24,10 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 
 const PATH = "questions/Does slow-wave density predict recall gain (RQ).md";
 
-const fresh: ResearchQuestionPage = {
+/** The readable half of the page: what every fixture here varies. */
+type Readable = Extract<ResearchQuestionPage, { readable: true }>;
+
+const fresh: Readable = {
   readable: true,
   path: PATH,
   hash: "abc",
@@ -388,7 +391,12 @@ describe("editing the working answer", () => {
     },
   });
 
-  type Saved = { path: string; text: string; basedOn: string };
+  type Saved = {
+    path: string;
+    text: string;
+    basedOn: string;
+    was: string;
+  };
 
   const editable = (
     page: () => ResearchQuestionPage,
@@ -434,7 +442,12 @@ describe("editing the working answer", () => {
     fireEvent.blur(box);
     await waitFor(() =>
       expect(saves).toEqual([
-        { path: PATH, text: "Encoding strength, mostly.", basedOn: "abc" },
+        {
+          path: PATH,
+          text: "Encoding strength, mostly.",
+          basedOn: "abc",
+          was: "Probably both.",
+        },
       ])
     );
     const page1 = await region();
@@ -471,7 +484,7 @@ describe("editing the working answer", () => {
       () => withAnswer("Probably both.", []),
       () => ({
         written: false,
-        reason: "changedAndUnreapplyable",
+        reason: "verificationFailed",
         detail: "the file is no longer there",
       })
     );
@@ -619,9 +632,11 @@ const RELATED: ResearchQuestionSections["related"] = {
 };
 
 const withRelated = (
-  related: ResearchQuestionSections["related"]
-): ResearchQuestionPage => ({
+  related: ResearchQuestionSections["related"],
+  hash = fresh.hash
+): Readable => ({
   ...fresh,
+  hash,
   sections: { ...fresh.sections, related },
 });
 
@@ -652,6 +667,7 @@ describe("the Edited sections as plain text fields", () => {
         section: "Related questions",
         body: typed,
         basedOn: "abc",
+        was: RELATED.text,
       })
     );
     // Saved: the field closes and the section reads what was typed.
@@ -706,6 +722,7 @@ describe("the Edited sections as plain text fields", () => {
         section: "Open threads",
         body: typed,
         basedOn: "abc",
+        was: THREADS.text,
       })
     );
   });
@@ -732,7 +749,7 @@ describe("the Edited sections as plain text fields", () => {
     open(() => withRelated(RELATED), {
       "researchQuestions.saveSection": () => ({
         written: false,
-        reason: "changedAndUnreapplyable",
+        reason: "verificationFailed",
         detail: "the file is no longer there",
       }),
     });
@@ -747,13 +764,306 @@ describe("the Edited sections as plain text fields", () => {
     fireEvent.keyDown(field, { key: "Enter", metaKey: true });
     const line = await within(related).findByRole("status");
     expect(line.textContent).toContain(
-      "could not save: changedAndUnreapplyable — the file is no longer there"
+      "could not save: verificationFailed — the file is no longer there"
     );
     expect(
       within(related).getByRole<HTMLTextAreaElement>("textbox", {
         name: "Related questions",
       }).value
     ).toBe("- [[Nowhere]]");
+  });
+});
+
+// A save that lands on a section changed underneath (#215; ADR 0015
+// decision 5, ADR 0020 consequences): the refusal is the Vault editor's
+// *changed on disk* line inside that section, never a lost edit on either
+// side. `changedAndUnreapplyable` is the protocol's one word for "the file
+// moved under this write", so on a section save it is always this line;
+// every other refusal stays the plain one.
+describe("changed on disk, inside the section", () => {
+  const CONFLICT = {
+    written: false,
+    reason: "changedAndUnreapplyable",
+    detail: "the section changed on disk since the page read it",
+  };
+  const DISK = "- [[Obsidian wrote this]]";
+  const TYPED = RELATED.text + "\n- [[Nowhere]] — a neighbour";
+  const vaultChanged = {
+    type: "vaultChanged" as const,
+    changed: [PATH],
+    removed: [],
+    renamed: [],
+  };
+
+  /** The field open on the section's text, with the typing in it. */
+  const dirty = async (save: unknown, page: () => ResearchQuestionPage) => {
+    const rendered = open(page, { "researchQuestions.saveSection": save });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    fireEvent.click(within(related).getByRole("button", { name: "edit" }));
+    const field = within(related).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Related questions",
+    });
+    fireEvent.change(field, { target: { value: TYPED } });
+    return { ...rendered, related, field };
+  };
+
+  it("keep mine re-reads the hash and the disk copy, saves the typing again, and the line clears", async () => {
+    let page = withRelated(RELATED);
+    let refuse = true;
+    const save = vi.fn((input: unknown) => {
+      if (refuse) return CONFLICT;
+      const { body } = input as { body: string };
+      page = withRelated({ ...RELATED, text: body }, "ghi");
+      return { written: true, hash: "ghi", content: "", shape: [] };
+    });
+    const { related, field } = await dirty(save, () => page);
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+
+    const line = await within(related).findByRole("status");
+    expect(line.textContent).toContain("changed on disk");
+    // Autosave is suspended while the line is up: a blur must not keep
+    // asking a question that has been answered with a refusal.
+    fireEvent.blur(field);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(field.value).toBe(TYPED);
+
+    // The file as Obsidian left it, which *keep mine* saves over.
+    page = withRelated({ ...RELATED, text: DISK }, "xyz");
+    refuse = false;
+    fireEvent.click(within(related).getByRole("button", { name: "keep mine" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]?.[0]).toEqual({
+      path: PATH,
+      section: "Related questions",
+      body: TYPED,
+      basedOn: "xyz",
+      was: DISK,
+    });
+    await waitFor(() =>
+      expect(within(related).queryByRole("status")).toBeNull()
+    );
+  });
+
+  it("take the disk copy replaces the field with the disk text, clears the line, and writes nothing", async () => {
+    let page = withRelated(RELATED);
+    const save = vi.fn(() => CONFLICT);
+    const { related, field } = await dirty(save, () => page);
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    await within(related).findByRole("status");
+
+    page = withRelated({ ...RELATED, text: DISK }, "xyz");
+    fireEvent.click(
+      within(related).getByRole("button", { name: "take the disk copy" })
+    );
+    await waitFor(() => expect(field.value).toBe(DISK));
+    expect(within(related).queryByRole("status")).toBeNull();
+    // The typing is gone, so the blur that follows has nothing to save.
+    fireEvent.blur(field);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("an edit to another section while the field is dirty raises no line: the save carries what the field opened on", async () => {
+    let page = withRelated(RELATED);
+    const save = vi.fn(() => ({
+      written: true,
+      hash: "xyz",
+      content: "",
+      shape: [],
+    }));
+    const { related, field, stream } = await dirty(save, () => page);
+    // Obsidian touched the Working answer; the page re-reads under the
+    // open field, and the field keeps the text and hash it opened on.
+    const onDisk = withRelated(RELATED, "xyz");
+    page = {
+      ...onDisk,
+      sections: {
+        ...onDisk.sections,
+        workingAnswer: { present: true, text: "Typed in Obsidian." },
+      },
+    };
+    act(() => stream.push(vaultChanged));
+    const view = await region();
+    await waitFor(() =>
+      expect(
+        within(view).getByRole("region", { name: "Working answer" }).textContent
+      ).toContain("Typed in Obsidian.")
+    );
+    fireEvent.blur(field);
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledExactlyOnceWith({
+        path: PATH,
+        section: "Related questions",
+        body: TYPED,
+        basedOn: "abc",
+        was: RELATED.text,
+      })
+    );
+    expect(within(related).queryByRole("status")).toBeNull();
+  });
+
+  it("the working answer takes the same line, with the same two actions", async () => {
+    let page: Readable = {
+      ...fresh,
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+      },
+    };
+    let refuse = true;
+    const saves: unknown[] = [];
+    const save = vi.fn((input: unknown) => {
+      saves.push(input);
+      return refuse
+        ? CONFLICT
+        : { written: true, hash: "ghi", content: "", shape: [] };
+    });
+    open(() => page, { "researchQuestions.saveWorkingAnswer": save });
+    const answer = await within(await region()).findByRole("region", {
+      name: "Working answer",
+    });
+    const box = within(answer).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Working answer",
+    });
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    fireEvent.blur(box);
+    const line = await within(answer).findByRole("status");
+    expect(line.textContent).toContain("changed on disk");
+    fireEvent.blur(box);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(save).toHaveBeenCalledTimes(1);
+
+    page = {
+      ...fresh,
+      hash: "xyz",
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Obsidian wrote this." },
+      },
+    };
+    refuse = false;
+    fireEvent.click(within(answer).getByRole("button", { name: "keep mine" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(saves[1]).toEqual({
+      path: PATH,
+      text: "Probably not.",
+      basedOn: "xyz",
+      was: "Obsidian wrote this.",
+    });
+    await waitFor(() =>
+      expect(within(answer).queryByRole("status")).toBeNull()
+    );
+  });
+
+  it("the working answer keeps what it opened on too: an edit to another section under a dirty field raises no line", async () => {
+    let page: Readable = {
+      ...fresh,
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+      },
+    };
+    const saves: unknown[] = [];
+    const save = vi.fn((input: unknown) => {
+      saves.push(input);
+      return { written: true, hash: "ghi", content: "", shape: [] };
+    });
+    page = { ...page, sections: { ...page.sections, related: RELATED } };
+    const { stream } = open(() => page, {
+      "researchQuestions.saveWorkingAnswer": save,
+    });
+    const answer = await within(await region()).findByRole("region", {
+      name: "Working answer",
+    });
+    const box = within(answer).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Working answer",
+    });
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    // Obsidian touched Related questions; the page re-reads under the
+    // dirty field, which keeps the hash and the text it went dirty on.
+    page = {
+      ...fresh,
+      hash: "xyz",
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+        related: { present: true, text: DISK, lines: [] },
+      },
+    };
+    act(() => stream.push(vaultChanged));
+    const view = await region();
+    await waitFor(() =>
+      expect(
+        within(view).getByRole("region", { name: "Related questions" })
+          .textContent
+      ).toContain("Nothing linked")
+    );
+    fireEvent.blur(box);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(saves[0]).toEqual({
+      path: PATH,
+      text: "Probably not.",
+      basedOn: "abc",
+      was: "Probably both.",
+    });
+    expect(within(answer).queryByRole("status")).toBeNull();
+  });
+
+  it("keep mine over a file that can no longer be read says why and keeps the typing", async () => {
+    let page: ResearchQuestionPage = withRelated(RELATED);
+    const save = vi.fn(() => CONFLICT);
+    const { related, field } = await dirty(save, () => page);
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    await within(related).findByRole("status");
+
+    // `changedAndUnreapplyable` covers a file that is gone as well as a
+    // section that moved; *keep mine* has nothing to save over.
+    page = { readable: false, path: PATH, reason: "not in the vault" };
+    fireEvent.click(within(related).getByRole("button", { name: "keep mine" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        "not in the vault"
+      )
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("take the disk copy on the working answer shows what is on disk", async () => {
+    let page: Readable = {
+      ...fresh,
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Probably both." },
+      },
+    };
+    const save = vi.fn(() => CONFLICT);
+    open(() => page, { "researchQuestions.saveWorkingAnswer": save });
+    const answer = await within(await region()).findByRole("region", {
+      name: "Working answer",
+    });
+    const box = within(answer).getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Working answer",
+    });
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    fireEvent.blur(box);
+    await within(answer).findByRole("status");
+    page = {
+      ...fresh,
+      hash: "xyz",
+      sections: {
+        ...fresh.sections,
+        workingAnswer: { present: true, text: "Obsidian wrote this." },
+      },
+    };
+    fireEvent.click(
+      within(answer).getByRole("button", { name: "take the disk copy" })
+    );
+    await waitFor(() => expect(box.value).toBe("Obsidian wrote this."));
+    expect(within(answer).queryByRole("status")).toBeNull();
+    expect(save).toHaveBeenCalledTimes(1);
   });
 });
 
