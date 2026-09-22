@@ -577,13 +577,18 @@ function writeOwn(
     }
     const waiting = pending.pending(read.relativePath);
     const planned = plan(read, waiting);
-    const own =
-      "written" in planned
-        ? // The plan had nothing of its own to write. The parked entries
-          // still want splicing, against the file as just read.
-          { operations: [], basedOn: read.hash }
-        : planned;
-    if ("written" in planned && waiting.length === 0) return planned;
+    let own: Write;
+    if ("written" in planned) {
+      // A refusal is the caller's answer, whatever else the file owes:
+      // turning it into the splice's success would tell the page its tick
+      // landed. The parked entries wait for the window or the next write.
+      if (!planned.written || waiting.length === 0) return planned;
+      // Nothing of the plan's own to write, but the parked entries still
+      // want splicing — against the file as it was just read.
+      own = { operations: [], basedOn: read.hash };
+    } else {
+      own = planned;
+    }
     const result = await write(vaultPath, path, {
       operations: [...waiting.map(spliceOf), ...own.operations],
       basedOn: own.basedOn,

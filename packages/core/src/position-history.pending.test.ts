@@ -213,6 +213,29 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     expect(await file()).toContain(entry(at(5), "Probably both."));
   });
 
+  it("a refused write answers with its refusal and leaves the entry parked", async () => {
+    let now = t0;
+    const { vault, c, file, obsidian } = await opened(
+      { [PATH]: page("Probably both.") },
+      { now: () => now }
+    );
+
+    now = at(5);
+    await obsidian("Encoding strength, mostly.");
+    // No thread reads this, so the tick cannot land. The pending Revision
+    // must not turn that no into a yes.
+    const reply = await c.mutate<{ written: boolean; reason: string }>(
+      "researchQuestions.tickThread",
+      { path: PATH, text: "Read Cordi.", done: true }
+    );
+    expect(reply.result?.data).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+    expect(await file()).not.toContain("· working answer");
+    expect(pendingRows(vault)).toHaveLength(1);
+  });
+
   it("an own write never raises one: the app's save records its Revision and nothing else", async () => {
     const { vault, c, file } = await opened(
       { [PATH]: page("Probably both.") },
