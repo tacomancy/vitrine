@@ -344,6 +344,27 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     ]);
   });
 
+  it("an edit pending when another vault is opened is spliced before the switch completes", async () => {
+    let now = t0;
+    const { c, vault, file, obsidian } = await opened(
+      { [PATH]: page("Probably both.") },
+      { now: () => now }
+    );
+
+    now = at(5);
+    await obsidian("Encoding strength, mostly.");
+    expect(await file()).not.toContain("· working answer");
+
+    // Switching vaults tears the old one down, and a vault must not be let
+    // go owing a Revision it had the chance to write.
+    const elsewhere = await vaultWith({ "a.md": "# elsewhere\n" });
+    const switched = await c.mutate<Vault>("vault.open", { path: elsewhere });
+    expect(switched.error).toBeUndefined();
+
+    expect(await file()).toContain(entry(at(5), "Probably both."));
+    expect(pendingRows(vault)).toEqual([]);
+  });
+
   it("an own write never raises one: the app's save records its Revision and nothing else", async () => {
     let now = t0;
     const { vault, c, file, stream, obsidian } = await opened(
