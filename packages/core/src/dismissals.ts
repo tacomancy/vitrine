@@ -2,6 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, VaultError } from "./errors.js";
+import { serialised } from "./serialise.js";
 
 /**
  * `.vitrine/dismissals.json` (`docs/architecture.md` § Vault layout):
@@ -82,10 +83,10 @@ export function dismissed(
 // Dismissals run one at a time. The file is read, one key is added, and the
 // whole object is written back, so two dismissals that both read before
 // either wrote would lose one — and losing one means a row the user told
-// the app to stop showing comes back. The queue lives here rather than in
-// the router so that the read and the write cannot be pulled apart by a
-// caller that forgets to hold it (the same rule as `linkQuestion`).
-let previous: Promise<unknown> = Promise.resolve();
+// the app to stop showing comes back. The chain is `serialise.ts`, the same
+// one `linkQuestion` uses; the queue is here rather than in the router so
+// the read and the write cannot be pulled apart by a caller that forgets.
+const serially = serialised();
 
 /**
  * *Mark deliberate*: permanent, and recorded against this row kind alone.
@@ -98,11 +99,7 @@ export function dismiss(
   kind: string,
   at: string
 ): Promise<void> {
-  const run = () => write(vaultPath, subject, kind, at);
-  // A dismissal that threw leaves the queue usable for the next one.
-  const queued = previous.then(run, run);
-  previous = queued;
-  return queued;
+  return serially(() => write(vaultPath, subject, kind, at));
 }
 
 async function write(
