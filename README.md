@@ -10,6 +10,6 @@ A local-first research workspace built around the Question rather than the note.
 
 Vitrine is built by [Sarah Lehman](https://github.com/dr-tacomancer) under [Tacomancy](https://tacomancy.com/), a one-person studio.
 
-**Status:** the design is complete and every surface has a pinned prototype. The stack is settled (ADR 0005) and scaffolded: `pnpm install && pnpm dev` opens the window on a running core. Nothing vault-related exists yet.
+**Status:** the design is complete and every surface has a pinned prototype; the stack is settled (ADR 0005), scaffolded and packaged — `pnpm install && pnpm dev` opens the window on a running core, `pnpm package` installs the app. Two of the eight surfaces are live against a real Markdown vault — two-keystroke capture and the **Question Inbox**, and the **Research Question view**, with triage, a working answer kept as a Position history rather than overwritten, sources on two sides, and resolve — along with the first of the three dashboards, the **Loose Ends** shell. The vault is watched and indexed, so an edit made in Obsidian reaches the app. Everything else is designed and not yet built.
 
 The previous native macOS app lives in `main`'s history before the reimagining.
