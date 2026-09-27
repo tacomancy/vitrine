@@ -37,6 +37,31 @@ describe("startCore", () => {
     expect(await res.text()).toContain("<title>x</title>");
   });
 
+  // The shell waits on this close before it quits (#276), and
+  // `events.subscribe` is a subscription that ends only when its client
+  // does — so a close that drained its connections instead of dropping
+  // them would never resolve, and every quit would wait out the whole
+  // bound. This test hangs rather than fails if that regresses.
+  it("closes with a subscription still open", async () => {
+    running = await startCore(await support());
+    const reading = new AbortController();
+    const stream = await fetch(
+      `http://127.0.0.1:${running.port}/trpc/events.subscribe`,
+      {
+        headers: {
+          authorization: `Bearer ${running.token}`,
+          accept: "text/event-stream",
+        },
+        signal: reading.signal,
+      }
+    );
+    expect(stream.status).toBe(200);
+
+    await running.close();
+    running = undefined;
+    reading.abort();
+  });
+
   it("serves the bundle with a same-origin content security policy", async () => {
     const dir = await mkdtemp(join(tmpdir(), "vitrine-bundle-"));
     await writeFile(join(dir, "index.html"), "<!doctype html>");

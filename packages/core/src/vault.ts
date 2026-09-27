@@ -189,39 +189,49 @@ export function createVaultService({
     const pending = openPendingRevisions(queue, {
       windowMs: coalesceMs,
       now,
-      // `index` is assigned before anything can be spliced: nothing is
-      // recorded until the index is running, and the earliest a timer can
-      // fire is a whole window after that.
+      // The index is awaited rather than read: `openPendingRevisions` arms a
+      // timer for every row it finds already parked (#276), and with a short
+      // window injected one of those can fire before `opening` below has
+      // resolved. A splice writes through the index, so it waits for the
+      // index rather than for the order these two statements were written in.
+      //
+      // One of the two has to name the other before it exists — the index
+      // reports Position changes to `pending`, and `pending` splices through
+      // the index — and this is the direction whose safety the language
+      // guarantees: a `setTimeout` cannot fire during the call below it.
+      // The other way round would rest on when the index first diffs, which
+      // is a fact about behaviour rather than about evaluation.
       splice: async (path) => {
         await splicePendingRevisions(
-          { vaultPath: absolute, index, pending },
+          { vaultPath: absolute, index: await opening, pending },
           path
         );
       },
     });
+    const opening = openIndex(absolute, {
+      ...indexOptions,
+      onPositionChanged: pending.record,
+      // A rename re-keys the file's dismissals before the event leaves
+      // (§ Watcher and Ingest, Renames). Here rather than in `app.ts` or
+      // a surface, because every listener downstream re-reads Loose Ends
+      // on this event and one that read first would see the row back.
+      onChanged: async (event) => {
+        try {
+          await renameDismissals(absolute, event.renamed);
+        } catch (cause) {
+          // The vault is gone, or `.vitrine/` cannot be written. Nothing
+          // is lost — the dismissal is still keyed by the old path — and
+          // there is no surface for it, so it reaches the core's log.
+          console.error(
+            `vitrine-core: a dismissal could not follow a rename: ${errorMessage(cause)}`
+          );
+        }
+        await indexOptions?.onChanged?.(event);
+      },
+    });
     let index: VaultIndex;
     try {
-      index = await openIndex(absolute, {
-        ...indexOptions,
-        onPositionChanged: pending.record,
-        // A rename re-keys the file's dismissals before the event leaves
-        // (§ Watcher and Ingest, Renames). Here rather than in `app.ts` or
-        // a surface, because every listener downstream re-reads Loose Ends
-        // on this event and one that read first would see the row back.
-        onChanged: async (event) => {
-          try {
-            await renameDismissals(absolute, event.renamed);
-          } catch (cause) {
-            // The vault is gone, or `.vitrine/` cannot be written. Nothing
-            // is lost — the dismissal is still keyed by the old path — and
-            // there is no surface for it, so it reaches the core's log.
-            console.error(
-              `vitrine-core: a dismissal could not follow a rename: ${errorMessage(cause)}`
-            );
-          }
-          await indexOptions?.onChanged?.(event);
-        },
-      });
+      index = await opening;
     } catch (cause) {
       pending.close();
       queue.close();
@@ -245,17 +255,10 @@ export function createVaultService({
     opened = null;
     if (going === null) return;
     going.watcher?.close();
-    try {
-      await going.pending.flush();
-    } catch (cause) {
-      // A vault that has gone away, a file that has. Nothing is lost —
-      // what could not be spliced stays in the queue and is owed again at
-      // the next open — and by now there is no surface left to say it on,
-      // so it reaches the core's log, as a failed restore does above.
-      console.error(
-        `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
-      );
-    }
+    // Never rejects: a file that could not take its entries leaves them
+    // parked, says so in the core's log, and the rest are still tried
+    // (`pending-revisions.ts`).
+    await going.pending.flush();
     going.pending.close();
     going.index.close();
     going.queue.close();
@@ -461,6 +464,12 @@ export function createVaultService({
       opened?.days.record(localDay(now()));
     },
     close: async () => {
+      // The restore first, as every other orderly method does: a quit that
+      // landed while it was still installing would otherwise overtake it,
+      // and the vault it was bringing up would be dropped without the
+      // flush a close exists for (#276). `release`, the last resort, is
+      // the one path that deliberately does not wait.
+      await restored;
       generation++;
       await teardown();
     },
