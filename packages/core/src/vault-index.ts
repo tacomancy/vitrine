@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import type { PositionChange } from "./pending-revisions.js";
 import { readQuestion } from "./question-kind.js";
@@ -33,9 +34,10 @@ import {
  * `PRAGMA user_version`. Bump on any change to the tables below, or to what
  * a Kind derives into them: an index carrying another number is deleted and
  * rebuilt, which is the migration path — there is no other (ADR 0014
- * decision 10). 3: the Research Question's Position rows (#209).
+ * decision 10). 3: the Research Question's Position rows (#209). 4: the
+ * Display name columns the Global command matches on (#301).
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -147,6 +149,12 @@ const SCHEMA = `
 CREATE TABLE files (
   path TEXT PRIMARY KEY,
   lpath TEXT NOT NULL, lname TEXT NOT NULL, lstem TEXT NOT NULL,
+  -- What the file is called on screen, and the key it is matched by; both
+  -- are display-name.ts's, which is where either one's rules are. Here
+  -- rather than on fields so that a keystroke in the Global command
+  -- matches a column of the row it is narrowing (ADR 0027 decision 5). No
+  -- index: SQLite cannot use one for a contains-LIKE.
+  display TEXT, ldisplay TEXT,
   markdown INTEGER NOT NULL,
   size INTEGER, mtime REAL, hash TEXT,
   kind TEXT, id TEXT,
@@ -444,8 +452,8 @@ function createIndex(
     db.prepare(`DELETE FROM ${table} WHERE path = ?`)
   );
   const insertFile = db.prepare(
-    `INSERT OR REPLACE INTO files (path, lpath, lname, lstem, markdown, size, mtime, hash, kind, id, bom, eol, trailing_newline, indexed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT OR REPLACE INTO files (path, lpath, lname, lstem, display, ldisplay, markdown, size, mtime, hash, kind, id, bom, eol, trailing_newline, indexed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertFrontmatter = db.prepare(
     "INSERT INTO frontmatter (path, start, end, content_start, content_end, value) VALUES (?, ?, ?, ?, ?, ?)"
@@ -649,14 +657,33 @@ function createIndex(
     for (const statement of deletes) statement.run(path);
   };
   const relabelFile = db.prepare(
-    "UPDATE files SET lpath = ?, lname = ?, lstem = ? WHERE path = ?"
+    "UPDATE files SET lpath = ?, lname = ?, lstem = ?, display = ?, ldisplay = ? WHERE path = ?"
   );
+  const kindOf = db.prepare("SELECT kind FROM files WHERE path = ?");
+  const frontmatterOf = db.prepare(
+    "SELECT value FROM frontmatter WHERE path = ?"
+  );
+  /** The Display name of the row already at this path, from its own rows. */
+  const displayOf = (path: string): string => {
+    const file = kindOf.get(path) as { kind: string | null } | undefined;
+    const front = frontmatterOf.get(path) as { value: string } | undefined;
+    return displayName(
+      path,
+      file?.kind ?? null,
+      front === undefined
+        ? {}
+        : (JSON.parse(front.value) as Record<string, unknown>)
+    );
+  };
   const moveRows = (from: string, to: string) => {
     for (const statement of moves) statement.run(to, from);
     // The lookup forms derive from the path, so a moved row carries the
     // new name — a staging path gets nonsense keys, and is gone before
-    // any link is resolved against it.
-    relabelFile.run(...lookupKeys(to), to);
+    // any link is resolved against it. So does the Display name of a file
+    // whose Kind declares none, which is why it is recomputed here rather
+    // than carried along: a renamed Note is called what it is called now.
+    const display = displayOf(to);
+    relabelFile.run(...lookupKeys(to), display, matchKey(display), to);
   };
 
   /** A `files` row; everything but the path is null for a non-Markdown file or one that could not be read. */
@@ -669,12 +696,19 @@ function createIndex(
       hash?: string;
       kind?: string | null;
       id?: string | null;
+      /** The file's own, for the Kinds that declare a Display name in it. */
+      frontmatter?: Record<string, unknown>;
       file?: { bom: boolean; eol: string; trailingNewline: boolean };
     }
-  ) =>
+  ) => {
+    // Every file has a Display name, a PDF and an unreadable one included:
+    // the fallback is the name it is stored under (display-name.ts).
+    const display = displayName(path, row.kind ?? null, row.frontmatter ?? {});
     insertFile.run(
       path,
       ...lookupKeys(path),
+      display,
+      matchKey(display),
       row.markdown ? 1 : 0,
       row.size ?? null,
       row.mtime ?? null,
@@ -686,6 +720,7 @@ function createIndex(
       row.file ? (row.file.trailingNewline ? 1 : 0) : null,
       Date.now()
     );
+  };
 
   /** Every row one Markdown file yields, from its content; inside a transaction. */
   const insertOutlined = (
@@ -712,6 +747,7 @@ function createIndex(
       hash,
       kind: read.kind,
       id,
+      frontmatter: fm,
       file: read.file,
     });
     const front = read.outline.frontmatter;
