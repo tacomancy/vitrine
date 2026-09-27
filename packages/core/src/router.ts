@@ -32,8 +32,8 @@ export type Context = {
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
   coalesceMs: number;
-  /** How long a promoted Research Question may sit unsourced (§ Loose Ends); tests shorten it. */
-  stalledMs: number;
+  /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
+  stalledOpenDays: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -282,10 +282,10 @@ export const router = t.router({
   // plus `dismissals.json`, and *mark deliberate* is the one write.
   looseEnds: t.router({
     rows: t.procedure.query(async ({ ctx }) => {
-      const { vault, index } = await requireVault(ctx);
+      const { vault, index, days } = await requireVault(ctx);
       return looseEnds(index, vault.path, {
-        now: ctx.now(),
-        stalledMs: ctx.stalledMs,
+        days,
+        stalledOpenDays: ctx.stalledOpenDays,
       });
     }),
     // Permanent, and judged per row kind: the same object can be loose in

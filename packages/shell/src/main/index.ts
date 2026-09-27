@@ -31,6 +31,9 @@ const RENDERER_DIR = join(__dirname, "../renderer");
 const PRELOAD = join(__dirname, "../preload/index.js");
 
 let session: Session | undefined;
+// Kept so the window can tell the core it came to the front (#243). The
+// shell is the only one who can see that; nothing else may stand in for it.
+let coreProcess: UtilityProcess | undefined;
 
 /** The window a dialog should attach to, if one is open. */
 function frontWindow(): BrowserWindow | undefined {
@@ -69,6 +72,7 @@ function spawnCore(): Promise<Session> {
         VITRINE_APP_SUPPORT_DIR: appSupportDir,
       },
     });
+    coreProcess = core;
     const reply = (message: ShellMessage) => core.postMessage(message);
     core.on("message", (message: CoreMessage) => {
       switch (message.type) {
@@ -175,6 +179,11 @@ function createWindow({ port }: Session) {
   } else {
     win.once("ready-to-show", () => win.show());
   }
+
+  // Coming to the front is what makes today a day at the vault (#243): a
+  // running app is not the same as a day spent at it, so this is the one
+  // signal, and there is deliberately no request the core counts instead.
+  win.on("focus", () => coreProcess?.postMessage({ type: "focused" }));
 
   // Development loads from Vite for HMR; otherwise the core serves the bundle.
   const devUrl = process.env.ELECTRON_RENDERER_URL;

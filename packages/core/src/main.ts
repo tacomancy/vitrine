@@ -8,11 +8,12 @@ export type CoreReadyMessage = { type: "ready"; port: number; token: string };
 /** Everything the core sends the shell. */
 export type CoreMessage = CoreReadyMessage | { type: "pickFolder"; id: number };
 /** Everything the shell sends the core. */
-export type ShellMessage = {
-  type: "pickedFolder";
-  id: number;
-  path: string | null;
-};
+export type ShellMessage =
+  | { type: "pickedFolder"; id: number; path: string | null }
+  // The window came to the front: today is a day at the open vault (#243).
+  // The shell is the only one who can see this; the core never infers it
+  // from a request, since the renderer re-queries on its own.
+  | { type: "focused" };
 
 type ParentPort = {
   postMessage: (message: CoreMessage) => void;
@@ -66,6 +67,9 @@ const ready: CoreReadyMessage = {
   token: running.token,
 };
 if (parentPort) {
+  parentPort.on("message", ({ data }) => {
+    if (data.type === "focused") void running.focused();
+  });
   parentPort.postMessage(ready);
 } else {
   // Started by hand (`node dist/main.js`): say where we are.

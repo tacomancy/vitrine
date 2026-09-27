@@ -10,6 +10,7 @@ export type {
   QuestionStatus,
 } from "./list.js";
 export type { Linked } from "./link.js";
+export type { OpenDays } from "./open-days.js";
 export type {
   LooseEnds,
   LooseEndGroup,

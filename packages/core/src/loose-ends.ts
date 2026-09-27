@@ -1,5 +1,6 @@
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
+import { writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -60,25 +61,29 @@ export type LooseEnds = {
 };
 
 /**
- * How long a Research Question may sit unsourced before it is stalled
- * (§ Loose Ends). A number in code, as the spec has it — a setting would
- * make the user responsible for a judgement the app is making.
+ * How many **open days** a Research Question may sit unsourced before it is
+ * stalled (#243; § Loose Ends). Open days, never calendar days: a fortnight
+ * away would otherwise create rows that did not exist when the user left,
+ * purely because of the calendar (stories REP-11, RES-3). A number in code,
+ * as the spec has it — a setting would make the user responsible for a
+ * judgement the app is making.
  */
-export const STALLED_MS = 14 * 24 * 60 * 60 * 1000;
+export const STALLED_OPEN_DAYS = 14;
 
 export type LooseEndsOptions = {
-  now: Date;
-  /** Tests shorten it; the app uses `STALLED_MS`. */
-  stalledMs: number;
+  /** The record of days this vault was open; the unit every quiet period is counted in. */
+  days: OpenDays;
+  /** Tests shorten it; the app uses `STALLED_OPEN_DAYS`. */
+  stalledOpenDays: number;
 };
 
 export async function looseEnds(
   index: VaultIndex,
   vaultPath: string,
-  { now, stalledMs }: LooseEndsOptions
+  { days, stalledOpenDays }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
-  const stalled = stalledResearchQuestions(index, now, stalledMs);
+  const stalled = stalledResearchQuestions(index, days, stalledOpenDays);
   const rows = stalled.rows.filter(
     (row) => !dismissed(dismissals, row.subject, row.kind)
   );
@@ -101,8 +106,8 @@ const SIDE_HEADINGS = ["Supporting sources", "Opposing sources"];
 
 function stalledResearchQuestions(
   index: VaultIndex,
-  now: Date,
-  stalledMs: number
+  days: OpenDays,
+  stalledOpenDays: number
 ): { rows: StalledResearchQuestion[]; problems: string[] } {
   // A source is a link inside one of the two sides' bodies. Unresolved
   // counts: a mistyped citekey is a source that was attached and is worth
@@ -146,8 +151,14 @@ function stalledResearchQuestions(
     // no `promoted:` was never promoted — there is no date to be stalled
     // since, which is an absence rather than a failure.
     if (page.status !== "open" || page.promoted === undefined) continue;
-    const at = Date.parse(page.promoted);
-    if (Number.isNaN(at) || now.getTime() - at < stalledMs) continue;
+    const from = writtenDay(page.promoted);
+    if (from === null) continue;
+    // Days the vault was open *since* it was promoted, never days on the
+    // calendar. Days before the table existed are not recorded, so a page
+    // promoted before then counts from the first day that is — it surfaces
+    // late rather than early, which is the safe direction for a row that
+    // accuses the user of leaving something alone.
+    if (days.since(from) < stalledOpenDays) continue;
     rows.push({
       kind: "stalled-research-question",
       subject: row.id ?? row.path,

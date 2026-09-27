@@ -5,7 +5,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
-import { STALLED_MS } from "./loose-ends.js";
+import { STALLED_OPEN_DAYS } from "./loose-ends.js";
 import { createQuestionService } from "./questions.js";
 import {
   COALESCE_MS,
@@ -30,8 +30,8 @@ export type AppOptions = {
   settleMs?: number;
   /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
   coalesceMs?: number;
-  /** How long a promoted Research Question may sit unsourced (§ Loose Ends); tests shorten it. */
-  stalledMs?: number;
+  /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
+  stalledOpenDays?: number;
   /** `fs.watch`, or a test's wrapper of it that fails a watch or refuses one (#190). */
   watch?: typeof fsWatch;
   /**
@@ -52,6 +52,8 @@ export type App = {
   close: () => Promise<void>;
   /** The synchronous last resort for an exit handler; nothing is spliced (`vault.ts`). */
   release: () => void;
+  /** The shell reporting that the window came to the front: today is an open day (#243). */
+  focused: () => Promise<void>;
 };
 
 /**
@@ -66,7 +68,7 @@ export function createApp({
   newId,
   settleMs,
   coalesceMs,
-  stalledMs,
+  stalledOpenDays,
   watch,
   index,
 }: AppOptions): App {
@@ -109,7 +111,7 @@ export function createApp({
     events,
     now: now ?? (() => new Date()),
     coalesceMs: historyWindowMs,
-    stalledMs: stalledMs ?? STALLED_MS,
+    stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,
   };
 
   // The renderer is served from the Vite dev server in development and from
@@ -121,5 +123,10 @@ export function createApp({
   app.use("/trpc/*", bearerAuth({ token }));
   app.use("/trpc/*", trpcServer({ router, createContext: () => context }));
 
-  return { app, close: () => vault.close(), release: () => vault.release() };
+  return {
+    app,
+    close: () => vault.close(),
+    release: () => vault.release(),
+    focused: () => vault.focused(),
+  };
 }
