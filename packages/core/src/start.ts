@@ -32,6 +32,8 @@ export type RunningCore = {
   port: number;
   token: string;
   close: () => Promise<void>;
+  /** The shell saw the window come to the front (#243). */
+  focused: () => Promise<void>;
 };
 
 /**
@@ -40,7 +42,7 @@ export type RunningCore = {
  */
 export function startCore(options: StartOptions = {}): Promise<RunningCore> {
   const token = randomBytes(32).toString("base64url");
-  const { app, close, release } = createApp({
+  const { app, close, release, focused } = createApp({
     token,
     host: options.host ?? NO_HOST,
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
@@ -68,6 +70,7 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
         resolve({
           port: info.port,
           token,
+          focused,
           close: async () => {
             await close();
             await new Promise<void>((done, fail) => {

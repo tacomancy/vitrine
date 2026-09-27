@@ -41,7 +41,16 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * never as a gap. The other sections become editable in the tickets that
  * own them.
  */
-export function ResearchQuestion({ path }: { path: string }) {
+export function ResearchQuestion({
+  path,
+  attachOnArrival = false,
+  onArrival,
+}: {
+  path: string;
+  /** A Loose Ends *attach a source* landed here: open the form with the page. */
+  attachOnArrival?: boolean;
+  onArrival?: () => void;
+}) {
   const trpc = useTRPC();
   const page = useQuery(trpc.researchQuestions.page.queryOptions({ path }));
   const status = useVaultStatusLines();
@@ -79,7 +88,13 @@ export function ResearchQuestion({ path }: { path: string }) {
   // The attach form, opened by ⌘⇧A from any focus on the page (prompt 3).
   // A chord rather than a letter: the page is mostly text fields, and a
   // bare key would be typing.
-  const [attaching, setAttaching] = useState(false);
+  const [attaching, setAttaching] = useState(attachOnArrival);
+  // The arrival spends the intent, so coming back to this address later is
+  // an ordinary visit and the form does not open itself again.
+  useEffect(() => {
+    if (attachOnArrival) onArrival?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
 
   const data = page.data;
   const readable = removed === null && data?.readable === true ? data : null;

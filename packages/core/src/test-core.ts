@@ -71,6 +71,8 @@ export async function core(opts: CoreOptions = {}): Promise<{
   mutate: <T>(path: string, input?: unknown) => Promise<Reply<T>>;
   /** A request as given, no token added: for what the guard does before the router. */
   raw: (path: string, init?: RequestInit) => Promise<Response>;
+  /** The window came to the front, as the shell reports it (#243). */
+  focused: () => Promise<void>;
   indexed: () => Promise<void>;
   /** Close this core now, as the app's exit does — pending Revisions spliced (#217). */
   close: () => Promise<void>;
@@ -93,7 +95,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
     const res = await app.request(url, { headers });
     return (await res.json()) as Reply<T>;
   };
-  const { app, close } = createApp({
+  const { app, close, focused } = createApp({
     token,
     host: opts.host ?? fakeHost(null),
     appSupportDir,
@@ -101,6 +103,9 @@ export async function core(opts: CoreOptions = {}): Promise<{
     ...(opts.newId ? { newId: opts.newId } : {}),
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),
+    ...(opts.stalledOpenDays !== undefined
+      ? { stalledOpenDays: opts.stalledOpenDays }
+      : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
     index: {
       chunkSize: opts.chunkSize,
@@ -135,6 +140,8 @@ export async function core(opts: CoreOptions = {}): Promise<{
       return (await res.json()) as Reply<T>;
     },
     raw: async (path, init) => app.request(path, init),
+    // The shell's focus report, at the seam the shell itself uses (#243).
+    focused,
     events: () =>
       openEventStream(async (signal) =>
         app.request("/trpc/events.subscribe", {

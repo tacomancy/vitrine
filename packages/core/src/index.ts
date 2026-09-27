@@ -10,6 +10,14 @@ export type {
   QuestionStatus,
 } from "./list.js";
 export type { Linked } from "./link.js";
+export type { OpenDays } from "./open-days.js";
+export type {
+  LooseEnds,
+  LooseEndGroup,
+  LooseEndGroupName,
+  LooseEndRow,
+  StalledResearchQuestion,
+} from "./loose-ends.js";
 export type { Candidate, CandidateKind, Candidates } from "./picker.js";
 export type { Provenance, Question, Triage } from "./questions.js";
 export type { Stub, StubFields } from "./sources.js";

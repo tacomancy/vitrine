@@ -1,7 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
+import { dismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
+import { looseEnds } from "./loose-ends.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -32,6 +34,8 @@ export type Context = {
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
   coalesceMs: number;
+  /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
+  stalledOpenDays: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -301,6 +305,32 @@ export const router = t.router({
           })
         )
       ),
+  }),
+  // The maintenance dashboard (§ Loose Ends): the rows are index queries
+  // plus `dismissals.json`, and *mark deliberate* is the one write.
+  looseEnds: t.router({
+    rows: t.procedure.query(async ({ ctx }) => {
+      const { vault, index, days } = await requireVault(ctx);
+      return looseEnds(index, vault.path, {
+        days,
+        stalledOpenDays: ctx.stalledOpenDays,
+      });
+    }),
+    // Permanent, and judged per row kind: the same object can be loose in
+    // more than one way, and each is silenced on its own.
+    dismiss: t.procedure
+      .input(z.object({ subject: z.string().min(1), kind: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault } = await requireVault(ctx);
+        await refusing(
+          dismiss(
+            vault.path,
+            input.subject,
+            input.kind,
+            ctx.now().toISOString()
+          )
+        );
+      }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

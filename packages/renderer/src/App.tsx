@@ -8,7 +8,7 @@ import { FirstRun } from "./FirstRun";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ResearchQuestion } from "./ResearchQuestion";
-import { useRoute } from "./router";
+import { pushRoute, useRoute } from "./router";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 import { useTRPC } from "./trpc";
@@ -23,6 +23,11 @@ export function App() {
   // and makes it the selection, so the user sees it land (brief § Question
   // Inbox: "everything captured recently, newest first").
   const [landed, setLanded] = useState<Question | null>(null);
+  // A Loose Ends row's *attach a source* is one gesture across two
+  // surfaces: it moves the window to the page and asks that page to open
+  // its attach form on arrival. The intent is spent by that arrival, so
+  // returning to the same address later is an ordinary visit.
+  const [attachOnArrival, setAttachOnArrival] = useState<string | null>(null);
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -75,9 +80,21 @@ export function App() {
             <Inbox landed={landed} vaultPath={vault.data.path} />
           )}
           {route.surface === "questions" && (
-            <ResearchQuestion key={route.path} path={route.path} />
+            <ResearchQuestion
+              key={route.path}
+              path={route.path}
+              attachOnArrival={attachOnArrival === route.path}
+              onArrival={() => setAttachOnArrival(null)}
+            />
           )}
-          {route.surface === "loose-ends" && <LooseEnds />}
+          {route.surface === "loose-ends" && (
+            <LooseEnds
+              onAttach={(path) => {
+                setAttachOnArrival(path);
+                pushRoute({ surface: "questions", path });
+              }}
+            />
+          )}
         </div>
         <CaptureLine provenance={provenance} onCaptured={onCaptured} />
       </div>
