@@ -1,6 +1,6 @@
-/* The second step of the attach form, on the same floating surface the
-   picker uses (ADR 0008): a step up from the page, soft corners, no
-   hairline and no dialog chrome. */
+/* The second step of the attach form, on the same overlay the picker uses
+   (ADR 0023 decision 2): over the page rather than beside it, so it
+   carries the shadow. Soft corners, no hairline and no dialog chrome. */
 .form {
   position: absolute;
   z-index: 1;
