@@ -401,7 +401,7 @@ The one keyboard list of vault files three places open — Link from the Inbox, 
 _Avoid_: Search, autocomplete, quick open, palette (the Global command is a different thing)
 
 **Loose end**:
-One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
+One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently — permanently in the vault, but undoable for as long as the row is on screen (#266): a resolved row stays in place saying what happened, with *undo* beside it, and is gone on the dashboard's next read. Counted per group, never in total, and the count is of the rows still open.
 
 **Row kind**:
 What a Loose end is loose *about* — a Research Question with no source, a bare link matching several files — as distinct from the object it names. A dismissal is judged per row kind, so one object can be silenced as one kind and still surface as another.

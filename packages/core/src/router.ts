@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
-import { dismiss } from "./dismissals.js";
+import { dismiss, undismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { candidates } from "./picker.js";
@@ -307,7 +307,8 @@ export const router = t.router({
       ),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
-  // plus `dismissals.json`, and *mark deliberate* is the one write.
+  // plus `dismissals.json`, and *mark deliberate* and its undo are the only
+  // writes.
   looseEnds: t.router({
     rows: t.procedure.query(async ({ ctx }) => {
       const { vault, index, days } = await requireVault(ctx);
@@ -330,6 +331,15 @@ export const router = t.router({
             ctx.now().toISOString()
           )
         );
+      }),
+    // The way back, for as long as the row is still on screen (#266): the
+    // one click in the dashboard that changes state is the one click that
+    // has to be undoable.
+    undismiss: t.procedure
+      .input(z.object({ subject: z.string().min(1), kind: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault } = await requireVault(ctx);
+        await refusing(undismiss(vault.path, input.subject, input.kind));
       }),
   }),
   questions: t.router({
