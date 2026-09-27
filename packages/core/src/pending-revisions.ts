@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { errorMessage } from "./errors.js";
 import { localIso } from "./time.js";
 
 /**
@@ -29,7 +30,11 @@ export type PendingRevisions = {
   /** What `path` owes, oldest first; the caller clears them once its write lands. */
   pending: (path: string) => PendingRevision[];
   clear: (ids: number[]) => void;
-  /** Splice everything still parked, whatever its timer — vault close awaits this. */
+  /**
+   * Splice everything still parked, whatever its timer — vault close awaits
+   * this. Never rejects: a file that could not take its entries says so in
+   * the log and the rest are still tried.
+   */
   flush: () => Promise<void>;
   close: () => void;
 };
@@ -49,8 +54,10 @@ export type PendingRevisionsOptions = {
 
 /**
  * The parked Revisions for one vault, with the timers that fire their
- * splices, over a `queue.sqlite` handle `queue.ts` has already opened and
- * migrated. Closing is the opener's: two tables share the handle.
+ * splices — including one per file the last session left a row for, since
+ * a Revision is owed from the moment the vault is open. Over a
+ * `queue.sqlite` handle `queue.ts` has already opened and migrated;
+ * closing is the opener's, as two tables share the handle.
  */
 export function openPendingRevisions(
   db: DatabaseSync,
@@ -73,6 +80,22 @@ export function openPendingRevisions(
   );
   const remove = db.prepare("DELETE FROM pending_revisions WHERE id = ?");
 
+  /**
+   * One file's splice, and the one thing there is to do when it cannot
+   * land — a vault that has gone away, a file that has, a `.vitrine/` that
+   * cannot be written. Nothing is lost: what could not be spliced stays in
+   * the table and is owed again at the next open. Neither caller has a
+   * surface to say that on — a timer has no caller at all, and by the time
+   * `flush` runs the vault is closing — so it reaches the core's log, and
+   * the next file is still tried.
+   */
+  const spliceOrSay = (path: string) =>
+    splice(path).catch((cause: unknown) => {
+      console.error(
+        `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
+      );
+    });
+
   let closed = false;
   // One timer per file, restarted by every change to it: *quiet* is the
   // absence of further edits, so a session of typing in Obsidian is spliced
@@ -90,10 +113,19 @@ export function openPendingRevisions(
       path,
       setTimeout(() => {
         quiet.delete(path);
-        if (!closed) void splice(path);
+        if (!closed) void spliceOrSay(path);
       }, windowMs).unref()
     );
   };
+
+  // A row the last session left behind is owed a splice from the moment the
+  // vault is open, not from the next edit to its file (#276): arming only
+  // from `record` left it with no timer at all, and the app's next write to
+  // that page — a page the user may never open again — was then the only
+  // clause of the three that could still fire.
+  for (const { path } of allPaths.all() as Array<{ path: string }>) {
+    waitForQuiet(path);
+  }
 
   return {
     record: ({ path, field, from }) => {
@@ -129,7 +161,7 @@ export function openPendingRevisions(
     flush: async () => {
       for (const { path } of allPaths.all() as Array<{ path: string }>) {
         forget(path);
-        await splice(path);
+        await spliceOrSay(path);
       }
     },
     close: () => {
