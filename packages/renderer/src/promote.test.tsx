@@ -97,7 +97,7 @@ describe("promote to Research Question", () => {
     });
     expect(promote).toHaveBeenCalledWith({ path: open.path });
     expect(window.location.hash).toBe(
-      "#/questions/questions/Does%20slow-wave%20density%20predict%20recall%20gain%20(RQ).md"
+      "#/research-question/questions/Does%20slow-wave%20density%20predict%20recall%20gain%20(RQ).md"
     );
     expect(document.activeElement).toBe(view);
     expect(screen.queryByRole("region", { name: "Question Inbox" })).toBeNull();
@@ -147,7 +147,7 @@ describe("promote to Research Question", () => {
     expect(within(first!).getByRole("img", { name: "promoted" })).toBeDefined();
     const link = within(first!).getByRole("link", { name: "promoted" });
     expect(link.getAttribute("href")).toBe(
-      "#/questions/questions/Is%20theta%20during%20REM%20detectable%20(RQ).md"
+      "#/research-question/questions/Is%20theta%20during%20REM%20detectable%20(RQ).md"
     );
     expect(within(second!).queryByRole("link")).toBeNull();
     expect(second!.textContent).toContain("promoted");

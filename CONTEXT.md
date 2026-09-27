@@ -397,7 +397,7 @@ The screen that says how this vault is arranged: where the vault is, where the P
 _Avoid_: Preferences, options, configuration, admin
 
 **Address**:
-Where the window is, as a URL hash the router parses — `#/inbox`, `#/loose-ends`, `#/settings`, `#/question/<path>`, `#/research-question/<path>`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021). A Kind-addressed object takes its Kind's own name, singular, as `kind:` spells it; surfaces keep their own (ADR 0026). An Address naming an object is where to arrive, not a cursor that follows the user afterwards: moving the Inbox's selection does not rewrite it.
+Where the window is, as a URL hash the router parses — `#/inbox`, `#/loose-ends`, `#/settings`, `#/question/<path>`, `#/research-question/<path>`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021). A Kind-addressed object takes its Kind's own name, singular, as `kind:` spells it; surfaces keep their own (ADR 0026). An Address naming an object is where to arrive, not a cursor that follows the user afterwards: moving the Inbox's selection does not rewrite it. One that does not resolve — the prefix ADR 0026 retired, or a file the vault cannot answer for — lands on the Inbox naming the Address and what came back, never on a page with nothing on it and never silently somewhere else (ADR 0027 decision 7). A hash nobody ever wrote is not an Address and says nothing.
 _Avoid_: Route (the router's type, not the word for users), URL, link (that is a wikilink)
 
 **Global command**:

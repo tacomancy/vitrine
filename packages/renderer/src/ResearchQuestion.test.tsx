@@ -70,7 +70,7 @@ const open = (
   page: () => ResearchQuestionPage,
   more: Record<string, unknown> = {}
 ) => {
-  window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+  window.location.hash = `#/research-question/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
   const asked: string[] = [];
   const rendered = renderApp({
     ...answers,
@@ -294,7 +294,7 @@ describe("the page under external change", () => {
     });
     await waitFor(() => expect(asked).toContain(to));
     expect(window.location.hash).toBe(
-      "#/questions/questions/Renamed%20in%20Obsidian%20(RQ).md"
+      "#/research-question/questions/Renamed%20in%20Obsidian%20(RQ).md"
     );
     expect(
       (await within(await region()).findByRole("heading", { level: 1 }))
@@ -316,6 +316,35 @@ describe("the page under external change", () => {
       expect(within(after).queryByRole("heading", { level: 1 })).toBeNull();
     });
     expect(after.textContent).toContain(`${PATH} — removed from the vault`);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // A page that stops being readable *under* the reader — its `kind:` edited
+  // in Obsidian, its permissions changed — says why where the reader is
+  // standing. Only an arrival leaves for the Inbox (#299); this is not one,
+  // and an empty region with a focus ring would be the silent failure
+  // § Invariants forbids.
+  it("says why when a re-read can no longer read the page, without leaving", async () => {
+    let page: ResearchQuestionPage = fresh;
+    const { stream } = open(() => page);
+    const before = await region();
+    await within(before).findByRole("heading", { level: 1 });
+    page = {
+      readable: false,
+      path: PATH,
+      reason: "not a Research Question: kind is question",
+    };
+    act(() => {
+      stream.push(changed({ changed: [PATH] }));
+    });
+    const after = await region();
+    await waitFor(() => {
+      expect(after.textContent).toContain(
+        `${PATH} — not a Research Question: kind is question`
+      );
+    });
+    expect(within(after).queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Question Inbox" })).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -342,54 +371,31 @@ describe("the page under external change", () => {
     });
   });
 
-  // Spec #206 story 55: a hash naming a file the index does not hold is a
-  // message, not a blank. The page's share of that is the whole round trip
-  // — the address decodes to the vault-relative path the core is asked
-  // about, and whatever the core answers is what the line says.
-  it("asks about the path a stale hash names, and says what comes back", async () => {
-    const stale = "questions/Nothing here (RQ).md";
-    window.location.hash = hashOf({ surface: "questions", path: stale });
-    const asked: string[] = [];
-    renderApp({
-      ...answers,
-      "researchQuestions.page": (input: { path: string }) => {
-        asked.push(input.path);
-        return {
-          readable: false,
-          path: input.path,
-          reason: "missing from the vault",
-        };
-      },
-    });
-    const page = await region();
-    await within(page).findByText(`${stale} — missing from the vault`);
-    // The address is encoded per segment (`Nothing%20here`), so a page that
-    // asked with the hash as written would ask about a file no vault holds
-    // under that name — and the line would name it that way too.
-    expect(asked).toEqual([stale]);
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(within(page).queryByRole("heading", { level: 1 })).toBeNull();
-  });
-
-  it("renders the not-found line with the reason for a path the core cannot read as a page", async () => {
+  // Spec #206 story 55's message, raised to the Address (#299; ADR 0027
+  // decision 7): a hash the vault cannot answer for does not resolve, so the
+  // window lands on the Inbox naming the Address and what came back, rather
+  // than sitting on a page with nothing on it. The page's share is the round
+  // trip — the Address decodes to the vault-relative path the core is asked
+  // about, and whatever the core answers is what the line says. An arrival,
+  // not a file going away under the reader: that is the absence line above.
+  it("leaves for the Inbox when the core cannot read the path an arriving hash names", async () => {
     open(() => ({
       readable: false,
       path: PATH,
       reason: "not a Research Question: kind is question",
     }));
-    const page = await region();
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    await within(inbox).findByText(
+      `${hashOf({ surface: "research-question", path: PATH })} — not a Research Question: kind is question`
+    );
     expect(
-      (
-        await within(page).findByText(
-          `${PATH} — not a Research Question: kind is question`
-        )
-      ).textContent
-    ).toBeDefined();
+      screen.queryByRole("region", { name: "Research Question view" })
+    ).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("shows a path the core refuses as an alert, never a quiet line", async () => {
-    window.location.hash = "#/questions/notes/plan.txt";
+    window.location.hash = "#/research-question/notes/plan.txt";
     renderApp({
       ...answers,
       "researchQuestions.page": () => {
@@ -437,7 +443,7 @@ describe("editing the working answer", () => {
     })
   ) => {
     const saves: Saved[] = [];
-    window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+    window.location.hash = `#/research-question/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
     renderApp({
       ...answers,
       "researchQuestions.page": page,
@@ -1136,7 +1142,7 @@ describe("links on the page", () => {
     const links = within(related).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual(["Other (RQ)"]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "#/questions/questions/Other%20(RQ).md",
+      "#/research-question/questions/Other%20(RQ).md",
     ]);
     // The rest are text: nothing to click, nothing that pretends to open.
     expect(related.textContent).toContain("A capture");
@@ -1147,7 +1153,9 @@ describe("links on the page", () => {
 
     fireEvent.click(links[0]!);
     await waitFor(() =>
-      expect(window.location.hash).toBe("#/questions/questions/Other%20(RQ).md")
+      expect(window.location.hash).toBe(
+        "#/research-question/questions/Other%20(RQ).md"
+      )
     );
   });
 });
