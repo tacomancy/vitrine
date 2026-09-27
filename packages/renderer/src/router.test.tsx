@@ -167,6 +167,11 @@ describe("a Question has an Address", () => {
   /** The window opened at `ADDRESS`, over a listing the test hands in. */
   function arrive(listing: Record<string, unknown> = {}) {
     window.location.hash = ADDRESS;
+    return open(listing);
+  }
+
+  /** The window opened wherever the hash already stands. */
+  function open(listing: Record<string, unknown> = {}) {
     return renderApp({
       ...answers,
       "questions.list": () => ({
@@ -205,6 +210,23 @@ describe("a Question has an Address", () => {
     expect(selection()).toEqual(["false", "true"]);
     // A hash that rewrote on every j would fill the back stack with rows.
     expect(window.location.hash).toBe(ADDRESS);
+  });
+
+  it("returns to the same row when the Address is copied and opened again", async () => {
+    arrive();
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
+    fireEvent.keyDown(list(), { key: "j" });
+    // What the window is showing now is a different row from the one the
+    // Address names, and the Address is what a copy would take.
+    const copied = window.location.hash;
+    expect(copied).toBe(ADDRESS);
+
+    cleanup();
+    window.location.hash = copied;
+    open();
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
   });
 
   it("lands an Address whose Question is not in the vault on the Inbox, naming the Address", async () => {

@@ -18,11 +18,13 @@ export const KIND: Record<string, { glyph: string; label: string }> = {
 };
 
 /**
- * The Address of a file of this Kind, or null for a Kind with nowhere to
- * open yet — a Note, a Source, a stub, and a `kind:` the app does not know,
- * each named rather than linked until its surface exists (spec #206 story
- * 56; the Vault editor is beat 11). One function, so every surface says the
- * same thing about the same file and one edit wakes them all.
+ * The Address of a file of this Kind, or null for a Kind with nowhere to open
+ * yet — a Note, a Source, a Source stub, and a `kind:` the app does not know,
+ * each named rather than linked until its surface exists (spec #206 story 56;
+ * the Vault editor is beat 11). The Kind is a bare string because that is how
+ * the index carries it: one the app does not know is stored verbatim, and
+ * there is nothing to open for it either way. One function, so every surface
+ * says the same thing about the same file and one edit wakes them all.
  */
 export function addressOf(
   kind: string | null | undefined,

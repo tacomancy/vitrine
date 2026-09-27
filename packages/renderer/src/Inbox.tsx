@@ -180,10 +180,12 @@ export function Inbox({
     setResolved(null);
   }
   // The keyboard lands where the object landed (ADR 0010), so the next j/k
-  // moves from that row without a click first.
+  // moves from that row without a click first — once the row is there, and
+  // never for an Address that did not resolve, where nothing landed and the
+  // window is about to leave.
   useEffect(() => {
-    if (arrivedOn !== null) listRef.current?.focus();
-  }, [arrivedOn]);
+    if (resolved === true) listRef.current?.focus();
+  }, [resolved]);
   const answerRef = useRef<HTMLInputElement>(null);
   const answeringPath = answering?.path ?? null;
   useEffect(() => {
@@ -220,6 +222,8 @@ export function Inbox({
   // Address that failed to resolve. A listing that failed says nothing at
   // all — it is the read that is broken, not the Question, and that failure
   // is already on screen.
+  // A row is a row: a Partial file has one, so an Address naming it selects
+  // it rather than being turned away for something the user can see.
   if (arrived !== null && resolved === null && listing.data !== undefined) {
     setResolved(rows.some((row) => row.path === arrived));
   }
