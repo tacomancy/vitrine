@@ -357,6 +357,51 @@ type PageFile = {
 };
 
 /**
+ * Why the page could not read its file (#277). The page prints this beside
+ * the file's vault-relative path, so whatever it says is read by a person —
+ * in the window, in a screenshot, in a bug report — and never carries the
+ * machine's filesystem layout.
+ *
+ * A missing file is the ordinary case here: a stale hash, or a link into a
+ * page since renamed. It gets the app's own words, in the register of the
+ * removal line beside it on the page, rather than Node's errno — which
+ * would only repeat the path the line already carries and then add the part
+ * no reader can use. *Missing*, not *not in the vault*: the vault refuses a
+ * path outside its root by those words already (`locate`), and the two mean
+ * opposite things — refused, against absent.
+ *
+ * Every other failure — a permission, a folder where a file was — is the
+ * case where the cause genuinely helps, so it keeps Node's, minus the path.
+ */
+function unreadable(
+  relativePath: string,
+  error: unknown
+): { readable: false; path: string; reason: string } {
+  const { code, syscall, path } = error as NodeJS.ErrnoException;
+  if (code === "ENOENT") {
+    return {
+      readable: false,
+      path: relativePath,
+      reason: "missing from the vault",
+    };
+  }
+  // Node builds the message as `${code}: ${description}, ${syscall}
+  // '${path}'`, so cut exactly the text it appended rather than matching
+  // back to a quote: a vault folder may hold an apostrophe of its own —
+  // `Wan Shi Tong's Library` is the one this was found in — and a strip
+  // that stopped there would leave the whole path on screen. An error
+  // carrying no path (EISDIR names no file) has nothing to cut.
+  const message = errorMessage(error);
+  const appended = `, ${syscall} '${path}'`;
+  const at = path === undefined ? -1 : message.lastIndexOf(appended);
+  return {
+    readable: false,
+    path: relativePath,
+    reason: at === -1 ? message : message.slice(0, at),
+  };
+}
+
+/**
  * One file read as a Research Question, for the page and for every write
  * the page makes: the bytes, their hash, and the outline of those same
  * bytes. A file that is not this Kind is not readable as a page, whichever
@@ -372,7 +417,7 @@ async function readPageFile(
   try {
     bytes = await readFile(absolute);
   } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
+    return unreadable(relativePath, error);
   }
   const raw = bytes.toString("utf8");
   const read = analyseFile(relativePath, raw, sha256(bytes));

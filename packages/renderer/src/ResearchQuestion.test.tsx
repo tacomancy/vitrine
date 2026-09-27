@@ -13,6 +13,7 @@ import type {
 } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
+import { hashOf } from "./router";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -306,7 +307,7 @@ describe("the page under external change", () => {
     const { stream } = open(() => page);
     const before = await region();
     await within(before).findByRole("heading", { level: 1 });
-    page = { readable: false, path: PATH, reason: "not in the vault" };
+    page = { readable: false, path: PATH, reason: "missing from the vault" };
     act(() => {
       stream.push(changed({ removed: [PATH] }));
     });
@@ -339,6 +340,35 @@ describe("the page under external change", () => {
           .textContent
       ).toContain("Typed in Obsidian.");
     });
+  });
+
+  // Spec #206 story 55: a hash naming a file the index does not hold is a
+  // message, not a blank. The page's share of that is the whole round trip
+  // — the address decodes to the vault-relative path the core is asked
+  // about, and whatever the core answers is what the line says.
+  it("asks about the path a stale hash names, and says what comes back", async () => {
+    const stale = "questions/Nothing here (RQ).md";
+    window.location.hash = hashOf({ surface: "questions", path: stale });
+    const asked: string[] = [];
+    renderApp({
+      ...answers,
+      "researchQuestions.page": (input: { path: string }) => {
+        asked.push(input.path);
+        return {
+          readable: false,
+          path: input.path,
+          reason: "missing from the vault",
+        };
+      },
+    });
+    const page = await region();
+    await within(page).findByText(`${stale} — missing from the vault`);
+    // The address is encoded per segment (`Nothing%20here`), so a page that
+    // asked with the hash as written would ask about a file no vault holds
+    // under that name — and the line would name it that way too.
+    expect(asked).toEqual([stale]);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(within(page).queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("renders the not-found line with the reason for a path the core cannot read as a page", async () => {
@@ -1022,11 +1052,11 @@ describe("changed on disk, inside the section", () => {
 
     // `changedAndUnreapplyable` covers a file that is gone as well as a
     // section that moved; *keep mine* has nothing to save over.
-    page = { readable: false, path: PATH, reason: "not in the vault" };
+    page = { readable: false, path: PATH, reason: "missing from the vault" };
     fireEvent.click(within(related).getByRole("button", { name: "keep mine" }));
     await waitFor(() =>
       expect(screen.getByRole("status").textContent).toContain(
-        "not in the vault"
+        "missing from the vault"
       )
     );
     expect(save).toHaveBeenCalledTimes(1);

@@ -50,7 +50,9 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
   // The last-resort teardown for an exit nothing else caught: an `exit`
   // handler cannot await, so it drops the handles and splices nothing.
   // The orderly path — which splices what the queue owes (#217) — is
-  // `RunningCore.close` below, and it is the one the shell takes.
+  // `RunningCore.close` below; the shell asks for it with `close` before it
+  // quits (#276), since `app.quit()` would otherwise kill this process and
+  // leave the handler above as the only teardown there was.
   process.once("exit", release);
   if (options.staticDir !== undefined) {
     // The bundle is served from the same origin as the API, so the renderer
@@ -72,7 +74,15 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
           token,
           focused,
           close: async () => {
+            // The vault first: its splice is what a close is for (#217).
             await close();
+            // Then the sockets, dropped rather than drained. `server.close`
+            // waits for every open connection, and `events.subscribe` is a
+            // subscription that ends when the renderer goes — so draining
+            // would mean a close that never resolves and a shell left
+            // waiting out its whole bound at every quit (#276). Guarded
+            // because `serve` is typed for HTTP/2 too; ours is plain HTTP.
+            if ("closeAllConnections" in server) server.closeAllConnections();
             await new Promise<void>((done, fail) => {
               server.close((err) => (err ? fail(err) : done()));
             });

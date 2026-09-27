@@ -2,6 +2,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
+import { openQueue } from "./queue.js";
 import type { ResearchQuestionPage } from "./research-question.js";
 import {
   closeCores,
@@ -426,6 +427,53 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     expect(switched.error).toBeUndefined();
 
     expect(await file()).toContain(entry(at(5), "Probably both."));
+    expect(pendingRows(vault)).toEqual([]);
+  });
+
+  // Two of the three triggers never fired in the shipped app (#276). This is
+  // the second: a row already in the table when the vault opens was left with
+  // no timer at all, so the only clause left was an app write to that page —
+  // and if the user never opens it again, the page shows the new answer with
+  // nothing saying it moved.
+  it("one left parked by a previous session is spliced once the vault has been open and quiet, with no write of anyone's", async () => {
+    // The queue as a session that ended without splicing left it: the file
+    // already holds the Obsidian edit, and the Revision it owes is a row.
+    const vault = await vaultWith({
+      [PATH]: page("Encoding strength, mostly."),
+    });
+    const queue = await openQueue(vault);
+    queue
+      .prepare(
+        "INSERT INTO pending_revisions (path, field, from_text, at) VALUES (?, ?, ?, ?)"
+      )
+      .run(PATH, "working answer", "Probably both.", localIso(at(5)));
+    queue.close();
+
+    const c = await core({
+      settleMs: SETTLE_MS,
+      coalesceMs: 250,
+      now: () => at(5),
+    });
+    // Subscribed before the open, so the splice's own write cannot land in
+    // the gap between opening the vault and listening for it.
+    const stream = await c.events();
+    const reply = await c.mutate<Vault>("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+
+    const file = () => readFile(join(vault, PATH), "utf8");
+    // Nothing writes to this file but the splice, and every wait is on the
+    // index's event rather than a sleep.
+    while (!(await file()).includes("\u00b7 working answer")) {
+      await stream.next("vaultChanged");
+    }
+    expect(await file()).toBe(
+      FRONTMATTER +
+        "\n## Working answer\n\nEncoding strength, mostly.\n" +
+        REST +
+        "\n" +
+        entry(at(5), "Probably both.") +
+        "\n"
+    );
     expect(pendingRows(vault)).toEqual([]);
   });
 
