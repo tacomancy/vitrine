@@ -18,7 +18,7 @@ import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
 import { LINKABLE } from "./kinds";
 import { Picker } from "./Picker";
-import { hashOf, pushRoute } from "./router";
+import { hashOf, pushRoute, type Unresolved } from "./router";
 import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -31,12 +31,16 @@ const ORDERS: readonly Order[] = ["newest", "oldest"];
  * its Provenance and age. One number in the chrome — how many exist — and
  * nothing that counts what is owed. `landed` is the Question the capture
  * line just wrote: it becomes the selection and the list takes the keyboard.
+ * `unresolved` is the other kind of arrival: an Address that did not resolve,
+ * which lands here rather than nowhere (ADR 0027 decision 7).
  */
 export function Inbox({
   landed,
+  unresolved,
   vaultPath,
 }: {
   landed: Question | null;
+  unresolved: Unresolved | null;
   vaultPath: string;
 }) {
   const trpc = useTRPC();
@@ -74,7 +78,7 @@ export function Inbox({
     trpc.questions.promote.mutationOptions({
       onSuccess: ({ path }) => {
         void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
-        pushRoute({ surface: "questions", path });
+        pushRoute({ surface: "research-question", path });
       },
       onError: (error, { path }) =>
         setRefusal({ path, message: error.message }),
@@ -337,6 +341,18 @@ export function Inbox({
             ))}
           </div>
         </div>
+        {/* The Address this landing came in on, and what came back when the
+            window tried to reach it: a link saved under the prefix ADR 0026
+            retired, or one naming a file the vault cannot answer for. Said
+            rather than shrugged at, and in the same quiet voice as a failed
+            read — it is a fact about the arrival, not an error to dismiss. A
+            hash nobody ever wrote says nothing at all, which is the whole
+            difference between a dead link and a typo. */}
+        {unresolved !== null && (
+          <p className={styles.unresolved} role="status">
+            {unresolved.address} — {unresolved.reason}
+          </p>
+        )}
         {failed && (
           <p className={styles.failed} role="alert">
             {listing.error.message}
@@ -499,7 +515,7 @@ function StatusWord({ question }: { question: ListedQuestion }) {
       ) : (
         <a
           className={styles.page}
-          href={hashOf({ surface: "questions", path: page })}
+          href={hashOf({ surface: "research-question", path: page })}
         >
           {label}
         </a>

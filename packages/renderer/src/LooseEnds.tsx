@@ -315,7 +315,7 @@ function Stalled({
     <RowShell
       meta={`research question · promoted ${formatAge(row.since, now)}`}
       title={row.title}
-      href={hashOf({ surface: "questions", path: row.path })}
+      href={hashOf({ surface: "research-question", path: row.path })}
       why="No source on either side since it was promoted."
       resolution={resolution}
       actions={
@@ -366,7 +366,7 @@ function Ambiguous({
   resolution: Resolution;
 }) {
   const address = OPENABLE.has(row.linkingKind ?? "")
-    ? hashOf({ surface: "questions", path: row.path })
+    ? hashOf({ surface: "research-question", path: row.path })
     : undefined;
   // A `kind:` the app does not know is stored verbatim (§ Index, Reads), so
   // it is shown verbatim rather than passed off as a Note; a file with none

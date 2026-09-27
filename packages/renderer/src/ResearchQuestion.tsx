@@ -34,7 +34,8 @@ import { WhyLine } from "./WhyLine";
 
 /**
  * The Research Question view (brief § Surfaces; prompt 3; ADR 0020): one
- * page per promoted question, at `#/questions/<path>`. The page read (#209)
+ * page per promoted question, at `#/research-question/<path>` (ADR 0026: an
+ * Address takes its Kind's name). The page read (#209)
  * — the question, its provenance and status, and the six sections as the
  * file holds them — and, from #213, the working answer as a text field
  * whose every save the core records as a Revision. The most common state
@@ -81,7 +82,7 @@ export function ResearchQuestion({
         // The file came back (an undo, a sync flap): the re-read shows it.
         else if (changed.includes(path)) setRemoved(null);
         const move = renamed.find(({ from }) => from === path);
-        if (move) replaceRoute({ surface: "questions", path: move.to });
+        if (move) replaceRoute({ surface: "research-question", path: move.to });
       },
       [path]
     )
@@ -99,6 +100,33 @@ export function ResearchQuestion({
   }, []);
 
   const data = page.data;
+
+  // Whether this Address resolved: what the *first* answer said, kept because
+  // everything below turns on arrival versus afterwards. Recorded during
+  // render so no paint happens between the answer and what it decides, and
+  // the page is mounted afresh per Address (`key={path}` in `App`), so this is
+  // the one arrival it belongs to.
+  const [resolved, setResolved] = useState<boolean | null>(null);
+  if (resolved === null && data !== undefined) setResolved(data.readable);
+
+  // An Address the router accepted but the vault cannot answer for does not
+  // resolve, so the window leaves rather than sitting on a page with nothing
+  // on it: it lands on the Inbox naming the Address and what came back (ADR
+  // 0027 decision 7; #299). Replaced, not pushed — back must not return to an
+  // Address that named nothing. Arrival only: a page that stops being readable
+  // *under* the reader is the absence line below, not a jump out from under
+  // them, and a re-read while a rename settles must not move the window.
+  useEffect(() => {
+    if (resolved !== false || data?.readable !== false) return;
+    replaceRoute({
+      surface: "inbox",
+      unresolved: {
+        address: hashOf({ surface: "research-question", path }),
+        reason: data.reason,
+      },
+    });
+  }, [resolved, data, path]);
+
   const readable = removed === null && data?.readable === true ? data : null;
   const problems = readable?.problems ?? [];
   const hasFooter = problems.length > 0 || status.hasLines;
@@ -130,7 +158,11 @@ export function ResearchQuestion({
       {removed !== null && (
         <p className={styles.absent}>{removed} — removed from the vault</p>
       )}
-      {removed === null && data?.readable === false && (
+      {/* The page stopped being readable under the reader — its `kind:` edited
+          elsewhere, its permissions changed — rather than on the way in: it
+          resolved, and then it did not. The reader is standing here, so the
+          reason belongs here rather than on the Inbox they did not ask for. */}
+      {removed === null && resolved === true && data?.readable === false && (
         <p className={styles.absent}>
           {data.path} — {data.reason}
         </p>
@@ -760,7 +792,7 @@ function Lines({
                 <a
                   className={styles.target}
                   href={hashOf({
-                    surface: "questions",
+                    surface: "research-question",
                     path: line.link.resolvedPath,
                   })}
                 >

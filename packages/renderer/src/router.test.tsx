@@ -69,3 +69,72 @@ describe("the window's location is the URL hash", () => {
     );
   });
 });
+
+// A Kind-addressed object takes its Kind's own singular name (ADR 0026,
+// #299). The old `#/questions/` prefix addressed a *Research* Question, so it
+// is left unrecognised rather than redefined: a link saved under it must fail
+// where the user can see it instead of quietly opening something else.
+describe("an Address takes its Kind's name", () => {
+  const PAGE = "questions/Does slow-wave density predict recall gain (RQ).md";
+  const ADDRESS = `#/research-question/questions/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+  const RETIRED = `#/questions/questions/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+  const UNRESOLVED = `${RETIRED} — no longer an Address this app uses`;
+
+  it("lands an Address whose file is gone on the Inbox, naming the Address and what came back", async () => {
+    window.location.hash = ADDRESS;
+    const asked: string[] = [];
+    renderApp({
+      ...answers,
+      "researchQuestions.page": (input: { path: string }) => {
+        asked.push(input.path);
+        return {
+          readable: false,
+          path: input.path,
+          reason: "missing from the vault",
+        };
+      },
+    });
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(
+      await within(inbox).findByText(`${ADDRESS} — missing from the vault`)
+    ).toBeDefined();
+    // The separator between segments survives the trip and the spaces in the
+    // name do not: the core is asked about the path the Address decodes to,
+    // and the line names the Address exactly as it was written.
+    expect(asked).toEqual([PAGE]);
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("lands a retired #/questions/ Address on the Inbox, naming the Address that did not resolve", async () => {
+    window.location.hash = RETIRED;
+    renderApp(answers);
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(await within(inbox).findByText(UNRESOLVED)).toBeDefined();
+    expect(
+      screen.queryByRole("region", { name: "Research Question view" })
+    ).toBeNull();
+    // The canonicalising replace still happens: back never lands on a hash
+    // that named nothing, and the line outlives it.
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("says nothing about a hash nobody ever wrote", async () => {
+    window.location.hash = "#/scouts";
+    renderApp(answers);
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(window.location.hash).toBe("#/inbox");
+    expect(inbox.textContent).not.toMatch(/Address/);
+  });
+
+  it("drops the line once the window has been somewhere else", async () => {
+    window.location.hash = RETIRED;
+    renderApp(answers);
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    await within(inbox).findByText(UNRESOLVED);
+    fireEvent.click(screen.getByRole("link", { name: "Loose Ends" }));
+    await screen.findByRole("region", { name: "Loose Ends" });
+    fireEvent.click(screen.getByRole("link", { name: "Question Inbox" }));
+    const back = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(within(back).queryByText(UNRESOLVED)).toBeNull();
+  });
+});
