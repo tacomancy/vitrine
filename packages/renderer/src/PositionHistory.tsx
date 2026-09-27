@@ -1,5 +1,5 @@
 import type { Revision } from "core";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   historyRows,
   quietLabel,
@@ -18,19 +18,29 @@ import { linkLabel } from "./wikilink";
  * filter that puts the narrative on its own. The base line beneath is the
  * caller's — it is derived from the frontmatter, not an entry (story 39).
  *
- * The component takes entries and each field's current text, nothing about
- * Research Questions, so a Hypothesis claim or an Experiment design renders
- * here too (story 59).
+ * The component takes entries, each field's current text, and a way to
+ * write one line — nothing about Research Questions — so a Hypothesis claim
+ * or an Experiment design renders here too (story 59).
  */
 export function PositionHistory({
   entries,
   current,
+  whyLine,
 }: {
   entries: Revision[];
   /** Each field's text as the file holds it now, keyed by field name. */
   current: Record<string, string>;
+  /**
+   * What the surface puts under a quiet entry the reader asked to explain
+   * (#216; story 36). Omitted — a history rendered where nothing can be
+   * written — and no *+ why* is offered at all.
+   */
+  whyLine?: (at: string, close: () => void) => ReactNode;
 }) {
   const [explainedOnly, setExplainedOnly] = useState(false);
+  // Which entry has its line open, by timestamp — one at a time, because a
+  // why is a sentence and not a form to fill in.
+  const [explaining, setExplaining] = useState<string | null>(null);
   // Nothing to filter and no trail to draw: the base line the caller puts
   // under this says where the page came from, and that is the whole history.
   const empty = entries.length === 0;
@@ -43,6 +53,14 @@ export function PositionHistory({
   // Which field an entry is of only needs saying when the history holds more
   // than one; on a Research Question every entry is the working answer.
   const fields = new Set(entries.map((entry) => entry.field));
+  const offer: Explaining | undefined =
+    whyLine === undefined
+      ? undefined
+      : {
+          open: explaining,
+          toggle: (at) => setExplaining(explaining === at ? null : at),
+          line: whyLine,
+        };
 
   if (empty) return null;
   return (
@@ -66,7 +84,12 @@ export function PositionHistory({
       </div>
       <ol className={styles.entries}>
         {rows.map((row) => (
-          <Row key={keyOf(row)} row={row} named={fields.size > 1} />
+          <Row
+            key={keyOf(row)}
+            row={row}
+            named={fields.size > 1}
+            explaining={offer}
+          />
         ))}
       </ol>
     </>
@@ -82,7 +105,27 @@ const keyOf = (row: HistoryRow) =>
     ? idOf(row.revision)
     : `quiet ${row.revisions[0] === undefined ? "" : idOf(row.revisions[0])}`;
 
-function Row({ row, named }: { row: HistoryRow; named: boolean }) {
+/**
+ * The *+ why* a quiet entry is offered, and the line it opens (#216). One
+ * object rather than three props, because the three only ever travel
+ * together — and absent together, on a history that cannot be written to.
+ */
+type Explaining = {
+  /** The entry whose line is open, by timestamp; null when none is. */
+  open: string | null;
+  toggle: (at: string) => void;
+  line: (at: string, close: () => void) => ReactNode;
+};
+
+function Row({
+  row,
+  named,
+  explaining,
+}: {
+  row: HistoryRow;
+  named: boolean;
+  explaining?: Explaining | undefined;
+}) {
   if (row.kind === "explained") {
     const { revision, to } = row;
     return (
@@ -98,20 +141,26 @@ function Row({ row, named }: { row: HistoryRow; named: boolean }) {
       </li>
     );
   }
-  return <Quiet revisions={row.revisions} named={named} />;
+  return (
+    <Quiet revisions={row.revisions} named={named} explaining={explaining} />
+  );
 }
 
 /**
  * A run of unexplained Revisions: one line saying the position moved and how
  * often, which opens into the entries themselves. They are never hidden —
- * movement without a story is still movement (prompt 3).
+ * movement without a story is still movement (prompt 3). Each entry the run
+ * opens on carries its own *+ why*: the run is a summary, and which of four
+ * Revisions a why belongs to is not a summary's to guess (#216).
  */
 function Quiet({
   revisions,
   named,
+  explaining,
 }: {
   revisions: Revision[];
   named: boolean;
+  explaining?: Explaining | undefined;
 }) {
   const [open, setOpen] = useState(false);
   // `historyRows` never makes an empty run, so the head is the run's newest
@@ -140,8 +189,24 @@ function Quiet({
           <ul className={styles.expanded}>
             {revisions.map((revision) => (
               <li key={idOf(revision)} className={styles.quiet}>
-                <span className={styles.when}>{localDate(revision.at)}</span>
+                <div className={styles.quietWhen}>
+                  <span className={styles.when}>{localDate(revision.at)}</span>
+                  {explaining !== undefined && (
+                    <button
+                      type="button"
+                      className={styles.addWhy}
+                      aria-expanded={explaining.open === revision.at}
+                      onClick={() => explaining.toggle(revision.at)}
+                    >
+                      + why
+                    </button>
+                  )}
+                </div>
                 <From from={revision.from} />
+                {explaining?.open === revision.at &&
+                  explaining.line(revision.at, () =>
+                    explaining.toggle(revision.at)
+                  )}
               </li>
             ))}
           </ul>

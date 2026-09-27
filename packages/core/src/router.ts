@@ -14,6 +14,7 @@ import {
   attachSource,
   detachSource,
   EDITED_SECTIONS,
+  explainRevision,
   moveSource,
   readResearchQuestionPage,
   reopenResearchQuestion,
@@ -304,6 +305,26 @@ export const router = t.router({
             coalesceMs: ctx.coalesceMs,
           })
         )
+      ),
+    // A why written onto a Revision (#216): the entry is named by its
+    // timestamp, which is all an entry has, and `## Position history` is
+    // rewritten whole to carry the line. The same call serves the why that
+    // follows ⌥↵ and *+ why* on a quiet entry months later — the Revision
+    // is already on disk in both, so a why never blocks a save.
+    explainRevision: t.procedure
+      .input(
+        pathInput.extend({
+          /** The Revision's `at`, verbatim as the page read it. */
+          at: z.string().min(1),
+          // A line nobody wrote is a decline, which the page makes by not
+          // calling: an empty why here is a caller's mistake, not a Revision
+          // to strip the `why:` line from.
+          why: z.string().trim().min(1, "The why is empty."),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(explainRevision(await requirePage(ctx), input.path, input))
       ),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries

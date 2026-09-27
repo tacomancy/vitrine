@@ -276,6 +276,70 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
     );
   });
 
+  // A why rewrites `## Position history` whole (#216), which is the one
+  // write that could erase an entry spliced above it a moment earlier.
+  it("a why written while one is parked keeps both: the spliced entry above, the explained one below", async () => {
+    let now = t0;
+    const { file, c, stream, obsidian } = await opened(
+      { [PATH]: page("Probably both.") },
+      { now: () => now }
+    );
+
+    const read = async () => {
+      const reply = await c.query<ResearchQuestionPage>(
+        "researchQuestions.page",
+        { path: PATH }
+      );
+      const data = reply.result?.data as ResearchQuestionPage;
+      if (!data.readable) throw new Error(data.reason);
+      return data;
+    };
+    // One entry of the app's own to explain later.
+    const first = await read();
+    expect(
+      (
+        await c.mutate("researchQuestions.saveWorkingAnswer", {
+          path: PATH,
+          text: "Encoding strength, mostly.",
+          basedOn: first.hash,
+          was: first.sections.workingAnswer.text,
+        })
+      ).error
+    ).toBeUndefined();
+    await stream.next("vaultChanged");
+
+    now = at(5);
+    await obsidian("Encoding strength, and consolidation.");
+
+    now = at(10);
+    const explained = await c.mutate<{ written: boolean }>(
+      "researchQuestions.explainRevision",
+      {
+        path: PATH,
+        at: localIso(t0),
+        why: "Cordi's funnel plot. [[cordi2021]]",
+        basedOn: (await read()).hash,
+      }
+    );
+    expect(explained.error).toBeUndefined();
+    expect(explained.result?.data).toMatchObject({ written: true });
+
+    // The Obsidian edit's entry is newer than anything the section held,
+    // so it belongs above — and it is still there, which is the point.
+    const written = await file();
+    const history = written.slice(written.indexOf("## Position history"));
+    expect(history).toBe(
+      "## Position history\n\n" +
+        [
+          entry(at(5), "Encoding strength, mostly."),
+          "- " +
+            localIso(t0) +
+            " \u00b7 working answer\n  why: Cordi's funnel plot. [[cordi2021]]\n  from:\n    Probably both.",
+        ].join("\n") +
+        "\n"
+    );
+  });
+
   it("a refused write answers with its refusal and leaves the entry parked", async () => {
     let now = t0;
     const { vault, c, file, obsidian } = await opened(

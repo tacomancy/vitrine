@@ -20,7 +20,9 @@ import {
 import {
   coalesce,
   formatRevision,
+  oneLineWhy,
   readRevisions,
+  sectionWithEntry,
   topLevelItems,
   type Revision,
   type Save,
@@ -526,6 +528,8 @@ export async function readResearchQuestionPage(
 export const EDITED_SECTIONS = ["Open threads", "Related questions"] as const;
 /** Thirty minutes (ADR 0006 decision 5) — a number in code, per spec #206; tests inject a shorter one. */
 export const COALESCE_MS = 30 * 60 * 1000;
+/** The owned section every Revision lives in; named once, because three operations target it by name. */
+const HISTORY = "Position history";
 /** The Edited section that is also a Position, and the field its Revisions carry. */
 const WORKING_ANSWER = "Working answer";
 const FIELD = "working answer";
@@ -586,7 +590,7 @@ const unchanged = (read: PageFile): WriteResult => ({
 /** The `prependEntry` one pending Revision splices as: a quiet entry, its previous text in full. */
 const spliceOf = (row: PendingRevision): Operation => ({
   op: "prependEntry",
-  section: "Position history",
+  section: HISTORY,
   entry: formatRevision({
     at: row.at,
     field: row.field,
@@ -594,6 +598,21 @@ const spliceOf = (row: PendingRevision): Operation => ({
     from: row.from,
   }),
 });
+
+/**
+ * Where the parked splices sit among the write's own operations. Operations
+ * apply in order, each located afresh, so a `replaceSection` on the section
+ * the splices prepend into would undo them: it carries the body the plan
+ * read, which is the file before the splices. The rule lives here rather
+ * than in each plan, because a plan that forgot it would lose a Revision
+ * and say it had written one.
+ */
+function orderOf(own: Operation[], splices: Operation[]): Operation[] {
+  const rewritesHistory = own.some(
+    (op) => op.op === "replaceSection" && op.name === HISTORY
+  );
+  return rewritesHistory ? [...own, ...splices] : [...splices, ...own];
+}
 
 /**
  * One planned write through the protocol, then the index told of the app's
@@ -606,6 +625,15 @@ const spliceOf = (row: PendingRevision): Operation => ({
  * records — newer than any of them — ends up above them. They are cleared
  * only once the bytes are on disk; a refused write leaves them parked for
  * the quiet window or the next attempt.
+ *
+ * A plan that replaces `## Position history` whole is the exception: its
+ * body is computed from the file as it was read, so entries spliced above
+ * it first would be written and then erased by it, in the one section
+ * where a lost entry is the silent failure the brief forbids. Those go
+ * after, and still land where they belong — a parked row is always newer
+ * than anything the section already holds, because every own write splices
+ * what is waiting, so no entry the app wrote can postdate a row still
+ * parked (`orderOf`).
  */
 function writeOwn(
   { vaultPath, index, pending }: PageContext,
@@ -632,7 +660,7 @@ function writeOwn(
       own = planned;
     }
     const result = await write(vaultPath, path, {
-      operations: [...waiting.map(spliceOf), ...own.operations],
+      operations: orderOf(own.operations, waiting.map(spliceOf)),
       basedOn: own.basedOn,
     });
     if (result.written) {
@@ -759,6 +787,15 @@ export async function saveSection(
 }
 
 /**
+ * What a save of the Working answer answers with: the write's own result,
+ * and the timestamp of the Revision it recorded — the name the why that
+ * may follow `⌥↵` calls that entry by (#216), since an entry has no id.
+ * Null when the save wrote no Revision: a refusal, or typing that matched
+ * the file and was therefore not a save at all.
+ */
+export type SavedAnswer = WriteResult & { revision: string | null };
+
+/**
  * The Working answer saved, and the Revision it records (#213; ADR 0020
  * decisions 1–2): one write — `replaceSection` on the section, and the
  * entry either prepended or, inside the coalescing window, the head
@@ -785,9 +822,13 @@ export async function saveWorkingAnswer(
     at: Date;
     coalesceMs: number;
   }
-): Promise<WriteResult> {
+): Promise<SavedAnswer> {
   const text = typed.replace(/\r\n/g, "\n").trim();
-  return writeOwn(ctx, path, (read, waiting) => {
+  // The entry the plan settled on, kept from inside the queue where it is
+  // computed: the page cannot name it any other way, and reading the head
+  // of the section back would be a guess about which entry was this save's.
+  const recorded: { at: string | null } = { at: null };
+  const result = await writeOwn(ctx, path, (read, waiting) => {
     const { content, outline } = read;
     // The Position as the file holds it now: what the Revision is *from*.
     const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
@@ -801,23 +842,32 @@ export async function saveWorkingAnswer(
     // the user never saw.
     const conflict = changedUnderneath(from, was);
     if (conflict !== null) return conflict;
+    const history = historyOperations(
+      content,
+      outline,
+      { field: FIELD, from, at },
+      // An Obsidian edit is about to be spliced above the head entry, so
+      // the head is no longer the change before this one: re-stamping it
+      // would swallow the external edit's entry inside a window it does
+      // not belong to. Any parked row closes the window, not only one of
+      // this field: a re-stamp rewrites `## Position history` whole, and
+      // `orderOf` then has to put the splices after it, which would leave
+      // an older entry above a newer one.
+      waiting.length > 0 ? 0 : coalesceMs
+    );
+    recorded.at = history.at;
     return {
       operations: [
         { op: "replaceSection", name: WORKING_ANSWER, body: text },
-        ...historyOperations(
-          content,
-          outline,
-          { field: FIELD, from, at },
-          // An Obsidian edit to this field is about to be spliced above
-          // the head entry, so the head is no longer the change before
-          // this one: re-stamping it would swallow the external edit's
-          // entry inside a window it does not belong to.
-          waiting.some((row) => row.field === FIELD) ? 0 : coalesceMs
-        ),
+        ...history.operations,
       ],
       basedOn,
     };
   });
+  // A refused write recorded nothing, whatever the plan had settled on.
+  return result.written
+    ? { ...result, revision: recorded.at }
+    : { ...result, revision: null };
 }
 
 /** The two sides a source attaches to, and the only two (ADR 0020 decision 5). */
@@ -1188,19 +1238,20 @@ export async function reopenResearchQuestion(
 }
 
 /**
- * The history's part of one save. A new entry is prepended; a save inside
- * the window re-stamps the head entry, which means the owned section is
- * replaced whole — the operation set has no "edit one entry", and this is
- * the path a why added after the fact takes too (§ Research Question view
- * and triage).
+ * The history's part of one save, and the entry it lands on: a new entry
+ * is prepended; a save inside the window re-stamps the head entry, which
+ * means the owned section is replaced whole — the operation set has no
+ * "edit one entry", and this is the path `explainRevision` takes too. `at`
+ * is the entry's timestamp either way, which is what the save answers with
+ * so a why can name it.
  */
 function historyOperations(
   content: string,
   outline: Pick<Outline, "headings" | "listItems">,
   save: Save,
   coalesceMs: number
-): Operation[] {
-  const history = section(outline, "Position history").heading;
+): { operations: Operation[]; at: string } {
+  const history = section(outline, HISTORY).heading;
   const items =
     history === undefined ? [] : readRevisions(content, outline, history);
   const head = items[0];
@@ -1211,15 +1262,78 @@ function historyOperations(
   );
   const entry = formatRevision(revision);
   if (!coalesced || history === undefined || head === undefined) {
-    return [{ op: "prependEntry", section: "Position history", entry }];
+    return {
+      operations: [{ op: "prependEntry", section: HISTORY, entry }],
+      at: revision.at,
+    };
   }
-  const body =
-    content.slice(history.body.start, head.range.start) +
-    entry +
-    content.slice(head.range.end, history.body.end);
-  return [
-    { op: "replaceSection", name: "Position history", body: body.trim() },
-  ];
+  return {
+    operations: [
+      {
+        op: "replaceSection",
+        name: HISTORY,
+        body: sectionWithEntry(content, history.body, head.range, entry),
+      },
+    ],
+    at: revision.at,
+  };
+}
+
+/**
+ * A why written onto a Revision (#216; brief § Position history, "detailed
+ * when it matters"; spec #206 stories 33–36). The Revision is on disk
+ * before the why is asked for — `⌥↵` saves first, and *+ why* in the
+ * history view comes months later — so this only ever adds to an entry,
+ * which is what makes escaping the line a decline rather than a cancel.
+ * One write: `## Position history` replaced whole with every other byte of
+ * it spliced back, because the operation set has no "edit one entry".
+ *
+ * The timestamp is the entry's whole identity (ADR 0020 decision 2), so a
+ * timestamp no entry carries — or one two entries carry, which two of a
+ * later Kind's fields could — refuses and names which, as a ticked thread
+ * does. Writing the why onto a guess would put words in a Revision the
+ * user was not looking at.
+ */
+export async function explainRevision(
+  ctx: PageContext,
+  path: string,
+  { at, why, basedOn }: { at: string; why: string; basedOn: string }
+): Promise<WriteResult> {
+  return writeOwn(ctx, path, ({ content, outline }) => {
+    const heading = section(outline, HISTORY).heading;
+    if (heading === undefined) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: `no ## ${HISTORY} heading was found`,
+      };
+    }
+    const matches = readRevisions(content, outline, heading).filter(
+      (item) => item.revision?.at === at
+    );
+    const [only] = matches;
+    if (matches.length !== 1 || only?.revision == null) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail:
+          matches.length === 0
+            ? `no revision in ## ${HISTORY} is stamped ${at}`
+            : `${matches.length} revisions in ## ${HISTORY} are stamped ${at}`,
+      };
+    }
+    const entry = formatRevision({ ...only.revision, why: oneLineWhy(why) });
+    return {
+      operations: [
+        {
+          op: "replaceSection",
+          name: HISTORY,
+          body: sectionWithEntry(content, heading.body, only.range, entry),
+        },
+      ],
+      basedOn,
+    };
+  });
 }
 
 /**

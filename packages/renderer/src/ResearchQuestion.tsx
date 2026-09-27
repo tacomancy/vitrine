@@ -29,6 +29,7 @@ import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { linkLabel } from "./wikilink";
 import { useVaultStatusLines } from "./VaultStatusLines";
+import { WhyLine } from "./WhyLine";
 
 /**
  * The Research Question view (brief § Surfaces; prompt 3; ADR 0020): one
@@ -214,6 +215,17 @@ export function ResearchQuestion({
             <PositionHistory
               entries={readable.sections.positionHistory.entries}
               current={{ [FIELD]: readable.sections.workingAnswer.text }}
+              // A why written months after the fact (#216): the page's own
+              // hash, because no save of the page's stands between the
+              // read and this write.
+              whyLine={(at, close) => (
+                <WhyLine
+                  path={readable.path}
+                  at={at}
+                  basedOn={readable.hash}
+                  onClose={close}
+                />
+              )}
             />
             {/* Always last and always there: the history's floor, derived
                 from the frontmatter and never written as an entry. */}
@@ -473,11 +485,12 @@ function revisionLine(entries: Revision[]): string {
 
 /**
  * The working answer as a plain text field (§ Research Question view and
- * triage, Editing on the page): autosave on blur, ⌘↵ saves now, esc
- * reverts unsaved typing. A save carries the hash the page was given; the
- * core diffs and records the Revision, so nothing here knows the grammar.
- * A refusal is a line under the field with its reason, and the typing
- * stays — never silent, never lost (CLAUDE.md § Invariants).
+ * triage, Editing on the page): autosave on blur, ⌘↵ saves now, ⌥↵ saves
+ * and opens one line for *why* (#216), esc reverts unsaved typing. A save
+ * carries the hash the page was given; the core diffs and records the
+ * Revision, so nothing here knows the grammar. A refusal is a line under
+ * the field with its reason, and the typing stays — never silent, never
+ * lost (CLAUDE.md § Invariants).
  */
 function WorkingAnswer({
   path,
@@ -503,6 +516,12 @@ function WorkingAnswer({
   const [base, setBase] = useState<Base | null>(null);
   // Set while a save is in flight, so a blur right after ⌘↵ is one save.
   const inFlight = useRef(false);
+  // The Revision to explain and the file as the save that recorded it left
+  // it; null when no why line is open (#216).
+  const [why, setWhy] = useState<{ at: string; basedOn: string } | null>(null);
+  // The keys, while the field has the keyboard: ⌥↵ is otherwise a gesture
+  // nothing on the page mentions.
+  const [focused, setFocused] = useState(false);
   const save = useMutation(
     trpc.researchQuestions.saveWorkingAnswer.mutationOptions({
       onSuccess: async (result, { text: saved, basedOn }) => {
@@ -530,30 +549,49 @@ function WorkingAnswer({
     })
   );
 
-  const send = (text: string, on: Base) => {
+  /**
+   * `explain` is ⌥↵'s one addition: the same save, with the why line
+   * opened on the Revision it turns out to have recorded. It rides on this
+   * call rather than on a flag the next reply would have to read, so a
+   * blur's save can never be mistaken for the one ⌥↵ asked for.
+   */
+  const send = (text: string, on: Base, explain = false) => {
     inFlight.current = true;
     save.mutate(
       { path, text, basedOn: on.hash, was: on.text },
       {
+        onSuccess: (result) => {
+          // Based on the file as this save left it: the page's hash, which
+          // the field carried in, is one write out of date by now.
+          if (explain && result.written && result.revision !== null) {
+            setWhy({ at: result.revision, basedOn: result.hash });
+          }
+        },
         onSettled: () => {
           inFlight.current = false;
         },
       }
     );
   };
-  const commit = () => {
+  const commit = (explain = false) => {
     if (draft === null || inFlight.current || conflict) return;
     if (draft.trim() === text) {
       setDraft(null);
       setBase(null);
       return;
     }
-    send(draft, base ?? { hash, text });
+    send(draft, base ?? { hash, text }, explain);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && event.metaKey) {
       event.preventDefault();
       commit();
+    } else if (event.key === "Enter" && event.altKey) {
+      event.preventDefault();
+      // Nothing to save is nothing to explain: the line waits for a
+      // Revision rather than opening over the last one, which already
+      // said what it had to say.
+      commit(true);
     } else if (event.key === "Escape") {
       event.preventDefault();
       setDraft(null);
@@ -600,9 +638,28 @@ function WorkingAnswer({
         value={shown}
         rows={shown === "" ? 2 : undefined}
         onChange={(event) => type(event.target.value)}
-        onBlur={commit}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          commit();
+        }}
         onKeyDown={onKeyDown}
       />
+      {focused && (
+        <p className={styles.keys}>
+          <span>⌘↵ save</span>
+          <span>⌥↵ save with a note on what changed</span>
+          <span>esc reverts</span>
+        </p>
+      )}
+      {why !== null && (
+        <WhyLine
+          path={path}
+          at={why.at}
+          basedOn={why.basedOn}
+          onClose={() => setWhy(null)}
+        />
+      )}
       {conflict && (
         <ChangedOnDisk
           keepMine={() => void keepMine()}

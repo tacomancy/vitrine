@@ -302,6 +302,22 @@
   border-left-color: var(--color-accent);
 }
 
+/*
+ * The field's keys, while it has the keyboard (prompt 3's editing state):
+ * ⌥↵ is a gesture nothing else on the page would mention, and a page being
+ * read rather than written to does not need the reminder.
+ */
+.keys {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: 0;
+  padding-left: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
 /* A refused save, under the field, in the footer's voice: a reason, never red. */
 .refusal {
   margin: 0;

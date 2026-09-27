@@ -657,6 +657,183 @@ describe("researchQuestions.saveWorkingAnswer", () => {
   });
 });
 
+// A why written onto a Revision after the fact (#216; brief § Position
+// history, "detailed when it matters"; spec #206 stories 33–36). The
+// Revision is already on disk when the why arrives — that is what makes
+// escaping the line a decline rather than a cancel — so this is always an
+// edit to an entry, named by the timestamp that is its whole identity (ADR
+// 0020 decision 2). `## Position history` is rewritten whole to make it,
+// which is why what the rest of the file did matters as much as the why.
+describe("researchQuestions.explainRevision", () => {
+  const path = "questions/fresh (RQ).md";
+  const REST =
+    "\n## Supporting sources\n\n## Opposing sources\n\n## Related questions\n\n## Open threads\n\n## Position history\n";
+  const fresh = FRONTMATTER + "\n## Working answer\n" + REST;
+  const minute = 60_000;
+  const t0 = new Date("2026-09-21T10:00:00+02:00");
+  const at = (offsetMinutes: number) =>
+    new Date(t0.getTime() + offsetMinutes * minute);
+
+  type Saved = { written: boolean; hash?: string; revision: string | null };
+  type Written =
+    | { written: true; hash: string }
+    | { written: false; reason: string; detail: string };
+
+  async function opened(now: () => Date, files = { [path]: fresh }) {
+    const vault = await vaultWith(files);
+    const c = await core({ now, coalesceMs: 30 * minute });
+    expect(
+      (await c.mutate<Vault>("vault.open", { path: vault })).error
+    ).toBeUndefined();
+    await c.indexed();
+    const page = async () => {
+      const reply = await c.query<ResearchQuestionPage>(
+        "researchQuestions.page",
+        { path }
+      );
+      expect(reply.error).toBeUndefined();
+      const data = reply.result?.data as ResearchQuestionPage;
+      if (!data.readable) throw new Error(data.reason);
+      return data;
+    };
+    const save = async (text: string) => {
+      const read = await page();
+      const reply = await c.mutate<Saved>(
+        "researchQuestions.saveWorkingAnswer",
+        {
+          path,
+          text,
+          basedOn: read.hash,
+          was: read.sections.workingAnswer.text,
+        }
+      );
+      expect(reply.error).toBeUndefined();
+      return reply.result?.data as Saved;
+    };
+    const explain = async (revision: string, why: string, basedOn?: string) => {
+      const reply = await c.mutate<Written>(
+        "researchQuestions.explainRevision",
+        { path, at: revision, why, basedOn: basedOn ?? (await page()).hash }
+      );
+      expect(reply.error).toBeUndefined();
+      return reply.result?.data as Written;
+    };
+    return {
+      vault,
+      c,
+      page,
+      save,
+      explain,
+      file: () => readFile(join(vault, path), "utf8"),
+    };
+  }
+
+  const entry = (when: Date, why: string | null, from: string) =>
+    `- ${localIso(when)} · working answer` +
+    (why === null ? "" : `\n  why: ${why}`) +
+    `\n  from:${from === "" ? "" : "\n" + from.replace(/^(?!$)/gm, "    ")}`;
+
+  const WHY =
+    "Cordi's funnel plot — mostly small-study bias. [[cordi2021#^h12]]";
+
+  it("writes the why onto the entry the save just recorded, and the save that follows inside the window opens a new entry rather than coalescing into the explained one", async () => {
+    let now = t0;
+    const { page, save, explain, file } = await opened(() => now);
+
+    // The save answers with the entry it recorded: the timestamp is how
+    // the why line that follows ⌥↵ names it, and there is nothing else to
+    // name it by.
+    const saved = await save("Probably both.");
+    expect(saved).toMatchObject({ written: true, revision: localIso(t0) });
+
+    now = at(5);
+    expect(await explain(localIso(t0), WHY, saved.hash)).toMatchObject({
+      written: true,
+    });
+    expect(await file()).toBe(
+      FRONTMATTER +
+        "\n## Working answer\n\nProbably both.\n" +
+        REST +
+        "\n" +
+        entry(t0, WHY, "") +
+        "\n"
+    );
+
+    // Well inside the thirty minutes, but the head is explained: swallowing
+    // it would lose the why's own moment (ADR 0006 decision 5).
+    now = at(10);
+    await save("Encoding strength, mostly.");
+    expect((await page()).sections.positionHistory.entries).toEqual([
+      {
+        at: localIso(at(10)),
+        field: "working answer",
+        why: null,
+        from: "Probably both.",
+      },
+      { at: localIso(t0), field: "working answer", why: WHY, from: "" },
+    ]);
+  });
+
+  it("explains a Revision months later and rewrites only ## Position history, every other byte as it was", async () => {
+    const page = "questions/Does slow-wave density predict recall gain (RQ).md";
+    const {
+      vault,
+      c,
+      page: read,
+    } = await openedPage({ ...NEIGHBOURS, [page]: WELL_FORMED }, page);
+    if (!read.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, page), "utf8");
+    const reply = await c.mutate<Written>("researchQuestions.explainRevision", {
+      path: page,
+      at: "2026-09-21T09:00:00+02:00",
+      why: "Ran the power calculation myself. [[cordi2021]]",
+      basedOn: read.hash,
+    });
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+
+    const after = await readFile(join(vault, page), "utf8");
+    expect(outside(after, "Position history")).toEqual(
+      outside(before, "Position history")
+    );
+    expect(after).toContain(
+      "- 2026-09-21T09:00:00+02:00 · working answer\n  why: Ran the power calculation myself. [[cordi2021]]\n  from:"
+    );
+  });
+
+  it("refuses a timestamp no entry carries, with a reason naming it, and writes nothing", async () => {
+    const { save, explain, file } = await opened(() => t0);
+    await save("Probably both.");
+    const before = await file();
+    expect(await explain("2019-01-01T00:00:00+02:00", WHY)).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail:
+        "no revision in ## Position history is stamped 2019-01-01T00:00:00+02:00",
+    });
+    expect(await file()).toBe(before);
+  });
+
+  it("collapses a why typed across lines onto one, so the entry it lands in still parses", async () => {
+    const { page, save, explain } = await opened(() => t0);
+    await save("Probably both.");
+    expect(
+      await explain(
+        localIso(t0),
+        "Cordi's funnel plot.\n\nAnd the power calculation."
+      )
+    ).toMatchObject({ written: true });
+    expect((await page()).sections.positionHistory.entries).toEqual([
+      {
+        at: localIso(t0),
+        field: "working answer",
+        why: "Cordi's funnel plot. And the power calculation.",
+        from: "",
+      },
+    ]);
+  });
+});
+
 /** The file's bytes outside one `##` section: what a section save must leave byte-identical. */
 function outside(
   content: string,
