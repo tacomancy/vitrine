@@ -1,7 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
+import { dismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
+import { looseEnds } from "./loose-ends.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -10,7 +12,9 @@ import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
   attachSource,
+  detachSource,
   EDITED_SECTIONS,
+  moveSource,
   readResearchQuestionPage,
   reopenResearchQuestion,
   resolveResearchQuestion,
@@ -30,6 +34,8 @@ export type Context = {
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
   coalesceMs: number;
+  /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
+  stalledOpenDays: number;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -254,6 +260,32 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(attachSource(await requirePage(ctx), input.path, input))
       ),
+    // Move a source to the other side, or detach it (#219): the line is
+    // named by its text, not its position, so a file edited underneath
+    // takes the move where it was meant or refuses. Neither records a
+    // Revision (ADR 0020 decision 4).
+    moveSource: t.procedure
+      .input(
+        pathInput.extend({
+          from: z.enum(SIDES),
+          text: z.string().min(1),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(moveSource(await requirePage(ctx), input.path, input))
+      ),
+    detachSource: t.procedure
+      .input(
+        pathInput.extend({
+          side: z.enum(SIDES),
+          text: z.string().min(1),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(detachSource(await requirePage(ctx), input.path, input))
+      ),
     // The Working answer is the one Edited section that is also a Position:
     // its save records the Revision in the same write (#213).
     saveWorkingAnswer: t.procedure
@@ -273,6 +305,32 @@ export const router = t.router({
           })
         )
       ),
+  }),
+  // The maintenance dashboard (§ Loose Ends): the rows are index queries
+  // plus `dismissals.json`, and *mark deliberate* is the one write.
+  looseEnds: t.router({
+    rows: t.procedure.query(async ({ ctx }) => {
+      const { vault, index, days } = await requireVault(ctx);
+      return looseEnds(index, vault.path, {
+        days,
+        stalledOpenDays: ctx.stalledOpenDays,
+      });
+    }),
+    // Permanent, and judged per row kind: the same object can be loose in
+    // more than one way, and each is silenced on its own.
+    dismiss: t.procedure
+      .input(z.object({ subject: z.string().min(1), kind: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault } = await requireVault(ctx);
+        await refusing(
+          dismiss(
+            vault.path,
+            input.subject,
+            input.kind,
+            ctx.now().toISOString()
+          )
+        );
+      }),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

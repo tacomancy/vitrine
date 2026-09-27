@@ -1,13 +1,15 @@
 import type { watch as fsWatch } from "node:fs";
+import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { errorMessage, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
+import { localDay, openDays, type OpenDays } from "./open-days.js";
 import {
   openPendingRevisions,
-  QueueOpenError,
   type PendingRevisions,
 } from "./pending-revisions.js";
+import { openQueue, QueueOpenError } from "./queue.js";
 import { splicePendingRevisions } from "./research-question.js";
 import { SETTLE_MS, watchVault, type Watcher } from "./vault-watcher.js";
 import {
@@ -56,6 +58,11 @@ export type VaultService = {
   status: () => Promise<VaultStatus | null>;
   /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
   rewatch: () => Promise<void>;
+  /**
+   * The window came to the front: today is a day at this vault (#243).
+   * Nothing when no vault is open — a day is a day at a *vault*.
+   */
+  focused: () => Promise<void>;
   /**
    * Tear down the open vault's resources; the orderly path out. The next
    * `open` does the same. Resolves once every Revision an Obsidian edit
@@ -108,6 +115,10 @@ export type Opened = {
   index: VaultIndex;
   /** The Revisions Obsidian edits to this vault still owe their files (#217). */
   pending: PendingRevisions;
+  /** The local dates this vault was open in the app (#243). */
+  days: OpenDays;
+  /** The `queue.sqlite` handle both of those read; closed with the vault. */
+  queue: DatabaseSync;
   watcher: Watcher | null;
   watching: Watching;
   /** A failed watcher is being reopened; the index is not current meanwhile. */
@@ -146,7 +157,12 @@ export function createVaultService({
     return null;
   }
 
-  type Resources = { index: VaultIndex; pending: PendingRevisions };
+  type Resources = {
+    index: VaultIndex;
+    pending: PendingRevisions;
+    days: OpenDays;
+    queue: DatabaseSync;
+  };
 
   /**
    * A vault whose `.vitrine/` cannot hold the index is refused: it could
@@ -162,7 +178,11 @@ export function createVaultService({
   };
 
   async function openResources(absolute: string): Promise<Resources> {
-    const pending = await openPendingRevisions(absolute, {
+    // One handle, two tables (`queue.ts`): the version and its migrations
+    // belong to the database, not to whichever table opened it first.
+    const queue = await openQueue(absolute).catch(refusingToOpen);
+    const days = openDays(queue);
+    const pending = openPendingRevisions(queue, {
       windowMs: coalesceMs,
       now,
       // `index` is assigned before anything can be spliced: nothing is
@@ -174,7 +194,7 @@ export function createVaultService({
           path
         );
       },
-    }).catch(refusingToOpen);
+    });
     let index: VaultIndex;
     try {
       index = await openIndex(absolute, {
@@ -183,9 +203,10 @@ export function createVaultService({
       });
     } catch (cause) {
       pending.close();
+      queue.close();
       return refusingToOpen(cause);
     }
-    return { index, pending };
+    return { index, pending, days, queue };
   }
 
   // Bumped by every install and by close, so an install still waiting on
@@ -216,6 +237,7 @@ export function createVaultService({
     }
     going.pending.close();
     going.index.close();
+    going.queue.close();
   }
 
   /** Watcher state changed: the renderer re-reads `vault.status` (§ Watcher and Ingest). */
@@ -293,11 +315,13 @@ export function createVaultService({
    * watcher per vault, and the old vault answers until the new one can.
    */
   async function install(vault: Vault, resources: Resources): Promise<void> {
-    const { index, pending } = resources;
+    const { index, pending, days, queue } = resources;
     const o: Opened = {
       vault,
       index,
       pending,
+      days,
+      queue,
       watcher: null,
       watching: { ok: true },
       reopening: false,
@@ -309,10 +333,16 @@ export function createVaultService({
       o.watcher?.close();
       pending.close();
       index.close();
+      queue.close();
       return;
     }
     await teardown();
     opened = o;
+    // Opening the vault is a day at it (#243). Recorded here, once the
+    // vault is current, rather than on any request: the renderer re-queries
+    // on every `vaultChanged`, and an app left open unattended while a sync
+    // client delivers files would otherwise count every day it ran.
+    days.record(localDay(now()));
     // The sweep's own first status event is the open's: nothing is raised
     // here, so the first `vaultStatus` after an open still means "the walk
     // is done", which is what the watch-then-sweep test writes on.
@@ -352,6 +382,7 @@ export function createVaultService({
     } catch (cause) {
       resources.pending.close();
       resources.index.close();
+      resources.queue.close();
       throw cause;
     }
     const vault = { name: basename(absolute), path: absolute };
@@ -403,6 +434,10 @@ export function createVaultService({
       }
       await watchAndSweep(opened, false);
     },
+    focused: async () => {
+      await restored;
+      opened?.days.record(localDay(now()));
+    },
     close: async () => {
       generation++;
       await teardown();
@@ -414,6 +449,7 @@ export function createVaultService({
       going?.watcher?.close();
       going?.pending.close();
       going?.index.close();
+      going?.queue.close();
     },
   };
 }

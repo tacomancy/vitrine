@@ -33,3 +33,7 @@ ADR 0008 deliberately left the Vault editor unchosen, requiring only that it con
 - **−** *Keep mine* can discard an Obsidian edit. The line names the time so the user can judge; there is no merge, by design.
 - **−** CM6 counts every line break as one position whatever the separator, so a CRLF file's `packages/markdown` offsets do not equal editor positions. § Vault surface carries the rule (decorate from the editor's own LF text; save with `lineSeparator` set to the file's EOL) and the slice must test it.
 - The Vault graph view remains fog on map #131: nothing here constrains it, and beat 11's spec scopes it to a later slice.
+
+## Update (2026-09-26, #244)
+
+The last consequence's "nothing here constrains it" no longer holds. The graph view carries one constraint, and map #131's *by default* no longer qualifies it: **no force-directed layout** — positions are fixed, never simulated, and there is no toggle to a simulated one. `CLAUDE.md`'s invariant rules the force-directed graph out for the Question Map; this extends it to the Vault, because the brief's reason (§ Question Map, *Visual caution*: Obsidian's graph-view failure mode) is about the shape, not the surface. The most it can be is the Vault prototype's static node-link diagram, whose own caption — *present, not promoted* — names the Question Map as the relational view that earns its place. Library and scope stay fog on map #131 (beat 11b, #184).

@@ -212,8 +212,9 @@
 
 /*
  * The plain text field: the section's lines as the file holds them, in the
- * mono so a `- [ ]` reads as what it is. No hairline (BRAND.md law 5):
- * the field is a lighter surface with the surfaces' radius.
+ * mono so a `- [ ]` reads as what it is. No hairline (ADR 0023 decision 4,
+ * which narrows BRAND.md law 5 — law 5 itself permits one): the field is a
+ * lighter surface with the surfaces' radius.
  */
 .field {
   width: 100%;
@@ -453,4 +454,25 @@ a.target:focus-visible {
 
 .footerLine {
   cursor: default;
+}
+
+/*
+ * The line's two verbs, as quiet as *edit* and following the note rather
+ * than pushed to the far edge: on a wrapped line an auto margin strands
+ * them on a row of their own, away from the source they act on.
+ */
+.lineActions {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/*
+ * Where a link went instead: the candidate paths, or the fact that nothing
+ * carries the name. A sentence, so not the caps of `.resolution` beside it.
+ */
+.wentNowhere {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
 }

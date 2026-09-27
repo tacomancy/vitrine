@@ -6,6 +6,7 @@ import type {
   ResearchQuestionStatus,
   ResolveResult,
   Revision,
+  Side,
   ShapeProblem,
   WriteResult,
 } from "core";
@@ -40,7 +41,16 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * never as a gap. The other sections become editable in the tickets that
  * own them.
  */
-export function ResearchQuestion({ path }: { path: string }) {
+export function ResearchQuestion({
+  path,
+  attachOnArrival = false,
+  onArrival,
+}: {
+  path: string;
+  /** A Loose Ends *attach a source* landed here: open the form with the page. */
+  attachOnArrival?: boolean;
+  onArrival?: () => void;
+}) {
   const trpc = useTRPC();
   const page = useQuery(trpc.researchQuestions.page.queryOptions({ path }));
   const status = useVaultStatusLines();
@@ -78,7 +88,13 @@ export function ResearchQuestion({ path }: { path: string }) {
   // The attach form, opened by ⌘⇧A from any focus on the page (prompt 3).
   // A chord rather than a letter: the page is mostly text fields, and a
   // bare key would be typing.
-  const [attaching, setAttaching] = useState(false);
+  const [attaching, setAttaching] = useState(attachOnArrival);
+  // The arrival spends the intent, so coming back to this address later is
+  // an ordinary visit and the form does not open itself again.
+  useEffect(() => {
+    if (attachOnArrival) onArrival?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
 
   const data = page.data;
   const readable = removed === null && data?.readable === true ? data : null;
@@ -144,7 +160,10 @@ export function ResearchQuestion({ path }: { path: string }) {
                 name="Supporting sources"
                 present={readable.sections.supporting.present}
               >
-                <Lines
+                <Sources
+                  path={readable.path}
+                  hash={readable.hash}
+                  side="supporting"
                   lines={readable.sections.supporting.lines}
                   empty="Nothing attached yet. Papers that argue for the working answer collect here, each with a note on which finding does."
                 />
@@ -153,7 +172,10 @@ export function ResearchQuestion({ path }: { path: string }) {
                 name="Opposing sources"
                 present={readable.sections.opposing.present}
               >
-                <Lines
+                <Sources
+                  path={readable.path}
+                  hash={readable.hash}
+                  side="opposing"
                   lines={readable.sections.opposing.lines}
                   empty="Nothing yet. When you find a paper that undercuts the answer, it goes here — and a page where nothing does is worth noticing."
                 />
@@ -657,8 +679,21 @@ const targetText = ({ link }: LinkLine) =>
     ? ""
     : `${link.target}${link.blockId === null ? "" : `#^${link.blockId}`}`;
 
-/** Source and related lines: the link as written, its note, and what the index says about where it lands. */
-function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
+/**
+ * Source and related lines: the link as written, its note, and what the
+ * index says about where it lands. `actions` is what a side hangs off each
+ * line; the Related column passes none, because *move to opposing* on a
+ * neighbouring question means nothing.
+ */
+function Lines({
+  lines,
+  empty,
+  actions,
+}: {
+  lines: LinkLine[];
+  empty: string;
+  actions?: (line: LinkLine) => ReactNode;
+}) {
   if (lines.length === 0) return <Outline>{empty}</Outline>;
   return (
     <ul className={styles.lines}>
@@ -683,18 +718,128 @@ function Lines({ lines, empty }: { lines: LinkLine[]; empty: string }) {
                 <span className={styles.target}>{targetText(line)}</span>
               )}
               {line.link.resolution !== "resolved" && (
-                <span className={styles.resolution}>
-                  {line.link.resolution}
-                </span>
+                <>
+                  <span className={styles.resolution}>
+                    {line.link.resolution}
+                  </span>
+                  <span className={styles.wentNowhere}>
+                    {wentNowhere(line.link)}
+                  </span>
+                </>
               )}
               {line.note !== "" && (
                 <span className={styles.note}>{line.note}</span>
               )}
+              {actions?.(line)}
             </>
           )}
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Where a link that did not resolve went instead (spec #206 story 30). The
+ * three cases are told apart by what the *name* reached, because the fix
+ * differs: a pair of files wants the path-qualified rewrite, a file whose
+ * `#^id` is gone wants the annotation re-matched, and nothing at all wants
+ * the citekey retyped. Saying "nothing has this name" about the middle one
+ * would send the reader to fix the half that is right.
+ */
+function wentNowhere(link: NonNullable<LinkLine["link"]>): string {
+  const reached = link.candidates ?? [];
+  if (link.resolution === "ambiguous") {
+    return reached.length === 0
+      ? "more than one file carries this name"
+      : `caught between ${reached.join(" · ")}`;
+  }
+  const [found] = reached;
+  if (found === undefined) return "nothing in the vault has this name";
+  return `${found} has no ${link.blockId === null ? "such heading" : `^${link.blockId}`}`;
+}
+
+/** The other side; there are only two (ADR 0020 decision 5). */
+const otherSide = (side: Side): Side =>
+  side === "supporting" ? "opposing" : "supporting";
+
+/**
+ * One side's lines, each with the two verbs that can change where the paper
+ * sits (#219; spec #206 story 27): *move to the other side* and *detach*.
+ * Both name the line by its text and carry the hash the page was read at,
+ * and neither records a Revision — the history is of positions, not of the
+ * bibliography (ADR 0020 decision 4). A refused write is a line under the
+ * column, never a button that quietly did nothing.
+ */
+function Sources({
+  path,
+  hash,
+  side,
+  lines,
+  empty,
+}: {
+  path: string;
+  hash: string;
+  side: Side;
+  lines: LinkLine[];
+  empty: string;
+}) {
+  const trpc = useTRPC();
+  const moving = usePageWrite("move the source");
+  const detaching = usePageWrite("detach the source");
+  const move = useMutation(
+    trpc.researchQuestions.moveSource.mutationOptions({
+      onSuccess: moving.settle,
+      onError: moving.fail,
+    })
+  );
+  const detach = useMutation(
+    trpc.researchQuestions.detachSource.mutationOptions({
+      onSuccess: detaching.settle,
+      onError: detaching.fail,
+    })
+  );
+  const busy = move.isPending || detach.isPending;
+  return (
+    <>
+      <Lines
+        lines={lines}
+        empty={empty}
+        actions={(line) => (
+          <span className={styles.lineActions}>
+            <button
+              type="button"
+              className={styles.edit}
+              disabled={busy}
+              onClick={() => {
+                detaching.clear();
+                move.mutate({
+                  path,
+                  from: side,
+                  text: line.text,
+                  basedOn: hash,
+                });
+              }}
+            >
+              move to {otherSide(side)}
+            </button>
+            <button
+              type="button"
+              className={styles.edit}
+              disabled={busy}
+              onClick={() => {
+                moving.clear();
+                detach.mutate({ path, side, text: line.text, basedOn: hash });
+              }}
+            >
+              detach
+            </button>
+          </span>
+        )}
+      />
+      <Refusal refusal={moving.refusal} />
+      <Refusal refusal={detaching.refusal} />
+    </>
   );
 }
 

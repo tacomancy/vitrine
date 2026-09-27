@@ -1,5 +1,6 @@
-/* A floating surface over the list it was opened from (ADR 0008): a step up
-   from the ground, soft corners, no hairline and no dialog chrome. */
+/* An overlay rather than a pane (ADR 0023 decision 2): it floats over the
+   list it was opened from, and the `--shadow-3` is what says above rather
+   than beside. Soft corners, no hairline and no dialog chrome. */
 .picker {
   position: absolute;
   z-index: 1;

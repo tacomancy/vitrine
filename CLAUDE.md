@@ -34,13 +34,13 @@ Never silently violate these:
 - Annotations live in the PDF as standard annotation objects, not a database.
 - Vault is plain Markdown files. Local-first; sync scope is the PDF folder only.
 - BYOK — no credentials leave the device except to the configured model provider.
-- No force-directed graph for the Question Map. Sorted matrix, labeled scatter, ranked lists.
+- No force-directed graph — the Question Map is a sorted matrix, labeled scatter, ranked lists; the Vault's graph view has fixed positions, never simulated, no toggle (ADR 0015).
 - No silent failures — an unmatched annotation surfaces for a decision rather than disappearing; a broken Scout must never look identical to a quiet field.
 - State is derived, not declared — e.g. a Hypothesis's status is computed from its criteria, never set directly.
 
 ## Development loop
 
-Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving). Run in this order, per tracer-bullet slice:
+Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving, or stops being invocable by the agent — ADR 0022). Run in this order, per tracer-bullet slice:
 
 1. **`grill-with-docs`** — pressure-test the slice's plan, one question at a time, before code exists. It writes new terms to `CONTEXT.md` and decisions to `docs/adr/` as they are resolved. `grill-me` is the same interview without the doc writes; use it for questions that aren't about this codebase yet (the stack choice, for instance). Detour through `prototype` on a `prototype/<name>` branch when a question needs a runnable answer.
 2. **`to-spec`** — turn the interview into a spec and publish it as a GitHub issue. No implementation starts without a spec issue.
