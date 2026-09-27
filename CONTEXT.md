@@ -329,7 +329,7 @@ The user's own key for a Provider, kept in the login Keychain by the app and rea
 _Avoid_: API key (in copy — say key), token (that is the session token), secret
 
 **Blocked on credentials** (of a Scout):
-A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key.
+A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key. Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
 _Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:
@@ -383,10 +383,14 @@ _Avoid_: Onboarding, welcome screen, empty state
 ### Surfaces and dashboards
 
 **Surface**:
-One of the eight screens: Home, Question Inbox, Reader, Research Question view, Hypothesis view, Experiment view, Scout Queue, Vault. Ingest review is a panel, not a surface.
+One of the eight screens the brief names: Home, Question Inbox, Reader, Research Question view, Hypothesis view, Experiment view, Scout Queue, Vault. All eight are about the work. Ingest review is a panel, not a Surface; First run is a state, not a Surface; Settings is a ninth screen and not one of the eight (ADR 0025).
 
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
+
+**Settings**:
+The screen that says how this vault is arranged: where the vault is, where the PDFs are, and what the app talks to. Every line on it is a fact with a referent outside the app, checkable against the world; it holds no preference — no value whose only effect is on the app's own behaviour — so there are no themes, no sync toggle, no account, and no home for a default that belongs to the object it governs. Not one of the eight Surfaces and not a Dashboard: those are the work and readings of it, this is the arrangement they sit in. Has an Address (`#/settings`) and opens with ⌘,; unreachable from First run (ADR 0025).
+_Avoid_: Preferences, options, configuration, admin
 
 **Address**:
 Where the window is, as a URL hash the router parses — `#/inbox`, `#/questions/<path>`, `#/loose-ends`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021).
