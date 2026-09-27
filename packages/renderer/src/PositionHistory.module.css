@@ -170,3 +170,33 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+
+/* The date of one entry in an opened trail, and the *+ why* beside it. */
+.quietWhen {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+/* Quiet until wanted — *+ why* on hover (§ Research Question view and
+   triage; the 03 prototype's closing note draws it on the quiet row): the
+   offer is there months later without being a call to act on a Revision
+   that is fine as it is. Always drawn for the keyboard, which cannot hover. */
+.addWhy {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.quiet:hover .addWhy,
+.addWhy:focus-visible,
+.addWhy[aria-expanded="true"] {
+  opacity: 1;
+  color: var(--color-fg-secondary);
+}

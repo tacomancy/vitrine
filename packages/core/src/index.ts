@@ -31,6 +31,7 @@ export type {
   ResearchQuestionSections,
   ResearchQuestionStatus,
   ResolveResult,
+  SavedAnswer,
   Side,
   WriteBack,
 } from "./research-question.js";

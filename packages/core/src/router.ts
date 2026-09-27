@@ -4,6 +4,7 @@ import type { Events } from "./events.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
+import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -14,6 +15,7 @@ import {
   attachSource,
   detachSource,
   EDITED_SECTIONS,
+  explainRevision,
   moveSource,
   readResearchQuestionPage,
   reopenResearchQuestion,
@@ -178,6 +180,26 @@ export const router = t.router({
           ...(input.exclude === undefined ? {} : { exclude: input.exclude }),
         });
       }),
+    // The text a picked file is linked by, for the one caller that writes
+    // the link into prose rather than into a field of its own: `[[` inside
+    // a why line (#216). Link and attach compose theirs in the core at
+    // write time with this same rule; the why line has to put the text in
+    // the sentence the user is typing, so it asks for it here instead of
+    // writing the bare name and hoping it reaches the file that was picked.
+    linkText: t.procedure
+      .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
+      // `wikilinkTo` throws where every other procedure's work rejects, so
+      // the whole body sits inside the promise `refusing` unwraps; beside
+      // it, a target the Index has never seen would escape as a 500 rather
+      // than the refusal it is.
+      .query(({ ctx, input }) =>
+        refusing(
+          (async () => {
+            const { index } = await requireVault(ctx);
+            return { text: wikilinkTo(index, input.from, input.to) };
+          })()
+        )
+      ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
   // creates a paper until Scouts land, and the citekey rule that beat reuses.
@@ -304,6 +326,26 @@ export const router = t.router({
             coalesceMs: ctx.coalesceMs,
           })
         )
+      ),
+    // A why written onto a Revision (#216): the entry is named by its
+    // timestamp, which is all an entry has, and `## Position history` is
+    // rewritten whole to carry the line. The same call serves the why that
+    // follows ⌥↵ and *+ why* on a quiet entry months later — the Revision
+    // is already on disk in both, so a why never blocks a save.
+    explainRevision: t.procedure
+      .input(
+        pathInput.extend({
+          /** The Revision's `at`, verbatim as the page read it. */
+          at: z.string().min(1),
+          // A line nobody wrote is a decline, which the page makes by not
+          // calling: an empty why here is a caller's mistake, not a Revision
+          // to strip the `why:` line from.
+          why: z.string().trim().min(1, "The why is empty."),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(explainRevision(await requirePage(ctx), input.path, input))
       ),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
