@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
@@ -73,16 +73,24 @@ describe("the record of open days", () => {
   it("records nothing for an ordinary request or a vault change", async () => {
     const vault = await vaultWith({ "a.md": "# a\n" });
     const time = clock("2026-09-21T10:00:00+01:00");
-    const c = await core({ now: time.now });
+    // The watcher's settle window shortened, as every watcher test does:
+    // this one has to see a real change land, not merely ask for one.
+    const c = await core({ now: time.now, settleMs: 40 });
     await c.mutate("vault.open", { path: vault });
     await c.indexed();
+    const stream = await c.events();
 
-    // A day passes with the app open and untended: queries land, the
-    // watcher reports a change, nothing counts it as a day at the vault.
+    // A day passes with the app open and untended: queries land, and a
+    // sync client delivers a file so the watcher genuinely reports a
+    // change. Neither is a day the user spent at the vault.
     time.set("2026-09-22T09:00:00+01:00");
     await c.query("questions.list");
     await c.query("looseEnds.rows");
     await c.query("vault.status");
+    await writeFile(join(vault, "delivered.md"), "# delivered\n");
+    const change = await stream.next("vaultChanged");
+    expect(change.changed).toContain("delivered.md");
+    stream.close();
 
     expect(days(vault)).toEqual(["2026-09-21"]);
   });
