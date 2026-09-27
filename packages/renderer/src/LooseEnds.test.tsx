@@ -13,6 +13,14 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 
 const PATH = "questions/What would falsify the active systems account (RQ).md";
 
+// *Mark deliberate* is the one click on this dashboard that changes state,
+// and #266 makes it undoable for as long as the row is on screen: the row
+// stays put, says what happened, and offers the way back. The dismissal is in
+// the vault from the click onward — the undo is for the moment after it, not
+// a history.
+const MARKED =
+  /marked deliberate — permanently out of this list, still in the vault/;
+
 const stalled = (path = PATH, title = "What would falsify it?"): LooseEnds => ({
   groups: [
     {
@@ -29,6 +37,24 @@ const stalled = (path = PATH, title = "What would falsify it?"): LooseEnds => ({
     },
   ],
   problems: [],
+});
+
+/** Two rows in one group: enough for a count to drop by one and still read. */
+const pair = (): LooseEnds => ({
+  problems: [],
+  groups: [
+    {
+      group: "Stalled questions",
+      rows: [
+        stalled().groups[0]!.rows[0]!,
+        {
+          ...stalled().groups[0]!.rows[0]!,
+          subject: "rq0000002",
+          title: "And does it hold at scale?",
+        },
+      ],
+    },
+  ],
 });
 
 const page: ResearchQuestionPage = {
@@ -172,28 +198,197 @@ describe("the Loose Ends dashboard", () => {
     ).toBeNull();
   });
 
-  it("calls dismiss with the row's subject and kind, and the row leaves", async () => {
+  const rows = async () => {
+    const view = await dashboard();
+    const [first, second] = await within(view).findAllByRole("listitem");
+    return { view, first: first!, second: second! };
+  };
+
+  it("leaves a row marked in place on *mark deliberate*, with undo its only way out", async () => {
     const dismiss = vi.fn<(input: unknown) => void>();
-    let rows: LooseEnds = stalled();
     open({
-      "looseEnds.rows": () => rows,
+      "looseEnds.rows": pair(),
       "looseEnds.dismiss": (input: unknown) => {
         dismiss(input);
-        rows = { groups: [], problems: [] };
         return undefined;
       },
     });
-    const view = await dashboard();
+    const { view, first, second } = await rows();
 
     fireEvent.click(
-      await within(view).findByRole("button", { name: "mark deliberate" })
+      within(first).getByRole("button", { name: "mark deliberate" })
     );
 
-    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+    await within(first).findByText(MARKED);
     expect(dismiss).toHaveBeenCalledWith({
       subject: "rq0000001",
       kind: "stalled-research-question",
     });
+    // In place and still a link, its detail replaced by what happened, and
+    // *undo* the only thing left to click.
+    expect(
+      within(first).getByRole("link", { name: "What would falsify it?" })
+    ).toBeDefined();
+    expect(within(first).queryByText(/No source on either side/)).toBeNull();
+    expect(
+      within(first).queryByRole("button", { name: "attach a source" })
+    ).toBeNull();
+    expect(
+      within(first).queryByRole("button", { name: "mark deliberate" })
+    ).toBeNull();
+    expect(within(first).getByRole("button", { name: "undo" })).toBeDefined();
+    // The other row is untouched, and the count counts the open ones — still
+    // per group, still never a total.
+    expect(
+      within(second).getByRole("button", { name: "mark deliberate" })
+    ).toBeDefined();
+    expect(view.textContent?.match(/\d+ items?/g)).toEqual(["1 item"]);
+  });
+
+  it("reads a group whose last row is resolved as clear rather than as a zero", async () => {
+    open({ "looseEnds.rows": stalled() });
+    const view = await dashboard();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+
+    await within(view).findByText(MARKED);
+    expect(within(view).getByText("clear")).toBeDefined();
+    expect(view.textContent).not.toMatch(/0 items/);
+  });
+
+  it("gives the row its own resolutions and the count back on undo", async () => {
+    const undismiss = vi.fn<(input: unknown) => void>();
+    open({
+      "looseEnds.rows": pair(),
+      "looseEnds.undismiss": (input: unknown) => {
+        undismiss(input);
+        return undefined;
+      },
+    });
+    const { view, first } = await rows();
+    fireEvent.click(
+      within(first).getByRole("button", { name: "mark deliberate" })
+    );
+    await within(first).findByText(MARKED);
+
+    fireEvent.click(within(first).getByRole("button", { name: "undo" }));
+
+    await within(first).findByText(/No source on either side/);
+    expect(undismiss).toHaveBeenCalledWith({
+      subject: "rq0000001",
+      kind: "stalled-research-question",
+    });
+    expect(
+      within(first).getByRole("button", { name: "attach a source" })
+    ).toBeDefined();
+    expect(
+      within(first).getByRole("button", { name: "mark deliberate" })
+    ).toBeDefined();
+    expect(within(first).queryByText(MARKED)).toBeNull();
+    expect(view.textContent?.match(/\d+ items?/g)).toEqual(["2 items"]);
+  });
+
+  it("says so on the row when the undo is refused, rather than leaving it marked in silence", async () => {
+    open({
+      "looseEnds.rows": pair(),
+      "looseEnds.undismiss": () => {
+        throw new Error(".vitrine/dismissals.json could not be read");
+      },
+    });
+    const { first } = await rows();
+    fireEvent.click(
+      within(first).getByRole("button", { name: "mark deliberate" })
+    );
+    await within(first).findByText(MARKED);
+
+    fireEvent.click(within(first).getByRole("button", { name: "undo" }));
+
+    expect((await within(first).findByRole("alert")).textContent).toMatch(
+      /dismissals\.json/
+    );
+    // The dismissal is still in the file, so the row is still marked — and
+    // still offers the undo, which is what the user is now told failed.
+    expect(within(first).getByText(MARKED)).toBeDefined();
+    expect(within(first).getByRole("button", { name: "undo" })).toBeDefined();
+  });
+
+  it("says so on the row when *mark deliberate* is refused, and leaves the row open", async () => {
+    open({
+      "looseEnds.rows": pair(),
+      "looseEnds.dismiss": () => {
+        throw new Error(".vitrine/dismissals.json could not be read");
+      },
+    });
+    const { view, first } = await rows();
+
+    fireEvent.click(
+      within(first).getByRole("button", { name: "mark deliberate" })
+    );
+
+    expect((await within(first).findByRole("alert")).textContent).toMatch(
+      /dismissals\.json/
+    );
+    expect(within(first).queryByText(MARKED)).toBeNull();
+    expect(
+      within(first).getByRole("button", { name: "mark deliberate" })
+    ).toBeDefined();
+    expect(view.textContent?.match(/\d+ items?/g)).toEqual(["2 items"]);
+  });
+
+  it("does not show a row resolved earlier on the dashboard's next read", async () => {
+    let listed: LooseEnds = stalled();
+    open({
+      "looseEnds.rows": () => listed,
+      "looseEnds.dismiss": () => {
+        listed = { groups: [], problems: [] };
+        return undefined;
+      },
+    });
+    const view = await dashboard();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+    await within(view).findByText(MARKED);
+
+    // Away to the page and back: the dashboard reads again, and what it was
+    // told to silence is gone. The undo was for the moment after the click.
+    fireEvent.click(
+      within(view).getByRole("link", { name: "What would falsify it?" })
+    );
+    await screen.findByRole("region", { name: "Research Question view" });
+    fireEvent.click(screen.getByRole("link", { name: "Loose Ends" }));
+
+    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+  });
+
+  it("ends the undo where every other read of the dashboard does, when the vault changes", async () => {
+    // The undo lasts while the row is on screen, and a vaultChanged is a read
+    // of the dashboard like any other, so the row goes then rather than at
+    // the next visit. Pinned because the row leaving is what the resolution
+    // asked for, not a refetch quietly dropping something.
+    let listed: LooseEnds = stalled();
+    const { stream } = open({
+      "looseEnds.rows": () => listed,
+      "looseEnds.dismiss": () => {
+        listed = { groups: [], problems: [] };
+        return undefined;
+      },
+    });
+    const view = await dashboard();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+    await within(view).findByText(MARKED);
+
+    stream.push({
+      type: "vaultChanged",
+      changed: [PATH],
+      removed: [],
+      renamed: [],
+    });
+
+    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
   });
 
   it("says so when dismissals could not be read, rather than silently showing everything", async () => {
@@ -319,14 +514,15 @@ describe("the ambiguous link row", () => {
     expect(view.textContent).toContain("lab-notebook · notes/Reading list.md");
   });
 
-  it("calls dismiss with the linking file and this row kind, and the row leaves", async () => {
+  it("calls dismiss with the linking file and this row kind, and puts the row's matches away", async () => {
+    // The undo the shell carries (#266) reaches this row too, and the names
+    // it was listing go with the decision: the question *which two?* is
+    // answered once the row is marked.
     const dismiss = vi.fn<(input: unknown) => void>();
-    let rows: LooseEnds = ambiguous();
     open({
-      "looseEnds.rows": () => rows,
+      "looseEnds.rows": ambiguous(),
       "looseEnds.dismiss": (input: unknown) => {
         dismiss(input);
-        rows = { groups: [], problems: [] };
         return undefined;
       },
     });
@@ -336,10 +532,16 @@ describe("the ambiguous link row", () => {
       await within(view).findByRole("button", { name: "mark deliberate" })
     );
 
-    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+    await within(view).findByText(MARKED);
     expect(dismiss).toHaveBeenCalledWith({
       subject: "notes/Reading list.md",
       kind: "ambiguous-link",
     });
+    expect(view.textContent).not.toContain("[[Klinzing 2019]]");
+    expect(view.textContent).not.toContain("a/Klinzing 2019.md");
+    expect(within(view).getByRole("button", { name: "undo" })).toBeDefined();
+    expect(
+      within(view).queryByRole("button", { name: "mark deliberate" })
+    ).toBeNull();
   });
 });

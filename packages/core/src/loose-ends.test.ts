@@ -376,6 +376,118 @@ describe("looseEnds.dismiss — mark deliberate", () => {
   });
 });
 
+describe("looseEnds.undismiss — taking mark deliberate back", () => {
+  const PROMOTED = "2026-01-05T09:00:00+01:00";
+  const DAYS = run("2026-09-20", 3);
+  const LAST = at(DAYS[DAYS.length - 1]!);
+  const both = {
+    "q/stale (RQ).md": page("stale", { promoted: PROMOTED }),
+    "q/other (RQ).md": page("other", { promoted: PROMOTED }),
+  };
+  const showing = (files: Record<string, string> = both) =>
+    openedOn(files, DAYS, { stalledOpenDays: 3 });
+  const file = (vault: string) =>
+    readFile(join(vault, ".vitrine/dismissals.json"), "utf8");
+  const STALLED = "stalled-research-question";
+
+  it("takes back one row kind for one subject and leaves every other key alone", async () => {
+    const { vault, c } = await showing();
+    for (const key of [
+      { subject: "rq-stale", kind: STALLED },
+      { subject: "rq-stale", kind: "ambiguous-link" },
+      { subject: "rq-other", kind: STALLED },
+    ]) {
+      expect((await c.mutate("looseEnds.dismiss", key)).error).toBeUndefined();
+    }
+
+    const reply = await c.mutate("looseEnds.undismiss", {
+      subject: "rq-stale",
+      kind: STALLED,
+    });
+
+    expect(reply.error).toBeUndefined();
+    expect(JSON.parse(await file(vault))).toEqual({
+      "rq-stale": { "ambiguous-link": LAST.toISOString() },
+      "rq-other": { [STALLED]: LAST.toISOString() },
+    });
+    // The row it silenced is back, and the other subject's is still silent.
+    expect(titles(await rows(c))).toEqual(["stale?"]);
+  });
+
+  it("drops a subject whose last kind is gone rather than leaving an empty one behind", async () => {
+    const { vault, c } = await showing();
+    await c.mutate("looseEnds.dismiss", { subject: "rq-stale", kind: STALLED });
+
+    await c.mutate("looseEnds.undismiss", {
+      subject: "rq-stale",
+      kind: STALLED,
+    });
+
+    expect(JSON.parse(await file(vault))).toEqual({});
+  });
+
+  it("succeeds without writing at all when that kind was never dismissed", async () => {
+    // Hand-formatted on purpose: nothing to undo is nothing to write, so the
+    // file is not reserialised behind the user's back either.
+    const seeded = '{"rq-stale":{"ambiguous-link":"2026-09-01T00:00:00.000Z"}}';
+    const { vault, c } = await showing({
+      ...both,
+      ".vitrine/dismissals.json": seeded,
+    });
+
+    const reply = await c.mutate("looseEnds.undismiss", {
+      subject: "rq-stale",
+      kind: STALLED,
+    });
+
+    expect(reply.error).toBeUndefined();
+    expect(await file(vault)).toBe(seeded);
+  });
+
+  it("refuses on a dismissals.json it cannot read, in the words dismiss refuses in", async () => {
+    const { vault, c } = await showing({
+      ...both,
+      ".vitrine/dismissals.json": "{ not json",
+    });
+
+    const undo = await c.mutate("looseEnds.undismiss", {
+      subject: "rq-stale",
+      kind: STALLED,
+    });
+
+    // The same refusal for the same reason: the dismissals already in the
+    // file are what writing over it would lose.
+    const dismiss = await c.mutate("looseEnds.dismiss", {
+      subject: "rq-stale",
+      kind: STALLED,
+    });
+    expect(undo.error?.message).toMatch(/dismissals\.json/);
+    expect(undo.error?.message).toBe(dismiss.error?.message);
+    expect(await file(vault)).toBe("{ not json");
+  });
+
+  it("keeps a dismissal and an undo that arrive at once, losing neither", async () => {
+    // Both read the file and put the whole object back, so two that
+    // overlapped would lose one — either a row the user silenced comes back,
+    // or one they un-silenced stays gone. The queue is inside
+    // `dismissals.ts`, shared by both; this is what notices if it is not.
+    const { vault, c } = await showing();
+    await c.mutate("looseEnds.dismiss", { subject: "rq-other", kind: STALLED });
+
+    const [dismissed, undone] = await Promise.all([
+      c.mutate("looseEnds.dismiss", { subject: "rq-stale", kind: STALLED }),
+      c.mutate("looseEnds.undismiss", { subject: "rq-other", kind: STALLED }),
+    ]);
+
+    expect(dismissed.error).toBeUndefined();
+    expect(undone.error).toBeUndefined();
+    expect(JSON.parse(await file(vault))).toEqual({
+      "rq-stale": { [STALLED]: LAST.toISOString() },
+    });
+    expect(titles(await rows(c))).toEqual(["other?"]);
+  });
+});
+
 describe("looseEnds.rows — the dashboard's shape", () => {
   it("draws no group at all when nothing is loose", async () => {
     const { c } = await opened({

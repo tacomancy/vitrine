@@ -156,6 +156,28 @@ a.rowTitle:focus-visible {
   color: var(--color-fg-secondary);
 }
 
+/* What happened, once a row is resolved: in the data voice — mono, muted —
+   rather than the prototype's teal, because the app has no status colour
+   anywhere yet and a green line here would read as congratulation on the
+   one surface whose brief forbids it. What marks the row is that its reason
+   is gone and only *undo* is left. */
+.resolved {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* A resolution the core refused, on the row it was refused about: the row
+   still says what it was told to do, so a failed undo cannot pass for a
+   quiet success. The page's voice for a failure, at the row's scale. */
+.refused {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+}
+
 .actions {
   flex: none;
   display: flex;
