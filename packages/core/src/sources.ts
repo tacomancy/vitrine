@@ -1,5 +1,6 @@
 import { stringify } from "yaml";
 import { VaultError } from "./errors.js";
+import { serialised } from "./serialise.js";
 import { createFile } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -167,11 +168,14 @@ function suffix(n: number): string {
 
 // Stubs are made one at a time. Picking a free citekey means reading the
 // disk and then writing to it, and two that both found `born2010` free
-// would have the second refused rather than suffixed. The queue lives here
-// rather than in the caller so that the read and the write cannot be pulled
-// apart by a caller that forgets to hold it — the same reason `link.ts` has
-// one.
-let previous: Promise<unknown> = Promise.resolve();
+// would write the same file: `createFile` checks for the path and then
+// commits, so overlapping calls both pass the check and the second wins.
+// The stub the user typed is gone and both calls report success — a silent
+// failure, which is the one thing the vault may not do (`CLAUDE.md`
+// § Invariants). Not a refusal, which is what this comment said before a
+// test was pointed at it. The same hazard `link.ts` has, and
+// `serialise.ts` holds the chain both use.
+const serially = serialised();
 
 /**
  * Write the stub and tell the index before returning, so the form can
@@ -185,11 +189,7 @@ export function createSourceStub(
   index: VaultIndex,
   fields: StubFields
 ): Promise<Stub> {
-  const run = () => makeStub(vaultPath, index, fields);
-  // A stub that threw leaves the queue usable for the next one.
-  const queued = previous.then(run, run);
-  previous = queued;
-  return queued;
+  return serially(() => makeStub(vaultPath, index, fields));
 }
 
 async function makeStub(

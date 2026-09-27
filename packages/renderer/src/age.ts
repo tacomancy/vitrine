@@ -1,7 +1,8 @@
 const DAY = 24 * 60 * 60 * 1000;
 
 /**
- * How long ago a Question was captured, in the Inbox's shape: under 24h
+ * How long ago something happened — a Question captured, a Research
+ * Question promoted — in the Inbox's shape: under 24h
  * "today", under 30 days "Nd", under 12 months "Nmo", otherwise "Ny" with a
  * month remainder when there is one. Computed here from `captured` and now;
  * never stored, and never a state — the same grey at every age.

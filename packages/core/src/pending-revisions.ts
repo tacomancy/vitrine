@@ -1,41 +1,14 @@
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { errorMessage } from "./errors.js";
+import type { DatabaseSync } from "node:sqlite";
 import { localIso } from "./time.js";
 
 /**
- * `.vitrine/queue.sqlite`'s first table (#217; ADR 0020 decision 3, ADR
+ * `queue.sqlite`'s `pending_revisions` (#217; ADR 0020 decision 3, ADR
  * 0013; `docs/architecture.md` § Watcher and Ingest, External Position
  * edits): the Revisions an edit made outside the app owes its file, parked
- * until the file is quiet.
- *
- * The queue is the index's opposite. `index.sqlite` is a cache of what the
- * vault already says and is deleted whenever its schema moves; a pending
- * Revision exists nowhere else — the previous text it holds is gone from
- * the file the moment Obsidian saved over it — so this database is never
- * deleted, and a version that is not ours refuses the vault rather than
- * losing what it holds. Load-bearing per `CLAUDE.md`.
+ * until the file is quiet. The database itself — its version, and the
+ * promise that nothing in it is ever deleted — is `queue.ts`'s.
+ * Load-bearing per `CLAUDE.md`.
  */
-
-/**
- * `PRAGMA user_version` for `queue.sqlite`, versioned separately from the
- * index's. Bump on any change to the table below and add the migration
- * that carries the old rows forward: there is no rebuild path here.
- * 1: pending Revisions (#217).
- */
-export const QUEUE_SCHEMA_VERSION = 1;
-
-const SCHEMA = `
-CREATE TABLE pending_revisions (
-  id INTEGER PRIMARY KEY,
-  path TEXT NOT NULL,
-  field TEXT NOT NULL,
-  from_text TEXT NOT NULL,
-  at TEXT NOT NULL
-);
-CREATE INDEX pending_revisions_path ON pending_revisions (path);
-`;
 
 /** One Revision a file owes: the Position's text before the edit, and when the edit was seen. */
 export type PendingRevision = {
@@ -74,55 +47,15 @@ export type PendingRevisionsOptions = {
   splice: (path: string) => Promise<void>;
 };
 
-export class QueueOpenError extends Error {}
-
 /**
- * Open `queue.sqlite` at its schema, or refuse. Unlike the index there is
- * no delete-and-rebuild: a version this build does not know belongs to a
- * newer one, and the rows under it are the only copy of what they say.
+ * The parked Revisions for one vault, with the timers that fire their
+ * splices, over a `queue.sqlite` handle `queue.ts` has already opened and
+ * migrated. Closing is the opener's: two tables share the handle.
  */
-function openDatabase(file: string): DatabaseSync {
-  const db = new DatabaseSync(file);
-  db.exec("PRAGMA journal_mode = WAL");
-  const { user_version: version } = db.prepare("PRAGMA user_version").get() as {
-    user_version: number;
-  };
-  if (version === QUEUE_SCHEMA_VERSION) return db;
-  if (version !== 0) {
-    db.close();
-    throw new Error(
-      `it carries schema version ${version}, and this build knows ${QUEUE_SCHEMA_VERSION}. Nothing was deleted; a newer Vitrine wrote it.`
-    );
-  }
-  db.exec(SCHEMA);
-  db.exec(`PRAGMA user_version = ${QUEUE_SCHEMA_VERSION}`);
-  return db;
-}
-
-/**
- * The queue for one vault, with the timers that fire its splices. Throws
- * `QueueOpenError` when the database cannot be opened or is not ours — the
- * vault service turns that into the `writeFailed` refusal, as it does for
- * an unwritable `.vitrine/`.
- */
-export async function openPendingRevisions(
-  vaultPath: string,
+export function openPendingRevisions(
+  db: DatabaseSync,
   { windowMs, now, splice }: PendingRevisionsOptions
-): Promise<PendingRevisions> {
-  const folder = join(vaultPath, ".vitrine");
-  const file = join(folder, "queue.sqlite");
-  await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
-    throw new QueueOpenError(
-      `Couldn't create ${folder}: ${errorMessage(cause)}`
-    );
-  });
-  let db: DatabaseSync;
-  try {
-    db = openDatabase(file);
-  } catch (cause) {
-    throw new QueueOpenError(`Couldn't open ${file}: ${errorMessage(cause)}`);
-  }
-
+): PendingRevisions {
   const insert = db.prepare(
     "INSERT INTO pending_revisions (path, field, from_text, at) VALUES (?, ?, ?, ?)"
   );
@@ -202,7 +135,6 @@ export async function openPendingRevisions(
     close: () => {
       closed = true;
       for (const path of [...quiet.keys()]) forget(path);
-      db.close();
     },
   };
 }

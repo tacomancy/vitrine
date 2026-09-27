@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -14,6 +14,7 @@ const answers = {
     watching: { ok: true },
     current: { ok: true },
   },
+  "looseEnds.rows": { groups: [], problems: [] },
 };
 
 describe("the window's location is the URL hash", () => {
@@ -39,6 +40,7 @@ describe("the window's location is the URL hash", () => {
     renderApp(answers);
     const dashboard = await screen.findByRole("region", { name: "Loose Ends" });
     expect(dashboard.querySelector("h1")?.textContent).toBe("Loose Ends");
+    await within(dashboard).findByText(/Nothing to tidy/);
     expect(dashboard.querySelectorAll("p")).toHaveLength(1);
     expect(dashboard.querySelectorAll("section, h2, ul, table")).toHaveLength(
       0
