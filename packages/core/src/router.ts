@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Events } from "./events.js";
+import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
@@ -200,6 +201,18 @@ export const router = t.router({
           })()
         )
       ),
+  }),
+  // Where the Global command can go (#301, ADR 0027): the objects with an
+  // Address, matched on their Display names and ordered by how well they
+  // answer. The Surfaces and Dashboards are the renderer's own fixed set,
+  // merged into these rows there — the core does not know what a screen is.
+  globalCommand: t.router({
+    destinations: t.procedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return destinations(index, { query: input.query });
+      }),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
   // creates a paper until Scouts land, and the citekey rule that beat reuses.
