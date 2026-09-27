@@ -121,6 +121,39 @@ export function readRevisions(
   }));
 }
 
+/**
+ * The owned section's body with one entry's text swapped for another, every
+ * other byte of it spliced back as it was — a note typed by hand under the
+ * heading, an entry the app did not write, the blank lines between them.
+ * The operation set has no "edit one entry" (ADR 0008 decision 2), so
+ * re-stamping the head inside the coalescing window and writing a why onto
+ * an entry months later are both a `replaceSection` built here.
+ */
+export function sectionWithEntry(
+  content: string,
+  /** The section body's range, as the outline gives it. */
+  body: Range,
+  /** The entry being replaced, as `readRevisions` ranged it. */
+  item: Range,
+  entry: string
+): string {
+  return (
+    content.slice(body.start, item.start) +
+    entry +
+    content.slice(item.end, body.end)
+  ).trim();
+}
+
+/**
+ * Text forced onto one line. A newline inside a list item ends it and
+ * leaves the tail as prose under the heading, where the next read would no
+ * longer find it as part of the item — true of a why (§ Vault layout) and
+ * of a source line's note alike, so the rule is stated once and both
+ * callers obey the same one.
+ */
+export const onOneLine = (text: string) =>
+  text.replace(/\s*\r?\n\s*/g, " ").trim();
+
 /** One save of one field, as the history sees it. */
 export type Save = {
   field: string;

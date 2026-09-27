@@ -252,3 +252,64 @@ describe("picker.candidates", () => {
     expect(reply.error?.message).toMatch(/no vault/i);
   });
 });
+
+// The text a picked file is linked by (#216), for the one caller that has
+// to put a link inside prose: `[[` in a why line. Link and attach compose
+// theirs in the core at write time by the same rule (`wikilinkTo`); this
+// hands the same answer to a renderer that is mid-sentence, so no surface
+// ever writes the bare name and hopes.
+describe("picker.linkText", () => {
+  const RQ =
+    "questions/Is the overnight benefit consolidation or encoding (RQ).md";
+
+  const linkText = async (
+    c: Awaited<ReturnType<typeof core>>,
+    from: string,
+    to: string
+  ) => c.query<{ text: string }>("picker.linkText", { from, to });
+
+  it("is the bare name when it reaches that file and nothing else", async () => {
+    const vault = await fixtureCopy("obsidian-vault");
+    const c = await core();
+    expect(
+      (await c.mutate("vault.open", { path: vault })).error
+    ).toBeUndefined();
+    await c.indexed();
+
+    const reply = await linkText(c, RQ, "sources/rasch2013.md");
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data.text).toBe("[[rasch2013]]");
+  });
+
+  it("is the vault-relative path when a second file answers to that name", async () => {
+    const vault = await fixtureCopy("obsidian-vault");
+    await writeFile(join(vault, "rasch2013.md"), "a note by the same name\n");
+    const c = await core();
+    expect(
+      (await c.mutate("vault.open", { path: vault })).error
+    ).toBeUndefined();
+    await c.indexed();
+
+    // The bare name is now ambiguous, so writing it would send the why to
+    // whichever file the resolver happened to reach.
+    const reply = await linkText(c, RQ, "sources/rasch2013.md");
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data.text).toBe("[[sources/rasch2013]]");
+  });
+
+  it("refuses a file the Index has never seen, rather than guessing a name for it", async () => {
+    const c = await core();
+    expect(
+      (
+        await c.mutate("vault.open", {
+          path: await fixtureCopy("obsidian-vault"),
+        })
+      ).error
+    ).toBeUndefined();
+    await c.indexed();
+
+    const reply = await linkText(c, RQ, "sources/nowhere.md");
+    expect(reply.error?.data.kind).toBe("refused");
+    expect(reply.error?.message).toMatch(/not a file in the vault/i);
+  });
+});
