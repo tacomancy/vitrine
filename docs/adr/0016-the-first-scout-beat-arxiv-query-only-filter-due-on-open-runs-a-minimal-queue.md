@@ -46,3 +46,23 @@ Beat 6 of the phase-1 map (#131) ships one Structured source and enough of the S
 - **−** Skim-prior Scouts produce stubs only by hand promotion in this beat; the Skim feed is honest but quiet until ranking promotes for it.
 - **−** `CONTEXT.md` § Coverage widens by one edge kind (decision 9), which the Question Map beat must count.
 - The beat's spec carries: the form and *try*, the scheduler and shared client, the stack and feed, the four keys and reject-this-run, hand promotion, the stub write, the two Loose Ends rows, `scoutFinished`, and the health derivation. Its first ticket should be the run → Proposal → stub path with no Queue UI beyond the stack, because that is the tracer bullet.
+
+## Update (2026-09-26, #255)
+
+Decision 6's keyboard triage — *accept, reject, defer, next* — is re-cut as **one grammar shared with the Question Map**, before beat 6 builds either surface. Story DEL-12 asks that every machine proposal in the app offer the same three moves under the same names and the same keys wherever it appears, with whatever extras a surface's context earns added on top; DEL-11 asks the same of the Map's inferred links. The Queue is specced in beat 6 and the Map in beat 8, which is how one function becomes two habits — and decision 6 puts its own list out of reach of beat 6's spec grill, so the change is made here, on its own, rather than inside that grill.
+
+**The three moves, wherever a machine proposes something:**
+
+| Move | Key | What it does |
+| --- | --- | --- |
+| accept | `A` | The only move that writes to the vault — the invariant in one row. In the Queue it writes the stub (decision 9); on the Map it writes the explicit edge. |
+| open | `O` | Look at the thing itself — the paper's page, or the source and the question the Map is pairing — and come back undecided. Records nothing. New to both surfaces. |
+| pass | `P` | Move on without deciding. Records nothing, and the proposal comes back. This is decision 6's *next*, renamed and re-keyed; decision 8's "not a triage event" is unchanged, so no `triage` row is written. |
+
+**The extras each surface earns.** The Scout Queue keeps **reject** `R` — permanent and silent, the row that feeds accept rate — and **defer** `D`, which returns the Proposal with that Scout's next completed run; `M` for *mute…* is unaffected when it lands. The Question Map earns **reject** `R` as well: the brief's inferred layer says declining "suppresses that pairing", and `.vitrine/dismissals.json` already holds the slot for a declined inferred link. So *defer* is the only move that belongs to one surface alone.
+
+**What this moves in the prototypes.** Prototype 06's `J` *next* becomes `P` *pass* — the same act under the name the grammar uses. Prototype 11's *skip* is not that act: its own copy says "skipping is remembered so the same pair is not offered again", which is a recorded decline, so it becomes *reject* `R`, and the Map gains a real *pass* that leaves the candidate for later. A candidate the researcher merely did not get to must not be silenced by not deciding — the same reason decision 8 keeps *next* off the triage log.
+
+Beat 6 (#173) ships the grammar for the Queue and beat 8 (#175) inherits it for the inferred-link review rather than inventing one. Neither spec grill reopens the names or the keys, on the terms decision 6 set for its own list.
+
+**Undo is not settled here.** Prototype 06 offers `⌘Z` after a reject or a defer, prototype 11 after a link or a skip, and story REP-2 asks for one after every Loose Ends resolution (#251, beat 2 #169) — three surfaces drawing the same affordance that no decision has yet named. Whether the grammar carries an undo, and for which moves, belongs to the beat that first ships one.
