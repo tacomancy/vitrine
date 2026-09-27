@@ -10,7 +10,8 @@ import type { ListedQuestion } from "core";
  *
  * A number in code, as the stalled Research Question's threshold is
  * (`loose-ends.ts`): a setting would make the user responsible for a
- * judgement the app is making.
+ * judgement the app is making. ADR 0024 records why ninety, why wall-clock
+ * rather than `from`, and why this is derived here and not in the core.
  */
 export const SITTING_GAP_MINUTES = 90;
 
