@@ -136,7 +136,7 @@ export type QuestionFile = {
  * failure is the case where the cause genuinely helps, so it keeps one.
  */
 const whyUnreadable = (cause: unknown): string =>
-  (cause as NodeJS.ErrnoException).code === "ENOENT"
+  cause instanceof Error && (cause as NodeJS.ErrnoException).code === "ENOENT"
     ? "the file is no longer there"
     : errorMessageWithoutPath(cause);
 

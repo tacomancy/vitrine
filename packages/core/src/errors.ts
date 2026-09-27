@@ -20,11 +20,16 @@ export const errorMessage = (error: unknown): string =>
  * is the only place that knows what its own absence means.
  */
 export const errorMessageWithoutPath = (error: unknown): string => {
-  const { syscall, path } = error as NodeJS.ErrnoException;
+  // `?? {}` for the same reason `errorMessage` takes an `unknown`: a `catch`
+  // binds whatever was thrown, and a helper beside it must not be the one
+  // that throws.
+  const { syscall, path } = (error ?? {}) as NodeJS.ErrnoException;
   const message = errorMessage(error);
   if (path === undefined) return message;
-  const appended = `, ${syscall} '${path}'`;
-  const at = message.lastIndexOf(appended);
+  // Cut *at* what Node appended rather than removing it, so a call that
+  // names two paths (`rename 'a' -> 'b'`, which the write protocol makes)
+  // loses the second one with the first.
+  const at = message.lastIndexOf(`, ${syscall} '${path}'`);
   return at === -1 ? message : message.slice(0, at);
 };
 
