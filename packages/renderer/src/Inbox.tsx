@@ -463,7 +463,17 @@ export function Inbox({
           />
         )}
       </section>
-      <Detail row={selectedRow} />
+      <Detail
+        row={selectedRow}
+        questions={questions}
+        // One of the sitting's others becomes the selection, and the list
+        // takes the keyboard back — the button that was clicked is about to
+        // unmount, so j/k would otherwise have nowhere to land.
+        onSelect={(path) => {
+          setSelected(path);
+          listRef.current?.focus();
+        }}
+      />
     </>
   );
 }
