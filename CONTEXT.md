@@ -94,6 +94,10 @@ _Avoid_: Highlight (one kind of annotation, not the general term), comment
 **Annotation identity**:
 The app's stable ID for an Annotation, kept in a sidecar index with its page, geometry, and quoted text. PDF objects have no reliable ID across editors, so identity is re-matched on every Ingest: quoted text first, geometry second.
 
+**Annotation block**:
+One Annotation's list item in a Source's `## Annotations` section — the page, the quoted text, and a `^h<n>` that carries the Annotation identity into the vault so `[[citekey#^h12]]` resolves in Obsidian. The note, when there is one, is a second paragraph inside the item: a note on the line directly below would continue the item's paragraph and leave the `^h<n>` naming nothing (#164, ADR 0006).
+_Avoid_: Annotation line (it is rarely one line), highlight block
+
 **Ingest**:
 The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed together is one Ingest run.
 _Avoid_: Import, sync (sync moves files; ingest reads them)
@@ -329,7 +333,7 @@ The user's own key for a Provider, kept in the login Keychain by the app and rea
 _Avoid_: API key (in copy — say key), token (that is the session token), secret
 
 **Blocked on credentials** (of a Scout):
-A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key.
+A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key. Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
 _Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:
@@ -383,10 +387,14 @@ _Avoid_: Onboarding, welcome screen, empty state
 ### Surfaces and dashboards
 
 **Surface**:
-One of the eight screens: Home, Question Inbox, Reader, Research Question view, Hypothesis view, Experiment view, Scout Queue, Vault. Ingest review is a panel, not a surface.
+One of the eight screens the brief names: Home, Question Inbox, Reader, Research Question view, Hypothesis view, Experiment view, Scout Queue, Vault. All eight are about the work. Ingest review is a panel, not a Surface; First run is a state, not a Surface; Settings is a ninth screen and not one of the eight (ADR 0025).
 
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
+
+**Settings**:
+The screen that says how this vault is arranged: where the vault is, where the PDFs are, and what the app talks to. Every line on it is a fact with a referent outside the app, checkable against the world; it holds no preference — no value whose only effect is on the app's own behaviour — so there are no themes, no sync toggle, no account, and no home for a default that belongs to the object it governs. Not one of the eight Surfaces and not a Dashboard: those are the work and readings of it, this is the arrangement they sit in. Has an Address (`#/settings`) and opens with ⌘,; unreachable from First run (ADR 0025).
+_Avoid_: Preferences, options, configuration, admin
 
 **Address**:
 Where the window is, as a URL hash the router parses — `#/inbox`, `#/questions/<path>`, `#/loose-ends`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021).
