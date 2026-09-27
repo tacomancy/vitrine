@@ -33,3 +33,9 @@ The Global command is not the Picker: the Picker is a list of vault files that o
 - **−** Until #246 lands, the Sidebar is the only navigation, so every live surface still needs a live entry, and an object reached only by drilling down (a Research Question from the Inbox today) is a click chain, not one command. This ADR states the target; it does not deliver it.
 - **−** CAP-9's reach is only partly met, and will stay so for a while. An object with no page — a Source before the Reader beat, a Note before the Vault editor — has no Address, so the command cannot reach it. The reach grows with the surfaces, one route at a time.
 - **−** Capture has its own key today (`⌘'`, the capture line). CAP-9 puts capture inside the command too; which key survives, or whether both do, is #246's to settle.
+
+## Update (2026-09-26, #246)
+
+Decision 2 and the last two consequences point at "#246's slot and prototype". The slot exists now: **beat 2b** ([#262](https://github.com/tacomancy/vitrine/issues/262)), in the chain immediately after beat 2, so beat 3 waits on it and every beat from 3 on is built with the command already there rather than retrofitted to it. Read every "#246's to settle" above as that beat's — what the command reaches beyond objects with an Address, how it matches, what it looks like, whether capture moves into it, and which of `⌘'` and ⌘K survives are unchanged and still open.
+
+Its first step is the prototype this ADR was written without. None of the frozen eleven draws ⌘K — `00-shape` only assumes it — so it is drawn in Claude Design and pinned to `docs/reference/prototypes/` before the spec grill, and the prompt lives on the beat issue because `docs/reference/design-prompts.md` is frozen at eleven.

@@ -1,6 +1,7 @@
 import { VaultError } from "./errors.js";
 import { resolvesTo, wikilinkTo } from "./link-text.js";
 import { readQuestionForWrite, type QuestionStatus } from "./question-kind.js";
+import { serialised } from "./serialise.js";
 import { locate, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -37,12 +38,10 @@ const ANY_STATUS: readonly QuestionStatus[] = [
 // A link reads `related` and writes the whole list back, so two that both
 // read before either wrote would each plan against a `related` that no
 // longer exists by the time the second lands, and the first link would be
-// gone. The protocol's hash check cannot catch it: re-apply faithfully
-// applies operations that were correct when they were computed. The queue
-// lives here rather than in the caller so that reading and writing cannot
-// be pulled apart by a caller that forgets to hold it — answer, drop and
-// reopen need none, because each only sets keys or appends a line.
-let previous: Promise<unknown> = Promise.resolve();
+// gone (`serialise.ts` for why a hash check does not catch this). Answer,
+// drop and reopen need no queue of their own, because each only sets keys
+// or appends a line.
+const serially = serialised();
 
 export function linkQuestion(
   vaultPath: string,
@@ -50,11 +49,7 @@ export function linkQuestion(
   questionPath: string,
   targetPath: string
 ): Promise<Linked> {
-  const run = () => link(vaultPath, index, questionPath, targetPath);
-  // A link that threw leaves the queue usable for the next one.
-  const queued = previous.then(run, run);
-  previous = queued;
-  return queued;
+  return serially(() => link(vaultPath, index, questionPath, targetPath));
 }
 
 /** One link, whole: the read it plans from and the write it plans, inside the queue above. */

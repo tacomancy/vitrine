@@ -389,7 +389,7 @@ Where the window is, as a URL hash the router parses — `#/inbox`, `#/questions
 _Avoid_: Route (the router's type, not the word for users), URL, link (that is a wikilink)
 
 **Global command**:
-⌘K: the window-wide command that jumps to any object with an Address from any surface, and captures (story CAP-9). Its design is #246's (ADR 0021).
+⌘K: the window-wide command that jumps to any object with an Address from any surface, and captures (story CAP-9). ADR 0021 decided only that it is how anything is reached; its design is beat 2b's (#262), whose first step is the prototype nothing in the frozen tier draws.
 _Avoid_: Palette, command palette, search, Picker (the Picker is scoped to one slot and goes nowhere)
 
 **Sidebar**:
