@@ -1,6 +1,6 @@
-import { readFile, rename } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
 import { closeCores, core, vaultWith, type CoreOptions } from "./test-core.js";
 
@@ -550,6 +550,122 @@ describe("looseEnds.dismiss — a dismissal keyed by a path follows the file", (
       "notes/Reading list.md": {
         "ambiguous-link": at(DAY).toISOString(),
       },
+    });
+    events.close();
+  });
+
+  it("keeps the row silenced across a vault reopen", async () => {
+    const { vault, c } = await openedOn({ ...TWINS, ...linker() }, [DAY], {
+      settleMs: 40,
+    });
+    await c.mutate("looseEnds.dismiss", {
+      subject: "notes/Linker.md",
+      kind: "ambiguous-link",
+    });
+
+    const second = await core({ now: () => at(DAY) });
+    await second.mutate("vault.open", { path: vault });
+    await second.indexed();
+
+    expect(titles(await rows(second))).toEqual([]);
+  });
+
+  it("re-keys before the change reaches any listener, so a dashboard re-read on the event never sees the row back", async () => {
+    // The order the wrap in `vault.ts` exists for. A listener woken by
+    // `vaultChanged` re-reads Loose Ends at once; if the re-key ran after
+    // it, the row would be back for exactly as long as the reader looked.
+    // The listener has to be handed to the core that it reads back from,
+    // so what it reads is passed in after the core exists.
+    const listener: { read?: () => Promise<LooseEnds> } = {};
+    let onTheEvent: string[] | undefined;
+    const { vault, c } = await openedOn({ ...TWINS, ...linker() }, [DAY], {
+      settleMs: 40,
+      onVaultChanged: async (event) => {
+        if (event.renamed.length === 0 || listener.read === undefined) return;
+        onTheEvent ??= titles(await listener.read());
+      },
+    });
+    listener.read = () => rows(c);
+    await c.mutate("looseEnds.dismiss", {
+      subject: "notes/Linker.md",
+      kind: "ambiguous-link",
+    });
+
+    await rename(
+      join(vault, "notes/Linker.md"),
+      join(vault, "notes/Reading list.md")
+    );
+    await vi.waitUntil(() => onTheEvent !== undefined, { timeout: 5000 });
+
+    expect(onTheEvent).toEqual([]);
+  });
+
+  it("does not rewrite a dismissals.json it cannot read: the other dismissals in it are what would be lost", async () => {
+    const { vault, c } = await openedOn(
+      {
+        ...TWINS,
+        ...linker(),
+        ".vitrine/dismissals.json": "{ not json",
+      },
+      [DAY],
+      { settleMs: 40 }
+    );
+    const events = await c.events();
+
+    await rename(
+      join(vault, "notes/Linker.md"),
+      join(vault, "notes/Reading list.md")
+    );
+    await events.next("vaultChanged");
+
+    expect(
+      await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+    ).toBe("{ not json");
+    // The row is back under the new name — beside the line saying why
+    // nothing is silenced, never silently.
+    const ends = await rows(c);
+    expect(titles(ends)).toEqual(["Reading list"]);
+    expect(ends.problems).toEqual([
+      expect.stringMatching(/dismissals\.json/) as unknown as string,
+    ]);
+    events.close();
+  });
+
+  it("carries each file's dismissals across a swap rather than piling both onto one name", async () => {
+    // Two files that traded contents in one batch are two pairings at once
+    // (§ Index, Refresh). Moving the keys one pairing at a time would walk
+    // the first file's dismissals into the second's new home.
+    const { vault, c } = await openedOn(
+      {
+        ...TWINS,
+        "notes/One.md": "One: [[Klinzing 2019]].\n",
+        "notes/Two.md": "Two: [[Klinzing 2019]].\n",
+      },
+      [DAY],
+      { settleMs: 40 }
+    );
+    await c.mutate("looseEnds.dismiss", {
+      subject: "notes/One.md",
+      kind: "ambiguous-link",
+    });
+    await c.mutate("looseEnds.dismiss", {
+      subject: "notes/Two.md",
+      kind: "orphan-note",
+    });
+    const events = await c.events();
+
+    await writeFile(join(vault, "notes/One.md"), "Two: [[Klinzing 2019]].\n");
+    await writeFile(join(vault, "notes/Two.md"), "One: [[Klinzing 2019]].\n");
+    const event = await events.next("vaultChanged");
+    expect(event.renamed).toHaveLength(2);
+
+    expect(
+      JSON.parse(
+        await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+      )
+    ).toEqual({
+      "notes/One.md": { "orphan-note": at(DAY).toISOString() },
+      "notes/Two.md": { "ambiguous-link": at(DAY).toISOString() },
     });
     events.close();
   });

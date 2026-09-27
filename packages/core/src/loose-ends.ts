@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
 import { writtenDay, type OpenDays } from "./open-days.js";
@@ -128,10 +129,6 @@ export async function looseEnds(
   };
 }
 
-/** A file's name as a wikilink would write it: the basename without `.md`. */
-const nameOf = (path: string) =>
-  path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "");
-
 function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {
   const byPath = new Map<string, AmbiguousLinks>();
   for (const row of index.select<{
@@ -157,26 +154,26 @@ function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {
       blockId: row.block,
     });
     if (resolution !== "ambiguous") continue;
-    const existing = byPath.get(row.path);
-    const links = existing?.links ?? [];
+    let file = byPath.get(row.path);
+    if (file === undefined) {
+      file = {
+        kind: "ambiguous-link",
+        subject: row.id ?? row.path,
+        path: row.path,
+        // The name a wikilink would write, so the row reads as the file it
+        // is about; `path` beneath it says which file that is.
+        title: basename(row.path, ".md"),
+        linkingKind: row.kind,
+        links: [],
+      };
+      byPath.set(row.path, file);
+    }
     // One name written twice in a file is one choice to make, and the
     // match is case-insensitive, so `[[Klinzing]]` and `[[klinzing]]` are
     // the same choice too.
-    if (
-      links.some((l) => l.target.toLowerCase() === row.target.toLowerCase())
-    ) {
-      continue;
-    }
-    links.push({ target: row.target, candidates });
-    if (existing !== undefined) continue;
-    byPath.set(row.path, {
-      kind: "ambiguous-link",
-      subject: row.id ?? row.path,
-      path: row.path,
-      title: nameOf(row.path),
-      linkingKind: row.kind,
-      links,
-    });
+    const written = row.target.toLowerCase();
+    if (file.links.some((l) => l.target.toLowerCase() === written)) continue;
+    file.links.push({ target: row.target, candidates });
   }
   return [...byPath.values()];
 }

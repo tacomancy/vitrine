@@ -6,6 +6,7 @@ import type {
   StalledResearchQuestion,
 } from "core";
 import { formatAge } from "./age";
+import type { ReactNode } from "react";
 import { KIND, OPENABLE } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
@@ -151,6 +152,49 @@ function Row(props: {
   }
 }
 
+/**
+ * The chrome every row wears (prompt 9's punch list): what kind of thing
+ * this is, the object it names, why it is here, and the ways out on the
+ * right. Each row kind fills it and adds whatever only it has.
+ *
+ * `href` is what makes the title a link — story 52's "every row is a link
+ * to the object it names" — and its absence is what an object with no
+ * surface yet looks like: named, never a title that feigns a click.
+ */
+function RowShell({
+  meta,
+  title,
+  href,
+  why,
+  actions,
+  children,
+}: {
+  meta: ReactNode;
+  title: string;
+  href?: string;
+  why: ReactNode;
+  actions: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <li className={styles.row}>
+      <div className={styles.body}>
+        <p className={styles.meta}>{meta}</p>
+        {href === undefined ? (
+          <span className={styles.rowTitle}>{title}</span>
+        ) : (
+          <a className={styles.rowTitle} href={href}>
+            {title}
+          </a>
+        )}
+        <p className={styles.why}>{why}</p>
+        {children}
+      </div>
+      <div className={styles.actions}>{actions}</div>
+    </li>
+  );
+}
+
 /** *Promoted, then quiet*: the page, how long it has been waiting, and the two ways out. */
 function Stalled({
   row,
@@ -164,30 +208,33 @@ function Stalled({
   onDismiss: () => void;
 }) {
   return (
-    <li className={styles.row}>
-      <div className={styles.body}>
-        <p className={styles.meta}>
-          research question · promoted {formatAge(row.since, now)}
-        </p>
-        <a
-          className={styles.rowTitle}
-          href={hashOf({ surface: "questions", path: row.path })}
-        >
-          {row.title}
-        </a>
-        <p className={styles.why}>
-          No source on either side since it was promoted.
-        </p>
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.primary} onClick={onAttach}>
-          attach a source
-        </button>
-        <button type="button" className={styles.action} onClick={onDismiss}>
-          mark deliberate
-        </button>
-      </div>
-    </li>
+    <RowShell
+      meta={`research question · promoted ${formatAge(row.since, now)}`}
+      title={row.title}
+      href={hashOf({ surface: "questions", path: row.path })}
+      why="No source on either side since it was promoted."
+      actions={
+        <>
+          <button type="button" className={styles.primary} onClick={onAttach}>
+            attach a source
+          </button>
+          <Deliberate onDismiss={onDismiss} />
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * The one resolution every row carries (brief § Loose Ends): a list that
+ * cannot be told "this one is fine" fills with noise and stops being
+ * opened. Shared so no later row kind can ship without it.
+ */
+function Deliberate({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <button type="button" className={styles.action} onClick={onDismiss}>
+      mark deliberate
+    </button>
   );
 }
 
@@ -215,51 +262,48 @@ function Ambiguous({
 }) {
   const address = OPENABLE.has(row.linkingKind ?? "")
     ? hashOf({ surface: "questions", path: row.path })
-    : null;
+    : undefined;
+  // A `kind:` the app does not know is stored verbatim (§ Index, Reads), so
+  // it is shown verbatim rather than passed off as a Note; a file with none
+  // is a Note, which is what having no `kind:` means.
+  const kind = row.linkingKind;
+  const label =
+    kind === null ? KIND["note"]?.label : (KIND[kind]?.label ?? kind);
   return (
-    <li className={styles.row}>
-      <div className={styles.body}>
-        {/* The file is named whether or not it can be opened: a row that
-            could only say *somewhere in your vault* would be no help. */}
-        <p className={styles.meta}>
-          {(KIND[row.linkingKind ?? "note"] ?? KIND["note"])?.label} ·{" "}
-          {row.path}
-        </p>
-        {address === null ? (
-          <span className={styles.rowTitle}>{row.title}</span>
-        ) : (
-          <a className={styles.rowTitle} href={address}>
-            {row.title}
-          </a>
-        )}
-        <p className={styles.why}>
-          {row.links.length === 1
-            ? "A name here matches more than one file, so the link lands nowhere."
-            : `${row.links.length} names here each match more than one file, so the links land nowhere.`}
-        </p>
-        <ul className={styles.matches}>
-          {row.links.map((link) => (
-            <li key={link.target} className={styles.match}>
-              <span className={styles.target}>[[{link.target}]]</span>
-              {link.candidates.map((candidate) => (
-                <span key={candidate} className={styles.candidate}>
-                  {candidate}
-                </span>
-              ))}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className={styles.actions}>
-        {address !== null && (
-          <a className={styles.primary} href={address}>
-            open
-          </a>
-        )}
-        <button type="button" className={styles.action} onClick={onDismiss}>
-          mark deliberate
-        </button>
-      </div>
-    </li>
+    <RowShell
+      // The file is named whether or not it can be opened: a row that could
+      // only say *somewhere in your vault* would be no help.
+      meta={`${label} · ${row.path}`}
+      title={row.title}
+      {...(address === undefined ? {} : { href: address })}
+      why={
+        row.links.length === 1
+          ? "A name here matches more than one file, so the link lands nowhere."
+          : `${row.links.length} names here each match more than one file, so the links land nowhere.`
+      }
+      actions={
+        <>
+          {address !== undefined && (
+            <a className={styles.primary} href={address}>
+              open
+            </a>
+          )}
+          <Deliberate onDismiss={onDismiss} />
+        </>
+      }
+    >
+      <ul className={styles.matches}>
+        {row.links.map((link) => (
+          <li key={link.target} className={styles.match}>
+            <span className={styles.target}>[[{link.target}]]</span>
+            {link.candidates.map((candidate) => (
+              <span key={candidate} className={styles.candidate}>
+                {candidate}
+              </span>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </RowShell>
   );
 }

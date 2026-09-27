@@ -310,6 +310,15 @@ describe("the ambiguous link row", () => {
     ).toBe(hash);
   });
 
+  it("shows a kind: the app does not know verbatim, rather than passing it off as a note", async () => {
+    open({
+      "looseEnds.rows": ambiguous({ linkingKind: "lab-notebook" }),
+    });
+    const view = await dashboard();
+    await within(view).findByText("Reading list");
+    expect(view.textContent).toContain("lab-notebook · notes/Reading list.md");
+  });
+
   it("calls dismiss with the linking file and this row kind, and the row leaves", async () => {
     const dismiss = vi.fn<(input: unknown) => void>();
     let rows: LooseEnds = ambiguous();

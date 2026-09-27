@@ -155,6 +155,10 @@ async function moveKeys(
   // and writing over it would lose them. Nothing moves, and the row comes
   // back under the new name — visibly, beside the problem line the
   // dashboard already carries on every read, rather than silently.
+  //
+  // Today an unreadable file also reads as *no* dismissals, so the filter
+  // below would find nothing to move anyway; the guard is what keeps the
+  // rule true if the reader ever learns to return what it could salvage.
   if (problem !== null) return;
   const moving = pairs.filter(({ from }) => dismissals[from] !== undefined);
   if (moving.length === 0) return;

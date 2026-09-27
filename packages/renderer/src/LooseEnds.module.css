@@ -142,8 +142,11 @@
   text-decoration: none;
 }
 
-.rowTitle:hover,
-.rowTitle:focus-visible {
+/* Only a title that is a link underlines: a row whose object has no surface
+   yet renders a span, and a span that lit up under the pointer would offer
+   a click there is nothing behind. */
+a.rowTitle:hover,
+a.rowTitle:focus-visible {
   text-decoration: underline;
 }
 
