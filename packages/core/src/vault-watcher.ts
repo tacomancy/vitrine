@@ -1,7 +1,7 @@
 import { watch as fsWatch, type FSWatcher } from "node:fs";
 import { realpath, stat, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { errorMessage } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 
 /**
  * One recursive `fs.watch` over the vault root — libuv's FSEvents backend,
@@ -205,7 +205,7 @@ export async function watchVault(
       { recursive: true },
       listener(folder, rebase)
     );
-    watcher.on("error", (error) => fail(errorMessage(error)));
+    watcher.on("error", (error) => fail(errorMessageWithoutPath(error)));
     watchers.push(watcher);
   };
   const close = () => {
@@ -256,7 +256,7 @@ export async function watchVault(
           await writeFile(probe, String(Date.now()));
         } catch (error) {
           throw new Error(
-            `the watch probe could not be written: ${errorMessage(error)}`
+            `the watch probe could not be written: ${errorMessageWithoutPath(error)}`
           );
         }
         await new Promise<void>((resolve) => {

@@ -139,6 +139,12 @@ describe("the remembered vault", () => {
 
     const reply = await c.mutate<Vault>("vault.open", { path: folder });
     expect(reply.error).toBeDefined();
+    // It used to reach the window as Node stated it, absolute path and all,
+    // with nothing saying what the app had been doing (#288).
+    expect(reply.error?.message).toBe(
+      "Couldn't remember the vault: EEXIST: file already exists"
+    );
+    expect(reply.error?.message).not.toContain(blocked);
     const current = await c.query<Vault | null>("vault.current");
     expect(current.result?.data).toBeNull();
   });

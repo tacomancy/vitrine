@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { errorMessage } from "./errors.js";
+import { errorMessageWithoutPath } from "./errors.js";
 
 /**
  * `.vitrine/queue.sqlite` (ADR 0006 decision 10; `docs/architecture.md`
@@ -67,14 +67,16 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
   const file = join(folder, "queue.sqlite");
   await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
     throw new QueueOpenError(
-      `Couldn't create ${folder}: ${errorMessage(cause)}`
+      `Couldn't create ${folder}: ${errorMessageWithoutPath(cause)}`
     );
   });
   let db: DatabaseSync;
   try {
     db = new DatabaseSync(file);
   } catch (cause) {
-    throw new QueueOpenError(`Couldn't open ${file}: ${errorMessage(cause)}`);
+    throw new QueueOpenError(
+      `Couldn't open ${file}: ${errorMessageWithoutPath(cause)}`
+    );
   }
   try {
     db.exec("PRAGMA journal_mode = WAL");
@@ -107,7 +109,9 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
     }
   } catch (cause) {
     db.close();
-    throw new QueueOpenError(`Couldn't open ${file}: ${errorMessage(cause)}`);
+    throw new QueueOpenError(
+      `Couldn't open ${file}: ${errorMessageWithoutPath(cause)}`
+    );
   }
   return db;
 }

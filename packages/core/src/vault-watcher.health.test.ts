@@ -226,6 +226,31 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     expect(await questions()).toEqual(["Meanwhile"]);
   });
 
+  // #288. *Not watching — <reason>* is a line in the window, so the reason
+  // carries the cause and never the machine's filesystem layout. The other
+  // tests here inject a message; this one lets a real `fs.watch` fail, which
+  // is the only way the appended path ever appears.
+  it("says why it is not watching without naming an absolute path", async () => {
+    const gone = join(await tmp("Tong's"), "not here");
+    const watch: typeof fsWatch = ((
+      _folder: string,
+      options: { recursive: boolean },
+      listener: WatchListener<string>
+    ) => fsWatch(gone, options, listener)) as typeof fsWatch;
+    const vault = await tmp("unwatched");
+    await mkdir(join(vault, "questions"));
+    const c = await core({ settleMs: SETTLE_MS, watch });
+
+    const reply = await c.mutate<Vault>("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+
+    const seen = (await c.query<VaultStatus>("vault.status")).result!.data;
+    expect(seen.watching).toEqual({
+      ok: false,
+      reason: "ENOENT: no such file or directory",
+    });
+  });
+
   it("a watch that cannot be opened at all leaves the vault open, not watching, and swept", async () => {
     const fs = injectable();
     fs.refuseNext("ENOSPC: no space left on device");

@@ -140,6 +140,39 @@ describe("questions.list", () => {
     for (const u of listing.unreadable) expect(u.reason).not.toBe("");
   });
 
+  // #288. The reason sits beside the row's own path in the Inbox's footer,
+  // so an errno would repeat the path and then add the machine's filesystem
+  // layout — the same argument as #277 and #285, on the two faults the walk
+  // itself reports: a folder it cannot list, and a file it cannot open.
+  it("names the cause of a file and a folder it cannot read, with no absolute path in either reason", async () => {
+    // The apostrophe is what the strip has to survive; the real vault is
+    // `Wan Shi Tong's Library`.
+    const vault = await tmp("Tong's");
+    const locked = join(vault, "Locked.md");
+    await writeFile(locked, questionFile("Locked", "2026-01-01T00:00:00Z"));
+    await chmod(locked, 0o000);
+    restore.push(() => chmod(locked, 0o644));
+    const shut = join(vault, "shut");
+    await mkdir(shut);
+    await writeFile(
+      join(shut, "Inside.md"),
+      questionFile("Inside", "2026-01-02T00:00:00Z")
+    );
+    await chmod(shut, 0o000);
+    restore.push(() => chmod(shut, 0o755));
+
+    const c = await opened(vault);
+    const listing = await c.list();
+
+    expect(listing.unreadable.map((u) => u.reason).sort()).toEqual([
+      "EACCES: permission denied",
+      "EACCES: permission denied",
+    ]);
+    // The row's own path stays absolute, as the Inbox has always shown it
+    // (`list.ts`); it is the reason that must not say it a second time.
+    for (const u of listing.unreadable) expect(u.path).toContain(vault);
+  });
+
   it("skips every dot-entry and never follows a symlink", async () => {
     const vault = await tmp("dots");
     const outside = await tmp("outside");

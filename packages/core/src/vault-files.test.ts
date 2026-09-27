@@ -264,3 +264,32 @@ describe("readOutline: shape problems", () => {
     expect(readable(await readOutline(vault, "n.md")).shape).toEqual([]);
   });
 });
+
+// #288. `readOutline` is the seam every reader goes through, and its reason
+// is printed wherever the caller prints one, so it carries the cause and
+// never the machine's filesystem layout — the argument of #277 and #285.
+describe("readOutline: why a file could not be read", () => {
+  it("names the cause with no absolute path, apostrophe in the vault or not", async () => {
+    const vault = await vaultWith({ "Does Tong's index hold.md": "x\n" });
+
+    const gone = await readOutline(vault, "nowhere.md");
+    expect(gone).toEqual({
+      readable: false,
+      path: "nowhere.md",
+      reason: "ENOENT: no such file or directory",
+    });
+
+    // A path *through* a file rather than a folder is ENOTDIR, which Node
+    // states with the absolute path appended — and the apostrophe in this
+    // one is what a strip that matched back to a quote would choke on.
+    const through = await readOutline(
+      vault,
+      "Does Tong's index hold.md/inner.md"
+    );
+    expect(through).toEqual({
+      readable: false,
+      path: "Does Tong's index hold.md/inner.md",
+      reason: "ENOTDIR: not a directory",
+    });
+  });
+});

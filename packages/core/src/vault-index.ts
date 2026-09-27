@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { errorMessage } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import type { PositionChange } from "./pending-revisions.js";
 import { readQuestion } from "./question-kind.js";
 import {
@@ -349,7 +349,10 @@ async function walk(
     try {
       listed = await readdir(dir, { withFileTypes: true });
     } catch (error) {
-      unlistable.push({ path: relative, reason: errorMessage(error) });
+      unlistable.push({
+        path: relative,
+        reason: errorMessageWithoutPath(error),
+      });
       return;
     }
     for (const entry of listed) {
@@ -362,7 +365,7 @@ async function walk(
         try {
           s = await stat(join(root, path));
         } catch (error) {
-          unlistable.push({ path, reason: errorMessage(error) });
+          unlistable.push({ path, reason: errorMessageWithoutPath(error) });
           continue;
         }
         entries.set(path, entryOf(path, s));
@@ -386,7 +389,9 @@ export async function openIndex(
 ): Promise<VaultIndex> {
   const folder = join(vaultPath, ".vitrine");
   const failing = (what: string) => (cause: unknown) => {
-    throw new IndexOpenError(`Couldn't ${what}: ${errorMessage(cause)}`);
+    throw new IndexOpenError(
+      `Couldn't ${what}: ${errorMessageWithoutPath(cause)}`
+    );
   };
   await mkdir(folder, { recursive: true }).catch(failing(`create ${folder}`));
   // The one disposable file, ignored in a vault under git; written once, so a
@@ -872,7 +877,7 @@ function createIndex(
             error: null,
           };
         } catch (error) {
-          return { ...unread, error: errorMessage(error) };
+          return { ...unread, error: errorMessageWithoutPath(error) };
         }
       })
     );
@@ -1177,7 +1182,7 @@ function createIndex(
           await runSweep();
           sweep = "done";
         } catch (error) {
-          sweep = { failed: errorMessage(error) };
+          sweep = { failed: errorMessageWithoutPath(error) };
         } finally {
           sweepsQueued--;
         }
