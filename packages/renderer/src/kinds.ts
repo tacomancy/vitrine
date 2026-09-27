@@ -1,4 +1,5 @@
 import type { CandidateKind } from "core";
+import { hashOf } from "./router";
 
 /**
  * A Kind's glyph and its name, the vocabulary `docs/architecture.md`
@@ -17,14 +18,25 @@ export const KIND: Record<string, { glyph: string; label: string }> = {
 };
 
 /**
- * The Kinds with a surface to open: `#/research-question/<path>` is the
- * Research Question view, and it is the only Address a file has. A Note, a
- * Source, and a Question — which has a row in the Inbox but no Address of its
- * own until #300 — are named rather than linked until their surfaces exist
- * (spec #206 story 56; the Vault editor is beat 11). One set, so every surface
- * says the same thing about the same file and one edit wakes them all.
+ * The Address of a file of this Kind, or null for a Kind with nowhere to
+ * open yet — a Note, a Source, a stub, and a `kind:` the app does not know,
+ * each named rather than linked until its surface exists (spec #206 story
+ * 56; the Vault editor is beat 11). One function, so every surface says the
+ * same thing about the same file and one edit wakes them all.
  */
-export const OPENABLE = new Set(["research-question"]);
+export function addressOf(
+  kind: string | null | undefined,
+  path: string
+): string | null {
+  switch (kind) {
+    case "question":
+      return hashOf({ surface: "inbox", question: path });
+    case "research-question":
+      return hashOf({ surface: "research-question", path });
+    default:
+      return null;
+  }
+}
 
 /**
  * The Kinds Link offers (§ Research Question view and triage, One picker).

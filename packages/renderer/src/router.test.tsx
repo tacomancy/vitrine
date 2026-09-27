@@ -1,6 +1,12 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { empty, renderApp, vault } from "./fake-core";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { empty, question as q, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
 // Each test starts where a fresh window does: no hash at all.
@@ -136,5 +142,148 @@ describe("an Address takes its Kind's name", () => {
     fireEvent.click(screen.getByRole("link", { name: "Question Inbox" }));
     const back = await screen.findByRole("region", { name: "Question Inbox" });
     expect(within(back).queryByText(UNRESOLVED)).toBeNull();
+  });
+});
+
+/**
+ * A Question — the app's primary object — has an Address of its own (#300):
+ * `#/question/<path>`, which opens the Inbox on that row. The Address is
+ * where to *arrive*, not a cursor (ADR 0027 decision 7): nothing the user
+ * does afterwards writes back to it.
+ */
+describe("a Question has an Address", () => {
+  const asked = q(
+    "Does slow-wave density predict recall gain?",
+    "2026-09-19T08:00:00Z"
+  );
+  const other = q("Is theta during REM detectable?", "2026-07-19T12:00:00Z");
+  const third = q(
+    "Who first reported reward-based triage?",
+    "2025-01-19T12:00:00Z"
+  );
+  const RELATIVE = "questions/Does slow-wave density predict recall gain?.md";
+  const ADDRESS = `#/question/questions/${encodeURIComponent("Does slow-wave density predict recall gain?.md")}`;
+
+  /** The window opened at `ADDRESS`, over a listing the test hands in. */
+  function arrive(listing: Record<string, unknown> = {}) {
+    window.location.hash = ADDRESS;
+    return renderApp({
+      ...answers,
+      "questions.list": () => ({
+        ...empty,
+        questions: [asked, other],
+        ...listing,
+      }),
+    });
+  }
+
+  const list = () => screen.getByRole("listbox", { name: "Questions" });
+  const selection = () =>
+    screen
+      .getAllByRole("option")
+      .map((row) => row.getAttribute("aria-selected"));
+
+  it("opens the Inbox on that row, with the Detail pane on it, and keeps the Address it was asked for", async () => {
+    arrive();
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
+    expect(screen.getByRole("complementary").textContent).toContain(
+      "Does slow-wave density predict recall gain?"
+    );
+    // Copyable: the canonicalising replace leaves an Address that resolved
+    // alone, so reloading on it arrives at the same row.
+    expect(window.location.hash).toBe(ADDRESS);
+  });
+
+  it("lands the keyboard on the list, and moving the selection leaves the Address where it is", async () => {
+    arrive();
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
+    expect(document.activeElement).toBe(list());
+
+    fireEvent.keyDown(list(), { key: "j" });
+    expect(selection()).toEqual(["false", "true"]);
+    // A hash that rewrote on every j would fill the back stack with rows.
+    expect(window.location.hash).toBe(ADDRESS);
+  });
+
+  it("lands an Address whose Question is not in the vault on the Inbox, naming the Address", async () => {
+    arrive({ questions: [other] });
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(
+      await within(inbox).findByText(
+        `${ADDRESS} — not a Question in this vault`
+      )
+    ).toBeDefined();
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("carries the vault's own reason when the file is there but could not be read", async () => {
+    arrive({
+      questions: [other],
+      unreadable: [{ path: asked.path, reason: "frontmatter did not parse" }],
+    });
+    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
+    expect(
+      await within(inbox).findByText(`${ADDRESS} — frontmatter did not parse`)
+    ).toBeDefined();
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("follows a rename under the open Address as any selection is followed, and says nothing", async () => {
+    window.location.hash = ADDRESS;
+    let listing = { ...empty, questions: [asked, other, third] };
+    const { stream } = renderApp({
+      ...answers,
+      "questions.list": () => listing,
+    });
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() =>
+      expect(selection()).toEqual(["true", "false", "false"])
+    );
+
+    // One batch: the arrived-at file renamed, another removed — the removal
+    // is what makes the re-query visible, so the assertion lands on the new
+    // list rather than the old one.
+    const moved = { ...asked, path: `${vault.path}/questions/Renamed.md` };
+    listing = { ...empty, questions: [moved, other] };
+    act(() => {
+      stream.push({
+        type: "vaultChanged",
+        changed: [],
+        removed: ["questions/Who first reported reward-based triage?.md"],
+        renamed: [{ from: RELATIVE, to: "questions/Renamed.md" }],
+      });
+    });
+    await vi.waitFor(() => expect(selection()).toHaveLength(2));
+    expect(selection()).toEqual(["true", "false"]);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(window.location.hash).toBe(ADDRESS);
+  });
+
+  it("clears the selection when the arrived-at Question is removed, without a word about the Address", async () => {
+    window.location.hash = ADDRESS;
+    let listing = { ...empty, questions: [asked, other] };
+    const { stream } = renderApp({
+      ...answers,
+      "questions.list": () => listing,
+    });
+    await screen.findByRole("region", { name: "Question Inbox" });
+    await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
+
+    listing = { ...empty, questions: [other] };
+    act(() => {
+      stream.push({
+        type: "vaultChanged",
+        changed: [],
+        removed: [RELATIVE],
+        renamed: [],
+      });
+    });
+    await vi.waitFor(() => expect(selection()).toEqual(["false"]));
+    // The arrival is spent: a Question that goes away under the reader is
+    // the Inbox's own absence, not an Address that failed to resolve.
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(window.location.hash).toBe(ADDRESS);
   });
 });

@@ -7,7 +7,7 @@ import type {
 } from "core";
 import { formatAge } from "./age";
 import { useState, type ReactNode } from "react";
-import { KIND, OPENABLE } from "./kinds";
+import { addressOf, KIND } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
@@ -365,9 +365,7 @@ function Ambiguous({
   row: AmbiguousLinks;
   resolution: Resolution;
 }) {
-  const address = OPENABLE.has(row.linkingKind ?? "")
-    ? hashOf({ surface: "research-question", path: row.path })
-    : undefined;
+  const address = addressOf(row.linkingKind, row.path) ?? undefined;
   // A `kind:` the app does not know is stored verbatim (§ Index, Reads), so
   // it is shown verbatim rather than passed off as a Note; a file with none
   // is a Note, which is what having no `kind:` means.

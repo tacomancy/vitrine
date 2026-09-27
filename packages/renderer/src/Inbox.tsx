@@ -18,7 +18,7 @@ import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
 import { LINKABLE } from "./kinds";
 import { Picker } from "./Picker";
-import { hashOf, pushRoute, type Unresolved } from "./router";
+import { hashOf, pushRoute, replaceRoute, type Unresolved } from "./router";
 import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -31,22 +31,29 @@ const ORDERS: readonly Order[] = ["newest", "oldest"];
  * its Provenance and age. One number in the chrome — how many exist — and
  * nothing that counts what is owed. `landed` is the Question the capture
  * line just wrote: it becomes the selection and the list takes the keyboard.
- * `unresolved` is the other kind of arrival: an Address that did not resolve,
- * which lands here rather than nowhere (ADR 0027 decision 7).
+ * `arrivedOn` is the vault-relative path of the Question whose Address this
+ * landing came in on (#300), which arrives the same way. `unresolved` is the
+ * third kind of arrival: an Address that did not resolve, which lands here
+ * rather than nowhere (ADR 0027 decision 7).
  */
 export function Inbox({
   landed,
+  arrivedOn,
   unresolved,
   vaultPath,
 }: {
   landed: Question | null;
+  arrivedOn: string | null;
   unresolved: Unresolved | null;
   vaultPath: string;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [order, setOrder] = useState<Order>("newest");
-  const [selected, setSelected] = useState<string | null>(null);
+  // The row a Question's Address names, as the selection spells a path
+  // (absolute, as the listing returns them; the Address is vault-relative).
+  const arrived = arrivedOn === null ? null : `${vaultPath}/${arrivedOn}`;
+  const [selected, setSelected] = useState<string | null>(arrived);
   const listRef = useRef<HTMLUListElement>(null);
   // A triage write the core refused, shown on its row until the selection
   // moves or the next attempt: never silent, never a dialog. Dropped during
@@ -156,6 +163,27 @@ export function Inbox({
   useEffect(() => {
     if (landed !== null) listRef.current?.focus();
   }, [landed]);
+
+  // Whether the Address below found its row, decided once and by the first
+  // listing that answers for it: null until then.
+  const [resolved, setResolved] = useState<boolean | null>(null);
+  // Arriving on a Question's Address selects its row, in the same paint and
+  // for the same reason a capture's landing does — and clears the selection
+  // when the window leaves that Address, so no path lingers without a row.
+  // The Address is where to arrive and nothing more: nothing below writes
+  // back to it, so moving the selection afterwards leaves the hash alone
+  // (ADR 0027 decision 7).
+  const [arrival, setArrival] = useState(arrivedOn);
+  if (arrivedOn !== arrival) {
+    setArrival(arrivedOn);
+    setSelected(arrived);
+    setResolved(null);
+  }
+  // The keyboard lands where the object landed (ADR 0010), so the next j/k
+  // moves from that row without a click first.
+  useEffect(() => {
+    if (arrivedOn !== null) listRef.current?.focus();
+  }, [arrivedOn]);
   const answerRef = useRef<HTMLInputElement>(null);
   const answeringPath = answering?.path ?? null;
   useEffect(() => {
@@ -185,6 +213,36 @@ export function Inbox({
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
   const unreadable = listing.data?.unreadable ?? [];
   const now = new Date();
+
+  // Decided on the *first* answer for this Address, because everything here
+  // turns on arrival versus afterwards: a row that goes away later is the
+  // Inbox's own absence, handled with the rest of the selection, and not an
+  // Address that failed to resolve. A listing that failed says nothing at
+  // all — it is the read that is broken, not the Question, and that failure
+  // is already on screen.
+  if (arrived !== null && resolved === null && listing.data !== undefined) {
+    setResolved(rows.some((row) => row.path === arrived));
+  }
+  // All the Inbox can tell about a path no row bears is that no Question is
+  // filed under it — gone, or never a Question. The one thing it knows more
+  // precisely is a file the vault could not read, which carries its own
+  // reason, as an Address that reached the core does (#299).
+  const whyNotThere =
+    unreadable.find((file) => file.path === arrived)?.reason ??
+    "not a Question in this vault";
+  // An Address that did not resolve says so where the window is, rather than
+  // leaving a row selected that is not there (ADR 0027 decision 7). Replaced,
+  // not pushed: back must not return to an Address that named nothing.
+  useEffect(() => {
+    if (arrivedOn === null || resolved !== false) return;
+    replaceRoute({
+      surface: "inbox",
+      unresolved: {
+        address: hashOf({ surface: "inbox", question: arrivedOn }),
+        reason: whyNotThere,
+      },
+    });
+  }, [arrivedOn, resolved, whyNotThere]);
 
   // The vault's state shares the unreadable count's quiet channel.
   const status = useVaultStatusLines();

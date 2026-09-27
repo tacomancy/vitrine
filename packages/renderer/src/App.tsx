@@ -79,6 +79,7 @@ export function App() {
           {route.surface === "inbox" && (
             <Inbox
               landed={landed}
+              arrivedOn={route.question ?? null}
               unresolved={route.unresolved ?? null}
               vaultPath={vault.data.path}
             />

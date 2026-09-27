@@ -21,7 +21,7 @@ import {
 import { formatAge } from "./age";
 import { AttachSource } from "./AttachSource";
 import { useVaultChanged } from "./events";
-import { OPENABLE } from "./kinds";
+import { addressOf } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
 import styles from "./ResearchQuestion.module.css";
 import { hashOf, replaceRoute } from "./router";
@@ -781,44 +781,45 @@ function Lines({
   if (lines.length === 0) return <Outline>{empty}</Outline>;
   return (
     <ul className={styles.lines}>
-      {lines.map((line, i) => (
-        <li key={i} className={styles.line}>
-          {line.link === null ? (
-            <span className={styles.note}>{line.text}</span>
-          ) : (
-            <>
-              {line.link.resolvedPath !== null &&
-              OPENABLE.has(line.link.resolvedKind ?? "") ? (
-                <a
-                  className={styles.target}
-                  href={hashOf({
-                    surface: "research-question",
-                    path: line.link.resolvedPath,
-                  })}
-                >
-                  {targetText(line)}
-                </a>
-              ) : (
-                <span className={styles.target}>{targetText(line)}</span>
-              )}
-              {line.link.resolution !== "resolved" && (
-                <>
-                  <span className={styles.resolution}>
-                    {line.link.resolution}
-                  </span>
-                  <span className={styles.wentNowhere}>
-                    {wentNowhere(line.link)}
-                  </span>
-                </>
-              )}
-              {line.note !== "" && (
-                <span className={styles.note}>{line.note}</span>
-              )}
-              {actions?.(line)}
-            </>
-          )}
-        </li>
-      ))}
+      {lines.map((line, i) => {
+        // Where the link points, when what it points at has a surface of its
+        // own; a Question's Address is the Inbox on that row (#300).
+        const address =
+          line.link === null || line.link.resolvedPath === null
+            ? null
+            : addressOf(line.link.resolvedKind, line.link.resolvedPath);
+        return (
+          <li key={i} className={styles.line}>
+            {line.link === null ? (
+              <span className={styles.note}>{line.text}</span>
+            ) : (
+              <>
+                {address !== null ? (
+                  <a className={styles.target} href={address}>
+                    {targetText(line)}
+                  </a>
+                ) : (
+                  <span className={styles.target}>{targetText(line)}</span>
+                )}
+                {line.link.resolution !== "resolved" && (
+                  <>
+                    <span className={styles.resolution}>
+                      {line.link.resolution}
+                    </span>
+                    <span className={styles.wentNowhere}>
+                      {wentNowhere(line.link)}
+                    </span>
+                  </>
+                )}
+                {line.note !== "" && (
+                  <span className={styles.note}>{line.note}</span>
+                )}
+                {actions?.(line)}
+              </>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
