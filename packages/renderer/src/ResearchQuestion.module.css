@@ -212,8 +212,9 @@
 
 /*
  * The plain text field: the section's lines as the file holds them, in the
- * mono so a `- [ ]` reads as what it is. No hairline (BRAND.md law 5):
- * the field is a lighter surface with the surfaces' radius.
+ * mono so a `- [ ]` reads as what it is. No hairline (ADR 0023 decision 4,
+ * which narrows BRAND.md law 5 — law 5 itself permits one): the field is a
+ * lighter surface with the surfaces' radius.
  */
 .field {
   width: 100%;

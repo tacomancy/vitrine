@@ -6,7 +6,9 @@
   color: var(--color-fg);
 }
 
-/* Panes float on the ground with a gutter between; no hairlines. */
+/* Panes float on the ground with a gutter between; no hairlines. The
+   gutter and the surface step are what separate them, never a line drawn
+   between two of them (ADR 0023 decisions 1 and 3). */
 .panes {
   flex: 1;
   min-height: 0;
