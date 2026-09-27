@@ -12,6 +12,12 @@
         "docs/reference/prototypes"
       ],
       "port": 8765
+    },
+    {
+      "name": "global-command",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8781"],
+      "port": 8781
     }
   ]
 }

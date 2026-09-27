@@ -1,0 +1,561 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Not production code, not the pinned snapshot.
+
+  Question: how does one list serve both a capture being typed and a
+  destination being looked for, without picking a mode first? (beat 2b,
+  issue #262; the prompt on that issue calls this "the whole design problem".)
+
+  Three variants of the Global command over the Inbox, switchable via
+  ?variant=A|B|C, each showable in the five states the prompt asks for via
+  ?state=. The backdrop is a static replica of the Inbox at a few hundred
+  rows — real density to judge the overlay against, not real components.
+
+  Palette and type come from the frozen branding tier, imported not copied.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Global command — prototype</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,wght@0,400;1,400&display=swap"
+    />
+    <link rel="stylesheet" href="../../../docs/reference/branding/tokens.css" />
+    <style>
+      /* The serif role (questions, quotations) — global.css in the renderer. */
+      :root {
+        --font-serif: "Source Serif 4", Georgia, serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--color-bg);
+        color: var(--color-fg);
+        font-family: var(--font-sans);
+        font-size: var(--text-base);
+        line-height: var(--leading-ui);
+        -webkit-font-smoothing: antialiased;
+      }
+      :focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: 2px;
+      }
+      .caps {
+        font-family: var(--font-mono);
+        font-size: var(--text-2xs);
+        font-weight: 600;
+        letter-spacing: var(--tracking-caps);
+        text-transform: uppercase;
+      }
+      .mono {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+
+      /* ---------- the window: panes float on a gutter, no hairlines
+           between them (ADR 0023 decision 1) ---------- */
+      .window {
+        position: relative;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .titlebar {
+        height: 38px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+      .panes {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: var(--space-2);
+        padding: 0 var(--space-2) var(--space-2);
+      }
+
+      /* sidebar — the map, as Sidebar.tsx lists it */
+      .sidebar {
+        width: 238px;
+        flex: none;
+        padding: var(--space-4) 0;
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-surface);
+        user-select: none;
+      }
+      .sidebar .caps {
+        display: block;
+        padding: 0 var(--space-4) var(--space-3);
+        color: var(--color-fg-muted);
+      }
+      .sidebar ul {
+        margin: 0 0 var(--space-4);
+        padding: 0 var(--space-2);
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .sidebar li {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px var(--space-2);
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        color: var(--color-fg-disabled);
+      }
+      .sidebar li.live {
+        color: var(--color-fg);
+      }
+      .sidebar li.current {
+        font-weight: 600;
+        background: var(--color-bg-raised);
+        color: var(--color-fg);
+      }
+      .dot {
+        width: 5px;
+        height: 5px;
+        flex: none;
+        border-radius: 1px;
+        background: var(--color-line-strong);
+      }
+      .sidebar li.current .dot {
+        background: var(--color-accent);
+      }
+
+      /* the Inbox backdrop */
+      .inbox {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-surface);
+        overflow: hidden;
+      }
+      .inbox header {
+        height: 52px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        padding: 0 var(--space-5);
+      }
+      .inbox h1 {
+        margin: 0;
+        font-size: var(--text-md);
+        font-weight: 600;
+        letter-spacing: var(--tracking-tight);
+      }
+      .inbox ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .inbox li {
+        min-height: 36px;
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) auto 56px;
+        align-items: center;
+        gap: 0 var(--space-3);
+        padding: 0 var(--space-5) 0 var(--space-4);
+      }
+      .inbox li + li {
+        margin-top: var(--space-1);
+        border-top: 1px solid var(--color-line);
+      }
+      .glyph {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        text-align: center;
+        color: var(--color-fg-muted);
+      }
+      .glyph.open {
+        color: var(--color-accent);
+      }
+      .qtext {
+        font-family: var(--font-serif);
+        font-size: var(--text-base);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .age {
+        text-align: right;
+      }
+
+      /* detail pane */
+      .detail {
+        width: 320px;
+        flex: none;
+        padding: var(--space-5);
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-surface);
+        overflow: hidden;
+      }
+      .detail .caps {
+        display: block;
+        color: var(--color-fg-muted);
+        margin-bottom: var(--space-3);
+      }
+      .detail p {
+        margin: 0 0 var(--space-4);
+      }
+
+      /* ---------- the overlay: raised, --shadow-3, no border
+           (ADR 0023 decision 2) ---------- */
+      /* Inside the window frame, not the page, so scrolling down to the
+         notes leaves the app behind rather than dragging the overlay along. */
+      .scrim {
+        position: absolute;
+        inset: 0;
+        background: var(--color-bg-overlay);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding-top: 14vh;
+      }
+      .cmd {
+        width: 760px;
+        max-width: calc(100vw - var(--space-7));
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4) var(--space-2);
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-raised);
+        box-shadow: var(--shadow-3);
+      }
+      .queryrow {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+      /* Brass: the one thing saying what is live (BRAND.md law 3), and in
+         every variant it is the mode readout. */
+      .cmdlabel {
+        color: var(--color-accent);
+        white-space: nowrap;
+        min-width: 64px;
+      }
+      .query {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        padding: var(--space-1) var(--space-3);
+        border: 0;
+        border-radius: var(--radius-md);
+        background: var(--color-bg-surface);
+        color: var(--color-fg);
+        font-family: var(--font-serif);
+        font-size: var(--text-md);
+        line-height: var(--leading-ui);
+      }
+      .query::placeholder {
+        color: var(--color-fg-muted);
+        font-family: var(--font-sans);
+        font-size: var(--text-base);
+      }
+      .hint {
+        margin-left: auto;
+        white-space: nowrap;
+      }
+      .chip {
+        padding: 2px 7px;
+        border-radius: var(--radius-md);
+        background: var(--color-bg-surface);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-secondary);
+        white-space: nowrap;
+      }
+      .groupLabel {
+        display: block;
+        padding: var(--space-2) var(--space-2) var(--space-1);
+        color: var(--color-fg-muted);
+      }
+      .rows {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .row {
+        position: relative;
+        min-height: 32px;
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0 var(--space-3);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-sm);
+        cursor: default;
+      }
+      /* Selected, as the Inbox marks it: one surface step up and a 2px
+         sapphire rule on the left edge (BRAND.md law 2). */
+      .row[aria-selected="true"] {
+        background: var(--color-bg-surface);
+      }
+      .row[aria-selected="true"]::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--color-primary);
+      }
+      .rowname {
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: var(--text-sm);
+      }
+      .rowname.serif {
+        font-family: var(--font-serif);
+        font-size: var(--text-base);
+      }
+      .rowname mark {
+        background: transparent;
+        color: var(--color-fg);
+        font-weight: 600;
+      }
+      .rowkind {
+        font-family: var(--font-mono);
+        font-size: var(--text-2xs);
+        letter-spacing: var(--tracking-caps);
+        text-transform: uppercase;
+        color: var(--color-fg-muted);
+        white-space: nowrap;
+      }
+      .rowmeta {
+        grid-column: 2;
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .footer {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-2) var(--space-1);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+      /* The verb ↵ will perform, named at all times. */
+      .verb {
+        color: var(--color-fg-secondary);
+      }
+      .verb b {
+        color: var(--color-fg);
+        font-weight: 600;
+      }
+      .count {
+        margin-left: auto;
+      }
+
+      /* variant A — the capture row pinned above the destinations */
+      .captureRow {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0 var(--space-3);
+        position: relative;
+        min-height: 40px;
+        padding: var(--space-2);
+        border-radius: var(--radius-sm);
+      }
+      .captureRow[aria-selected="true"] {
+        background: var(--color-bg-surface);
+      }
+      .captureRow[aria-selected="true"]::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--color-primary);
+      }
+      .captureText {
+        font-family: var(--font-serif);
+        font-size: var(--text-md);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .captureText.empty {
+        font-family: var(--font-sans);
+        font-size: var(--text-sm);
+        color: var(--color-fg-muted);
+      }
+
+      /* variant C — two columns, both outcomes visible at once */
+      .columns {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: var(--space-4);
+      }
+      .col {
+        min-width: 0;
+        padding: var(--space-1);
+        border-radius: var(--radius-md);
+      }
+      .col[data-owns="true"] {
+        background: var(--color-bg-surface);
+      }
+      .colhead {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+        padding: var(--space-1) var(--space-2) var(--space-2);
+        color: var(--color-fg-muted);
+      }
+      .col[data-owns="true"] .colhead .caps {
+        color: var(--color-accent);
+      }
+      .captureCard {
+        padding: var(--space-3);
+        border-radius: var(--radius-md);
+        background: var(--color-bg-raised);
+      }
+      .col[data-owns="true"] .captureCard {
+        background: var(--color-bg-raised);
+      }
+      .captureCard .body {
+        font-family: var(--font-serif);
+        font-size: var(--text-md);
+        margin: 0 0 var(--space-3);
+      }
+      .captureCard .body.empty {
+        font-family: var(--font-sans);
+        font-size: var(--text-sm);
+        color: var(--color-fg-muted);
+      }
+      .provline {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+      .empty {
+        padding: var(--space-2);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+
+      /* ---------- the switcher: deliberately not part of the design ---------- */
+      .switcher {
+        position: fixed;
+        left: 50%;
+        bottom: var(--space-4);
+        transform: translateX(-50%);
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-pill);
+        background: #fff;
+        color: #09111d;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+      }
+      .switcher button {
+        border: 0;
+        border-radius: var(--radius-pill);
+        padding: 3px 9px;
+        background: #e9edf3;
+        color: #09111d;
+        font: inherit;
+        cursor: pointer;
+      }
+      .switcher button[aria-pressed="true"] {
+        background: #09111d;
+        color: #fff;
+      }
+      .switcher .name {
+        font-weight: 500;
+        min-width: 230px;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .switcher .state {
+        max-width: 320px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .switcher .sep {
+        width: 1px;
+        height: 18px;
+        background: #c9d1dc;
+      }
+
+      /* the assumptions strip, as the pinned prototypes carry one */
+      .notes {
+        padding: var(--space-6) var(--space-7) var(--space-9);
+        background: var(--color-bg);
+      }
+      .notes h2 {
+        margin: 0 0 var(--space-4);
+        font-size: var(--text-lg);
+        font-weight: 600;
+      }
+      .notes .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--space-4);
+      }
+      .notes .card {
+        padding: var(--space-4);
+        border-radius: var(--radius-lg);
+        background: var(--color-bg-surface);
+      }
+      .notes .card h3 {
+        margin: 0 0 var(--space-2);
+        font-size: var(--text-sm);
+        font-weight: 600;
+      }
+      .notes p {
+        margin: 0 0 var(--space-2);
+        font-size: var(--text-sm);
+        color: var(--color-fg-secondary);
+      }
+      .notes code {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="notes" id="notes"></div>
+    <div class="switcher" id="switcher"></div>
+    <script type="module" src="./global-command.js"></script>
+  </body>
+</html>
