@@ -211,6 +211,8 @@ describe("researchQuestions.resolve", () => {
   // already calls *no longer there*, one step earlier.
   it("reports a Question gone from under the index in the app's words, naming no absolute path", async () => {
     const { vault, c } = await opened(bothFiles);
+    // No watcher here — `core()` starts one only when a test passes `watch`
+    // — so the index still resolves the link and the read is what finds out.
     await unlink(join(vault, QUESTION_PATH));
 
     const reply = await c.mutate<ResolveResult>("researchQuestions.resolve", {

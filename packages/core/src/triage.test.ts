@@ -142,14 +142,14 @@ describe("questions.answer", () => {
     ).toBe("noVault");
   });
 
-  // #285. The message is read by a person — in an alert, in a screenshot, in
-  // a bug report — so it is the app's own words and never the machine's
+  // #285. The message is read by a person — in the window, in a screenshot,
+  // in a bug report — so it is the app's own words and never the machine's
   // filesystem layout. A Question the Inbox listed and cannot now open is
   // gone from under the row, which is what the write protocol already calls
   // *no longer there*; the message names the file already, so Node's errno
   // would only repeat the path and add the part no reader can use.
   it("says a Question the read cannot open is no longer there, naming no absolute path", async () => {
-    const { vault, c } = await openedVault({ [PATH]: HEAD });
+    const { c } = await openedVault({ [PATH]: HEAD });
 
     const gone = await c.mutate("questions.answer", {
       path: "questions/Gone.md",
@@ -159,19 +159,27 @@ describe("questions.answer", () => {
     expect(gone.error?.message).toBe(
       "Couldn't read questions/Gone.md: the file is no longer there"
     );
+  });
 
-    // Any other failure is the case where the cause genuinely helps, so it
-    // keeps one — a path through a file rather than a folder is ENOTDIR,
-    // which Node states with the absolute path appended.
+  // The apostrophe is what the strip has to survive: a Question is named
+  // after the question, and the user's own vault folder is `Wan Shi Tong's
+  // Library`, so cutting back to a quote would leave the whole path on
+  // screen. A path *through* a file rather than a folder is ENOTDIR, which
+  // Node states with the absolute path appended.
+  it("keeps the cause of any other read failure, with the path cut off even when the path quotes", async () => {
+    const withApostrophe = "questions/Does Tong's index hold.md";
+    const { vault, c } = await openedVault({ [withApostrophe]: HEAD });
+
     const through = await c.mutate("questions.answer", {
-      path: `${PATH}/inner.md`,
+      path: `${withApostrophe}/inner.md`,
       line: LINE,
     });
+
     expect(through.error?.data.kind).toBe("unreadable");
-    expect(through.error?.message).toContain("not a directory");
+    expect(through.error?.message).toBe(
+      `Couldn't read ${withApostrophe}/inner.md: ENOTDIR: not a directory`
+    );
     expect(through.error?.message).not.toContain(vault);
-    // The errno quotes the path it appends; nothing else in the message does.
-    expect(through.error?.message).not.toMatch(/'[^']*'/);
   });
 
   it("refuses an empty line before anything is written", async () => {

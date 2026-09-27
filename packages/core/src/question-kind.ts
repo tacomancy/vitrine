@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
   analyseFile,
   locate,
@@ -122,29 +122,23 @@ export type QuestionFile = {
   question: QuestionFields;
 };
 
-/** Node's `${code}: ${description}, ${syscall} '${path}'` tail. */
-const PATH_CLAUSE = /,\s*\w+\s+'[^']*'$/;
-
 /**
  * Why the read could not open the file, in the app's own words (#285, the
  * same argument as #277). Every caller shows this message to the user — the
- * page prints it as *the Question was not marked: …*, the Inbox alerts it —
- * and the message already names the file, so Node's errno would only repeat
- * the path and then add the machine's filesystem layout, which no reader
- * can use and which a screenshot or a bug report carries onward.
+ * page prints it as *the Question was not marked: …*, the Inbox alerts it
+ * under the row — and the message names the file already, so Node's errno
+ * would only repeat the path and then add the machine's filesystem layout.
  *
- * A file that is gone is the whole of what ENOENT says here: the Inbox
- * listed the row, or the page resolved its link, and the file is not there
- * by the time the write reads it. That is the fact the write protocol
- * already refuses with *the file is no longer there* (`vault-files.write`),
- * one step later in the same write, so it takes the same words. Every other
- * failure — a permission, a folder where a file was — is the case where the
- * cause genuinely helps, so it keeps one, minus the path clause.
+ * ENOENT is one fact here and the whole of it: the Inbox listed the row, or
+ * the page resolved its link, and the file is gone by the time the write
+ * reads it. It takes the words the write protocol already refuses that with
+ * one step later in the same write (`vault-files.write`). Every other
+ * failure is the case where the cause genuinely helps, so it keeps one.
  */
 const whyUnreadable = (cause: unknown): string =>
-  cause instanceof Error && (cause as NodeJS.ErrnoException).code === "ENOENT"
+  (cause as NodeJS.ErrnoException).code === "ENOENT"
     ? "the file is no longer there"
-    : errorMessage(cause).replace(PATH_CLAUSE, "");
+    : errorMessageWithoutPath(cause);
 
 /**
  * The Question a triage key names, or the refusal the row shows. Every way
