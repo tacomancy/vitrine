@@ -1,10 +1,5 @@
-import {
-  existsSync,
-  watch as fsWatch,
-  type FSWatcher,
-  type WatchListener,
-} from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { watch as fsWatch, type FSWatcher, type WatchListener } from "node:fs";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
@@ -70,6 +65,9 @@ function injectable() {
 async function deaf() {
   const elsewhere = await tmp("unheard");
   const made: FSWatcher[] = [];
+  // Spelled out rather than `Parameters<typeof fsWatch>` as `injectable()`
+  // does: that tuple resolves to the two-argument overload, and the call
+  // under test passes three.
   const watch: typeof fsWatch = ((
     _folder: string,
     options: { recursive: boolean },
@@ -287,29 +285,36 @@ describe("a watch that comes up and is then never heard from", () => {
 
     // The silence is said out loud: a watch that does not deliver must never
     // look like a vault where nothing is happening (`CLAUDE.md`).
-    const seen = (await c.query<VaultStatus>("vault.status")).result!.data;
-    expect(seen.watching).toEqual({
+    const status = async () =>
+      (await c.query<VaultStatus>("vault.status")).result!.data;
+    expect((await status()).watching).toEqual({
       ok: false,
       reason: "the watch gave no sign of life",
     });
 
-    // The sweep still runs, so what is on disk is read once...
+    // The sweep still runs, and it is waited out rather than merely waited
+    // on: an unfinished sweep is the larger gap, so `current` names it ahead
+    // of the watcher (§ Watcher and Ingest) and a read taken between the
+    // first committed chunk and the sweep's end would see that reason.
     const stream = await c.events();
-    for (;;) {
-      const listing = await c.query<Listing>("questions.list");
-      if ((listing.result?.data as Listing).questions.length === 1) break;
+    let seen = await status();
+    while (/sweep/.test(seen.current.ok ? "" : seen.current.reason)) {
       await stream.next("vaultStatus");
+      seen = await status();
     }
     stream.close();
+
+    // What is on disk was read once...
+    const listing = await c.query<Listing>("questions.list");
+    expect((listing.result?.data as Listing).questions).toHaveLength(1);
     // ...and only `current` says those rows may go stale behind the app.
-    expect(
-      (await c.query<VaultStatus>("vault.status")).result!.data.current
-    ).toEqual({
+    expect(seen.current).toEqual({
       ok: false,
       reason: "not watching: the watch gave no sign of life",
     });
 
-    // Giving up still tidies up: the probe is not left in the vault.
-    expect(existsSync(join(vault, ".vitrine", ".watch"))).toBe(false);
+    // The probe is the app's own litter in someone's vault; giving up is
+    // still the app's own business to clean up after.
+    expect(await readdir(join(vault, ".vitrine"))).not.toContain(".watch");
   });
 });

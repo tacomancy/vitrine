@@ -237,10 +237,9 @@ export async function watchVault(
    * reported, while the next touch after the gap is. Silence past the
    * timeout is a watch that does not deliver — a volume FSEvents cannot
    * follow, say — and a watch that does not deliver is *not watching*, so
-   * `watchVault` rejects rather than hand back a watcher that is not one.
-   * The vault service takes that rejection as *not watching* and opens the
-   * vault anyway, swept (`vault.ts`), but nothing made outside the app will
-   * reach the index until a retry proves otherwise.
+   * this rejects rather than hand back a watcher that is not one. The vault
+   * service opens the vault anyway and sweeps it (`vault.ts`), but nothing
+   * made outside the app will reach the index until a retry proves otherwise.
    */
   const live = async () => {
     const probe = join(root, PROBE);
