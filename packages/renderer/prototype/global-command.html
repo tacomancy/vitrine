@@ -353,25 +353,86 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* The verb ↵ will perform, named at all times — and in B it is the
+         only thing standing between the user and an ↵ that means something
+         different from the last one. So it is not a quiet line under the
+         list: it takes a surface step of its own, the interface family at
+         reading size, and the brass that BRAND.md law 3 reserves for the one
+         thing saying what is live. The alternative and the count stay mono
+         and muted beside it, so the volume is spent on the verb alone. */
       .footer {
         display: flex;
         align-items: center;
         gap: var(--space-3);
-        padding: var(--space-2) var(--space-2) var(--space-1);
+        margin-top: var(--space-1);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        background: var(--color-bg-surface);
         font-family: var(--font-mono);
         font-size: var(--text-xs);
         color: var(--color-fg-muted);
       }
-      /* The verb ↵ will perform, named at all times. */
       .verb {
-        color: var(--color-fg-secondary);
-      }
-      .verb b {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+        min-width: 0;
+        font-family: var(--font-sans);
+        font-size: var(--text-sm);
         color: var(--color-fg);
+      }
+      /* The key itself, drawn as a key — not a button, nothing to click. */
+      .key {
+        flex: none;
+        padding: 1px 6px;
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-raised);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        font-weight: 500;
+        color: var(--color-fg);
+      }
+      .mode {
+        flex: none;
+        font-family: var(--font-mono);
+        font-size: var(--text-2xs);
         font-weight: 600;
+        letter-spacing: var(--tracking-caps);
+        text-transform: uppercase;
+        color: var(--color-accent);
+      }
+      .target {
+        min-width: 0;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .target.serif {
+        font-family: var(--font-serif);
+        font-size: var(--text-md);
+        font-weight: 400;
+      }
+      .target.pending {
+        font-weight: 400;
+        color: var(--color-fg-muted);
+      }
+      .alt {
+        flex: none;
+        margin-left: auto;
       }
       .count {
-        margin-left: auto;
+        flex: none;
+      }
+      .outcome {
+        padding: var(--space-1) var(--space-3) 0;
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--color-fg-muted);
+      }
+      .outcome b {
+        color: var(--color-fg);
+        font-weight: 600;
       }
 
       /* variant A — the capture row pinned above the destinations */

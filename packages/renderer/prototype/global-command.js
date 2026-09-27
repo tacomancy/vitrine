@@ -348,11 +348,52 @@ function captureRow({ selected, tag }) {
   return row;
 }
 
-function footer(verbHtml, countText) {
-  return el("div", { class: "footer" }, [
-    el("span", { class: "verb", html: verbHtml }),
-    el("span", { class: "count", text: countText }),
+/**
+ * What ↵ will do, said loudly: the key drawn as a key, the mode in brass,
+ * and the thing it will act on in full — the typed Question in the serif it
+ * will be written in, or the destination's own name. The alternative key and
+ * the count sit beside it in mono, so nothing competes with the verb.
+ */
+function footer({ mode, target, serif, pending, alt, count }) {
+  const verb = el("span", { class: "verb" }, [
+    el("span", { class: "key", text: "↵" }),
+    el("span", { class: "mode", text: mode }),
+    el("span", {
+      class: "target" + (serif ? " serif" : "") + (pending ? " pending" : ""),
+      text: target,
+    }),
   ]);
+  // One muted run on the right, so the alternative and the count do not read
+  // as a single sentence when both are there.
+  const aside = [alt, count].filter(Boolean).join("   ·   ");
+  return el("div", { class: "footer" }, [
+    verb,
+    aside ? el("span", { class: "alt", text: aside }) : null,
+  ]);
+}
+
+/** What ↵ will capture, or the note that it will not yet. */
+function captureVerb() {
+  const text = query.trim();
+  return text === ""
+    ? {
+        mode: "Capture",
+        target: "type a question",
+        pending: true,
+      }
+    : { mode: "Capture", target: text + "?", serif: true };
+}
+
+/** What ↵ will go to. */
+function goVerb(list) {
+  const obj = list[arrowedTo]?.obj;
+  return obj
+    ? { mode: "Go to", target: obj.name, serif: Boolean(obj.serif) }
+    : {
+        mode: "Go to",
+        target: "nothing here goes by that name",
+        pending: true,
+      };
 }
 
 function countLine(list) {
@@ -382,7 +423,9 @@ function buildOverlay() {
     "aria-label": "Global command",
   });
 
-  const label = variant === "C" ? "⌘K" : onCapture ? "Capture" : "Go to";
+  // Neutral: the one brass statement is the verb in the footer, at the point
+  // where the decision is actually made (BRAND.md law 3 — keep brass scarce).
+  const label = "⌘K";
   const input = el("input", {
     class: "query",
     type: "text",
@@ -436,12 +479,11 @@ function buildOverlay() {
       );
     cmd.append(ul);
     cmd.append(
-      footer(
-        onCapture
-          ? "<b>↵</b> captures · <b>↓</b> to go somewhere"
-          : "<b>↵</b> goes there · <b>↑</b> back to the capture",
-        countLine(all)
-      )
+      footer({
+        ...(onCapture ? captureVerb() : goVerb(list)),
+        alt: onCapture ? "↓ to go somewhere" : "↑ back to the capture",
+        count: countLine(all),
+      })
     );
   }
 
@@ -459,19 +501,17 @@ function buildOverlay() {
       ul.append(destinationRow(entry, i, !onCapture && i === arrowedTo))
     );
     cmd.append(ul);
+    cmd.append(captureRow({ selected: onCapture }));
     cmd.append(
-      captureRow({
-        selected: onCapture,
-        tag: strong ? "⇥ to write it down instead" : "",
+      footer({
+        ...(onCapture ? captureVerb() : goVerb(list)),
+        alt: onCapture
+          ? list.length
+            ? "⇥ goes to the top match"
+            : ""
+          : "⇥ writes it down instead",
+        count: countLine(all),
       })
-    );
-    cmd.append(
-      footer(
-        onCapture
-          ? `<b>↵</b> captures${list.length ? " · <b>⇥</b> goes to the top match" : ""}`
-          : `<b>↵</b> goes to <b>${list[arrowedTo]?.obj.name ?? ""}</b> · <b>⇥</b> captures`,
-        countLine(all)
-      )
     );
   }
 
@@ -525,21 +565,15 @@ function buildOverlay() {
     );
     cmd.append(el("div", { class: "columns" }, [left, right]));
     cmd.append(
-      footer(
-        onCapture
-          ? "<b>↵</b> captures · <b>⇥</b> or <b>↓</b> crosses to the list"
-          : `<b>↵</b> goes to <b>${list[arrowedTo]?.obj.name ?? ""}</b> · <b>⇥</b> crosses back`,
-        ""
-      )
+      footer({
+        ...(onCapture ? captureVerb() : goVerb(list)),
+        alt: onCapture ? "⇥ or ↓ crosses to the list" : "⇥ crosses back",
+      })
     );
   }
 
   if (outcome) {
-    cmd.append(
-      el("div", { class: "footer" }, [
-        el("span", { class: "verb", html: outcome }),
-      ])
-    );
+    cmd.append(el("div", { class: "outcome", html: outcome }));
   }
 
   const scrim = el("div", { class: "scrim" }, [cmd]);
@@ -757,8 +791,8 @@ const NOTES = [
     "The typed text is always a Question in waiting, pinned above the list, selected from the first keystroke. ↵ captures without a thought; ↓ leaves for a destination. <b>Cost:</b> every jump pays one arrow, forever. <b>Bet:</b> capture is the thing done most, so it should be the thing that costs least.",
   ],
   [
-    "B · one list, the verb moves",
-    "One ranked list with the capture as its last row. The default side moves with the query: an exact or prefix hit selects the destination, anything else selects the capture. ⇥ swaps, and the footer always names what ↵ will do. <b>Cost:</b> ↵ means different things at different moments — the real risk, drawn rather than argued about. <b>Bet:</b> the footer verb is enough to make it safe.",
+    "B · one list, the verb moves — chosen",
+    "One ranked list with the capture as its last row. The default side moves with the query: an exact or prefix hit selects the destination, anything else selects the capture, and ⇥ swaps. ↵ therefore means different things at different moments, so <b>the verb is the safety</b> and is drawn that way — its own surface step, the key drawn as a key, the mode in brass, and the thing it will act on named in full rather than implied. The alternative key and the count stay mono and muted beside it, so nothing competes. The louder footer is applied to all three, since it is presentation: what A, B and C were compared on is their structure, and that is untouched.",
   ],
   [
     "C · both outcomes at once",
