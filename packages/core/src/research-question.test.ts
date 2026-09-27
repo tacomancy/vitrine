@@ -342,8 +342,21 @@ describe("researchQuestions.page", () => {
   // hash, a link into a page since renamed — and it takes the register of
   // the removal line beside it on the page.
   it("a file the read cannot open is not readable, with a reason that carries no absolute path", async () => {
-    const path = "questions/a (RQ).md";
+    // The apostrophe is the case the strip has to survive: the vault this
+    // was found in is `Wan Shi Tong's Library`, and a cut that matched back
+    // to the nearest quote would stop inside the folder's own name and
+    // leave the whole path on screen.
+    const path = "questions/Wan Shi Tong's Library (RQ).md";
     const { c, vault } = await openedPage({ [path]: WELL_FORMED }, path);
+    const reasonOf = async (asked: string) => {
+      const reply = await c.query<ResearchQuestionPage>(
+        "researchQuestions.page",
+        { path: asked }
+      );
+      const data = reply.result?.data;
+      expect(data).toMatchObject({ readable: false, path: asked });
+      return (data as { reason: string }).reason;
+    };
 
     const gone = await c.query<ResearchQuestionPage>("researchQuestions.page", {
       path: "questions/gone (RQ).md",
@@ -351,23 +364,24 @@ describe("researchQuestions.page", () => {
     expect(gone.result?.data).toEqual({
       readable: false,
       path: "questions/gone (RQ).md",
-      reason: "not in the vault",
+      reason: "missing from the vault",
     });
 
     // Any other failure is the case where the cause genuinely helps, so it
-    // keeps one — a path through a file rather than a folder is ENOTDIR,
+    // keeps one. A path through a file rather than a folder is ENOTDIR,
     // which Node states with the absolute path appended.
-    const through = `${path}/inner (RQ).md`;
-    const reply = await c.query<ResearchQuestionPage>(
-      "researchQuestions.page",
-      { path: through }
-    );
-    const data = reply.result?.data;
-    expect(data).toMatchObject({ readable: false, path: through });
-    const reason = (data as { reason: string }).reason;
-    expect(reason).toContain("not a directory");
-    expect(reason).not.toContain(vault);
-    expect(reason).not.toContain("/");
+    const through = await reasonOf(`${path}/inner (RQ).md`);
+    expect(through).toContain("not a directory");
+    expect(through).not.toContain(vault);
+    expect(through).not.toContain("/");
+
+    // A folder where a file was is EISDIR, which Node states with no path
+    // at all — there is nothing to cut, and the cause still stands.
+    await mkdir(join(vault, "questions/folder (RQ).md"));
+    const folder = await reasonOf("questions/folder (RQ).md");
+    expect(folder).toContain("illegal operation on a directory");
+    expect(folder).not.toContain(vault);
+    expect(folder).not.toContain("/");
   });
 
   it("refuses a path outside the vault as an input error, typed outsideVault", async () => {
