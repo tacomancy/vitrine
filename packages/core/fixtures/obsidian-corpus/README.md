@@ -102,6 +102,30 @@ Obsidian version: 1.13.7 (installer 1.8.10), macOS, 2026-09-21. Rows were answer
 | B3b | blocks-handwritten.md | `#^c3`                                                     | `resolves` / `unresolved`        | resolves       |
 | B3c | blocks-handwritten.md | `#^my-own-id` (on a list item)                             | `resolves` / `unresolved`        | resolves       |
 
+A `^id` names a block only when it ends that block's **paragraph** — which is what decides where the `## Annotations` line can carry its id (#164, Obsidian 1.13.7, 2026-09-27). `blocks-list-continuation.md` puts the same id in five places — four on a two-line list item, one on its collapse to a single line — and `blocks-list-continuation-links.md` links to each, plus one id the file does not have as the control. Answered from the hover popover, with `metadataCache.getFileCache(…).blocks` as the note.
+
+| id  | file                        | question                                                                          | answer with               | observed |
+| --- | --------------------------- | --------------------------------------------------------------------------------- | ------------------------- | -------- |
+| B4a | blocks-list-continuation.md | **`#^h1` — the id ends the first line, the note is an indented continuation line** | `resolves` / `unresolved` | unresolved — the indented line continues the item's one paragraph, so the id sits mid-paragraph and names nothing. The hover reads *Unable to find "^h1" in blocks-list-continuation*, word for word what the control gets, and `blocks` has no `h1`. This is the shape § Vault layout used to specify |
+| B4b | blocks-list-continuation.md | `#^h2` — the id ends the first line, the note is a nested list item                | `resolves` / `unresolved` | resolves — the nested item ends the paragraph. Obsidian's block is the first line alone, while the app's locator names the whole item; nothing depends on the difference, the format chosen being B4c |
+| B4c | blocks-list-continuation.md | `#^h3` — the id ends the first line, the note is a second paragraph                | `resolves` / `unresolved` | resolves — the blank line ends the paragraph. Block and hover are the whole item, quote first, then the note. **The settled Annotations shape** |
+| B4d | blocks-list-continuation.md | `#^h4` — the id ends the item's last line                                          | `resolves` / `unresolved` | resolves — block and hover are the whole item |
+| B4e | blocks-list-continuation.md | `#^h5` — the note collapsed onto the quote line after a ` — ` separator            | `resolves` / `unresolved` | resolves — block and hover are the one line, quote and note together. B1b again, in the Annotations shape; rejected as the format only because it cannot hold a note of more than one paragraph |
+| B4f | blocks-list-continuation.md | `#^nosuchblock` (control) — does the link render as unresolved?                    | `yes` / `no`              | no — a `#^id` the file lacks keeps the plain `internal-link` class, exactly as a missing heading does (L5f). Only the hover names the failure, so link colour is not the oracle for a block id |
+
+## Annotations block
+
+The shape ADR 0006 decision 6 settles for `## Annotations`, put through Obsidian so the format is pinned against the editor that will read it (#164). `blocks-annotations-section.md` is the section as Ingest will compose it — a note, no note, a two-paragraph note, and one marked `(unmatched)` — in one list; `blocks-annotations-section-links.md` links to each id. Committed exactly as Obsidian wrote it; opening it in editing and reading view changed no byte.
+
+| id  | file                          | question                                            | answer with               | observed |
+| --- | ----------------------------- | ----------------------------------------------------- | ------------------------- | -------- |
+| B5a | blocks-annotations-section.md | `#^h1` — a quote line and a one-paragraph note      | `resolves` / `unresolved` | resolves — the hover is the quote, then the note |
+| B5b | blocks-annotations-section.md | `#^h2` — a quote line with no note at all           | `resolves` / `unresolved` | resolves — the hover is the quote alone |
+| B5c | blocks-annotations-section.md | `#^h3` — a quote line and a two-paragraph note      | `resolves` / `unresolved` | resolves — both paragraphs stay inside the item, as a Revision's do (H2) |
+| B5d | blocks-annotations-section.md | `#^h4` — `(unmatched)` between the quote and the id | `resolves` / `unresolved` | resolves — the marker sits before the id, so the id still ends the line |
+| B5e | blocks-annotations-section.md | do the four items read as one list?                 | number of items           | 4 — Obsidian's `sections` is one `heading` and one `list`, and the locator finds four list items, which is the half a test can assert. The blank lines make the list loose, which is how Obsidian renders any list with a multi-paragraph item |
+
+
 ## File shape
 
 | id  | file                            | question                                       | answer with            | observed  |

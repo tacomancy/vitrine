@@ -88,6 +88,163 @@ exports[`corpus > b/Klinzing 2019.md: outline snapshot 1`] = `
 }
 `;
 
+exports[`corpus > blocks-annotations-section.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "h1",
+      "marker": {
+        "end": 66,
+        "start": 63,
+      },
+      "range": {
+        "end": 109,
+        "start": 16,
+      },
+    },
+    {
+      "id": "h2",
+      "marker": {
+        "end": 152,
+        "start": 149,
+      },
+      "range": {
+        "end": 152,
+        "start": 111,
+      },
+    },
+    {
+      "id": "h3",
+      "marker": {
+        "end": 209,
+        "start": 206,
+      },
+      "range": {
+        "end": 280,
+        "start": 154,
+      },
+    },
+    {
+      "id": "h4",
+      "marker": {
+        "end": 344,
+        "start": 341,
+      },
+      "range": {
+        "end": 366,
+        "start": 282,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 367,
+        "start": 15,
+      },
+      "level": 2,
+      "range": {
+        "end": 14,
+        "start": 0,
+      },
+      "text": "Annotations",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [
+    {
+      "range": {
+        "end": 109,
+        "start": 16,
+      },
+    },
+    {
+      "range": {
+        "end": 152,
+        "start": 111,
+      },
+    },
+    {
+      "range": {
+        "end": 280,
+        "start": 154,
+      },
+    },
+    {
+      "range": {
+        "end": 366,
+        "start": 282,
+      },
+    },
+  ],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-annotations-section-links.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": "h1",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 34,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-annotations-section",
+    },
+    {
+      "alias": null,
+      "blockId": "h2",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 69,
+        "start": 35,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-annotations-section",
+    },
+    {
+      "alias": null,
+      "blockId": "h3",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 104,
+        "start": 70,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-annotations-section",
+    },
+    {
+      "alias": null,
+      "blockId": "h4",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 139,
+        "start": 105,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-annotations-section",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
 exports[`corpus > blocks-generated.md: outline snapshot 1`] = `
 {
   "blockIds": [
@@ -304,6 +461,251 @@ exports[`corpus > blocks-handwritten.md: outline snapshot 1`] = `
       },
     },
   ],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-list-continuation.md: outline snapshot 1`] = `
+{
+  "blockIds": [
+    {
+      "id": "h2",
+      "marker": {
+        "end": 237,
+        "start": 234,
+      },
+      "range": {
+        "end": 271,
+        "start": 197,
+      },
+    },
+    {
+      "id": "h3",
+      "marker": {
+        "end": 376,
+        "start": 373,
+      },
+      "range": {
+        "end": 426,
+        "start": 338,
+      },
+    },
+    {
+      "id": "h4",
+      "marker": {
+        "end": 538,
+        "start": 535,
+      },
+      "range": {
+        "end": 538,
+        "start": 467,
+      },
+    },
+    {
+      "id": "h5",
+      "marker": {
+        "end": 632,
+        "start": 629,
+      },
+      "range": {
+        "end": 632,
+        "start": 581,
+      },
+    },
+  ],
+  "frontmatter": null,
+  "headings": [
+    {
+      "blockId": null,
+      "body": {
+        "end": 137,
+        "start": 54,
+      },
+      "level": 2,
+      "range": {
+        "end": 53,
+        "start": 0,
+      },
+      "text": "A — id at the end of the first line, note indented",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 273,
+        "start": 196,
+      },
+      "level": 2,
+      "range": {
+        "end": 195,
+        "start": 137,
+      },
+      "text": "B — id at the end of the first line, note a nested item",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 428,
+        "start": 337,
+      },
+      "level": 2,
+      "range": {
+        "end": 336,
+        "start": 273,
+      },
+      "text": "C — id at the end of the first line, note a second paragraph",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 540,
+        "start": 466,
+      },
+      "level": 2,
+      "range": {
+        "end": 465,
+        "start": 428,
+      },
+      "text": "D — id at the end of the last line",
+    },
+    {
+      "blockId": null,
+      "body": {
+        "end": 633,
+        "start": 580,
+      },
+      "level": 2,
+      "range": {
+        "end": 579,
+        "start": 540,
+      },
+      "text": "E — one line, note after a separator",
+    },
+  ],
+  "inlineFields": [],
+  "links": [],
+  "listItems": [
+    {
+      "range": {
+        "end": 135,
+        "start": 55,
+      },
+    },
+    {
+      "range": {
+        "end": 271,
+        "start": 197,
+      },
+    },
+    {
+      "range": {
+        "end": 271,
+        "start": 239,
+      },
+    },
+    {
+      "range": {
+        "end": 426,
+        "start": 338,
+      },
+    },
+    {
+      "range": {
+        "end": 538,
+        "start": 467,
+      },
+    },
+    {
+      "range": {
+        "end": 632,
+        "start": 581,
+      },
+    },
+  ],
+  "tags": [],
+}
+`;
+
+exports[`corpus > blocks-list-continuation-links.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": "h1",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 32,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+    {
+      "alias": null,
+      "blockId": "h2",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 65,
+        "start": 33,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+    {
+      "alias": null,
+      "blockId": "h3",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 98,
+        "start": 66,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+    {
+      "alias": null,
+      "blockId": "h4",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 131,
+        "start": 99,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+    {
+      "alias": null,
+      "blockId": "h5",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 164,
+        "start": 132,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+    {
+      "alias": null,
+      "blockId": "nosuchblock",
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 206,
+        "start": 165,
+      },
+      "syntax": "wikilink",
+      "target": "blocks-list-continuation",
+    },
+  ],
+  "listItems": [],
   "tags": [],
 }
 `;

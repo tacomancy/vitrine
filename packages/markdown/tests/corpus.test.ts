@@ -334,6 +334,66 @@ describe("README rows: block ids", () => {
       ["6ea9c9", "aa75c2", "e4e371", "86acd3", "h12", "c3", "my-own-id"]
     );
   });
+
+  it("B4a–f — a ^id at the end of a list item's first line (#164)", () => {
+    const source = read("blocks-list-continuation.md");
+    // Obsidian registers h2–h5 and *not* h1: the indented note in case A
+    // continues the item's paragraph, so the id sits mid-paragraph and names
+    // nothing. Hovering `#^h1` says "Unable to find" — the same popover an
+    // absent id gets. B ends the paragraph with a nested item, C with a blank
+    // line, D puts the id on the item's last line, E collapses the item to
+    // one line (B4e).
+    expect(
+      outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
+    ).toEqual([
+      [
+        "h2",
+        '- p.4 · "quote with the note nested" ^h2\n\t- the note as a nested list item',
+      ],
+      [
+        "h3",
+        '- p.5 · "quote, then a blank line" ^h3\n\n  the note as a second paragraph inside the item',
+      ],
+      [
+        "h4",
+        '- p.6 · "quote on the first line"\n  the note text, with the id last ^h4',
+      ],
+      ["h5", '- p.7 · "one line" — the note after a separator ^h5'],
+    ]);
+    // B4f — the link to the absent id is indexed like any other; nothing in
+    // the link itself says it is broken, which is why the hover is the oracle.
+    expect(
+      of("blocks-list-continuation-links.md").links.map((l) => l.blockId)
+    ).toEqual(["h1", "h2", "h3", "h4", "h5", "nosuchblock"]);
+  });
+
+  it("B5a–e — the Annotations block as the app composes it (#164)", () => {
+    const source = read("blocks-annotations-section.md");
+    expect(
+      outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
+    ).toEqual([
+      [
+        "h1",
+        '- p.3 · "the quote as the engine extracted it" ^h1\n\n  the note the reader wrote in the margin',
+      ],
+      ["h2", '- p.4 · "a quote with no note at all" ^h2'],
+      [
+        "h3",
+        '- p.7 · "a quote whose note runs to two paragraphs" ^h3\n\n  the first paragraph of the note\n\n  the second paragraph of the note',
+      ],
+      [
+        "h4",
+        '- p.9 · "a quote that could not be re-matched" (unmatched) ^h4\n\n  the note as it was',
+      ],
+    ]);
+    expect(
+      of("blocks-annotations-section-links.md").links.map((l) => l.blockId)
+    ).toEqual(["h1", "h2", "h3", "h4"]);
+    // B5e — the locator has no list-level concept, so four items is the half
+    // of that row a test can hold; Obsidian's `sections` is what says it is
+    // one list.
+    expect(outline(source).listItems).toHaveLength(4);
+  });
 });
 
 describe("README rows: file shape", () => {
