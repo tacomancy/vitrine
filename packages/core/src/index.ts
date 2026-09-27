@@ -12,6 +12,7 @@ export type {
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {
+  AmbiguousLinks,
   LooseEnds,
   LooseEndGroup,
   LooseEndGroupName,
