@@ -168,8 +168,13 @@ function suffix(n: number): string {
 
 // Stubs are made one at a time. Picking a free citekey means reading the
 // disk and then writing to it, and two that both found `born2010` free
-// would have the second refused rather than suffixed — the same hazard
-// `link.ts` has, and `serialise.ts` holds the chain both use.
+// would write the same file: `createFile` checks for the path and then
+// commits, so overlapping calls both pass the check and the second wins.
+// The stub the user typed is gone and both calls report success — a silent
+// failure, which is the one thing the vault may not do (`CLAUDE.md`
+// § Invariants). Not a refusal, which is what this comment said before a
+// test was pointed at it. The same hazard `link.ts` has, and
+// `serialise.ts` holds the chain both use.
 const serially = serialised();
 
 /**

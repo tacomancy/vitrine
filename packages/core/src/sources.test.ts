@@ -184,6 +184,38 @@ describe("sources.createStub", () => {
     );
   });
 
+  it("suffixes both when two stubs of one citekey arrive at once", async () => {
+    // Picking a free citekey means reading the disk and then writing to it,
+    // so two that overlapped would both find `klinzing2019a` free and write
+    // it, and the second would win — one stub lost, both calls reporting
+    // success. The queue is in `createSourceStub` (`serialise.ts`); this is
+    // what notices if it stops being, since the sequential case above
+    // passes either way.
+    const c = await opened();
+
+    const [first, second] = await Promise.all([
+      c.createStub({
+        title: "A second Klinzing paper",
+        authors: "Klinzing",
+        year: "2019",
+      }),
+      c.createStub({
+        title: "A third Klinzing paper",
+        authors: "Klinzing",
+        year: "2019",
+      }),
+    ]);
+
+    // Which of the two got `a` is the order they were queued in and not
+    // worth pinning; that there are two distinct files is the whole point.
+    expect([first.citekey, second.citekey].sort()).toEqual([
+      "klinzing2019a",
+      "klinzing2019b",
+    ]);
+    expect(await c.read(first.path)).toContain("A second Klinzing paper");
+    expect(await c.read(second.path)).toContain("A third Klinzing paper");
+  });
+
   it("takes a suffix over a file the index has never seen", async () => {
     const c = await opened();
     // Written behind the index's back, as a sync or an editor would: the
