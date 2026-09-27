@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ListedQuestion } from "core";
 import { empty, question as q, renderApp, rows, vault } from "./fake-core";
-import { othersInSitting, SITTING_GAP_MINUTES } from "./sitting";
+import { othersInSitting } from "./sitting";
 
 afterEach(() => {
   cleanup();
@@ -10,11 +10,16 @@ afterEach(() => {
 });
 
 // The other questions captured in the same sitting (#265; spec #206 story 60,
-// from HOLD-4): a reading of `captured` alone, so a question can be read back
+// from HOLD-4 in the story tree): a reading of `captured` alone, so a question
+// can be read back
 // into the train of thought it was pulled out of. Never a count — the others
-// are named (HOLD-5).
+// are named (#265, HOLD-5).
 
-/** A Question as the list returns it, at a time; only `captured` is read. */
+/**
+ * A Question as the list returns it, at a time; only `captured` is read.
+ * Its own factory rather than fake-core's `q`, whose `status` widens to
+ * `string` and so does not satisfy `ListedQuestion` on the way in.
+ */
 const at = (captured: string, text = `q ${captured}`): ListedQuestion => ({
   path: `/v/questions/${text}.md`,
   question: text,
@@ -93,13 +98,24 @@ describe("the sitting a Question belongs to", () => {
     expect(othersInSitting(list, "/v/questions/gone.md", 90)).toEqual([]);
   });
 
-  it("counts a sitting's gaps in minutes the app names once", () => {
-    expect(SITTING_GAP_MINUTES).toBe(90);
+  it("reads the same captures differently when the threshold is shorter", () => {
+    const list = [
+      at("2026-09-19T08:00:00Z", "first"),
+      at("2026-09-19T08:40:00Z", "second"),
+      at("2026-09-19T09:30:00Z", "third"),
+    ];
+    expect(texts(othersInSitting(list, list[1]!.path, 90))).toEqual([
+      "first",
+      "third",
+    ]);
+    // Forty and fifty minutes apart: at thirty, neither gap holds.
+    expect(othersInSitting(list, list[1]!.path, 30)).toEqual([]);
   });
 });
 
-// The pane. Fixtures sit inside and outside the real threshold, so the
-// component is tested against the number the app ships.
+// The pane. The fixtures straddle the shipped SITTING_GAP_MINUTES — 40 and
+// 50 minutes apart inside one run, 110 outside it — so the constant is
+// pinned by what these assert rather than by an assertion about itself.
 const first = q(
   "Does replay happen in quiet wakefulness?",
   "2026-09-19T08:00:00Z"
@@ -113,6 +129,13 @@ const apart = q(
   "Who first reported reward-based memory triage?",
   "2026-09-19T11:20:00Z"
 );
+
+/** A `kind: question` file with no `captured`, listed by name and mtime. */
+const partialAt = (name: string, mtime: string) => ({
+  path: `${vault.path}/questions/${name}.md`,
+  name,
+  mtime,
+});
 
 function renderInbox(listing: Record<string, unknown>) {
   vi.useFakeTimers({ now: new Date("2026-09-19T12:00:00Z"), toFake: ["Date"] });
@@ -145,9 +168,15 @@ describe("the sitting on the Detail pane", () => {
       "Does replay happen in quiet wakefulness?08:00",
       "Would this hold for sparse inputs?09:30",
     ]);
-    // Below Provenance, and nothing that totals them (HOLD-5).
+    // Below Provenance, and nothing in the block but the others themselves:
+    // no total, no "and N more" (#265, HOLD-5).
     expect(detail().textContent).toMatch(/Provenance[\s\S]*same sitting/);
-    expect(detail().textContent).not.toMatch(/\b[23] (questions|others)\b/);
+    expect(sitting.textContent).toBe(
+      within(sitting)
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+        .join("")
+    );
   });
 
   it("shows the clicked question's own sitting once it is selected", async () => {
@@ -197,32 +226,28 @@ describe("the sitting on the Detail pane", () => {
   it("shows no sitting for a Partial row, as it shows no Provenance", async () => {
     renderInbox({
       questions: [first, second],
-      partial: [
-        {
-          path: `${vault.path}/questions/Half a capture.md`,
-          name: "Half a capture",
-          mtime: "2026-09-19T08:20:00Z",
-        },
-      ],
+      partial: [partialAt("Half a capture", "2026-09-19T08:20:00Z")],
     });
     await selectRow("Half a capture");
     expect(detail().textContent).not.toContain("sitting");
   });
 
-  it("does not let a Partial break a run it sits inside", async () => {
+  it("keeps Partials out of every run: they neither join one nor bridge two", async () => {
     renderInbox({
-      questions: [first, second],
+      questions: [first, second, apart],
       partial: [
-        {
-          path: `${vault.path}/questions/Half a capture.md`,
-          name: "Half a capture",
-          mtime: "2026-09-19T08:20:00Z",
-        },
+        // Inside the 08:00–08:40 run, and bridging 08:40 to 11:20: folded
+        // into `questions`, the second would chain the two runs into one
+        // (70 minutes, then 90) and this test would see `apart`.
+        partialAt("Half a capture", "2026-09-19T08:20:00Z"),
+        partialAt("Also half a capture", "2026-09-19T09:50:00Z"),
       ],
     });
     await selectRow("quiet wakefulness");
     expect(
-      within(detail()).getByRole("button", { name: /decoding sensitivity/ })
-    ).toBeDefined();
+      within(detail())
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+    ).toEqual(["Is the decoding sensitivity established?08:40"]);
   });
 });

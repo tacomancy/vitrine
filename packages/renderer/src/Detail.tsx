@@ -44,7 +44,7 @@ export function Detail({
             <div>{provenanceOf(row.question)}</div>
             <div>{localDateTime(row.question.captured)}</div>
           </div>
-          {/* The rest of the sitting: named, never totalled (HOLD-5), and
+          {/* The rest of the sitting: named, never totalled (#265, HOLD-5), and
               absent entirely when this Question was the only one in it. */}
           {others.length > 0 && (
             <>
@@ -56,13 +56,11 @@ export function Detail({
                   <li key={other.path}>
                     <button
                       type="button"
-                      className={styles.sibling}
+                      className={styles.other}
                       onClick={() => onSelect(other.path)}
                     >
-                      <span className={styles.siblingText}>
-                        {other.question}
-                      </span>
-                      <span className={styles.siblingWhen}>
+                      <span className={styles.otherText}>{other.question}</span>
+                      <span className={styles.otherWhen}>
                         {localTime(other.captured)}
                       </span>
                     </button>
