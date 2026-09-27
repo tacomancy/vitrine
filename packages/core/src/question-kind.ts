@@ -122,6 +122,30 @@ export type QuestionFile = {
   question: QuestionFields;
 };
 
+/** Node's `${code}: ${description}, ${syscall} '${path}'` tail. */
+const PATH_CLAUSE = /,\s*\w+\s+'[^']*'$/;
+
+/**
+ * Why the read could not open the file, in the app's own words (#285, the
+ * same argument as #277). Every caller shows this message to the user — the
+ * page prints it as *the Question was not marked: …*, the Inbox alerts it —
+ * and the message already names the file, so Node's errno would only repeat
+ * the path and then add the machine's filesystem layout, which no reader
+ * can use and which a screenshot or a bug report carries onward.
+ *
+ * A file that is gone is the whole of what ENOENT says here: the Inbox
+ * listed the row, or the page resolved its link, and the file is not there
+ * by the time the write reads it. That is the fact the write protocol
+ * already refuses with *the file is no longer there* (`vault-files.write`),
+ * one step later in the same write, so it takes the same words. Every other
+ * failure — a permission, a folder where a file was — is the case where the
+ * cause genuinely helps, so it keeps one, minus the path clause.
+ */
+const whyUnreadable = (cause: unknown): string =>
+  cause instanceof Error && (cause as NodeJS.ErrnoException).code === "ENOENT"
+    ? "the file is no longer there"
+    : errorMessage(cause).replace(PATH_CLAUSE, "");
+
 /**
  * The Question a triage key names, or the refusal the row shows. Every way
  * a triage action can be turned away is decided here — the file is not
@@ -139,7 +163,7 @@ export async function readQuestionForWrite(
   const bytes = await readFile(absolute).catch((cause: unknown) => {
     throw new VaultError(
       "unreadable",
-      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
+      `Couldn't read ${relativePath}: ${whyUnreadable(cause)}`
     );
   });
   const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
