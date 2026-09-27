@@ -1,5 +1,12 @@
 # Two required checks on pull requests to main: the guidance tier
 # (Scripts/check-guidance.sh) and the test suite (lint, typecheck, vitest).
+#
+# The test job runs on macOS, and must stay there. Vitrine ships macOS-only
+# and its Watcher is built on FSEvents (ADR 0013). Linux has no FSEvents, and
+# its stand-in goes permanently deaf to a page the app has written atomically,
+# so Watcher tests hang there on an event that never arrives. The 10x runner
+# minutes are the known price of a gate that can see the shipped platform's
+# behaviour. ADR 0028 has the mechanism and the measurements.
 name: CI
 
 on:
@@ -17,7 +24,8 @@ jobs:
         run: Scripts/check-guidance.sh "origin/${{ github.base_ref }}"
 
   test:
-    runs-on: ubuntu-latest
+    # macOS for FSEvents -- see the header comment and ADR 0028.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
