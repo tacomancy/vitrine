@@ -53,3 +53,45 @@
   color: var(--color-fg-secondary);
   overflow-wrap: anywhere;
 }
+
+/* The rest of the sitting, each other question a target. Set in the serif
+   like the Question above it, one weight quieter, because these are the
+   train of thought and not the subject. */
+.sitting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A left rule per other question, which is geometry inside one surface and
+   not a divider between two (ADR 0023 decision 3). */
+.sibling {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  border: 0;
+  border-left: 2px solid var(--color-line);
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.siblingText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+}
+
+.siblingWhen {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
