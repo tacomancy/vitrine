@@ -106,8 +106,9 @@
   gap: var(--space-2);
 }
 
-/* A floating surface with a gutter, not a bordered box: no hairline between
-   rows, and the gutter is what separates them. */
+/* A row is a surface on the dashboard's ground, not a bordered box
+   (ADR 0023 decision 1): no border, no shadow, and no hairline between
+   rows — the gutter is what separates them. */
 .row {
   display: flex;
   align-items: flex-start;
