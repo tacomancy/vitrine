@@ -321,7 +321,7 @@ describe("README rows: block ids", () => {
     });
   });
 
-  it("B4a–e — a ^id at the end of a list item's first line (#164)", () => {
+  it("B4a–f — a ^id at the end of a list item's first line (#164)", () => {
     const source = read("blocks-list-continuation.md");
     // Obsidian registers h2–h5 and *not* h1: the indented note in case A
     // continues the item's paragraph, so the id sits mid-paragraph and names
@@ -345,14 +345,14 @@ describe("README rows: block ids", () => {
       ],
       ["h5", '- p.7 · "one line" — the note after a separator ^h5'],
     ]);
-    // B4e — the link to the absent id is indexed like any other; nothing in
+    // B4f — the link to the absent id is indexed like any other; nothing in
     // the link itself says it is broken, which is why the hover is the oracle.
     expect(
       of("blocks-list-continuation-links.md").links.map((l) => l.blockId)
     ).toEqual(["h1", "h2", "h3", "h4", "h5", "nosuchblock"]);
   });
 
-  it("B5a–d — the Annotations block as the app composes it (#164)", () => {
+  it("B5a–e — the Annotations block as the app composes it (#164)", () => {
     const source = read("blocks-annotations-section.md");
     expect(
       outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
