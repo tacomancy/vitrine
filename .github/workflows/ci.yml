@@ -6,7 +6,7 @@
 # its stand-in goes permanently deaf to a page the app has written atomically,
 # so Watcher tests hang there on an event that never arrives. The 10x runner
 # minutes are the known price of a gate that can see the shipped platform's
-# behaviour. ADR 0028 has the mechanism and the measurements.
+# behaviour. ADR 0029 has the mechanism and the measurements.
 name: CI
 
 on:
@@ -24,7 +24,7 @@ jobs:
         run: Scripts/check-guidance.sh "origin/${{ github.base_ref }}"
 
   test:
-    # macOS for FSEvents -- see the header comment and ADR 0028.
+    # macOS for FSEvents -- see the header comment and ADR 0029.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

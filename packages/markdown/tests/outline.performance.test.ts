@@ -11,7 +11,7 @@ import { outline } from "../src/outline.js";
 // on the reference machine, ~0.4 s with `patches/micromark@4.0.2.patch`
 // (#196), which folds the fragments in a single pass. The bound is loose
 // because a CI runner is several times slower than the reference machine
-// (~2.4 s measured on ubuntu-latest, which the gate ran on before ADR 0028
+// (~2.4 s measured on ubuntu-latest, which the gate ran on before ADR 0029
 // moved it to macOS); what it must catch is the patch silently no longer
 // applying, which is tens of seconds.
 describe("outline: cost per paragraph", () => {
