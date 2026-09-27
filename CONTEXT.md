@@ -403,6 +403,10 @@ _Avoid_: Search, autocomplete, quick open, palette (the Global command is a diff
 **Loose end**:
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
 
+**Open day**:
+A local date on which the vault was opened, or its window brought to the front, in the app. The unit Loose Ends counts a stalled row's wait in, so time away from the vault never makes anything look stalled.
+_Avoid_: Active day, calendar day (it is not one)
+
 **Coverage**:
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
 
