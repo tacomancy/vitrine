@@ -216,6 +216,21 @@
   text-align: right;
 }
 
+/*
+ * The Address a landing arrived on and could not reach (ADR 0027 decision 7):
+ * the data voice the failed read below already speaks in, because what it
+ * names is a machine address and not prose. It wraps anywhere — an encoded
+ * Address is one long word with no space in it to break at.
+ */
+.unresolved {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
 /* A read that failed says so where the list would be, in the same quiet mono. */
 .failed {
   margin: 0;
