@@ -44,3 +44,15 @@ Beat 7 of the phase-1 map (#131) adds Watched sources to the Scouts ADR 0016 bui
 - **−** The cost table goes stale; a run's `cost_usd` is as accurate as the table was on that day, which is what the column claims and no more.
 - **−** `CONTEXT.md` **Source health** and **Retroactive** widen: three more error kinds, and a first run counts as Retroactive for a Watched source.
 - The beat's spec carries: the seams and the Keychain item, the Credentials panel and RPC, feed autodiscovery, the reducer and budget, the schema and prompt, verification and the three kinds, the hash short-circuit, `source_key`, the run columns and price table, fetch etiquette, and the two Loose Ends rows. Its first ticket should be key → fetch → extract → verify → Proposal with no panel beyond *Add a key*, because that is the tracer bullet.
+
+## Update (2026-09-26, #253)
+
+**Decision 3's second half is superseded: there is a Settings surface, and the Credentials panel is a section of it.** Story KEEP-12 asks for each Provider's key set, replaced, or removed from *one place*, and the app menu plus the Scout form's *Add a key* is two doors onto one thing rather than a place. The objection decision 3 recorded was "a ninth surface the brief never lists, **holding one thing**" — and the story tree puts three under Keep: where the vault is (KEEP-10), where the PDFs are (KEEP-11), what it talks to (KEEP-12). **ADR 0025** is the scope.
+
+What changes here, and nothing else:
+
+- The app-menu door is removed. The Scout form's *Add a key* survives as a jump to `#/settings` (ADR 0025 decision 3).
+- Decision 11's *blocked on credentials* row resolves to *open Settings*, not *open Credentials*. The row itself, and *structure change detected* beside it, are unchanged.
+- Beat 7 no longer builds the panel from nothing: beat 4b ships Settings with its vault and PDF sections, and beat 7 adds Credentials to it (ADR 0025 decision 10).
+
+**What does not change.** Decisions 1, 2 and 4–11 stand as written. In particular decision 4 is untouched — the RPC stays `credentials.status | set | delete | test`, there is deliberately no `credentials.get`, and the panel still shows only *a key is stored*. *Blocked on credentials* remains a state apart from *broken*, and a locked Keychain or a denied ACL dialog remains a fault shown as one. Only where the panel is drawn has moved; what it may do has not.
