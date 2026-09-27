@@ -1,4 +1,9 @@
-import { watch as fsWatch, type FSWatcher } from "node:fs";
+import {
+  existsSync,
+  watch as fsWatch,
+  type FSWatcher,
+  type WatchListener,
+} from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,14 +13,24 @@ import type { VaultStatus } from "./vault.js";
 
 // Watcher health at the harness seam (#190; spec #177 § Testing decisions):
 // the `watch` the core is handed is the real `fs.watch` wrapped so a test can
-// fail the watch it made, or refuse to make the next one. Every wait is on
-// `vaultStatus` or on the index becoming current — never a sleep.
+// fail the watch it made, refuse to make the next one, or — #272 — make one
+// that is never heard from again. Every wait is on `vaultStatus` or on the
+// index becoming current — never a sleep.
 
 type Vault = { name: string; path: string };
 
 afterEach(closeCores);
 
 const SETTLE_MS = 40;
+
+/**
+ * How long the probe may go unanswered here. Short enough that the give-up
+ * path runs in a blink, long enough that the probe is touched a few times
+ * (`PROBE_TICK_MS`, 50 ms) before it does. The production bound is
+ * `PROBE_TIMEOUT_MS` — 5 s, `vault-watcher.ts` — which no suite should wait
+ * out; it is the number this test stands in for, not one it changes.
+ */
+const PROBE_TIMEOUT_MS = 300;
 
 function questionFile(text: string, captured = "2026-09-20T09:00:00Z") {
   return `---\nkind: question\nquestion: ${text}\nstatus: open\ncaptured: ${captured}\ncontext: other\n---\n`;
@@ -43,6 +58,28 @@ function injectable() {
       refuse = reason;
     },
   };
+}
+
+/**
+ * A watch made without complaint that then delivers nothing — a volume
+ * FSEvents cannot follow. Real `fs.watch`, so closing and `error` behave as
+ * they do in production, but pointed at an empty folder nothing ever writes
+ * to instead of the vault: the probe is written and rewritten under the
+ * vault's `.vitrine/`, and no event for it can come back.
+ */
+async function deaf() {
+  const elsewhere = await tmp("unheard");
+  const made: FSWatcher[] = [];
+  const watch: typeof fsWatch = ((
+    _folder: string,
+    options: { recursive: boolean },
+    listener: WatchListener<string>
+  ) => {
+    const watcher = fsWatch(elsewhere, options, listener);
+    made.push(watcher);
+    return watcher;
+  }) as typeof fsWatch;
+  return { watch, made };
 }
 
 async function opened(opts: CoreOptions = {}) {
@@ -226,5 +263,53 @@ describe("current names a settled batch not yet applied", () => {
       { ok: false, reason: expect.stringMatching(/batch/) as string },
     ]);
     expect((await status()).current).toEqual({ ok: true });
+  });
+});
+
+describe("a watch that comes up and is then never heard from", () => {
+  it("gives up at the probe timeout, leaving the vault open, not watching, and swept", async () => {
+    const fs = await deaf();
+    const vault = await tmp("unheard-vault");
+    await mkdir(join(vault, "questions"));
+    await writeFile(join(vault, "questions", "Q.md"), questionFile("Q"));
+    const c = await core({
+      settleMs: SETTLE_MS,
+      probeTimeoutMs: PROBE_TIMEOUT_MS,
+      watch: fs.watch,
+    });
+
+    // That the open resolves at all is half the claim: a watch that never
+    // answers must give up rather than hold the vault shut.
+    const reply = await c.mutate<Vault>("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+    // Made, not refused — the path under test is silence, not ENOSPC.
+    expect(fs.made).toHaveLength(1);
+
+    // The silence is said out loud: a watch that does not deliver must never
+    // look like a vault where nothing is happening (`CLAUDE.md`).
+    const seen = (await c.query<VaultStatus>("vault.status")).result!.data;
+    expect(seen.watching).toEqual({
+      ok: false,
+      reason: "the watch gave no sign of life",
+    });
+
+    // The sweep still runs, so what is on disk is read once...
+    const stream = await c.events();
+    for (;;) {
+      const listing = await c.query<Listing>("questions.list");
+      if ((listing.result?.data as Listing).questions.length === 1) break;
+      await stream.next("vaultStatus");
+    }
+    stream.close();
+    // ...and only `current` says those rows may go stale behind the app.
+    expect(
+      (await c.query<VaultStatus>("vault.status")).result!.data.current
+    ).toEqual({
+      ok: false,
+      reason: "not watching: the watch gave no sign of life",
+    });
+
+    // Giving up still tidies up: the probe is not left in the vault.
+    expect(existsSync(join(vault, ".vitrine", ".watch"))).toBe(false);
   });
 });

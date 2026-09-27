@@ -25,7 +25,8 @@ import { errorMessage } from "./errors.js";
  * one is made: a probe file under `.vitrine/` whose own event is waited for.
  *
  * Health is the vault service's (`vault.ts`): this module's contract is that
- * `watchVault` rejects when the watch could not be brought up live, and that
+ * `watchVault` rejects when the watch could not be brought up live — the
+ * probe could not be written, or went unanswered past its bound — and that
  * `onError` is called once, after the watcher has closed itself, when a watch
  * that was live has died — FSEvents reporting an error or overflow. Nothing
  * more will be delivered, and the caller decides whether to reopen (#190).
@@ -51,8 +52,17 @@ export type WatcherOptions = {
   onError: (reason: string) => void;
   /** A settled batch the index could not apply; the watch itself is fine (#188). */
   onBatchFailed: (reason: string) => void;
-  /** `fs.watch`, or a test's wrapper of it that fails what it made or refuses to make one. */
+  /**
+   * `fs.watch`, or a test's wrapper of it that fails what it made, refuses to
+   * make one, or makes one that is never heard from again (#272).
+   */
   watch?: typeof fsWatch | undefined;
+  /**
+   * How long the probe may go unanswered before the watch is given up on.
+   * Defaults to `PROBE_TIMEOUT_MS`; a test shortens it so the give-up path
+   * can be exercised without waiting out the production bound (#272).
+   */
+  probeTimeoutMs?: number | undefined;
 };
 
 export type Watcher = { close: () => void };
@@ -102,6 +112,7 @@ export async function watchVault(
     onError,
     onBatchFailed,
     watch = fsWatch,
+    probeTimeoutMs = PROBE_TIMEOUT_MS,
   }: WatcherOptions
 ): Promise<Watcher> {
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
@@ -225,8 +236,10 @@ export async function watchVault(
    * than its own creation, so a probe written into the gap is never
    * reported, while the next touch after the gap is. Silence past the
    * timeout is a watch that does not deliver — a volume FSEvents cannot
-   * follow, say — and a watch that does not deliver is *not watching*: the
-   * vault is still opened and swept, but nothing made outside the app will
+   * follow, say — and a watch that does not deliver is *not watching*, so
+   * `watchVault` rejects rather than hand back a watcher that is not one.
+   * The vault service takes that rejection as *not watching* and opens the
+   * vault anyway, swept (`vault.ts`), but nothing made outside the app will
    * reach the index until a retry proves otherwise.
    */
   const live = async () => {
@@ -237,7 +250,7 @@ export async function watchVault(
       seen = true;
       wake();
     };
-    const deadline = Date.now() + PROBE_TIMEOUT_MS;
+    const deadline = Date.now() + probeTimeoutMs;
     try {
       while (!seen && !closed && Date.now() < deadline) {
         try {
