@@ -20,7 +20,7 @@ The installed `/Applications/Vitrine.app` is the user's daily driver, and `pnpm 
 
    - `--app <path/to/Vitrine.app>` drives a packaged bundle instead — its own executable, the core it carries under `Contents/Resources/core` — with the same `page` object. `pnpm package --no-install` leaves one in `packages/shell/dist/mac-arm64/`. The bundle is `app.isPackaged`, so this is the only way to see the packaged branches (core entry, state folder) run; the explicit app-support folder still wins there, so the remembered vault is never touched.
    - `--vault` writes `last-vault.json` into the app-support folder so the window opens on that vault; leave it out to see First run.
-   - `--support` names the app-support folder; by default a fresh temp folder, so `~/Library/Application Support/Vitrine` — the user's remembered vault — is never touched. Reuse one folder across launches to test "relaunch and it is still there".
+   - `--support` names the app-support folder, and makes it if it is not there yet; by default a fresh temp folder, so `~/Library/Application Support/Vitrine` — the user's remembered vault — is never touched. Reuse one folder across launches to test "relaunch and it is still there".
    - `--drive` is a module whose default export is `async (page) => {}`, run once the page has painted. `page.eval(js)` reads anything (text, `aria-selected`, `getComputedStyle` against the tokens); `page.key`, `page.type` and `page.wait` press, type and poll. `⌘'` is `page.key("'", { code: "Quote", vk: 222, modifiers: 4 })`; `↵` is `page.key("Enter", { vk: 13, text: "\r" })`.
    - One launch per state you want a picture of; `--after` must be long enough for the drive to finish (the capture happens at that mark regardless).
 
