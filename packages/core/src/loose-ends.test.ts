@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
@@ -416,5 +416,161 @@ describe("looseEnds.rows — the dashboard's shape", () => {
       { stalledOpenDays: 3 }
     );
     expect((await rows(c)).groups[0]?.rows[0]?.subject).toBe("q/anon (RQ).md");
+  });
+});
+
+// Two files by one bare name, and a Note that links by that name: the link
+// resolves to nothing rather than to the first indexed (§ Markdown,
+// divergences), and that nothing is the row.
+const TWINS = {
+  "a/Klinzing 2019.md": "# Klinzing\n",
+  "b/Klinzing 2019.md": "# Klinzing\n",
+};
+
+const linker = (
+  name = "Linker",
+  body = "Worth reading: [[Klinzing 2019]].\n"
+) => ({ [`notes/${name}.md`]: body });
+
+describe("looseEnds.rows — the ambiguous link", () => {
+  it("names the linking file and every candidate, under Disconnected material", async () => {
+    const { c } = await opened({ ...TWINS, ...linker() });
+
+    expect(await rows(c)).toEqual({
+      problems: [],
+      groups: [
+        {
+          group: "Disconnected material",
+          rows: [
+            {
+              kind: "ambiguous-link",
+              subject: "notes/Linker.md",
+              path: "notes/Linker.md",
+              title: "Linker",
+              linkingKind: null,
+              links: [
+                {
+                  target: "Klinzing 2019",
+                  candidates: ["a/Klinzing 2019.md", "b/Klinzing 2019.md"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("leaves out a link that resolves and one that resolves to nothing: neither is a choice between files", async () => {
+    const { c } = await opened({
+      "a/Klinzing 2019.md": "# Klinzing\n",
+      ...linker(
+        "Linker",
+        "[[Klinzing 2019]] and [[Nobody]] and [[a/Klinzing 2019#Nope]].\n"
+      ),
+    });
+    expect(await rows(c)).toEqual({ groups: [], problems: [] });
+  });
+
+  it("counts one name written twice in a file once, and keys the row by the linking file's id when it has one", async () => {
+    const { c } = await opened({
+      ...TWINS,
+      "q/asking (RQ).md": page("asking", {
+        promoted: "2026-09-21T09:00:00+01:00",
+        supporting: "\n- [[Klinzing 2019]] — it holds up.\n",
+        opposing: "\n- [[Klinzing 2019]]\n",
+      }),
+    });
+
+    const ends = await rows(c);
+    expect(ends.groups[0]?.rows).toEqual([
+      {
+        kind: "ambiguous-link",
+        subject: "rq-asking",
+        path: "q/asking (RQ).md",
+        title: "asking (RQ)",
+        linkingKind: "research-question",
+        links: [
+          {
+            target: "Klinzing 2019",
+            candidates: ["a/Klinzing 2019.md", "b/Klinzing 2019.md"],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("leaves when one candidate is renamed away and the name has somewhere to land", async () => {
+    const { vault, c } = await openedOn(
+      { ...TWINS, ...linker() },
+      ["2026-09-21"],
+      { settleMs: 40 }
+    );
+    expect(titles(await rows(c))).toEqual(["Linker"]);
+    const events = await c.events();
+
+    await rename(
+      join(vault, "b/Klinzing 2019.md"),
+      join(vault, "b/Klinzing 2019 (draft).md")
+    );
+    await events.next("vaultChanged");
+
+    expect(await rows(c)).toEqual({ groups: [], problems: [] });
+    events.close();
+  });
+});
+
+describe("looseEnds.dismiss — a dismissal keyed by a path follows the file", () => {
+  const DAY = "2026-09-21";
+
+  it("is re-keyed by the watcher's rename pairing, so a deliberate orphan does not come back under a new name", async () => {
+    const { vault, c } = await openedOn({ ...TWINS, ...linker() }, [DAY], {
+      settleMs: 40,
+    });
+    const reply = await c.mutate("looseEnds.dismiss", {
+      subject: "notes/Linker.md",
+      kind: "ambiguous-link",
+    });
+    expect(reply.error).toBeUndefined();
+    expect(await rows(c)).toEqual({ groups: [], problems: [] });
+    const events = await c.events();
+
+    await rename(
+      join(vault, "notes/Linker.md"),
+      join(vault, "notes/Reading list.md")
+    );
+    await events.next("vaultChanged");
+
+    expect(titles(await rows(c))).toEqual([]);
+    expect(
+      JSON.parse(
+        await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+      )
+    ).toEqual({
+      "notes/Reading list.md": {
+        "ambiguous-link": at(DAY).toISOString(),
+      },
+    });
+    events.close();
+  });
+
+  it("writes nothing when a rename names no dismissal of its own", async () => {
+    const { vault, c } = await openedOn({ ...TWINS, ...linker() }, [DAY], {
+      settleMs: 40,
+    });
+    const events = await c.events();
+
+    await rename(
+      join(vault, "notes/Linker.md"),
+      join(vault, "notes/Reading list.md")
+    );
+    await events.next("vaultChanged");
+
+    // The row followed the file; nothing was silenced, so no file was made.
+    expect(titles(await rows(c))).toEqual(["Reading list"]);
+    await expect(
+      readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+    ).rejects.toThrow();
+    events.close();
   });
 });

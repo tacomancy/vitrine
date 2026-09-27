@@ -2,6 +2,7 @@ import type { watch as fsWatch } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
+import { renameDismissals } from "./dismissals.js";
 import { errorMessage, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
 import { localDay, openDays, type OpenDays } from "./open-days.js";
@@ -200,6 +201,23 @@ export function createVaultService({
       index = await openIndex(absolute, {
         ...indexOptions,
         onPositionChanged: pending.record,
+        // A rename re-keys the file's dismissals before the event leaves
+        // (§ Watcher and Ingest, Renames). Here rather than in `app.ts` or
+        // a surface, because every listener downstream re-reads Loose Ends
+        // on this event and one that read first would see the row back.
+        onChanged: async (event) => {
+          try {
+            await renameDismissals(absolute, event.renamed);
+          } catch (cause) {
+            // The vault is gone, or `.vitrine/` cannot be written. Nothing
+            // is lost — the dismissal is still keyed by the old path — and
+            // there is no surface for it, so it reaches the core's log.
+            console.error(
+              `vitrine-core: a dismissal could not follow a rename: ${errorMessage(cause)}`
+            );
+          }
+          await indexOptions?.onChanged?.(event);
+        },
       });
     } catch (cause) {
       pending.close();
