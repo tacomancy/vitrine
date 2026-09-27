@@ -4,5 +4,8 @@ build/
 node_modules/
 dist/
 out/
+# tsc's incremental cache. Unanchored: any package that is type-checked or
+# built on its own writes one beside its tsconfig, not just the root.
+*.tsbuildinfo
 # pnpm deploy's staged core, electron-builder's input (packages/shell/stage/)
 stage/
