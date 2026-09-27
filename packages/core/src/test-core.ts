@@ -170,7 +170,8 @@ export async function core(opts: CoreOptions = {}): Promise<{
  * The core's event stream as a caller reads it: `next()` is the next event
  * (of one type, when named), awaited rather than slept for — every wait in a
  * watcher test is on one of these. Bounded, so an event that never comes
- * fails saying which one was lost (`NEXT_TIMEOUT_MS`).
+ * fails saying which one was lost (`NEXT_TIMEOUT_MS`); a stream that dies under
+ * a wait fails with what killed it, which no bound would have told anyone.
  */
 export type EventStream = {
   next: <T extends CoreEvent["type"]>(
@@ -203,15 +204,27 @@ export const NEXT_TIMEOUT_MS = 2000;
 /** One outstanding `next()`: handed the event it waited for, or told why not. */
 type Waiter = {
   deliver: (event: CoreEvent) => void;
-  giveUp: () => void;
+  giveUp: (cause: string) => void;
 };
+
+/**
+ * What a wait on a stream that has stopped carrying events is told: the cause
+ * reads into the sentence, so the body's own reason travels with it rather than
+ * being replaced by a bound that was never reached (#308).
+ */
+const streamDied = (cause: string, awaited: string) =>
+  new Error(`the event stream ${cause} while waiting for ${awaited}`);
 
 /**
  * Read tRPC's SSE framing off a fetch Response: each message is `event:`
  * and `data:` lines closed by a blank line; the `connected`, `ping`, and
  * `return` messages carry no event of ours.
+ *
+ * Exported for `events.test.ts` alone, which drives it over a body it can end
+ * or fail on demand: what a dead stream tells a wait cannot be provoked
+ * through a live core (#308).
  */
-async function openEventStream(
+export async function openEventStream(
   request: (signal: AbortSignal) => Promise<Response>
 ): Promise<EventStream> {
   const controller = new AbortController();
@@ -222,6 +235,18 @@ async function openEventStream(
   }
   const queue: CoreEvent[] = [];
   const waiters: Waiter[] = [];
+  // Why the stream stopped carrying events, once it has; `null` while it is
+  // live. Kept because a wait that arrives after the death has nothing else to
+  // be told, and would otherwise sit out its bound for an event that can no
+  // longer come.
+  let stopped: string | null = null;
+  const end = (cause: string) => {
+    // First cause only: a deliberate `close()` aborts the body, and the abort
+    // error it raises must not rewrite what the stream is said to have done.
+    if (stopped !== null) return;
+    stopped = cause;
+    for (const waiter of waiters.splice(0)) waiter.giveUp(cause);
+  };
   const drop = (waiter: Waiter) => {
     const at = waiters.indexOf(waiter);
     if (at !== -1) waiters.splice(at, 1);
@@ -259,10 +284,17 @@ async function openEventStream(
       }
     }
   };
-  void consume().catch(() => undefined);
+  void consume().then(
+    () => end("ended"),
+    (cause: unknown) =>
+      end(`failed (${cause instanceof Error ? cause.message : String(cause)})`)
+  );
   await opened;
 
-  /** The next event of any type, or `lost()` once `withinMs` has passed. */
+  /**
+   * The next event of any type: `lost()` once `withinMs` has passed, or what
+   * the stream died of if it is no longer carrying events.
+   */
   const next = (withinMs: number, awaited: string, lost: () => Error) =>
     new Promise<CoreEvent>((resolve, reject) => {
       const queued = queue.shift();
@@ -270,16 +302,21 @@ async function openEventStream(
         resolve(queued);
         return;
       }
+      // Checked after the queue and never before it: an event delivered before
+      // the stream died is still this wait's answer, or the instrument invents
+      // a failure of its own.
+      if (stopped !== null) {
+        reject(streamDied(stopped, awaited));
+        return;
+      }
       const waiter: Waiter = {
         deliver: (event) => {
           clearTimeout(timer);
           resolve(event);
         },
-        giveUp: () => {
+        giveUp: (cause) => {
           clearTimeout(timer);
-          reject(
-            new Error(`the event stream closed while waiting for ${awaited}`)
-          );
+          reject(streamDied(cause, awaited));
         },
       };
       const timer = setTimeout(() => {
@@ -309,7 +346,12 @@ async function openEventStream(
               `waited ${timeoutMs}ms on the event stream for ${awaited}: ` +
                 (seen.length === 0
                   ? "nothing arrived"
-                  : `saw ${seen.join(", ")}`)
+                  : `saw ${seen.join(", ")}`) +
+                // Not a guess: `end` answers every waiter itself, so the bound
+                // is only ever reached on a live stream. Said outright because
+                // "was the stream even alive?" is the question a wait that
+                // names nothing leaves open.
+                ", and the stream was still open"
             )
         );
         if (type === undefined || event.type === type) {
@@ -319,11 +361,13 @@ async function openEventStream(
       }
     },
     close: () => {
+      // Before the abort, which reaches the body as an error: a wait still
+      // outstanding can never be satisfied now, so it is given its answer here
+      // rather than left to sit out its bound on a live timer and reject into
+      // a test that has moved on — and what it is told is that the test closed
+      // the stream, not what aborting the body raised.
+      end("closed");
       controller.abort();
-      // A wait still outstanding can never be satisfied now, so it is given
-      // its answer here rather than left to sit out its bound on a live timer
-      // and reject into a test that has moved on.
-      for (const waiter of waiters.splice(0)) waiter.giveUp();
     },
   };
 }
