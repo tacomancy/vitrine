@@ -54,7 +54,8 @@ export function provenanceOf(question: ListedQuestion): string {
   return page === undefined ? from : `${from} · p.${page}`;
 }
 
-const MONTHS = [
+/** Month names, for the date forms below; index 0 is January. */
+export const MONTHS = [
   "January",
   "February",
   "March",
@@ -75,10 +76,16 @@ export function monthYear(iso: string): string {
   return `${MONTHS[d.getMonth()]?.slice(0, 3)} ${d.getFullYear()}`;
 }
 
+/** The full local date, `14 August 2026`. */
+export function localDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** The full local date and time, `14 August 2026 · 09:12`. */
 export function localDateTime(iso: string): string {
   const d = new Date(iso);
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} · ${hh}:${mm}`;
+  return `${localDate(iso)} · ${hh}:${mm}`;
 }

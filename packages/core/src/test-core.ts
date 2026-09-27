@@ -51,11 +51,11 @@ export type CoreOptions = Partial<
 
 // Every core a test file started, so `closeCores` can tear them down: a
 // watcher left open keeps reporting into later tests.
-const cores: Array<() => void> = [];
+const cores: Array<() => Promise<void>> = [];
 
 /** Tear down every core started so far; for a suite's `afterEach`. */
-export function closeCores(): void {
-  for (const close of cores.splice(0)) close();
+export async function closeCores(): Promise<void> {
+  for (const close of cores.splice(0)) await close();
 }
 
 /**
@@ -72,6 +72,8 @@ export async function core(opts: CoreOptions = {}): Promise<{
   /** A request as given, no token added: for what the guard does before the router. */
   raw: (path: string, init?: RequestInit) => Promise<Response>;
   indexed: () => Promise<void>;
+  /** Close this core now, as the app's exit does — pending Revisions spliced (#217). */
+  close: () => Promise<void>;
   changes: VaultChanged[];
   /** Subscribe to `events.subscribe`; resolves once the stream is connected. */
   events: () => Promise<EventStream>;
@@ -122,6 +124,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
   cores.push(close);
   return {
     appSupportDir,
+    close,
     query,
     mutate: async <T>(path: string, input?: unknown) => {
       const res = await app.request(`/trpc/${path}`, {
@@ -238,7 +241,8 @@ async function openEventStream(
 
 // The app's disposable index and the `.gitignore` that covers it (ADR 0014):
 // written by every open, rewritten by every own write, and not vault content.
-const INDEX_FILES = /^\.vitrine\/(index\.sqlite(-wal|-shm)?|\.gitignore)$/;
+const INDEX_FILES =
+  /^\.vitrine\/((index|queue)\.sqlite(-wal|-shm)?|\.gitignore)$/;
 
 /**
  * Every entry under a folder with a hash of each file's bytes, so a test can

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Events } from "./events.js";
 import { listQuestions } from "./list.js";
 import { candidates } from "./picker.js";
+import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
@@ -19,6 +20,7 @@ import {
   saveWorkingAnswer,
   SIDES,
   tickThread,
+  type PageContext,
 } from "./research-question.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
@@ -75,6 +77,17 @@ const candidatesInput = z.object({
 
 const linkInput = z.object({ path: z.string(), target: z.string() });
 
+// The attach form's *new stub*: four fields as typed, the title the only
+// one the record cannot do without — a stub with no title is a citekey and
+// nothing else. The rest default to empty, which is how an absent key is
+// said here rather than a missing one.
+const stubInput = z.object({
+  title: z.string().trim().min(1, "The title is empty."),
+  authors: z.string().trim().default(""),
+  year: z.string().trim().default(""),
+  url: z.string().trim().default(""),
+});
+
 /** *Answer in place*: the one line the user typed, never empty. */
 const answerInput = z.object({
   path: z.string(),
@@ -89,6 +102,12 @@ async function requireVault(ctx: Context) {
   const opened = await ctx.vault.opened();
   if (opened === null) throw noVault();
   return opened;
+}
+
+/** What a page write needs of the open vault (`research-question.ts`). */
+async function requirePage(ctx: Context): Promise<PageContext> {
+  const { vault, index, pending } = await requireVault(ctx);
+  return { vaultPath: vault.path, index, pending };
 }
 
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
@@ -156,6 +175,16 @@ export const router = t.router({
         });
       }),
   }),
+  // A stub made by hand (#220; ADR 0020 decision 7): the only path that
+  // creates a paper until Scouts land, and the citekey rule that beat reuses.
+  sources: t.router({
+    createStub: t.procedure
+      .input(stubInput)
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(createSourceStub(vault.path, index, input));
+      }),
+  }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
     // index (`research-question.ts`).
@@ -181,38 +210,36 @@ export const router = t.router({
           was: z.string(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(saveSection(index, vault.path, input.path, input));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(saveSection(await requirePage(ctx), input.path, input))
+      ),
     // Resolve or abandon (#222; ADR 0020 decision 6): the page's keys, then
     // the write-back to the Question it came from. Two results, because the
     // second can fail after the first landed — a page whose Question is gone
     // is resolved, and says what it could not write.
     resolve: t.procedure
       .input(pathInput.extend({ status: z.enum(["answered", "abandoned"]) }))
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(
-          resolveResearchQuestion(index, vault.path, input.path, {
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          resolveResearchQuestion(await requirePage(ctx), input.path, {
             status: input.status,
             at: localIso(ctx.now()),
           })
-        );
-      }),
+        )
+      ),
     // Resolving is a status, not an archive: reopen puts the page back to
     // open and leaves every other byte — and the Question's line — alone.
-    reopen: t.procedure.input(pathInput).mutation(async ({ ctx, input }) => {
-      const { vault, index } = await requireVault(ctx);
-      return refusing(reopenResearchQuestion(index, vault.path, input.path));
-    }),
+    reopen: t.procedure
+      .input(pathInput)
+      .mutation(async ({ ctx, input }) =>
+        refusing(reopenResearchQuestion(await requirePage(ctx), input.path))
+      ),
     // A thread ticked in place, named by its text.
     tickThread: t.procedure
       .input(pathInput.extend({ text: z.string(), done: z.boolean() }))
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(tickThread(index, vault.path, input.path, input));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(tickThread(await requirePage(ctx), input.path, input))
+      ),
     // Attach a source to one side (#218): one `appendToSection` writing the
     // line grammar. The side is required and has no third value, so a form
     // that did not ask is an input error rather than a default.
@@ -226,10 +253,9 @@ export const router = t.router({
           basedOn: z.string(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(attachSource(index, vault.path, input.path, input));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(attachSource(await requirePage(ctx), input.path, input))
+      ),
     // Move a source to the other side, or detach it (#219): the line is
     // named by its text, not its position, so a file edited underneath
     // takes the move where it was meant or refuses. Neither records a
@@ -242,10 +268,9 @@ export const router = t.router({
           basedOn: z.string(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(moveSource(index, vault.path, input.path, input));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(moveSource(await requirePage(ctx), input.path, input))
+      ),
     detachSource: t.procedure
       .input(
         pathInput.extend({
@@ -254,10 +279,9 @@ export const router = t.router({
           basedOn: z.string(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(detachSource(index, vault.path, input.path, input));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(detachSource(await requirePage(ctx), input.path, input))
+      ),
     // The Working answer is the one Edited section that is also a Position:
     // its save records the Revision in the same write (#213).
     saveWorkingAnswer: t.procedure
@@ -268,16 +292,15 @@ export const router = t.router({
           was: z.string(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        const { vault, index } = await requireVault(ctx);
-        return refusing(
-          saveWorkingAnswer(index, vault.path, input.path, {
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveWorkingAnswer(await requirePage(ctx), input.path, {
             ...input,
             at: ctx.now(),
             coalesceMs: ctx.coalesceMs,
           })
-        );
-      }),
+        )
+      ),
   }),
   questions: t.router({
     list: t.procedure.input(listInput).query(async ({ ctx, input }) => {

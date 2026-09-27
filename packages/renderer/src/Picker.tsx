@@ -18,6 +18,7 @@ export function Picker({
   label,
   kinds,
   exclude,
+  newRow,
   onChoose,
   onClose,
 }: {
@@ -27,6 +28,13 @@ export function Picker({
   kinds?: CandidateKind[];
   /** Vault-relative paths to leave out: what the caller is standing on. */
   exclude?: string[];
+  /**
+   * What the caller offers when nothing matched — the attach form's *new
+   * stub* (#220). Shown only in that state, where `↵` takes it because
+   * there is no row to take: a picker with rows in it is for choosing one.
+   * Omitted, a vault with no match just says so.
+   */
+  newRow?: { label: string; onChoose: () => void };
   onChoose: (candidate: Candidate) => void;
   onClose: () => void;
 }) {
@@ -72,6 +80,7 @@ export function Picker({
         event.preventDefault();
         const row = rows[chosen];
         if (row !== undefined) onChoose(row);
+        else if (rows.length === 0) newRow?.onChoose();
         return;
       }
       case "ArrowDown":
@@ -148,6 +157,15 @@ export function Picker({
       {!listing.isError && rows.length === 0 && (
         <p className={styles.message}>
           Nothing in the vault matches that name.
+          {newRow !== undefined && (
+            <button
+              type="button"
+              className={styles.new}
+              onClick={newRow.onChoose}
+            >
+              {newRow.label}
+            </button>
+          )}
         </p>
       )}
       {/* Never a silent cut: a list longer than one ask says how long. */}
