@@ -356,6 +356,38 @@ type PageFile = {
   shape: ShapeProblem[];
 };
 
+/** Node's `${code}: ${description}, ${syscall} '${path}'` tail. */
+const PATH_CLAUSE = /,\s*\w+\s+'[^']*'$/;
+
+/**
+ * Why the page could not read its file, in the page's own words (#277). The
+ * page prints this beside the file's vault-relative path, so a reader — in
+ * the window, in a screenshot, in a bug report — sees a sentence and never
+ * the machine's filesystem layout.
+ *
+ * A missing file is the ordinary case here: a stale hash, or a link into a
+ * page since renamed. It takes the register of the removal line beside it
+ * on the page rather than Node's errno, which would only repeat the path
+ * the line already carries and then add the part no reader can use. Every
+ * other failure — a permission, a folder where a file was — is the case
+ * where the cause genuinely helps, so it keeps one, minus the path clause.
+ */
+function unreadable(
+  relativePath: string,
+  error: unknown
+): { readable: false; path: string; reason: string } {
+  const missing =
+    error instanceof Error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT";
+  return {
+    readable: false,
+    path: relativePath,
+    reason: missing
+      ? "not in the vault"
+      : errorMessage(error).replace(PATH_CLAUSE, ""),
+  };
+}
+
 /**
  * One file read as a Research Question, for the page and for every write
  * the page makes: the bytes, their hash, and the outline of those same
@@ -372,7 +404,7 @@ async function readPageFile(
   try {
     bytes = await readFile(absolute);
   } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
+    return unreadable(relativePath, error);
   }
   const raw = bytes.toString("utf8");
   const read = analyseFile(relativePath, raw, sha256(bytes));

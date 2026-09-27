@@ -13,6 +13,7 @@ import type {
 } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
+import { hashOf } from "./router";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -339,6 +340,29 @@ describe("the page under external change", () => {
           .textContent
       ).toContain("Typed in Obsidian.");
     });
+  });
+
+  // Spec #206 story 55, and #277: a stale hash is a message, and the
+  // message is the app's own — the file's vault-relative path, never the
+  // machine's, and never a blank where the reason should be.
+  it("renders the not-found line for a hash naming a file the vault does not hold", async () => {
+    const stale = "questions/Nothing here (RQ).md";
+    window.location.hash = hashOf({ surface: "questions", path: stale });
+    renderApp({
+      ...answers,
+      "researchQuestions.page": () => ({
+        readable: false,
+        path: stale,
+        reason: "not in the vault",
+      }),
+    });
+    const page = await region();
+    await within(page).findByText(`${stale} — not in the vault`);
+    // The address is encoded per segment; the line reads the path the core
+    // named, not the hash it was reached by.
+    expect(page.textContent).not.toContain("%20");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(within(page).queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("renders the not-found line with the reason for a path the core cannot read as a page", async () => {

@@ -334,13 +334,40 @@ describe("researchQuestions.page", () => {
       path: noQuestion,
       reason: "question is missing",
     });
+  });
+
+  // #277. The not-found line is read by a person, in a screenshot and in a
+  // bug report, so the reason is the app's own words and never the machine's
+  // filesystem layout. A missing file is the ordinary case here — a stale
+  // hash, a link into a page since renamed — and it takes the register of
+  // the removal line beside it on the page.
+  it("a file the read cannot open is not readable, with a reason that carries no absolute path", async () => {
+    const path = "questions/a (RQ).md";
+    const { c, vault } = await openedPage({ [path]: WELL_FORMED }, path);
+
     const gone = await c.query<ResearchQuestionPage>("researchQuestions.page", {
       path: "questions/gone (RQ).md",
     });
-    expect(gone.result?.data).toMatchObject({
+    expect(gone.result?.data).toEqual({
       readable: false,
       path: "questions/gone (RQ).md",
+      reason: "not in the vault",
     });
+
+    // Any other failure is the case where the cause genuinely helps, so it
+    // keeps one — a path through a file rather than a folder is ENOTDIR,
+    // which Node states with the absolute path appended.
+    const through = `${path}/inner (RQ).md`;
+    const reply = await c.query<ResearchQuestionPage>(
+      "researchQuestions.page",
+      { path: through }
+    );
+    const data = reply.result?.data;
+    expect(data).toMatchObject({ readable: false, path: through });
+    const reason = (data as { reason: string }).reason;
+    expect(reason).toContain("not a directory");
+    expect(reason).not.toContain(vault);
+    expect(reason).not.toContain("/");
   });
 
   it("refuses a path outside the vault as an input error, typed outsideVault", async () => {
