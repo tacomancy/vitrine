@@ -321,13 +321,28 @@ describe("README rows: block ids", () => {
     });
   });
 
+  it("B3a–c — hand-written ids are found like generated ones", () => {
+    const source = read("blocks-handwritten.md");
+    expect(
+      outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
+    ).toEqual([
+      ["h12", "First paragraph. ^h12"],
+      ["c3", "Second paragraph. ^c3"],
+      ["my-own-id", "- a list item ^my-own-id"],
+    ]);
+    expect(of("blocks-generated-links.md").links.map((l) => l.blockId)).toEqual(
+      ["6ea9c9", "aa75c2", "e4e371", "86acd3", "h12", "c3", "my-own-id"]
+    );
+  });
+
   it("B4a–f — a ^id at the end of a list item's first line (#164)", () => {
     const source = read("blocks-list-continuation.md");
     // Obsidian registers h2–h5 and *not* h1: the indented note in case A
     // continues the item's paragraph, so the id sits mid-paragraph and names
     // nothing. Hovering `#^h1` says "Unable to find" — the same popover an
     // absent id gets. B ends the paragraph with a nested item, C with a blank
-    // line, D and E put the id on the item's last line.
+    // line, D puts the id on the item's last line, E collapses the item to
+    // one line (B4e).
     expect(
       outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
     ).toEqual([
@@ -374,21 +389,10 @@ describe("README rows: block ids", () => {
     expect(
       of("blocks-annotations-section-links.md").links.map((l) => l.blockId)
     ).toEqual(["h1", "h2", "h3", "h4"]);
-    expect(outline(source).listItems).toHaveLength(4); // B5e — one list
-  });
-
-  it("B3a–c — hand-written ids are found like generated ones", () => {
-    const source = read("blocks-handwritten.md");
-    expect(
-      outline(source).blockIds.map((b) => [b.id, slice(source, b.range)])
-    ).toEqual([
-      ["h12", "First paragraph. ^h12"],
-      ["c3", "Second paragraph. ^c3"],
-      ["my-own-id", "- a list item ^my-own-id"],
-    ]);
-    expect(of("blocks-generated-links.md").links.map((l) => l.blockId)).toEqual(
-      ["6ea9c9", "aa75c2", "e4e371", "86acd3", "h12", "c3", "my-own-id"]
-    );
+    // B5e — the locator has no list-level concept, so four items is the half
+    // of that row a test can hold; Obsidian's `sections` is what says it is
+    // one list.
+    expect(outline(source).listItems).toHaveLength(4);
   });
 });
 
