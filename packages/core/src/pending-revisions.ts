@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { errorMessage } from "./errors.js";
 import { localIso } from "./time.js";
 
 /**
@@ -49,8 +50,10 @@ export type PendingRevisionsOptions = {
 
 /**
  * The parked Revisions for one vault, with the timers that fire their
- * splices, over a `queue.sqlite` handle `queue.ts` has already opened and
- * migrated. Closing is the opener's: two tables share the handle.
+ * splices — including one per file the last session left a row for, since
+ * a Revision is owed from the moment the vault is open. Over a
+ * `queue.sqlite` handle `queue.ts` has already opened and migrated;
+ * closing is the opener's, as two tables share the handle.
  */
 export function openPendingRevisions(
   db: DatabaseSync,
@@ -90,10 +93,30 @@ export function openPendingRevisions(
       path,
       setTimeout(() => {
         quiet.delete(path);
-        if (!closed) void splice(path);
+        if (closed) return;
+        // A splice that cannot land leaves its rows parked and owed again,
+        // as `flush`'s does — likelier now that a timer is armed at open
+        // (#276) for a file that may have gone while the app was closed.
+        // A timer has no caller to reject to, so it reaches the core's log
+        // rather than becoming an unhandled rejection that takes the core
+        // down with it.
+        void splice(path).catch((cause: unknown) => {
+          console.error(
+            `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
+          );
+        });
       }, windowMs).unref()
     );
   };
+
+  // A row the last session left behind is owed a splice from the moment the
+  // vault is open, not from the next edit to its file (#276): arming only
+  // from `record` left it with no timer at all, and the app's next write to
+  // that page — a page the user may never open again — was then the only
+  // clause of the three that could still fire.
+  for (const { path } of allPaths.all() as Array<{ path: string }>) {
+    waitForQuiet(path);
+  }
 
   return {
     record: ({ path, field, from }) => {

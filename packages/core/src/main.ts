@@ -7,14 +7,24 @@ import { startCore } from "./start.js";
 /** The first message the core sends its parent: where it is and how to talk to it. */
 export type CoreReadyMessage = { type: "ready"; port: number; token: string };
 /** Everything the core sends the shell. */
-export type CoreMessage = CoreReadyMessage | { type: "pickFolder"; id: number };
+export type CoreMessage =
+  | CoreReadyMessage
+  | { type: "pickFolder"; id: number }
+  // The answer to `close`: the vault is closed and whatever the queue owed
+  // has been spliced, or could not be (#276). Sent either way — the shell
+  // waits for it, and a core that cannot close must not be what stops the
+  // app from quitting.
+  | { type: "closed" };
 /** Everything the shell sends the core. */
 export type ShellMessage =
   | { type: "pickedFolder"; id: number; path: string | null }
   // The window came to the front: today is a day at the open vault (#243).
   // The shell is the only one who can see this; the core never infers it
   // from a request, since the renderer re-queries on its own.
-  | { type: "focused" };
+  | { type: "focused" }
+  // The app is quitting. Only the shell knows that, and `app.quit()` kills
+  // this process, so the orderly close has to be asked for (#276).
+  | { type: "close" };
 
 type ParentPort = {
   postMessage: (message: CoreMessage) => void;
@@ -74,6 +84,25 @@ const ready: CoreReadyMessage = {
   token: running.token,
 };
 if (parentPort && shell) {
+  const port = parentPort;
+  /**
+   * The orderly close, asked for because the shell is quitting (#276):
+   * `running.close` is what awaits the splice of everything `queue.sqlite`
+   * owes, and `process.on("exit")` — all a killed process gets — cannot.
+   * Answered whatever happened, because the shell is waiting on this and a
+   * core that cannot close must not hold up the quit; what could not be
+   * spliced stays in the queue and is owed again at the next open.
+   */
+  const closeForQuit = async () => {
+    try {
+      await running.close();
+    } catch (cause) {
+      console.error(
+        `vitrine-core: the vault could not be closed: ${errorMessage(cause)}`
+      );
+    }
+    port.postMessage({ type: "closed" });
+  };
   // One dispatcher for everything the shell sends: a new message type is a
   // branch here, and the switch is exhaustive so adding one to
   // `ShellMessage` without handling it is a type error.
@@ -92,6 +121,9 @@ if (parentPort && shell) {
             `vitrine-core: an open day could not be recorded: ${errorMessage(cause)}`
           );
         });
+        break;
+      case "close":
+        void closeForQuit();
         break;
     }
   });

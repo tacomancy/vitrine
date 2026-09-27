@@ -17,6 +17,7 @@ import {
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pickFolder, type ShowOpenDialog } from "./chooser.js";
+import { closeCore, type CorePort } from "./close.js";
 import { coreEntry, stateFolder } from "./launch.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
@@ -217,4 +218,48 @@ void app.whenReady().then(async () => {
 // (ADR 0005).
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+/** The `utilityProcess` as the narrow channel `closeCore` asks for. */
+function portOf(core: UtilityProcess): CorePort {
+  return {
+    postMessage: (message) => core.postMessage(message),
+    onMessage: (listener) => {
+      core.on("message", listener);
+      return () => core.off("message", listener);
+    },
+    onExit: (listener) => {
+      core.on("exit", listener);
+      return () => core.off("exit", listener);
+    },
+  };
+}
+
+// Whether the close has already been asked for, so the second `app.quit()`
+// below is the one that goes through.
+let closing = false;
+
+/**
+ * Quitting is what closes the vault, and only the shell knows it is
+ * happening: `app.quit()` kills the `utilityProcess`, leaving the core the
+ * `process.on("exit")` last resort, which cannot await and so splices
+ * nothing (#276). So the quit is deferred — not cancelled — while the core
+ * is asked to close and answers, and then asked for again.
+ */
+app.on("before-quit", (event) => {
+  const core = coreProcess;
+  if (closing || core === undefined) return;
+  event.preventDefault();
+  closing = true;
+  void closeCore(portOf(core)).then((outcome) => {
+    if (outcome !== "closed") {
+      // Nothing is lost: a Revision that could not be spliced stays in
+      // `queue.sqlite` and is owed again at the next open. There is no
+      // window left to say it in, so it goes to the shell's log.
+      console.error(
+        `vitrine: the core did not close cleanly (${outcome}); quitting anyway`
+      );
+    }
+    app.quit();
+  });
 });
