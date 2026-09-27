@@ -1,5 +1,5 @@
 import type { CandidateKind } from "core";
-import { hashOf } from "./router";
+import { hashOf, type Route } from "./router";
 
 /**
  * A Kind's glyph and its name, the vocabulary `docs/architecture.md`
@@ -18,26 +18,37 @@ export const KIND: Record<string, { glyph: string; label: string }> = {
 };
 
 /**
- * The Address of a file of this Kind, or null for a Kind with nowhere to open
+ * Where a file of this Kind opens, or null for a Kind with nowhere to open
  * yet — a Note, a Source, a Source stub, and a `kind:` the app does not know,
  * each named rather than linked until its surface exists (spec #206 story 56;
  * the Vault editor is beat 11). The Kind is a bare string because that is how
  * the index carries it: one the app does not know is stored verbatim, and
  * there is nothing to open for it either way. One function, so every surface
- * says the same thing about the same file and one edit wakes them all.
+ * says the same thing about the same file and one edit wakes them all — and
+ * so the reach of the Global command is this rule and nothing else
+ * (ADR 0027 decision 4).
  */
+export function routeOf(
+  kind: string | null | undefined,
+  path: string
+): Route | null {
+  switch (kind) {
+    case "question":
+      return { surface: "inbox", question: path };
+    case "research-question":
+      return { surface: "research-question", path };
+    default:
+      return null;
+  }
+}
+
+/** The Address of a file of this Kind, for the callers that link to it. */
 export function addressOf(
   kind: string | null | undefined,
   path: string
 ): string | null {
-  switch (kind) {
-    case "question":
-      return hashOf({ surface: "inbox", question: path });
-    case "research-question":
-      return hashOf({ surface: "research-question", path });
-    default:
-      return null;
-  }
+  const route = routeOf(kind, path);
+  return route === null ? null : hashOf(route);
 }
 
 /**

@@ -1,4 +1,7 @@
 .window {
+  /* The Global command's overlay floats inside the window frame, not over
+     the page: it belongs to the app (ADR 0023 decision 2). */
+  position: relative;
   height: 100vh;
   display: flex;
   flex-direction: column;
