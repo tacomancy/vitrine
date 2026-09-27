@@ -265,6 +265,40 @@ describe("looseEnds.dismiss — mark deliberate", () => {
     });
   });
 
+  it("keeps both dismissals when two arrive at once", async () => {
+    // The write reads dismissals.json and puts the whole object back, so
+    // two that overlapped would lose one — and a losing row is one the user
+    // told the app to stop showing, back again. The queue is in `dismiss`
+    // (`serialise.ts`); this is what notices if it ever stops being.
+    const { vault, c } = await showing({
+      "q/stale (RQ).md": page("stale", { promoted: PROMOTED }),
+      "q/other (RQ).md": page("other", { promoted: PROMOTED }),
+    });
+    expect(titles(await rows(c))).toEqual(["other?", "stale?"]);
+
+    const [first, second] = await Promise.all([
+      c.mutate("looseEnds.dismiss", {
+        subject: "rq-stale",
+        kind: "stalled-research-question",
+      }),
+      c.mutate("looseEnds.dismiss", {
+        subject: "rq-other",
+        kind: "stalled-research-question",
+      }),
+    ]);
+
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeUndefined();
+    expect(titles(await rows(c))).toEqual([]);
+    const written: unknown = JSON.parse(
+      await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+    );
+    expect(written).toEqual({
+      "rq-stale": { "stalled-research-question": LAST.toISOString() },
+      "rq-other": { "stalled-research-question": LAST.toISOString() },
+    });
+  });
+
   it("keeps the row silenced across a vault reopen", async () => {
     const { vault, c } = await showing();
     await c.mutate("looseEnds.dismiss", {
