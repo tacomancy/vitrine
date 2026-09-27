@@ -266,8 +266,7 @@ describe("readOutline: shape problems", () => {
 });
 
 // #288. `readOutline` is the seam every reader goes through, and its reason
-// is printed wherever the caller prints one, so it carries the cause and
-// never the machine's filesystem layout — the argument of #277 and #285.
+// is printed wherever the caller prints one (`errorMessageWithoutPath`).
 describe("readOutline: why a file could not be read", () => {
   it("names the cause with no absolute path, apostrophe in the vault or not", async () => {
     const vault = await vaultWith({ "Does Tong's index hold.md": "x\n" });

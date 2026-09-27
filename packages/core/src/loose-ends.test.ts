@@ -288,8 +288,8 @@ describe("looseEnds.dismiss — mark deliberate", () => {
     expect(reply.error?.message).toBe(
       "Couldn't write .vitrine/dismissals.json: EACCES: permission denied"
     );
-    expect(reply.error?.message).not.toContain(vault);
-    // The row is still there: nothing was dismissed.
+    // Nothing was dismissed: the row is still there once the folder is
+    // writable again (the `afterEach` restore is the net if this throws).
     await chmod(join(vault, ".vitrine"), 0o700);
     expect(titles(await rows(c))).toEqual(["stale?"]);
   });

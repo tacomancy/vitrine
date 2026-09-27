@@ -21,7 +21,7 @@ import type { VaultService } from "./vault.js";
  * named in the failure messages as well as joined onto the vault path, and
  * the message must say the same folder the write meant (#288).
  */
-const FOLDER = "questions";
+const QUESTIONS_FOLDER = "questions";
 const META_FOLDER = ".vitrine";
 
 /**
@@ -211,7 +211,7 @@ export function createQuestionService({
     vaultPath: string,
     question: Omit<Question, "path">
   ): Promise<{ written: Question; content: string }> {
-    const folder = join(vaultPath, FOLDER);
+    const folder = join(vaultPath, QUESTIONS_FOLDER);
     try {
       await mkdir(folder, { recursive: true });
       const path = await freePath(
@@ -231,10 +231,9 @@ export function createQuestionService({
           created: question.captured,
         }).catch(async (cause: unknown) => {
           await unlink(written.path).catch(() => undefined);
-          // Named as the marker's failure, not the Question's: the Question
-          // was written and taken back, and once the errno's path is gone
-          // (#288) this message is the only thing left that says which of
-          // the two writes could not happen.
+          // The marker's failure, not the Question's — which was written
+          // and taken back. With the errno's path gone (#288) this message
+          // is all that says which of the two writes could not happen.
           throw new VaultError(
             "writeFailed",
             `Couldn't write the vault marker into ${META_FOLDER}/: ${errorMessageWithoutPath(cause)}`
@@ -247,11 +246,9 @@ export function createQuestionService({
       if (cause instanceof VaultError) throw cause;
       // Permissions, a full disk, a folder that vanished: the text stays
       // in the capture line with this message, never lost and never silent.
-      // The folder is named vault-relative and the cause carries no path:
-      // this is read in the window and in a bug report (#288).
       throw new VaultError(
         "writeFailed",
-        `Couldn't write the Question into ${FOLDER}/: ${errorMessageWithoutPath(cause)}`
+        `Couldn't write the Question into ${QUESTIONS_FOLDER}/: ${errorMessageWithoutPath(cause)}`
       );
     }
   }

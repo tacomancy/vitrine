@@ -217,7 +217,7 @@ async function removeIndexFiles(folder: string): Promise<void> {
  * every schema change, not only in disaster.
  */
 async function openDatabase(folder: string): Promise<DatabaseSync> {
-  const file = join(folder, "index.sqlite");
+  const file = join(folder, FILE);
   const attempt = (): DatabaseSync | null => {
     let db: DatabaseSync | null = null;
     try {
@@ -378,6 +378,10 @@ async function walk(
 
 export class IndexOpenError extends Error {}
 
+/** Vault-relative, for the messages above as well as the joins (#288). */
+const META_FOLDER = ".vitrine";
+const FILE = "index.sqlite";
+
 /**
  * Open (or create, or replace) the index for a vault. Throws
  * `IndexOpenError` when `.vitrine/` cannot be created or written — the
@@ -387,22 +391,27 @@ export async function openIndex(
   vaultPath: string,
   options: IndexOptions = {}
 ): Promise<VaultIndex> {
-  const folder = join(vaultPath, ".vitrine");
+  const folder = join(vaultPath, META_FOLDER);
+  // Vault-relative in every message below: the joined path is what the
+  // errno's strip just took out (#288).
   const failing = (what: string) => (cause: unknown) => {
     throw new IndexOpenError(
       `Couldn't ${what}: ${errorMessageWithoutPath(cause)}`
     );
   };
-  await mkdir(folder, { recursive: true }).catch(failing(`create ${folder}`));
+  await mkdir(folder, { recursive: true }).catch(
+    failing(`create ${META_FOLDER}/`)
+  );
   // The one disposable file, ignored in a vault under git; written once, so a
   // user's own `.gitignore` there is never touched (ADR 0014 decision 10).
   await writeFile(join(folder, ".gitignore"), "index.sqlite*\n", {
     flag: "wx",
   }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== "EEXIST") failing(`write ${folder}/.gitignore`)(error);
+    if (error.code !== "EEXIST")
+      failing(`write ${META_FOLDER}/.gitignore`)(error);
   });
   const db = await openDatabase(folder).catch(
-    failing(`open ${join(folder, "index.sqlite")}`)
+    failing(`open ${META_FOLDER}/${FILE}`)
   );
   return createIndex(vaultPath, db, options);
 }

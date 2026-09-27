@@ -148,10 +148,8 @@ export function createVaultService({
       await mkdir(appSupportDir, { recursive: true });
       await writeFile(lastVaultFile, JSON.stringify({ path }) + "\n");
     } catch (cause) {
-      // Named, because this used to reach the window as Node stated it —
-      // an errno and the machine's filesystem layout, with nothing saying
-      // what the app had been doing (#288). The folder itself is the app's
-      // own state directory, which the reader can neither use nor act on.
+      // The app-support folder is not named: it is the app's own state
+      // directory, which the reader can neither use nor act on (#288).
       throw new VaultError(
         "writeFailed",
         `Couldn't remember the vault: ${errorMessageWithoutPath(cause)}`

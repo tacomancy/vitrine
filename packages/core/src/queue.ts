@@ -59,15 +59,23 @@ const MIGRATIONS: readonly string[] = [PENDING_REVISIONS, OPEN_DAYS];
 export class QueueOpenError extends Error {}
 
 /**
+ * Named vault-relative, because these two go into messages as well as onto
+ * the vault path: a message that interpolated the joined path would put back
+ * exactly what the errno's strip took out (#288).
+ */
+const META_FOLDER = ".vitrine";
+const FILE = "queue.sqlite";
+
+/**
  * Open `queue.sqlite` at this build's schema, migrating a database written
  * by an older build and refusing one written by a newer.
  */
 export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
-  const folder = join(vaultPath, ".vitrine");
-  const file = join(folder, "queue.sqlite");
+  const folder = join(vaultPath, META_FOLDER);
+  const file = join(folder, FILE);
   await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
     throw new QueueOpenError(
-      `Couldn't create ${folder}: ${errorMessageWithoutPath(cause)}`
+      `Couldn't create ${META_FOLDER}/: ${errorMessageWithoutPath(cause)}`
     );
   });
   let db: DatabaseSync;
@@ -75,7 +83,7 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
     db = new DatabaseSync(file);
   } catch (cause) {
     throw new QueueOpenError(
-      `Couldn't open ${file}: ${errorMessageWithoutPath(cause)}`
+      `Couldn't open ${META_FOLDER}/${FILE}: ${errorMessageWithoutPath(cause)}`
     );
   }
   try {
@@ -110,7 +118,7 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
   } catch (cause) {
     db.close();
     throw new QueueOpenError(
-      `Couldn't open ${file}: ${errorMessageWithoutPath(cause)}`
+      `Couldn't open ${META_FOLDER}/${FILE}: ${errorMessageWithoutPath(cause)}`
     );
   }
   return db;

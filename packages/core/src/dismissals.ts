@@ -95,10 +95,8 @@ async function save(vaultPath: string, dismissals: Dismissals): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
     await writeAtomically(path, JSON.stringify(dismissals, null, 2) + "\n");
   } catch (cause) {
-    // *Mark deliberate* is a write like any other, and a write that failed
-    // says so in the app's words: this used to leave the procedure unwrapped
-    // and reach the dashboard as Node stated it, absolute path and all
-    // (#288). The file is named vault-relative, as `FILE` holds it.
+    // Unwrapped, this left the procedure as Node stated it and reached the
+    // dashboard with nothing saying what the app had been doing (#288).
     throw new VaultError(
       "writeFailed",
       `Couldn't write ${FILE}: ${errorMessageWithoutPath(cause)}`
