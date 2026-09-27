@@ -205,10 +205,10 @@ describe("researchQuestions.resolve", () => {
   });
 
   // #285. The page prints this reason as *the Question was not marked: …*,
-  // so it is the app's own words and never the machine's filesystem layout.
-  // The file was in the index when the page resolved its link and is gone by
-  // the time the write-back reads it — the same fact the write protocol
-  // already calls *no longer there*, one step earlier.
+  // so it is read by a person and never carries the machine's filesystem
+  // layout. The file was in the index when the page resolved its link and is
+  // gone by the time the write-back reads it; why those are the words for
+  // that is in `whyUnreadable`.
   it("reports a Question gone from under the index in the app's words, naming no absolute path", async () => {
     const { vault, c } = await opened(bothFiles);
     // No watcher here — `core()` starts one only when a test passes `watch`

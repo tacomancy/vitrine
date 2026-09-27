@@ -131,9 +131,12 @@ export type QuestionFile = {
  *
  * ENOENT is one fact here and the whole of it: the Inbox listed the row, or
  * the page resolved its link, and the file is gone by the time the write
- * reads it. It takes the words the write protocol already refuses that with
- * one step later in the same write (`vault-files.write`). Every other
- * failure is the case where the cause genuinely helps, so it keeps one.
+ * reads it. The write protocol one step later refuses that same absence
+ * with *the file is no longer there* (`vault-files.write`), so the read
+ * says it the same way. Deliberately not the page's *missing from the
+ * vault* (#277): a page reached by a stale link and a row whose file went
+ * out from under it are different absences. Every other failure is the case
+ * where the cause genuinely helps, so it keeps one.
  */
 const whyUnreadable = (cause: unknown): string =>
   cause instanceof Error && (cause as NodeJS.ErrnoException).code === "ENOENT"

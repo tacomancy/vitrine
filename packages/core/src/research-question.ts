@@ -8,7 +8,7 @@ import {
   type Outline,
 } from "markdown";
 import { stringify } from "yaml";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";
 import type { PendingRevision, PendingRevisions } from "./pending-revisions.js";
 import {
@@ -368,7 +368,10 @@ type PageFile = {
  * would only repeat the path the line already carries and then add the part
  * no reader can use. *Missing*, not *not in the vault*: the vault refuses a
  * path outside its root by those words already (`locate`), and the two mean
- * opposite things — refused, against absent.
+ * opposite things — refused, against absent. The Inbox's own refusal says
+ * *the file is no longer there* (#285): a page reached by a stale link and
+ * a row whose file went out from under it are not the same absence, so they
+ * do not borrow each other's words.
  *
  * Every other failure — a permission, a folder where a file was — is the
  * case where the cause genuinely helps, so it keeps Node's, minus the path.
@@ -377,27 +380,11 @@ function unreadable(
   relativePath: string,
   error: unknown
 ): { readable: false; path: string; reason: string } {
-  const { code, syscall, path } = error as NodeJS.ErrnoException;
-  if (code === "ENOENT") {
-    return {
-      readable: false,
-      path: relativePath,
-      reason: "missing from the vault",
-    };
-  }
-  // Node builds the message as `${code}: ${description}, ${syscall}
-  // '${path}'`, so cut exactly the text it appended rather than matching
-  // back to a quote: a vault folder may hold an apostrophe of its own —
-  // `Wan Shi Tong's Library` is the one this was found in — and a strip
-  // that stopped there would leave the whole path on screen. An error
-  // carrying no path (EISDIR names no file) has nothing to cut.
-  const message = errorMessage(error);
-  const appended = `, ${syscall} '${path}'`;
-  const at = path === undefined ? -1 : message.lastIndexOf(appended);
+  const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
   return {
     readable: false,
     path: relativePath,
-    reason: at === -1 ? message : message.slice(0, at),
+    reason: missing ? "missing from the vault" : errorMessageWithoutPath(error),
   };
 }
 

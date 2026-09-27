@@ -26,11 +26,18 @@ export const errorMessageWithoutPath = (error: unknown): string => {
   const { syscall, path } = (error ?? {}) as NodeJS.ErrnoException;
   const message = errorMessage(error);
   if (path === undefined) return message;
-  // Cut *at* what Node appended rather than removing it, so a call that
-  // names two paths (`rename 'a' -> 'b'`, which the write protocol makes)
-  // loses the second one with the first.
   const at = message.lastIndexOf(`, ${syscall} '${path}'`);
-  return at === -1 ? message : message.slice(0, at);
+  // Cut *at* what Node appended rather than removing it, so a call that
+  // names two paths (`rename 'a' -> 'b'`, which the write protocol makes on
+  // every commit) loses the second one with the first.
+  if (at !== -1) return message.slice(0, at);
+  // Stated some other way — a wrapped errno that kept `path` and lost
+  // `syscall`, or an error from somewhere that is not `fs`. Where the path
+  // sits is no longer known, so it goes out by name rather than by
+  // position: the one thing this function promises is that none of it
+  // reaches a surface, and handing the message back whole would break that
+  // promise in exactly the case nobody is watching.
+  return message.split(String(path)).join("…");
 };
 
 export type VaultErrorKind =

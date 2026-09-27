@@ -142,12 +142,9 @@ describe("questions.answer", () => {
     ).toBe("noVault");
   });
 
-  // #285. The message is read by a person — in the window, in a screenshot,
-  // in a bug report — so it is the app's own words and never the machine's
-  // filesystem layout. A Question the Inbox listed and cannot now open is
-  // gone from under the row, which is what the write protocol already calls
-  // *no longer there*; the message names the file already, so Node's errno
-  // would only repeat the path and add the part no reader can use.
+  // #285. The Inbox alerts this message under the row, so it is read by a
+  // person and never carries the machine's filesystem layout; `whyUnreadable`
+  // holds why a Question that has gone gets these words.
   it("says a Question the read cannot open is no longer there, naming no absolute path", async () => {
     const { c } = await openedVault({ [PATH]: HEAD });
 
@@ -161,11 +158,11 @@ describe("questions.answer", () => {
     );
   });
 
-  // The apostrophe is what the strip has to survive: a Question is named
-  // after the question, and the user's own vault folder is `Wan Shi Tong's
-  // Library`, so cutting back to a quote would leave the whole path on
-  // screen. A path *through* a file rather than a folder is ENOTDIR, which
-  // Node states with the absolute path appended.
+  // The apostrophe is what the strip has to survive — a Question is named
+  // after the question, and the real vault is `Wan Shi Tong's Library` — so
+  // the Inbox's own refusal pins it too, not just `errors.test.ts`. A path
+  // *through* a file rather than a folder is ENOTDIR, which Node states with
+  // the absolute path appended.
   it("keeps the cause of any other read failure, with the path cut off even when the path quotes", async () => {
     const withApostrophe = "questions/Does Tong's index hold.md";
     const { vault, c } = await openedVault({ [withApostrophe]: HEAD });
