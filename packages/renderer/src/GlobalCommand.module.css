@@ -45,10 +45,11 @@
   white-space: nowrap;
 }
 
-/* The serif the typed text will be written in when #303 makes it a
-   Question; the placeholder stays in the interface family, because it is
-   the app talking and not the user. No border — the focus ring is the
-   global brass one. */
+/* The reading family, as the prototype's query line has it (branch
+   `prototype/global-command`, variant B): what is typed here is read back
+   as a Question on every row below it, and #303 writes it as one. The
+   placeholder stays in the interface family — that is the app talking, not
+   the user. No border; the focus ring is the global brass one. */
 .input {
   flex: 1;
   min-width: 0;
@@ -110,8 +111,12 @@
   cursor: default;
 }
 
-/* The choice, as the Inbox marks its selection: one surface step up, and
-   a sapphire rule on the leading edge (BRAND.md law 2). */
+/* The choice, with the sapphire rule on the leading edge the Inbox marks
+   its selection by (BRAND.md law 2). The step is *down* here, not up as the
+   Inbox's is: the overlay is already the raised surface, so there is nothing
+   above it to step to, and the chosen row is set into it instead. The
+   prototype's treatment (branch `prototype/global-command`, variant B),
+   which ADR 0023 decision 2 leaves to the overlay. */
 .destination[aria-selected="true"] {
   background: var(--color-bg-surface);
 }
@@ -121,7 +126,6 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 2px;
-  border-radius: 1px;
   background: var(--color-primary);
 }
 
