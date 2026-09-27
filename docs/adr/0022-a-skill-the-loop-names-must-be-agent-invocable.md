@@ -1,4 +1,4 @@
-# 0021: Make the skills the loop names agent-invocable
+# 0022: Make the skills the loop names agent-invocable
 
 **Status:** Accepted
 

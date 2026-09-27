@@ -38,7 +38,7 @@ fi
 #    skill flagged user-only leaves the documented step with nothing to run.
 #    Upstream sets those flags on user-facing entry points; a skill named here
 #    is not one. The truthy/quote variants below are deliberate -- a re-vendor
-#    writing `True` or `"yes"` must fail loudly, not pass. ADR 0021.
+#    writing `True` or `"yes"` must fail loudly, not pass. ADR 0022.
 skills_dir=.agents/skills
 sections="$(awk '/^## Development loop/,/^## Code standard/' CLAUDE.md; awk '/^## Review cadence/,/^## Parallel work/' CLAUDE.md)"
 for name in $(printf '%s' "$sections" | grep -o '`[a-z][a-z0-9-]*`' | tr -d '`' | sort -u); do
