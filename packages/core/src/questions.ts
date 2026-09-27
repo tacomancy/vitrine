@@ -242,7 +242,10 @@ export function createQuestionService({
       }
       return { written, content };
     } catch (cause) {
-      // The marker's own failure already says what it was.
+      // The marker's own failure already says what it was. It is the only
+      // VaultError reachable in this try and it is `writeFailed` too, so
+      // nothing a surface switches on moves; a second one thrown in here
+      // would need its own kind to be the right one to come out.
       if (cause instanceof VaultError) throw cause;
       // Permissions, a full disk, a folder that vanished: the text stays
       // in the capture line with this message, never lost and never silent.
@@ -322,7 +325,7 @@ export function createQuestionService({
         const leftover = await unlink(written.path).then(
           () => "",
           (error: unknown) =>
-            ` (and ${written.path} could not be removed: ${errorMessageWithoutPath(error)})`
+            ` (and ${relativePath(written.path)} could not be removed: ${errorMessageWithoutPath(error)})`
         );
         throw new VaultError("writeFailed", message + leftover);
       }
