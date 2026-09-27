@@ -1,29 +1,15 @@
-import { hashOf, INBOX, LOOSE_ENDS, type Route } from "./router";
+import { hashOf, type Route } from "./router";
 import styles from "./Sidebar.module.css";
+import { DASHBOARDS, SURFACES, type Entry } from "./surfaces";
 
 // The eight surfaces in CONTEXT.md's order, then the one dashboard that has
 // an address; the Sidebar stands in for Home until beat 12. An entry with a
 // destination is a link; the rest are drawn inert so the product's shape is
 // visible — plain list items, not controls. The Research Question view has
 // no destination of its own (a page needs a path): it lights when a page is
-// open and is inert otherwise.
-type Entry = { name: string; to?: Route; lit?: (at: Route) => boolean };
-
-const SURFACES: readonly Entry[] = [
-  { name: "Home" },
-  { name: "Question Inbox", to: INBOX },
-  { name: "Reader" },
-  {
-    name: "Research Question view",
-    lit: (at) => at.surface === "research-question",
-  },
-  { name: "Hypothesis view" },
-  { name: "Experiment view" },
-  { name: "Scout Queue" },
-  { name: "Vault" },
-];
-
-const DASHBOARDS: readonly Entry[] = [{ name: "Loose Ends", to: LOOSE_ENDS }];
+// open and is inert otherwise. The list itself is `surfaces.ts`, shared with
+// the Global command so the map and the command cannot disagree about what
+// is reachable.
 
 export function Sidebar({ route }: { route: Route }) {
   const item = ({ name, to, lit }: Entry) => {

@@ -5,6 +5,7 @@ import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
 import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
+import { GlobalCommand } from "./GlobalCommand";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ResearchQuestion } from "./ResearchQuestion";
@@ -102,6 +103,9 @@ export function App() {
           )}
         </div>
         <CaptureLine provenance={provenance} onCaptured={onCaptured} />
+        {/* Both chords are mounted here and nowhere else, so neither is
+            live before a vault is open (ADR 0027 decision 1). */}
+        <GlobalCommand route={route} />
       </div>
     </VaultChangedListeners>
   );

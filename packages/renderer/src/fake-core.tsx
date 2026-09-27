@@ -132,3 +132,8 @@ export async function rows() {
 export function pressCaptureChord() {
   fireEvent.keyDown(window, { key: "'", metaKey: true });
 }
+
+/** ⌘K, from anywhere in the window. */
+export function pressGlobalChord() {
+  fireEvent.keyDown(window, { key: "k", metaKey: true });
+}
