@@ -107,6 +107,9 @@ export async function core(opts: CoreOptions = {}): Promise<{
       ? { stalledOpenDays: opts.stalledOpenDays }
       : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
+    ...(opts.probeTimeoutMs !== undefined
+      ? { probeTimeoutMs: opts.probeTimeoutMs }
+      : {}),
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,

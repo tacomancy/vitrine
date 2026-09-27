@@ -39,10 +39,11 @@ const SETTLE_MS = 200;
 
 /**
  * Above `PROBE_TIMEOUT_MS` (5 s), never equal to it. The watch-then-sweep test
- * exercises a probe that is *allowed* to take 5 s before the sweep runs
- * anyway; at Vitest's 5 s default the test died before the code could reach
- * its own bound, so a slow probe read as a broken test and the give-up path
- * could never be observed at all.
+ * exercises a probe that is *allowed* to take the full 5 s before `watchVault`
+ * gives up on it; at Vitest's 5 s default the test died before the code could
+ * reach its own bound, so a slow probe read as a broken test. The give-up
+ * itself is `vault-watcher.health.test.ts`'s (#272), which injects a shorter
+ * bound rather than waiting this one out.
  */
 const TIMING_TIMEOUT_MS = 20_000;
 
