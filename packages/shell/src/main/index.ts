@@ -87,6 +87,9 @@ function spawnCore(): Promise<Session> {
       }
     });
     core.on("exit", (code) => {
+      // Cleared so a window that comes to the front after a core crash does
+      // not post `focused` into a dead process.
+      if (coreProcess === core) coreProcess = undefined;
       console.error(`vitrine-core exited with code ${code}`);
     });
   });

@@ -1,5 +1,6 @@
 // Entry for the Electron utilityProcess the shell spawns. Everything Electron
 // specific is confined to this file so the rest of the core is plain Node.
+import { errorMessage } from "./errors.js";
 import type { Host } from "./host.js";
 import { startCore } from "./start.js";
 
@@ -30,24 +31,29 @@ const parentPort = (process as unknown as { parentPort?: ParentPort })
 
 /**
  * The host, over the process channel: each chooser request carries an id so
- * the reply can be matched even if two arrive close together.
+ * the reply can be matched even if two arrive close together. It does not
+ * listen for its own replies — the one dispatcher below hands them over, so
+ * a new message type is a branch there rather than another listener.
  */
-function hostOver(port: ParentPort): Host {
+function hostOver(port: ParentPort): {
+  host: Host;
+  picked: (message: { id: number; path: string | null }) => void;
+} {
   let nextId = 1;
   const pending = new Map<number, (path: string | null) => void>();
-  port.on("message", ({ data }) => {
-    if (data.type === "pickedFolder") {
-      pending.get(data.id)?.(data.path);
-      pending.delete(data.id);
-    }
-  });
   return {
-    pickFolder: () =>
-      new Promise((resolve) => {
-        const id = nextId++;
-        pending.set(id, resolve);
-        port.postMessage({ type: "pickFolder", id });
-      }),
+    host: {
+      pickFolder: () =>
+        new Promise((resolve) => {
+          const id = nextId++;
+          pending.set(id, resolve);
+          port.postMessage({ type: "pickFolder", id });
+        }),
+    },
+    picked: ({ id, path }) => {
+      pending.get(id)?.(path);
+      pending.delete(id);
+    },
   };
 }
 
@@ -55,10 +61,11 @@ const staticDir = process.env["VITRINE_STATIC_DIR"];
 // Overridable so a verification run can start from a folder of its own
 // rather than the real Application Support.
 const appSupportDir = process.env["VITRINE_APP_SUPPORT_DIR"];
+const shell = parentPort ? hostOver(parentPort) : null;
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(appSupportDir === undefined ? {} : { appSupportDir }),
-  ...(parentPort ? { host: hostOver(parentPort) } : {}),
+  ...(shell ? { host: shell.host } : {}),
 });
 
 const ready: CoreReadyMessage = {
@@ -66,9 +73,27 @@ const ready: CoreReadyMessage = {
   port: running.port,
   token: running.token,
 };
-if (parentPort) {
+if (parentPort && shell) {
+  // One dispatcher for everything the shell sends: a new message type is a
+  // branch here, and the switch is exhaustive so adding one to
+  // `ShellMessage` without handling it is a type error.
   parentPort.on("message", ({ data }) => {
-    if (data.type === "focused") void running.focused();
+    switch (data.type) {
+      case "pickedFolder":
+        shell.picked(data);
+        break;
+      case "focused":
+        // A day that cannot be recorded is a day the vault was open and
+        // Loose Ends will not count. There is no surface to say that on
+        // from here, so it goes to the core's log rather than becoming an
+        // unhandled rejection in the utilityProcess.
+        void running.focused().catch((cause: unknown) => {
+          console.error(
+            `vitrine-core: an open day could not be recorded: ${errorMessage(cause)}`
+          );
+        });
+        break;
+    }
   });
   parentPort.postMessage(ready);
 } else {

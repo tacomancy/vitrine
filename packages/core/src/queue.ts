@@ -49,9 +49,10 @@ CREATE TABLE open_days (day TEXT PRIMARY KEY);
 `;
 
 /**
- * What to run to reach version N from N-1. A fresh database runs all of
- * them in order, which is what keeps the empty case and the upgrade case
- * from drifting apart — there is no separate "current schema" to forget.
+ * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
+ * fresh database is version 0 and runs all of them in order, which is what
+ * keeps the empty case and the upgrade case from drifting apart — there is
+ * no separate "current schema" to forget to update.
  */
 const MIGRATIONS: readonly string[] = [PENDING_REVISIONS, OPEN_DAYS];
 
@@ -94,7 +95,13 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
         db.exec(`PRAGMA user_version = ${v + 1}`);
         db.exec("COMMIT");
       } catch (cause) {
-        db.exec("ROLLBACK");
+        // A rollback with no transaction live throws in its own right; the
+        // migration's failure is the one worth reporting.
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          // Nothing to undo.
+        }
         throw cause;
       }
     }
