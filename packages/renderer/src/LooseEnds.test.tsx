@@ -505,6 +505,30 @@ describe("the ambiguous link row", () => {
     ).toBe(hash);
   });
 
+  it("opens a linking Question at its own Address, which is the Inbox on that row", async () => {
+    open({
+      "looseEnds.rows": ambiguous({
+        subject: "k7m2p9q4wx",
+        path: "reading/Does slow-wave density predict recall gain.md",
+        title: "Does slow-wave density predict recall gain?",
+        linkingKind: "question",
+      }),
+    });
+    const view = await dashboard();
+    // A Question has an Address of its own from #300, so the row opens it
+    // rather than naming the file and stopping.
+    const hash =
+      "#/question/reading/Does%20slow-wave%20density%20predict%20recall%20gain.md";
+    expect(
+      (await within(view).findByRole("link", { name: "open" })).getAttribute(
+        "href"
+      )
+    ).toBe(hash);
+    expect(view.textContent).toContain(
+      "question · reading/Does slow-wave density predict recall gain.md"
+    );
+  });
+
   it("shows a kind: the app does not know verbatim, rather than passing it off as a note", async () => {
     open({
       "looseEnds.rows": ambiguous({ linkingKind: "lab-notebook" }),

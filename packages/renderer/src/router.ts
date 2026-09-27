@@ -10,7 +10,7 @@ import { useEffect, useSyncExternalStore } from "react";
  * spells it in frontmatter; surfaces keep their own (ADR 0026).
  */
 export type Route =
-  | { surface: "inbox"; unresolved?: Unresolved }
+  | { surface: "inbox"; question?: string; unresolved?: Unresolved }
   | { surface: "research-question"; path: string }
   | { surface: "loose-ends" };
 
@@ -27,6 +27,14 @@ export type Unresolved = { address: string; reason: string };
 export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 
+/**
+ * A Question's Address is the Inbox with a row named (#300; ADR 0027
+ * decision 7). It is not a surface of its own: the window is on the Inbox
+ * either way, and what the Address carries is where to arrive — the
+ * selection moving afterwards is not a change of location and never reaches
+ * the hash.
+ */
+const QUESTION = "#/question/";
 const RESEARCH_QUESTION = "#/research-question/";
 
 /**
@@ -42,14 +50,35 @@ const RETIRED = "#/questions/";
 export function hashOf(route: Route): string {
   switch (route.surface) {
     case "inbox":
-      return "#/inbox";
+      return route.question === undefined
+        ? "#/inbox"
+        : QUESTION + encodePath(route.question);
     case "loose-ends":
       return "#/loose-ends";
     case "research-question":
-      return (
-        RESEARCH_QUESTION +
-        route.path.split("/").map(encodeURIComponent).join("/")
-      );
+      return RESEARCH_QUESTION + encodePath(route.path);
+  }
+}
+
+const encodePath = (path: string) =>
+  path.split("/").map(encodeURIComponent).join("/");
+
+/**
+ * The vault-relative path a hash carries under `prefix`; null when the hash
+ * is not one of those, names no path, or cannot be decoded — each of which
+ * is an address nothing wrote, and so the Inbox without a word.
+ */
+function pathUnder(hash: string, prefix: string): string | null {
+  if (!hash.startsWith(prefix)) return null;
+  try {
+    const path = hash
+      .slice(prefix.length)
+      .split("/")
+      .map(decodeURIComponent)
+      .join("/");
+    return path === "" ? null : path;
+  } catch {
+    return null;
   }
 }
 
@@ -61,18 +90,10 @@ export function hashOf(route: Route): string {
  */
 function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
-  if (hash.startsWith(RESEARCH_QUESTION)) {
-    try {
-      const path = hash
-        .slice(RESEARCH_QUESTION.length)
-        .split("/")
-        .map(decodeURIComponent)
-        .join("/");
-      if (path !== "") return { surface: "research-question", path };
-    } catch {
-      // A malformed escape is an address nothing wrote; fall through.
-    }
-  }
+  const question = pathUnder(hash, QUESTION);
+  if (question !== null) return { surface: "inbox", question };
+  const page = pathUnder(hash, RESEARCH_QUESTION);
+  if (page !== null) return { surface: "research-question", path: page };
   if (hash.startsWith(RETIRED))
     return {
       surface: "inbox",
@@ -149,8 +170,12 @@ export function useRoute(): Route {
   const address = useSyncExternalStore(subscribe, readAddress);
   const reason = useSyncExternalStore(subscribe, readReason);
   const parsed = parseHash(hash);
+  // The entry's Address belongs to a bare `#/inbox`: it is what a landing
+  // that did not resolve left behind, and an Address naming a row is an
+  // arrival of its own.
   const route: Route =
     parsed.surface === "inbox" &&
+    parsed.question === undefined &&
     parsed.unresolved === undefined &&
     address !== null &&
     reason !== null
