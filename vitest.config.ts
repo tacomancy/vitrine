@@ -15,6 +15,13 @@ export default defineConfig({
           include: ["tooling/**/*.test.js"],
         },
       },
+      {
+        test: {
+          name: "scripts",
+          environment: "node",
+          include: ["Scripts/**/*.test.js"],
+        },
+      },
     ],
   },
 });
