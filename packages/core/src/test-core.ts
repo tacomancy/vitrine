@@ -169,13 +169,41 @@ export async function core(opts: CoreOptions = {}): Promise<{
 /**
  * The core's event stream as a caller reads it: `next()` is the next event
  * (of one type, when named), awaited rather than slept for — every wait in a
- * watcher test is on one of these.
+ * watcher test is on one of these. Bounded, so an event that never comes
+ * fails saying which one was lost (`NEXT_TIMEOUT_MS`).
  */
 export type EventStream = {
   next: <T extends CoreEvent["type"]>(
-    type?: T
+    type?: T,
+    options?: { timeoutMs?: number }
   ) => Promise<Extract<CoreEvent, { type: T }>>;
   close: () => void;
+};
+
+/**
+ * How long a `next()` waits before it says the event never came. Well under
+ * Vitest's 5 s default so this bound always wins that race: a bare `Test timed
+ * out` says the test was slow, where a lost event has to say which event was
+ * lost (#294, after #292 took an instrumented CI run to tell the two apart).
+ *
+ * Ten times the widest settle window any suite injects (200 ms,
+ * `vault-watcher.test.ts`), so it is a diagnostic and not a new constraint —
+ * no wait that passes today comes near it. A test that legitimately needs
+ * longer passes its own `timeoutMs`, as the timing tests there pass their own
+ * budget to `it`.
+ *
+ * One wait it is deliberately *not* long enough for: a watcher-driven event on
+ * a core built without `settleMs`, which is due at the production `SETTLE_MS`
+ * (2 s, `vault-watcher.ts`) and would be called lost here. Inject a small
+ * settle window, as every watcher suite does — no suite should be waiting out
+ * a production timing constant anyway.
+ */
+export const NEXT_TIMEOUT_MS = 2000;
+
+/** One outstanding `next()`: handed the event it waited for, or told why not. */
+type Waiter = {
+  deliver: (event: CoreEvent) => void;
+  giveUp: () => void;
 };
 
 /**
@@ -193,13 +221,17 @@ async function openEventStream(
     throw new Error(`events.subscribe answered ${res.status}`);
   }
   const queue: CoreEvent[] = [];
-  const waiters: Array<(event: CoreEvent) => void> = [];
+  const waiters: Waiter[] = [];
+  const drop = (waiter: Waiter) => {
+    const at = waiters.indexOf(waiter);
+    if (at !== -1) waiters.splice(at, 1);
+  };
   let connected: () => void = () => undefined;
   const opened = new Promise<void>((resolve) => (connected = resolve));
 
   const deliver = (event: CoreEvent) => {
     const waiter = waiters.shift();
-    if (waiter) waiter(event);
+    if (waiter) waiter.deliver(event);
     else queue.push(event);
   };
   const consume = async () => {
@@ -230,22 +262,69 @@ async function openEventStream(
   void consume().catch(() => undefined);
   await opened;
 
-  const next = () =>
-    new Promise<CoreEvent>((resolve) => {
+  /** The next event of any type, or `lost()` once `withinMs` has passed. */
+  const next = (withinMs: number, awaited: string, lost: () => Error) =>
+    new Promise<CoreEvent>((resolve, reject) => {
       const queued = queue.shift();
-      if (queued) resolve(queued);
-      else waiters.push(resolve);
+      if (queued) {
+        resolve(queued);
+        return;
+      }
+      const waiter: Waiter = {
+        deliver: (event) => {
+          clearTimeout(timer);
+          resolve(event);
+        },
+        giveUp: () => {
+          clearTimeout(timer);
+          reject(
+            new Error(`the event stream closed while waiting for ${awaited}`)
+          );
+        },
+      };
+      const timer = setTimeout(() => {
+        // Off the list first: a waiter left behind would be handed the next
+        // event that does arrive, and swallow it from the wait that wanted it.
+        drop(waiter);
+        reject(lost());
+      }, withinMs);
+      waiters.push(waiter);
     });
   return {
-    next: async <T extends CoreEvent["type"]>(type?: T) => {
+    next: async <T extends CoreEvent["type"]>(
+      type?: T,
+      { timeoutMs = NEXT_TIMEOUT_MS }: { timeoutMs?: number } = {}
+    ) => {
+      const awaited = type ?? "any event";
+      const seen: Array<CoreEvent["type"]> = [];
+      // One deadline for the whole wait, not one per arrival: a stream of
+      // unrelated events must not buy the awaited one more time.
+      const deadline = Date.now() + timeoutMs;
       for (;;) {
-        const event = await next();
+        const event = await next(
+          Math.max(deadline - Date.now(), 0),
+          awaited,
+          () =>
+            new Error(
+              `waited ${timeoutMs}ms on the event stream for ${awaited}: ` +
+                (seen.length === 0
+                  ? "nothing arrived"
+                  : `saw ${seen.join(", ")}`)
+            )
+        );
         if (type === undefined || event.type === type) {
           return event as Extract<CoreEvent, { type: T }>;
         }
+        seen.push(event.type);
       }
     },
-    close: () => controller.abort(),
+    close: () => {
+      controller.abort();
+      // A wait still outstanding can never be satisfied now, so it is given
+      // its answer here rather than left to sit out its bound on a live timer
+      // and reject into a test that has moved on.
+      for (const waiter of waiters.splice(0)) waiter.giveUp();
+    },
   };
 }
 
