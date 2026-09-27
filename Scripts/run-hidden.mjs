@@ -14,8 +14,9 @@
 // --vault     the folder to open at launch (written to the app-support
 //             folder's last-vault.json, so the window opens on it directly;
 //             without it the window shows First run)
-// --support   the app-support folder to use; a fresh temp folder by default,
-//             so the real ~/Library/Application Support/Vitrine is untouched
+// --support   the app-support folder to use, made if it is not there yet; a
+//             fresh temp folder by default, so the real ~/Library/Application
+//             Support/Vitrine is untouched
 // --after     how long the page gets before the capture (default 4000)
 // --drive     a module whose default export is `async (page) => {}`; it runs
 //             once the page has painted, before the capture
@@ -29,7 +30,7 @@
 // macOS only: the Electron binary is the .app the shell package installs.
 
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -55,6 +56,11 @@ const after = Number(args.get("after") ?? 4000);
 const repo = resolvePath(dirname(fileURLToPath(import.meta.url)), "..");
 const support =
   args.get("support") ?? (await mkdtemp(join(tmpdir(), "vitrine-support-")));
+// A named folder is made, not demanded: mkdtemp makes the default one, and a
+// caller who names another has usually just invented the name. Finding out it
+// is missing from the last-vault.json write below is a Node stack, not an
+// error message.
+await mkdir(support, { recursive: true });
 if (args.has("vault")) {
   await writeFile(
     join(support, "last-vault.json"),

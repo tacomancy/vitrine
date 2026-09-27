@@ -42,6 +42,8 @@ export type VaultServiceOptions = {
   settleMs?: number | undefined;
   /** `fs.watch`, or a test's wrapper that fails or refuses a watch (#190). */
   watch?: typeof fsWatch | undefined;
+  /** How long the probe may go unanswered before the watch is given up on; tests shorten it (#272). */
+  probeTimeoutMs?: number | undefined;
   /** The clock a pending Revision is stamped by (#217); tests pin it. */
   now?: (() => Date) | undefined;
   /** How long a file must be quiet before its pending Revisions are spliced (#217). */
@@ -134,6 +136,7 @@ export function createVaultService({
   index: indexOptions,
   settleMs = SETTLE_MS,
   watch,
+  probeTimeoutMs,
   now = () => new Date(),
   coalesceMs,
 }: VaultServiceOptions): VaultService {
@@ -284,6 +287,7 @@ export function createVaultService({
       const watcher = await watchVault(o.vault.path, {
         settleMs,
         watch,
+        probeTimeoutMs,
         onSettled: (paths) => o.index.refresh(paths),
         onBatchFailed: (reason) =>
           console.error(`vitrine-core: the watcher failed: ${reason}`),
