@@ -61,6 +61,17 @@ describe("closeCore", () => {
     expect(core.listening()).toBe(0);
   });
 
+  // `before-quit` has already deferred the quit by the time this runs, so a
+  // rejection here would be an app that never quits at all.
+  it("stops waiting when the core is already gone to be asked", async () => {
+    const core = fakeCore();
+    core.port.postMessage = () => {
+      throw new Error("Attempted to send message to a destroyed process");
+    };
+    expect(await closeCore(core.port, 1000)).toBe("gone");
+    expect(core.listening()).toBe(0);
+  });
+
   it("stops waiting when the core goes without answering", async () => {
     const core = fakeCore();
     const closing = closeCore(core.port, 1000);

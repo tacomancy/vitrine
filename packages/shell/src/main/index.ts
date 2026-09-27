@@ -236,7 +236,11 @@ function portOf(core: UtilityProcess): CorePort {
 }
 
 // Whether the close has already been asked for, so the second `app.quit()`
-// below is the one that goes through.
+// below is the one that goes through — and so is a second ⌘Q from someone
+// who will not wait. That one takes the core with it mid-splice, which is
+// safe to let happen: a page write is whole-then-rename (`atomic-write.ts`),
+// so what is on disk is either the old file or the new one, and a Revision
+// whose entry did not land is still parked for the next open.
 let closing = false;
 
 /**

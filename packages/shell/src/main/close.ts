@@ -55,7 +55,14 @@ export function closeCore(
     // A core that crashed on its way out is a core there is nothing left to
     // wait for; without this the quit would sit out the whole bound.
     const stopExit = core.onExit(() => settle("gone"));
-    // Asked for last, so a fast answer cannot arrive before anyone is listening.
-    core.postMessage({ type: "close" });
+    // Asked for last, so a fast answer cannot arrive before anyone is
+    // listening. A core that died between the caller's check and this line
+    // throws here, and a rejection would leave the quit deferred for good —
+    // `before-quit` has already called `preventDefault` by now.
+    try {
+      core.postMessage({ type: "close" });
+    } catch {
+      settle("gone");
+    }
   });
 }

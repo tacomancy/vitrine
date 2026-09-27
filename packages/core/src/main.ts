@@ -84,7 +84,7 @@ const ready: CoreReadyMessage = {
   token: running.token,
 };
 if (parentPort && shell) {
-  const port = parentPort;
+  const parent = parentPort;
   /**
    * The orderly close, asked for because the shell is quitting (#276):
    * `running.close` is what awaits the splice of everything `queue.sqlite`
@@ -92,17 +92,23 @@ if (parentPort && shell) {
    * Answered whatever happened, because the shell is waiting on this and a
    * core that cannot close must not hold up the quit; what could not be
    * spliced stays in the queue and is owed again at the next open.
+   *
+   * Asking twice is asking once: the second `close` joins the first rather
+   * than tearing down an already-closed vault, so the rule lives here
+   * instead of in whoever sends the message.
    */
-  const closeForQuit = async () => {
-    try {
-      await running.close();
-    } catch (cause) {
-      console.error(
-        `vitrine-core: the vault could not be closed: ${errorMessage(cause)}`
-      );
-    }
-    port.postMessage({ type: "closed" });
-  };
+  let closing: Promise<void> | undefined;
+  const closeForQuit = () =>
+    (closing ??= (async () => {
+      try {
+        await running.close();
+      } catch (cause) {
+        console.error(
+          `vitrine-core: the vault could not be closed: ${errorMessage(cause)}`
+        );
+      }
+      parent.postMessage({ type: "closed" });
+    })());
   // One dispatcher for everything the shell sends: a new message type is a
   // branch here, and the switch is exhaustive so adding one to
   // `ShellMessage` without handling it is a type error.
@@ -125,6 +131,11 @@ if (parentPort && shell) {
       case "close":
         void closeForQuit();
         break;
+      default:
+        // Exhaustive by construction: a new `ShellMessage` with no branch
+        // above fails this line at compile time, rather than being a
+        // message the core drops without saying so.
+        data satisfies never;
     }
   });
   parentPort.postMessage(ready);

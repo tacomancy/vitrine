@@ -191,6 +191,13 @@ export function createVaultService({
       // window injected one of those can fire before `opening` below has
       // resolved. A splice writes through the index, so it waits for the
       // index rather than for the order these two statements were written in.
+      //
+      // One of the two has to name the other before it exists — the index
+      // reports Position changes to `pending`, and `pending` splices through
+      // the index — and this is the direction whose safety the language
+      // guarantees: a `setTimeout` cannot fire during the call below it.
+      // The other way round would rest on when the index first diffs, which
+      // is a fact about behaviour rather than about evaluation.
       splice: async (path) => {
         await splicePendingRevisions(
           { vaultPath: absolute, index: await opening, pending },
@@ -245,17 +252,10 @@ export function createVaultService({
     opened = null;
     if (going === null) return;
     going.watcher?.close();
-    try {
-      await going.pending.flush();
-    } catch (cause) {
-      // A vault that has gone away, a file that has. Nothing is lost —
-      // what could not be spliced stays in the queue and is owed again at
-      // the next open — and by now there is no surface left to say it on,
-      // so it reaches the core's log, as a failed restore does above.
-      console.error(
-        `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
-      );
-    }
+    // Never rejects: a file that could not take its entries leaves them
+    // parked, says so in the core's log, and the rest are still tried
+    // (`pending-revisions.ts`).
+    await going.pending.flush();
     going.pending.close();
     going.index.close();
     going.queue.close();
@@ -460,6 +460,12 @@ export function createVaultService({
       opened?.days.record(localDay(now()));
     },
     close: async () => {
+      // The restore first, as every other orderly method does: a quit that
+      // landed while it was still installing would otherwise overtake it,
+      // and the vault it was bringing up would be dropped without the
+      // flush a close exists for (#276). `release`, the last resort, is
+      // the one path that deliberately does not wait.
+      await restored;
       generation++;
       await teardown();
     },

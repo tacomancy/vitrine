@@ -30,7 +30,11 @@ export type PendingRevisions = {
   /** What `path` owes, oldest first; the caller clears them once its write lands. */
   pending: (path: string) => PendingRevision[];
   clear: (ids: number[]) => void;
-  /** Splice everything still parked, whatever its timer — vault close awaits this. */
+  /**
+   * Splice everything still parked, whatever its timer — vault close awaits
+   * this. Never rejects: a file that could not take its entries says so in
+   * the log and the rest are still tried.
+   */
   flush: () => Promise<void>;
   close: () => void;
 };
@@ -76,6 +80,22 @@ export function openPendingRevisions(
   );
   const remove = db.prepare("DELETE FROM pending_revisions WHERE id = ?");
 
+  /**
+   * One file's splice, and the one thing there is to do when it cannot
+   * land — a vault that has gone away, a file that has, a `.vitrine/` that
+   * cannot be written. Nothing is lost: what could not be spliced stays in
+   * the table and is owed again at the next open. Neither caller has a
+   * surface to say that on — a timer has no caller at all, and by the time
+   * `flush` runs the vault is closing — so it reaches the core's log, and
+   * the next file is still tried.
+   */
+  const spliceOrSay = (path: string) =>
+    splice(path).catch((cause: unknown) => {
+      console.error(
+        `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
+      );
+    });
+
   let closed = false;
   // One timer per file, restarted by every change to it: *quiet* is the
   // absence of further edits, so a session of typing in Obsidian is spliced
@@ -93,18 +113,7 @@ export function openPendingRevisions(
       path,
       setTimeout(() => {
         quiet.delete(path);
-        if (closed) return;
-        // A splice that cannot land leaves its rows parked and owed again,
-        // as `flush`'s does — likelier now that a timer is armed at open
-        // (#276) for a file that may have gone while the app was closed.
-        // A timer has no caller to reject to, so it reaches the core's log
-        // rather than becoming an unhandled rejection that takes the core
-        // down with it.
-        void splice(path).catch((cause: unknown) => {
-          console.error(
-            `vitrine-core: a pending Revision could not be spliced: ${errorMessage(cause)}`
-          );
-        });
+        if (!closed) void spliceOrSay(path);
       }, windowMs).unref()
     );
   };
@@ -152,7 +161,7 @@ export function openPendingRevisions(
     flush: async () => {
       for (const { path } of allPaths.all() as Array<{ path: string }>) {
         forget(path);
-        await splice(path);
+        await spliceOrSay(path);
       }
     },
     close: () => {
