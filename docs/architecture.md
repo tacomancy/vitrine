@@ -354,7 +354,7 @@ The shape ADR 0015 decided, in enough detail to write against. Everything here i
 - *Tags*: the tree from `vault.tags`, inclusive count (with children) and exclusive count (this level only) per node; clicking a node lists its files. No rename, no drag: tag hierarchy management is out of scope by the brief (`#### Tags as topics`), whatever the prototype's caption says.
 - *Backlinks*: linked backlinks only, from `index.sqlite`'s `links` table, each with the linking file's Kind glyph, a context snippet read from that file's body, and its Kind · field · date line. When the open file is a Source, rows group by the `^h<n>` block they target — the annotation-level backlinks Prompt 7 asks for — with file-level links listed beneath. *Unlinked mentions* wait for full-text search.
 
-**First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: full-text search (FTS5 in `index.sqlite`, ADR 0014 decision 12) with the *search* tab and unlinked mentions; block widgets starting with a Properties block; folder operations; the graph view (fog on map #131; never force-directed — fixed positions, no simulation, no toggle, ADR 0015 update of 2026-09-26).
+**First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: full-text search (FTS5 in `index.sqlite`, ADR 0014 decision 12) with the *search* tab and unlinked mentions; block widgets starting with a Properties block; folder operations; the graph view (fog on map #131; never force-directed, ADR 0015 update of 2026-09-26).
 
 ## Scouts
 
