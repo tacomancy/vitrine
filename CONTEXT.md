@@ -94,6 +94,10 @@ _Avoid_: Highlight (one kind of annotation, not the general term), comment
 **Annotation identity**:
 The app's stable ID for an Annotation, kept in a sidecar index with its page, geometry, and quoted text. PDF objects have no reliable ID across editors, so identity is re-matched on every Ingest: quoted text first, geometry second.
 
+**Annotation block**:
+One Annotation's list item in a Source's `## Annotations` section — the page, the quoted text, and a `^h<n>` that carries the Annotation identity into the vault so `[[citekey#^h12]]` resolves in Obsidian. The note, when there is one, is a second paragraph inside the item: a note on the line directly below would continue the item's paragraph and leave the `^h<n>` naming nothing (#164, ADR 0006).
+_Avoid_: Annotation line (it is rarely one line), highlight block
+
 **Ingest**:
 The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed together is one Ingest run.
 _Avoid_: Import, sync (sync moves files; ingest reads them)

@@ -90,6 +90,7 @@ describe("replaceSection", () => {
       "## Annotations",
       "",
       '- p.1 · "old quote" ^h1',
+      "",
       "  old note",
       "",
       "## After",
@@ -109,7 +110,7 @@ describe("replaceSection", () => {
       "s.md",
       replaceSection(
         "Annotations",
-        '- p.1 · "new quote" ^h1\n  new note\n- p.2 · "second" ^h2\n'
+        '- p.1 · "new quote" ^h1\n\n  new note\n\n- p.2 · "second" ^h2\n'
       )
     );
 
@@ -124,7 +125,9 @@ describe("replaceSection", () => {
         "## Annotations",
         "",
         '- p.1 · "new quote" ^h1',
+        "",
         "  new note",
+        "",
         '- p.2 · "second" ^h2',
         "",
         "## After",
@@ -134,6 +137,13 @@ describe("replaceSection", () => {
       ].join("\n")
     );
     expectUntouchedAround(original, after, section.body);
+
+    // The whole point of the section (ADR 0006 decision 6): every block the
+    // app writes must be one Obsidian can find, or `[[citekey#^h1]]` resolves
+    // to nothing and the link rots in silence (#164).
+    const reread = await readOutline(vault, "s.md");
+    if (!reread.readable) throw new Error(reread.reason);
+    expect(reread.outline.blockIds.map((b) => b.id)).toEqual(["h1", "h2"]);
   });
 });
 

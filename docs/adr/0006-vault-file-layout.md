@@ -50,3 +50,19 @@ Decision 11's surgical writes are now a closed set of seven operations (`docs/ar
 ## Update (2026-09-19, ADR 0013)
 
 The file watcher's three inherited requirements are settled: own writes are recognised by a per-file `{ size, mtime, hash }` record (in the sidecar for PDFs, in `index.sqlite` for Markdown), evicted PDFs are detected by `blocks === 0` and never read, and the mechanism is `fs.watch` on FSEvents with a stat-only sweep as the safety net. Decision 5's coalescing window now also governs when a Position edited in Obsidian is spliced into the file, from a pending Revision held in `queue.sqlite`; decision 10's charter for that database widens to "app events that are not re-derivable" — Ingest runs, conflict copies, pending Revisions join Proposals and Scout runs. Decision 11's re-keying of Note dismissals on rename is done by pairing content hashes within one watcher batch.
+
+## Update (2026-09-27, #164)
+
+Decision 6's Annotation block gets a blank line. The shape `docs/architecture.md` § Vault layout carried — the quote line ending in `^h<n>`, the note on the indented line below — has **no block id in Obsidian**: the indented line continues the list item's one paragraph, so the `^h<n>` sits mid-paragraph and is prose. `[[citekey#^h12]]` written against it hovers *Unable to find "^h12"*, the same popover an id the file has never had gets, and the "annotation links that resolve in Obsidian, quote on hover" this decision exists for fails without saying so. Observed in Obsidian 1.13.7 against five placements of the same id (corpus rows B4a–e) and against the section as Ingest will compose it (B5a–e).
+
+The settled shape puts a blank line between the quote line and the note, making the note a second paragraph inside the same list item:
+
+```
+- p.3 · "the quote as the engine extracted it" ^h1
+
+  the note the reader wrote in the margin
+```
+
+The id then ends its paragraph, Obsidian's block is the whole item, and the hover is the quote followed by the note. Chosen over the two other shapes that also resolve because it is the smallest change to what was already written and the only one with no cost elsewhere: putting the id after the note (B4d) works, but leaves it at the end of the user's own prose, where an edit to a `(gone)` block — the one block the app promises never to rewrite — would unseat it, and an unseated id is one `nextBlockId` no longer counts and could hand out twice; collapsing the note onto the quote line after a separator works and matches the vault's other list-line grammars, but cannot hold a note of more than one paragraph without flattening the user's text; making the note a nested list item (B4b) works, but renders prose as a bullet and is the one case where Obsidian's block range and the locator's disagree. An Annotation with no note is the quote line alone; `(unmatched)` and `(gone)` go on the quote line before the id.
+
+The locator needed no change: `blockNamedBy` in `packages/markdown/src/outline.ts` already implemented Obsidian's rule, and it was the format that was wrong. `replaceSection` is unchanged too — it takes whatever body Ingest composes (#122).
