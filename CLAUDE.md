@@ -34,7 +34,7 @@ Never silently violate these:
 - Annotations live in the PDF as standard annotation objects, not a database.
 - Vault is plain Markdown files. Local-first; sync scope is the PDF folder only.
 - BYOK — no credentials leave the device except to the configured model provider.
-- No force-directed graph for the Question Map. Sorted matrix, labeled scatter, ranked lists.
+- No force-directed graph — the Question Map is a sorted matrix, labeled scatter, ranked lists; the Vault's graph view has fixed positions, never simulated, no toggle (ADR 0015).
 - No silent failures — an unmatched annotation surfaces for a decision rather than disappearing; a broken Scout must never look identical to a quiet field.
 - State is derived, not declared — e.g. a Hypothesis's status is computed from its criteria, never set directly.
 

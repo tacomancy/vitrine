@@ -384,15 +384,31 @@ One of the eight screens: Home, Question Inbox, Reader, Research Question view, 
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
 
+**Address**:
+Where the window is, as a URL hash the router parses — `#/inbox`, `#/questions/<path>`, `#/loose-ends`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021).
+_Avoid_: Route (the router's type, not the word for users), URL, link (that is a wikilink)
+
+**Global command**:
+⌘K: the window-wide command that jumps to any object with an Address from any surface, and captures (story CAP-9). Its design is #246's (ADR 0021).
+_Avoid_: Palette, command palette, search, Picker (the Picker is scoped to one slot and goes nowhere)
+
+**Sidebar**:
+The list of surfaces and dashboards at the window's edge: the map of the product and where the user is on it. Its contents are layout, not a guarantee that something is reachable (ADR 0021).
+_Avoid_: Rail (one of the forms it may take), nav
+
 **Picker**:
 The one keyboard list of vault files three places open — Link from the Inbox, attaching a Source to a Research Question, `[[` inside a why line. Name-contains over the Index, a Kind glyph per row, and — on a Source or a stub — its title and whether its PDF is there beside it, narrowed by whoever opened it to the Kinds it will accept and away from the file the user is standing on. The title is shown, not matched. Never a search: matching a title or a body is the Vault editor's beat.
-_Avoid_: Search, autocomplete, quick open, palette (the command palette is a different thing)
+_Avoid_: Search, autocomplete, quick open, palette (the Global command is a different thing)
 
 **Loose end**:
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
 
 **Row kind**:
 What a Loose end is loose *about* — a Research Question with no source, a bare link matching several files — as distinct from the object it names. A dismissal is judged per row kind, so one object can be silenced as one kind and still surface as another.
+
+**Open day**:
+A local date on which the vault was opened, or its window brought to the front, in the app. The unit Loose Ends counts a stalled row's wait in, so time away from the vault never makes anything look stalled.
+_Avoid_: Active day, calendar day (it is not one)
 
 **Coverage**:
 How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.

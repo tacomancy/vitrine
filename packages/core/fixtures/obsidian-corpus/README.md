@@ -112,3 +112,13 @@ Obsidian version: 1.13.7 (installer 1.8.10), macOS, 2026-09-21. Rows were answer
 | S4a | shape-bom.md                    | does the panel show `kind` with a BOM present? | `yes` / `no`           | yes       |
 | S4b | shape-bom.md                    | BOM still present after an Obsidian edit?      | `kept` / `stripped`    | stripped  |
 | S5  | shape-no-trailing-newline.md    | trailing newline after an Obsidian edit?       | `added` / `not-added`  | not-added |
+
+## Position history
+
+The Revision grammar (ADR 0020 decision 1) put through Obsidian, so the parser is pinned against the editor that will actually touch the file (#214). `history-handwritten.md` is a Research Question whose history was written by hand and whose oldest entry was appended *by Obsidian*, through `obsidian://new?…&append=true`; the file is committed exactly as Obsidian left it. The core's `position-history.test.ts` asserts the whole section parses back to the entries `formatRevision` would have written.
+
+| id  | file                    | question                                                                              | answer with                        | observed                                                                                     |
+| --- | ----------------------- | ------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
+| H1  | history-handwritten.md  | does opening the note rewrite it?                                                     | `unchanged` / `rewritten`          | unchanged — same bytes after the note was opened and the Properties panel had read it        |
+| H2  | history-handwritten.md  | does an entry's four-space previous text stay inside its list item, blank line and all? | `inside` / `escapes`               | inside — live preview shows one item per entry, both paragraphs of the `from:` text within it |
+| H3  | history-handwritten.md  | what does an Obsidian append put between the existing text and the appended entry?    | `nothing` / `blank-line` / other   | blank-line — and no trailing newline is added (S5 again); every existing byte is preserved, `·`, the two- and four-space indents, and the LF endings |

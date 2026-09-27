@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { outline } from "markdown";
 import { describe, expect, it } from "vitest";
 import {
@@ -208,5 +210,57 @@ describe("coalescing (ADR 0020 decision 2)", () => {
         minute
       ).coalesced
     ).toBe(false);
+  });
+});
+
+// The parser against the editor that will actually touch the file (#214;
+// spec #206): `history-handwritten.md` in the Obsidian corpus is a Research
+// Question whose history was typed by hand and saved from Obsidian. The
+// grammar pair is the oracle — what `formatRevision` writes is what the
+// corpus file must parse back to, or the app and Obsidian disagree about
+// the app's real subject.
+describe("the Obsidian corpus's hand-written history", () => {
+  const source = readFileSync(
+    join(
+      import.meta.dirname,
+      "../fixtures/obsidian-corpus/history-handwritten.md"
+    ),
+    "utf8"
+  );
+  const handWritten: Revision[] = [
+    {
+      at: "2026-08-05T14:22:00+02:00",
+      field: "working answer",
+      why: "Cordi's funnel plot — the effect is mostly small-study bias. [[cordi2021#^h12]]",
+      from: [
+        "Probably both, but the dissociation designs that could separate them are",
+        "underpowered.",
+        "",
+        "The strongest case is still Rasch and Born's §4.",
+      ].join("\n"),
+    },
+    {
+      at: "2026-07-02T09:10:00+02:00",
+      field: "working answer",
+      why: null,
+      from: "Mostly consolidation; the encoding story is a technicality.",
+    },
+    {
+      at: "2026-03-02T09:14:00+01:00",
+      field: "working answer",
+      why: null,
+      from: "",
+    },
+  ];
+
+  it("parses to the entries the grammar pair would have written", () => {
+    const parsed = outline(source);
+    const heading = parsed.headings.find((h) => h.text === "Position history")!;
+    const items = readRevisions(source, parsed, heading);
+    expect(items.map((item) => item.revision)).toEqual(handWritten);
+    // And the other way: the bytes Obsidian saved are the bytes the app writes.
+    expect(
+      items.map((item) => source.slice(item.range.start, item.range.end))
+    ).toEqual(handWritten.map(formatRevision));
   });
 });

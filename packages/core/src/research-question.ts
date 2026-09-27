@@ -10,6 +10,7 @@ import {
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";
+import type { PendingRevision, PendingRevisions } from "./pending-revisions.js";
 import {
   asString,
   readQuestionForWrite,
@@ -522,11 +523,25 @@ const FIELD = "working answer";
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
 
 /**
+ * What a page write needs of the open vault: where it is, the index to
+ * tell afterwards, and the queue of Revisions an Obsidian edit left owing
+ * (#217). The router builds one from `vault.opened()`.
+ */
+export type PageContext = {
+  vaultPath: string;
+  index: VaultIndex;
+  pending: PendingRevisions;
+};
+
+/**
  * What one page write does to the file it finds: the operations and the
  * hash they were computed from, or a result to answer with and write
  * nothing (a refusal, or a save that turned out to change nothing).
+ * `waiting` is what this file owes the history before the write's own
+ * entry — a plan that records a Revision needs to know, since an entry it
+ * would otherwise coalesce into has an external edit standing in between.
  */
-type Plan = (read: PageFile) => Write | WriteResult;
+type Plan = (read: PageFile, waiting: PendingRevision[]) => Write | WriteResult;
 
 // Page writes run one at a time, as captures do (`questions.ts`). Planning
 // a write means reading the file — which thread is ticked, what the Working
@@ -539,12 +554,44 @@ type Plan = (read: PageFile) => Write | WriteResult;
 let previous: Promise<unknown> = Promise.resolve();
 
 /**
+ * A write that changed nothing: the file exactly as it was read. What a
+ * plan answers with when there was nothing to do — typing that matched the
+ * file, a splice with nothing parked — so the caller still gets the file's
+ * fresh hash to base its next write on.
+ */
+const unchanged = (read: PageFile): WriteResult => ({
+  written: true,
+  hash: read.hash,
+  content: read.content,
+  shape: read.shape,
+});
+
+/** The `prependEntry` one pending Revision splices as: a quiet entry, its previous text in full. */
+const spliceOf = (row: PendingRevision): Operation => ({
+  op: "prependEntry",
+  section: "Position history",
+  entry: formatRevision({
+    at: row.at,
+    field: row.field,
+    why: null,
+    from: row.from,
+  }),
+});
+
+/**
  * One planned write through the protocol, then the index told of the app's
  * own write, as a capture does — the whole of it inside the queue above.
+ *
+ * Whatever the write was for, it also carries whatever Obsidian edits to
+ * this file are still owed the history (#217): the splice is an own write
+ * like any other, and the cheapest own write is one the app was making
+ * anyway. They go first, oldest first, so that the entry this write
+ * records — newer than any of them — ends up above them. They are cleared
+ * only once the bytes are on disk; a refused write leaves them parked for
+ * the quiet window or the next attempt.
  */
 function writeOwn(
-  index: VaultIndex,
-  vaultPath: string,
+  { vaultPath, index, pending }: PageContext,
   path: string,
   plan: Plan
 ): Promise<WriteResult> {
@@ -553,10 +600,34 @@ function writeOwn(
     if (!read.readable) {
       return { written: false, reason: "unreadable", detail: read.reason };
     }
-    const planned = plan(read);
-    if ("written" in planned) return planned;
-    const result = await write(vaultPath, path, planned);
-    if (result.written) await index.own(read.relativePath, result.content);
+    const waiting = pending.pending(read.relativePath);
+    const planned = plan(read, waiting);
+    let own: Write;
+    if ("written" in planned) {
+      // A refusal is the caller's answer, whatever else the file owes:
+      // turning it into the splice's success would tell the page its tick
+      // landed. The parked entries wait for the window or the next write.
+      if (!planned.written || waiting.length === 0) return planned;
+      // Nothing of the plan's own to write, but the parked entries still
+      // want splicing — against the file as it was just read.
+      own = { operations: [], basedOn: read.hash };
+    } else {
+      own = planned;
+    }
+    const result = await write(vaultPath, path, {
+      operations: [...waiting.map(spliceOf), ...own.operations],
+      basedOn: own.basedOn,
+    });
+    if (result.written) {
+      // Cleared the moment the bytes are on disk, and before the index is
+      // told: `own()` stats the file and can fail, and rows still parked
+      // after their entries have been written would be spliced a second
+      // time by the next write. A row dropped here is one entry missing
+      // from a history; a row kept is the same entry twice, in a section
+      // whose whole point is that it reads as a train of thought.
+      pending.clear(waiting.map((row) => row.id));
+      await index.own(read.relativePath, result.content);
+    }
     return result;
   };
   // A write that threw leaves the queue usable for the next one.
@@ -574,12 +645,11 @@ function writeOwn(
  * refuses, when the thread is no longer there to take it.
  */
 export async function tickThread(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string,
   { text, done }: { text: string; done: boolean }
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, ({ content, outline, hash }) => {
+  return writeOwn(ctx, path, ({ content, outline, hash }) => {
     const { heading } = section(outline, "Open threads");
     const matches =
       heading === undefined
@@ -652,8 +722,7 @@ function changedUnderneath(now: string, was: string): WriteResult | null {
  * data for the page to show in place.
  */
 export async function saveSection(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string,
   {
     section: name,
@@ -662,7 +731,7 @@ export async function saveSection(
     was,
   }: { section: EditedSection; body: string; basedOn: string; was: string }
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, ({ content, outline }) => {
+  return writeOwn(ctx, path, ({ content, outline }) => {
     const conflict = changedUnderneath(
       bodyText(content, section(outline, name).heading),
       was
@@ -687,8 +756,7 @@ export async function saveSection(
  * nothing records nothing.
  */
 export async function saveWorkingAnswer(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string,
   {
     text: typed,
@@ -705,7 +773,7 @@ export async function saveWorkingAnswer(
   }
 ): Promise<WriteResult> {
   const text = typed.replace(/\r\n/g, "\n").trim();
-  return writeOwn(index, vaultPath, path, (read) => {
+  return writeOwn(ctx, path, (read, waiting) => {
     const { content, outline } = read;
     // The Position as the file holds it now: what the Revision is *from*.
     const from = bodyText(content, section(outline, WORKING_ANSWER).heading);
@@ -713,9 +781,7 @@ export async function saveWorkingAnswer(
     // page's fresh view of it, whatever hash the page carried in. Nothing
     // is lost either, so a section that reached this text by another hand
     // is no conflict.
-    if (from === text) {
-      return { written: true, hash: read.hash, content, shape: read.shape };
-    }
+    if (from === text) return unchanged(read);
     // An answer rewritten underneath would be replaced whole and its text
     // recorded as this Revision's `from` — a history entry quoting words
     // the user never saw.
@@ -728,7 +794,11 @@ export async function saveWorkingAnswer(
           content,
           outline,
           { field: FIELD, from, at },
-          coalesceMs
+          // An Obsidian edit to this field is about to be spliced above
+          // the head entry, so the head is no longer the change before
+          // this one: re-stamping it would swallow the external edit's
+          // entry inside a window it does not belong to.
+          waiting.some((row) => row.field === FIELD) ? 0 : coalesceMs
         ),
       ],
       basedOn,
@@ -764,8 +834,7 @@ const NOTE = "note";
  * evidence ever after. A paper not yet judged is Related, or nothing.
  */
 export async function attachSource(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string,
   {
     target,
@@ -774,6 +843,7 @@ export async function attachSource(
     basedOn,
   }: { target: string; side: Side; note: string; basedOn: string }
 ): Promise<WriteResult> {
+  const { index, vaultPath } = ctx;
   const { relativePath: targetPath } = await locate(vaultPath, target);
   const row = index.select<{ kind: string | null }>(
     "SELECT kind FROM files WHERE path = ?",
@@ -789,7 +859,7 @@ export async function attachSource(
       `${targetPath} is not a Source or a stub; a paper not yet judged is Related, or nothing.`
     );
   }
-  return writeOwn(index, vaultPath, path, ({ relativePath }) => {
+  return writeOwn(ctx, path, ({ relativePath }) => {
     const wikilink = wikilinkTo(index, relativePath, targetPath);
     return {
       operations: [
@@ -844,8 +914,7 @@ const ANY_STATUS: readonly QuestionStatus[] = [
  * as *drop* on a Question sets only its status.
  */
 export async function resolveResearchQuestion(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string,
   /** `at` is the resolution's timestamp, formatted by the caller's clock. */
   { status, at }: { status: "answered" | "abandoned"; at: string }
@@ -854,7 +923,7 @@ export async function resolveResearchQuestion(
   // page's own frontmatter, and a second read could name one the write
   // never saw. Kept from inside the queue, where that read happens.
   const seen: { page: PageFile | null } = { page: null };
-  const page = await writeOwn(index, vaultPath, path, (read) => {
+  const page = await writeOwn(ctx, path, (read) => {
     seen.page = read;
     return {
       operations: [{ op: "setFrontmatter", keys: keysFor(status, at) }],
@@ -868,7 +937,13 @@ export async function resolveResearchQuestion(
       question: { written: false, reason: "the page was not resolved" },
     };
   }
-  const question = await writeBack(index, vaultPath, resolved, { status, at });
+  // The Question's own file, so it takes the index and the vault path
+  // rather than the page context: `writeBack` runs outside the page queue
+  // on purpose, and has no pending Revisions of its own to fold in.
+  const question = await writeBack(ctx.index, ctx.vaultPath, resolved, {
+    status,
+    at,
+  });
   return { page, question };
 }
 
@@ -967,11 +1042,10 @@ const dateOf = (iso: string) => iso.slice(0, 10);
  * the Question's Status.
  */
 export async function reopenResearchQuestion(
-  index: VaultIndex,
-  vaultPath: string,
+  ctx: PageContext,
   path: string
 ): Promise<WriteResult> {
-  return writeOwn(index, vaultPath, path, (read) => ({
+  return writeOwn(ctx, path, (read) => ({
     operations: [{ op: "setFrontmatter", keys: { status: "open" } }],
     basedOn: read.hash,
   }));
@@ -1010,6 +1084,20 @@ function historyOperations(
   return [
     { op: "replaceSection", name: "Position history", body: body.trim() },
   ];
+}
+
+/**
+ * Splice what one file owes its history and nothing else (#217): the quiet
+ * window's timer and vault close both come here. It is `writeOwn` with an
+ * empty plan — the parked entries are the whole of the write — so it
+ * shares the page writes' queue and can never land on a file the page is
+ * mid-write on. A file with nothing parked writes nothing.
+ */
+export async function splicePendingRevisions(
+  ctx: PageContext,
+  path: string
+): Promise<WriteResult> {
+  return writeOwn(ctx, path, unchanged);
 }
 
 /** Where a promotion landed: the new page's path, vault-relative, for the hash. */
