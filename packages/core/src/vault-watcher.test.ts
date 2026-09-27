@@ -15,12 +15,36 @@ import type { VaultChanged } from "./vault-index.js";
 // The watcher at the harness seam (spec #177 § Testing decisions): a real
 // `fs.watch` on a temp vault, the settle window injected small, every wait on
 // the event stream — never a sleep.
+//
+// "Small" is bounded from below as well as above (#268). Two tests here time
+// something rather than merely waiting for it: the staggered-write Batch,
+// whose stagger must land inside the window, and the watch-then-sweep race,
+// which runs against `PROBE_TIMEOUT_MS`. Both measure real elapsed time, and
+// a `setTimeout(n)` fires *at least* n ms later — unboundedly later on a
+// loaded CI runner. At a 40 ms window a 13 ms stagger overran it and the two
+// writes arrived as two Batches. The window is now wide enough, and the
+// stagger a small enough fraction of it, that ordinary jitter cannot close it
+// early: 180 ms of headroom where there were 27 ms.
 
 type Vault = { name: string; path: string };
 
 afterEach(closeCores);
 
-const SETTLE_MS = 40;
+/**
+ * Long enough that jitter between two staggered writes cannot close it, short
+ * enough that seventeen tests still run in a few seconds. Not the production
+ * 2 s (`vault-watcher.ts`), which no suite should wait out.
+ */
+const SETTLE_MS = 200;
+
+/**
+ * Above `PROBE_TIMEOUT_MS` (5 s), never equal to it. The watch-then-sweep test
+ * exercises a probe that is *allowed* to take 5 s before the sweep runs
+ * anyway; at Vitest's 5 s default the test died before the code could reach
+ * its own bound, so a slow probe read as a broken test and the give-up path
+ * could never be observed at all.
+ */
+const TIMING_TIMEOUT_MS = 20_000;
 
 function questionFile(text: string, captured = "2026-09-20T09:00:00Z") {
   return `---\nkind: question\nquestion: ${text}\nstatus: open\ncaptured: ${captured}\ncontext: other\n---\n`;
@@ -171,23 +195,27 @@ describe("what settles together is one Batch, and only a real change is one", ()
     stream.close();
   });
 
-  it("two writes a moment apart, both inside the settle window, are one Batch", async () => {
-    const { vault, stream } = await watching();
-    await mkdir(join(vault, "questions"));
-    // Staggered as inotify delivers a rename's two events (FSEvents
-    // coalesces them): the second lands after the first's window has begun
-    // but before it has closed. The stagger is the input, not a wait.
-    await writeFile(join(vault, "questions", "A.md"), questionFile("A"));
-    await new Promise((r) => setTimeout(r, SETTLE_MS / 3));
-    await writeFile(join(vault, "questions", "B.md"), questionFile("B"));
-    expect(await stream.next("vaultChanged")).toEqual({
-      type: "vaultChanged",
-      changed: ["questions/A.md", "questions/B.md"],
-      removed: [],
-      renamed: [],
-    });
-    stream.close();
-  });
+  it(
+    "two writes a moment apart, both inside the settle window, are one Batch",
+    async () => {
+      const { vault, stream } = await watching();
+      await mkdir(join(vault, "questions"));
+      // Staggered as inotify delivers a rename's two events (FSEvents
+      // coalesces them): the second lands after the first's window has begun
+      // but before it has closed. The stagger is the input, not a wait.
+      await writeFile(join(vault, "questions", "A.md"), questionFile("A"));
+      await new Promise((r) => setTimeout(r, SETTLE_MS / 10));
+      await writeFile(join(vault, "questions", "B.md"), questionFile("B"));
+      expect(await stream.next("vaultChanged")).toEqual({
+        type: "vaultChanged",
+        changed: ["questions/A.md", "questions/B.md"],
+        removed: [],
+        renamed: [],
+      });
+      stream.close();
+    },
+    TIMING_TIMEOUT_MS
+  );
 
   it("questions.capture raises one vaultChanged; the watcher's own event for the file raises no second", async () => {
     const { vault, c, stream, questions } = await watching();
@@ -453,48 +481,52 @@ describe("the two watches and the sweep", () => {
     stream.close();
   });
 
-  it("a file added between vault open and the sweep's end is indexed: watch, then sweep", async () => {
-    const vault = await tmp("racing");
-    await mkdir(join(vault, "questions"));
-    for (let n = 1; n <= 3; n++) {
-      await writeFile(
-        join(vault, "questions", `Q ${n}.md`),
-        questionFile(`Q ${n}`, `2026-01-0${n}T09:00:00Z`)
-      );
-    }
-    // The first status event is raised once the sweep has walked the vault
-    // and before it reads anything: a file written now is one the walk did
-    // not see, so only a watcher already running can find it. Written from
-    // the callback, so the timing is pinned rather than hoped for.
-    let written = false;
-    const c = await core({
-      settleMs: SETTLE_MS,
-      onVaultStatus: async () => {
-        if (written) return;
-        written = true;
+  it(
+    "a file added between vault open and the sweep's end is indexed: watch, then sweep",
+    async () => {
+      const vault = await tmp("racing");
+      await mkdir(join(vault, "questions"));
+      for (let n = 1; n <= 3; n++) {
         await writeFile(
-          join(vault, "questions", "Late.md"),
-          questionFile("Late")
+          join(vault, "questions", `Q ${n}.md`),
+          questionFile(`Q ${n}`, `2026-01-0${n}T09:00:00Z`)
         );
-      },
-    });
-    const reply = await c.mutate<Vault>("vault.open", { path: vault });
-    expect(reply.error).toBeUndefined();
-    await c.indexed();
-    expect(written).toBe(true);
-
-    const stream = await c.events();
-    if (!c.changes.some((e) => e.changed.includes("questions/Late.md"))) {
-      // Its batch is still settling: wait on the stream, not on a timer.
-      for (;;) {
-        const event = await stream.next("vaultChanged");
-        if (event.changed.includes("questions/Late.md")) break;
       }
-    }
-    stream.close();
-    const listing = await c.query<Listing>("questions.list");
-    expect(
-      (listing.result?.data as Listing).questions.map((q) => q.question)
-    ).toEqual(["Late", "Q 3", "Q 2", "Q 1"]);
-  });
+      // The first status event is raised once the sweep has walked the vault
+      // and before it reads anything: a file written now is one the walk did
+      // not see, so only a watcher already running can find it. Written from
+      // the callback, so the timing is pinned rather than hoped for.
+      let written = false;
+      const c = await core({
+        settleMs: SETTLE_MS,
+        onVaultStatus: async () => {
+          if (written) return;
+          written = true;
+          await writeFile(
+            join(vault, "questions", "Late.md"),
+            questionFile("Late")
+          );
+        },
+      });
+      const reply = await c.mutate<Vault>("vault.open", { path: vault });
+      expect(reply.error).toBeUndefined();
+      await c.indexed();
+      expect(written).toBe(true);
+
+      const stream = await c.events();
+      if (!c.changes.some((e) => e.changed.includes("questions/Late.md"))) {
+        // Its batch is still settling: wait on the stream, not on a timer.
+        for (;;) {
+          const event = await stream.next("vaultChanged");
+          if (event.changed.includes("questions/Late.md")) break;
+        }
+      }
+      stream.close();
+      const listing = await c.query<Listing>("questions.list");
+      expect(
+        (listing.result?.data as Listing).questions.map((q) => q.question)
+      ).toEqual(["Late", "Q 3", "Q 2", "Q 1"]);
+    },
+    TIMING_TIMEOUT_MS
+  );
 });
