@@ -34,6 +34,8 @@ export type AppOptions = {
   stalledOpenDays?: number;
   /** `fs.watch`, or a test's wrapper of it that fails a watch or refuses one (#190). */
   watch?: typeof fsWatch;
+  /** How long the watcher's probe may go unanswered before it gives up; tests shorten it (#272). */
+  probeTimeoutMs?: number;
   /**
    * The index's seams (`vault-index.ts`): the chunk size a test shortens,
    * the `positionsOf` registry, and the after-commit listeners the event
@@ -70,6 +72,7 @@ export function createApp({
   coalesceMs,
   stalledOpenDays,
   watch,
+  probeTimeoutMs,
   index,
 }: AppOptions): App {
   const app = new Hono();
@@ -82,6 +85,7 @@ export function createApp({
     appSupportDir,
     settleMs,
     watch,
+    probeTimeoutMs,
     ...(now ? { now } : {}),
     // The window a page save coalesces by is the window an Obsidian edit
     // must be quiet for before it is spliced (#217): one number, one seam.
