@@ -464,6 +464,17 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* The only row: the footer's target already says the Question in full,
+         so the row stops repeating it and carries what the footer does not —
+         the Kind it will be, and the Provenance it will be written with. */
+      .captureRow.bare {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+      .captureRow.bare .chip {
+        margin-left: auto;
+      }
       .captureText.empty {
         font-family: var(--font-sans);
         font-size: var(--text-sm);

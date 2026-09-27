@@ -321,25 +321,31 @@ function destinationRow(entry, index, selected) {
   return row;
 }
 
-function captureRow({ selected, tag }) {
+/**
+ * The capture as a row. `bare` when it is the only row there is: the footer's
+ * target is already saying the Question in full at that point, so the row
+ * drops the text rather than printing it twice, and keeps the two things the
+ * footer does not say — the Kind it will be written as, and its Provenance.
+ */
+function captureRow({ selected, bare }) {
   const row = el("div", {
-    class: "captureRow",
+    class: "captureRow" + (bare ? " bare" : ""),
     role: "option",
     "aria-selected": String(selected),
   });
   row.append(el("span", { class: "glyph open", text: "◆", title: "question" }));
   const text = query.trim();
-  row.append(
-    el("span", {
-      class: "captureText" + (text === "" ? " empty" : ""),
-      text:
-        text === ""
-          ? "Write a question — it costs nothing and keeps where you were"
-          : text + "?",
-    })
-  );
+  if (!bare)
+    row.append(
+      el("span", {
+        class: "captureText" + (text === "" ? " empty" : ""),
+        text:
+          text === ""
+            ? "Write a question — it costs nothing and keeps where you were"
+            : text + "?",
+      })
+    );
   row.append(el("span", { class: "chip", text: PROVENANCE }));
-  if (tag) row.append(el("span", { class: "rowmeta", text: tag }));
   row.addEventListener("mousedown", (e) => {
     e.preventDefault();
     onCapture = true;
@@ -455,7 +461,7 @@ function buildOverlay() {
     // Capture is the floor: the typed text is always a Question in waiting,
     // pinned above everything, and the selection starts on it. Going
     // somewhere costs one ↓ — the cheap thing is the common thing.
-    cmd.append(captureRow({ selected: onCapture }));
+    cmd.append(captureRow({ selected: onCapture, bare: list.length === 0 }));
     cmd.append(
       el("span", {
         class: "groupLabel caps",
@@ -501,7 +507,7 @@ function buildOverlay() {
       ul.append(destinationRow(entry, i, !onCapture && i === arrowedTo))
     );
     cmd.append(ul);
-    cmd.append(captureRow({ selected: onCapture }));
+    cmd.append(captureRow({ selected: onCapture, bare: list.length === 0 }));
     cmd.append(
       footer({
         ...(onCapture ? captureVerb() : goVerb(list)),
@@ -792,7 +798,7 @@ const NOTES = [
   ],
   [
     "B · one list, the verb moves — chosen",
-    "One ranked list with the capture as its last row. The default side moves with the query: an exact or prefix hit selects the destination, anything else selects the capture, and ⇥ swaps. ↵ therefore means different things at different moments, so <b>the verb is the safety</b> and is drawn that way — its own surface step, the key drawn as a key, the mode in brass, and the thing it will act on named in full rather than implied. The alternative key and the count stay mono and muted beside it, so nothing competes. The louder footer is applied to all three, since it is presentation: what A, B and C were compared on is their structure, and that is untouched.",
+    "One ranked list with the capture as its last row. The default side moves with the query: an exact or prefix hit selects the destination, anything else selects the capture, and ⇥ swaps. ↵ therefore means different things at different moments, so <b>the verb is the safety</b> and is drawn that way — its own surface step, the key drawn as a key, the mode in brass, and the thing it will act on named in full rather than implied. The alternative key and the count stay mono and muted beside it, so nothing competes. Because the footer names the Question in full, the capture row stops printing it when it is the only row there is — states 2 and 5 — and keeps just the two things the footer does not say: the Kind it will be written as, and its Provenance. With destinations on screen the row keeps its text, because then it is one row among several and has to say what it is. The louder footer is applied to all three, since it is presentation: what A, B and C were compared on is their structure, and that is untouched.",
   ],
   [
     "C · both outcomes at once",
