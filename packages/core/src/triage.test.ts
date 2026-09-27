@@ -142,6 +142,43 @@ describe("questions.answer", () => {
     ).toBe("noVault");
   });
 
+  // #285. The Inbox alerts this message under the row, so it is read by a
+  // person and never carries the machine's filesystem layout; `whyUnreadable`
+  // holds why a Question that has gone gets these words.
+  it("says a Question the read cannot open is no longer there, naming no absolute path", async () => {
+    const { c } = await openedVault({ [PATH]: HEAD });
+
+    const gone = await c.mutate("questions.answer", {
+      path: "questions/Gone.md",
+      line: LINE,
+    });
+    expect(gone.error?.data.kind).toBe("unreadable");
+    expect(gone.error?.message).toBe(
+      "Couldn't read questions/Gone.md: the file is no longer there"
+    );
+  });
+
+  // The apostrophe is what the strip has to survive — a Question is named
+  // after the question, and the real vault is `Wan Shi Tong's Library` — so
+  // the Inbox's own refusal pins it too, not just `errors.test.ts`. A path
+  // *through* a file rather than a folder is ENOTDIR, which Node states with
+  // the absolute path appended.
+  it("keeps the cause of any other read failure, with the path cut off even when the path quotes", async () => {
+    const withApostrophe = "questions/Does Tong's index hold.md";
+    const { vault, c } = await openedVault({ [withApostrophe]: HEAD });
+
+    const through = await c.mutate("questions.answer", {
+      path: `${withApostrophe}/inner.md`,
+      line: LINE,
+    });
+
+    expect(through.error?.data.kind).toBe("unreadable");
+    expect(through.error?.message).toBe(
+      `Couldn't read ${withApostrophe}/inner.md: ENOTDIR: not a directory`
+    );
+    expect(through.error?.message).not.toContain(vault);
+  });
+
   it("refuses an empty line before anything is written", async () => {
     const { vault, c } = await openedVault({ [PATH]: HEAD });
     const before = await fingerprint(vault);

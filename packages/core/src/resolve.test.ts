@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
@@ -202,6 +202,30 @@ describe("researchQuestions.resolve", () => {
     expect(await readFile(join(vault, PAGE_PATH), "utf8")).toContain(
       "status: answered"
     );
+  });
+
+  // #285. The page prints this reason as *the Question was not marked: …*,
+  // so it is read by a person and never carries the machine's filesystem
+  // layout. The file was in the index when the page resolved its link and is
+  // gone by the time the write-back reads it; why those are the words for
+  // that is in `whyUnreadable`.
+  it("reports a Question gone from under the index in the app's words, naming no absolute path", async () => {
+    const { vault, c } = await opened(bothFiles);
+    // No watcher here — `core()` starts one only when a test passes `watch`
+    // — so the index still resolves the link and the read is what finds out.
+    await unlink(join(vault, QUESTION_PATH));
+
+    const reply = await c.mutate<ResolveResult>("researchQuestions.resolve", {
+      path: PAGE_PATH,
+      status: "answered",
+    });
+
+    // The page is resolved; only its Question could not be marked.
+    expect(reply.result?.data.page).toMatchObject({ written: true });
+    expect(reply.result?.data.question).toEqual({
+      written: false,
+      reason: `Couldn't read ${QUESTION_PATH}: the file is no longer there`,
+    });
   });
 
   it("refuses to write back to a file that is not a Question, leaving it untouched", async () => {

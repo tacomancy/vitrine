@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
   analyseFile,
   locate,
@@ -123,6 +123,27 @@ export type QuestionFile = {
 };
 
 /**
+ * Why the read could not open the file, in the app's own words (#285, the
+ * same argument as #277). Every caller shows this message to the user — the
+ * page prints it as *the Question was not marked: …*, the Inbox alerts it
+ * under the row — and the message names the file already, so Node's errno
+ * would only repeat the path and then add the machine's filesystem layout.
+ *
+ * ENOENT is one fact here and the whole of it: the Inbox listed the row, or
+ * the page resolved its link, and the file is gone by the time the write
+ * reads it. The write protocol one step later refuses that same absence
+ * with *the file is no longer there* (`vault-files.write`), so the read
+ * says it the same way. Deliberately not the page's *missing from the
+ * vault* (#277): a page reached by a stale link and a row whose file went
+ * out from under it are different absences. Every other failure is the case
+ * where the cause genuinely helps, so it keeps one.
+ */
+const whyUnreadable = (cause: unknown): string =>
+  cause instanceof Error && (cause as NodeJS.ErrnoException).code === "ENOENT"
+    ? "the file is no longer there"
+    : errorMessageWithoutPath(cause);
+
+/**
  * The Question a triage key names, or the refusal the row shows. Every way
  * a triage action can be turned away is decided here — the file is not
  * readable, it is not a Question, its Status does not allow the action —
@@ -139,7 +160,7 @@ export async function readQuestionForWrite(
   const bytes = await readFile(absolute).catch((cause: unknown) => {
     throw new VaultError(
       "unreadable",
-      `Couldn't read ${relativePath}: ${errorMessage(cause)}`
+      `Couldn't read ${relativePath}: ${whyUnreadable(cause)}`
     );
   });
   const read = analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
