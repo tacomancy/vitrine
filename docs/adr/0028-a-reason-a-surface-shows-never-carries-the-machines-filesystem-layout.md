@@ -1,4 +1,4 @@
-# 0026: A reason a surface shows never carries the machine's filesystem layout; the cut is shared, the words are the call site's
+# 0028: A reason a surface shows never carries the machine's filesystem layout; the cut is shared, the words are the call site's
 
 **Status:** Accepted
 
