@@ -392,7 +392,7 @@ _Avoid_: Search, autocomplete, quick open, palette (the command palette is a dif
 One row on the Loose Ends dashboard: something incomplete or broken with a one-click resolution. *Mark deliberate* dismisses it permanently. Counted per group, never in total.
 
 **Open day**:
-A local date on which the vault was open in the app. The unit every Loose Ends quiet period is counted in — *14 open days after `promoted`* — so time away from the vault never makes anything look stalled.
+A local date on which the vault was opened, or its window brought to the front, in the app. The unit Loose Ends counts a stalled row's wait in, so time away from the vault never makes anything look stalled.
 _Avoid_: Active day, calendar day (it is not one)
 
 **Coverage**:
