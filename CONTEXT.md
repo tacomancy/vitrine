@@ -397,12 +397,16 @@ The screen that says how this vault is arranged: where the vault is, where the P
 _Avoid_: Preferences, options, configuration, admin
 
 **Address**:
-Where the window is, as a URL hash the router parses — `#/inbox`, `#/questions/<path>`, `#/loose-ends`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021).
+Where the window is, as a URL hash the router parses — `#/inbox`, `#/loose-ends`, `#/settings`, `#/question/<path>`, `#/research-question/<path>`. Every surface and every object with a page has one; nothing can be on screen without one (ADR 0021). A Kind-addressed object takes its Kind's own name, singular, as `kind:` spells it; surfaces keep their own (ADR 0026). An Address naming an object is where to arrive, not a cursor that follows the user afterwards: moving the Inbox's selection does not rewrite it.
 _Avoid_: Route (the router's type, not the word for users), URL, link (that is a wikilink)
 
 **Global command**:
-⌘K: the window-wide command that jumps to any object with an Address from any surface, and captures (story CAP-9). ADR 0021 decided only that it is how anything is reached; its design is beat 2b's (#262), whose first step is the prototype nothing in the frozen tier draws.
+⌘K: the window-wide command that goes to any object with an Address, or captures a Question, from any surface (story CAP-9). One list serves both, and what ↵ will do is named at all times rather than inferred. Not the only way to capture: the Capture line keeps its own chord (beat 2b, #262).
 _Avoid_: Palette, command palette, search, Picker (the Picker is scoped to one slot and goes nowhere)
+
+**Capture line**:
+⌘': the line at the foot of the window that captures a Question and nothing else, with the Provenance resolved before a character is typed. Kept beside the Global command rather than absorbed into it (beat 2b, #262). Neither chord is live when no vault is open (ADR 0025).
+_Avoid_: Capture box, quick capture, inline capture, capture bar
 
 **Sidebar**:
 The list of surfaces and dashboards at the window's edge: the map of the product and where the user is on it. Its contents are layout, not a guarantee that something is reachable (ADR 0021).
