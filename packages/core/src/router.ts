@@ -4,6 +4,7 @@ import type { Events } from "./events.js";
 import { dismiss } from "./dismissals.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
+import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -179,6 +180,26 @@ export const router = t.router({
           ...(input.exclude === undefined ? {} : { exclude: input.exclude }),
         });
       }),
+    // The text a picked file is linked by, for the one caller that writes
+    // the link into prose rather than into a field of its own: `[[` inside
+    // a why line (#216). Link and attach compose theirs in the core at
+    // write time with this same rule; the why line has to put the text in
+    // the sentence the user is typing, so it asks for it here instead of
+    // writing the bare name and hoping it reaches the file that was picked.
+    linkText: t.procedure
+      .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
+      // `wikilinkTo` throws where every other procedure's work rejects, so
+      // the whole body sits inside the promise `refusing` unwraps; beside
+      // it, a target the Index has never seen would escape as a 500 rather
+      // than the refusal it is.
+      .query(({ ctx, input }) =>
+        refusing(
+          (async () => {
+            const { index } = await requireVault(ctx);
+            return { text: wikilinkTo(index, input.from, input.to) };
+          })()
+        )
+      ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
   // creates a paper until Scouts land, and the citekey rule that beat reuses.

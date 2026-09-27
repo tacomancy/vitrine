@@ -20,7 +20,7 @@ import {
 import {
   coalesce,
   formatRevision,
-  oneLineWhy,
+  onOneLine,
   readRevisions,
   sectionWithEntry,
   topLevelItems,
@@ -703,14 +703,10 @@ export async function tickThread(
     // Two threads with one text: which was meant is not knowable from the
     // text, and ticking the first would be a guess written to disk.
     if (matches.length !== 1) {
-      return {
-        written: false,
-        reason: "changedAndUnreapplyable",
-        detail:
-          matches.length === 0
-            ? `no open thread reads "${text}"`
-            : `${matches.length} open threads read "${text}"`,
-      };
+      return notExactlyOne(matches.length, {
+        none: `no open thread reads "${text}"`,
+        several: `${matches.length} open threads read "${text}"`,
+      });
     }
     const [item] = matches as [ListItem];
     const { body: range } = heading as Heading;
@@ -825,8 +821,9 @@ export async function saveWorkingAnswer(
 ): Promise<SavedAnswer> {
   const text = typed.replace(/\r\n/g, "\n").trim();
   // The entry the plan settled on, kept from inside the queue where it is
-  // computed: the page cannot name it any other way, and reading the head
-  // of the section back would be a guess about which entry was this save's.
+  // computed, as `resolveResearchQuestion` keeps the page it wrote: the
+  // page cannot name the Revision any other way, and reading the head of
+  // the section back would be a guess about which entry was this save's.
   const recorded: { at: string | null } = { at: null };
   const result = await writeOwn(ctx, path, (read, waiting) => {
     const { content, outline } = read;
@@ -930,7 +927,7 @@ export async function attachSource(
         {
           op: "appendToSection",
           target: { section: SIDE_SECTION[side] },
-          line: oneLine(wikilink, note),
+          line: sourceLine(wikilink, note),
         },
       ],
       basedOn,
@@ -939,12 +936,11 @@ export async function attachSource(
 }
 
 /**
- * `- [[citekey]] — note`, on one line whatever was typed: a note carrying a
- * newline would otherwise end the list item and leave its tail as prose
- * under the heading, where the next read would not find it as a note.
+ * `- [[citekey]] — note`, on one line whatever was typed: the list item's
+ * own rule, which `onOneLine` states and a why obeys too.
  */
-function oneLine(wikilink: string, note: string): string {
-  const text = note.replace(/\s*\r?\n\s*/g, " ").trim();
+function sourceLine(wikilink: string, note: string): string {
+  const text = onOneLine(note);
   return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
 }
 
@@ -1010,14 +1006,10 @@ async function relocate(
       (item) => itemText(content, item) === text
     );
     if (matches.length !== 1) {
-      return {
-        written: false,
-        reason: "changedAndUnreapplyable",
-        detail:
-          matches.length === 0
-            ? `no ${from} source reads "${text}"`
-            : `${matches.length} ${from} sources read "${text}"`,
-      };
+      return notExactlyOne(matches.length, {
+        none: `no ${from} source reads "${text}"`,
+        several: `${matches.length} ${from} sources read "${text}"`,
+      });
     }
     const [item] = matches as [ListItem];
     const line = content.slice(item.range.start, item.range.end);
@@ -1044,6 +1036,25 @@ async function relocate(
     }
     return { operations, basedOn };
   });
+}
+
+/**
+ * A write that names its target by what it reads rather than by where it
+ * sits — a thread by its text, a source by its line, a Revision by its
+ * timestamp — refuses when the file no longer holds exactly one of them:
+ * none left to take the write, or two, where which was meant would be a
+ * guess written to disk. The caller says what it was looking for in its
+ * own nouns, because the line is the one a person reads.
+ */
+function notExactlyOne(
+  found: number,
+  { none, several }: { none: string; several: string }
+): WriteResult {
+  return {
+    written: false,
+    reason: "changedAndUnreapplyable",
+    detail: found === 0 ? none : several,
+  };
 }
 
 /** A side whose heading has been retyped: named as itself, not as a line that is missing. */
@@ -1313,16 +1324,24 @@ export async function explainRevision(
     );
     const [only] = matches;
     if (matches.length !== 1 || only?.revision == null) {
+      return notExactlyOne(matches.length, {
+        none: `no revision in ## ${HISTORY} is stamped ${at}`,
+        several: `${matches.length} revisions in ## ${HISTORY} are stamped ${at}`,
+      });
+    }
+    // A why is a sentence the user wrote, and this write replaces the
+    // entry whole: taking one that is already there would lose it with
+    // nothing said. Neither caller can reach this — a save never coalesces
+    // into an explained entry, and *+ why* is offered on quiet ones — so
+    // it guards the procedure rather than the page.
+    if (only.revision.why !== null) {
       return {
         written: false,
         reason: "changedAndUnreapplyable",
-        detail:
-          matches.length === 0
-            ? `no revision in ## ${HISTORY} is stamped ${at}`
-            : `${matches.length} revisions in ## ${HISTORY} are stamped ${at}`,
+        detail: `the revision stamped ${at} already carries a why`,
       };
     }
-    const entry = formatRevision({ ...only.revision, why: oneLineWhy(why) });
+    const entry = formatRevision({ ...only.revision, why: onOneLine(why) });
     return {
       operations: [
         {

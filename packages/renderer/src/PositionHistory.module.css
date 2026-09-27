@@ -178,10 +178,10 @@
   gap: var(--space-3);
 }
 
-/* Quiet until wanted (prompt 3's "hovering any quiet revision offers
-   + why"): the offer is there months later without being a call to act on
-   a Revision that is fine as it is. Always drawn for the keyboard, which
-   cannot hover. */
+/* Quiet until wanted — *+ why* on hover (§ Research Question view and
+   triage; the 03 prototype's closing note draws it on the quiet row): the
+   offer is there months later without being a call to act on a Revision
+   that is fine as it is. Always drawn for the keyboard, which cannot hover. */
 .addWhy {
   margin: 0;
   padding: 0;

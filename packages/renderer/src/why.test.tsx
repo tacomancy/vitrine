@@ -49,6 +49,17 @@ const matching = (input: unknown): Candidates => {
   return { rows, total: rows.length };
 };
 
+/**
+ * What the core writes a picked file as (`link-text.ts`): the bare name
+ * when it reaches that file and nothing else, the vault-relative path when
+ * it does not. `cordi2021` is deliberately the second kind here, so the
+ * test can tell the core's answer from the row's name.
+ */
+const linkText = (input: unknown) => {
+  const { to } = input as { from: string; to: string };
+  return { text: `[[${to.replace(/\.md$/, "")}]]` };
+};
+
 const entry = (date: string, why: string | null, from: string): Revision => ({
   at: `${date}T10:00:00+02:00`,
   field: "working answer",
@@ -107,6 +118,7 @@ const open = (
     "researchQuestions.page": current,
     "researchQuestions.saveWorkingAnswer": () => saved,
     "picker.candidates": matching,
+    "picker.linkText": linkText,
     ...more,
   });
 };
@@ -238,9 +250,11 @@ describe("⌥↵ in the working answer", () => {
 describe("[[ inside the why line", () => {
   it("opens the one picker over everything in the vault and completes the link inline", async () => {
     const candidates = vi.fn(matching);
+    const link = vi.fn(linkText);
     const explain = vi.fn(() => ({ written: true, hash: "ghi", shape: [] }));
     open(() => page("Probably both.", []), {
       "picker.candidates": candidates,
+      "picker.linkText": link,
       "researchQuestions.explainRevision": explain,
     });
     await saveWithAWhy();
@@ -256,18 +270,45 @@ describe("[[ inside the why line", () => {
     await waitFor(() => expect(candidates).toHaveBeenCalledWith({ query: "" }));
     fireEvent.click(await within(picker).findByText("cordi2021"));
 
+    // The link written is the core's, composed by the same shortest-reach
+    // rule Link and attach write theirs by: a bare name that reached a
+    // second file would send the why somewhere the user did not pick.
     await waitFor(() =>
-      expect(line.value).toBe("Mostly small-study bias. [[cordi2021]]")
+      expect(link).toHaveBeenCalledWith({
+        from: PATH,
+        to: "sources/cordi2021.md",
+      })
+    );
+    await waitFor(() =>
+      expect(line.value).toBe("Mostly small-study bias. [[sources/cordi2021]]")
     );
     fireEvent.keyDown(line, { key: "Enter" });
     await waitFor(() =>
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: RECORDED,
-        why: "Mostly small-study bias. [[cordi2021]]",
+        why: "Mostly small-study bias. [[sources/cordi2021]]",
         basedOn: "def",
       })
     );
+  });
+
+  it("writes no link and says so when the core will not compose one; the sentence is left as typed", async () => {
+    open(() => page("Probably both.", []), {
+      "picker.linkText": () => {
+        throw new Error("sources/cordi2021.md is not a file in the vault.");
+      },
+    });
+    await saveWithAWhy();
+    const line = (await whyField()) as HTMLInputElement;
+    fireEvent.change(line, { target: { value: "Mostly bias. [[" } });
+    const picker = await screen.findByRole("dialog", { name: /why/i });
+    fireEvent.click(await within(picker).findByText("cordi2021"));
+
+    expect(await screen.findByText(/no link written/)).toBeTruthy();
+    // A guess in the middle of the user's sentence would be worse than the
+    // line saying nothing was written.
+    expect(line.value).toBe("Mostly bias. [[");
   });
 });
 

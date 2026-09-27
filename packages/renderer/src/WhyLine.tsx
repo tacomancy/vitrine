@@ -20,9 +20,10 @@ import styles from "./WhyLine.module.css";
  * cost a change of mind.
  *
  * `[[` opens the one picker, narrowed to nothing: what changed a mind may
- * be a paper, an experiment, or another question. The chosen file's name is
- * completed inline, because the line is text the user is writing and not a
- * field of links.
+ * be a paper, an experiment, or another question. The link is completed
+ * inline, because the line is text the user is writing and not a field of
+ * links — and its text is the core's (`wikilinkTo`), not the bare name,
+ * so a name two files answer to can never send the why to the wrong one.
  */
 export function WhyLine({
   path,
@@ -43,7 +44,8 @@ export function WhyLine({
   const [text, setText] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
   // Where inside the line the picker was opened: the offset just past the
-  // `[[` the user typed, which is where the name goes back.
+  // `[[` the user typed, so the link the core composes replaces those two
+  // characters along with the space it needs.
   const [bracket, setBracket] = useState<number | null>(null);
   // Where the caret belongs once a completion has rendered. A ref, not
   // state: it is a note to the effect below and nothing renders from it.
@@ -108,12 +110,33 @@ export function WhyLine({
     if (value.slice(to - 2, to) === "[[") setBracket(to);
   };
 
-  const complete = (candidate: Candidate) => {
-    if (bracket === null) return;
-    setText(
-      text.slice(0, bracket) + candidate.name + "]]" + text.slice(bracket)
-    );
-    caret.current = bracket + candidate.name.length + 2;
+  /**
+   * The picked file, written the way the app writes every link it composes
+   * (`link-text.ts`): the bare name when the Index says it reaches this
+   * file and nothing else, the vault-relative path when it does not. The
+   * renderer cannot know which, so it asks — a link that quietly resolved
+   * to a second file by the same name is the silent failure the brief
+   * forbids, and a why is where the evidence for a change of mind lives.
+   */
+  const complete = async (candidate: Candidate) => {
+    const opened = bracket;
+    if (opened === null) return;
+    let link: string;
+    try {
+      const reply = await queryClient.fetchQuery(
+        trpc.picker.linkText.queryOptions({ from: path, to: candidate.path })
+      );
+      link = reply.text;
+    } catch (error) {
+      // Nothing is inserted and the `[[` stays where it was typed: the
+      // sentence is the user's, and a guess in the middle of it is worse
+      // than a line saying the link could not be written.
+      setBracket(null);
+      setRefusal(`no link written — ${(error as Error).message}`);
+      return;
+    }
+    setText(text.slice(0, opened - 2) + link + text.slice(opened));
+    caret.current = opened - 2 + link.length;
     setBracket(null);
   };
 
@@ -147,7 +170,7 @@ export function WhyLine({
       {bracket !== null && (
         <Picker
           label="Why — link to a file"
-          onChoose={complete}
+          onChoose={(candidate) => void complete(candidate)}
           onClose={() => setBracket(null)}
         />
       )}

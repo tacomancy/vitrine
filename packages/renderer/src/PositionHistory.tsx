@@ -59,6 +59,7 @@ export function PositionHistory({
       : {
           open: explaining,
           toggle: (at) => setExplaining(explaining === at ? null : at),
+          close: () => setExplaining(null),
           line: whyLine,
         };
 
@@ -113,7 +114,9 @@ const keyOf = (row: HistoryRow) =>
 type Explaining = {
   /** The entry whose line is open, by timestamp; null when none is. */
   open: string | null;
+  /** What *+ why* does: open this entry's line, or close the one it has. */
   toggle: (at: string) => void;
+  close: () => void;
   line: (at: string, close: () => void) => ReactNode;
 };
 
@@ -204,9 +207,7 @@ function Quiet({
                 </div>
                 <From from={revision.from} />
                 {explaining?.open === revision.at &&
-                  explaining.line(revision.at, () =>
-                    explaining.toggle(revision.at)
-                  )}
+                  explaining.line(revision.at, explaining.close)}
               </li>
             ))}
           </ul>

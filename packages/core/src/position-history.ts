@@ -144,9 +144,15 @@ export function sectionWithEntry(
   ).trim();
 }
 
-/** A why is one line (§ Vault layout): a newline in it would end the list item and leave its tail as prose. */
-export const oneLineWhy = (why: string) =>
-  why.replace(/\s*\r?\n\s*/g, " ").trim();
+/**
+ * Text forced onto one line. A newline inside a list item ends it and
+ * leaves the tail as prose under the heading, where the next read would no
+ * longer find it as part of the item — true of a why (§ Vault layout) and
+ * of a source line's note alike, so the rule is stated once and both
+ * callers obey the same one.
+ */
+export const onOneLine = (text: string) =>
+  text.replace(/\s*\r?\n\s*/g, " ").trim();
 
 /** One save of one field, as the history sees it. */
 export type Save = {

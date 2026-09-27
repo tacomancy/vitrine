@@ -303,9 +303,12 @@
 }
 
 /*
- * The field's keys, while it has the keyboard (prompt 3's editing state):
- * ⌥↵ is a gesture nothing else on the page would mention, and a page being
- * read rather than written to does not need the reminder.
+ * The field's keys, while it has the keyboard. The three words are the 03
+ * prototype's editing panel ("⌘⏎ save · ⌥⏎ save with a note on what
+ * changed · esc reverts"), which the prototype wins on (CLAUDE.md
+ * § Reference material); shown only while the field has the keyboard,
+ * because a page being read does not need the reminder and ⌥↵ is a gesture
+ * nothing else on the page would mention.
  */
 .keys {
   display: flex;

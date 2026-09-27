@@ -814,6 +814,21 @@ describe("researchQuestions.explainRevision", () => {
     expect(await file()).toBe(before);
   });
 
+  it("refuses to write over a why that is already there, rather than losing a sentence nobody asked it to replace", async () => {
+    const { page, save, explain, file } = await opened(() => t0);
+    await save("Probably both.");
+    expect(await explain(localIso(t0), WHY)).toMatchObject({ written: true });
+
+    const before = await file();
+    expect(await explain(localIso(t0), "A second thought.")).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: `the revision stamped ${localIso(t0)} already carries a why`,
+    });
+    expect(await file()).toBe(before);
+    expect((await page()).sections.positionHistory.entries[0]?.why).toBe(WHY);
+  });
+
   it("collapses a why typed across lines onto one, so the entry it lands in still parses", async () => {
     const { page, save, explain } = await opened(() => t0);
     await save("Probably both.");
