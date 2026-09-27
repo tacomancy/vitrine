@@ -21,6 +21,7 @@ import {
 import { formatAge } from "./age";
 import { AttachSource } from "./AttachSource";
 import { useVaultChanged } from "./events";
+import { OPENABLE } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
 import styles from "./ResearchQuestion.module.css";
 import { hashOf, replaceRoute } from "./router";
@@ -723,12 +724,6 @@ function Section({
 function Outline({ children }: { children: ReactNode }) {
   return <p className={styles.outline}>{children}</p>;
 }
-
-// The one Kind with a surface to open: `#/questions/<path>` is the Research
-// Question view. A link resolving to anything else — a Note, a Source, and a
-// Question, which has a row in the Inbox but no address yet — is inert until
-// its surface exists (spec #206 story 56).
-const OPENABLE = new Set(["research-question"]);
 
 /** `rasch2013#^h4`: the link's target as written, with its block id. */
 const targetText = ({ link }: LinkLine) =>

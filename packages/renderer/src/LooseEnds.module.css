@@ -142,8 +142,11 @@
   text-decoration: none;
 }
 
-.rowTitle:hover,
-.rowTitle:focus-visible {
+/* Only a title that is a link underlines: a row whose object has no surface
+   yet renders a span, and a span that lit up under the pointer would offer
+   a click there is nothing behind. */
+a.rowTitle:hover,
+a.rowTitle:focus-visible {
   text-decoration: underline;
 }
 
@@ -153,6 +156,28 @@
   color: var(--color-fg-secondary);
 }
 
+/* What happened, once a row is resolved: in the data voice — mono, muted —
+   rather than the prototype's teal, because the app has no status colour
+   anywhere yet and a green line here would read as congratulation on the
+   one surface whose brief forbids it. What marks the row is that its reason
+   is gone and only *undo* is left. */
+.resolved {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* A resolution the core refused, on the row it was refused about: the row
+   still says what it was told to do, so a failed undo cannot pass for a
+   quiet success. The page's voice for a failure, at the row's scale. */
+.refused {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+}
+
 .actions {
   flex: none;
   display: flex;
@@ -160,6 +185,8 @@
   gap: var(--space-2);
 }
 
+/* A resolution is a button, or — where it is navigation, as *open* is — a
+   link wearing the same clothes, so the row's two ways out read as a pair. */
 .action,
 .primary {
   appearance: none;
@@ -170,6 +197,7 @@
   font-size: var(--text-sm);
   background: transparent;
   color: var(--color-fg-muted);
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -183,4 +211,32 @@
 .primary {
   background: var(--color-bg-surface);
   color: var(--color-fg-secondary);
+}
+
+/* The names the row could not place, and what each one reached: data, so
+   the mono face, and one line per name with its candidates beside it. */
+.matches {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.target {
+  color: var(--color-fg);
+}
+
+.candidate {
+  color: var(--color-fg-muted);
 }

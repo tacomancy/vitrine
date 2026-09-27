@@ -82,10 +82,15 @@ export function localDate(iso: string): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/** The full local date and time, `14 August 2026 · 09:12`. */
-export function localDateTime(iso: string): string {
+/** The local time of day, `09:12` — the whole of a time inside one sitting. */
+export function localTime(iso: string): string {
   const d = new Date(iso);
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${localDate(iso)} · ${hh}:${mm}`;
+  return `${hh}:${mm}`;
+}
+
+/** The full local date and time, `14 August 2026 · 09:12`. */
+export function localDateTime(iso: string): string {
+  return `${localDate(iso)} · ${localTime(iso)}`;
 }
