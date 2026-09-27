@@ -53,3 +53,51 @@
   color: var(--color-fg-secondary);
   overflow-wrap: anywhere;
 }
+
+/* The rest of the sitting: one row per other question, gathered by a gap. */
+.sitting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Quieter than the Question above it — these are the train of thought and
+   not the subject. The left rule is geometry inside one surface, not a
+   divider between two (ADR 0023 decision 3). */
+.other {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  border: 0;
+  border-left: 2px solid var(--color-line);
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.otherText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+}
+
+/* Coming forward under the pointer or the keyboard, as the collapsed trail
+   does; the brass focus ring is the global one. */
+.other:hover .otherText,
+.other:focus-visible .otherText {
+  color: var(--color-fg);
+}
+
+.otherWhen {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}

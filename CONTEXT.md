@@ -162,6 +162,10 @@ _Avoid_: Source (that word is taken), origin (used for Proposals)
 The Provenance of a Question captured with no document open: `context: other` and no `from`. Time and place are still a Provenance, so the capture is never blocked on a choice; what it belongs to can be linked later.
 _Avoid_: No provenance (it has one), orphan (a Loose Ends word), untagged
 
+**Sitting**:
+The run of captures a Question was made in: the longest run containing it whose consecutive `captured` timestamps are all within ninety minutes of each other. Wall-clock adjacency, never *same `from`* — a sitting that moved from one paper to the next is exactly the train of thought worth recovering, and `from` is already a line above on the pane. The Detail pane names the others in it and never totals them; a Question alone in its sitting adds nothing to the pane at all. A Partial has no `captured` and so belongs to no sitting, its own or anyone else's (ADR 0024).
+_Avoid_: Session (an app's own run), batch, cluster, group
+
 **Status** (of a Question):
 One of *open*, *promoted*, *answered*, *abandoned*. Age is a neutral, sortable fact and never a state. Every status is shown as a glyph and a label (`◆` open, `■` promoted, `●` answered, `×` dropped — the label follows the triage verb); only open carries colour, and that colour is the accent. A file with no `status:` is open: it was never triaged (ADR 0009).
 _Avoid_: Overdue, stale (in code — "stale" is only a Scout health term)
