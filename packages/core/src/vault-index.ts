@@ -149,12 +149,11 @@ const SCHEMA = `
 CREATE TABLE files (
   path TEXT PRIMARY KEY,
   lpath TEXT NOT NULL, lname TEXT NOT NULL, lstem TEXT NOT NULL,
-  -- The Display name (display-name.ts): what the file is called on screen,
-  -- and ldisplay the key it is matched by — a lookup key like ltarget, not
-  -- merely the lowercased name. Denormalised onto files so that a keystroke
-  -- in the Global command matches a column here rather than scanning
-  -- fields (ADR 0027 decision 5). An index on it would buy nothing:
-  -- SQLite cannot use one for a contains-LIKE.
+  -- What the file is called on screen, and the key it is matched by; both
+  -- are display-name.ts's, which is where either one's rules are. Here
+  -- rather than on fields so that a keystroke in the Global command
+  -- matches a column of the row it is narrowing (ADR 0027 decision 5). No
+  -- index: SQLite cannot use one for a contains-LIKE.
   display TEXT, ldisplay TEXT,
   markdown INTEGER NOT NULL,
   size INTEGER, mtime REAL, hash TEXT,

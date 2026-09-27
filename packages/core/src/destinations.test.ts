@@ -105,6 +105,30 @@ describe("globalCommand.destinations", () => {
     ]);
   });
 
+  it("finds a hyphenated word by either half of it, and by the whole", async () => {
+    // A hyphen is not a word boundary the reader can see, so all three
+    // are the same word to anyone typing what the row says.
+    const c = await opened(await fixtureCopy("obsidian-vault"));
+    for (const typed of ["slow-wave", "slow wave", "wave density"]) {
+      expect(shown(await c.destinations(typed))).toEqual([
+        "question Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?",
+      ]);
+    }
+  });
+
+  it("never lets a typed wildcard act as one", async () => {
+    // The contains-LIKE carries no ESCAPE, which is safe only while
+    // `matchKey` leaves no `%`, `_` or `\` on either side of it. A
+    // surviving `%` would make each of these match; a space cannot.
+    const c = await opened(await vaultOf([{ name: "q", text: "Anything" }]));
+    expect(shown(await c.destinations("anything"))).toEqual([
+      "question Anything",
+    ]);
+    for (const typed of ["any%thing", "any_thing", "any\\thing"]) {
+      expect(shown(await c.destinations(typed))).toEqual([]);
+    }
+  });
+
   it("ranks by match strength, then by Kind, then by recency", async () => {
     const c = await opened(
       await vaultOf([

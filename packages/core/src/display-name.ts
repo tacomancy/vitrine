@@ -46,10 +46,17 @@ export function displayName(
 }
 
 /**
- * The form a Display name and a query are compared in: lower case, no
- * punctuation, runs of space collapsed. Both sides pass through it, so
+ * The form a Display name and a query are compared in: lower case, words
+ * separated by one space, nothing else. Both sides pass through it, so
  * typing the colon a Question's text carries finds the row whose file
- * name had to drop it. Letters and digits of every script survive —
+ * name had to drop it.
+ *
+ * A run of punctuation becomes a space rather than nothing, so *slow-wave
+ * density* is found by typing either half of the word as well as the whole
+ * of it — a word legible on a row must always find it (ADR 0027 decision
+ * 5), and a hyphen is not a word boundary the reader can see. An
+ * apostrophe is the exception and goes, because *sleep's role* is one word
+ * to anyone typing it. Letters and digits of every script survive:
  * dropping the ones outside ASCII would lose a name to the punctuation
  * rule for having an umlaut in it.
  *
@@ -59,6 +66,7 @@ export function displayName(
 export const matchKey = (text: string): string =>
   text
     .toLowerCase()
-    .replace(/[^\p{L}\p{N} ]+/gu, "")
-    .replace(/\s+/g, " ")
+    .replace(/['\u2019]+/gu, "")
+    // Whitespace is outside the class too, so this collapses runs as well.
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();

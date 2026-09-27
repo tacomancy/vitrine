@@ -84,7 +84,7 @@ export function destinations(
   const scored = matched.map((row) => ({
     row,
     strength: strength(wanted, row.ldisplay),
-    kind: ADDRESSABLE.indexOf(row.kind),
+    kindRank: ADDRESSABLE.indexOf(row.kind),
   }));
   // Strength, then Kind, then recency — so an exact hit leads whatever it
   // is, and the newest of an equal pair is the likelier target. Recency is
@@ -94,7 +94,7 @@ export function destinations(
   scored.sort(
     (a, b) =>
       b.strength - a.strength ||
-      a.kind - b.kind ||
+      a.kindRank - b.kindRank ||
       (b.row.mtime ?? 0) - (a.row.mtime ?? 0)
   );
   return {
