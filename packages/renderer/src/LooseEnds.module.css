@@ -142,8 +142,11 @@
   text-decoration: none;
 }
 
-.rowTitle:hover,
-.rowTitle:focus-visible {
+/* Only a title that is a link underlines: a row whose object has no surface
+   yet renders a span, and a span that lit up under the pointer would offer
+   a click there is nothing behind. */
+a.rowTitle:hover,
+a.rowTitle:focus-visible {
   text-decoration: underline;
 }
 
@@ -160,6 +163,8 @@
   gap: var(--space-2);
 }
 
+/* A resolution is a button, or — where it is navigation, as *open* is — a
+   link wearing the same clothes, so the row's two ways out read as a pair. */
 .action,
 .primary {
   appearance: none;
@@ -170,6 +175,7 @@
   font-size: var(--text-sm);
   background: transparent;
   color: var(--color-fg-muted);
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -183,4 +189,32 @@
 .primary {
   background: var(--color-bg-surface);
   color: var(--color-fg-secondary);
+}
+
+/* The names the row could not place, and what each one reached: data, so
+   the mono face, and one line per name with its candidates beside it. */
+.matches {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.target {
+  color: var(--color-fg);
+}
+
+.candidate {
+  color: var(--color-fg-muted);
 }

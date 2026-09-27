@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
 import { writtenDay, type OpenDays } from "./open-days.js";
@@ -41,7 +42,31 @@ export type StalledResearchQuestion = {
   since: string;
 };
 
-export type LooseEndRow = StalledResearchQuestion;
+/**
+ * A file holding a bare `[[name]]` that matches several files (CONTEXT.md
+ * *Ambiguous link*): the link resolves to nothing, because picking the first
+ * indexed would make the app quietly wrong about where a reader was pointing.
+ *
+ * One row per *linking file*, never per link. A dismissal is keyed by an
+ * object and a row kind and by nothing finer (§ Vault layout,
+ * `dismissals.json`), so two rows about one file under one kind could not be
+ * silenced apart: *mark deliberate* on either would take the other with it,
+ * which is exactly the silent loss the per-row-kind rule exists to prevent.
+ */
+export type AmbiguousLinks = {
+  kind: "ambiguous-link";
+  subject: string;
+  /** Vault-relative: the linking file, which is what *open* opens. */
+  path: string;
+  /** The linking file's name — the row reads as the file it is about. */
+  title: string;
+  /** The linking file's `kind:`, null for a Note: what says whether it has a surface yet. */
+  linkingKind: string | null;
+  /** Each name in the file that reached more than one file, in document order. */
+  links: Array<{ target: string; candidates: string[] }>;
+};
+
+export type LooseEndRow = StalledResearchQuestion | AmbiguousLinks;
 
 export type LooseEndGroup = {
   group: LooseEndGroupName;
@@ -84,21 +109,73 @@ export async function looseEnds(
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
   const stalled = stalledResearchQuestions(index, days, stalledOpenDays);
-  const rows = stalled.rows.filter(
-    (row) => !dismissed(dismissals, row.subject, row.kind)
-  );
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [],
     "Unfinished reading": [],
-    "Disconnected material": [],
-    "Stalled questions": rows,
+    "Disconnected material": ambiguousLinks(index),
+    "Stalled questions": stalled.rows,
   };
   return {
-    groups: GROUPS.filter((group) => byGroup[group].length > 0).map(
-      (group) => ({ group, rows: byGroup[group] })
-    ),
+    // The dismissal is applied here rather than inside each row query, so a
+    // row kind a later beat adds is silenced by *mark deliberate* without
+    // its author having to remember to ask.
+    groups: GROUPS.flatMap((group) => {
+      const rows = byGroup[group].filter(
+        (row) => !dismissed(dismissals, row.subject, row.kind)
+      );
+      return rows.length === 0 ? [] : [{ group, rows }];
+    }),
     problems: [...(problem === null ? [] : [problem]), ...stalled.problems],
   };
+}
+
+function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {
+  const byPath = new Map<string, AmbiguousLinks>();
+  for (const row of index.select<{
+    path: string;
+    id: string | null;
+    kind: string | null;
+    target: string;
+    heading: string;
+    block: string | null;
+  }>(
+    `SELECT l.path, f.id, f.kind, l.target, l.heading, l.block
+       FROM links l JOIN files f ON f.path = l.path
+      WHERE l.resolution = 'ambiguous'
+      ORDER BY l.path, l.start`
+  )) {
+    // The index's own resolver, never a second reading of the same rules:
+    // the `links` column says *ambiguous* but not which files the name
+    // reached, and a surface that worked those out for itself could name a
+    // pair the column was not talking about.
+    const { resolution, candidates } = index.resolve(row.path, {
+      target: row.target,
+      heading: JSON.parse(row.heading) as string[],
+      blockId: row.block,
+    });
+    if (resolution !== "ambiguous") continue;
+    let file = byPath.get(row.path);
+    if (file === undefined) {
+      file = {
+        kind: "ambiguous-link",
+        subject: row.id ?? row.path,
+        path: row.path,
+        // The name a wikilink would write, so the row reads as the file it
+        // is about; `path` beneath it says which file that is.
+        title: basename(row.path, ".md"),
+        linkingKind: row.kind,
+        links: [],
+      };
+      byPath.set(row.path, file);
+    }
+    // One name written twice in a file is one choice to make, and the
+    // match is case-insensitive, so `[[Klinzing]]` and `[[klinzing]]` are
+    // the same choice too.
+    const written = row.target.toLowerCase();
+    if (file.links.some((l) => l.target.toLowerCase() === written)) continue;
+    file.links.push({ target: row.target, candidates });
+  }
+  return [...byPath.values()];
 }
 
 /** The two headings a source line can sit under; a link under either is a source. */
