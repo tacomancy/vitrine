@@ -152,6 +152,9 @@ describe("researchQuestions.page", () => {
             blockId: null,
             resolution: "ambiguous",
             resolvedPath: null,
+            // Both files the bare name reached, so the line can say which
+            // two it is caught between rather than only that it is.
+            candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
             resolvedKind: null,
           },
           note: "Waking rest produces a comparable benefit.",
@@ -1137,5 +1140,291 @@ describe("researchQuestions.attachSource", () => {
     });
     expect(unsorted.error).toBeDefined();
     expect(await readFile(join(vault, note), "utf8")).toBe("A note.\n");
+  });
+});
+
+// Moving a source to the other side and detaching one (#219; spec #206
+// story 27; ADR 0020 decision 4): each side the write touches is replaced
+// whole as an Edited section, and neither records a Revision — the history
+// is of positions, not of the bibliography. The fixture's lines are
+// hand-written ones, so what moves here is exactly what a user typed in
+// Obsidian.
+describe("researchQuestions.moveSource and detachSource", () => {
+  const path = "questions/Does slow-wave density predict recall gain (RQ).md";
+  const SUPPORTING =
+    "[[rasch2013#^h4]] — TMR effects survive encoding controls.";
+  const OPPOSING =
+    "[[wamsley2019]] — Waking rest produces a comparable benefit.";
+
+  it("moves a source to the other side, note and all, keeping the order of what stays", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean }>(
+      "researchQuestions.moveSource",
+      { path, from: "supporting", text: SUPPORTING, basedOn: page.hash }
+    );
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "## Supporting sources\n\n- [[klinzing2019]]\n\n## Opposing sources\n\n- [[wamsley2019]] — Waking rest produces a comparable benefit.\n- a line that is not a source\n- [[rasch2013#^h4]] — TMR effects survive encoding controls.\n\n## Related questions"
+    );
+    // Everything before the first side and after the second — the Position
+    // history included — is byte-identical: a move is not a Revision.
+    expect(outside(after, "Supporting sources")[0]).toBe(
+      outside(before, "Supporting sources")[0]
+    );
+    expect(outside(after, "Opposing sources")[1]).toBe(
+      outside(before, "Opposing sources")[1]
+    );
+
+    // Read back: the moved line is a source line on its new side like any other.
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    const { supporting, opposing } = read.result.data.sections;
+    expect(supporting.lines.map((line) => line.text)).toEqual([
+      "[[klinzing2019]]",
+    ]);
+    expect(opposing.lines[2]).toEqual({
+      text: SUPPORTING,
+      link: {
+        target: "rasch2013",
+        blockId: "h4",
+        resolution: "resolved",
+        resolvedPath: "sources/rasch2013.md",
+        resolvedKind: "source",
+      },
+      note: "TMR effects survive encoding controls.",
+    });
+  });
+
+  it("detaches a source, leaving the other side and every other section byte-identical", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean }>(
+      "researchQuestions.detachSource",
+      { path, side: "opposing", text: OPPOSING, basedOn: page.hash }
+    );
+    expect(reply.error).toBeUndefined();
+    expect(reply.result?.data).toMatchObject({ written: true });
+
+    const after = await readFile(join(vault, path), "utf8");
+    expect(after).toContain(
+      "## Opposing sources\n\n- a line that is not a source\n\n## Related questions"
+    );
+    // Only the side the line left is rewritten; the other one is not touched
+    // at all, so a move's two sections are the most this write ever replaces.
+    expect(outside(after, "Opposing sources")).toEqual(
+      outside(before, "Opposing sources")
+    );
+  });
+
+  it("detaches the last source on a side, leaving the heading and an empty section", async () => {
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    for (const text of [
+      "[[rasch2013#^h4]] — TMR effects survive encoding controls.",
+      "[[klinzing2019]]",
+    ]) {
+      const reply = await c.mutate<{ written: boolean }>(
+        "researchQuestions.detachSource",
+        { path, side: "supporting", text, basedOn: page.hash }
+      );
+      expect(reply.result?.data).toMatchObject({ written: true });
+    }
+    expect(await readFile(join(vault, path), "utf8")).toContain(
+      "## Supporting sources\n\n## Opposing sources"
+    );
+  });
+
+  it("refuses a line that is no longer there, and one that reads twice, without writing", async () => {
+    const twice = WELL_FORMED.replace(
+      "- [[klinzing2019]]\n",
+      "- [[klinzing2019]]\n- [[klinzing2019]]\n"
+    );
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: twice },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+
+    const gone = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.moveSource",
+      { path, from: "opposing", text: SUPPORTING, basedOn: page.hash }
+    );
+    expect(gone.result?.data).toMatchObject({
+      written: false,
+      reason: "changedAndUnreapplyable",
+    });
+
+    // Two lines with one text: which was meant is not knowable from the
+    // text, and moving the first would be a guess written to disk.
+    const doubled = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.detachSource",
+      { path, side: "supporting", text: "[[klinzing2019]]", basedOn: page.hash }
+    );
+    expect(doubled.result?.data).toMatchObject({ written: false });
+    expect((doubled.result?.data as { detail: string }).detail).toContain("2");
+
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+
+  it("refuses a move whose other heading is not in the file, rather than writing one at the end", async () => {
+    const retyped = WELL_FORMED.replace(
+      "## Opposing sources",
+      "## Opposing source"
+    );
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: retyped },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.moveSource",
+      { path, from: "supporting", text: SUPPORTING, basedOn: page.hash }
+    );
+    expect(reply.result?.data).toMatchObject({ written: false });
+    expect((reply.result?.data as { detail: string }).detail).toContain(
+      "Opposing sources"
+    );
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
+  });
+
+  it("refuses a page that is not a Research Question, and a side outside the two", async () => {
+    const note = "notes/Sleep and consolidation.md";
+    const { c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: WELL_FORMED, [note]: "A note.\n" },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+
+    const wrongKind = await c.mutate<{ written: boolean; reason?: string }>(
+      "researchQuestions.detachSource",
+      { path: note, side: "opposing", text: OPPOSING, basedOn: page.hash }
+    );
+    expect(wrongKind.result?.data).toMatchObject({
+      written: false,
+      reason: "unreadable",
+    });
+
+    const unsorted = await c.mutate("researchQuestions.moveSource", {
+      path,
+      from: "unsorted",
+      text: SUPPORTING,
+      basedOn: page.hash,
+    });
+    expect(unsorted.error).toBeDefined();
+  });
+});
+
+// What a source line says when its link did not land (#219; spec #206 story
+// 30). The three cases are told apart by what the *name* reached, because
+// the fix differs — and a fragment that is gone must never read as a
+// citekey that is wrong.
+describe("a source line whose link did not land", () => {
+  const path = "questions/unlanded (RQ).md";
+
+  it("carries the pair an ambiguous name is caught between, and the one file a dead #^id landed on", async () => {
+    const unlanded =
+      FRONTMATTER +
+      "\n## Working answer\n\n## Supporting sources\n\n- [[rasch2013#^h99]] — the block an Ingest renumbered\n- [[nobody2020]] — a citekey with nothing behind it\n\n## Opposing sources\n\n- [[wamsley2019]]\n\n## Related questions\n\n## Open threads\n\n## Position history\n";
+    const { page } = await openedPage(
+      { ...NEIGHBOURS, [path]: unlanded },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const links = [
+      ...page.sections.supporting.lines,
+      ...page.sections.opposing.lines,
+    ].map((line) => line.link);
+
+    // The name landed and the block did not: the file comes back, so the
+    // page can say which one has no `^h99` instead of claiming the vault
+    // holds no `rasch2013`.
+    expect(links[0]).toMatchObject({
+      target: "rasch2013",
+      blockId: "h99",
+      resolution: "unresolved",
+      resolvedPath: null,
+      candidates: ["sources/rasch2013.md"],
+    });
+    // Nothing carries the name: no file to name, so no `candidates` key.
+    expect(links[1]).toEqual({
+      target: "nobody2020",
+      blockId: null,
+      resolution: "unresolved",
+      resolvedPath: null,
+      resolvedKind: null,
+    });
+    expect(links[2]).toMatchObject({
+      resolution: "ambiguous",
+      candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
+    });
+  });
+
+  it("reads a hand-written source line and one the app attached with the same shape", async () => {
+    const byHand =
+      FRONTMATTER +
+      "\n## Working answer\n\n## Supporting sources\n\n- [[rasch2013]] — TMR effects survive encoding controls.\n\n## Opposing sources\n\n## Related questions\n\n## Open threads\n\n## Position history\n";
+    const { c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: byHand },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    await c.mutate("researchQuestions.attachSource", {
+      path,
+      target: "sources/rasch2013.md",
+      side: "opposing",
+      note: "TMR effects survive encoding controls.",
+      basedOn: page.hash,
+    });
+    const read = await c.query<ResearchQuestionPage>("researchQuestions.page", {
+      path,
+    });
+    if (!read.result?.data.readable) throw new Error("unreadable");
+    const { supporting, opposing } = read.result.data.sections;
+    // The file, not the app, is the record: one parser reads both, so the
+    // line typed in Obsidian and the line the app wrote are one thing.
+    expect(supporting.lines[0]).toEqual(opposing.lines[0]);
+  });
+
+  it("refuses a move off a side whose own heading was retyped, naming the heading", async () => {
+    const retyped = WELL_FORMED.replace(
+      "## Supporting sources",
+      "## Supporting source"
+    );
+    const { vault, c, page } = await openedPage(
+      { ...NEIGHBOURS, [path]: retyped },
+      path
+    );
+    if (!page.readable) throw new Error("unreadable");
+    const before = await readFile(join(vault, path), "utf8");
+    const reply = await c.mutate<{ written: boolean; detail?: string }>(
+      "researchQuestions.detachSource",
+      { path, side: "supporting", text: "[[klinzing2019]]", basedOn: page.hash }
+    );
+    expect(reply.result?.data).toMatchObject({ written: false });
+    // The heading is what is gone; saying "no supporting source reads …"
+    // would send the user looking for the line.
+    expect((reply.result?.data as { detail: string }).detail).toBe(
+      "no ## Supporting sources heading was found"
+    );
+    expect(await readFile(join(vault, path), "utf8")).toBe(before);
   });
 });

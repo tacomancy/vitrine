@@ -78,6 +78,13 @@ export type LinkLine = {
     blockId: string | null;
     resolution: Resolution;
     resolvedPath: string | null;
+    /**
+     * The files the *name* reached, whatever the link then did; absent when
+     * it reached none. Two of them means the name is ambiguous; one beside
+     * an `unresolved` means the name landed and the `#^id` after it did
+     * not — a block an Ingest renumbered, not a citekey to retype.
+     */
+    candidates?: string[];
     /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
     resolvedKind: string | null;
   } | null;
@@ -306,7 +313,7 @@ function linkLine(
   );
   if (link === undefined) return { text, link: null, note: text };
   const note = text.slice(link.range.end - textStart).replace(SEPARATOR, "");
-  const resolved = index.resolve(path, link);
+  const { candidates, ...resolved } = index.resolve(path, link);
   const resolvedKind =
     resolved.resolvedPath === null
       ? null
@@ -320,6 +327,7 @@ function linkLine(
       target: link.target,
       blockId: link.blockId,
       ...resolved,
+      ...(candidates.length === 0 ? {} : { candidates }),
       resolvedKind,
     },
     note: note.trim(),
@@ -882,6 +890,128 @@ export async function attachSource(
 function oneLine(wikilink: string, note: string): string {
   const text = note.replace(/\s*\r?\n\s*/g, " ").trim();
   return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
+}
+
+/** The other side; there are only two, so this is a fact and not a lookup (ADR 0020 decision 5). */
+const otherSide = (side: Side): Side =>
+  side === "supporting" ? "opposing" : "supporting";
+
+/**
+ * Move a source to the other side (#219; spec #206 story 27): the line
+ * leaves one heading and joins the end of the other, its note and its
+ * block id with it. Both sides are replaced whole — they are Edited
+ * sections, the user's prose the app rewrites only because the user asked
+ * it to — and no Revision is recorded: the history is of positions, not of
+ * the bibliography, and a move that changed a mind is named by the why on
+ * the next Revision (ADR 0020 decision 4).
+ */
+export async function moveSource(
+  ctx: PageContext,
+  path: string,
+  { from, text, basedOn }: { from: Side; text: string; basedOn: string }
+): Promise<WriteResult> {
+  return relocate(ctx, path, { from, to: otherSide(from), text, basedOn });
+}
+
+/**
+ * Detach a source: the line goes, and only the side it was on is replaced.
+ * Nothing else is written — the paper itself is untouched, and a page that
+ * has stopped citing it says so by not citing it.
+ */
+export async function detachSource(
+  ctx: PageContext,
+  path: string,
+  { side, text, basedOn }: { side: Side; text: string; basedOn: string }
+): Promise<WriteResult> {
+  return relocate(ctx, path, { from: side, to: null, text, basedOn });
+}
+
+/**
+ * The write both verbs make. The line is named by its text, as a ticked
+ * thread is, so a file edited underneath takes the move where it was meant
+ * — or refuses, when the text is no longer there or reads twice and which
+ * line was meant would be a guess written to disk. Every other line on
+ * either side goes back exactly as it was written, so a hand-written line
+ * survives a move to the byte.
+ */
+async function relocate(
+  ctx: PageContext,
+  path: string,
+  {
+    from,
+    to,
+    text,
+    basedOn,
+  }: { from: Side; to: Side | null; text: string; basedOn: string }
+): Promise<WriteResult> {
+  return writeOwn(ctx, path, ({ content, outline }) => {
+    const heading = section(outline, SIDE_SECTION[from]).heading;
+    // A retyped heading is its own refusal, said in those words: falling
+    // through to "no source reads …" would name the line when the heading
+    // is what is gone, and send the user looking for the wrong thing.
+    if (heading === undefined) return noHeading(from);
+    const matches = topLevelItems(outline, heading).filter(
+      (item) => itemText(content, item) === text
+    );
+    if (matches.length !== 1) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail:
+          matches.length === 0
+            ? `no ${from} source reads "${text}"`
+            : `${matches.length} ${from} sources read "${text}"`,
+      };
+    }
+    const [item] = matches as [ListItem];
+    const line = content.slice(item.range.start, item.range.end);
+    const operations: Operation[] = [
+      {
+        op: "replaceSection",
+        name: SIDE_SECTION[from],
+        body: withoutItem(content, heading.body, item),
+      },
+    ];
+    if (to !== null) {
+      const target = section(outline, SIDE_SECTION[to]).heading;
+      // `replaceSection` would write the heading at the end of the file,
+      // putting the moved source below `## Position history`. A retyped
+      // heading is already named in the page's problems; this write says
+      // so too rather than restructuring the file to get its line in.
+      if (target === undefined) return noHeading(to);
+      const body = bodyText(content, target);
+      operations.push({
+        op: "replaceSection",
+        name: SIDE_SECTION[to],
+        body: body === "" ? line : `${body}\n${line}`,
+      });
+    }
+    return { operations, basedOn };
+  });
+}
+
+/** A side whose heading has been retyped: named as itself, not as a line that is missing. */
+const noHeading = (side: Side): WriteResult => ({
+  written: false,
+  reason: "changedAndUnreapplyable",
+  detail: `no ## ${SIDE_SECTION[side]} heading was found`,
+});
+
+/**
+ * The section's body with one item cut out, its line ending with it:
+ * cutting the range alone would leave that newline behind as a blank line,
+ * and the next read would find a paragraph break where the list was.
+ */
+function withoutItem(
+  content: string,
+  body: { start: number; end: number },
+  item: ListItem
+): string {
+  const ending = /^\r?\n/.exec(content.slice(item.range.end, body.end));
+  const after = item.range.end + (ending?.[0].length ?? 0);
+  return (
+    content.slice(body.start, item.range.start) + content.slice(after, body.end)
+  ).trim();
 }
 
 /** What the write-back reached, or why it reached no Question; `path` is vault-relative. */

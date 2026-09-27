@@ -130,7 +130,16 @@ export type VaultIndex = {
   resolve: (
     linkingPath: string,
     link: Pick<Link, "target" | "heading" | "blockId">
-  ) => { resolution: Resolution; resolvedPath: string | null };
+  ) => {
+    resolution: Resolution;
+    resolvedPath: string | null;
+    /**
+     * The files the *name* reached, whatever the link then did: two of them
+     * when the name is ambiguous, one when the name landed but the `#^id`
+     * or heading after it did not, none when nothing carries the name.
+     */
+    candidates: string[];
+  };
   close: () => void;
 };
 
@@ -528,9 +537,19 @@ function createIndex(
     return true;
   };
 
-  const resolveOne = (
-    link: Omit<LinkRow, "rowid">
-  ): [resolution: Resolution, resolvedPath: string | null] => {
+  type Resolved = {
+    resolution: Resolution;
+    resolvedPath: string | null;
+    /** The files the name reached, whatever the link then did (`VaultIndex.resolve`). */
+    candidates: string[];
+  };
+  const landed = (path: string | null, resolution: Resolution): Resolved => ({
+    resolution,
+    resolvedPath: path,
+    candidates: [],
+  });
+
+  const resolveOne = (link: Omit<LinkRow, "rowid">): Resolved => {
     let candidates: Candidate[];
     if (link.target === "") {
       // `[[#Heading]]`: into the linking file itself.
@@ -543,25 +562,46 @@ function createIndex(
     } else {
       candidates = filesByName.all(link.ltarget, link.ltarget) as Candidate[];
     }
-    if (candidates.length === 0) return ["unresolved", null];
+    if (candidates.length === 0) return landed(null, "unresolved");
     // Two files by one bare name: nothing, never the first indexed (L2a,
-    // by design); Loose Ends offers the path-qualified rewrite.
-    if (candidates.length > 1) return ["ambiguous", null];
+    // by design); Loose Ends offers the path-qualified rewrite. The files
+    // themselves come back with the verdict — a surface that says only
+    // *ambiguous* leaves the reader to go looking for the pair — sorted, so
+    // the pair reads the same however the index happened to fill.
+    if (candidates.length > 1) {
+      return {
+        resolution: "ambiguous",
+        resolvedPath: null,
+        candidates: candidates.map((c) => c.path).sort(),
+      };
+    }
     const [{ path, markdown }] = candidates as [Candidate];
     if (markdown === 1) {
       // A fragment the file lacks is unresolved: the link points at a
       // heading or block that is not there, which is what Loose Ends
       // wants to hear. A fragment on a PDF or image is a viewer hint
       // (`#page=3`) and is not checked.
+      // The name landed and the fragment did not. The file comes back all
+      // the same: *nothing carries this name* would be a lie about a link
+      // whose citekey is right and whose block id an Ingest renumbered,
+      // and it would send the reader to retype the half that is correct.
       if (link.block !== null && hasBlock.get(path, link.block) === undefined) {
-        return ["unresolved", null];
+        return {
+          resolution: "unresolved",
+          resolvedPath: null,
+          candidates: [path],
+        };
       }
       const fragments = JSON.parse(link.heading) as string[];
       if (fragments.length > 0 && !headingPathLands(path, fragments)) {
-        return ["unresolved", null];
+        return {
+          resolution: "unresolved",
+          resolvedPath: null,
+          candidates: [path],
+        };
       }
     }
-    return ["resolved", path];
+    return landed(path, "resolved");
   };
 
   /** Recompute resolution for every link touched by these paths; inside a transaction. */
@@ -586,7 +626,7 @@ function createIndex(
       }
     }
     for (const link of affected.values()) {
-      const [resolution, resolvedPath] = resolveOne(link);
+      const { resolution, resolvedPath } = resolveOne(link);
       setResolution.run(resolution, resolvedPath, link.rowid);
     }
   };
@@ -1178,16 +1218,14 @@ function createIndex(
     }),
     select: <T>(sql: string, ...params: Array<string | number | null>) =>
       db.prepare(sql).all(...params) as T[],
-    resolve: (linkingPath, link) => {
-      const [resolution, resolvedPath] = resolveOne({
+    resolve: (linkingPath, link) =>
+      resolveOne({
         path: linkingPath,
         target: link.target,
         ltarget: linkKey(linkingPath, link.target),
         heading: JSON.stringify(link.heading),
         block: link.blockId,
-      });
-      return { resolution, resolvedPath };
-    },
+      }),
     close: () => {
       closed = true;
       db.close();
