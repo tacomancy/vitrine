@@ -134,7 +134,12 @@ describe("questions.promote", () => {
         path: QUESTION_PATH,
       });
       expect(reply.error?.data.kind).toBe("writeFailed");
-      expect(reply.error?.message).toMatch(/Couldn't write/);
+      // The file vault-relative, then the cause — never the absolute path
+      // the errno appends (#288).
+      expect(reply.error?.message).toMatch(
+        /^Couldn't write questions\/.*\(RQ\)\.md: EACCES: permission denied$/
+      );
+      expect(reply.error?.message).not.toContain(vault);
       expect(await fingerprint(vault)).toEqual(before);
     } finally {
       await chmod(join(vault, "questions"), 0o755);

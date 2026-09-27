@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { errorMessage } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import type { PositionChange } from "./pending-revisions.js";
 import { readQuestion } from "./question-kind.js";
 import {
@@ -217,7 +217,7 @@ async function removeIndexFiles(folder: string): Promise<void> {
  * every schema change, not only in disaster.
  */
 async function openDatabase(folder: string): Promise<DatabaseSync> {
-  const file = join(folder, "index.sqlite");
+  const file = join(folder, FILE);
   const attempt = (): DatabaseSync | null => {
     let db: DatabaseSync | null = null;
     try {
@@ -349,7 +349,10 @@ async function walk(
     try {
       listed = await readdir(dir, { withFileTypes: true });
     } catch (error) {
-      unlistable.push({ path: relative, reason: errorMessage(error) });
+      unlistable.push({
+        path: relative,
+        reason: errorMessageWithoutPath(error),
+      });
       return;
     }
     for (const entry of listed) {
@@ -362,7 +365,7 @@ async function walk(
         try {
           s = await stat(join(root, path));
         } catch (error) {
-          unlistable.push({ path, reason: errorMessage(error) });
+          unlistable.push({ path, reason: errorMessageWithoutPath(error) });
           continue;
         }
         entries.set(path, entryOf(path, s));
@@ -375,6 +378,10 @@ async function walk(
 
 export class IndexOpenError extends Error {}
 
+/** Vault-relative, for the messages above as well as the joins (#288). */
+const META_FOLDER = ".vitrine";
+const FILE = "index.sqlite";
+
 /**
  * Open (or create, or replace) the index for a vault. Throws
  * `IndexOpenError` when `.vitrine/` cannot be created or written — the
@@ -384,20 +391,27 @@ export async function openIndex(
   vaultPath: string,
   options: IndexOptions = {}
 ): Promise<VaultIndex> {
-  const folder = join(vaultPath, ".vitrine");
+  const folder = join(vaultPath, META_FOLDER);
+  // Vault-relative in every message below: the joined path is what the
+  // errno's strip just took out (#288).
   const failing = (what: string) => (cause: unknown) => {
-    throw new IndexOpenError(`Couldn't ${what}: ${errorMessage(cause)}`);
+    throw new IndexOpenError(
+      `Couldn't ${what}: ${errorMessageWithoutPath(cause)}`
+    );
   };
-  await mkdir(folder, { recursive: true }).catch(failing(`create ${folder}`));
+  await mkdir(folder, { recursive: true }).catch(
+    failing(`create ${META_FOLDER}/`)
+  );
   // The one disposable file, ignored in a vault under git; written once, so a
   // user's own `.gitignore` there is never touched (ADR 0014 decision 10).
   await writeFile(join(folder, ".gitignore"), "index.sqlite*\n", {
     flag: "wx",
   }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== "EEXIST") failing(`write ${folder}/.gitignore`)(error);
+    if (error.code !== "EEXIST")
+      failing(`write ${META_FOLDER}/.gitignore`)(error);
   });
   const db = await openDatabase(folder).catch(
-    failing(`open ${join(folder, "index.sqlite")}`)
+    failing(`open ${META_FOLDER}/${FILE}`)
   );
   return createIndex(vaultPath, db, options);
 }
@@ -872,7 +886,7 @@ function createIndex(
             error: null,
           };
         } catch (error) {
-          return { ...unread, error: errorMessage(error) };
+          return { ...unread, error: errorMessageWithoutPath(error) };
         }
       })
     );
@@ -1177,7 +1191,7 @@ function createIndex(
           await runSweep();
           sweep = "done";
         } catch (error) {
-          sweep = { failed: errorMessage(error) };
+          sweep = { failed: errorMessageWithoutPath(error) };
         } finally {
           sweepsQueued--;
         }

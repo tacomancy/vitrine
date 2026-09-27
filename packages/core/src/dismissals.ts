@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import { serialised } from "./serialise.js";
 
 /**
@@ -91,8 +91,17 @@ const serially = serialised();
 
 async function save(vaultPath: string, dismissals: Dismissals): Promise<void> {
   const path = join(vaultPath, FILE);
-  await mkdir(dirname(path), { recursive: true });
-  await writeAtomically(path, JSON.stringify(dismissals, null, 2) + "\n");
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await writeAtomically(path, JSON.stringify(dismissals, null, 2) + "\n");
+  } catch (cause) {
+    // Unwrapped, this left the procedure as Node stated it and reached the
+    // dashboard with nothing saying what the app had been doing (#288).
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't write ${FILE}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
 }
 
 /**
