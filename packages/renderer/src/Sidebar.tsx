@@ -13,7 +13,10 @@ const SURFACES: readonly Entry[] = [
   { name: "Home" },
   { name: "Question Inbox", to: INBOX },
   { name: "Reader" },
-  { name: "Research Question view", lit: (at) => at.surface === "questions" },
+  {
+    name: "Research Question view",
+    lit: (at) => at.surface === "research-question",
+  },
   { name: "Hypothesis view" },
   { name: "Experiment view" },
   { name: "Scout Queue" },

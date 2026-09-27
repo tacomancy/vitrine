@@ -44,7 +44,7 @@ export function App() {
   // refused by the core, loudly, in the capture line. The Reader will add
   // *reading* here when it exists.
   const provenance: Provenance =
-    route.surface === "questions"
+    route.surface === "research-question"
       ? { context: "pursuing", researchQuestion: route.path }
       : { context: "other" };
 
@@ -77,9 +77,13 @@ export function App() {
         <div className={styles.panes}>
           <Sidebar route={route} />
           {route.surface === "inbox" && (
-            <Inbox landed={landed} vaultPath={vault.data.path} />
+            <Inbox
+              landed={landed}
+              unresolved={route.unresolved ?? null}
+              vaultPath={vault.data.path}
+            />
           )}
-          {route.surface === "questions" && (
+          {route.surface === "research-question" && (
             <ResearchQuestion
               key={route.path}
               path={route.path}
@@ -91,7 +95,7 @@ export function App() {
             <LooseEnds
               onAttach={(path) => {
                 setAttachOnArrival(path);
-                pushRoute({ surface: "questions", path });
+                pushRoute({ surface: "research-question", path });
               }}
             />
           )}

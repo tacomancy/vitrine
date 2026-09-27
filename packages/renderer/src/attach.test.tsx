@@ -92,7 +92,7 @@ const open = (
   current: ResearchQuestionPage,
   more: Record<string, unknown> = {}
 ) => {
-  window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+  window.location.hash = `#/research-question/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
   return renderApp({
     "vault.current": vault,
     "questions.list": empty,
@@ -334,7 +334,7 @@ describe("moving and detaching a source", () => {
     holder: { current: ResearchQuestionPage },
     more: Record<string, unknown> = {}
   ) => {
-    window.location.hash = `#/questions/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
+    window.location.hash = `#/research-question/${encodeURIComponent("questions")}/${encodeURIComponent("Does slow-wave density predict recall gain (RQ).md")}`;
     return renderApp({
       "vault.current": vault,
       "questions.list": empty,

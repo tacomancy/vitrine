@@ -156,7 +156,7 @@ describe("the Loose Ends dashboard", () => {
       name: "What would falsify it?",
     });
     expect(link.getAttribute("href")).toBe(
-      "#/questions/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md"
+      "#/research-question/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md"
     );
   });
 
@@ -172,7 +172,7 @@ describe("the Loose Ends dashboard", () => {
       await screen.findByRole("dialog", { name: /attach a source/i })
     ).toBeDefined();
     expect(window.location.hash).toBe(
-      "#/questions/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md"
+      "#/research-question/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md"
     );
   });
 
@@ -492,7 +492,7 @@ describe("the ambiguous link row", () => {
     });
     const again = await dashboard();
     const hash =
-      "#/questions/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md";
+      "#/research-question/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md";
     expect(
       (await within(again).findByRole("link", { name: "open" })).getAttribute(
         "href"

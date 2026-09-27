@@ -17,12 +17,12 @@ export const KIND: Record<string, { glyph: string; label: string }> = {
 };
 
 /**
- * The Kinds with a surface to open: `#/questions/<path>` is the Research
- * Question view, and it is the only address a file has. A Note, a Source,
- * and a Question — which has a row in the Inbox but no address of its own —
- * are named rather than linked until their surfaces exist (spec #206 story
- * 56; the Vault editor is beat 11). One set, so every surface says the same
- * thing about the same file and one edit wakes them all.
+ * The Kinds with a surface to open: `#/research-question/<path>` is the
+ * Research Question view, and it is the only Address a file has. A Note, a
+ * Source, and a Question — which has a row in the Inbox but no Address of its
+ * own until #300 — are named rather than linked until their surfaces exist
+ * (spec #206 story 56; the Vault editor is beat 11). One set, so every surface
+ * says the same thing about the same file and one edit wakes them all.
  */
 export const OPENABLE = new Set(["research-question"]);
 
