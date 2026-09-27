@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { linkQuestion, type Linked } from "./link.js";
 import {
   readQuestionForWrite,
@@ -15,6 +15,14 @@ import { localIso } from "./time.js";
 import { readOutline, write, type Operation } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 import type { VaultService } from "./vault.js";
+
+/**
+ * The two folders a capture writes into, as the vault holds them. They are
+ * named in the failure messages as well as joined onto the vault path, and
+ * the message must say the same folder the write meant (#288).
+ */
+const QUESTIONS_FOLDER = "questions";
+const META_FOLDER = ".vitrine";
 
 /**
  * Where a Question came from (CONTEXT.md *Provenance*): Unattached, or
@@ -137,7 +145,7 @@ async function writeVaultMeta(
   vaultPath: string,
   meta: { id: string; created: string }
 ): Promise<void> {
-  const folder = join(vaultPath, ".vitrine");
+  const folder = join(vaultPath, META_FOLDER);
   await mkdir(folder, { recursive: true });
   const content = JSON.stringify(
     { id: meta.id, schema: VAULT_SCHEMA, created: meta.created },
@@ -203,7 +211,7 @@ export function createQuestionService({
     vaultPath: string,
     question: Omit<Question, "path">
   ): Promise<{ written: Question; content: string }> {
-    const folder = join(vaultPath, "questions");
+    const folder = join(vaultPath, QUESTIONS_FOLDER);
     try {
       await mkdir(folder, { recursive: true });
       const path = await freePath(
@@ -217,23 +225,33 @@ export function createQuestionService({
       // not follow is taken back: a capture happens whole or not at all,
       // so a failure reported is a failure, and a retry is never a
       // duplicate. The text is still in the capture line.
-      if (!(await exists(join(vaultPath, ".vitrine", "vault.json")))) {
+      if (!(await exists(join(vaultPath, META_FOLDER, "vault.json")))) {
         await writeVaultMeta(vaultPath, {
           id: newId(),
           created: question.captured,
         }).catch(async (cause: unknown) => {
           await unlink(written.path).catch(() => undefined);
-          throw cause;
+          // The marker's failure, not the Question's — which was written
+          // and taken back. With the errno's path gone (#288) this message
+          // is all that says which of the two writes could not happen.
+          throw new VaultError(
+            "writeFailed",
+            `Couldn't write the vault marker into ${META_FOLDER}/: ${errorMessageWithoutPath(cause)}`
+          );
         });
       }
       return { written, content };
     } catch (cause) {
+      // The marker's own failure already says what it was. It is the only
+      // VaultError reachable in this try and it is `writeFailed` too, so
+      // nothing a surface switches on moves; a second one thrown in here
+      // would need its own kind to be the right one to come out.
+      if (cause instanceof VaultError) throw cause;
       // Permissions, a full disk, a folder that vanished: the text stays
       // in the capture line with this message, never lost and never silent.
-      const reason = cause instanceof Error ? cause.message : String(cause);
       throw new VaultError(
         "writeFailed",
-        `Couldn't write the Question into ${folder}: ${reason}`
+        `Couldn't write the Question into ${QUESTIONS_FOLDER}/: ${errorMessageWithoutPath(cause)}`
       );
     }
   }
@@ -303,11 +321,11 @@ export function createQuestionService({
         // Whole or not at all, as with the vault marker: the text is still
         // in the capture line, and a retry is never a duplicate. A Question
         // that could not be taken back is named, so it is never a stray.
-        const message = `Couldn't link the Question from the page: ${errorMessage(cause)}`;
+        const message = `Couldn't link the Question from the page: ${errorMessageWithoutPath(cause)}`;
         const leftover = await unlink(written.path).then(
           () => "",
           (error: unknown) =>
-            ` (and ${written.path} could not be removed: ${errorMessage(error)})`
+            ` (and ${relativePath(written.path)} could not be removed: ${errorMessageWithoutPath(error)})`
         );
         throw new VaultError("writeFailed", message + leftover);
       }

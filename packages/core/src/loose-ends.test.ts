@@ -1,10 +1,15 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
 import { closeCores, core, vaultWith, type CoreOptions } from "./test-core.js";
 
 afterEach(closeCores);
+
+const restore: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  for (const fn of restore.splice(0)) await fn();
+});
 
 // A quiet period is counted in open days, never calendar days (#243), so
 // every test here says which dates the vault was open on and lets the
@@ -263,6 +268,30 @@ describe("looseEnds.dismiss — mark deliberate", () => {
     expect(written).toEqual({
       "rq-stale": { "stalled-research-question": LAST.toISOString() },
     });
+  });
+
+  // #288. *Mark deliberate* is a write, and a write that fails says so on
+  // the dashboard. It used to leave the procedure unwrapped and arrive as
+  // Node stated it: an errno naming the temp file, with nothing saying what
+  // the app had been doing.
+  it("says which file it could not write, naming no absolute path", async () => {
+    const { vault, c } = await showing();
+    await chmod(join(vault, ".vitrine"), 0o500);
+    restore.push(() => chmod(join(vault, ".vitrine"), 0o700));
+
+    const reply = await c.mutate("looseEnds.dismiss", {
+      subject: "rq-stale",
+      kind: "stalled-research-question",
+    });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toBe(
+      "Couldn't write .vitrine/dismissals.json: EACCES: permission denied"
+    );
+    // Nothing was dismissed: the row is still there once the folder is
+    // writable again (the `afterEach` restore is the net if this throws).
+    await chmod(join(vault, ".vitrine"), 0o700);
+    expect(titles(await rows(c))).toEqual(["stale?"]);
   });
 
   it("keeps both dismissals when two arrive at once", async () => {

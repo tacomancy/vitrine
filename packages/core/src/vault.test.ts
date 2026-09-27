@@ -78,6 +78,22 @@ describe("vault.open failures", () => {
     expect(reply.error?.message).toMatch(/can't be read|cannot be read/i);
   });
 
+  // #288. The refusal is read in the window, so it names the folder the way
+  // the vault holds it and then the cause. It used to name it absolutely and
+  // then let the errno name it a second time.
+  it("refuses a vault whose .vitrine is a file, naming it vault-relative", async () => {
+    const c = await core();
+    const folder = await tmp("Tong's");
+    await writeFile(join(folder, ".vitrine"), "");
+
+    const reply = await c.mutate<Vault>("vault.open", { path: folder });
+
+    expect(reply.error?.data.kind).toBe("writeFailed");
+    expect(reply.error?.message).toBe(
+      "Couldn't create .vitrine/: EEXIST: file already exists"
+    );
+  });
+
   it("leaves the current vault as it was when a later open fails", async () => {
     const c = await core();
     const good = await tmp("good");
@@ -139,6 +155,11 @@ describe("the remembered vault", () => {
 
     const reply = await c.mutate<Vault>("vault.open", { path: folder });
     expect(reply.error).toBeDefined();
+    // It used to reach the window as Node stated it, absolute path and all,
+    // with nothing saying what the app had been doing (#288).
+    expect(reply.error?.message).toBe(
+      "Couldn't remember the vault: EEXIST: file already exists"
+    );
     const current = await c.query<Vault | null>("vault.current");
     expect(current.result?.data).toBeNull();
   });

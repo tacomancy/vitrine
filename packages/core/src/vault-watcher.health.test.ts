@@ -226,6 +226,36 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     expect(await questions()).toEqual(["Meanwhile"]);
   });
 
+  // #288. *Not watching — <reason>* is a line in the window, so the reason
+  // carries the cause and never the machine's filesystem layout.
+  //
+  // The errno is thrown rather than provoked from a real `fs.watch`: what a
+  // missing path does there is the platform's to decide — on macOS it throws
+  // where Linux hangs the open waiting for the probe — and what is under
+  // test here is that the watcher's reason goes through the strip at all.
+  // The strip itself is pinned against real errnos in `errors.test.ts`.
+  it("says why it is not watching without naming an absolute path", async () => {
+    const gone = join(await tmp("Tong's"), "not here");
+    const watch: typeof fsWatch = () => {
+      throw Object.assign(
+        new Error(`ENOENT: no such file or directory, watch '${gone}'`),
+        { code: "ENOENT", syscall: "watch", path: gone }
+      );
+    };
+    const vault = await tmp("unwatched");
+    await mkdir(join(vault, "questions"));
+    const c = await core({ settleMs: SETTLE_MS, watch });
+
+    const reply = await c.mutate<Vault>("vault.open", { path: vault });
+    expect(reply.error).toBeUndefined();
+
+    const seen = (await c.query<VaultStatus>("vault.status")).result!.data;
+    expect(seen.watching).toEqual({
+      ok: false,
+      reason: "ENOENT: no such file or directory",
+    });
+  });
+
   it("a watch that cannot be opened at all leaves the vault open, not watching, and swept", async () => {
     const fs = injectable();
     fs.refuseNext("ENOSPC: no space left on device");

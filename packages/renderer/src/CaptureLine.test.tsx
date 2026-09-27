@@ -115,7 +115,7 @@ describe("a write that fails", () => {
       "questions.list": empty,
       "questions.capture": () => {
         throw new Error(
-          "Couldn't write the Question into /v/consolidation-vault/questions: EACCES: permission denied"
+          "Couldn't write the Question into questions/: EACCES: permission denied"
         );
       },
     });

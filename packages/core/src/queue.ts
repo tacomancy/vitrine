@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { errorMessage } from "./errors.js";
+import { errorMessageWithoutPath } from "./errors.js";
 
 /**
  * `.vitrine/queue.sqlite` (ADR 0006 decision 10; `docs/architecture.md`
@@ -59,22 +59,32 @@ const MIGRATIONS: readonly string[] = [PENDING_REVISIONS, OPEN_DAYS];
 export class QueueOpenError extends Error {}
 
 /**
+ * Named vault-relative, because these two go into messages as well as onto
+ * the vault path: a message that interpolated the joined path would put back
+ * exactly what the errno's strip took out (#288).
+ */
+const META_FOLDER = ".vitrine";
+const FILE = "queue.sqlite";
+
+/**
  * Open `queue.sqlite` at this build's schema, migrating a database written
  * by an older build and refusing one written by a newer.
  */
 export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
-  const folder = join(vaultPath, ".vitrine");
-  const file = join(folder, "queue.sqlite");
+  const folder = join(vaultPath, META_FOLDER);
+  const file = join(folder, FILE);
   await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
     throw new QueueOpenError(
-      `Couldn't create ${folder}: ${errorMessage(cause)}`
+      `Couldn't create ${META_FOLDER}/: ${errorMessageWithoutPath(cause)}`
     );
   });
   let db: DatabaseSync;
   try {
     db = new DatabaseSync(file);
   } catch (cause) {
-    throw new QueueOpenError(`Couldn't open ${file}: ${errorMessage(cause)}`);
+    throw new QueueOpenError(
+      `Couldn't open ${META_FOLDER}/${FILE}: ${errorMessageWithoutPath(cause)}`
+    );
   }
   try {
     db.exec("PRAGMA journal_mode = WAL");
@@ -107,7 +117,9 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
     }
   } catch (cause) {
     db.close();
-    throw new QueueOpenError(`Couldn't open ${file}: ${errorMessage(cause)}`);
+    throw new QueueOpenError(
+      `Couldn't open ${META_FOLDER}/${FILE}: ${errorMessageWithoutPath(cause)}`
+    );
   }
   return db;
 }

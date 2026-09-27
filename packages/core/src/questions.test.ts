@@ -348,8 +348,10 @@ describe("a write that fails", () => {
     });
 
     expect(reply.error?.data.kind).toBe("writeFailed");
-    expect(reply.error?.message).toMatch(/permission denied|EACCES/);
-    expect(reply.error?.message).toContain(folder);
+    // The folder vault-relative, then the cause (#288).
+    expect(reply.error?.message).toBe(
+      "Couldn't write the Question into questions/: EACCES: permission denied"
+    );
     expect(await fingerprint(vault)).toEqual(before);
   });
 });
@@ -395,7 +397,11 @@ describe("a capture happens whole or not at all", () => {
     });
 
     expect(reply.error?.data.kind).toBe("writeFailed");
-    expect(reply.error?.message).toContain(".vitrine");
+    // Named as the marker's failure, not the Question's: with the errno's
+    // path gone (#288) this message is all that says which write failed.
+    expect(reply.error?.message).toBe(
+      "Couldn't write the vault marker into .vitrine/: EACCES: permission denied"
+    );
     expect(await readdir(join(vault, "questions")).catch(() => [])).toEqual([]);
     expect((await fingerprint(vault)).filter((e) => !e.endsWith("/"))).toEqual(
       before.filter((e) => !e.endsWith("/"))

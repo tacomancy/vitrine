@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { renameDismissals } from "./dismissals.js";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
 import { localDay, openDays, type OpenDays } from "./open-days.js";
 import {
@@ -144,8 +144,17 @@ export function createVaultService({
   let opened: Opened | null = null;
 
   async function remember(path: string): Promise<void> {
-    await mkdir(appSupportDir, { recursive: true });
-    await writeFile(lastVaultFile, JSON.stringify({ path }) + "\n");
+    try {
+      await mkdir(appSupportDir, { recursive: true });
+      await writeFile(lastVaultFile, JSON.stringify({ path }) + "\n");
+    } catch (cause) {
+      // The app-support folder is not named: it is the app's own state
+      // directory, which the reader can neither use nor act on (#288).
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't remember the vault: ${errorMessageWithoutPath(cause)}`
+      );
+    }
   }
 
   async function remembered(): Promise<string | null> {
@@ -311,7 +320,7 @@ export function createVaultService({
       o.watcher = watcher;
       o.watching = { ok: true };
     } catch (cause) {
-      o.watching = { ok: false, reason: errorMessage(cause) };
+      o.watching = { ok: false, reason: errorMessageWithoutPath(cause) };
     }
   }
 

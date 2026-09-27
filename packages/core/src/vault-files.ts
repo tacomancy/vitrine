@@ -17,7 +17,7 @@ import {
   type Tag,
 } from "markdown";
 import { writeAtomically } from "./atomic-write.js";
-import { errorMessage, VaultError } from "./errors.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
 /**
  * The core's reading of one Markdown file: the outline `packages/markdown`
@@ -322,7 +322,11 @@ export async function readOutline(
   try {
     bytes = await readFile(absolute);
   } catch (error) {
-    return { readable: false, path: relativePath, reason: errorMessage(error) };
+    return {
+      readable: false,
+      path: relativePath,
+      reason: errorMessageWithoutPath(error),
+    };
   }
   return analyseFile(relativePath, bytes.toString("utf8"), sha256(bytes));
 }
@@ -1016,7 +1020,7 @@ async function commit(
   } catch (cause) {
     throw new VaultError(
       "writeFailed",
-      `Couldn't write ${relativePath}: ${errorMessage(cause)}`
+      `Couldn't write ${relativePath}: ${errorMessageWithoutPath(cause)}`
     );
   }
   return {
