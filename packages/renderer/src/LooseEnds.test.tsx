@@ -362,6 +362,35 @@ describe("the Loose Ends dashboard", () => {
     expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
   });
 
+  it("ends the undo where every other read of the dashboard does, when the vault changes", async () => {
+    // The undo lasts while the row is on screen, and a vaultChanged is a read
+    // of the dashboard like any other, so the row goes then rather than at
+    // the next visit. Pinned because the row leaving is what the resolution
+    // asked for, not a refetch quietly dropping something.
+    let listed: LooseEnds = stalled();
+    const { stream } = open({
+      "looseEnds.rows": () => listed,
+      "looseEnds.dismiss": () => {
+        listed = { groups: [], problems: [] };
+        return undefined;
+      },
+    });
+    const view = await dashboard();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+    await within(view).findByText(MARKED);
+
+    stream.push({
+      type: "vaultChanged",
+      changed: [PATH],
+      removed: [],
+      renamed: [],
+    });
+
+    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+  });
+
   it("says so when dismissals could not be read, rather than silently showing everything", async () => {
     open({
       "looseEnds.rows": {

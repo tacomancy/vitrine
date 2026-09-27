@@ -36,56 +36,60 @@ const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
   "Stalled questions": { glyph: "◆", note: "promoted, then quiet" },
 };
 
-/** What a row marked deliberate says, in prototype 9's own words. */
+/**
+ * What a resolved row says, in prototype 9's own words. *Mark deliberate* is
+ * the only resolution that changes state today, so it is the only thing a
+ * resolved row has to say.
+ */
 const MARKED =
   "marked deliberate — permanently out of this list, still in the vault";
 
-/** What a row's resolution and its refusal are remembered by, for this visit. */
-const keyOf = (row: { kind: string; subject: string }) =>
-  `${row.kind}:${row.subject}`;
-
-/** The same map of rows without this one. */
-const omit = <T,>(map: Record<string, T>, key: string): Record<string, T> => {
-  const rest = { ...map };
-  delete rest[key];
-  return rest;
-};
+/** One row: what a resolution is asked for, and what this visit remembers it by. */
+type Resolving = { subject: string; kind: string };
+const keyOf = (row: Resolving) => `${row.kind}:${row.subject}`;
 
 export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
   const trpc = useTRPC();
   const ends = useQuery(trpc.looseEnds.rows.queryOptions());
-  // What was resolved during this visit, and what a resolution was refused
-  // for. Both are this visit's alone: the resolution is in the vault from the
-  // click onward, so the row is gone on the next read — until then this is
-  // what keeps it on screen with a way back.
-  const [resolved, setResolved] = useState<Record<string, string>>({});
+  // Which rows were resolved during this visit, and what a resolution was
+  // refused for. Both are this visit's alone: the resolution is in the vault
+  // from the click onward, so the row is gone on the dashboard's next read —
+  // until then this is what keeps it on screen with a way back.
+  const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
   const [refused, setRefused] = useState<Record<string, string>>({});
-  const forget = (key: string) => setRefused((refusals) => omit(refusals, key));
+  const forgetRefusal = (key: string) =>
+    setRefused((refusals) => {
+      const rest = { ...refusals };
+      delete rest[key];
+      return rest;
+    });
 
-  // Neither resolution invalidates the rows: a re-read would drop the row
-  // the user just resolved, and with it the undo this whole slice is for.
+  // Both resolutions answer the same way: a refusal lands on the row it was
+  // about, so one that failed cannot pass for a quiet success. And neither
+  // invalidates the rows — a re-read would drop the row just resolved, and
+  // with it the undo this is all for.
+  const onRow = {
+    onMutate: (row: Resolving) => forgetRefusal(keyOf(row)),
+    // Only the message: what the core refused with is what the row says.
+    onError: (error: { message: string }, row: Resolving) =>
+      setRefused((refusals) => ({ ...refusals, [keyOf(row)]: error.message })),
+  };
   const dismiss = useMutation(
     trpc.looseEnds.dismiss.mutationOptions({
-      onMutate: (input) => forget(keyOf(input)),
-      onSuccess: (_reply, input) =>
-        setResolved((marked) => ({ ...marked, [keyOf(input)]: MARKED })),
-      onError: (error, input) =>
-        setRefused((refusals) => ({
-          ...refusals,
-          [keyOf(input)]: error.message,
-        })),
+      ...onRow,
+      onSuccess: (_reply, row) =>
+        setResolved((marked) => new Set(marked).add(keyOf(row))),
     })
   );
   const undo = useMutation(
     trpc.looseEnds.undismiss.mutationOptions({
-      onMutate: (input) => forget(keyOf(input)),
-      onSuccess: (_reply, input) =>
-        setResolved((marked) => omit(marked, keyOf(input))),
-      onError: (error, input) =>
-        setRefused((refusals) => ({
-          ...refusals,
-          [keyOf(input)]: error.message,
-        })),
+      ...onRow,
+      onSuccess: (_reply, row) =>
+        setResolved((marked) => {
+          const rest = new Set(marked);
+          rest.delete(keyOf(row));
+          return rest;
+        }),
     })
   );
 
@@ -127,9 +131,7 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
           // and returns with its undo. *Clear* rather than a zero, because a
           // group only still drawn for a row just resolved has nothing to
           // count (prototype 9).
-          const open = rows.filter(
-            (row) => resolved[keyOf(row)] === undefined
-          ).length;
+          const open = rows.filter((row) => !resolved.has(keyOf(row))).length;
           return (
             <section
               key={group}
@@ -159,7 +161,7 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
                     row={row}
                     now={now}
                     onAttach={() => onAttach(row.path)}
-                    resolved={resolved[keyOf(row)]}
+                    resolved={resolved.has(keyOf(row))}
                     refused={refused[keyOf(row)]}
                     onDismiss={() =>
                       dismiss.mutate({ subject: row.subject, kind: row.kind })
@@ -196,8 +198,8 @@ function Row({
   row: LooseEndRow;
   now: Date;
   onAttach: () => void;
-  /** What this row says now it is resolved; undefined while it is still open. */
-  resolved: string | undefined;
+  /** Whether this row was resolved during this visit. */
+  resolved: boolean;
   /** A resolution the core refused, on the row it was refused about. */
   refused: string | undefined;
   onDismiss: () => void;
@@ -213,10 +215,10 @@ function Row({
         </a>
         {/* A resolved row keeps its place and its link, and says what
             happened in place of why it was here. */}
-        {resolved === undefined ? (
-          <p className={styles.why}>{why}</p>
+        {resolved ? (
+          <p className={styles.resolved}>{MARKED}</p>
         ) : (
-          <p className={styles.resolved}>{resolved}</p>
+          <p className={styles.why}>{why}</p>
         )}
         {refused !== undefined && (
           <p className={styles.refused} role="alert">
@@ -228,17 +230,17 @@ function Row({
         )}
       </div>
       <div className={styles.actions}>
-        {resolved === undefined ? (
+        {resolved ? (
+          <button type="button" className={styles.action} onClick={onUndo}>
+            undo
+          </button>
+        ) : (
           <>
             {actions}
             <button type="button" className={styles.action} onClick={onDismiss}>
               mark deliberate
             </button>
           </>
-        ) : (
-          <button type="button" className={styles.action} onClick={onUndo}>
-            undo
-          </button>
         )}
       </div>
     </li>
