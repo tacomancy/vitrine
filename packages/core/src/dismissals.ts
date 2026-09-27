@@ -80,14 +80,20 @@ export function dismissed(
   return dismissals[subject]?.[kind] !== undefined;
 }
 
-// A resolution and its undo run one at a time. Either one reads the file,
-// changes one key, and writes the whole object back, so two that both read
-// before either wrote would lose one — and a lost write here is a row the
-// user silenced coming back, or one they un-silenced staying gone. The chain
-// is `serialise.ts`, the same one `linkQuestion` uses; the queue is here
-// rather than in the router so the read and the write cannot be pulled apart
-// by a caller that forgets.
+// Every change to the file runs one at a time. The file is read, one key is
+// changed, and the whole object is written back, so two changes that both
+// read before either wrote would lose one — and a lost write here is a row
+// the user silenced coming back, or one they un-silenced staying gone. The
+// chain is `serialise.ts`, the same one `linkQuestion` uses; the queue is
+// here rather than in the callers so the read and the write cannot be pulled
+// apart by one that forgets.
 const serially = serialised();
+
+async function save(vaultPath: string, dismissals: Dismissals): Promise<void> {
+  const path = join(vaultPath, FILE);
+  await mkdir(dirname(path), { recursive: true });
+  await writeAtomically(path, JSON.stringify(dismissals, null, 2) + "\n");
+}
 
 /**
  * *Mark deliberate*: permanent, and recorded against this row kind alone.
@@ -159,7 +165,50 @@ async function change(
   }
   const next = plan(dismissals);
   if (next === null) return;
-  const path = join(vaultPath, FILE);
-  await mkdir(dirname(path), { recursive: true });
-  await writeAtomically(path, JSON.stringify(next, null, 2) + "\n");
+  await save(vaultPath, next);
+}
+
+/**
+ * Carry path-keyed dismissals across the watcher's rename pairings
+ * (`docs/architecture.md` § Watcher and Ingest, Renames): a dismissal is
+ * about the *file*, not the name it happened to have, so a deliberate
+ * orphan must not come back the moment it is renamed. A dismissal keyed by
+ * an `id:` needs nothing — the id is in the file and travels with it.
+ *
+ * Called for every pairing rather than only for a Note, because what a
+ * path key means is "this file has no id", which is not a Kind's business.
+ */
+export function renameDismissals(
+  vaultPath: string,
+  pairs: ReadonlyArray<{ from: string; to: string }>
+): Promise<void> {
+  if (pairs.length === 0) return Promise.resolve();
+  return serially(() => moveKeys(vaultPath, pairs));
+}
+
+async function moveKeys(
+  vaultPath: string,
+  pairs: ReadonlyArray<{ from: string; to: string }>
+): Promise<void> {
+  const { dismissals, problem } = await readDismissals(vaultPath);
+  // A file that does not parse holds every other dismissal the user made,
+  // and writing over it would lose them. Nothing moves, and the row comes
+  // back under the new name — visibly, beside the problem line the
+  // dashboard already carries on every read, rather than silently.
+  //
+  // Today an unreadable file also reads as *no* dismissals, so the filter
+  // below would find nothing to move anyway; the guard is what keeps the
+  // rule true if the reader ever learns to return what it could salvage.
+  if (problem !== null) return;
+  const moving = pairs.filter(({ from }) => dismissals[from] !== undefined);
+  if (moving.length === 0) return;
+  const next: Dismissals = { ...dismissals };
+  // Both passes read from the snapshot, so two files that swapped names in
+  // one batch each end up with the other's dismissals rather than one
+  // overwriting the other.
+  for (const { from } of moving) delete next[from];
+  for (const { from, to } of moving) {
+    next[to] = { ...next[to], ...dismissals[from] };
+  }
+  await save(vaultPath, next);
 }

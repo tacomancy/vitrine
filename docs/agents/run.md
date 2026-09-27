@@ -32,7 +32,7 @@ Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsid
 
 ## What cannot be driven this way
 
-Native dialogs and the menu: the folder chooser (`vault.pick`, `File ▸ Open Vault…`) needs a visible window and a human. Those stories are covered by the core's router tests with a fake host, and were verified by hand once in #104. The Obsidian round-trip (open the written file, see editable Properties) was checked once in #106 by registering the scratch vault in `~/Library/Application Support/obsidian/obsidian.json` — ask before doing that again; it adds a vault to the user's switcher.
+Native dialogs and the menu: the folder chooser (`vault.pick`, `File ▸ Open Vault…`) needs a visible window and a human. Those stories are covered by the core's router tests with a fake host, and were verified by hand once in #104 — and again in #267 for the panel's *New Folder* button, which `createDirectory` draws and no test can see. The Obsidian round-trip (open the written file, see editable Properties) was checked once in #106 by registering the scratch vault in `~/Library/Application Support/obsidian/obsidian.json` — ask before doing that again; it adds a vault to the user's switcher.
 
 ## The public site
 

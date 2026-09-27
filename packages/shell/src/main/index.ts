@@ -16,6 +16,7 @@ import {
 } from "electron";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { coreEntry, stateFolder } from "./launch.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
@@ -41,18 +42,16 @@ function frontWindow(): BrowserWindow | undefined {
 }
 
 /**
- * The host's one duty (core `Host`): show the standard folder chooser and
- * answer with the path, or null when cancelled. The core cannot show
- * dialogs, so it asks over the process channel it already has.
+ * The dialog `pickFolder` shows, attached to the open window when there is
+ * one. The core cannot show dialogs, so it asks the shell over the process
+ * channel it already has; what the chooser is asked for is `chooser.ts`.
  */
-async function pickFolder(): Promise<string | null> {
-  const options = { properties: ["openDirectory" as const] };
+const showOpenDialog: ShowOpenDialog = (options) => {
   const win = frontWindow();
-  const result = win
-    ? await dialog.showOpenDialog(win, options)
-    : await dialog.showOpenDialog(options);
-  return result.canceled ? null : (result.filePaths[0] ?? null);
-}
+  return win
+    ? dialog.showOpenDialog(win, options)
+    : dialog.showOpenDialog(options);
+};
 
 /** Spawn the core out of process, so a crash there never takes the window down. */
 function spawnCore(): Promise<Session> {
@@ -80,7 +79,7 @@ function spawnCore(): Promise<Session> {
           resolve({ port: message.port, token: message.token });
           break;
         case "pickFolder":
-          void pickFolder().then((path) =>
+          void pickFolder(showOpenDialog).then((path) =>
             reply({ type: "pickedFolder", id: message.id, path })
           );
           break;

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { LooseEnds, ResearchQuestionPage } from "core";
+import type { AmbiguousLinks, LooseEnds, ResearchQuestionPage } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -12,6 +12,14 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // the object it names with a resolution beside it.
 
 const PATH = "questions/What would falsify the active systems account (RQ).md";
+
+// *Mark deliberate* is the one click on this dashboard that changes state,
+// and #266 makes it undoable for as long as the row is on screen: the row
+// stays put, says what happened, and offers the way back. The dismissal is in
+// the vault from the click onward — the undo is for the moment after it, not
+// a history.
+const MARKED =
+  /marked deliberate — permanently out of this list, still in the vault/;
 
 const stalled = (path = PATH, title = "What would falsify it?"): LooseEnds => ({
   groups: [
@@ -189,14 +197,6 @@ describe("the Loose Ends dashboard", () => {
       screen.queryByRole("dialog", { name: /attach a source/i })
     ).toBeNull();
   });
-
-  // *Mark deliberate* is the one click on this dashboard that changes state,
-  // and #266 makes it undoable for as long as the row is on screen: the row
-  // stays put, says what happened, and offers the way back. The dismissal is
-  // in the vault from the click onward — the undo is for the moment after it,
-  // not a history.
-  const MARKED =
-    /marked deliberate — permanently out of this list, still in the vault/;
 
   const rows = async () => {
     const view = await dashboard();
@@ -423,5 +423,125 @@ describe("the Loose Ends dashboard", () => {
     await vi.waitFor(() =>
       expect(query.mock.calls.length).toBeGreaterThan(before)
     );
+  });
+});
+
+// The ambiguous link (spec #206 story 49; `docs/architecture.md` § Loose
+// Ends): a bare `[[name]]` matching several files resolves to nothing, and
+// the row is where that nothing becomes a decision. One row per linking
+// file, because that is what a dismissal is keyed by.
+const ambiguous = (over: Partial<AmbiguousLinks> = {}): LooseEnds => ({
+  problems: [],
+  groups: [
+    {
+      group: "Disconnected material",
+      rows: [
+        {
+          kind: "ambiguous-link",
+          subject: "notes/Reading list.md",
+          path: "notes/Reading list.md",
+          title: "Reading list",
+          linkingKind: null,
+          links: [
+            {
+              target: "Klinzing 2019",
+              candidates: ["a/Klinzing 2019.md", "b/Klinzing 2019.md"],
+            },
+          ],
+          ...over,
+        },
+      ],
+    },
+  ],
+});
+
+describe("the ambiguous link row", () => {
+  it("names the linking file and every candidate the name reached", async () => {
+    open({ "looseEnds.rows": ambiguous() });
+    const view = await dashboard();
+
+    const group = await within(view).findByRole("region", {
+      name: "Disconnected material",
+    });
+    expect(group.textContent).toContain("notes/Reading list.md");
+    expect(group.textContent).toContain("[[Klinzing 2019]]");
+    expect(group.textContent).toContain("a/Klinzing 2019.md");
+    expect(group.textContent).toContain("b/Klinzing 2019.md");
+  });
+
+  it("offers *open* for a linking file with a surface, and names the file without one for a Note", async () => {
+    open({ "looseEnds.rows": ambiguous() });
+    const view = await dashboard();
+
+    // A Note has no address yet (beat 11): the row names it and stops.
+    await within(view).findByText("Reading list");
+    expect(within(view).queryByRole("link", { name: "open" })).toBeNull();
+    expect(
+      within(view).queryByRole("link", { name: "Reading list" })
+    ).toBeNull();
+    expect(view.textContent).toContain("notes/Reading list.md");
+
+    cleanup();
+    open({
+      "looseEnds.rows": ambiguous({
+        subject: "rq0000001",
+        path: PATH,
+        title: "What would falsify it (RQ)",
+        linkingKind: "research-question",
+      }),
+    });
+    const again = await dashboard();
+    const hash =
+      "#/questions/questions/What%20would%20falsify%20the%20active%20systems%20account%20(RQ).md";
+    expect(
+      (await within(again).findByRole("link", { name: "open" })).getAttribute(
+        "href"
+      )
+    ).toBe(hash);
+    expect(
+      within(again)
+        .getByRole("link", { name: "What would falsify it (RQ)" })
+        .getAttribute("href")
+    ).toBe(hash);
+  });
+
+  it("shows a kind: the app does not know verbatim, rather than passing it off as a note", async () => {
+    open({
+      "looseEnds.rows": ambiguous({ linkingKind: "lab-notebook" }),
+    });
+    const view = await dashboard();
+    await within(view).findByText("Reading list");
+    expect(view.textContent).toContain("lab-notebook · notes/Reading list.md");
+  });
+
+  it("calls dismiss with the linking file and this row kind, and puts the row's matches away", async () => {
+    // The undo the shell carries (#266) reaches this row too, and the names
+    // it was listing go with the decision: the question *which two?* is
+    // answered once the row is marked.
+    const dismiss = vi.fn<(input: unknown) => void>();
+    open({
+      "looseEnds.rows": ambiguous(),
+      "looseEnds.dismiss": (input: unknown) => {
+        dismiss(input);
+        return undefined;
+      },
+    });
+    const view = await dashboard();
+
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+
+    await within(view).findByText(MARKED);
+    expect(dismiss).toHaveBeenCalledWith({
+      subject: "notes/Reading list.md",
+      kind: "ambiguous-link",
+    });
+    expect(view.textContent).not.toContain("[[Klinzing 2019]]");
+    expect(view.textContent).not.toContain("a/Klinzing 2019.md");
+    expect(within(view).getByRole("button", { name: "undo" })).toBeDefined();
+    expect(
+      within(view).queryByRole("button", { name: "mark deliberate" })
+    ).toBeNull();
   });
 });
