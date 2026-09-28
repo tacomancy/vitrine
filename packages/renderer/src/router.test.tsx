@@ -14,10 +14,7 @@ import {
   vault,
 } from "./fake-core";
 
-afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
-});
+afterEach(cleanup);
 // Each test starts where a fresh window does: no hash at all.
 beforeEach(() => window.history.replaceState(null, "", "/"));
 

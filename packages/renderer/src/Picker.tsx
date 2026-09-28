@@ -69,10 +69,10 @@ export function Picker({
   const total = listing.data?.total ?? 0;
   // The choice never points past the list a new query returned.
   const chosen = Math.min(arrowedTo, Math.max(rows.length - 1, 0));
-  /** The chosen row, for the keyboard and for the list's own window alike. */
-  const chosenRow =
+  /** The chosen row's id: the keyboard's and the list's window alike. */
+  const chosenRowId =
     rows[chosen] === undefined ? undefined : candidateId(chosen);
-  useChosenInView(chosenRow);
+  useChosenInView(chosenRowId);
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return;
@@ -113,7 +113,7 @@ export function Picker({
           aria-label="Find"
           aria-expanded
           aria-controls="picker-list"
-          aria-activedescendant={chosenRow}
+          aria-activedescendant={chosenRowId}
           autoComplete="off"
           value={query}
           onChange={(event) => {

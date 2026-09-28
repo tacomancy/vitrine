@@ -13,7 +13,6 @@ import {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  vi.restoreAllMocks();
 });
 beforeEach(() => window.history.replaceState(null, "", "/"));
 

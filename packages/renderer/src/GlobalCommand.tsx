@@ -199,9 +199,9 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
   const chosen =
     arrowedTo === null ? byDefault : Math.min(arrowedTo, rows.length - 1);
   const target = rows[chosen];
-  /** The chosen row, for the keyboard and for the list's own window alike. */
-  const chosenRow = target === undefined ? undefined : rowId(chosen);
-  useChosenInView(chosenRow);
+  /** The chosen row's id: the keyboard's and the list's window alike. */
+  const chosenRowId = target === undefined ? undefined : rowId(chosen);
+  useChosenInView(chosenRowId);
 
   const move = (to: number) => {
     if (rows.length === 0) return;
@@ -273,7 +273,7 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
             aria-label="Go to something"
             aria-expanded
             aria-controls="global-command-list"
-            aria-activedescendant={chosenRow}
+            aria-activedescendant={chosenRowId}
             autoComplete="off"
             placeholder="Go somewhere"
             value={query}

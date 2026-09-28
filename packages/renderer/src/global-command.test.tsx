@@ -10,10 +10,7 @@ import {
   vault,
 } from "./fake-core";
 
-afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
-});
+afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // ⌘K opens, lists and goes (#302; ADR 0027 decisions 2, 4, 6 and 7). The
@@ -516,14 +513,20 @@ describe("the row the keyboard is on stays in view", () => {
   });
 
   it("moves the list by as little as it can, so the rows already read stay put", async () => {
+    // Watched from before the command opens, because the open makes a call
+    // of its own: the default choice is already visible, and `nearest` is
+    // the whole of why that costs no scroll and the overlay does not jolt.
+    // How far the list then moves is the browser's, and no test here can
+    // see it — jsdom lays nothing out (ADR 0030).
+    const scrolled = scrollsInto();
     const dialog = await many();
     await settled(dialog, 14);
-    const scrolled = scrollsInto();
     fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
 
-    // `nearest` is also what makes an already-visible row cost no scroll at
-    // all, which is why opening the command does not jolt.
-    expect(scrolled.map(({ block }) => block)).toEqual(["nearest"]);
+    expect(scrolled.length).toBeGreaterThan(1);
+    expect(new Set(scrolled.map(({ block }) => block))).toEqual(
+      new Set(["nearest"])
+    );
   });
 
   it("brings the row a narrowed list re-chose into view", async () => {

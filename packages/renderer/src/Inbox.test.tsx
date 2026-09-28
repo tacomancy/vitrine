@@ -12,7 +12,6 @@ import {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  vi.restoreAllMocks();
 });
 
 const newest = q(
@@ -267,7 +266,7 @@ describe("the selected row stays in view", () => {
     )
   );
 
-  it("follows the selection down as j walks it, and back up on k", async () => {
+  it("follows the selection down as j walks it, and back up on k — the arrows alike", async () => {
     renderInbox({ questions: MANY });
     const items = await rows();
     const list = screen.getByRole("listbox", { name: "Questions" });
@@ -281,6 +280,14 @@ describe("the selected row stays in view", () => {
 
     for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "k" });
     expect(items[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: items[0], block: "nearest" });
+
+    // The arrows share j/k's case rather than a case of their own, and the
+    // claim in the name is about both of them.
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "ArrowDown" });
+    expect(items[10]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: items[10], block: "nearest" });
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "ArrowUp" });
     expect(scrolled.at(-1)).toEqual({ row: items[0], block: "nearest" });
   });
 

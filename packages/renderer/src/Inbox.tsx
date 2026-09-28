@@ -214,7 +214,7 @@ export function Inbox({
     null
   );
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
-  /** The selected row, for the keyboard and for the list's own window alike. */
+  /** The selected row's id: the keyboard's and the list's window alike. */
   const selectedRowId =
     selectedRow === null ? undefined : rowId(rows.indexOf(selectedRow));
   useChosenInView(selectedRowId);
