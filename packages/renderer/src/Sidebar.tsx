@@ -35,6 +35,18 @@ export function Sidebar({ route }: { route: Route }) {
       <ul className={styles.list}>{SURFACES.map(item)}</ul>
       <div className={styles.label}>Dashboards</div>
       <ul className={styles.list}>{DASHBOARDS.map(item)}</ul>
+      {/* The map's last word is the route that replaces it: a map that
+          does not name the faster way is failing at being one (ADR 0027
+          decision 10). Ancillary, not an entry — nothing to click, nothing
+          the keyboard stops on. */}
+      <div className={styles.chords} role="note" aria-label="Chords">
+        <p className={styles.chord}>
+          <span className={styles.key}>⌘K</span> go anywhere, or capture
+        </p>
+        <p className={styles.chord}>
+          <span className={styles.key}>⌘&apos;</span> capture
+        </p>
+      </div>
     </nav>
   );
 }
