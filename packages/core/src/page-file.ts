@@ -163,7 +163,7 @@ function unreadable(
 }
 
 /**
- * One file read as a page of `kind`, for the page and for every write the
+ * One file read as a page of one of `kinds`, for the page and for every write the
  * page makes: the bytes, their hash, and the outline of those same bytes. A
  * file that is not this Kind is not readable as a page, whichever caller
  * asked — a tick must no more land on a Note with an `## Open threads`
@@ -173,7 +173,7 @@ function unreadable(
 export async function readPageFile(
   vaultPath: string,
   path: string,
-  kind: string,
+  kinds: readonly string[],
   noun: string
 ): Promise<PageFile | { readable: false; path: string; reason: string }> {
   const { absolute, relativePath } = await locate(vaultPath, path);
@@ -186,7 +186,7 @@ export async function readPageFile(
   const raw = bytes.toString("utf8");
   const read = analyseFile(relativePath, raw, sha256(bytes));
   if (!read.readable) return read;
-  if (read.kind !== kind) {
+  if (read.kind === null || !kinds.includes(read.kind)) {
     return {
       readable: false,
       path: relativePath,

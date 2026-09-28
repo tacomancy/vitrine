@@ -11,7 +11,7 @@ import {
   type PendingRevisions,
 } from "./pending-revisions.js";
 import { openQueue, QueueOpenError } from "./queue.js";
-import { splicePendingRevisions } from "./research-question.js";
+import { splicePendingRevisions } from "./page-write.js";
 import { SETTLE_MS, watchVault, type Watcher } from "./vault-watcher.js";
 import {
   IndexOpenError,

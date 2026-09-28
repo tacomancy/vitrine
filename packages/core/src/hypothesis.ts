@@ -1,4 +1,12 @@
 import type { Heading } from "markdown";
+import { VaultError } from "./errors.js";
+import {
+  explainRevision,
+  savePosition,
+  type PageContext,
+  type PageKind,
+  type SavedAnswer,
+} from "./page-write.js";
 import { asString } from "./question-kind.js";
 import {
   bodyText,
@@ -15,7 +23,7 @@ import type {
   Relationship,
   ShapeProblem,
 } from "./vault-files.js";
-import type { VaultIndex } from "./vault-index.js";
+import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
 /**
  * The Hypothesis Kind (`docs/architecture.md` § Vault layout (Hypothesis),
@@ -26,6 +34,9 @@ import type { VaultIndex } from "./vault-index.js";
  */
 
 export const KIND = "hypothesis";
+
+/** What this Kind's writes expect the file to be (`page-write.ts`). */
+export const PAGE: PageKind = { kind: KIND, noun: "a Hypothesis" };
 
 /** The four headings, in the order promotion writes them. */
 export const SECTIONS = [
@@ -279,7 +290,7 @@ export async function readHypothesisPage(
   vaultPath: string,
   path: string
 ): Promise<HypothesisPage> {
-  const read = await readPageFile(vaultPath, path, KIND, "a Hypothesis");
+  const read = await readPageFile(vaultPath, path, [KIND], "a Hypothesis");
   if (!read.readable) return read;
   const { relativePath, content, outline } = read;
   const frontmatter = readHypothesis(
@@ -385,3 +396,99 @@ export async function readHypothesisPage(
     problems,
   };
 }
+
+/**
+ * The two Positions that are also Edited sections (ADR 0020 decision 4;
+ * spec #327 stories 16–17): each field's Revisions name it, and each lives
+ * under its own heading. The criteria are Positions too, but are written
+ * through their own operations (#334), never saved whole as typing.
+ */
+export const FIELDS = {
+  claim: "Claim",
+  "design notes": "Design notes",
+} as const;
+export type EditedField = keyof typeof FIELDS;
+
+/** The field a criterion's Revisions carry: `criterion F1`, or `criterion ^c3` while it has no Relationship and so no label. */
+export const criterionField = (c: Pick<Criterion, "id" | "relationship">) =>
+  `criterion ${nameOf(c)}`;
+
+/**
+ * The Kind's Positions, for the index's `positions` diff (#217): the claim,
+ * the design notes, and every criterion's whole block — heading, fields,
+ * Evidence — so that recording an Outcome or detaching a run leaves a trail
+ * as rewording does (ADR 0031 decision 4). A section whose heading was
+ * retyped reports nothing rather than an empty text that would read as
+ * "cleared" when the heading comes back, as the Research Question's does.
+ */
+export function hypothesisPositions(
+  { outline, criteria }: ReadableOutline,
+  content: string
+): Position[] {
+  const positions: Position[] = [];
+  const claim = section(outline, FIELDS.claim).heading;
+  if (claim !== undefined) {
+    positions.push({ field: "claim", text: bodyText(content, claim) });
+  }
+  const notes = section(outline, FIELDS["design notes"]).heading;
+  if (notes !== undefined) {
+    positions.push({ field: "design notes", text: bodyText(content, notes) });
+  }
+  const within = section(outline, "Criteria").heading;
+  if (within === undefined) return positions;
+  for (const criterion of criteria) {
+    const heading = outline.headings.find(
+      (h) =>
+        h.level === 3 &&
+        h.blockId === criterion.id &&
+        h.range.start >= within.body.start &&
+        h.range.end <= within.body.end
+    );
+    if (heading === undefined) continue;
+    positions.push({
+      field: criterionField(criterion),
+      text: content.slice(heading.range.start, heading.body.end).trim(),
+    });
+  }
+  return positions;
+}
+
+/**
+ * The claim or the design notes saved, with the Revision it records, by
+ * the same write the Working answer's save makes (`savePosition`): one
+ * queue, one coalescing rule keyed by field, and whatever an Obsidian edit
+ * left parked folded in. An empty claim is refused rather than saved —
+ * promotion never writes a Hypothesis without one (spec #327 story 5), and
+ * clearing the field is not a way to un-claim what the page is testing.
+ * Empty design notes are a save: the paragraph is optional.
+ */
+export async function saveHypothesisPosition(
+  ctx: PageContext,
+  path: string,
+  input: {
+    field: EditedField;
+    text: string;
+    basedOn: string;
+    was: string;
+    at: Date;
+    coalesceMs: number;
+  }
+): Promise<SavedAnswer> {
+  if (input.field === "claim" && input.text.trim() === "") {
+    throw new VaultError(
+      "refused",
+      "The claim is empty; a Hypothesis is never without one."
+    );
+  }
+  return savePosition(ctx, path, PAGE, {
+    ...input,
+    section: FIELDS[input.field],
+  });
+}
+
+/** A why onto any entry of the page's history, the claim's first included (spec #327 story 54). */
+export const explainHypothesisRevision = (
+  ctx: PageContext,
+  path: string,
+  input: { at: string; why: string; basedOn: string }
+) => explainRevision(ctx, path, PAGE, input);

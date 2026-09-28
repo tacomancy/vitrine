@@ -7,9 +7,10 @@ import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { STALLED_OPEN_DAYS } from "./loose-ends.js";
 import { createQuestionService } from "./questions.js";
+import { KIND as HYPOTHESIS, hypothesisPositions } from "./hypothesis.js";
+import { COALESCE_MS } from "./page-write.js";
 import {
-  COALESCE_MS,
-  KIND,
+  KIND as RESEARCH_QUESTION,
   researchQuestionPositions,
 } from "./research-question.js";
 import { router, type Context } from "./router.js";
@@ -93,10 +94,12 @@ export function createApp({
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's
-      // `## Working answer` is the first. A test's stand-in may add to or
-      // override the registry, never lose it.
+      // `## Working answer`, and the Hypothesis's claim, design notes and
+      // criteria. A test's stand-in may add to or override the registry,
+      // never lose it.
       positionsOf: {
-        [KIND]: researchQuestionPositions,
+        [RESEARCH_QUESTION]: researchQuestionPositions,
+        [HYPOTHESIS]: hypothesisPositions,
         ...index?.positionsOf,
       },
       onChanged: async (event) => {
