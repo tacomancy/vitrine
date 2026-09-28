@@ -42,12 +42,9 @@ export function useVaultStatusLines(): {
             surface cannot claim — and a *not known* with no reason anywhere
             would be a silent failure (ADR 0033). */}
         {status.isError && (
-          <span className={styles.line} role="status">
-            <span className={styles.warning}>
-              <span aria-hidden="true">‖</span> vault state not known
-            </span>{" "}
-            — {status.error.message}
-          </span>
+          <WarningLine label="vault state not known">
+            {status.error.message}
+          </WarningLine>
         )}
         {indexing !== null && (
           <span className={styles.line}>
@@ -56,13 +53,8 @@ export function useVaultStatusLines(): {
           </span>
         )}
         {!watching.ok && (
-          // A state the app is in, so polite: `alert` is kept for a refusal
-          // of something the user just did (ADR 0033).
-          <span className={styles.line} role="status">
-            <span className={styles.warning}>
-              <span aria-hidden="true">‖</span> not watching
-            </span>{" "}
-            — {watching.reason} ·{" "}
+          <WarningLine label="not watching">
+            {watching.reason} ·{" "}
             <button
               type="button"
               className={styles.retry}
@@ -71,11 +63,37 @@ export function useVaultStatusLines(): {
             >
               retry
             </button>
-          </span>
+          </WarningLine>
         )}
       </>
     ),
   };
+}
+
+/**
+ * One line of the *wrong* Voice in the footer channel (ADR 0033 decision 2):
+ * the warning glyph and a short label in the one warm colour, then the
+ * reason in the footer's grey. A state the app is in, so polite — `alert` is
+ * kept for a refusal of something the user just did (decision 1). Every
+ * surface's own failure speaks through this too, so a failure reads the same
+ * wherever it is said.
+ */
+export function WarningLine({
+  label,
+  children,
+}: {
+  label: string;
+  /** The reason, and whatever the line offers to do about it. */
+  children: React.ReactNode;
+}) {
+  return (
+    <span className={styles.line} role="status">
+      <span className={styles.warning}>
+        <span aria-hidden="true">‖</span> {label}
+      </span>{" "}
+      — {children}
+    </span>
+  );
 }
 
 /**

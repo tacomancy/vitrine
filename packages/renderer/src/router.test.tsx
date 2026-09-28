@@ -47,13 +47,16 @@ describe("the window's location is the URL hash", () => {
     expect(window.location.hash).toBe("#/inbox");
   });
 
-  it("renders the Loose Ends shell at #/loose-ends: the heading, one quiet line, no groups", async () => {
+  it("renders the Loose Ends shell at #/loose-ends: the heading, the claim and its scope, no groups", async () => {
     window.location.hash = "#/loose-ends";
     renderApp(answers);
     const dashboard = await screen.findByRole("region", { name: "Loose Ends" });
     expect(dashboard.querySelector("h1")?.textContent).toBe("Loose Ends");
-    await within(dashboard).findByText(/Nothing to tidy/);
-    expect(dashboard.querySelectorAll("p")).toHaveLength(1);
+    await within(dashboard).findByText(
+      "Nothing is loose that the app can see."
+    );
+    // The claim's row and the scope paragraph under it (prototype 12, 3).
+    expect(dashboard.querySelectorAll("p")).toHaveLength(2);
     expect(dashboard.querySelectorAll("section, h2, ul, table")).toHaveLength(
       0
     );
