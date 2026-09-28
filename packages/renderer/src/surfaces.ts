@@ -15,6 +15,12 @@ export type Entry = {
   to?: Route;
   /** Lit without a destination of its own: a page needs a path. */
   lit?: (at: Route) => boolean;
+  /**
+   * For a built surface whose contents are files of one Kind: that Kind,
+   * and where such a file comes from — what the Sidebar says in place of
+   * the contents while the vault provably holds none (#347).
+   */
+  holds?: { kind: string; hint: string };
 };
 
 export const SURFACES: readonly Entry[] = [
@@ -24,6 +30,7 @@ export const SURFACES: readonly Entry[] = [
   {
     name: "Research Question view",
     lit: (at) => at.surface === "research-question",
+    holds: { kind: "research-question", hint: "promoted from a question" },
   },
   {
     name: "Hypothesis view",
@@ -31,6 +38,7 @@ export const SURFACES: readonly Entry[] = [
     // Question's row, and ⌘K, so the entry lights only while one is on
     // screen (spec #327 story 79).
     lit: (at) => at.surface === "hypothesis",
+    holds: { kind: "hypothesis", hint: "from a research question" },
   },
   { name: "Experiment view" },
   { name: "Scout Queue" },

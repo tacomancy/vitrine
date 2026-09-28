@@ -30,7 +30,8 @@
 
 .live,
 .current,
-.disabled {
+.disabled,
+.waiting {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -70,6 +71,30 @@
   flex: none;
   border-radius: 1px;
   background: var(--color-line-strong);
+}
+
+/* Muted rather than disabled: see the waiting entry in Sidebar.tsx. */
+.waiting {
+  color: var(--color-fg-muted);
+}
+
+.dot.hollow {
+  box-sizing: border-box;
+  background: none;
+  border: 1px solid var(--color-line-strong);
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
 }
 
 /* The foot of the map, below everything the map is for. Separated by the

@@ -1,6 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
+import { voiceOf } from "./FirstSlot";
 import { hashOf, type Route } from "./router";
 import styles from "./Sidebar.module.css";
 import { DASHBOARDS, SURFACES, type Entry } from "./surfaces";
+import { useTRPC } from "./trpc";
+import { useVaultStatusLines } from "./VaultStatusLines";
 
 // The map, drawn from `surfaces.ts` — which the Global command reads too, so
 // the two cannot disagree about what is reachable. An entry with a
@@ -8,9 +12,39 @@ import { DASHBOARDS, SURFACES, type Entry } from "./surfaces";
 // visible — plain list items, not controls.
 
 export function Sidebar({ route }: { route: Route }) {
-  const item = ({ name, to, lit }: Entry) => {
+  const trpc = useTRPC();
+  const { read } = useVaultStatusLines();
+  const kinds = useQuery(trpc.vault.kinds.queryOptions());
+  // Saying an entry has nothing in it is a claim, so it follows the empty
+  // slot's rule (ADR 0032): only a vault read in full and watched may make
+  // it. Otherwise every entry is drawn as it always is and the rail claims
+  // nothing — a hollow entry during a read would say "empty" of a vault
+  // the app has not finished looking at.
+  const held =
+    voiceOf({
+      incomplete: kinds.isError,
+      answered: kinds.data !== undefined,
+      read,
+    }) === "claim"
+      ? new Set(kinds.data)
+      : null;
+
+  const item = ({ name, to, lit, holds }: Entry) => {
     const current = to ? to.surface === route.surface : lit?.(route);
     const href = current ? hashOf(route) : to ? hashOf(to) : null;
+    // Waiting is shown as provenance still to come, never by greying the
+    // entry out, which is what makes an entry look broken (prototype 12,
+    // panel 4).
+    if (!current && holds && held !== null && !held.has(holds.kind))
+      return (
+        <li key={name} className={styles.waiting}>
+          <span className={`${styles.dot} ${styles.hollow}`} />
+          <span className={styles.entry}>
+            {name}
+            <span className={styles.hint}>{holds.hint}</span>
+          </span>
+        </li>
+      );
     return href === null ? (
       <li key={name} className={styles.disabled}>
         <span className={styles.dot} />

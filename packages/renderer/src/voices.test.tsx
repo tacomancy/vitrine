@@ -1,4 +1,4 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { VaultStatus } from "core";
 import { empty, renderApp, vault } from "./fake-core";
@@ -8,7 +8,7 @@ afterEach(cleanup);
 // The Inbox's first slot in the three Voices (ADR 0032; prototype 12's
 // contrast set, 5). Prototype 12 says the three differ in four places; the
 // first three are here — the slot's face, the Warrant, the footer — and the
-// rail's hollow entries are #347's.
+// rail's hollow entries are at the foot of this file (#347).
 
 const well: VaultStatus = {
   indexing: null,
@@ -293,5 +293,155 @@ describe("Loose Ends the app cannot vouch for", () => {
       "‖ vault state not known — the core did not answer"
     );
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+// The fourth difference: the rail on an empty vault (#347; prototype 12,
+// panel 4). A built entry with nothing in it keeps its place and label,
+// goes hollow, and says where its contents will come from — but saying an
+// entry has nothing is a claim, so only the claim state may say it.
+
+const RQ_HINT = "promoted from a question";
+const HYP_HINT = "from a research question";
+
+async function rail(answers: Record<string, unknown>) {
+  renderApp({
+    "vault.current": vault,
+    "questions.list": empty,
+    "vault.status": well,
+    "vault.kinds": [],
+    ...answers,
+  });
+  const nav = await screen.findByRole("navigation", { name: "Surfaces" });
+  // Once the Inbox's slot speaks in any Voice the rail's reads, answered
+  // on the same ticks, have landed too — so a missing hint is an answer.
+  await within(await inbox()).findByText(
+    (text) => text === CLAIM || text === "not read yet" || text === "not known"
+  );
+  return nav;
+}
+
+function entry(nav: HTMLElement, name: string): HTMLElement {
+  const found = within(nav)
+    .getAllByRole("listitem")
+    .find((li) => li.textContent?.startsWith(name));
+  if (!found) throw new Error(`no rail entry ${name}`);
+  return found;
+}
+
+describe("the rail on an empty vault, read in full and watched", () => {
+  it("draws a built entry with nothing in it hollow, with where its contents come from", async () => {
+    const nav = await rail({});
+    await within(nav).findByText(RQ_HINT);
+    const rq = entry(nav, "Research Question view");
+    expect(rq.textContent).toBe("Research Question view" + RQ_HINT);
+    const hyp = entry(nav, "Hypothesis view");
+    expect(hyp.textContent).toBe("Hypothesis view" + HYP_HINT);
+    // Waiting, not broken: still a place on the map, and nothing to click.
+    expect(within(rq).queryByRole("link")).toBeNull();
+    // Only built entries say where their contents come from; an entry with
+    // no surface yet makes no promise about one.
+    expect(entry(nav, "Reader").textContent).toBe("Reader");
+    expect(entry(nav, "Experiment view").textContent).toBe("Experiment view");
+  });
+
+  it("draws an entry with contents as it always was", async () => {
+    const nav = await rail({ "vault.kinds": ["research-question"] });
+    await within(nav).findByText(HYP_HINT);
+    expect(entry(nav, "Research Question view").textContent).toBe(
+      "Research Question view"
+    );
+    expect(entry(nav, "Hypothesis view").textContent).toBe(
+      "Hypothesis view" + HYP_HINT
+    );
+  });
+});
+
+describe("the rail on the page an entry leads to", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("lights the entry rather than drawing it hollow, whatever the Kinds read said", async () => {
+    window.location.hash = "#/hypothesis/hypotheses/naps.md";
+    renderApp({
+      "vault.current": vault,
+      "vault.status": well,
+      "vault.kinds": [],
+      "hypotheses.page": () => new Promise(() => {}),
+    });
+    const nav = await screen.findByRole("navigation", { name: "Surfaces" });
+    // The other entry still claims, so the Kinds read has landed.
+    await within(nav).findByText(RQ_HINT);
+    const hyp = entry(nav, "Hypothesis view");
+    expect(hyp.textContent).toBe("Hypothesis view");
+    expect(within(hyp).getByRole("link").getAttribute("aria-current")).toBe(
+      "page"
+    );
+  });
+});
+
+describe("the rail claims nothing while it cannot vouch for the vault", () => {
+  const noHints = (nav: HTMLElement) => {
+    expect(nav.textContent).not.toContain(RQ_HINT);
+    expect(nav.textContent).not.toContain(HYP_HINT);
+    expect(entry(nav, "Research Question view").textContent).toBe(
+      "Research Question view"
+    );
+  };
+
+  it("while the vault is being read", async () => {
+    const nav = await rail({
+      "vault.status": {
+        ...well,
+        indexing: { done: 1250, total: 8400 },
+        current: { ok: false, reason: "a sweep has not completed" },
+      },
+    });
+    noHints(nav);
+  });
+
+  it("while the vault is not watched", async () => {
+    const nav = await rail({
+      "vault.status": {
+        ...well,
+        watching: {
+          ok: false,
+          reason: "the app lost permission to read the vault folder",
+        },
+        current: { ok: false, reason: "not watching" },
+      },
+    });
+    noHints(nav);
+  });
+
+  it("when a later read of what the vault holds fails, rather than keep the last answer", async () => {
+    let reads = 0;
+    const { stream } = renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "vault.status": well,
+      "vault.kinds": () => {
+        if (reads++ === 0) return [];
+        throw new Error("the core did not answer");
+      },
+    });
+    const nav = await screen.findByRole("navigation", { name: "Surfaces" });
+    await within(nav).findByText(RQ_HINT);
+    stream.push({
+      type: "vaultChanged",
+      changed: ["notes/a.md"],
+      removed: [],
+      renamed: [],
+    });
+    await waitFor(() => expect(nav.textContent).not.toContain(RQ_HINT));
+    noHints(nav);
+  });
+
+  it("when it could not learn what the vault holds", async () => {
+    const nav = await rail({
+      "vault.kinds": () => {
+        throw new Error("the core did not answer");
+      },
+    });
+    noHints(nav);
   });
 });
