@@ -1,0 +1,394 @@
+/*
+ * The Experiment surface (#372; prototype 05's third panel): the views, the
+ * list and the chosen run, as the Question Inbox's surface and detail pane
+ * are — two panes on the window's gutter, never a line between them
+ * (ADR 0023 decision 1).
+ */
+.surface {
+  /* *attach as evidence* floats over the list inside this surface. */
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.header {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+}
+
+/* The one number: how many runs exist, in the data voice. Never what is owed. */
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+.sort {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.sortLabel,
+.facetLabel,
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.sortLabel {
+  margin-right: var(--space-1);
+}
+
+.sortOption,
+.facet {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  color: var(--color-fg-muted);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+/* The sort and the view in force are selected states: sapphire (BRAND.md law 2). */
+.sortOption[aria-pressed="true"],
+.facet[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--space-4);
+}
+
+/* The views: a column of their own, gathered by gaps, with no counts. */
+.facets {
+  width: 168px;
+  flex: none;
+  overflow-y: auto;
+  padding: 0 0 var(--space-4) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.facetLabel {
+  margin: var(--space-4) 0 var(--space-1);
+}
+
+.facetLabel:first-child {
+  margin-top: 0;
+}
+
+.facetList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.facet {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.make {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-5) var(--space-3) 0;
+}
+
+.makeHint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+/* A refused name, under the line, in the footer's voice: a reason, never red. */
+.makeRefusal {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.empty {
+  padding: 0 var(--space-5) 0 0;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * Prototype 05's columns — items, reading, age — beside the run's handle,
+ * with its purpose on the whole row beneath: the list is the narrowest of
+ * the surface's three panes, and the purpose is what a row is read by, so
+ * it is the one thing never squeezed out.
+ */
+.row {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 88px 40px;
+  align-items: baseline;
+  gap: 0 var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-2) var(--space-3);
+  cursor: default;
+}
+
+.row + .row {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-line);
+}
+
+.row:hover,
+.row[aria-selected="true"] {
+  background: var(--color-bg-raised);
+}
+
+/* Chosen: one surface step up and a 2px primary rule on the left edge. */
+.row[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--color-primary);
+}
+
+/* The handle the run goes by in the user's code and W&B, in its own mono. */
+.name {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purpose {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-top: var(--space-1);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  color: var(--color-fg);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* The same grey at every age and every reading; nothing turns a colour. */
+.data {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+.age {
+  text-align: right;
+}
+
+/* A write the core refused, on its row: a fact to act on, never red. */
+.refusal {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.unreadableDetails[open] {
+  flex-basis: 100%;
+}
+
+.unreadable {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.unreadable li {
+  display: flex;
+  flex-direction: column;
+}
+
+.reason {
+  color: var(--color-fg-secondary);
+}
+
+/* The chosen run: the Question Inbox's detail pane, in shape and width. */
+.detail {
+  box-sizing: border-box;
+  width: clamp(240px, 28vw, 320px);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  overflow-y: auto;
+}
+
+.detailStatus {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.detailName {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}
+
+.detailPurpose {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--color-fg);
+}
+
+.label {
+  margin: var(--space-2) 0 0;
+}
+
+.quiet {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.actions button {
+  appearance: none;
+  display: flex;
+  justify-content: space-between;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: default;
+}
+
+.actions kbd {
+  font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+.whereItRan {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.whereItRan div {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.whereItRan dt {
+  width: 56px;
+  flex: none;
+  color: var(--color-fg-muted);
+}
+
+.whereItRan dd {
+  margin: 0;
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}

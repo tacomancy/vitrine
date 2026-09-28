@@ -23,6 +23,8 @@ import {
   createExperiment,
   criteriaToAttach,
   EDITED_SECTIONS as EXPERIMENT_SECTIONS,
+  FACETS as EXPERIMENT_FACETS,
+  listExperiments,
   PAGE as EXPERIMENT_PAGE,
   POSITIONS as EXPERIMENT_POSITIONS,
   readExperimentPage,
@@ -30,6 +32,7 @@ import {
   saveExperimentSection,
   type ExperimentPosition,
   setExperimentStatus,
+  SORTS as EXPERIMENT_SORTS,
   STATUSES as EXPERIMENT_STATUSES,
 } from "./experiment.js";
 import { explainRevision } from "./page-write.js";
@@ -488,6 +491,23 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return refusing(readExperimentPage(index, vault.path, input.path));
     }),
+    // The surface's views (#372): the Experiment Inbox by default, its two
+    // halves, and every run by status — derived on each read, never stored.
+    // `seed` holds a shuffle still across re-reads.
+    inbox: t.procedure
+      .input(
+        z.object({
+          facet: z.enum(EXPERIMENT_FACETS),
+          status: z.enum(EXPERIMENT_STATUSES).optional(),
+          project: z.string().optional(),
+          sort: z.enum(EXPERIMENT_SORTS),
+          seed: z.number().int().optional(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return listExperiments(index, vault.path, input);
+      }),
     // Purpose and *where it ran*: replaced whole, no Revision, and refused
     // when the section changed underneath (the Research Question's guard).
     saveSection: t.procedure

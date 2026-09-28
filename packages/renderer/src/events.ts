@@ -64,6 +64,9 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           void queryClient.invalidateQueries(
             trpc.experiments.page.pathFilter()
           );
+          void queryClient.invalidateQueries(
+            trpc.experiments.inbox.pathFilter()
+          );
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());

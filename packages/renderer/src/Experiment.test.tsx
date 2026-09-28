@@ -64,6 +64,12 @@ const answers = {
   "questions.list": empty,
   "vault.status": well,
   "looseEnds.rows": { groups: [], problems: [] },
+  "experiments.inbox": {
+    runs: 0,
+    projects: [],
+    experiments: [],
+    unreadable: [],
+  },
 };
 
 /** The page, once its read has landed: the status chips are the first thing drawn from it. */

@@ -172,7 +172,7 @@ function CaptionLine({
 /** The name a path on disk ends in — all the caption line needs to say which file it is for. */
 const fileOf = (source: string) => source.replace(/^.*[/\\]/, "");
 
-function ArtifactCard({ item }: { item: ArtifactLine }) {
+export function ArtifactCard({ item }: { item: ArtifactLine }) {
   if (item.kind === "asWritten") {
     return <p className={styles.asWritten}>{item.text}</p>;
   }
