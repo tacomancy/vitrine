@@ -13,6 +13,8 @@ export type Route =
   | { surface: "inbox"; question?: string; unresolved?: Unresolved }
   | { surface: "research-question"; path: string }
   | { surface: "hypothesis"; path: string }
+  | { surface: "experiment"; path: string }
+  | { surface: "experiments" }
   | { surface: "loose-ends" };
 
 /**
@@ -27,6 +29,8 @@ export type Unresolved = { address: string; reason: string };
 
 export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
+/** The Experiment surface: where a run is made by name (#364). */
+export const EXPERIMENTS: Route = { surface: "experiments" };
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -38,6 +42,7 @@ export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 const QUESTION = "#/question/";
 const RESEARCH_QUESTION = "#/research-question/";
 const HYPOTHESIS = "#/hypothesis/";
+const EXPERIMENT = "#/experiment/";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -57,10 +62,14 @@ export function hashOf(route: Route): string {
         : QUESTION + encodePath(route.question);
     case "loose-ends":
       return "#/loose-ends";
+    case "experiments":
+      return "#/experiments";
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
       return HYPOTHESIS + encodePath(route.path);
+    case "experiment":
+      return EXPERIMENT + encodePath(route.path);
   }
 }
 
@@ -94,12 +103,15 @@ function pathUnder(hash: string, prefix: string): string | null {
  */
 function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
+  if (hash === "#/experiments") return EXPERIMENTS;
   const question = pathUnder(hash, QUESTION);
   if (question !== null) return { surface: "inbox", question };
   const page = pathUnder(hash, RESEARCH_QUESTION);
   if (page !== null) return { surface: "research-question", path: page };
   const hypothesis = pathUnder(hash, HYPOTHESIS);
   if (hypothesis !== null) return { surface: "hypothesis", path: hypothesis };
+  const experiment = pathUnder(hash, EXPERIMENT);
+  if (experiment !== null) return { surface: "experiment", path: experiment };
   if (hash.startsWith(RETIRED))
     return {
       surface: "inbox",

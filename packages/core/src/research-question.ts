@@ -23,8 +23,8 @@ import {
   type PageFile,
 } from "./page-file.js";
 import {
-  changedUnderneath,
   notExactlyOne,
+  saveEditedSection,
   savePosition,
   writeOwn,
   type PageContext,
@@ -428,35 +428,16 @@ export async function tickThread(
 }
 
 /**
- * An Edited section saved as the user's own typing: `replaceSection` with
- * the body the plain text field holds, `basedOn` the hash the page was
- * given, and no Revision — these sections are prose, not Positions (ADR
- * 0020 decision 4). `was` is the section's text as the page read it; a
- * section changed underneath refuses, and anything else the
- * file did is the protocol's to re-apply. Either refusal comes back as
- * data for the page to show in place.
+ * An Edited section saved as the user's own typing, with no Revision —
+ * these sections are prose, not Positions (ADR 0020 decision 4). The write
+ * is every Kind's (`saveEditedSection`).
  */
 export async function saveSection(
   ctx: PageContext,
   path: string,
-  {
-    section: name,
-    body,
-    basedOn,
-    was,
-  }: { section: EditedSection; body: string; basedOn: string; was: string }
+  input: { section: EditedSection; body: string; basedOn: string; was: string }
 ): Promise<WriteResult> {
-  return writeOwn(ctx, path, PAGE, ({ content, outline }) => {
-    const conflict = changedUnderneath(
-      bodyText(content, section(outline, name).heading),
-      was
-    );
-    if (conflict !== null) return conflict;
-    return {
-      operations: [{ op: "replaceSection", name, body: body.trim() }],
-      basedOn,
-    };
-  });
+  return saveEditedSection(ctx, path, PAGE, input);
 }
 
 /**

@@ -30,21 +30,36 @@ export function Sidebar({ route }: { route: Route }) {
       : null;
 
   const item = ({ name, to, lit, holds }: Entry) => {
-    const current = to ? to.surface === route.surface : lit?.(route);
+    const current =
+      (to !== undefined && to.surface === route.surface) ||
+      (lit?.(route) ?? false);
     const href = current ? hashOf(route) : to ? hashOf(to) : null;
     // Waiting is shown as provenance still to come, never by greying the
     // entry out, which is what makes an entry look broken (prototype 12,
-    // panel 4).
-    if (!current && holds && held !== null && !held.has(holds.kind))
-      return (
-        <li key={name} className={styles.waiting}>
+    // panel 4). An entry with a surface of its own still goes there: the
+    // Experiment view is where the first run is made (KEEP-10).
+    if (!current && holds && held !== null && !held.has(holds.kind)) {
+      const waiting = (
+        <>
           <span className={`${styles.dot} ${styles.hollow}`} />
           <span className={styles.entry}>
             {name}
             <span className={styles.hint}>{holds.hint}</span>
           </span>
+        </>
+      );
+      return (
+        <li key={name}>
+          {href === null ? (
+            <span className={styles.waiting}>{waiting}</span>
+          ) : (
+            <a href={href} className={`${styles.waiting} ${styles.live}`}>
+              {waiting}
+            </a>
+          )}
         </li>
       );
+    }
     return href === null ? (
       <li key={name} className={styles.disabled}>
         <span className={styles.dot} />

@@ -340,9 +340,9 @@ describe("the rail on an empty vault, read in full and watched", () => {
     // Waiting, not broken: still a place on the map, and nothing to click.
     expect(within(rq).queryByRole("link")).toBeNull();
     // Only built entries say where their contents come from; an entry with
-    // no surface yet makes no promise about one.
+    // no surface yet makes no promise about one. The Experiment view's is
+    // `Experiment.test.tsx`'s, since it stays a link while hollow.
     expect(entry(nav, "Reader").textContent).toBe("Reader");
-    expect(entry(nav, "Experiment view").textContent).toBe("Experiment view");
   });
 
   it("draws an entry with contents as it always was", async () => {

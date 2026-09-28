@@ -6,7 +6,7 @@ import { cors } from "hono/cors";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { STALLED_OPEN_DAYS } from "./loose-ends.js";
-import { createQuestionService } from "./questions.js";
+import { createQuestionService, randomId } from "./questions.js";
 import { KIND as HYPOTHESIS, hypothesisPositions } from "./hypothesis.js";
 import { COALESCE_MS } from "./page-write.js";
 import {
@@ -119,6 +119,7 @@ export function createApp({
     now: now ?? (() => new Date()),
     coalesceMs: historyWindowMs,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,
+    newId: newId ?? randomId,
   };
 
   // The renderer is served from the Vite dev server in development and from

@@ -15,6 +15,14 @@ export type {
   Destinations,
 } from "./destinations.js";
 export type {
+  CameFrom,
+  ExperimentFrontmatter,
+  ExperimentPage,
+  ExperimentSections,
+  ExperimentStatus,
+  WhereItRanLine,
+} from "./experiment.js";
+export type {
   AfterEvidenceMark,
   CriterionRead,
   HypothesisFrontmatter,

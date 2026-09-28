@@ -3,6 +3,8 @@ import type { Provenance, Question } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
+import { Experiment } from "./Experiment";
+import { Experiments } from "./Experiments";
 import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
 import { GlobalCommand } from "./GlobalCommand";
@@ -97,6 +99,10 @@ export function App() {
           {route.surface === "hypothesis" && (
             <Hypothesis key={route.path} path={route.path} />
           )}
+          {route.surface === "experiment" && (
+            <Experiment key={route.path} path={route.path} />
+          )}
+          {route.surface === "experiments" && <Experiments />}
           {route.surface === "loose-ends" && (
             <LooseEnds
               onAttach={(path) => {

@@ -1,0 +1,152 @@
+/*
+ * The Experiment view's own parts; the frame, header, sections and footer
+ * are the Research Question view's (ResearchQuestion.module.css), because
+ * the pages are one family (prompt 5 follows prompts 3 and 4).
+ */
+
+/* The column and the rail, side by side (prototype 05), separated by the
+   gutter between two surfaces rather than a line (ADR 0023 decision 1). */
+.panes {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.rail {
+  width: 300px;
+  flex: none;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+}
+
+/* The run's name in the mono it is typed in, in the user's code and W&B. */
+.name {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}
+
+.created,
+.caption {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-fg-muted);
+}
+
+/* The four statuses as chips in the kicker's voice; the one set is raised. */
+.chips {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.chip {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip:has(input:checked) {
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+}
+
+.chip:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* A section shown as the file holds it, until its own editing lands. */
+.written {
+  margin: 0;
+  max-width: 64ch;
+  white-space: pre-wrap;
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg);
+}
+
+/* *Where it ran* is paths and hashes: the mono, at the rail's size. */
+.where {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.cameFrom {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.cameFrom a {
+  color: var(--color-fg);
+}
+
+/* The surface: a pane like any other, the name line near the top. */
+.surface {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.surfaceHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.surfaceTitle {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.surfaceBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 72ch;
+  padding: var(--space-4) var(--space-5);
+}
+
+/* A refused name, under the line, in the footer's voice: a reason, never red. */
+.refusal {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}

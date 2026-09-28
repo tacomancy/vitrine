@@ -97,6 +97,7 @@ describe("the window with a vault open", () => {
     const links = screen.getAllByRole("link");
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
       ["Question Inbox", "#/inbox"],
+      ["Experiment view", "#/experiments"],
       ["Loose Ends", "#/loose-ends"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(

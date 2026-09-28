@@ -332,6 +332,39 @@ export function changedUnderneath(
 }
 
 /**
+ * An Edited section saved as the user's own typing: `replaceSection` with
+ * the body the plain text field holds, `basedOn` the hash the page was
+ * given, and no Revision — a Research Question's threads, an Experiment's
+ * purpose and *where it ran* are prose, not Positions (ADR 0020 decision
+ * 4). `was` is the section's text as the page read it; a section changed
+ * underneath refuses, and anything else the file did is the protocol's to
+ * re-apply. Either refusal comes back as data for the page to show in place.
+ */
+export async function saveEditedSection(
+  ctx: PageContext,
+  path: string,
+  page: PageKind,
+  {
+    section: name,
+    body,
+    basedOn,
+    was,
+  }: { section: string; body: string; basedOn: string; was: string }
+): Promise<WriteResult> {
+  return writeOwn(ctx, path, page, ({ content, outline }) => {
+    const conflict = changedUnderneath(
+      bodyText(content, section(outline, name).heading),
+      was
+    );
+    if (conflict !== null) return conflict;
+    return {
+      operations: [{ op: "replaceSection", name, body: body.trim() }],
+      basedOn,
+    };
+  });
+}
+
+/**
  * A write that names its target by what it reads rather than by where it
  * sits — a thread by its text, a source by its line, a Revision by its
  * timestamp — refuses when the file no longer holds exactly one of them:

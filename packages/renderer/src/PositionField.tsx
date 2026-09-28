@@ -27,6 +27,8 @@ export function PositionField({
   labelledBy,
   empty,
   className,
+  withWhy = true,
+  autoFocus = false,
 }: {
   position: EditedPosition;
   path: string;
@@ -38,6 +40,14 @@ export function PositionField({
   empty: ReactNode;
   /** The field's own face, where it differs from a Working answer's — the claim's display size. */
   className?: string | undefined;
+  /**
+   * Whether a save can carry a why: false for an Edited section that is
+   * not a Position — an Experiment's purpose — whose save records no
+   * Revision for a why to explain, so ⌥↵ is neither offered nor taken.
+   */
+  withWhy?: boolean;
+  /** Takes the keyboard as it mounts: the field a page's arrival is for. */
+  autoFocus?: boolean;
 }) {
   const procedures = usePageProcedures();
   // Null while the field shows the file's text; the typing otherwise.
@@ -125,7 +135,7 @@ export function PositionField({
     if (event.key === "Enter" && event.metaKey) {
       event.preventDefault();
       commit();
-    } else if (event.key === "Enter" && event.altKey) {
+    } else if (event.key === "Enter" && event.altKey && withWhy) {
       event.preventDefault();
       // Nothing to save is nothing to explain: the line waits for a
       // Revision rather than opening over the last one, which already
@@ -173,6 +183,7 @@ export function PositionField({
             : `${styles.field} ${className}`
         }
         aria-labelledby={labelledBy}
+        autoFocus={autoFocus}
         value={shown}
         rows={shown === "" ? 2 : undefined}
         onChange={(event) => type(event.target.value)}
@@ -186,7 +197,7 @@ export function PositionField({
       {focused && (
         <p className={styles.keys}>
           <span>⌘↵ save</span>
-          <span>⌥↵ save with a note on what changed</span>
+          {withWhy && <span>⌥↵ save with a note on what changed</span>}
           <span>esc reverts</span>
         </p>
       )}
