@@ -721,7 +721,7 @@ describe("the Experiment rows", () => {
     const group = await within(view).findByRole("region", {
       name: "Stalled questions",
     });
-    expect(group.textContent).toContain("begun, then left hanging");
+    expect(group.textContent).toContain("begun, with a piece still missing");
     expect(group.textContent).not.toContain("promoted");
   });
 
