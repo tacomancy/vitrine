@@ -47,3 +47,7 @@ ADR 0006 decision 11 committed the app to surgical writes — rewrite the frontm
 - **−** `appendToSection` writes into sections the user also writes in (Evidence beside their notes, sources beside their "why it is here"). It is safe under ADR 0006 decision 11 because an insertion alters no existing byte, but it is where the app's lines and the user's prose interleave, and the per-Kind modules must read their own lines back by shape, not by position.
 - **−** `replaceFile` exists. Its fence — the Vault editor only — is a rule, not a type; a reviewer should treat any other caller as a bug.
 - The editor for the Vault surface is deliberately not chosen here. Whatever it is, it consumes `packages/markdown`'s grammar functions rather than carrying a grammar of its own.
+
+## Update (2026-09-28)
+
+ADR 0035 reopened decision 2 for one case: Experiment Artifacts, the first vault content whose bytes are not Markdown. `copyArtifact(source, experiment)` is the eighth operation. It copies a file into an Experiment's folder, never out and never as a move, using the same temp-and-rename write every other operation uses. The seven Markdown operations and their rules are unchanged.

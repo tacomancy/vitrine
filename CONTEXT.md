@@ -159,7 +159,7 @@ A lightweight capture that always carries Provenance. Has a Status. The app's pr
 _Avoid_: Idea, task, todo, item
 
 **Provenance**:
-What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving* (the follow-up captured as a Hypothesis's loop is closed), *pursuing* (captured on a Research Question's or a Hypothesis's page — the new Question is a sub-question of it), or *other*.
+What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving* (the follow-up captured as a Hypothesis's loop is closed), *pursuing* (captured on a Research Question's or a Hypothesis's page — the new Question is a sub-question of it), *observing* (captured from an Experiment's observations — `from` is the Experiment, and nothing is written onto its page; the page shows it by backlink), or *other*.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
 **Unattached**:
@@ -238,7 +238,7 @@ _Avoid_: Unsorted (the prototype's third side, rejected — ADR 0020), for/again
 ### Position history
 
 **Position**:
-A claim held at a time — a Working answer, a Hypothesis claim or its design notes, an Experiment design or observation, or a Criterion. Editing one adds a Revision rather than overwriting. A Criterion's Position is its whole block — text, Relationship, Outcome, and Evidence — so recording an Outcome or detaching Evidence leaves a trail as rewording does.
+A claim held at a time — a Working answer, a Hypothesis claim or its design notes, an Experiment's design or its observations, or a Criterion. An Experiment's purpose is not one. Editing one adds a Revision rather than overwriting. A Criterion's Position is its whole block — text, Relationship, Outcome, and Evidence — so recording an Outcome or detaching Evidence leaves a trail as rewording does.
 
 **Revision**:
 One entry in a Position history: when it changed and what it changed from, in full. Recorded automatically; edits to the same Position within a short window are one Revision. May carry a *why*.
@@ -291,14 +291,31 @@ A considered call that an inconclusive Hypothesis is supported on partial eviden
 _Avoid_: Manual status, force supported
 
 **Experiment**:
-A run designed and recorded here but executed elsewhere. Exists independently of any Hypothesis. Holds purpose, design, where it ran, Artifacts, observations, and a hand-maintained status (*planned*, *running*, *complete*, *abandoned*).
+A run designed and recorded here but executed elsewhere. Exists independently of any Hypothesis. Holds purpose, design, where it ran, Artifacts, observations, and a hand-maintained status (*planned*, *running*, *complete*, *abandoned*); changing the status is not a Revision. Named by a short name the user types when making it, which is also its folder's name and is never changed by the app. Made on its own surface or from a Criterion that needs Evidence not yet run — never promoted from a Question: it may say what prompted it (*came from*), and that leaves the Question's Status alone.
 _Avoid_: Run (that is what happened elsewhere), test
 
+**Where it ran**:
+An Experiment's links out — repo, commit, entry point, config, W&B project, results directory — as labelled lines whose labels are the user's own. Facts about elsewhere, not a Position: edited in place without a Revision.
+_Avoid_: Location, run link, ran at
+
+**Experiment Inbox**:
+The Experiments that are *complete* and either have no observations yet or are Evidence for no Criterion — derived, never a flag. A run leaves it by being written up and attached, or by being abandoned; nothing clears it. The testing side's counterpart of the Question Inbox, under the same rule: no badge, no tally of undone work.
+_Avoid_: Queue, backlog, uninterpreted runs (in copy)
+
 **Evidence**:
-An Experiment attached to one Criterion, with a note on what it shows for that Criterion. One Experiment may be Evidence for several Criteria across several Hypotheses.
+An Experiment attached to one Criterion, with a note on what it shows for that Criterion — the note is required, since it is the difference between Evidence and a link. One Experiment may be Evidence for several Criteria across several Hypotheses. Attaching is a Revision of the Criterion and never records its Outcome; that stays a separate act.
+
+**Linked from** (of a linked Artifact):
+The machine an Artifact was linked on and its Fingerprint there, written beside it. What lets attaching it as Evidence say one of three things: *here and unchanged*, *on another machine* (named), or *changed or gone* — never a refusal. A link made on another machine is never judged missing here. A link to a URL is not checked and says so.
+_Avoid_: Origin (a Proposal's), source machine, host (the shell's counterpart)
+
+**Fingerprint** (of a linked Artifact):
+Its size, modification time, and a hash of its first and last mebibyte — enough to tell an edited or replaced file from the one linked, without reading a checkpoint whole.
+_Avoid_: Hash, checksum (both imply the whole file), document fingerprint (a PDF's, for Ingest)
 
 **Artifact**:
-A file produced by an Experiment — plot, screenshot, CSV snippet, sample output. *Stored* in the vault beside the Experiment when small; *linked* with path, size, date, and description when heavyweight. The threshold is unset (brief § Open questions).
+A file produced by an Experiment — plot, screenshot, CSV snippet, sample output. *Stored* in the vault beside the Experiment when under 25 MB; *linked* with path, size, date, and description when heavier — the threshold proposes, and the choice is the user's per Artifact (#94). A property of the Artifact, never a Setting. A stored Artifact arrives either way: the app copies it in when the user adds it on the page, or it appears in the Experiment's folder by other means and the page offers to show it. The app copies an Artifact in, never out, and never moves one.
+_Avoid_: Attachment, file (too general), output (that is what a run writes elsewhere)
 
 ### Scouts
 
@@ -398,7 +415,7 @@ A rule (author, venue, keyword) that moves Proposals to a muted view rather than
 ### The app
 
 **Host**:
-The shell-side counterpart the core asks for the things only a desktop shell can do — today, one thing: show the folder chooser. A one-method interface the core is constructed with; the iPad client has no Host and so no chooser, because the vault lives on the Mac.
+The shell-side counterpart the core asks for the things only a desktop shell can do — show the folder chooser, and from beat 4 the file chooser an Artifact is added through (ADR 0035). A small interface the core is constructed with; the iPad client has no Host and so no chooser, because the vault lives on the Mac.
 _Avoid_: Shell (the Host is what the shell provides, not the shell itself), bridge, IPC
 
 **First run**:
