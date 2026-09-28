@@ -3,6 +3,7 @@ import type {
   AmbiguousLinks,
   LooseEndGroupName,
   LooseEndRow,
+  StalledHypothesis,
   StalledResearchQuestion,
 } from "core";
 import { formatAge } from "./age";
@@ -242,6 +243,8 @@ function Row(props: {
   switch (props.row.kind) {
     case "stalled-research-question":
       return <Stalled {...props} row={props.row} />;
+    case "stalled-hypothesis":
+      return <QuietHypothesis row={props.row} resolution={props.resolution} />;
     case "ambiguous-link":
       return <Ambiguous row={props.row} resolution={props.resolution} />;
   }
@@ -344,6 +347,47 @@ function Stalled({
           <button type="button" className={styles.primary} onClick={onAttach}>
             attach a source
           </button>
+          <Deliberate onDismiss={resolution.onDismiss} />
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * *A Hypothesis gone quiet with criteria untested* (spec #327 stories
+ * 81–85; REP-9): a commitment coming back, so the row says how much of the
+ * test is still unrun and how long it has sat, and nothing about it being
+ * late. Quiet is in open days, as the core judged it — a calendar age here
+ * would contradict the rule that put the row on screen (REP-11).
+ */
+function QuietHypothesis({
+  row,
+  resolution,
+}: {
+  row: StalledHypothesis;
+  resolution: Resolution;
+}) {
+  const address = hashOf({ surface: "hypothesis", path: row.path });
+  const days = row.quietOpenDays === 1 ? "open day" : "open days";
+  const noun = row.criteria === 1 ? "criterion" : "criteria";
+  const untested =
+    row.criteria === 0
+      ? "No criteria written yet."
+      : `${row.awaiting} of ${row.criteria} ${noun} awaiting evidence.`;
+  return (
+    <RowShell
+      meta={`hypothesis · inconclusive, quiet ${row.quietOpenDays} ${days}`}
+      title={row.title}
+      href={address}
+      // Prototype 9's own framing: the row is a reminder, not a fault.
+      why={`${untested} Nothing is wrong with it — it is simply not moving.`}
+      resolution={resolution}
+      actions={
+        <>
+          <a className={styles.primary} href={address}>
+            open
+          </a>
           <Deliberate onDismiss={resolution.onDismiss} />
         </>
       }
