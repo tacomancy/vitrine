@@ -55,17 +55,25 @@ const resolved: PdfFolder = {
   fault: null,
 };
 
+/** The core's two reads of one folder: the whole of it, and its fault alone. */
 const answers = (
-  pdfFolder: unknown,
+  pdfFolder: PdfFolder | (() => PdfFolder),
   status: unknown = watched
-): Record<string, unknown> => ({
-  "vault.current": vault,
-  "vault.status": status,
-  "vault.pdfFolder": pdfFolder,
-  "vault.kinds": [],
-  "questions.list": empty,
-  "globalCommand.destinations": { rows: [] },
-});
+): Record<string, unknown> => {
+  const now = () => (typeof pdfFolder === "function" ? pdfFolder() : pdfFolder);
+  return {
+    "vault.current": vault,
+    "vault.status": status,
+    "vault.pdfFolder": now,
+    "vault.pdfFault": () => {
+      const folder = now();
+      return folder.exists ? folder.fault : null;
+    },
+    "vault.kinds": [],
+    "questions.list": empty,
+    "globalCommand.destinations": { rows: [] },
+  };
+};
 
 function row(section: HTMLElement, label: string): string {
   const term = within(section).getByText(label, { selector: "dt" });
@@ -162,19 +170,41 @@ describe("the footer channel on another surface", () => {
     );
   });
 
-  it("check again runs the sweep, and the line goes once the link resolves", async () => {
+  it("check again runs the sweep, and the line goes once the check is raised", async () => {
     let folder: PdfFolder = broken;
-    const sweep = vi.fn(() => {
+    const checkAgain = vi.fn(() => {
       folder = resolved;
       return null;
     });
-    renderApp({ ...answers(() => folder), "vault.sweep": sweep });
+    const { stream } = renderApp({
+      ...answers(() => folder),
+      "vault.checkAgain": checkAgain,
+    });
     const again = await screen.findByRole("button", { name: "check again" });
     fireEvent.click(again);
+    await vi.waitFor(() => expect(checkAgain).toHaveBeenCalledTimes(1));
+    // The core raises the check it ran; that is what the footer answers.
+    act(() => stream.push({ type: "pdfFolder", fault: null }));
     await vi.waitFor(() => {
-      expect(sweep).toHaveBeenCalledTimes(1);
       expect(document.body.textContent).not.toContain("papers not arriving");
     });
+  });
+
+  it("asks only for the fault, never walking the folder, off Settings", async () => {
+    const walk = vi.fn(() => broken);
+    const { stream } = renderApp({
+      ...answers(broken),
+      "vault.pdfFolder": walk,
+      "questions.list": {
+        ...empty,
+        questions: [question("A question", "2026-09-19T08:00:00Z")],
+      },
+    });
+    await rows();
+    const footer = await screen.findByRole("contentinfo");
+    await vi.waitFor(() => expect(footer.textContent).toContain(FOOTER_LINE));
+    act(() => stream.push({ type: "pdfFolder", fault: targetGone }));
+    expect(walk).not.toHaveBeenCalled();
   });
 
   it("stands beside Not watching when both are true", async () => {

@@ -200,11 +200,11 @@ describe("no setter for the PDF folder", () => {
     expect(
       mutations.filter((path) => path.startsWith("vault.")).sort()
     ).toEqual([
+      "vault.checkAgain",
       "vault.open",
       "vault.pick",
       "vault.reveal",
       "vault.rewatch",
-      "vault.sweep",
     ]);
   });
 

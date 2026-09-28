@@ -215,17 +215,22 @@ export const router = t.router({
     // is no procedure that makes, re-points or removes the link, or copies a
     // PDF in or out (ADR 0025 decision 6) — the absence is the promise.
     pdfFolder: t.procedure.query(async ({ ctx }) => {
-      await requireVault(ctx);
       const folder = await ctx.vault.pdfFolder();
       if (folder === null) throw noVault();
       return folder;
     }),
+    // The footer channel's *papers not arriving* (#379), on every surface:
+    // the fault alone, so no surface walks the folder to learn it.
+    pdfFault: t.procedure.query(async ({ ctx }) => {
+      await requireVault(ctx);
+      return ctx.vault.pdfFault();
+    }),
     // The footer's *check again* on *papers not arriving* (#379): the sweep,
     // and the PDF folder checked and raised on the event stream. It looks
     // and changes nothing — no more a setter than `pdfFolder` is.
-    sweep: t.procedure.mutation(async ({ ctx }) => {
+    checkAgain: t.procedure.mutation(async ({ ctx }) => {
       await requireVault(ctx);
-      await ctx.vault.sweep();
+      await ctx.vault.checkAgain();
     }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);

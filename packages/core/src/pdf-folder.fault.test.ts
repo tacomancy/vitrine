@@ -1,3 +1,4 @@
+import { watch as fsWatch, type FSWatcher } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import {
   chmod,
@@ -13,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { PdfFolder } from "./pdf-folder.js";
 import { QUEUE_SCHEMA_VERSION } from "./queue.js";
 import { closeCores, core, tmp } from "./test-core.js";
+import type { VaultStatus } from "./vault.js";
 
 // A PDF folder that does not resolve (#379; spec #363 stories 28–36): each
 // way it can fail is a fault with its own reason, the reason never carries a
@@ -138,11 +140,11 @@ describe("noticing the break, and its end", () => {
     const stream = await c.events();
     await rm(target, { recursive: true });
 
-    expect((await c.mutate("vault.sweep")).error).toBeUndefined();
+    expect((await c.mutate("vault.checkAgain")).error).toBeUndefined();
     expect((await found(stream, "target-gone")).fault?.reason).toBeDefined();
 
     await mkdir(target);
-    await c.mutate("vault.sweep");
+    await c.mutate("vault.checkAgain");
     await found(stream, null);
     expect(await pdfFolder(c)).toMatchObject({
       fault: null,
@@ -170,7 +172,7 @@ describe("noticing the break, and its end", () => {
     const { c } = await linkedTo(target);
     const stream = await c.events();
     await rename(join(parent, "Papers (moved)"), target);
-    await c.mutate("vault.sweep");
+    await c.mutate("vault.checkAgain");
     await found(stream, null);
     await c.indexed();
 
@@ -182,6 +184,54 @@ describe("noticing the break, and its end", () => {
     await rm(target, { recursive: true });
     await found(stream, "target-gone");
     stream.close();
+  });
+});
+
+describe("a watch that no longer follows the link", () => {
+  it("keeps the watcher's one automatic reopen spent across a re-point", async () => {
+    // The real `fs.watch`, remembering what it made so the test can fail it.
+    const made: FSWatcher[] = [];
+    const watch = ((...args: Parameters<typeof fsWatch>) => {
+      const watcher = fsWatch(...args);
+      made.push(watcher);
+      return watcher;
+    }) as typeof fsWatch;
+    const target = join(await tmp("later"), "Papers");
+    const vault = await tmp("pdfs");
+    await mkdir(join(vault, "sources"), { recursive: true });
+    await symlink(target, join(vault, "sources/pdf"));
+    const c = await core({ settleMs: 40, watch });
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
+    const status = async () =>
+      (await c.query<VaultStatus>("vault.status")).result!.data;
+    /** Until the watcher has settled: current again, or given up on. */
+    const settled = async () => {
+      const stream = await c.events();
+      for (;;) {
+        const seen = await status();
+        if (seen.current.ok || !seen.watching.ok) break;
+        await stream.next("vaultStatus");
+      }
+      stream.close();
+      return status();
+    };
+
+    // The first death spends the one automatic reopen.
+    made.at(-1)!.emit("error", new Error("FSEvents dropped the stream"));
+    expect((await settled()).watching.ok).toBe(true);
+
+    // The link is fixed, so the watch is reopened to follow it — with the
+    // budget it had, not a fresh one.
+    await mkdir(target);
+    await c.mutate("vault.checkAgain");
+    await c.indexed();
+
+    made.at(-1)!.emit("error", new Error("FSEvents dropped it again"));
+    expect((await settled()).watching).toEqual({
+      ok: false,
+      reason: "FSEvents dropped it again",
+    });
   });
 });
 
@@ -200,7 +250,7 @@ describe("the last arrival", () => {
     await stream.next("pdfFolder", { timeoutMs: 4000 });
 
     await rm(target, { recursive: true });
-    await c.mutate("vault.sweep");
+    await c.mutate("vault.checkAgain");
     await found(stream, "target-gone");
     stream.close();
     expect(await pdfFolder(c)).toMatchObject({
@@ -228,6 +278,25 @@ describe("the last arrival", () => {
     await again.mutate("vault.open", { path: vault });
     await again.indexed();
     expect(await pdfFolder(again)).toMatchObject({
+      fault: { kind: "target-gone" },
+      lastArrived: { name: "walker2017.pdf", beforeFault: true },
+    });
+  });
+
+  it("is not erased by a folder that resolves and holds nothing", async () => {
+    const target = await tmp("papers");
+    await pdf(target, "walker2017.pdf", new Date("2026-09-20T10:00Z"));
+    const { c } = await linkedTo(target);
+    // Read once as Settings would, so the record holds it whatever the
+    // open's own check has reached by now.
+    expect(await pdfFolder(c)).toMatchObject({
+      lastArrived: { name: "walker2017.pdf" },
+    });
+    await rm(join(target, "walker2017.pdf"));
+    expect(await pdfFolder(c)).toMatchObject({ lastArrived: null });
+
+    await rm(target, { recursive: true });
+    expect(await pdfFolder(c)).toMatchObject({
       fault: { kind: "target-gone" },
       lastArrived: { name: "walker2017.pdf", beforeFault: true },
     });

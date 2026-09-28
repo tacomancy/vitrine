@@ -6,17 +6,18 @@ import type { DatabaseSync } from "node:sqlite";
  * stops resolving can still say when papers last came — which is how the
  * researcher tells when the arrangement broke.
  *
- * While the folder resolves it is the truth, and this is overwritten with
- * whatever it says, a folder emptied included; only once it does not resolve
- * is this what answers. A fact about the past that no sweep of a broken link
+ * While the folder resolves it is the truth, and its newest PDF replaces
+ * this; a folder that holds none leaves it alone, so a link pointed for a
+ * moment at an empty folder cannot erase when papers last came. Only once
+ * the folder does not resolve is this what answers. A fact about the past that no sweep of a broken link
  * could recover, which is why it lives in `queue.sqlite` and not the index.
  */
 export type Arrival = { at: string; name: string };
 
 export type LastArrival = {
   get: () => Arrival | null;
-  /** What the folder says now; null for a folder that resolves and holds no PDF. */
-  set: (arrival: Arrival | null) => void;
+  /** The newest PDF the folder holds now, replacing whatever was kept. */
+  set: (arrival: Arrival) => void;
 };
 
 export function lastArrival(db: DatabaseSync): LastArrival {
@@ -24,15 +25,11 @@ export function lastArrival(db: DatabaseSync): LastArrival {
   const upsert = db.prepare(
     "INSERT OR REPLACE INTO last_arrival (id, at, name) VALUES (1, ?, ?)"
   );
-  const clear = db.prepare("DELETE FROM last_arrival");
   return {
     get: () => {
       const row = select.get() as Arrival | undefined;
-      return row === undefined ? null : { at: row.at, name: row.name };
+      return row ?? null;
     },
-    set: (arrival) => {
-      if (arrival === null) clear.run();
-      else upsert.run(arrival.at, arrival.name);
-    },
+    set: (arrival) => void upsert.run(arrival.at, arrival.name),
   };
 }

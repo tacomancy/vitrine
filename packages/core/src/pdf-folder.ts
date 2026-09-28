@@ -71,7 +71,18 @@ export type ResolvesTo = {
   known: string | null;
 };
 
-export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
+/**
+ * What the entry is, short of counting what it holds: absent, a fault, or
+ * the folder it resolves to. Cheap — an `lstat`, a `realpath`, a `stat` and
+ * one listing of the top level — so the footer channel can ask it on every
+ * surface without walking an iCloud folder of thousands of papers (#379).
+ */
+type Entry =
+  | { exists: false }
+  | { exists: true; link: string | null; path: string; fault: null }
+  | { exists: true; link: string | null; path: null; fault: PdfFault };
+
+async function inspect(vaultPath: string): Promise<Entry> {
   const entry = join(vaultPath, PDF_FOLDER);
   let isLink: boolean;
   try {
@@ -80,12 +91,10 @@ export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
     return { exists: false };
   }
   const link = isLink ? await readlink(entry) : null;
-  const faulted = (kind: PdfFaultKind): PdfFolder => ({
+  const faulted = (kind: PdfFaultKind): Entry => ({
     exists: true,
     link,
-    resolves: null,
-    holds: null,
-    lastArrived: null,
+    path: null,
     fault: FAULTS[kind],
   });
   // Three separate steps because each failure is a different sentence: a
@@ -103,12 +112,44 @@ export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
       code === "ENOENT" || code === "ELOOP" ? "target-gone" : "unreadable"
     );
   }
-  let pdfs: Pdf[];
   try {
     if (!(await stat(path)).isDirectory()) return faulted("not-a-folder");
-    pdfs = await pdfsUnder(path);
+    await readdir(path);
   } catch {
     return faulted("unreadable");
+  }
+  return { exists: true, link, path, fault: null };
+}
+
+/** The footer channel's question: is the PDF folder at fault, and how. Null when it resolves or is not there. */
+export async function readPdfFault(
+  vaultPath: string
+): Promise<PdfFault | null> {
+  const entry = await inspect(vaultPath);
+  return entry.exists ? entry.fault : null;
+}
+
+export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
+  const entry = await inspect(vaultPath);
+  if (!entry.exists) return entry;
+  const { link } = entry;
+  const faulted = (fault: PdfFault): PdfFolder => ({
+    exists: true,
+    link,
+    resolves: null,
+    holds: null,
+    lastArrived: null,
+    fault,
+  });
+  if (entry.path === null) return faulted(entry.fault);
+  const { path } = entry;
+  let pdfs: Pdf[];
+  try {
+    pdfs = await pdfsUnder(path);
+  } catch {
+    // The top level listed a moment ago; a subfolder that will not is the
+    // same fault, found one level down.
+    return faulted(FAULTS.unreadable);
   }
   const newest = pdfs.reduce<Pdf | null>(
     (best, pdf) => (best === null || pdf.mtimeMs > best.mtimeMs ? pdf : best),

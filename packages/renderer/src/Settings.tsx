@@ -185,7 +185,7 @@ function WhereThePdfsAre({
             <div className={styles.row}>
               <dt className={styles.label}>Resolves to</dt>
               <dd className={styles.value}>
-                <ResolvesTo state={state} />
+                <ResolvesToRow state={state} />
               </dd>
             </div>
             <div className={styles.row}>
@@ -231,7 +231,7 @@ type Read = "pending" | "failed" | PdfFolder;
  * (#379): the footer channel sounds it and this states it, and neither
  * names the path, which is the *Folder* row's fact (ADR 0028).
  */
-function ResolvesTo({ state }: { state: Read }) {
+function ResolvesToRow({ state }: { state: Read }) {
   if (state === "pending") return <>not yet</>;
   if (state === "failed" || !state.exists) return <>not known</>;
   if (state.fault !== null) return <Wrong>{state.fault.resolvesTo}</Wrong>;

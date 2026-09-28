@@ -27,16 +27,13 @@ export function useVaultStatusLines(): {
   );
   // The PDF folder's fault is sounded here, on every surface, and only
   // stated on Settings (spec #363 story 31) — never a Loose Ends row, which
-  // would be a second place to raise it. A read that failed is not a fault
-  // of the folder, so it adds no line: Settings says *not known*.
-  const pdfs = useQuery(trpc.vault.pdfFolder.queryOptions());
-  const sweep = useMutation(
-    trpc.vault.sweep.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries(trpc.vault.pdfFolder.pathFilter()),
-    })
-  );
-  const pdfFault = pdfs.data?.exists ? pdfs.data.fault : null;
+  // would be a second place to raise it. `pdfFault` rather than
+  // `pdfFolder`, so no surface walks the folder to learn it. A read that
+  // failed is not a fault of the folder, so it adds no line. *check again*
+  // needs no invalidation of its own: the check it runs is raised as
+  // `pdfFolder`, which `events.ts` answers.
+  const pdfFault = useQuery(trpc.vault.pdfFault.queryOptions()).data ?? null;
+  const checkAgain = useMutation(trpc.vault.checkAgain.mutationOptions());
   const indexing = status.data?.indexing ?? null;
   const watching = status.data?.watching ?? { ok: true };
   const read: VaultRead = status.isError
@@ -85,8 +82,8 @@ export function useVaultStatusLines(): {
             <button
               type="button"
               className={styles.retry}
-              disabled={sweep.isPending}
-              onClick={() => sweep.mutate()}
+              disabled={checkAgain.isPending}
+              onClick={() => checkAgain.mutate()}
             >
               check again
             </button>

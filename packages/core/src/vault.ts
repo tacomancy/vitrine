@@ -5,6 +5,7 @@ import { basename, join, resolve } from "node:path";
 import { lastArrival, type LastArrival } from "./last-arrival.js";
 import {
   PDF_FOLDER,
+  readPdfFault,
   readPdfFolder,
   type PdfFault,
   type PdfFolder,
@@ -94,11 +95,16 @@ export type VaultService = {
    */
   pdfFolder: () => Promise<PdfFolder | null>;
   /**
-   * *check again* (#379): sweep the vault and check the PDF folder, raising
-   * what it found. Resolves once the check is done, not the sweep, which
-   * reports through `vault.status` as every sweep does.
+   * `vault.pdfFault`: only whether the PDF folder is at fault, without
+   * counting what it holds — what the footer channel asks on every surface
+   * (#379). Null when it resolves, is not there, or no vault is open.
    */
-  sweep: () => Promise<void>;
+  pdfFault: () => Promise<PdfFault | null>;
+  /**
+   * *check again* (#379): sweep the vault and check the PDF folder, raising
+   * what it found. Resolves once both are done.
+   */
+  checkAgain: () => Promise<void>;
   /** Show the open vault's folder, or its PDF folder, in Finder through the host; nothing when none is open. */
   reveal: (folder: RevealedFolder) => Promise<void>;
   /**
@@ -165,6 +171,12 @@ export type Opened = {
   /** The `queue.sqlite` handle those read; closed with the vault. */
   queue: DatabaseSync;
   watcher: Watcher | null;
+  /**
+   * The watcher is itself the one automatic reopen (`startWatcher`), so a
+   * re-point for the PDF folder (#379) hands the same budget on rather than
+   * a fresh one.
+   */
+  retried: boolean;
   watching: Watching;
   /** A failed watcher is being reopened; the index is not current meanwhile. */
   reopening: boolean;
@@ -338,6 +350,7 @@ export function createVaultService({
    */
   async function startWatcher(o: Opened, retried: boolean): Promise<void> {
     o.watcher = null;
+    o.retried = retried;
     try {
       const watcher = await watchVault(o.vault.path, {
         settleMs,
@@ -404,19 +417,20 @@ export function createVaultService({
 
   /**
    * The PDF folder as it is now, with the last arrival kept in step (#379).
-   * While it resolves the folder is the truth and the record is overwritten
-   * with it; once it does not, the record is what answers, marked as the
-   * last before it stopped resolving.
+   * While it resolves the folder is the truth, and its newest PDF replaces
+   * the record; once it does not, the record is what answers, marked as the
+   * last before it stopped resolving. A folder that resolves and holds no
+   * PDF leaves the record alone: a link briefly pointed at an empty folder
+   * must not erase when papers last came.
    */
-  async function readFolder(o: Opened): Promise<PdfFolder> {
+  async function readPdfFolderRemembering(o: Opened): Promise<PdfFolder> {
     const folder = await readPdfFolder(o.vault.path);
     if (!folder.exists || overtaken(o)) return folder;
     if (folder.fault === null) {
-      o.arrival.set(
-        folder.lastArrived === null
-          ? null
-          : { at: folder.lastArrived.at, name: folder.lastArrived.name }
-      );
+      if (folder.lastArrived !== null) {
+        const { at, name } = folder.lastArrived;
+        o.arrival.set({ at, name });
+      }
       return folder;
     }
     const last = o.arrival.get();
@@ -434,15 +448,19 @@ export function createVaultService({
    *
    * A link that has come to lead to a folder the watch does not follow —
    * broken at open and fixed since, or re-pointed in Finder — reopens the
-   * watch, so papers put there are seen. Without it the fault
-   * would clear while papers still did not arrive, which is the silent
-   * failure this whole check exists to prevent.
+   * watch first, and only then is the finding raised, so a cleared fault is
+   * never a folder still unheard. Only toward a folder: a link that has just
+   * broken leaves the watch where it is, since FSEvents follows a path and a
+   * target put back where it was is heard by the watch already on it. A
+   * watch left on a target the link no longer leads to is harmless: every
+   * hint is stat-ed through the vault's own `sources/pdf/…`, so nothing of
+   * the old target's can reach the index.
    */
   async function checkPdfFolder(o: Opened): Promise<void> {
     let folder: PdfFolder;
     let follows: string | null;
     try {
-      folder = await readFolder(o);
+      folder = await readPdfFolderRemembering(o);
       follows = await pdfFolderOutside(o.vault.path);
     } catch (cause) {
       // The vault itself is gone or unreadable; the watcher and the sweep
@@ -453,11 +471,7 @@ export function createVaultService({
       return;
     }
     if (overtaken(o)) return;
-    onPdfFolder?.(folder.exists ? folder.fault : null);
-    // Only toward a folder: a link that has just broken leaves the watch
-    // where it was, since reopening it onto nothing hears nothing more, and
-    // FSEvents follows a path, so a target put back where it was is heard
-    // by the watch already on it.
+    const fault = folder.exists ? folder.fault : null;
     if (
       follows !== null &&
       o.watcher !== null &&
@@ -468,8 +482,10 @@ export function createVaultService({
       o.watcher = null;
       o.reopening = true;
       void raiseStatus();
-      await watchAndSweep(o, false);
+      await watchAndSweep(o, o.retried);
+      if (overtaken(o)) return;
     }
+    onPdfFolder?.(fault);
   }
 
   /**
@@ -487,6 +503,7 @@ export function createVaultService({
       arrival,
       queue,
       watcher: null,
+      retried: false,
       // Never read: `startWatcher` below settles it before `o` is current.
       watching: { ok: true, since: now().toISOString() },
       reopening: false,
@@ -610,13 +627,19 @@ export function createVaultService({
     },
     pdfFolder: async () => {
       await restored;
-      return opened === null ? null : readFolder(opened);
+      return opened === null ? null : readPdfFolderRemembering(opened);
     },
-    sweep: async () => {
+    pdfFault: async () => {
+      await restored;
+      return opened === null ? null : readPdfFault(opened.vault.path);
+    },
+    checkAgain: async () => {
       await restored;
       if (opened === null) return;
-      void opened.index.sweep();
-      await checkPdfFolder(opened);
+      // Both awaited, so *check again* stays pending — and its control
+      // disabled — until the sweep it ran is done, rather than stacking a
+      // sweep behind every click.
+      await Promise.all([opened.index.sweep(), checkPdfFolder(opened)]);
     },
     reveal: async (folder) => {
       await restored;
