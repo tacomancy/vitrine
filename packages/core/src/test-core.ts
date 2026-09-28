@@ -170,15 +170,18 @@ export async function core(opts: CoreOptions = {}): Promise<{
       // Registered before the status is read, so an event that lands
       // during the read is not missed; a waiter left behind by an early
       // return is woken and ignored, nothing more.
-      const current = new Promise<void>((wake) => statusWaiters.push(wake));
+      let wake: () => void = () => undefined;
+      const current = new Promise<void>((resolve) => {
+        wake = resolve;
+        statusWaiters.push(resolve);
+      });
       const reply = await query<VaultStatus>("vault.status");
       if (reply.error) throw new Error(reply.error.message);
       const now = reply.result!.data.current;
       if (now.ok) return;
       notCurrent = now.reason;
-      // Bounded, where it once waited forever: a status change the core never
-      // raised left this hanging into a bare Vitest timeout, which named no
-      // wait at all (a batch ending silently behind a sweep, #294's sibling).
+      // Bounded: a status change the core never raises would otherwise hang
+      // into a bare Vitest timeout, which names no wait at all (#294).
       let timer: NodeJS.Timeout | undefined;
       const lost = new Promise<never>((_, reject) => {
         timer = setTimeout(
@@ -195,6 +198,9 @@ export async function core(opts: CoreOptions = {}): Promise<{
         await Promise.race([current, lost]);
       } finally {
         clearTimeout(timer);
+        // Off the list, as `next()` drops its waiter: nothing waits on it now.
+        const at = statusWaiters.indexOf(wake);
+        if (at !== -1) statusWaiters.splice(at, 1);
       }
     },
     changes,
