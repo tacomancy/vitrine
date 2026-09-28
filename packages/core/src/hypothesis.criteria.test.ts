@@ -452,14 +452,11 @@ describe("hypotheses.deleteCriterion", () => {
 
   it("refuses a criterion with evidence under it — once something tests it, it is no longer a draft", async () => {
     const withRun = `${C1_BLOCK}\n\n- [[run-14]] — gain tracked density`;
-    const { wrote, bytes } = await opened(withRun);
-    expect(await wrote("deleteCriterion", { id: "c1" })).toEqual({
-      written: false,
-      reason: "changedAndUnreapplyable",
-      detail:
-        "C1 has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted",
-      revision: null,
-    });
+    const { call, bytes } = await opened(withRun);
+    const reply = await call("deleteCriterion", { id: "c1" });
+    expect(reply.error?.message).toBe(
+      "C1 has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted"
+    );
     expect(await bytes()).toBe(file(withRun));
   });
 

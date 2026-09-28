@@ -738,6 +738,8 @@ export async function setCriterionField(
     const changed: Criterion = { ...criterion, [input.field]: input.value };
     return {
       operations: [
+        // Two arms that differ only by the literal, so each narrows the
+        // value to its own field's vocabulary.
         input.field === "outcome"
           ? {
               op: "setInlineField",
@@ -807,12 +809,13 @@ export async function deleteCriterion(
     const block = theOne(blocks, input.id);
     if ("written" in block) return block;
     const { criterion, heading } = block;
+    // A refusal of the act, not a disk conflict: `changedAndUnreapplyable`
+    // is what a page reads as *changed on disk*, which this is not.
     if (topLevelItems(read.outline, heading).length > 0) {
-      return {
-        written: false,
-        reason: "changedAndUnreapplyable",
-        detail: `${nameOf(criterion)} has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted`,
-      };
+      throw new VaultError(
+        "refused",
+        `${nameOf(criterion)} has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted`
+      );
     }
     return {
       operations: [

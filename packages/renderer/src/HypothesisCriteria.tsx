@@ -95,7 +95,8 @@ function useCriterionWrite(verb: string, onWritten?: () => void) {
           void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
           onWritten?.();
         } else {
-          setRefusal(`could not ${verb}: ${result.reason} — ${result.detail}`);
+          // The detail is the sentence; the reason is the protocol's word.
+          setRefusal(`could not ${verb}: ${result.detail}`);
         }
       },
       onError: (error: { message: string }) =>
