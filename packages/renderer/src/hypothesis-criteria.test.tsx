@@ -447,12 +447,10 @@ describe("a criterion with evidence under it", () => {
     ).toBeNull();
   });
 
-  it("carries the mark permanently, with the wording it replaced and the why when there is one", async () => {
+  it("carries the mark permanently, with the wording and relationship it replaced and the why when there is one", async () => {
     open(() =>
       page([
         tested({
-          label: "D1",
-          relationship: "diagnostic",
           editedAfterEvidence: [
             {
               at: "2026-09-29T10:00:00+02:00",
@@ -466,7 +464,7 @@ describe("a criterion with evidence under it", () => {
         }),
       ])
     );
-    const mark = within(await card("D1")).getByRole("note", {
+    const mark = within(await card("C1")).getByRole("note", {
       name: "Edited after evidence",
     });
     expect(mark.textContent).toMatch(

@@ -279,7 +279,7 @@ function Card({
         />
       )}
       {criterion.editedAfterEvidence.length > 0 && (
-        <Marks marks={criterion.editedAfterEvidence} now={relationship} />
+        <Marks marks={criterion.editedAfterEvidence} />
       )}
       {tested && <Lines lines={evidence} empty="" />}
       <div className={styles.controls}>
@@ -416,29 +416,22 @@ function Warning({
  * as though the criterion had always said this. Read from the history by
  * the core, so it lasts exactly as long as the entry does.
  */
-function Marks({
-  marks,
-  now,
-}: {
-  marks: AfterEvidenceMark[];
-  now: Relationship | null;
-}) {
+function Marks({ marks }: { marks: AfterEvidenceMark[] }) {
   return (
     <div
       role="note"
       aria-label="Edited after evidence"
       className={styles.afterEvidence}
     >
-      {marks.map(({ at, why, was }) => (
-        <div key={at} className={styles.mark}>
+      {marks.map(({ at, why, was }, i) => (
+        // Two hand-written entries may share a timestamp.
+        <div key={`${at} ${i}`} className={styles.mark}>
           <p className={styles.afterEvidenceHead}>
             edited {localDate(at)}, after evidence
           </p>
           <p className={styles.afterEvidenceText}>
             was — “{was.text}”
-            {was.relationship !== null && was.relationship !== now
-              ? ` · ${was.relationship}`
-              : ""}
+            {was.relationship !== null && ` · ${was.relationship}`}
           </p>
           {why !== null && <p className={styles.afterEvidenceWhy}>{why}</p>}
         </div>

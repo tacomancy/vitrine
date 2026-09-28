@@ -429,7 +429,12 @@ export async function readHypothesisPage(
   };
 }
 
-/** The suffix a criterion Revision carries when it moved the bar (§ Vault layout (Hypothesis)). */
+/**
+ * The suffix a criterion Revision carries when it moved the bar (§ Vault
+ * layout (Hypothesis)). The renderer's `history.ts` reads the same literal
+ * to keep these entries out of the quiet trail — it imports only types from
+ * the core, so a change here must be made there too.
+ */
 const AFTER_EVIDENCE = " · edited after evidence";
 
 // `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one
@@ -643,8 +648,13 @@ async function writeCriterion(
       read.outline,
       { field: change.field, from: change.from, at },
       // A parked Obsidian edit closes the window, as it does for a claim
-      // save (`savePosition` says why).
-      waiting.length > 0 ? 0 : coalesceMs
+      // save (`savePosition` says why). So does an edit after evidence: the
+      // criteria are "versioned more loudly than anything else" (brief §
+      // The falsification commitment), and folding a second rewording into
+      // the first would lose the wording between them.
+      waiting.length > 0 || change.field.endsWith(AFTER_EVIDENCE)
+        ? 0
+        : coalesceMs
     );
     recorded.at = history.at;
     const before = derive(read.criteria).state;
@@ -707,10 +717,10 @@ const tested = (read: PageFile, heading: Heading) =>
  * for the claim — made while Evidence was under it when the file was read
  * carries ` · edited after evidence`, and that entry is never collapsed and
  * never expires. Recording an Outcome is what Evidence is for, so it is
- * never marked (story 49). The suffix is part of the field, so a marked
- * entry only ever coalesces with another marked edit to the same criterion
- * — whose `from:` it keeps, the wording before the first — and an Outcome
- * recorded minutes later opens its own entry rather than absorbing the mark.
+ * never marked (story 49). A marked entry never coalesces (`writeCriterion`),
+ * so each rewording keeps the wording it replaced; and since the suffix is
+ * part of the field, an Outcome recorded minutes later opens its own entry
+ * rather than absorbing the mark.
  */
 function revisionField(
   read: PageFile,

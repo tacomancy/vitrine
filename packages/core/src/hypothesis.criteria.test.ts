@@ -625,6 +625,42 @@ describe("edited after evidence", () => {
     ).toHaveLength(1);
   });
 
+  it("never coalesces one edit after evidence into another: each rewording keeps the wording it replaced", async () => {
+    const { wrote, bytes, page, setNow } = await opened(TESTED);
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "First rewording",
+      was: "Recall gain tracks density across the sample",
+    });
+    setNow(at(5));
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "Second rewording",
+      was: "First rewording",
+    });
+    expect(await bytes()).toContain(
+      [
+        entry(
+          at(5),
+          MARKED,
+          TESTED.replace(
+            "Recall gain tracks density across the sample",
+            "First rewording"
+          )
+        ),
+        entry(t0, MARKED, TESTED),
+      ].join("\n")
+    );
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence.map(
+        (m) => m.was.text
+      )
+    ).toEqual([
+      "First rewording",
+      "Recall gain tracks density across the sample",
+    ]);
+  });
+
   it("reads a mark written by hand, with its why, onto the criterion its number names", async () => {
     const history =
       [

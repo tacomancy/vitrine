@@ -23,6 +23,8 @@ export type HistoryRow =
     }
   | { kind: "quiet"; revisions: Revision[] };
 
+// The grammar's suffix, as `hypothesis.ts` in the core writes it; the
+// renderer imports only types from the core, so the literal is repeated.
 const AFTER_EVIDENCE = " · edited after evidence";
 
 /**
@@ -34,11 +36,16 @@ const AFTER_EVIDENCE = " · edited after evidence";
 export const isLoud = (revision: Revision) =>
   revision.field.endsWith(AFTER_EVIDENCE);
 
-/** The field a chain runs along: a marked entry is still its criterion's. */
-const chainOf = (field: string) =>
-  field.endsWith(AFTER_EVIDENCE)
-    ? field.slice(0, -AFTER_EVIDENCE.length)
-    : field;
+/**
+ * The field a chain runs along. A criterion's runs by its number, which
+ * never moves (ADR 0031 decision 3): its label's letter changes with its
+ * Relationship — making it diagnostic, the commonest edit after evidence —
+ * and a marked entry is still its criterion's.
+ */
+const chainOf = (field: string) => {
+  const criterion = /^criterion (?:[CFD]|\^c)(\d+)(?: · |$)/.exec(field);
+  return criterion === null ? field : `criterion ${criterion[1]}`;
+};
 
 /**
  * The entries as rows, in the file's newest-first order. An entry records
