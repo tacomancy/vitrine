@@ -1,9 +1,16 @@
+import { stat } from "node:fs/promises";
 import { basename } from "node:path";
+import { linkedHere, linksToUrl, type LinkedArtifact } from "./artifact.js";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
+import {
+  KIND as EXPERIMENT,
+  readExperimentPage,
+  type ExperimentPage,
+} from "./experiment.js";
 import { KIND as HYPOTHESIS, readHypothesisPage } from "./hypothesis.js";
 import { resolvesTo } from "./link-text.js";
-import { writtenDay, type OpenDays } from "./open-days.js";
+import { localDay, writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -89,8 +96,58 @@ export type AmbiguousLinks = {
   links: Array<{ target: string; candidates: string[] }>;
 };
 
+/**
+ * A run complete with Artifacts and nothing written about what they show,
+ * gone quiet (#374; spec #362 stories 73–74; REP-9): a result never read
+ * coming back. Whether it is Evidence plays no part — a run that never
+ * bears on a claim is not unfinished (HOLD-6), and one that does is still
+ * unread.
+ */
+export type StalledExperiment = {
+  kind: "stalled-experiment";
+  subject: string;
+  /** Vault-relative: where the row's link goes. */
+  path: string;
+  /** The run's name, as typed. */
+  title: string;
+  /** Open days since the file last changed — the unit it is judged in, so the unit it is worded in. */
+  quietOpenDays: number;
+  /** How many Artifact lines — stored or linked — are under `## Artifacts`. */
+  artifacts: number;
+};
+
+/**
+ * Linked Artifacts recorded on this machine whose paths no longer stat
+ * (#374; spec #362 stories 75–77; REP-6; ADR 0035 decision 7).
+ *
+ * One row per Experiment, never per Artifact, for the ambiguous link's
+ * reason: *mark deliberate* is keyed by object and row kind and nothing
+ * finer, so two rows about one run under this kind could not be silenced
+ * apart. The files are listed inside the one row instead.
+ */
+export type MissingArtifacts = {
+  kind: "missing-artifact";
+  subject: string;
+  /** Vault-relative: where the row's link goes. */
+  path: string;
+  /** The run's name, as typed. */
+  title: string;
+  /** Each missing file, in the section's order, with the path it was linked at. */
+  missing: Array<{ file: string; target: string }>;
+  /**
+   * The falsifying Criteria with an Outcome recorded that this run is
+   * Evidence for. Any at all puts the row under Broken plumbing, drawn
+   * loud: the record behind a falsification is quietly gone (story 76).
+   */
+  falsifying: Array<{ path: string; claim: string; criterion: string | null }>;
+};
+
 export type LooseEndRow =
-  StalledResearchQuestion | StalledHypothesis | AmbiguousLinks;
+  | StalledResearchQuestion
+  | StalledHypothesis
+  | AmbiguousLinks
+  | StalledExperiment
+  | MissingArtifacts;
 
 export type LooseEndGroup = {
   group: LooseEndGroupName;
@@ -124,12 +181,14 @@ export type LooseEndsOptions = {
   days: OpenDays;
   /** Tests shorten it; the app uses `STALLED_OPEN_DAYS`. */
   stalledOpenDays: number;
+  /** This machine's name, as a linked Artifact records it: only its own links are checked. */
+  machine: string;
 };
 
 export async function looseEnds(
   index: VaultIndex,
   vaultPath: string,
-  { days, stalledOpenDays }: LooseEndsOptions
+  { days, stalledOpenDays, machine }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
   const questions = stalledResearchQuestions(index, days, stalledOpenDays);
@@ -139,11 +198,23 @@ export async function looseEnds(
     days,
     stalledOpenDays
   );
+  const experiments = await experimentRows(
+    index,
+    vaultPath,
+    days,
+    stalledOpenDays,
+    machine
+  );
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
-    "Broken plumbing": [],
+    "Broken plumbing": experiments.missingUnderFalsification,
     "Unfinished reading": [],
     "Disconnected material": ambiguousLinks(index),
-    "Stalled questions": [...questions.rows, ...hypotheses.rows],
+    "Stalled questions": [
+      ...questions.rows,
+      ...hypotheses.rows,
+      ...experiments.stalled,
+      ...experiments.missing,
+    ],
   };
   return {
     // The dismissal is applied here rather than inside each row query, so a
@@ -159,6 +230,7 @@ export async function looseEnds(
       ...(problem === null ? [] : [problem]),
       ...questions.problems,
       ...hypotheses.problems,
+      ...experiments.problems,
     ],
   };
 }
@@ -380,4 +452,153 @@ async function stalledHypotheses(
     });
   }
   return { rows, problems };
+}
+
+/**
+ * Both Experiment rows (#374), from one read of each run's page — the
+ * page's own reader, so the status, the Artifact lines and the Evidence a
+ * row is judged by are the ones the page shows.
+ */
+async function experimentRows(
+  index: VaultIndex,
+  vaultPath: string,
+  days: OpenDays,
+  stalledOpenDays: number,
+  machine: string
+): Promise<{
+  stalled: StalledExperiment[];
+  /** Missing, with no recorded falsification resting on the run. */
+  missing: MissingArtifacts[];
+  /** Missing, under a recorded falsification: Broken plumbing, drawn loud (story 76). */
+  missingUnderFalsification: MissingArtifacts[];
+  problems: string[];
+}> {
+  const stalled: StalledExperiment[] = [];
+  const missing: MissingArtifacts[] = [];
+  const missingUnderFalsification: MissingArtifacts[] = [];
+  const problems: string[] = [];
+  for (const file of index.select<{
+    path: string;
+    id: string | null;
+    mtime: number | null;
+  }>(
+    "SELECT path, id, mtime FROM files WHERE kind = ? ORDER BY path",
+    EXPERIMENT
+  )) {
+    const page = await readExperimentPage(index, vaultPath, file.path);
+    if (!page.readable) {
+      problems.push(`${file.path} could not be read: ${page.reason}`);
+      continue;
+    }
+    const subject = file.id ?? file.path;
+    const title = page.frontmatter.name;
+    const quiet = quietOpenDays(page, file.mtime, days);
+    if (quiet !== null && quiet >= stalledOpenDays) {
+      stalled.push({
+        kind: "stalled-experiment",
+        subject,
+        path: file.path,
+        title,
+        quietOpenDays: quiet,
+        artifacts: artifactCount(page),
+      });
+    }
+    const { gone, unchecked } = await missingHere(page, machine);
+    for (const { file, reason } of unchecked) {
+      problems.push(`${page.path}: ${file} could not be checked: ${reason}`);
+    }
+    if (gone.length > 0) {
+      const falsifying = page.evidence
+        .filter(
+          ({ criterion }) =>
+            criterion.relationship === "falsifying" &&
+            criterion.outcome !== null
+        )
+        .map(({ hypothesis, criterion }) => ({
+          path: hypothesis.path,
+          claim: hypothesis.claim,
+          criterion: criterion.label,
+        }));
+      (falsifying.length > 0 ? missingUnderFalsification : missing).push({
+        kind: "missing-artifact",
+        subject,
+        path: file.path,
+        title,
+        missing: gone.map(({ file, target }) => ({ file, target })),
+        falsifying,
+      });
+    }
+  }
+  return { stalled, missing, missingUnderFalsification, problems };
+}
+
+/**
+ * How many open days a complete run with Artifacts and empty observations
+ * has sat since its file last changed, or null when it is not such a run.
+ *
+ * The file's modification time, not a Position history entry as the
+ * Hypothesis uses: an Artifact added, a *where it ran* line corrected or a
+ * status set writes no Revision, and each is the user at the run. Counted
+ * in open days from the local date it changed, strictly after, as every
+ * quiet period is.
+ */
+function quietOpenDays(
+  page: Extract<ExperimentPage, { readable: true }>,
+  mtime: number | null,
+  days: OpenDays
+): number | null {
+  const { status } = page.frontmatter;
+  const { observations } = page.sections;
+  if (status !== "complete") return null;
+  if (artifactCount(page) === 0) return null;
+  if (observations.text.trim() !== "") return null;
+  if (mtime === null) return null;
+  return days.since(localDay(new Date(mtime)));
+}
+
+/**
+ * Stored and linked lines only: a bullet of neither shape is the user's
+ * note — *plots to follow* — and a run holding only that has no result to
+ * have left unread.
+ */
+const artifactCount = (page: Extract<ExperimentPage, { readable: true }>) =>
+  page.sections.artifacts.items.filter((item) => item.kind !== "asWritten")
+    .length;
+
+/**
+ * The run's linked Artifacts recorded on this machine whose paths no
+ * longer stat. Only this machine's: a link made on the other Mac is very
+ * likely fine there, and a row for it would teach the user to ignore the
+ * dashboard (story 77). A URL is never checked — nothing here goes to the
+ * network (spec #362 § Out of Scope). Checked when Loose Ends is read and
+ * never watched, so a disk unplugged since is noticed on the next visit.
+ *
+ * Gone is a path that is not there — `ENOENT`, or a folder on the way
+ * that is now a file. Any other failure (a folder it may not read) says
+ * nothing about whether the file is there, so it is named as unchecked
+ * rather than called gone or passed over (no silent failures).
+ */
+async function missingHere(
+  page: Extract<ExperimentPage, { readable: true }>,
+  machine: string
+): Promise<{
+  gone: LinkedArtifact[];
+  unchecked: Array<{ file: string; reason: string }>;
+}> {
+  const linked = page.sections.artifacts.items.filter(
+    (item): item is LinkedArtifact =>
+      item.kind === "linked" && !linksToUrl(item) && linkedHere(item, machine)
+  );
+  const gone: LinkedArtifact[] = [];
+  const unchecked: Array<{ file: string; reason: string }> = [];
+  for (const item of linked) {
+    try {
+      await stat(item.target);
+    } catch (cause) {
+      const code = (cause as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") gone.push(item);
+      else unchecked.push({ file: item.file, reason: errorMessage(cause) });
+    }
+  }
+  return { gone, unchecked };
 }

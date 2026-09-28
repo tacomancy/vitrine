@@ -3,6 +3,8 @@ import type {
   AmbiguousLinks,
   LooseEndGroupName,
   LooseEndRow,
+  MissingArtifacts,
+  StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
 } from "core";
@@ -247,6 +249,10 @@ function Row(props: {
       return <QuietHypothesis row={props.row} resolution={props.resolution} />;
     case "ambiguous-link":
       return <Ambiguous row={props.row} resolution={props.resolution} />;
+    case "stalled-experiment":
+      return <QuietExperiment row={props.row} resolution={props.resolution} />;
+    case "missing-artifact":
+      return <MissingFiles row={props.row} resolution={props.resolution} />;
   }
 }
 
@@ -272,6 +278,7 @@ function RowShell({
   why,
   actions,
   children,
+  loud,
   resolution: { resolved, refused, onUndo },
 }: {
   meta: ReactNode;
@@ -280,11 +287,21 @@ function RowShell({
   why: ReactNode;
   actions: ReactNode;
   children?: ReactNode;
+  /** A tag drawn above the row, amber, for the rows that must never read as quiet. */
+  loud?: string;
   resolution: Resolution;
 }) {
   return (
-    <li className={styles.row}>
+    <li
+      className={styles.row}
+      // Put away once resolved, with the rest of the row's detail: the
+      // decision about it is made, and an amber row that says so is noise.
+      data-loud={(loud !== undefined && !resolved) || undefined}
+    >
       <div className={styles.body}>
+        {loud !== undefined && !resolved && (
+          <p className={styles.loudTag}>{loud}</p>
+        )}
         <p className={styles.meta}>{meta}</p>
         {href === undefined ? (
           <span className={styles.rowTitle}>{title}</span>
@@ -384,12 +401,7 @@ function QuietHypothesis({
       why={`${untested} Nothing is wrong with it — it is simply not moving.`}
       resolution={resolution}
       actions={
-        <>
-          <a className={styles.primary} href={address}>
-            open
-          </a>
-          <Deliberate onDismiss={resolution.onDismiss} />
-        </>
+        <OpenOrDeliberate address={address} onDismiss={resolution.onDismiss} />
       }
     />
   );
@@ -472,6 +484,120 @@ function Ambiguous({
           </li>
         ))}
       </ul>
+    </RowShell>
+  );
+}
+
+/** *open* and *mark deliberate*: what a row whose object has a page offers. */
+function OpenOrDeliberate({
+  address,
+  onDismiss,
+}: {
+  address: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <>
+      <a className={styles.primary} href={address}>
+        open
+      </a>
+      <Deliberate onDismiss={onDismiss} />
+    </>
+  );
+}
+
+/**
+ * *A run complete with Artifacts and nothing written about them* (spec
+ * #362 stories 73–74; REP-9): a result never read, coming back. Quiet in
+ * open days, as the core judged it, and nothing about whether it is
+ * attached — a run that bears on no claim is not unfinished (HOLD-6).
+ */
+function QuietExperiment({
+  row,
+  resolution,
+}: {
+  row: StalledExperiment;
+  resolution: Resolution;
+}) {
+  const address = hashOf({ surface: "experiment", path: row.path });
+  const days = row.quietOpenDays === 1 ? "open day" : "open days";
+  const artifacts = row.artifacts === 1 ? "Artifact" : "Artifacts";
+  return (
+    <RowShell
+      meta={`experiment · complete, quiet ${row.quietOpenDays} ${days}`}
+      title={row.title}
+      href={address}
+      why={`${row.artifacts} ${artifacts} and no observations written. Nothing is wrong with it — its result is simply unread.`}
+      resolution={resolution}
+      actions={
+        <OpenOrDeliberate address={address} onDismiss={resolution.onDismiss} />
+      }
+    />
+  );
+}
+
+/**
+ * *Linked Artifacts gone from where they were linked* (spec #362 stories
+ * 75–77; REP-6): only this machine's links, as the core checked them. One
+ * row per run, listing each file, since a dismissal cannot be finer.
+ *
+ * Loud when a falsification rested on the run (story 76): the record
+ * behind a claim's refutation is quietly gone, which is the one thing here
+ * that must never read as routine. Amber, as every loud mark in the app
+ * is — never red.
+ */
+function MissingFiles({
+  row,
+  resolution,
+}: {
+  row: MissingArtifacts;
+  resolution: Resolution;
+}) {
+  const address = hashOf({ surface: "experiment", path: row.path });
+  const count = row.missing.length;
+  return (
+    <RowShell
+      meta="experiment · linked on this machine"
+      title={row.title}
+      href={address}
+      {...(row.falsifying.length === 0
+        ? {}
+        : { loud: "a falsification rests on it" })}
+      why={
+        count === 1
+          ? "A linked file is no longer where it was linked."
+          : `${count} linked files are no longer where they were linked.`
+      }
+      resolution={resolution}
+      actions={
+        <OpenOrDeliberate address={address} onDismiss={resolution.onDismiss} />
+      }
+    >
+      <ul className={styles.matches}>
+        {row.missing.map((file) => (
+          <li key={file.target} className={styles.match}>
+            <span className={styles.target}>{file.file}</span>
+            <span className={styles.candidate}>{file.target}</span>
+          </li>
+        ))}
+      </ul>
+      {row.falsifying.length > 0 && (
+        <p className={styles.why}>
+          Evidence for{" "}
+          {row.falsifying.map((f, i) => (
+            <span key={`${f.path}:${f.criterion ?? i}`}>
+              {i > 0 && "; "}
+              <a
+                className={styles.evidenceLink}
+                href={hashOf({ surface: "hypothesis", path: f.path })}
+              >
+                {f.criterion === null ? f.claim : `${f.criterion} · ${f.claim}`}
+              </a>
+            </span>
+          ))}
+          , with its Outcome recorded.
+        </p>
+      )}
     </RowShell>
   );
 }

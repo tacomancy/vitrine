@@ -887,6 +887,7 @@ export const router = t.router({
       return looseEnds(index, vault.path, {
         days,
         stalledOpenDays: ctx.stalledOpenDays,
+        machine: ctx.machine,
       });
     }),
     // Permanent, and judged per row kind: the same object can be loose in

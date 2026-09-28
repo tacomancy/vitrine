@@ -671,3 +671,155 @@ describe("the stalled Hypothesis row", () => {
     expect(undismiss).toHaveBeenCalledWith(row);
   });
 });
+
+// The two Experiment rows (#374; spec #362 stories 73–78): a run's result
+// never read, and a linked Artifact gone from where it was linked — loud,
+// under Broken plumbing, when a falsification rested on it.
+describe("the Experiment rows", () => {
+  const RUN = "experiments/prereg-exclusions/prereg-exclusions.md";
+  const ADDRESS =
+    "#/experiment/experiments/prereg-exclusions/prereg-exclusions.md";
+  const quiet = (more: { quietOpenDays?: number; artifacts?: number } = {}) =>
+    ({
+      kind: "stalled-experiment",
+      subject: "ex-prereg",
+      path: RUN,
+      title: "prereg-exclusions",
+      quietOpenDays: 16,
+      artifacts: 2,
+      ...more,
+    }) as const;
+  const gone = (
+    falsifying: Array<{
+      path: string;
+      claim: string;
+      criterion: string | null;
+    }> = []
+  ) =>
+    ({
+      kind: "missing-artifact",
+      subject: "ex-prereg",
+      path: RUN,
+      title: "prereg-exclusions",
+      missing: [
+        { file: "step-1000.ckpt", target: "/Volumes/Scratch/step-1000.ckpt" },
+        { file: "step-2000.ckpt", target: "/Volumes/Scratch/step-2000.ckpt" },
+      ],
+      falsifying,
+    }) as const;
+
+  it("names a quiet run as a link, how long it has been quiet in open days, and that nothing is written about its Artifacts", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [{ group: "Stalled questions", rows: [quiet()] }],
+      },
+    });
+    const view = await dashboard();
+    const link = await within(view).findByRole("link", {
+      name: "prereg-exclusions",
+    });
+    expect(link.getAttribute("href")).toBe(ADDRESS);
+    expect(view.textContent).toContain(
+      "experiment · complete, quiet 16 open days"
+    );
+    expect(view.textContent).toContain(
+      "2 Artifacts and no observations written."
+    );
+    expect(
+      within(view).getByRole("link", { name: "open" }).getAttribute("href")
+    ).toBe(ADDRESS);
+  });
+
+  it("words one Artifact and one open day in the singular", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [
+          {
+            group: "Stalled questions",
+            rows: [quiet({ quietOpenDays: 1, artifacts: 1 })],
+          },
+        ],
+      },
+    });
+    const view = await dashboard();
+    await within(view).findByText(/1 Artifact and no observations written\./);
+    expect(view.textContent).toContain("quiet 1 open day");
+    expect(view.textContent).not.toContain("1 open days");
+  });
+
+  it("names each missing file and where it was linked, in one row for the run", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [{ group: "Stalled questions", rows: [gone()] }],
+      },
+    });
+    const view = await dashboard();
+    await within(view).findByRole("link", { name: "prereg-exclusions" });
+    expect(within(view).getAllByRole("listitem")).toHaveLength(1 + 2);
+    expect(view.textContent).toContain("step-1000.ckpt");
+    expect(view.textContent).toContain("/Volumes/Scratch/step-2000.ckpt");
+    expect(view.querySelector("[data-loud]")).toBeNull();
+  });
+
+  it("draws the falsifying case loud, naming the Criterion it rested on", async () => {
+    const claim = "Preregistered reanalysis will shrink the pooled effect.";
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [
+          {
+            group: "Broken plumbing",
+            rows: [gone([{ path: "hypotheses/H.md", claim, criterion: "F1" }])],
+          },
+        ],
+      },
+    });
+    const view = await dashboard();
+    const group = await within(view).findByRole("region", {
+      name: "Broken plumbing",
+    });
+    const row = group.querySelector("[data-loud]");
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toMatch(/a falsification rests on it/i);
+    expect(row!.textContent).toContain(`F1 · ${claim}`);
+  });
+
+  it.each([
+    ["stalled-experiment", quiet(), /2 Artifacts and no observations/],
+    ["missing-artifact", gone(), /step-1000\.ckpt/],
+  ] as const)(
+    "marks a %s row deliberate by its own kind, with undo right after",
+    async (kind, row, reason) => {
+      const dismiss = vi.fn<(input: unknown) => void>();
+      const undismiss = vi.fn<(input: unknown) => void>();
+      open({
+        "looseEnds.rows": {
+          problems: [],
+          groups: [{ group: "Stalled questions", rows: [row] }],
+        },
+        "looseEnds.dismiss": (input: unknown) => {
+          dismiss(input);
+          return undefined;
+        },
+        "looseEnds.undismiss": (input: unknown) => {
+          undismiss(input);
+          return undefined;
+        },
+      });
+      const view = await dashboard();
+      fireEvent.click(
+        await within(view).findByRole("button", { name: "mark deliberate" })
+      );
+      await within(view).findByText(MARKED);
+      expect(dismiss).toHaveBeenCalledWith({ subject: "ex-prereg", kind });
+      expect(within(view).queryByText(reason)).toBeNull();
+
+      fireEvent.click(within(view).getByRole("button", { name: "undo" }));
+      await within(view).findAllByText(reason);
+      expect(undismiss).toHaveBeenCalledWith({ subject: "ex-prereg", kind });
+    }
+  );
+});
