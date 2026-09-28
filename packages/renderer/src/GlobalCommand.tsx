@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { provenanceChip, useCapture } from "./capture";
 import { useChosenInView } from "./chosen";
 import styles from "./GlobalCommand.module.css";
-import { KIND, routeOf } from "./kinds";
+import { KIND, routeOf, type Mark } from "./kinds";
 import { matchKey, matchRun, strength } from "./match";
 import { hashOf, pushRoute, type Route } from "./router";
 import { ADDRESSED, type Addressed } from "./surfaces";
@@ -112,17 +112,10 @@ const rankOf = (kind: Kind) => KIND_ORDER.indexOf(kind);
  */
 /**
  * The objects' marks and words, narrowed from the table every surface
- * showing a file shares — a closed union, so there is no unreachable
- * fallback standing where the reach rule already is.
+ * showing a file shares — a closed union, so a Kind the core can answer
+ * with and `KIND` has no mark for fails to compile rather than falling back.
  */
-const KIND_OF: Record<Destination["kind"], { glyph: string; label: string }> = {
-  question: KIND["question"] ?? { glyph: "◆", label: "question" },
-  "research-question": KIND["research-question"] ?? {
-    glyph: "■",
-    label: "research question",
-  },
-  hypothesis: KIND["hypothesis"] ?? { glyph: "▲", label: "hypothesis" },
-};
+const KIND_OF: Record<Destination["kind"], Mark> = KIND;
 
 const SCREEN_KIND: Record<Addressed["kind"], { glyph: string; label: string }> =
   {

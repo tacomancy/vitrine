@@ -1,4 +1,4 @@
-import { readdir, rename } from "node:fs/promises";
+import { readdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Destinations } from "./destinations.js";
@@ -200,6 +200,22 @@ describe("a Hypothesis's Display name", () => {
     expect(await h.found("spindle")).toEqual([
       `hypotheses/Moved.md ${REVISED}`,
     ]);
+    stream.close();
+  });
+
+  it("follows a claim revised in Obsidian, on every surface that names it", async () => {
+    // The watcher's path, not the app's own write: the file changes on
+    // disk and the index re-reads it, so the name must come from that
+    // re-read rather than from anything the page's save did.
+    const h = await opened(undefined, { settleMs: 40 });
+    const stream = await h.c.events();
+    await writeFile(join(h.vault, PATH), hypothesis(REVISED));
+    await stream.next("vaultChanged");
+
+    expect(await h.found("spindle")).toEqual([`${PATH} ${REVISED}`]);
+    expect(await h.pointer()).toMatchObject({ display: REVISED });
+    expect(await h.sharpened()).toMatchObject({ resolvedDisplay: REVISED });
+    expect(await readdir(join(h.vault, "hypotheses"))).toEqual([`${TYPED}.md`]);
     stream.close();
   });
 });
