@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSubscription } from "@trpc/tanstack-react-query";
 import type { CoreEvent } from "core";
 import { createContext, useContext, useEffect, useRef } from "react";
+import { INBOX, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 
 type VaultChanged = Extract<CoreEvent, { type: "vaultChanged" }>;
@@ -12,7 +13,9 @@ type Listener = (event: VaultChanged) => void;
  * decision 11). Every reaction is an invalidation, never a patch of list
  * state: on `vaultChanged` the list is re-read from the index, and on every
  * connect and reconnect every query is — the stream replays nothing, so the
- * reconnect is the catch-up for whatever was missed while it was down.
+ * reconnect is the catch-up for whatever was missed while it was down. A
+ * `vaultSwitched` is the one event that empties the cache rather than
+ * invalidating it, and moves the window to the Inbox.
  * Returns the set a surface registers with through `useVaultChanged` to
  * follow a path it holds; the set is told before the invalidation, so a
  * selection has moved by the time the re-query lands.
@@ -43,6 +46,17 @@ export function useCoreEvents(): Set<Listener> {
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
+        } else if (event.type === "vaultSwitched") {
+          // Another vault is open (#377), whichever way it was asked for —
+          // Settings, First run, or File ▸ Open Vault…, which the shell
+          // sends straight to the core. A reset, not an invalidation: an
+          // invalidated query keeps answering with the old vault's data
+          // until its refetch lands, and no list may mix two vaults (spec
+          // #363 story 14). The cache is emptied before the route moves,
+          // so the Inbox is never drawn from the old vault's rows. Replaced
+          // rather than pushed: the switch is not a place to go back to.
+          void queryClient.resetQueries();
+          replaceRoute(INBOX);
         }
       },
     })

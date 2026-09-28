@@ -1,11 +1,22 @@
 import { watch as fsWatch, type FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Host } from "./host.js";
-import { closeCores, core, tmp } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fingerprint,
+  fixtureCopy,
+  tmp,
+} from "./test-core.js";
 import type { VaultStatus } from "./vault.js";
 
+// The reads and the one action Settings' *Where the vault is* needs beyond
+// `vault.current` — since when changes made outside have been seen, a way to
+// show the folder in Finder that the core cannot do itself (#376), and
+// *Open a different folder…* (#377). The original header follows.
+//
 // The two reads Settings' *Where the vault is* needs beyond `vault.current`
 // (#376; spec #363): since when changes made outside have been seen, and a
 // way to show the folder in Finder that the core cannot do itself.
@@ -100,5 +111,72 @@ describe("Reveal in Finder", () => {
     const reply = await c.mutate("vault.reveal");
     expect(reply.error?.message).toBe("No vault is open.");
     expect(host.revealed).toEqual([]);
+  });
+});
+
+// *Open a different folder…* and File ▸ Open Vault… (#377; spec #363 stories
+// 12–17): the same `vault.pick` First run uses. The window learns of the
+// switch from the event stream, not from whichever caller asked, so the two
+// ways in cannot reset it differently.
+describe("Open a different folder…", () => {
+  /** A host whose chooser answers each ask with the next folder given. */
+  function choosing(...folders: (string | null)[]): Host {
+    return {
+      pickFolder: () => Promise.resolve(folders.shift() ?? null),
+      reveal: () => {},
+    };
+  }
+
+  /** The researcher's files: everything but the App state folder. */
+  const files = async (vault: string) =>
+    (await fingerprint(vault)).filter((entry) => !entry.startsWith(".vitrine"));
+
+  it("changes nothing on disk in either vault", async () => {
+    const first = await fixtureCopy("obsidian-vault");
+    const second = join(await tmp("second"), "second");
+    await mkdir(join(second, "questions"), { recursive: true });
+    const c = await core({ settleMs: 40, host: choosing(first, second) });
+    expect((await c.mutate<Vault>("vault.pick")).error).toBeUndefined();
+    await c.indexed();
+    const firstBefore = await files(first);
+    const secondBefore = await files(second);
+
+    const switched = await c.mutate<Vault>("vault.pick");
+    expect(switched.result?.data.path).toBe(second);
+    await c.indexed();
+
+    expect(await files(first)).toEqual(firstBefore);
+    expect(await files(second)).toEqual(secondBefore);
+  });
+
+  it("tells the window which vault it now shows", async () => {
+    const first = await tmp("first");
+    const second = await tmp("second");
+    const c = await core({ settleMs: 40, host: choosing(first, second) });
+    await c.mutate("vault.pick");
+    await c.indexed();
+    const stream = await c.events();
+
+    await c.mutate("vault.pick");
+    const event = await stream.next("vaultSwitched");
+    stream.close();
+    expect(event.vault).toEqual({ name: basename(second), path: second });
+  });
+
+  it("a cancelled chooser switches nothing and says nothing", async () => {
+    const first = await tmp("first");
+    const c = await core({ settleMs: 40, host: choosing(first, null) });
+    await c.mutate("vault.pick");
+    await c.indexed();
+    const stream = await c.events();
+
+    const cancelled = await c.mutate<Vault | null>("vault.pick");
+    expect(cancelled.result?.data).toBeNull();
+    await expect(
+      stream.next("vaultSwitched", { timeoutMs: 150 })
+    ).rejects.toThrow(/nothing arrived/);
+    stream.close();
+    const current = await c.query<Vault>("vault.current");
+    expect(current.result?.data.path).toBe(first);
   });
 });

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Provenance, Question } from "core";
+import type { Provenance, Question, Vault } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
@@ -18,9 +18,45 @@ import { useTRPC } from "./trpc";
 
 export function App() {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const vault = useQuery(trpc.vault.current.queryOptions());
   const listeners = useCoreEvents();
+
+  // Nothing is drawn until the core has answered: a First run that flashes
+  // before a remembered vault appears would say something untrue.
+  if (vault.isPending) return <div className={styles.window} />;
+
+  if (vault.isError) {
+    return (
+      <div className={styles.window}>
+        <p className={styles.status}>
+          core not answering · {vault.error.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (vault.data === null) {
+    return (
+      <div className={styles.window}>
+        <FirstRun />
+      </div>
+    );
+  }
+
+  // Keyed by the folder, so a switch to another vault (#377) starts every
+  // piece of window state afresh — a landed Question or an attach intent
+  // from the old vault would otherwise act on the new one.
+  return (
+    <VaultChangedListeners value={listeners}>
+      <Workspace key={vault.data.path} vault={vault.data} />
+    </VaultChangedListeners>
+  );
+}
+
+/** The window while a vault is open: one vault's, for as long as it is. */
+function Workspace({ vault }: { vault: Vault }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const route = useRoute();
   // The last Question either chord wrote. The Inbox re-reads the vault
   // and makes it the selection, so the user sees it land (brief § Question
@@ -55,75 +91,51 @@ export function App() {
       ? { context: "pursuing", page: route.path }
       : { context: "other" };
 
-  // Nothing is drawn until the core has answered: a First run that flashes
-  // before a remembered vault appears would say something untrue.
-  if (vault.isPending) return <div className={styles.window} />;
-
-  if (vault.isError) {
-    return (
-      <div className={styles.window}>
-        <p className={styles.status}>
-          core not answering · {vault.error.message}
-        </p>
-      </div>
-    );
-  }
-
-  if (vault.data === null) {
-    return (
-      <div className={styles.window}>
-        <FirstRun />
-      </div>
-    );
-  }
-
   return (
-    <VaultChangedListeners value={listeners}>
-      <div className={styles.window}>
-        <TitleBar title={vault.data.name} />
-        <div className={styles.panes}>
-          <Sidebar route={route} vault={vault.data} />
-          {route.surface === "inbox" && (
-            <Inbox
-              landed={landed}
-              arrivedOn={route.question ?? null}
-              unresolved={route.unresolved ?? null}
-              vaultPath={vault.data.path}
-            />
-          )}
-          {route.surface === "research-question" && (
-            <ResearchQuestion
-              key={route.path}
-              path={route.path}
-              attachOnArrival={attachOnArrival === route.path}
-              onArrival={() => setAttachOnArrival(null)}
-            />
-          )}
-          {route.surface === "hypothesis" && (
-            <Hypothesis key={route.path} path={route.path} />
-          )}
-          {route.surface === "settings" && <Settings vault={vault.data} />}
-          {route.surface === "loose-ends" && (
-            <LooseEnds
-              onAttach={(path) => {
-                setAttachOnArrival(path);
-                pushRoute({ surface: "research-question", path });
-              }}
-            />
-          )}
-        </div>
-        <CaptureLine provenance={provenance} onCaptured={onCaptured} />
-        {/* Both chords are mounted here and nowhere else, so neither is
-            live before a vault is open, and both are handed the same
-            Provenance and the same landing (ADR 0027 decision 1). ⌘, is
-            here for the same reason: First run has one action. */}
-        <SettingsChord />
-        <GlobalCommand
-          route={route}
-          provenance={provenance}
-          onCaptured={onCaptured}
-        />
+    <div className={styles.window}>
+      <TitleBar title={vault.name} />
+      <div className={styles.panes}>
+        <Sidebar route={route} vault={vault} />
+        {route.surface === "inbox" && (
+          <Inbox
+            landed={landed}
+            arrivedOn={route.question ?? null}
+            unresolved={route.unresolved ?? null}
+            vaultPath={vault.path}
+          />
+        )}
+        {route.surface === "research-question" && (
+          <ResearchQuestion
+            key={route.path}
+            path={route.path}
+            attachOnArrival={attachOnArrival === route.path}
+            onArrival={() => setAttachOnArrival(null)}
+          />
+        )}
+        {route.surface === "hypothesis" && (
+          <Hypothesis key={route.path} path={route.path} />
+        )}
+        {route.surface === "settings" && <Settings vault={vault} />}
+        {route.surface === "loose-ends" && (
+          <LooseEnds
+            onAttach={(path) => {
+              setAttachOnArrival(path);
+              pushRoute({ surface: "research-question", path });
+            }}
+          />
+        )}
       </div>
-    </VaultChangedListeners>
+      <CaptureLine provenance={provenance} onCaptured={onCaptured} />
+      {/* Both chords are mounted here and nowhere else, so neither is
+          live before a vault is open, and both are handed the same
+          Provenance and the same landing (ADR 0027 decision 1). ⌘, is
+          here for the same reason: First run has one action. */}
+      <SettingsChord />
+      <GlobalCommand
+        route={route}
+        provenance={provenance}
+        onCaptured={onCaptured}
+      />
+    </div>
   );
 }

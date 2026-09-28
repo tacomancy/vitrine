@@ -99,6 +99,22 @@
   min-width: 0;
 }
 
+/* What a fact adds about itself, beneath it (prototype 13's sub-line). */
+.sub,
+.refusal {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* The chooser's refusal: a plain sentence, never red (brief § Question
+   Inbox, "no red"), set apart from the sub-line by its colour alone. */
+.refusal {
+  color: var(--color-fg-secondary);
+}
+
 .action {
   appearance: none;
   border: 0;
@@ -113,6 +129,12 @@
 
 .action:hover {
   text-decoration: underline;
+}
+
+.action:disabled {
+  cursor: default;
+  color: var(--color-fg-muted);
+  text-decoration: none;
 }
 
 /*

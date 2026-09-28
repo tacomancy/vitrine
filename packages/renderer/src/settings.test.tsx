@@ -7,7 +7,14 @@ import {
 } from "@testing-library/react";
 import type { VaultStatus } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, pressGlobalChord, renderApp, vault } from "./fake-core";
+import {
+  empty,
+  pressGlobalChord,
+  question,
+  renderApp,
+  rows,
+  vault,
+} from "./fake-core";
 
 // Settings' first section, *Where the vault is* (#376; spec #363 stories
 // 1–11, 37–39; prototype 13), and every way in: the Address, ⌘,, the
@@ -249,5 +256,129 @@ describe("the ways into Settings", () => {
     expect(window.location.hash).not.toBe("#/settings");
     expect(screen.queryByRole("region", { name: "Settings" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+  });
+});
+
+// *Open a different folder…* (#377; spec #363 stories 12–17). The window
+// resets on the core's `vaultSwitched`, not on the button's reply, so File ▸
+// Open Vault… — which the shell sends straight to the core — resets it the
+// same way; the tests push the event as the core would raise it.
+describe("Open a different folder…", () => {
+  const other = { name: "reading-group", path: "/v/reading-group" };
+  const oldQuestion = question(
+    "does replay order matter?",
+    "2026-09-20T10:00:00Z"
+  );
+
+  /** A core whose open vault the test can move, as a pick would. */
+  function switchable() {
+    const at = { vault, list: { ...empty, questions: [oldQuestion] } };
+    const pick = vi.fn(() => {
+      at.vault = other;
+      return other;
+    });
+    const rendered = renderApp({
+      ...answers(),
+      "vault.current": () => at.vault,
+      "questions.list": () => at.list,
+      "vault.pick": pick,
+    });
+    return { ...rendered, at, pick };
+  }
+
+  it("sits on the Folder row beside Reveal in Finder, saying it changes nothing", async () => {
+    window.location.hash = "#/settings";
+    renderApp(answers());
+    const section = within(await settings()).getByRole("region", {
+      name: "Where the vault is",
+    });
+    const folder = within(section).getByText("Folder", { selector: "dt" })
+      .nextElementSibling as HTMLElement;
+    expect(
+      within(folder)
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+    ).toEqual(["Reveal in Finder", "Open a different folder…"]);
+    expect(folder.textContent).toContain(
+      "opening another folder changes nothing on disk here"
+    );
+  });
+
+  it("asks the core for the chooser First run uses", async () => {
+    window.location.hash = "#/settings";
+    const { pick } = switchable();
+    fireEvent.click(
+      within(await settings()).getByRole("button", {
+        name: "Open a different folder…",
+      })
+    );
+    await vi.waitFor(() => expect(pick).toHaveBeenCalledTimes(1));
+  });
+
+  it("lands on the new vault's Inbox, with nothing of the old one left on screen", async () => {
+    const { stream, at } = switchable();
+    // The old vault's Inbox, with its Question on it.
+    expect((await rows()).map((r) => r.textContent)).toEqual([
+      expect.stringContaining("does replay order matter?"),
+    ]);
+    pressSettingsChord();
+    await settings();
+
+    // The new vault's list never answers: whatever the window shows while it
+    // waits must be nothing, not the old vault's rows kept as stale data.
+    at.vault = other;
+    at.list = new Promise(() => {}) as never;
+    act(() => stream.push({ type: "vaultSwitched", vault: other }));
+
+    await screen.findByRole("region", { name: "Question Inbox" });
+    expect(window.location.hash).toBe("#/inbox");
+    const rail = await screen.findByRole("navigation", { name: "Surfaces" });
+    await vi.waitFor(() => expect(rail.textContent).toContain(other.path));
+    expect(document.body.textContent).not.toContain(vault.path);
+    expect(document.body.textContent).not.toContain(
+      "does replay order matter?"
+    );
+  });
+
+  it("resets from any surface, as File ▸ Open Vault… reaches it", async () => {
+    window.location.hash = "#/loose-ends";
+    const { stream, at } = switchable();
+    await screen.findByRole("navigation", { name: "Surfaces" });
+    at.vault = other;
+    act(() => stream.push({ type: "vaultSwitched", vault: other }));
+    await screen.findByRole("region", { name: "Question Inbox" });
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("a cancelled chooser leaves everything as it was", async () => {
+    window.location.hash = "#/settings";
+    const pick = vi.fn(() => null);
+    renderApp({ ...answers(), "vault.pick": pick });
+    const page = await settings();
+    fireEvent.click(
+      within(page).getByRole("button", { name: "Open a different folder…" })
+    );
+    await vi.waitFor(() => expect(pick).toHaveBeenCalledTimes(1));
+    expect(window.location.hash).toBe("#/settings");
+    expect(screen.getByRole("region", { name: "Settings" })).toBe(page);
+    expect(within(page).queryByRole("alert")).toBeNull();
+  });
+
+  it("says why a folder was refused, and stays where it was", async () => {
+    window.location.hash = "#/settings";
+    renderApp({
+      ...answers(),
+      "vault.pick": () => {
+        throw new Error("/v/notes.md is not a folder. Choose a folder.");
+      },
+    });
+    const page = await settings();
+    fireEvent.click(
+      within(page).getByRole("button", { name: "Open a different folder…" })
+    );
+    expect((await within(page).findByRole("alert")).textContent).toBe(
+      "/v/notes.md is not a folder. Choose a folder."
+    );
+    expect(window.location.hash).toBe("#/settings");
   });
 });
