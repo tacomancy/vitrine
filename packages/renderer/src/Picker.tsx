@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Candidate, CandidateKind } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useChosenInView } from "./chosen";
 import { KIND } from "./kinds";
 import styles from "./Picker.module.css";
 import { useTRPC } from "./trpc";
@@ -68,6 +69,10 @@ export function Picker({
   const total = listing.data?.total ?? 0;
   // The choice never points past the list a new query returned.
   const chosen = Math.min(arrowedTo, Math.max(rows.length - 1, 0));
+  /** The chosen row, for the keyboard and for the list's own window alike. */
+  const chosenRow =
+    rows[chosen] === undefined ? undefined : candidateId(chosen);
+  useChosenInView(chosenRow);
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return;
@@ -108,7 +113,7 @@ export function Picker({
           aria-label="Find"
           aria-expanded
           aria-controls="picker-list"
-          aria-activedescendant={rows[chosen] ? candidateId(chosen) : undefined}
+          aria-activedescendant={chosenRow}
           autoComplete="off"
           value={query}
           onChange={(event) => {

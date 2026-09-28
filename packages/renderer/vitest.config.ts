@@ -20,6 +20,8 @@ export default defineConfig({
   test: {
     name: "renderer",
     environment: "jsdom",
+    // The methods jsdom does not implement, supplied once for every file.
+    setupFiles: ["src/jsdom-gaps.ts"],
     include: ["src/**/*.test.tsx", "src/**/*.test.ts"],
   },
 });

@@ -6,10 +6,14 @@ import {
   pressGlobalChord,
   question,
   renderApp,
+  scrollsInto,
   vault,
 } from "./fake-core";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // ⌘K opens, lists and goes (#302; ADR 0027 decisions 2, 4, 6 and 7). The
@@ -463,5 +467,74 @@ describe("the command opens over a page as it does over a list", () => {
     );
     // Still not the default choice: ↵ is never a no-op by accident.
     expect(chosenIn(rows)).toBe(0);
+  });
+});
+
+/**
+ * The row the keyboard is on stays inside the list's window (#320). The
+ * overlay gives the list 300px — about nine rows — and the core answers with
+ * up to fifty, so the choice walks out of sight long before it runs out of
+ * rows. jsdom lays nothing out, so what a test can see is the call the
+ * browser does the scrolling from: which row it was made on, and the `block`
+ * that decides how far the list moves.
+ */
+describe("the row the keyboard is on stays in view", () => {
+  // Twelve objects and the two screens: fourteen rows in room for nine.
+  const MANY: Destination[] = Array.from({ length: 12 }, (_, i) => ({
+    kind: "question",
+    path: `questions/Is the ${i}th night the one that matters.md`,
+    display: `Is the ${i}th night the one that matters?`,
+  }));
+
+  const many = () =>
+    openCommand({ "globalCommand.destinations": answering(MANY) });
+
+  it("follows the choice down past the bottom of the window", async () => {
+    const dialog = await many();
+    const rows = await settled(dialog, 14);
+    const scrolled = scrollsInto();
+    // From the default choice — row 1, the first that is not where the
+    // window already is — to row 10, five rows below the fold.
+    for (let i = 0; i < 9; i++)
+      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+
+    expect(chosenIn(await rowsOf(dialog))).toBe(10);
+    expect(scrolled.at(-1)?.row).toBe(rows[10]);
+  });
+
+  it("follows it back up past the top", async () => {
+    const dialog = await many();
+    const rows = await settled(dialog, 14);
+    for (let i = 0; i < 9; i++)
+      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    const scrolled = scrollsInto();
+    for (let i = 0; i < 10; i++)
+      fireEvent.keyDown(queryBox(dialog), { key: "ArrowUp" });
+
+    expect(chosenIn(await rowsOf(dialog))).toBe(0);
+    expect(scrolled.at(-1)?.row).toBe(rows[0]);
+  });
+
+  it("moves the list by as little as it can, so the rows already read stay put", async () => {
+    const dialog = await many();
+    await settled(dialog, 14);
+    const scrolled = scrollsInto();
+    fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+
+    // `nearest` is also what makes an already-visible row cost no scroll at
+    // all, which is why opening the command does not jolt.
+    expect(scrolled.map(({ block }) => block)).toEqual(["nearest"]);
+  });
+
+  it("brings the row a narrowed list re-chose into view", async () => {
+    const dialog = await many();
+    await settled(dialog, 14);
+    for (let i = 0; i < 9; i++)
+      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    const scrolled = scrollsInto();
+    type(dialog, "11th night");
+
+    const rows = await settled(dialog, 1);
+    await vi.waitFor(() => expect(scrolled.at(-1)?.row).toBe(rows[0]));
   });
 });

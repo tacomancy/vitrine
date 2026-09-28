@@ -1,0 +1,26 @@
+# 0030: A keyboard list follows its choice; the id it already publishes is the hook
+
+**Status:** Accepted
+
+All three of the app's keyboard lists scroll, and none of them scrolled to its own choice: the Global command and the Picker cap at fifty rows in windows of about nine and eight, and the Question Inbox holds every Question in the vault (`GlobalCommand.module.css`, `Picker.module.css`, `Inbox.module.css`; spec #320). Arrowing past the fold left `aria-selected` on a row that was out of sight with nothing bringing it back, so the keys that act on the choice — `↵` everywhere, and `p`, `a`, `d`, `r`, `l` in the Inbox — acted on a row nobody could see. That is § Invariants' no-silent-failures clause, not polish. **Decided:** one hook, `useChosenInView` in `packages/renderer/src/chosen.ts`, keyed on the element id the list already hands to `aria-activedescendant`, calling `scrollIntoView({ block: "nearest" })` from an effect. Every keyboard list the app grows calls it; a list that does not is a list with this bug.
+
+## Considered options
+
+- **Scroll from each key handler.** The obvious reading of the report, and wrong for the Inbox: its selection also moves on a click, on a capture landing (`CONTEXT.md` *Landing*), on an arrival at a Question's Address (#300) and on a rename the watcher pairs, so a handler would cover two of six paths and every later path would have to remember. The mutation that implements it this way fails three tests — including the one asserting that a `j` with nowhere to go scrolls nothing, which a handler cannot honour because it does not know whether the selection moved. This is the same shape as the queue inside `linkQuestion` rather than in its callers (`docs/architecture.md` § Research Question view and triage): the mechanism belongs where the fact changes.
+
+- **An index, or a ref to the chosen row, as the hook's argument.** Rejected because the id is a thing all three lists already compute and already have to keep correct — it is the accessibility tree's own statement of which row the keyboard is on — while an index is something two of them do not hold (the Inbox's selection is a path) and a ref is a fourth thing to keep in sync. Keying on the id also means the hook is looked up exactly as the browser resolves the attribute, so the two cannot come to disagree about which element they mean. It carries a second property worth having: the id encodes the row's *position*, which is what decides whether it is visible, so an id that did not change names a row that did not move.
+
+- **`block: "center"`, or a hand-computed `scrollTop`.** Rejected. Centring moves rows the user is reading on every `j`, and does so even when the chosen row is already visible; `nearest` is the minimum that makes it visible and nothing at all when it already is. A hand-computed `scrollTop` would have to know which ancestor scrolls, and would be wrong the first time a list is nested differently.
+
+- **A `?.` guard on `scrollIntoView` in the hook.** Rejected, and this is why the suite grew `packages/renderer/src/jsdom-gaps.ts`. jsdom implements no layout and so leaves the method off `HTMLElement.prototype` entirely, which the guard would have quietly absorbed — a call landing on nothing is the very bug this ADR is about, and the test environment is the only place left that could see it. The stub fills the gap where the gap is.
+
+- **One shared list component for all three.** Not reopened. ADR 0027 and spec #298 settled that the Picker and the Global command are not built from each other, and this hook knows nothing about rows, Kinds, queries, or what `↵` does. It is a mechanism they share, not a list.
+
+## Consequences
+
+- **+** The three lists behave alike, so nobody has to learn which of the app's lists follow their choice. A later keyboard list inherits the behaviour by calling one hook.
+- **+** `aria-activedescendant` gains a second consumer, which makes it load-bearing rather than an attribute nothing in the app reads. A list that stops publishing it correctly now fails a visible test rather than only an audit.
+- **+** The Inbox's `j` held down works at the scale the brief actually describes — "a few hundred questions" — which it did not before.
+- **−** The renderer's suite now has a setup file, and every test file inherits a `scrollIntoView` that jsdom does not have. A future environment gap gets added there rather than guarded at the call site, and anyone reading the hook in isolation will not know why it is safe.
+- **−** How far the list moves is the browser's, so no test in this repo asserts it. What is asserted is the call, the row it was made on, and the `block` — the rest is `nearest`'s contract, and only a real browser can show it. The `/run` path is where a doubt about that gets settled.
+- **−** The hook reaches for `document.getElementById` rather than a ref, so it depends on the id being unique in the document. Two lists mounted at once with a shared id scheme would collide; the Inbox with the Picker over it is exactly that case today, and the two prefixes are what keep it honest.

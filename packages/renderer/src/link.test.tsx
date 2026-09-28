@@ -1,11 +1,19 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { Candidate, Candidates } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, question as q, renderApp, rows, vault } from "./fake-core";
+import {
+  empty,
+  question as q,
+  renderApp,
+  rows,
+  scrollsInto,
+  vault,
+} from "./fake-core";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
@@ -282,5 +290,40 @@ describe("link from the Inbox", () => {
     expect(screen.queryByRole("dialog", { name: /link/i })).toBeNull();
     expect(candidates).not.toHaveBeenCalled();
     expect(screen.getByRole("contentinfo").textContent).toContain("l link");
+  });
+});
+
+/**
+ * The chosen row stays inside the picker's window (#320). 240px is about
+ * eight rows, and the query answers with up to fifty — the same shape as the
+ * Global command's list, and the same mechanism, because a researcher should
+ * not have to learn which of the app's keyboard lists scroll to their choice.
+ * jsdom lays nothing out, so the call and its `block` are what a test sees.
+ */
+describe("the chosen row stays in view", () => {
+  const MANY: Candidate[] = Array.from({ length: 12 }, (_, i) => ({
+    path: `notes/The ${i}th night.md`,
+    name: `The ${i}th night`,
+    kind: "note",
+  }));
+
+  it("follows the choice down past the bottom of the window, and back up", async () => {
+    renderInbox({ candidates: () => ({ rows: MANY, total: MANY.length }) });
+    const { picker } = await openPicker();
+    await expectShown(MANY.map(({ name }) => `·${name}`));
+    const found = await within(
+      screen.getByRole("listbox", { name: /link/i })
+    ).findAllByRole("option");
+    const find = within(picker).getByRole("combobox", { name: /find/i });
+    const scrolled = scrollsInto();
+
+    // The picker opens on its first row, so ten presses reach row 10.
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(find, { key: "ArrowDown" });
+    expect(found[10]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: found[10], block: "nearest" });
+
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(find, { key: "ArrowUp" });
+    expect(found[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: found[0], block: "nearest" });
   });
 });

@@ -13,6 +13,7 @@ import {
 } from "react";
 import type { ListedQuestion, Order, Question, QuestionStatus } from "core";
 import { formatAge } from "./age";
+import { useChosenInView } from "./chosen";
 import { Detail } from "./Detail";
 import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
@@ -213,6 +214,10 @@ export function Inbox({
     null
   );
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
+  /** The selected row, for the keyboard and for the list's own window alike. */
+  const selectedRowId =
+    selectedRow === null ? undefined : rowId(rows.indexOf(selectedRow));
+  useChosenInView(selectedRowId);
   const unreadable = listing.data?.unreadable ?? [];
   const now = new Date();
 
@@ -425,9 +430,7 @@ export function Inbox({
           className={styles.list}
           role="listbox"
           aria-label="Questions"
-          aria-activedescendant={
-            selectedRow ? rowId(rows.indexOf(selectedRow)) : undefined
-          }
+          aria-activedescendant={selectedRowId}
           tabIndex={0}
           onKeyDown={onKeyDown}
         >

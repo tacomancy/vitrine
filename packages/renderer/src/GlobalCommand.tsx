@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Destination } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useChosenInView } from "./chosen";
 import styles from "./GlobalCommand.module.css";
 import { KIND, routeOf } from "./kinds";
 import { matchKey, matchRun, strength } from "./match";
@@ -198,6 +199,9 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
   const chosen =
     arrowedTo === null ? byDefault : Math.min(arrowedTo, rows.length - 1);
   const target = rows[chosen];
+  /** The chosen row, for the keyboard and for the list's own window alike. */
+  const chosenRow = target === undefined ? undefined : rowId(chosen);
+  useChosenInView(chosenRow);
 
   const move = (to: number) => {
     if (rows.length === 0) return;
@@ -269,9 +273,7 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
             aria-label="Go to something"
             aria-expanded
             aria-controls="global-command-list"
-            aria-activedescendant={
-              target === undefined ? undefined : rowId(chosen)
-            }
+            aria-activedescendant={chosenRow}
             autoComplete="off"
             placeholder="Go somewhere"
             value={query}

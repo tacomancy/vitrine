@@ -3,6 +3,7 @@ import { createTRPCClient, TRPCClientError, type TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AppRouter, CoreEvent } from "core";
+import { vi } from "vitest";
 import { App } from "./App";
 import { TRPCProvider } from "./trpc";
 
@@ -136,4 +137,23 @@ export function pressCaptureChord() {
 /** ⌘K, from anywhere in the window. */
 export function pressGlobalChord() {
   fireEvent.keyDown(window, { key: "k", metaKey: true });
+}
+
+/**
+ * Every row a keyboard list has asked the browser to bring into view, in the
+ * order it asked (#320). jsdom lays nothing out, so the call and the `block`
+ * it carries are the whole of what a test can see — `jsdom-gaps.ts` is what
+ * supplies the method to spy on. Restored by `vi.restoreAllMocks()`.
+ */
+export function scrollsInto(): { row: Element; block: string | undefined }[] {
+  const asked: { row: Element; block: string | undefined }[] = [];
+  vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(
+    function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      asked.push({
+        row: this,
+        block: typeof options === "object" ? options.block : undefined,
+      });
+    }
+  );
+  return asked;
 }
