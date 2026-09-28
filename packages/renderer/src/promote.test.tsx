@@ -157,13 +157,12 @@ describe("promote to Research Question", () => {
     );
   });
 
-  it("lists the key quietly in the footer channel, with no key for Hypothesis", async () => {
+  it("lists the key quietly in the footer channel", async () => {
     renderInbox([open]);
     await rows();
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toContain("j/k move");
     expect(footer.textContent).toContain("p promote");
-    expect(footer.textContent).not.toMatch(/hypothesis/i);
     expect(footer.querySelector("[role=alert]")).toBeNull();
   });
 });

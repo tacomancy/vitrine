@@ -42,7 +42,7 @@ describe("an empty Inbox, read in full and watched", () => {
     expect(region.textContent).not.toMatch(/\d+ questions?/);
     // The footer holds the key legend and nothing the vault has to say.
     expect(within(region).getByRole("contentinfo").textContent).toBe(
-      "j/k movep promotel linka answerd dropr reopen"
+      "j/k movep promoteh hypothesisl linka answerd dropr reopen"
     );
   });
 });

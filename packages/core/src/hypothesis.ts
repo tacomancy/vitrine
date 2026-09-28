@@ -1,5 +1,7 @@
+import { basename } from "node:path";
 import type { Heading, Outline } from "markdown";
 import { VaultError } from "./errors.js";
+import { fileName } from "./file-name.js";
 import {
   changedUnderneath,
   historyOperations,
@@ -11,7 +13,8 @@ import {
   type PageKind,
   type SavedAnswer,
 } from "./page-write.js";
-import { asString } from "./question-kind.js";
+import { asString, readQuestionForWrite } from "./question-kind.js";
+import { copiedKeys, markPromoted, quoted } from "./research-question.js";
 import {
   bodyText,
   linkLine,
@@ -28,6 +31,7 @@ import {
   type Revision,
 } from "./position-history.js";
 import {
+  createFile,
   nextCriterionId,
   type Criterion,
   type Operation,
@@ -924,4 +928,103 @@ export async function deleteCriterion(
       after: read.criteria.filter((c) => c !== criterion),
     };
   });
+}
+
+/** Where promotion writes a Hypothesis (§ Vault layout). */
+const FOLDER = "hypotheses";
+
+/**
+ * The page promotion creates, whole (§ Vault layout (Hypothesis)): the
+ * page's own keys, the Question's Provenance and tags copied — not
+ * re-derived, so the Hypothesis still reads as something wondered on a
+ * particular day (PROM-5) — and the four headings, all written now so the
+ * page's later writes always find their section. The claim's first
+ * Revision has an empty `from:`: before promotion there was no claim, and
+ * the history says so rather than leaving its base to be inferred. Pure,
+ * so the file can be read off a table of cases.
+ */
+export function composeHypothesis(
+  question: Record<string, unknown>,
+  tags: string[],
+  page: { id: string; promotedFrom: string; promoted: string; claim: string }
+): string {
+  return [
+    "---",
+    `id: ${page.id}`,
+    `kind: ${KIND}`,
+    `promoted_from: ${quoted(page.promotedFrom)}`,
+    `promoted: ${page.promoted}`,
+    ...copiedKeys(question, tags),
+    "---",
+    "",
+    "## Claim",
+    "",
+    page.claim,
+    "",
+    "## Criteria",
+    "",
+    "## Design notes",
+    "",
+    "## Position history",
+    "",
+    formatRevision({ at: page.promoted, field: "claim", why: null, from: "" }),
+    "",
+  ].join("\n");
+}
+
+/**
+ * Promote an open Question to a Hypothesis (#331; ADR 0031 decision 9): the
+ * page written first and whole, named from the claim as typed, then the
+ * Question marked — or the page taken back (`markPromoted`). A name already
+ * taken refuses rather than taking ` (2)`: the claim is the name, and two
+ * Hypotheses claiming the same thing is something to decide, not to file.
+ * The caller serialises this with every other write that picks a name.
+ */
+export async function promoteToHypothesis(
+  vaultPath: string,
+  index: VaultIndex,
+  path: string,
+  typed: string,
+  /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
+  { promoted, newId }: { promoted: string; newId: () => string }
+): Promise<{ path: string }> {
+  const claim = typed.trim();
+  if (claim === "") {
+    throw new VaultError(
+      "refused",
+      "A Hypothesis needs a claim: type the statement to test."
+    );
+  }
+  const {
+    path: questionPath,
+    hash,
+    frontmatter: fm,
+    outline,
+  } = await readQuestionForWrite(vaultPath, path, ["open"]);
+
+  const id = newId();
+  const tags = outline.tags
+    .filter((t) => t.valid && t.source === "frontmatter")
+    .map((t) => t.text);
+  const content = composeHypothesis(fm, tags, {
+    id,
+    promotedFrom: `[[${basename(questionPath, ".md")}]]`,
+    promoted,
+    claim,
+  });
+  const pagePath = `${FOLDER}/${fileName(claim, id)}.md`;
+  const created = await createFile(vaultPath, pagePath, content);
+  if (!created.written) {
+    throw new VaultError(
+      created.reason === "alreadyExists" ? "refused" : "writeFailed",
+      created.reason === "alreadyExists"
+        ? `Couldn't write ${pagePath}: a file by that name is already in the vault`
+        : `Couldn't write ${pagePath}: ${created.detail}`
+    );
+  }
+
+  const marked = await markPromoted(vaultPath, questionPath, hash, pagePath);
+  await index.own(pagePath, created.content);
+  await index.own(questionPath, marked);
+  return { path: pagePath };
 }
