@@ -3,7 +3,14 @@ import { z } from "zod";
 import type { Events } from "./events.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
-import { readHypothesisPage } from "./hypothesis.js";
+import {
+  FIELDS,
+  PAGE as HYPOTHESIS_PAGE,
+  readHypothesisPage,
+  saveHypothesisPosition,
+  type EditedField,
+} from "./hypothesis.js";
+import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
@@ -17,8 +24,8 @@ import {
   attachSource,
   detachSource,
   EDITED_SECTIONS,
-  explainRevision,
   moveSource,
+  PAGE as RESEARCH_QUESTION_PAGE,
   readResearchQuestionPage,
   reopenResearchQuestion,
   resolveResearchQuestion,
@@ -237,6 +244,48 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return refusing(readHypothesisPage(index, vault.path, input.path));
     }),
+    // The claim or the design notes, saved as the Working answer is (#333):
+    // the section replaced and its Revision recorded in one write, against
+    // the hash and the section's text the page read.
+    savePosition: t.procedure
+      .input(
+        pathInput.extend({
+          field: z.enum(Object.keys(FIELDS) as [EditedField, ...EditedField[]]),
+          text: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveHypothesisPosition(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    // A why onto any entry, as on a Research Question (#216).
+    explainRevision: t.procedure
+      .input(
+        pathInput.extend({
+          at: z.string().min(1),
+          /** The Revision's field: the timestamp names an entry only within its field. */
+          field: z.string().min(1),
+          why: z.string().trim().min(1, "The why is empty."),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          explainRevision(
+            await requirePage(ctx),
+            input.path,
+            HYPOTHESIS_PAGE,
+            input
+          )
+        )
+      ),
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the
@@ -364,6 +413,8 @@ export const router = t.router({
         pathInput.extend({
           /** The Revision's `at`, verbatim as the page read it. */
           at: z.string().min(1),
+          /** The Revision's field: the timestamp names an entry only within its field. */
+          field: z.string().min(1),
           // A line nobody wrote is a decline, which the page makes by not
           // calling: an empty why here is a caller's mistake, not a Revision
           // to strip the `why:` line from.
@@ -372,7 +423,14 @@ export const router = t.router({
         })
       )
       .mutation(async ({ ctx, input }) =>
-        refusing(explainRevision(await requirePage(ctx), input.path, input))
+        refusing(
+          explainRevision(
+            await requirePage(ctx),
+            input.path,
+            RESEARCH_QUESTION_PAGE,
+            input
+          )
+        )
       ),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries

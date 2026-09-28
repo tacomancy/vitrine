@@ -8,6 +8,7 @@ import type {
 import { formatAge } from "./age";
 import styles from "./Hypothesis.module.css";
 import { FrameLines, usePageFrame } from "./page-frame";
+import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
 import {
   describeProblem,
@@ -20,15 +21,18 @@ import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
+import { WhyLine } from "./WhyLine";
 import { linkLabel } from "./wikilink";
 
 /**
  * The Hypothesis view (brief § Testing: Hypothesis and Experiment; prompt 4;
- * ADR 0031), at `#/hypothesis/<path>` (ADR 0026). Read-only in this first
- * slice (#330): the claim and where it was first wondered, the Derived state
- * with the rule that computed it printed beside it, the criteria as read —
- * falsifying ones in their own band above the rest — then design notes and
- * the Position history as found. There is no status control anywhere on the
+ * ADR 0031), at `#/hypothesis/<path>` (ADR 0026): where the claim was
+ * first wondered, the claim itself, the Derived state with the rule that
+ * computed it printed beside it, the criteria as read — falsifying ones in
+ * their own band above the rest — then design notes and the Position
+ * history. The claim and design notes are Positions edited in place like a
+ * Working answer (#333, `PositionField.tsx`), each save a Revision in the
+ * one timeline below. There is no status control anywhere on the
  * page: the state is the core's function of the criteria, and a control
  * would make it a label someone chose (spec #327 story 36).
  *
@@ -68,11 +72,28 @@ export function Hypothesis({ path }: { path: string }) {
       {readable !== null && (
         <div className={rq.scroll}>
           <Header
-            path={readable.path}
-            claim={readable.sections.claim.text}
             frontmatter={readable.frontmatter}
             entries={readable.sections.positionHistory.entries}
           />
+          {/* The claim in the serif, as the page's lead — and a text field,
+              because sharpening it must be as fast as editing text (spec
+              #327 story 16). Its Revisions are the header's count. */}
+          <Section name="Claim" present={readable.sections.claim.present}>
+            <PositionField
+              position={{ kind: "hypothesis", field: "claim" }}
+              path={readable.path}
+              hash={readable.hash}
+              text={readable.sections.claim.text}
+              labelledBy="rq-claim"
+              className={styles.claim}
+              empty={
+                <Outline>
+                  No claim written. A falsifiable statement goes here — one the
+                  criteria below could show false.
+                </Outline>
+              }
+            />
+          </Section>
           <State derivation={readable.derivation} />
           <Section name="Criteria" present={readable.sections.criteria.present}>
             <Criteria criteria={readable.sections.criteria.criteria} />
@@ -81,16 +102,19 @@ export function Hypothesis({ path }: { path: string }) {
             name="Design notes"
             present={readable.sections.designNotes.present}
           >
-            {readable.sections.designNotes.text === "" ? (
-              <Outline>
-                Nothing yet. What is varied, what is held constant, and the
-                confounds you know about — a paragraph, not a form.
-              </Outline>
-            ) : (
-              <p className={styles.prose}>
-                {readable.sections.designNotes.text}
-              </p>
-            )}
+            <PositionField
+              position={{ kind: "hypothesis", field: "design notes" }}
+              path={readable.path}
+              hash={readable.hash}
+              text={readable.sections.designNotes.text}
+              labelledBy="rq-design-notes"
+              empty={
+                <Outline>
+                  Nothing yet. What is varied, what is held constant, and the
+                  confounds you know about — a paragraph, not a form.
+                </Outline>
+              }
+            />
           </Section>
           <Section
             name="Position history"
@@ -102,6 +126,19 @@ export function Hypothesis({ path }: { path: string }) {
                 claim: readable.sections.claim.text,
                 "design notes": readable.sections.designNotes.text,
               }}
+              // A why onto any entry, months later (spec #327 story 54): the
+              // page's own hash, because no save of the page's stands
+              // between the read and this write.
+              whyLine={({ at, field }, close) => (
+                <WhyLine
+                  kind="hypothesis"
+                  path={readable.path}
+                  at={at}
+                  field={field}
+                  basedOn={readable.hash}
+                  onClose={close}
+                />
+              )}
             />
             <p className={rq.baseLine}>{baseLine(readable.frontmatter)}</p>
           </Section>
@@ -121,20 +158,15 @@ export function Hypothesis({ path }: { path: string }) {
   );
 }
 
-/** The claim in the serif, where it was first wondered, and how settled it is. */
+/** Where the claim was first wondered, and how settled it is. */
 function Header({
-  path,
-  claim,
   frontmatter,
   entries,
 }: {
-  path: string;
-  claim: string;
   frontmatter: HypothesisFrontmatter;
   entries: Revision[];
 }) {
   const now = new Date();
-  const revisions = entries.filter((e) => e.field === "claim").length;
   return (
     <header className={rq.header}>
       <div className={rq.kicker}>
@@ -142,22 +174,26 @@ function Header({
         {frontmatter.promoted !== undefined && (
           <span>promoted {formatAge(frontmatter.promoted, now)}</span>
         )}
-        <span>
-          {revisions === 0
-            ? "no claim revisions yet"
-            : `claim revision ${revisions} of ${revisions}`}
-        </span>
+        <span>{claimRevisions(entries)}</span>
       </div>
-      {/* A file whose claim is empty, or whose heading was retyped, is still
-          named — by its file, which is what Obsidian calls it too. */}
-      <h1 className={rq.question}>{claim === "" ? nameOf(path) : claim}</h1>
       <p className={rq.provenance}>{provenance(frontmatter)}</p>
     </header>
   );
 }
 
-const nameOf = (path: string) =>
-  (path.split("/").pop() ?? path).replace(/\.md$/, "");
+/**
+ * `claim revision 3 of 3 · held since 2 August 2026`, derived from the
+ * history (spec #327 story 19), as the Research Question's header derives
+ * its answer's: the claim on the page is always the latest revision, held
+ * since the newest `claim` entry recorded it. Design-note and criterion
+ * entries share the timeline but are not the claim moving.
+ */
+function claimRevisions(entries: Revision[]): string {
+  const ofClaim = entries.filter((e) => e.field === "claim");
+  const newest = ofClaim[0];
+  if (newest === undefined) return "no claim revisions yet";
+  return `claim revision ${ofClaim.length} of ${ofClaim.length} · held since ${localDate(newest.at)}`;
+}
 
 /**
  * A Hypothesis promoted from a capture carries its Provenance; one written

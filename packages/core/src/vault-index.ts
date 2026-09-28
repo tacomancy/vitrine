@@ -35,9 +35,10 @@ import {
  * a Kind derives into them: an index carrying another number is deleted and
  * rebuilt, which is the migration path — there is no other (ADR 0014
  * decision 10). 3: the Research Question's Position rows (#209). 4: the
- * Display name columns the Global command matches on (#301).
+ * Display name columns the Global command matches on (#301). 5: the
+ * Hypothesis's Position rows (#333).
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;

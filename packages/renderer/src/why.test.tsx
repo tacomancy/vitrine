@@ -171,6 +171,7 @@ describe("⌥↵ in the working answer", () => {
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: RECORDED,
+        field: "working answer",
         why: "Cordi's funnel plot — mostly small-study bias.",
         basedOn: "def",
       })
@@ -287,6 +288,7 @@ describe("[[ inside the why line", () => {
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: RECORDED,
+        field: "working answer",
         why: "Mostly small-study bias. [[sources/cordi2021]]",
         basedOn: "def",
       })
@@ -357,6 +359,7 @@ describe("+ why on a past Revision", () => {
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: "2026-06-20T10:00:00+02:00",
+        field: "working answer",
         why: "The power calculation, run myself.",
         basedOn: "abc",
       })

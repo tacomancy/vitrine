@@ -754,7 +754,13 @@ describe("researchQuestions.explainRevision", () => {
     const explain = async (revision: string, why: string, basedOn?: string) => {
       const reply = await c.mutate<Written>(
         "researchQuestions.explainRevision",
-        { path, at: revision, why, basedOn: basedOn ?? (await page()).hash }
+        {
+          path,
+          at: revision,
+          field: "working answer",
+          why,
+          basedOn: basedOn ?? (await page()).hash,
+        }
       );
       expect(reply.error).toBeUndefined();
       return reply.result?.data as Written;
@@ -827,6 +833,7 @@ describe("researchQuestions.explainRevision", () => {
     const reply = await c.mutate<Written>("researchQuestions.explainRevision", {
       path: page,
       at: "2026-09-21T09:00:00+02:00",
+      field: "working answer",
       why: "Ran the power calculation myself. [[cordi2021]]",
       basedOn: read.hash,
     });
@@ -850,7 +857,7 @@ describe("researchQuestions.explainRevision", () => {
       written: false,
       reason: "changedAndUnreapplyable",
       detail:
-        "no revision in ## Position history is stamped 2019-01-01T00:00:00+02:00",
+        "no working answer revision in ## Position history is stamped 2019-01-01T00:00:00+02:00",
     });
     expect(await file()).toBe(before);
   });

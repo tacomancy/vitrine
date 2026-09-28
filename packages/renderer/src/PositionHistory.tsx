@@ -35,11 +35,11 @@ export function PositionHistory({
    * (#216; story 36). Omitted — a history rendered where nothing can be
    * written — and no *+ why* is offered at all.
    */
-  whyLine?: (at: string, close: () => void) => ReactNode;
+  whyLine?: (revision: Revision, close: () => void) => ReactNode;
 }) {
   const [explainedOnly, setExplainedOnly] = useState(false);
-  // Which entry has its line open, by timestamp — one at a time, because a
-  // why is a sentence and not a form to fill in.
+  // Which entry has its line open, by timestamp and field (`idOf`) — one at
+  // a time, because a why is a sentence and not a form to fill in.
   const [explaining, setExplaining] = useState<string | null>(null);
   // Nothing to filter and no trail to draw: the base line the caller puts
   // under this says where the page came from, and that is the whole history.
@@ -58,7 +58,7 @@ export function PositionHistory({
       ? undefined
       : {
           open: explaining,
-          toggle: (at) => setExplaining(explaining === at ? null : at),
+          toggle: (id) => setExplaining(explaining === id ? null : id),
           close: () => setExplaining(null),
           line: whyLine,
         };
@@ -112,12 +112,12 @@ const keyOf = (row: HistoryRow) =>
  * together — and absent together, on a history that cannot be written to.
  */
 type Explaining = {
-  /** The entry whose line is open, by timestamp; null when none is. */
+  /** The entry whose line is open, by `idOf` — timestamp and field; null when none is. */
   open: string | null;
   /** What *+ why* does: open this entry's line, or close the one it has. */
-  toggle: (at: string) => void;
+  toggle: (id: string) => void;
   close: () => void;
-  line: (at: string, close: () => void) => ReactNode;
+  line: (revision: Revision, close: () => void) => ReactNode;
 };
 
 function Row({
@@ -198,16 +198,16 @@ function Quiet({
                     <button
                       type="button"
                       className={styles.addWhy}
-                      aria-expanded={explaining.open === revision.at}
-                      onClick={() => explaining.toggle(revision.at)}
+                      aria-expanded={explaining.open === idOf(revision)}
+                      onClick={() => explaining.toggle(idOf(revision))}
                     >
                       + why
                     </button>
                   )}
                 </div>
                 <From from={revision.from} />
-                {explaining?.open === revision.at &&
-                  explaining.line(revision.at, explaining.close)}
+                {explaining?.open === idOf(revision) &&
+                  explaining.line(revision, explaining.close)}
               </li>
             ))}
           </ul>

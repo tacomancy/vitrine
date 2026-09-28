@@ -28,8 +28,10 @@ export function useCoreEvents(): Set<Listener> {
         if (event.type === "vaultChanged") {
           for (const listen of listeners.current) listen(event);
           // Everything read from the index (spec #177 § Renderer), and the
-          // page, which reads its file beside it; the tag tree and outlines
-          // have no consumer yet, but the rule is one.
+          // pages, which read their files beside it — an Obsidian edit to a
+          // claim is on the page within the settle window (spec #327 story
+          // 86); the tag tree and outlines have no consumer yet, but the
+          // rule is one.
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.tags.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.kinds.pathFilter());
@@ -37,6 +39,7 @@ export function useCoreEvents(): Set<Listener> {
           void queryClient.invalidateQueries(
             trpc.researchQuestions.page.pathFilter()
           );
+          void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
