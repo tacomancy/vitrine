@@ -11,7 +11,6 @@ import type {
   WriteResult,
 } from "core";
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -20,11 +19,10 @@ import {
 } from "react";
 import { formatAge } from "./age";
 import { AttachSource } from "./AttachSource";
-import { useVaultChanged } from "./events";
+import { FrameLines, usePageFrame } from "./page-frame";
 import { addressOf } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
 import styles from "./ResearchQuestion.module.css";
-import { hashOf, replaceRoute } from "./router";
 import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -58,34 +56,13 @@ export function ResearchQuestion({
   const page = useQuery(trpc.researchQuestions.page.queryOptions({ path }));
   const status = useVaultStatusLines();
 
-  // The surface the object landed in takes the keyboard (ADR 0010): a
-  // promotion from the Inbox arrives here, and the page is what should
-  // answer the next key, not the list that is gone. The section is the
-  // focus target until a field on it is, and it wears the brass ring like
-  // the list does; the window mounts the page afresh per address, so every
-  // arrival takes it.
-  const sectionRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    sectionRef.current?.focus();
-  }, []);
-
-  // The page follows its file as the Inbox's selection does (§ Index, Inbox
-  // under external change): a rename moves the address so the re-read lands
-  // on `to`; a removal is an absence line, not a stale page and not an alarm.
-  // The window mounts the page with `key={path}`, so a new address starts
-  // with no absence remembered.
-  const [removed, setRemoved] = useState<string | null>(null);
-  useVaultChanged(
-    useCallback(
-      ({ changed, renamed, removed: gone }) => {
-        if (gone.includes(path)) setRemoved(path);
-        // The file came back (an undo, a sync flap): the re-read shows it.
-        else if (changed.includes(path)) setRemoved(null);
-        const move = renamed.find(({ from }) => from === path);
-        if (move) replaceRoute({ surface: "research-question", path: move.to });
-      },
-      [path]
-    )
+  const data = page.data;
+  // Arrival, focus, following the file, and the Address that did not
+  // resolve: the frame every Kind's page shares (`page-frame.tsx`).
+  const { sectionRef, removed, resolved } = usePageFrame(
+    "research-question",
+    path,
+    data
   );
 
   // The attach form, opened by ⌘⇧A from any focus on the page (prompt 3).
@@ -98,34 +75,6 @@ export function ResearchQuestion({
     if (attachOnArrival) onArrival?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
   }, []);
-
-  const data = page.data;
-
-  // Whether this Address resolved: what the *first* answer said, kept because
-  // everything below turns on arrival versus afterwards. Recorded during
-  // render so no paint happens between the answer and what it decides, and
-  // the page is mounted afresh per Address (`key={path}` in `App`), so this is
-  // the one arrival it belongs to.
-  const [resolved, setResolved] = useState<boolean | null>(null);
-  if (resolved === null && data !== undefined) setResolved(data.readable);
-
-  // An Address the router accepted but the vault cannot answer for does not
-  // resolve, so the window leaves rather than sitting on a page with nothing
-  // on it: it lands on the Inbox naming the Address and what came back (ADR
-  // 0027 decision 7; #299). Replaced, not pushed — back must not return to an
-  // Address that named nothing. Arrival only: a page that stops being readable
-  // *under* the reader is the absence line below, not a jump out from under
-  // them, and a re-read while a rename settles must not move the window.
-  useEffect(() => {
-    if (resolved !== false || data?.readable !== false) return;
-    replaceRoute({
-      surface: "inbox",
-      unresolved: {
-        address: hashOf({ surface: "research-question", path }),
-        reason: data.reason,
-      },
-    });
-  }, [resolved, data, path]);
 
   const readable = removed === null && data?.readable === true ? data : null;
   const problems = readable?.problems ?? [];
@@ -149,24 +98,12 @@ export function ResearchQuestion({
         }
       }}
     >
-      {/* A refused read is a failure, not an absence: it must not read as a quiet page. */}
-      {page.isError && (
-        <p className={styles.refused} role="alert">
-          {page.error.message}
-        </p>
-      )}
-      {removed !== null && (
-        <p className={styles.absent}>{removed} — removed from the vault</p>
-      )}
-      {/* The page stopped being readable under the reader — its `kind:` edited
-          elsewhere, its permissions changed — rather than on the way in: it
-          resolved, and then it did not. The reader is standing here, so the
-          reason belongs here rather than on the Inbox they did not ask for. */}
-      {removed === null && resolved === true && data?.readable === false && (
-        <p className={styles.absent}>
-          {data.path} — {data.reason}
-        </p>
-      )}
+      <FrameLines
+        error={page.isError ? page.error : null}
+        removed={removed}
+        resolved={resolved}
+        data={data}
+      />
       {readable !== null && (
         <div className={styles.scroll}>
           <Header

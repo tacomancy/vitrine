@@ -160,6 +160,9 @@ describe("the freshly promoted page", () => {
     expect(state.textContent).toContain("inconclusive");
     expect(state.textContent).toContain("nothing has been tested yet");
     expect(state.textContent).toContain("diagnostic criteria never decide");
+    // ADR 0031 decision 1's last condition: without it an all-diagnostic
+    // page would read, against the printed rule, as supported.
+    expect(state.textContent).toContain("at least one of either → supported");
     expect(state.textContent).toContain(
       "any falsifying criterion met → falsified"
     );

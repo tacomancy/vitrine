@@ -5,10 +5,9 @@ import type {
   HypothesisFrontmatter,
   Revision,
 } from "core";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { formatAge } from "./age";
-import { useVaultChanged } from "./events";
 import styles from "./Hypothesis.module.css";
+import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionHistory } from "./PositionHistory";
 import {
   describeProblem,
@@ -18,7 +17,6 @@ import {
   Section,
 } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
-import { hashOf, replaceRoute } from "./router";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -35,51 +33,20 @@ import { linkLabel } from "./wikilink";
  * would make it a label someone chose (spec #327 story 36).
  *
  * The frame — the page read's lines, the rename and removal handling, the
- * arrival that did not resolve — is the Research Question view's, because
- * the page must behave under external change exactly as that one does.
+ * arrival that did not resolve — is `page-frame.tsx`, shared with the
+ * Research Question view, so the two behave alike under external change.
  */
 export function Hypothesis({ path }: { path: string }) {
   const trpc = useTRPC();
   const page = useQuery(trpc.hypotheses.page.queryOptions({ path }));
   const status = useVaultStatusLines();
 
-  // The surface the object landed in takes the keyboard (ADR 0010).
-  const sectionRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    sectionRef.current?.focus();
-  }, []);
-
-  // A rename moves the Address with the file; a removal is an absence line.
-  const [removed, setRemoved] = useState<string | null>(null);
-  useVaultChanged(
-    useCallback(
-      ({ changed, renamed, removed: gone }) => {
-        if (gone.includes(path)) setRemoved(path);
-        else if (changed.includes(path)) setRemoved(null);
-        const move = renamed.find(({ from }) => from === path);
-        if (move) replaceRoute({ surface: "hypothesis", path: move.to });
-      },
-      [path]
-    )
-  );
-
   const data = page.data;
-  // What the first answer said decides arrival versus afterwards, as on the
-  // Research Question view (#299): an Address that never resolved lands on
-  // the Inbox naming itself; one that stops resolving under the reader says
-  // so here.
-  const [resolved, setResolved] = useState<boolean | null>(null);
-  if (resolved === null && data !== undefined) setResolved(data.readable);
-  useEffect(() => {
-    if (resolved !== false || data?.readable !== false) return;
-    replaceRoute({
-      surface: "inbox",
-      unresolved: {
-        address: hashOf({ surface: "hypothesis", path }),
-        reason: data.reason,
-      },
-    });
-  }, [resolved, data, path]);
+  const { sectionRef, removed, resolved } = usePageFrame(
+    "hypothesis",
+    path,
+    data
+  );
 
   const readable = removed === null && data?.readable === true ? data : null;
   const problems = readable?.problems ?? [];
@@ -92,19 +59,12 @@ export function Hypothesis({ path }: { path: string }) {
       aria-label="Hypothesis view"
       tabIndex={-1}
     >
-      {page.isError && (
-        <p className={rq.refused} role="alert">
-          {page.error.message}
-        </p>
-      )}
-      {removed !== null && (
-        <p className={rq.absent}>{removed} — removed from the vault</p>
-      )}
-      {removed === null && resolved === true && data?.readable === false && (
-        <p className={rq.absent}>
-          {data.path} — {data.reason}
-        </p>
-      )}
+      <FrameLines
+        error={page.isError ? page.error : null}
+        removed={removed}
+        resolved={resolved}
+        data={data}
+      />
       {readable !== null && (
         <div className={rq.scroll}>
           <Header
@@ -244,8 +204,8 @@ function State({ derivation }: { derivation: Derivation }) {
       <ul className={styles.rule} aria-label="The rule">
         <li>any falsifying criterion met → falsified</li>
         <li>
-          every confirming criterion met and every falsifying one not met →
-          supported
+          every confirming criterion met, every falsifying one not met, and at
+          least one of either → supported
         </li>
         <li>otherwise → inconclusive</li>
         <li>diagnostic criteria never decide</li>
