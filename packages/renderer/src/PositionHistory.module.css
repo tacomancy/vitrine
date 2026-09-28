@@ -127,6 +127,23 @@
   color: var(--color-fg);
 }
 
+/* And prototype 05's rail type: in the rail an entry is set in the sans at
+   the rail's size rather than the page's serif — a revision set at page
+   size beside a 300px rail is what left it a few words a line. The
+   revision is secondary, as the prototype draws it; the why, which the
+   prototype's rail has no counterpart for, keeps its colour and its
+   accent rule, since it is what the entry is for. */
+.rail .position,
+.rail .why {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+}
+
+.rail .position {
+  color: var(--color-fg-secondary);
+}
+
 .link {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -164,6 +181,17 @@
 .trail:focus-visible {
   color: var(--color-fg);
   outline: none;
+}
+
+/* The prototype's rail sets a quiet run's line in the sans, muted. */
+.rail .trail {
+  font-family: var(--font-sans);
+  color: var(--color-fg-muted);
+}
+
+.rail .trail:hover,
+.rail .trail:focus-visible {
+  color: var(--color-fg);
 }
 
 .rule {
