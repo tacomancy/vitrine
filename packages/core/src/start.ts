@@ -24,7 +24,10 @@ const DEFAULT_APP_SUPPORT_DIR = join(
 );
 
 // A core with no host — started by hand, or later the iPad's — has no chooser.
-const NO_HOST: Host = { pickFolder: () => Promise.resolve(null) };
+const NO_HOST: Host = {
+  pickFolder: () => Promise.resolve(null),
+  reveal: () => {},
+};
 
 const CSP = "default-src 'self'; img-src 'self' data:";
 

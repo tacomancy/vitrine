@@ -96,6 +96,8 @@ describe("the window with a vault open", () => {
     ]);
     const links = screen.getAllByRole("link");
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      // The gear on the vault's name, first in the rail (prototype 13).
+      ["⚙", "#/settings"],
       ["Question Inbox", "#/inbox"],
       ["Loose Ends", "#/loose-ends"],
     ]);

@@ -126,7 +126,7 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     const { vault, c, status, questions } = await opened({ watch: fs.watch });
     expect(await status()).toEqual({
       indexing: null,
-      watching: { ok: true },
+      watching: { ok: true, since: expect.any(String) as string },
       current: { ok: true },
     });
     const stream = await c.events();
@@ -144,7 +144,10 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     stream.close();
 
     expect(fs.made.length).toBeGreaterThan(before);
-    expect((await status()).watching).toEqual({ ok: true });
+    expect((await status()).watching).toEqual({
+      ok: true,
+      since: expect.any(String) as string,
+    });
     expect(await questions()).toEqual(["During the outage"]);
   });
 
@@ -214,13 +217,16 @@ describe("a watcher that fails is reopened and the vault swept", () => {
     fs.refuseNext(null);
     const reply = await c.mutate<void>("vault.rewatch");
     expect(reply.error).toBeUndefined();
-    expect((await status()).watching).toEqual({ ok: true });
+    expect((await status()).watching).toEqual({
+      ok: true,
+      since: expect.any(String) as string,
+    });
     await c.indexed();
     stream.close();
 
     expect(await status()).toEqual({
       indexing: null,
-      watching: { ok: true },
+      watching: { ok: true, since: expect.any(String) as string },
       current: { ok: true },
     });
     expect(await questions()).toEqual(["Meanwhile"]);

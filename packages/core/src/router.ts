@@ -191,6 +191,12 @@ export const router = t.router({
       await requireVault(ctx);
       await ctx.vault.rewatch();
     }),
+    // Settings' *Reveal in Finder* (#376). Takes no path: what can be shown
+    // is decided here, so the window cannot ask Finder about anything else.
+    reveal: t.procedure.mutation(async ({ ctx }) => {
+      await requireVault(ctx);
+      await ctx.vault.reveal();
+    }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
       return tagTree(index);

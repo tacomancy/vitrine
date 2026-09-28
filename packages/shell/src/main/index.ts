@@ -11,6 +11,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  shell,
   utilityProcess,
   type UtilityProcess,
 } from "electron";
@@ -84,6 +85,9 @@ function spawnCore(): Promise<Session> {
             reply({ type: "pickedFolder", id: message.id, path })
           );
           break;
+        case "reveal":
+          shell.showItemInFolder(message.path);
+          break;
       }
     });
     core.on("exit", (code) => {
@@ -127,9 +131,38 @@ async function openVaultFromMenu(client: CoreClient) {
   }
 }
 
+/**
+ * App ▸ Settings… (⌘,; ADR 0025 decision 5). The shell cannot tell First run
+ * from a vault on screen, so it only says the item was chosen; the window
+ * decides, and listens only while a vault is open (`Settings.tsx`). The
+ * preload turns this into the page event the renderer's own ⌘, uses.
+ */
+function openSettingsFromMenu() {
+  frontWindow()?.webContents.send("vitrine:settings");
+}
+
 function installMenu(client: CoreClient) {
   const menu = Menu.buildFromTemplate([
-    { role: "appMenu" },
+    {
+      role: "appMenu",
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        {
+          label: "Settings…",
+          accelerator: "CmdOrCtrl+,",
+          click: openSettingsFromMenu,
+        },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
     {
       label: "File",
       submenu: [

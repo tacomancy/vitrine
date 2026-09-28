@@ -11,6 +11,7 @@ import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ResearchQuestion } from "./ResearchQuestion";
 import { pushRoute, useRoute } from "./router";
+import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 import { useTRPC } from "./trpc";
@@ -81,7 +82,7 @@ export function App() {
       <div className={styles.window}>
         <TitleBar title={vault.data.name} />
         <div className={styles.panes}>
-          <Sidebar route={route} />
+          <Sidebar route={route} vault={vault.data} />
           {route.surface === "inbox" && (
             <Inbox
               landed={landed}
@@ -101,6 +102,7 @@ export function App() {
           {route.surface === "hypothesis" && (
             <Hypothesis key={route.path} path={route.path} />
           )}
+          {route.surface === "settings" && <Settings vault={vault.data} />}
           {route.surface === "loose-ends" && (
             <LooseEnds
               onAttach={(path) => {
@@ -113,7 +115,9 @@ export function App() {
         <CaptureLine provenance={provenance} onCaptured={onCaptured} />
         {/* Both chords are mounted here and nowhere else, so neither is
             live before a vault is open, and both are handed the same
-            Provenance and the same landing (ADR 0027 decision 1). */}
+            Provenance and the same landing (ADR 0027 decision 1). ⌘, is
+            here for the same reason: First run has one action. */}
+        <SettingsChord />
         <GlobalCommand
           route={route}
           provenance={provenance}
