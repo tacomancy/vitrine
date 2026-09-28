@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
+import { KIND as HYPOTHESIS, readHypothesisPage } from "./hypothesis.js";
 import { resolvesTo } from "./link-text.js";
 import { writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
@@ -44,6 +45,27 @@ export type StalledResearchQuestion = {
 };
 
 /**
+ * A Hypothesis committed to and gone quiet with criteria untested (#341;
+ * spec #327 stories 81–85; REP-9): it resurfaces as a commitment, so the
+ * row says how much of the test is still unrun, never that anything is
+ * overdue.
+ */
+export type StalledHypothesis = {
+  kind: "stalled-hypothesis";
+  subject: string;
+  /** Vault-relative: where the row's link goes. */
+  path: string;
+  /** The current claim (the Display name), not the claim it was promoted with. */
+  title: string;
+  /** Open days since it last changed — the unit the row is judged in, so the unit it is worded in. */
+  quietOpenDays: number;
+  /** How many criteria are written; none is its own reason to be here. */
+  criteria: number;
+  /** How many of them carry no Outcome. */
+  awaiting: number;
+};
+
+/**
  * A file holding a bare `[[name]]` that matches several files (CONTEXT.md
  * *Ambiguous link*): the link resolves to nothing, because picking the first
  * indexed would make the app quietly wrong about where a reader was pointing.
@@ -67,7 +89,8 @@ export type AmbiguousLinks = {
   links: Array<{ target: string; candidates: string[] }>;
 };
 
-export type LooseEndRow = StalledResearchQuestion | AmbiguousLinks;
+export type LooseEndRow =
+  StalledResearchQuestion | StalledHypothesis | AmbiguousLinks;
 
 export type LooseEndGroup = {
   group: LooseEndGroupName;
@@ -109,12 +132,18 @@ export async function looseEnds(
   { days, stalledOpenDays }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
-  const stalled = stalledResearchQuestions(index, days, stalledOpenDays);
+  const questions = stalledResearchQuestions(index, days, stalledOpenDays);
+  const hypotheses = await stalledHypotheses(
+    index,
+    vaultPath,
+    days,
+    stalledOpenDays
+  );
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [],
     "Unfinished reading": [],
     "Disconnected material": ambiguousLinks(index),
-    "Stalled questions": stalled.rows,
+    "Stalled questions": [...questions.rows, ...hypotheses.rows],
   };
   return {
     // The dismissal is applied here rather than inside each row query, so a
@@ -126,7 +155,11 @@ export async function looseEnds(
       );
       return rows.length === 0 ? [] : [{ group, rows }];
     }),
-    problems: [...(problem === null ? [] : [problem]), ...stalled.problems],
+    problems: [
+      ...(problem === null ? [] : [problem]),
+      ...questions.problems,
+      ...hypotheses.problems,
+    ],
   };
 }
 
@@ -270,6 +303,80 @@ function stalledResearchQuestions(
       path: row.path,
       title: page.question,
       since: page.promoted,
+    });
+  }
+  return { rows, problems };
+}
+
+/**
+ * Hypotheses left inconclusive with part of the test unrun (#341; spec
+ * #327 stories 81–85). Each is judged by the page's own read — the
+ * derivation, the Override, and whether the loop is closed are all the
+ * page's, and a second reading of any of them here could list a Hypothesis
+ * the page shows as finished.
+ *
+ * What is selected, and why:
+ * - **effective state inconclusive** — supported or falsified is a result,
+ *   and a live Override is a considered call, not neglect;
+ * - **loop not closed** — a result already written back has been acted on;
+ * - **a criterion awaiting evidence, or none written** — *tested and
+ *   undecided* is an answer (ADR 0031 decision 8), so a page whose every
+ *   criterion carries an Outcome has nothing left to run.
+ *
+ * Quiet is counted from the newest Position history entry — every change
+ * to the claim or a criterion writes one — or `promoted` when there is
+ * none, in open days, with the stalled Research Question's threshold.
+ */
+async function stalledHypotheses(
+  index: VaultIndex,
+  vaultPath: string,
+  days: OpenDays,
+  stalledOpenDays: number
+): Promise<{ rows: StalledHypothesis[]; problems: string[] }> {
+  const rows: StalledHypothesis[] = [];
+  const problems: string[] = [];
+  for (const file of index.select<{
+    path: string;
+    id: string | null;
+    display: string;
+  }>(
+    "SELECT path, id, display FROM files WHERE kind = ? ORDER BY path",
+    HYPOTHESIS
+  )) {
+    const page = await readHypothesisPage(index, vaultPath, file.path);
+    if (!page.readable) {
+      problems.push(`${file.path} could not be read: ${page.reason}`);
+      continue;
+    }
+    const { derivation, loop, sections, frontmatter } = page;
+    const { awaiting } = derivation.census;
+    const criteria = sections.criteria.criteria.length;
+    if (derivation.effective !== "inconclusive") continue;
+    if (loop.status === "closed") continue;
+    if (criteria > 0 && awaiting === 0) continue;
+    // Days compare as written (`writtenDay`), as `promoted` does for the
+    // Research Question — and since each is `YYYY-MM-DD`, the string sort
+    // is the calendar's. An entry or key with no date to read is no
+    // evidence of when it last moved.
+    const last = [
+      ...sections.positionHistory.entries.map((e) => e.at),
+      ...(frontmatter.promoted === undefined ? [] : [frontmatter.promoted]),
+    ]
+      .map(writtenDay)
+      .filter((day): day is string => day !== null)
+      .sort()
+      .at(-1);
+    if (last === undefined) continue;
+    const quietOpenDays = days.since(last);
+    if (quietOpenDays < stalledOpenDays) continue;
+    rows.push({
+      kind: "stalled-hypothesis",
+      subject: file.id ?? file.path,
+      path: file.path,
+      title: file.display,
+      quietOpenDays,
+      criteria,
+      awaiting,
     });
   }
   return { rows, problems };

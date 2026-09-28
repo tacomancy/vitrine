@@ -576,3 +576,98 @@ describe("the ambiguous link row", () => {
     ).toBeNull();
   });
 });
+
+// A Hypothesis gone quiet with criteria untested (#341; spec #327 stories
+// 81–85): named by its current claim, quiet counted in open days, and
+// resolved by *open* or *mark deliberate* with the shell's undo.
+describe("the stalled Hypothesis row", () => {
+  const HYPOTHESIS =
+    "hypotheses/The pooled effect is mostly small-study bias.md";
+  const quiet = (
+    more: Partial<{
+      quietOpenDays: number;
+      criteria: number;
+      awaiting: number;
+    }> = {}
+  ): LooseEnds => ({
+    problems: [],
+    groups: [
+      {
+        group: "Stalled questions",
+        rows: [
+          {
+            kind: "stalled-hypothesis",
+            subject: "hy00000001",
+            path: HYPOTHESIS,
+            title: "The pooled effect is mostly publication bias.",
+            quietOpenDays: 16,
+            criteria: 3,
+            awaiting: 2,
+            ...more,
+          },
+        ],
+      },
+    ],
+  });
+  const ADDRESS =
+    "#/hypothesis/hypotheses/The%20pooled%20effect%20is%20mostly%20small-study%20bias.md";
+
+  it("names the current claim as a link to the Hypothesis, how long it has been quiet in open days, and what is untested", async () => {
+    open({ "looseEnds.rows": quiet() });
+    const view = await dashboard();
+    const link = await within(view).findByRole("link", {
+      name: "The pooled effect is mostly publication bias.",
+    });
+    expect(link.getAttribute("href")).toBe(ADDRESS);
+    expect(view.textContent).toContain(
+      "hypothesis · inconclusive, quiet 16 open days"
+    );
+    expect(view.textContent).toContain("2 of 3 criteria awaiting evidence.");
+  });
+
+  it("says when no criteria are written at all, and a single open day in the singular", async () => {
+    open({
+      "looseEnds.rows": quiet({ quietOpenDays: 1, criteria: 0, awaiting: 0 }),
+    });
+    const view = await dashboard();
+    await within(view).findByText(/No criteria written yet\./);
+    expect(view.textContent).toContain("quiet 1 open day");
+    expect(view.textContent).not.toContain("1 open days");
+  });
+
+  it("opens the Hypothesis in one click", async () => {
+    open({ "looseEnds.rows": quiet() });
+    const view = await dashboard();
+    const openLink = await within(view).findByRole("link", { name: "open" });
+    expect(openLink.getAttribute("href")).toBe(ADDRESS);
+  });
+
+  it("is marked deliberate by its own row kind, with undo right after", async () => {
+    const dismiss = vi.fn<(input: unknown) => void>();
+    const undismiss = vi.fn<(input: unknown) => void>();
+    open({
+      "looseEnds.rows": quiet(),
+      "looseEnds.dismiss": (input: unknown) => {
+        dismiss(input);
+        return undefined;
+      },
+      "looseEnds.undismiss": (input: unknown) => {
+        undismiss(input);
+        return undefined;
+      },
+    });
+    const view = await dashboard();
+
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "mark deliberate" })
+    );
+    await within(view).findByText(MARKED);
+    const row = { subject: "hy00000001", kind: "stalled-hypothesis" };
+    expect(dismiss).toHaveBeenCalledWith(row);
+    expect(within(view).queryByRole("link", { name: "open" })).toBeNull();
+
+    fireEvent.click(within(view).getByRole("button", { name: "undo" }));
+    await within(view).findByText(/2 of 3 criteria awaiting evidence/);
+    expect(undismiss).toHaveBeenCalledWith(row);
+  });
+});
