@@ -72,6 +72,7 @@ const page = (
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
   },
   overridable: false,
+  related: { promotedFrom: null, questions: [] },
   loop: {
     status: "open",
     parent: {

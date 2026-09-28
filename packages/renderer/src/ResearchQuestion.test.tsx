@@ -1269,7 +1269,7 @@ describe("capturing from the page", () => {
     );
     expect(capture).toHaveBeenCalledExactlyOnceWith({
       text: "Does the effect survive a nap?",
-      provenance: { context: "pursuing", researchQuestion: PATH },
+      provenance: { context: "pursuing", page: PATH },
     });
     // Back where it was: the page is not where the Question landed as a row
     // (ADR 0010), so nothing on it takes the keyboard.
@@ -1616,6 +1616,7 @@ const hypothesis: HypothesisPage = {
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
   },
   overridable: false,
+  related: { promotedFrom: null, questions: [] },
   loop: {
     status: "open",
     parent: {

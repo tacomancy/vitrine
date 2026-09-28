@@ -855,7 +855,7 @@ describe("what ↵ writes", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toEqual({
       text: "Does the effect survive a nap?",
-      provenance: { context: "pursuing", researchQuestion: RQ_PATH },
+      provenance: { context: "pursuing", page: RQ_PATH },
     });
     expect(calls[0]).toEqual(calls[1]);
   });

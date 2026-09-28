@@ -92,6 +92,7 @@ const page = (
   },
   derivation: inconclusive,
   overridable: true,
+  related: { promotedFrom: null, questions: [] },
   loop: {
     status: "none",
     refusal:

@@ -58,6 +58,7 @@ const page = (loop: Loop): Readable => ({
   derivation: falsified,
   overridable: false,
   loop,
+  related: { promotedFrom: null, questions: [] },
   problems: [],
 });
 
