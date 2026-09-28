@@ -983,6 +983,42 @@ describe("looseEnds.rows — the ambiguous link", () => {
   });
 });
 
+describe("looseEnds.rows — Artifacts that share a name across Experiments", () => {
+  const run = (name: string, id: string) => `---
+id: ${id}
+kind: experiment
+name: "${name}"
+status: complete
+created: 2026-09-09T10:00:00+02:00
+tags: []
+---
+
+## Purpose
+
+## Design
+
+## Where it ran
+
+## Artifacts
+
+- ![[plot.png]] — the loss curve
+
+## Observations
+
+## Position history
+`;
+
+  it("raises no ambiguous link: each page's ![[plot.png]] is the one in its own folder (#366)", async () => {
+    const { c } = await opened({
+      "experiments/sweep-7/sweep-7.md": run("sweep-7", "ex7sweep07a"),
+      "experiments/sweep-7/plot.png": "png",
+      "experiments/sweep-8/sweep-8.md": run("sweep-8", "ex8sweep08a"),
+      "experiments/sweep-8/plot.png": "png",
+    });
+    expect(await rows(c)).toEqual({ groups: [], problems: [] });
+  });
+});
+
 describe("looseEnds.dismiss — a dismissal keyed by a path follows the file", () => {
   const DAY = "2026-09-21";
 
