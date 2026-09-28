@@ -117,6 +117,16 @@ const answerInput = z.object({
   line: z.string().trim().min(1, "The answer is empty."),
 });
 
+/**
+ * Promote to Hypothesis: the claim typed on the row. Not refused here when
+ * empty — the core refuses it, so the rule holds for every caller, not only
+ * the Inbox, whose line never sends one.
+ */
+const promoteToHypothesisInput = z.object({
+  path: z.string(),
+  claim: z.string(),
+});
+
 const noVault = () =>
   new TRPCError({ code: "PRECONDITION_FAILED", message: "No vault is open." });
 
@@ -574,6 +584,13 @@ export const router = t.router({
       .input(pathInput)
       .mutation(({ ctx, input }) =>
         refusing(ctx.questions.promote(input.path))
+      ),
+    // Promote to Hypothesis (#331): the typed claim names and fills the
+    // page, written whole; then the Question marked, or the page removed.
+    promoteToHypothesis: t.procedure
+      .input(promoteToHypothesisInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.questions.promoteToHypothesis(input.path, input.claim))
       ),
     // The last three triage keys (#212): each is one write through the
     // protocol, each refusal the typed error the formatter unpacks.

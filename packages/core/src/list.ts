@@ -50,14 +50,24 @@ export function listQuestions(
       path: absolute(path),
       ...(promotedTo === undefined
         ? {}
-        : { promotedTo: { link: promotedTo, path: pageOf(path, promotedTo) } }),
+        : { promotedTo: { link: promotedTo, ...pageOf(path, promotedTo) } }),
     })
   );
-  function pageOf(path: string, link: string): string | null {
+  // The page's Kind comes with it: a Question promoted to a Hypothesis
+  // points at a different surface than one promoted to a Research Question.
+  function pageOf(
+    path: string,
+    link: string
+  ): { path: string | null; kind: string | null } {
     const inner = /^\[\[(.*)\]\]$/.exec(link)?.[1];
-    if (inner === undefined) return null;
+    if (inner === undefined) return { path: null, kind: null };
     const { resolvedPath } = index.resolve(path, parseWikilink(inner));
-    return resolvedPath;
+    if (resolvedPath === null) return { path: null, kind: null };
+    const [file] = index.select<{ kind: string | null }>(
+      "SELECT kind FROM files WHERE path = ?",
+      resolvedPath
+    );
+    return { path: resolvedPath, kind: file?.kind ?? null };
   }
 
   const partial = index

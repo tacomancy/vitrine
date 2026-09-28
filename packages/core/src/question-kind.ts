@@ -21,9 +21,10 @@ export type ListedQuestion = Omit<QuestionFields, "promotedTo"> & {
    * On a promoted Question: the `promoted_to` link as written, and the
    * page it resolves to (vault-relative) — null when the index finds no
    * such file, so the row can say it points at nothing rather than link
-   * into the void.
+   * into the void — and that file's Kind, which says which surface it
+   * opens on.
    */
-  promotedTo?: { link: string; path: string | null };
+  promotedTo?: { link: string; path: string | null; kind: string | null };
 };
 
 /** A `kind: question` file missing what a row needs; shown by name and mtime. */

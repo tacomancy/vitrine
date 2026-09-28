@@ -70,14 +70,17 @@ export function Inbox({
   // the list itself, so closing it is all this has to do.
   const [linking, setLinking] = useState(false);
   if (linking && selected === null) setLinking(false);
-  // *Answer in place*: one line open on a row, holding the text until ↵
-  // writes it or esc discards it. A row at a time, and only the selected
-  // one, so the selection moving closes it.
-  const [answering, setAnswering] = useState<{
+  // One typed line open on a row, holding the text until ↵ writes it or
+  // esc discards it: *answer in place*'s line, and the claim a promotion to
+  // Hypothesis asks for — the one thing a question cannot supply by itself
+  // (ADR 0031 decision 9). A row at a time, and only the selected one, so
+  // the selection moving closes it.
+  const [typing, setTyping] = useState<{
     path: string;
     text: string;
+    line: TypedLine;
   } | null>(null);
-  if (answering !== null && answering.path !== selected) setAnswering(null);
+  if (typing !== null && typing.path !== selected) setTyping(null);
 
   // Promote to Research Question (#210): the core writes the page and marks
   // the Question; the window moves to the page, which takes the keyboard
@@ -88,6 +91,19 @@ export function Inbox({
       onSuccess: ({ path }) => {
         void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
         pushRoute({ surface: "research-question", path });
+      },
+      onError: (error, { path }) =>
+        setRefusal({ path, message: error.message }),
+    })
+  );
+
+  // Promote to Hypothesis (#331): the same landing as promotion to a
+  // Research Question, on the Hypothesis view.
+  const promoteToHypothesis = useMutation(
+    trpc.questions.promoteToHypothesis.mutationOptions({
+      onSuccess: ({ path }) => {
+        void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
+        pushRoute({ surface: "hypothesis", path });
       },
       onError: (error, { path }) =>
         setRefusal({ path, message: error.message }),
@@ -188,11 +204,11 @@ export function Inbox({
   useEffect(() => {
     if (resolved === true) listRef.current?.focus();
   }, [resolved]);
-  const answerRef = useRef<HTMLInputElement>(null);
-  const answeringPath = answering?.path ?? null;
+  const typingRef = useRef<HTMLInputElement>(null);
+  const typingKey = typing === null ? null : `${typing.line}:${typing.path}`;
   useEffect(() => {
-    if (answeringPath !== null) answerRef.current?.focus();
-  }, [answeringPath]);
+    if (typingKey !== null) typingRef.current?.focus();
+  }, [typingKey]);
 
   // Switching the sort re-queries; the old list stays until the new one lands
   // rather than flashing empty.
@@ -271,14 +287,12 @@ export function Inbox({
   }
 
   // j/k and the arrows move the selection; ↵ selects the first row when
-  // nothing is selected yet; p promotes, a answers in place, d drops, r
-  // reopens. The list is one tab stop. No key is reserved for promote to
-  // Hypothesis: it is absent, not disabled, until its destination exists
-  // (beat 3).
+  // nothing is selected yet; p promotes, h promotes to Hypothesis, a answers
+  // in place, d drops, r reopens. The list is one tab stop.
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
-    // The answer line is open and has the keyboard; its own keys reach it
+    // The typed line is open and has the keyboard; its own keys reach it
     // and bubble to here, where every one of them is text.
-    if (answering !== null) return;
+    if (typing !== null) return;
     if (rows.length === 0) return;
     const index = rows.findIndex((row) => row.path === selected);
     let next: number | null = null;
@@ -291,12 +305,20 @@ export function Inbox({
         promote.mutate({ path: row.path });
         return;
       }
+      case "h": {
+        const row = actionable("open");
+        if (row === null || promoteToHypothesis.isPending) return;
+        event.preventDefault();
+        setRefusal(null);
+        setTyping({ path: row.path, text: "", line: "hypothesis" });
+        return;
+      }
       case "a": {
         const row = actionable("open");
         if (row === null || answer.isPending) return;
         event.preventDefault();
         setRefusal(null);
-        setAnswering({ path: row.path, text: "" });
+        setTyping({ path: row.path, text: "", line: "answer" });
         return;
       }
       case "d": {
@@ -343,35 +365,45 @@ export function Inbox({
     setSelected(rows[next]?.path ?? null);
   }
 
-  /** ↵: the typed line, trimmed. A stray ↵ never answers with nothing. */
-  function submitAnswer() {
-    const line = answering?.text.trim() ?? "";
-    if (answering === null || line === "" || answer.isPending) return;
+  /**
+   * ↵: the typed line, trimmed. A stray ↵ never answers with nothing, and
+   * never writes a Hypothesis with no claim — the line stays open for one.
+   */
+  function submitTyped() {
+    const text = typing?.text.trim() ?? "";
+    if (typing === null || text === "") return;
     setRefusal(null);
+    if (typing.line === "hypothesis") {
+      // The window leaves for the page on success; a refusal keeps the
+      // typing where it is, as the capture line does.
+      if (promoteToHypothesis.isPending) return;
+      promoteToHypothesis.mutate({ path: typing.path, claim: text });
+      return;
+    }
+    if (answer.isPending) return;
     answer.mutate(
-      { path: answering.path, line },
+      { path: typing.path, line: text },
       {
         // The line closes only on a write that landed, and the list takes
-        // the keyboard back; a refusal keeps the typing where it is, as
-        // the capture line does.
+        // the keyboard back; a refusal keeps the typing where it is.
         onSuccess: () => {
-          setAnswering(null);
+          setTyping(null);
           listRef.current?.focus();
         },
       }
     );
   }
 
-  function onAnswerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onTypedKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      submitAnswer();
+      submitTyped();
     } else if (event.key === "Escape") {
       // esc discards the typing and writes nothing; the list takes the
       // keyboard back with the row still selected.
       event.preventDefault();
-      setAnswering(null);
+      setTyping(null);
       listRef.current?.focus();
     }
   }
@@ -481,32 +513,29 @@ export function Inbox({
                 </>
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
-              {answering?.path === row.path && (
+              {typing?.path === row.path && (
                 <form
                   className={styles.answer}
-                  aria-label="Answer in place"
+                  aria-label={LINES[typing.line].form}
                   onSubmit={(event) => {
                     event.preventDefault();
-                    submitAnswer();
+                    submitTyped();
                   }}
                 >
                   <input
-                    ref={answerRef}
+                    ref={typingRef}
                     className={styles.answerInput}
                     type="text"
-                    aria-label="Answer"
+                    aria-label={LINES[typing.line].input}
                     autoComplete="off"
-                    value={answering.text}
+                    value={typing.text}
                     onChange={(event) =>
-                      setAnswering({
-                        path: row.path,
-                        text: event.target.value,
-                      })
+                      setTyping({ ...typing, text: event.target.value })
                     }
-                    onKeyDown={onAnswerKeyDown}
+                    onKeyDown={onTypedKeyDown}
                   />
                   <span className={styles.answerHint}>
-                    ↵ answer · esc discards
+                    {LINES[typing.line].hint}
                   </span>
                 </form>
               )}
@@ -524,6 +553,7 @@ export function Inbox({
         <footer className={styles.footer}>
           <span className={styles.key}>j/k move</span>
           <span className={styles.key}>p promote</span>
+          <span className={styles.key}>h hypothesis</span>
           <span className={styles.key}>l link</span>
           <span className={styles.key}>a answer</span>
           <span className={styles.key}>d drop</span>
@@ -584,14 +614,32 @@ export function Inbox({
   );
 }
 
+/** What the row's typed line is for: an answer, or the claim of a Hypothesis. */
+type TypedLine = "answer" | "hypothesis";
+
+const LINES: Record<TypedLine, { form: string; input: string; hint: string }> =
+  {
+    answer: {
+      form: "Answer in place",
+      input: "Answer",
+      hint: "↵ answer · esc discards",
+    },
+    hypothesis: {
+      form: "Promote to Hypothesis",
+      input: "Claim",
+      hint: "↵ promote to hypothesis · esc discards",
+    },
+  };
+
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
 
 /**
  * The status word beside the Provenance on a row that has been triaged —
  * open is the default and its accent glyph says so. On a promoted row the
- * word is the link to its page; a page the index cannot find leaves the
- * word plain rather than a link into the void.
+ * word is the link to its page, on the surface the page's Kind opens on; a
+ * page the index cannot find leaves the word plain rather than a link into
+ * the void.
  */
 function StatusWord({ question }: { question: ListedQuestion }) {
   if (question.status === "open") return null;
@@ -605,7 +653,13 @@ function StatusWord({ question }: { question: ListedQuestion }) {
       ) : (
         <a
           className={styles.page}
-          href={hashOf({ surface: "research-question", path: page })}
+          href={hashOf({
+            surface:
+              question.promotedTo?.kind === "hypothesis"
+                ? "hypothesis"
+                : "research-question",
+            path: page,
+          })}
         >
           {label}
         </a>
