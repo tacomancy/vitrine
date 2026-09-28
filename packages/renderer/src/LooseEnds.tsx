@@ -6,11 +6,13 @@ import type {
   StalledResearchQuestion,
 } from "core";
 import { formatAge } from "./age";
+import { FirstSlot, voiceOf } from "./FirstSlot";
 import { useState, type ReactNode } from "react";
 import { addressOf, KIND } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
+import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
  * The Loose Ends dashboard (brief § Loose Ends; prompt 9): a punch list of
@@ -116,6 +118,7 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
     })
   );
 
+  const status = useVaultStatusLines();
   const groups = ends.data?.groups ?? [];
   const problems = ends.data?.problems ?? [];
   const now = new Date();
@@ -127,26 +130,27 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
           Loose Ends
         </h1>
       </div>
-      {ends.isError && (
-        <p className={styles.problem} role="alert">
-          {ends.error.message}
-        </p>
-      )}
-      {/* What the dashboard could not judge — a row the user silenced may
-          be here, or one that belongs here may be missing. A failure to
-          report, not one to swallow. */}
-      {problems.map((problem) => (
-        <p key={problem} className={styles.problem} role="alert">
-          <span className={styles.problemGlyph} aria-hidden="true">
-            !
-          </span>{" "}
-          {problem}
-        </p>
-      ))}
-      {groups.length === 0 && !ends.isPending && !ends.isError && (
-        <p className={styles.quiet}>
-          Nothing to tidy that the app can see yet.
-        </p>
+      {groups.length === 0 && (
+        <FirstSlot
+          voice={voiceOf({
+            // A problem is something the dashboard could not judge — a row
+            // that belongs here may be missing — so it forbids the claim.
+            incomplete: ends.isError || problems.length > 0,
+            answered: ends.data !== undefined,
+            read: status.read,
+          })}
+          // Prototype 12 kept *that the app can see*, which sets the limit of
+          // the claim, and dropped *yet*, which sounded like a promise.
+          claim="Nothing is loose that the app can see."
+        >
+          {/* Scope, not a checklist: the empty page still reads as the
+              maintenance surface rather than one that failed to render. */}
+          This page gathers what has come apart or gone quiet — Scouts that stop
+          returning, links and files that no longer land, sources acquired and
+          never opened, material wired to nothing, questions promoted and then
+          left alone. Each kind appears as its own group only when there is
+          something in it.
+        </FirstSlot>
       )}
       <div className={styles.scroll}>
         {groups.map(({ group, rows }) => {
@@ -202,6 +206,31 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
           );
         })}
       </div>
+      {/* The footer channel, drawn only when there is something to say
+          (prototype 12, 5a). Everything here is a state the app is in, not a
+          refusal of the user's act, so it is polite: `alert` is kept for a
+          row whose resolution was refused (ADR 0033). */}
+      {(status.hasLines || ends.isError || problems.length > 0) && (
+        <footer className={styles.footer}>
+          {status.lines}
+          {ends.isError && (
+            <span className={styles.footerLine} role="status">
+              <span className={styles.warning}>
+                <span aria-hidden="true">‖</span> not read
+              </span>{" "}
+              — {ends.error.message}
+            </span>
+          )}
+          {problems.map((problem) => (
+            <span key={problem} className={styles.footerLine} role="status">
+              <span className={styles.warning} aria-hidden="true">
+                ‖
+              </span>{" "}
+              {problem}
+            </span>
+          ))}
+        </footer>
+      )}
     </section>
   );
 }

@@ -18,6 +18,8 @@ const PATH = "questions/What would falsify the active systems account (RQ).md";
 // stays put, says what happened, and offers the way back. The dismissal is in
 // the vault from the click onward — the undo is for the moment after it, not
 // a history.
+const NOTHING_LOOSE = "Nothing is loose that the app can see.";
+
 const MARKED =
   /marked deliberate — permanently out of this list, still in the vault/;
 
@@ -141,10 +143,10 @@ describe("the Loose Ends dashboard", () => {
     expect(view.textContent).not.toMatch(/Unfinished reading/);
   });
 
-  it("says the vault is tidy once, without a cheerful zero state, when nothing is loose", async () => {
+  it("says nothing is loose once, without a cheerful zero state, when nothing is loose", async () => {
     open();
     const view = await dashboard();
-    await within(view).findByText(/Nothing to tidy/);
+    await within(view).findByText(NOTHING_LOOSE);
     expect(within(view).queryAllByRole("region")).toHaveLength(0);
     expect(view.textContent).not.toMatch(/\d/);
   });
@@ -359,7 +361,7 @@ describe("the Loose Ends dashboard", () => {
     await screen.findByRole("region", { name: "Research Question view" });
     fireEvent.click(screen.getByRole("link", { name: "Loose Ends" }));
 
-    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+    expect(await screen.findByText(NOTHING_LOOSE)).toBeDefined();
   });
 
   it("ends the undo where every other read of the dashboard does, when the vault changes", async () => {
@@ -388,10 +390,10 @@ describe("the Loose Ends dashboard", () => {
       renamed: [],
     });
 
-    expect(await screen.findByText(/Nothing to tidy/)).toBeDefined();
+    expect(await screen.findByText(NOTHING_LOOSE)).toBeDefined();
   });
 
-  it("says so when dismissals could not be read, rather than silently showing everything", async () => {
+  it("says so in the footer when dismissals could not be read, politely, rather than silently showing everything", async () => {
     open({
       "looseEnds.rows": {
         ...stalled(),
@@ -401,9 +403,14 @@ describe("the Loose Ends dashboard", () => {
       },
     });
     const view = await dashboard();
-    expect((await within(view).findByRole("alert")).textContent).toMatch(
+    // A state the app is in, not a refusal of the user's act (ADR 0033).
+    const footer = await within(view).findByRole("contentinfo");
+    expect(within(footer).getByRole("status").textContent).toMatch(
       /dismissals\.json/
     );
+    expect(screen.queryByRole("alert")).toBeNull();
+    // The rows are still drawn: the problem speaks beside them, not instead.
+    expect(within(view).getByText("1 item")).toBeDefined();
   });
 
   it("re-reads the rows when the vault changes", async () => {
