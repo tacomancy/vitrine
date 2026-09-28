@@ -39,8 +39,8 @@ export type {
   Loop,
   LoopParent,
   Related,
-  RelatedQuestion,
 } from "./hypothesis.js";
+export type { RelatedQuestion } from "./questions-naming.js";
 export type {
   Clause,
   Derivation,

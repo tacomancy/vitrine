@@ -50,6 +50,7 @@ const complete: Readable = {
   },
   cameFrom: null,
   evidence: [],
+  questions: [],
   problems: [],
 };
 

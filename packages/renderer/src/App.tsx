@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Provenance, Question, Vault } from "core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import styles from "./App.module.css";
-import { CaptureLine } from "./CaptureLine";
+import { CaptureLine, type CaptureLineHandle } from "./CaptureLine";
 import { Experiment, type WriteOnArrival } from "./Experiment";
 import { Experiments } from "./Experiments";
 import { useCoreEvents, VaultChangedListeners } from "./events";
@@ -86,20 +86,26 @@ function Workspace({ vault }: { vault: Vault }) {
       trpc.researchQuestions.page.pathFilter()
     );
     void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
+    // So does an Experiment's list of the Questions captured from it (#373).
+    void queryClient.invalidateQueries(trpc.experiments.page.pathFilter());
     setLanded(question);
   };
+  const captureLine = useRef<CaptureLineHandle>(null);
 
   // What a capture records as Provenance (CONTEXT.md), whichever chord
   // made it: pursuing the page at this address — a Research Question's or
-  // a Hypothesis's — otherwise Unattached. The address names a file, not a
-  // Kind; a capture on a page of any other Kind is refused by the core,
-  // loudly, where it was made. The follow-up a Hypothesis's result raises
-  // is `resolving`, and is the page's own line, not the chord's. The
-  // Reader will add *reading* here when it exists.
+  // a Hypothesis's — observing the run on an Experiment's (#373),
+  // otherwise Unattached. The address names a file, not a Kind; a capture
+  // on a page of any other Kind is refused by the core, loudly, where it
+  // was made. The follow-up a Hypothesis's result raises is `resolving`,
+  // and is the page's own line, not the chord's. The Reader will add
+  // *reading* here when it exists.
   const provenance: Provenance =
     route.surface === "research-question" || route.surface === "hypothesis"
       ? { context: "pursuing", page: route.path }
-      : { context: "other" };
+      : route.surface === "experiment"
+        ? { context: "observing", experiment: route.path }
+        : { context: "other" };
 
   return (
     <div className={styles.window}>
@@ -145,6 +151,12 @@ function Workspace({ vault }: { vault: Vault }) {
               setWriteOnArrival({ path, field: "observations" });
               pushRoute({ surface: "experiment", path });
             }}
+            onCapture={(path) =>
+              captureLine.current?.open({
+                context: "observing",
+                experiment: path,
+              })
+            }
           />
         )}
         {route.surface === "settings" && <Settings vault={vault} />}
@@ -157,7 +169,11 @@ function Workspace({ vault }: { vault: Vault }) {
           />
         )}
       </div>
-      <CaptureLine provenance={provenance} onCaptured={onCaptured} />
+      <CaptureLine
+        ref={captureLine}
+        provenance={provenance}
+        onCaptured={onCaptured}
+      />
       {/* Both chords are mounted here and nowhere else, so neither is
           live before a vault is open, and both are handed the same
           Provenance and the same landing (ADR 0027 decision 1). ⌘, is

@@ -5,6 +5,7 @@ import type {
   ExperimentFrontmatter,
   ExperimentSections,
   ExperimentStatus,
+  RelatedQuestion,
 } from "core";
 import { useEffect, useId, useRef, useState } from "react";
 import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
@@ -202,6 +203,7 @@ export function Experiment({
             {readable.cameFrom !== null && (
               <CameFromSection cameFrom={readable.cameFrom} />
             )}
+            <QuestionsFromThisRun questions={readable.questions} />
             <Section
               name="Position history"
               present={readable.sections.positionHistory.present}
@@ -513,6 +515,44 @@ function CameFromSection({ cameFrom }: { cameFrom: CameFrom }) {
             : (mark?.label ?? cameFrom.kind)}
         </span>
       </p>
+    </Section>
+  );
+}
+
+/**
+ * The Questions that name this run (#373; spec #362 stories 68–71): read
+ * by backlink, since a capture from a run writes nothing onto it. One
+ * captured here or with `Q` in the Experiment Inbox is `observing`; a
+ * `from:` written by hand only names the run, and is said so.
+ */
+function QuestionsFromThisRun({ questions }: { questions: RelatedQuestion[] }) {
+  return (
+    <Section name="Questions from this run" present>
+      {questions.length === 0 ? (
+        <p className={styles.quiet}>
+          None yet. A question captured here lands in the Inbox, and is listed
+          here.
+        </p>
+      ) : (
+        <ul className={styles.questions}>
+          {questions.map((q) => (
+            <li key={q.path} className={styles.cameFrom}>
+              <a href={addressOf("question", q.path) ?? undefined}>
+                {q.question}
+              </a>
+              <span className={styles.caption}>
+                {[
+                  "question",
+                  q.context === "observing"
+                    ? "captured from this run"
+                    : "names this run",
+                  ...(q.status === "open" ? [] : [q.status]),
+                ].join(" · ")}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Section>
   );
 }
