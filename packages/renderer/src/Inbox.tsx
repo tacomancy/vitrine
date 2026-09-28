@@ -596,15 +596,23 @@ const rowId = (index: number) => `question-row-${index}`;
  */
 function StatusWord({ question }: { question: ListedQuestion }) {
   if (question.status === "open") return null;
-  const { label } = STATUS[question.status];
+  // A Question a Hypothesis's closed loop answered says what the answer was
+  // (#338): *answered — falsified* reads as a result, *answered* alone as
+  // though it were answered in place.
+  const label =
+    question.answeredWith === undefined
+      ? STATUS[question.status].label
+      : `${STATUS[question.status].label} \u2014 ${question.answeredWith}`;
   const target = question.promotedTo;
   const page = target?.path ?? null;
   if (page === null) return <>{` · ${label}`}</>;
   const hypothesis = target?.kind === "hypothesis";
   const claim = hypothesis ? (target?.display ?? null) : null;
+  // Promoted *to* the claim; answered *by* it, once its loop is closed.
+  const joiner = question.status === "answered" ? "by" : "to";
   return (
     <>
-      {claim === null ? " · " : ` · ${label} to `}
+      {claim === null ? " · " : ` · ${label} ${joiner} `}
       <a
         className={styles.page}
         href={hashOf({

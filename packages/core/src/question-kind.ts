@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
+import { RESULT_TAIL, type LoopResult } from "./hypothesis-rule.js";
 import {
   analyseFile,
   locate,
@@ -17,6 +18,12 @@ export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
  */
 export type ListedQuestion = Omit<QuestionFields, "promotedTo"> & {
   path: string;
+  /**
+   * The result of the Hypothesis loop closed onto this Question, when its
+   * newest write-back line is one (`answeredBy`), so an answered row can
+   * say *answered — falsified*.
+   */
+  answeredWith?: LoopResult;
   /**
    * On a promoted Question: the `promoted_to` link as written, and the
    * page it resolves to (vault-relative) — null when the index finds no
@@ -114,6 +121,53 @@ export function readQuestion(
   const promotedTo = asString(fm["promoted_to"]);
   if (promotedTo !== undefined) q.promotedTo = promotedTo;
   return q;
+}
+
+/**
+ * A Question's *lead* — the body between its frontmatter and its first
+ * `##` — as offsets into its BOM-less text: where every write-back line
+ * lands (`appendToSection`'s `lead` target) and so where each reader of
+ * one looks for it.
+ */
+export function leadRange(
+  outline: Pick<FileOutline, "headings" | "frontmatter">,
+  length: number
+): { start: number; end: number } {
+  return {
+    start: outline.frontmatter?.range.end ?? 0,
+    end: outline.headings.find((h) => h.level === 2)?.range.start ?? length,
+  };
+}
+
+/**
+ * The newest write-back line in the lead — `Answered by [[x]] — …` — as
+ * the link it names and the result it carries, or null when there is
+ * none (#338; ADR 0031 decision 8). Indexed beside the frontmatter keys so
+ * the Inbox can say what a closed loop answered without reading a file
+ * (ADR 0014 decision 3); the listing resolves `link` and shows the result
+ * only when it lands on a Hypothesis. The newest is the last, since a
+ * write-back only ever appends — and a newer line with no result word, a
+ * resolved Research Question's, is the answer now, so it reads as none
+ * rather than letting an older Hypothesis result show through.
+ */
+export function answeredBy(
+  content: string,
+  outline: Pick<FileOutline, "headings" | "frontmatter">
+): { link: string; result: LoopResult | null } | null {
+  // The outline's offsets are into the text without a BOM.
+  const text = content.replace(/^﻿/, "");
+  const { start, end } = leadRange(outline, text.length);
+  let newest: { link: string; result: LoopResult | null } | null = null;
+  for (const line of text.slice(start, end).split(/\r?\n/)) {
+    const link = /^Answered by (\[\[[^\]]+\]\])/.exec(line);
+    if (link === null) continue;
+    const tail = RESULT_TAIL.exec(line.slice(link[0].length));
+    newest = {
+      link: link[1]!,
+      result: tail === null ? null : (tail[1] as LoopResult),
+    };
+  }
+  return newest;
 }
 
 /** A Question read from disk for a write: what every triage action needs of it. */

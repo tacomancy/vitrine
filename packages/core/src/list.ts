@@ -6,6 +6,8 @@ import type {
   Order,
   QuestionFields,
 } from "./question-kind.js";
+import type { LoopResult } from "./hypothesis-rule.js";
+import type { answeredBy } from "./question-kind.js";
 import type { ShapeProblem } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -31,28 +33,47 @@ export function listQuestions(
 ): Listing {
   const absolute = (path: string) => join(vaultPath, path);
 
-  // Assembled key by key: `readQuestion` is the only writer of `fields`
-  // rows for a Question, so every key here is one of `ListedQuestion`'s and
-  // every value has already passed its vocabulary.
-  const fields = new Map<string, QuestionFields>();
+  // Assembled key by key: `readQuestion` and `answeredBy` are the only
+  // writers of `fields` rows for a Question, so every key here is one of
+  // theirs and every value has already passed its vocabulary.
+  type Stored = QuestionFields & { answeredBy?: ReturnType<typeof answeredBy> };
+  const fields = new Map<string, Stored>();
   for (const row of index.select<{ path: string; key: string; value: string }>(
     "SELECT path, key, value FROM fields WHERE path IN (SELECT path FROM files WHERE kind = 'question') ORDER BY path"
   )) {
-    const q = fields.get(row.path) ?? ({} as QuestionFields);
+    const q = fields.get(row.path) ?? ({} as Stored);
     (q as Record<string, unknown>)[row.key] = JSON.parse(row.value) as unknown;
     fields.set(row.path, q);
   }
   // Where `promoted_to` lands is the index's to say, by the same rule every
   // `links` row is resolved by — never a guess from the link's text.
   const questions = [...fields].map(
-    ([path, { promotedTo, ...rest }]): ListedQuestion => ({
-      ...rest,
-      path: absolute(path),
-      ...(promotedTo === undefined
-        ? {}
-        : { promotedTo: { link: promotedTo, ...pageOf(path, promotedTo) } }),
-    })
+    ([path, { promotedTo, answeredBy: by, ...rest }]): ListedQuestion => {
+      const result = resultOf(path, rest.status, by);
+      return {
+        ...rest,
+        path: absolute(path),
+        ...(promotedTo === undefined
+          ? {}
+          : { promotedTo: { link: promotedTo, ...pageOf(path, promotedTo) } }),
+        ...(result === null ? {} : { answeredWith: result }),
+      };
+    }
   );
+  // A closed loop's result (#338), shown only while the Question is
+  // answered — a reopened or dropped one no longer is, whatever its lead
+  // still says — and only when the line's link lands on a Hypothesis, so
+  // a line typed by hand in the same words about a note is not a result.
+  function resultOf(
+    path: string,
+    status: QuestionFields["status"],
+    by: Stored["answeredBy"]
+  ): LoopResult | null {
+    if (status !== "answered" || by == null || by.result === null) {
+      return null;
+    }
+    return pageOf(path, by.link).kind === "hypothesis" ? by.result : null;
+  }
   // The page's Kind comes with it: a Question promoted to a Hypothesis
   // points at a different surface than one promoted to a Research Question.
   function pageOf(

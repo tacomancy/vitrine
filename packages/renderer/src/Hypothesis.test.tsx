@@ -63,6 +63,16 @@ const fresh: Readable = {
     census,
   },
   overridable: false,
+  loop: {
+    status: "open",
+    parent: {
+      path: "questions/Does slow-wave density predict recall gain.md",
+      kind: "question",
+    },
+    refusal:
+      "A criterion still awaits evidence: not yet tested is not an answer.",
+    result: "inconclusive",
+  },
   problems: [],
 };
 

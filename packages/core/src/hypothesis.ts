@@ -14,7 +14,7 @@ import {
   type PageKind,
   type SavedAnswer,
 } from "./page-write.js";
-import { asString, readQuestionForWrite } from "./question-kind.js";
+import { asString, leadRange, readQuestionForWrite } from "./question-kind.js";
 import {
   copiedKeys,
   dateOf,
@@ -23,6 +23,8 @@ import {
   PAGE as RESEARCH_QUESTION,
   quoted,
   readResearchQuestion,
+  resolvePromotedFrom,
+  writeToQuestion,
 } from "./research-question.js";
 import { localIso } from "./time.js";
 import {
@@ -42,6 +44,7 @@ import {
 } from "./position-history.js";
 import {
   AFTER_EVIDENCE,
+  closeRefusal,
   CRITERIA_FIELD,
   criterionField,
   derive,
@@ -51,7 +54,10 @@ import {
   nameOf,
   OVERRIDE,
   overrideRefusal,
+  RESULT_TAIL,
+  resultOf,
   type Derivation,
+  type LoopResult,
 } from "./hypothesis-rule.js";
 import {
   createFile,
@@ -160,6 +166,8 @@ export type HypothesisPage =
       derivation: Derivation;
       /** Whether an Override can be made now (`overrideRefusal`): the page offers its line only then. */
       overridable: boolean;
+      /** Where the result would be written, and whether it has been — read from that object, never from this one. */
+      loop: Loop;
       /** What could not be shown: the file's shape problems, then a section missing or doubled, then history lines that are not entries. */
       problems: ShapeProblem[];
     }
@@ -289,6 +297,13 @@ export async function readHypothesisPage(
 
   problems.push(...history.problems);
   const derivation = derive(read.criteria, liveOverride(history.entries));
+  const loop = await loopOf(
+    index,
+    vaultPath,
+    relativePath,
+    frontmatter.promotedFrom,
+    derivation
+  );
 
   return {
     readable: true,
@@ -313,6 +328,7 @@ export async function readHypothesisPage(
     },
     derivation,
     overridable: overrideRefusal(derivation) === null,
+    loop,
     problems,
   };
 }
@@ -1081,4 +1097,236 @@ async function createHypothesis(
     );
   }
   return { path, content: created.content };
+}
+
+/** The object a Hypothesis was promoted from, as the loop writes to it. */
+export type LoopParent = {
+  /** Vault-relative, as the index keys it. */
+  path: string;
+  kind: "question" | "research-question";
+};
+
+/**
+ * The loop as the page reads it (ADR 0031 decision 8; spec #327 stories
+ * 69, 70, 74, 75). Nothing about it is stored on the Hypothesis: `closed`
+ * means a Write-back line naming this page stands in the parent, and
+ * `written` is the newest one's result and date — which the page compares
+ * with `result`, the word closing now would write, to say the line no
+ * longer matches. `refusal` is `closeRefusal` on the derivation — null
+ * when the state is closable — whatever the parent: a Hypothesis written
+ * by hand can still be *tested and undecided*, and only the write needs
+ * somewhere to go. The page prints it, so the act that is not offered
+ * always says why.
+ */
+export type Loop = { refusal: string | null; result: LoopResult } & (
+  | { status: "none" }
+  | { status: "unresolved"; reason: string }
+  | { status: "open"; parent: LoopParent }
+  | {
+      status: "closed";
+      parent: LoopParent;
+      written: { result: LoopResult; date: string };
+    }
+);
+
+const isParentKind = (kind: string): kind is LoopParent["kind"] =>
+  kind === "question" || kind === "research-question";
+
+/**
+ * The parent `promoted_from` names, resolved as every write-back resolves
+ * it (`resolvePromotedFrom`) and read from disk, or why there is none to
+ * write to. Two files by one name are refused rather than one picked
+ * (story 75): the app never guesses where an answer belongs.
+ */
+async function parentOf(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  promotedFrom: string | undefined
+): Promise<
+  | { status: "none" }
+  | { status: "unresolved"; reason: string }
+  | { status: "found"; parent: LoopParent; read: PageFile }
+> {
+  if (promotedFrom === undefined) return { status: "none" };
+  const resolved = resolvePromotedFrom(index, path, promotedFrom);
+  if ("reason" in resolved) {
+    return { status: "unresolved", reason: resolved.reason };
+  }
+  const read = await readPageFile(
+    vaultPath,
+    resolved.path,
+    ["question", "research-question"],
+    "a Question or a Research Question"
+  );
+  if (!read.readable || !isParentKind(read.kind)) {
+    return {
+      status: "unresolved",
+      reason: `${promotedFrom} cannot take the result: ${
+        read.readable ? `kind is ${read.kind}` : read.reason
+      }`,
+    };
+  }
+  return {
+    status: "found",
+    parent: { path: read.relativePath, kind: read.kind },
+    read,
+  };
+}
+
+/**
+ * The newest Write-back line naming this Hypothesis in its parent, or
+ * null. Found through the parent's links — each one the index resolves to
+ * this page — and then the line's text, which must be the line the close
+ * writes, in the place it writes it: the lead of a Question (`Answered by
+ * [[h]] — <result>, <date>`), or a list item under a Research Question's
+ * `## Related questions`. The newest is the last in the file, since a
+ * close only ever appends.
+ */
+function newestLine(
+  index: VaultIndex,
+  { relativePath, content, outline, kind }: PageFile,
+  path: string
+): { result: LoopResult; date: string } | null {
+  const region =
+    kind === "question"
+      ? leadRange(outline, content.length)
+      : section(outline, "Related questions").heading?.body;
+  if (region === undefined) return null;
+  const prefix = kind === "question" ? /^Answered by $/ : /^\s*[-*+] $/;
+  let newest: { result: LoopResult; date: string } | null = null;
+  for (const link of outline.links) {
+    if (
+      link.syntax !== "wikilink" ||
+      link.range.start < region.start ||
+      link.range.end > region.end
+    ) {
+      continue;
+    }
+    if (index.resolve(relativePath, link).resolvedPath !== path) continue;
+    const lineStart = content.lastIndexOf("\n", link.range.start - 1) + 1;
+    const newline = content.indexOf("\n", link.range.end);
+    const lineEnd = newline === -1 ? content.length : newline;
+    const tail = RESULT_TAIL.exec(
+      content.slice(link.range.end, lineEnd).replace(/\r$/, "")
+    );
+    if (!prefix.test(content.slice(lineStart, link.range.start)) || !tail) {
+      continue;
+    }
+    newest = { result: tail[1] as LoopResult, date: tail[2]! };
+  }
+  return newest;
+}
+
+async function loopOf(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  promotedFrom: string | undefined,
+  derivation: Derivation
+): Promise<Loop> {
+  const now = {
+    refusal: closeRefusal(derivation),
+    result: resultOf(derivation),
+  };
+  const found = await parentOf(index, vaultPath, path, promotedFrom);
+  if (found.status !== "found") return { ...now, ...found };
+  const written = newestLine(index, found.read, path);
+  return written === null
+    ? { ...now, status: "open", parent: found.parent }
+    : { ...now, status: "closed", parent: found.parent, written };
+}
+
+/**
+ * Close the loop (#338; ADR 0031 decision 8; spec #327 stories 64–68, 70,
+ * 75): the result written one hop up, to the object the Hypothesis was
+ * promoted from, and nothing written to the Hypothesis — whether the loop
+ * is closed is read back from the line (`loopOf`). Never automatic: the
+ * state is live and may move again, and a write into another file is the
+ * user's to make.
+ *
+ * - **A Question** becomes *answered* — `status`, `answered`, and one line
+ *   in its lead, by the same write a Research Question's write-back makes
+ *   (`writeToQuestion`), whatever its Status: the close is the user's act,
+ *   and a Question answered once is answered again.
+ * - **A Research Question** gains the line under `## Related questions` and
+ *   keeps its Status: a test of a sharpened claim has not answered the
+ *   broader question.
+ *
+ * Closing again after the state moved appends a second line; a line
+ * already written is true of its date and is never rewritten. `basedOn` is
+ * the Hypothesis as the page read it, so the result written is the one the
+ * user was looking at when they chose to write it.
+ */
+export async function closeLoop(
+  ctx: PageContext,
+  path: string,
+  input: { basedOn: string; at: Date }
+): Promise<{ path: string }> {
+  const { index, vaultPath } = ctx;
+  const page = await readHypothesisPage(index, vaultPath, path);
+  if (!page.readable) {
+    throw new VaultError(
+      "refused",
+      `Couldn't read ${page.path}: ${page.reason}`
+    );
+  }
+  if (page.hash !== input.basedOn) {
+    throw new VaultError(
+      "refused",
+      `${page.path} changed on disk since the page read it; nothing was written back.`
+    );
+  }
+  const { loop } = page;
+  if (loop.refusal !== null) throw new VaultError("refused", loop.refusal);
+  if (loop.status === "none") {
+    throw new VaultError(
+      "refused",
+      "This Hypothesis was written directly, promoted from nothing: there is nothing to write back to."
+    );
+  }
+  if (loop.status === "unresolved") {
+    throw new VaultError("refused", loop.reason);
+  }
+
+  const at = localIso(input.at);
+  const link = `[[${basename(page.path, ".md")}]]`;
+  const tail = ` — ${loop.result}, ${dateOf(at)}`;
+  const { parent } = loop;
+  if (parent.kind === "research-question") {
+    const result = await writeOwn(
+      ctx,
+      parent.path,
+      RESEARCH_QUESTION,
+      (now) => ({
+        operations: [
+          {
+            op: "appendToSection",
+            target: { section: "Related questions" },
+            line: `- ${link}${tail}`,
+          },
+        ],
+        basedOn: now.hash,
+      })
+    );
+    if (!result.written) {
+      throw new VaultError(
+        "refused",
+        `Couldn't write the result to ${parent.path}: ${result.detail}`
+      );
+    }
+    return { path: parent.path };
+  }
+
+  const written = await writeToQuestion(index, vaultPath, parent.path, {
+    keys: { status: "answered", answered: at },
+    line: `Answered by ${link}${tail}`,
+  });
+  if (!written.written) {
+    throw new VaultError(
+      "refused",
+      `Couldn't write the result back: ${written.reason}`
+    );
+  }
+  return { path: written.path };
 }

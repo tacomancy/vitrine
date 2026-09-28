@@ -11,7 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import type { PositionChange } from "./pending-revisions.js";
-import { readQuestion } from "./question-kind.js";
+import { answeredBy, readQuestion } from "./question-kind.js";
 import {
   analyseFile,
   sha256,
@@ -37,9 +37,10 @@ import {
  * decision 10). 3: the Research Question's Position rows (#209). 4: the
  * Display name columns the Global command matches on (#301). 5: the
  * Hypothesis's Position rows (#333). 6: a Hypothesis's Display name, read
- * from its claim Position (#340).
+ * from its claim Position (#340). 7: a Question's `answeredBy`, its newest
+ * write-back line's link and result (#338).
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -868,6 +869,10 @@ function createIndex(
         } else {
           for (const [key, value] of Object.entries(fields)) {
             insertField.run(path, key, JSON.stringify(value));
+          }
+          const by = answeredBy(content, read.outline);
+          if (by !== null) {
+            insertField.run(path, "answeredBy", JSON.stringify(by));
           }
         }
       } catch (error) {
