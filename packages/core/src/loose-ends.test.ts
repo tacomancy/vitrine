@@ -477,6 +477,63 @@ ${history}`;
     expect(titles(await rows(c))).toEqual([]);
   });
 
+  it("lists one whose override was voided: the call it made no longer stands", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({
+          criteria: `${C1}\noutcome:: met\n\n${F2}`,
+          history: `- 2026-01-06T09:00:00+01:00 · override voided
+  from:
+    ${PROMOTED}
+
+- ${PROMOTED} · override
+  why: the large-study stratum cannot be run on this sample
+  from:
+    inconclusive
+`,
+        })
+      ),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([
+      "The pooled effect is mostly small-study bias.",
+    ]);
+  });
+
+  it("lists one written by hand with nothing it was promoted from: there is no loop to close", async () => {
+    const { c } = await openedOn(
+      {
+        [PATH]: hypothesis().replace(
+          'promoted_from: "[[Does the reanalysis shrink the pooled effect]]"\n',
+          ""
+        ),
+      },
+      run("2026-09-20", 3),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([
+      "The pooled effect is mostly small-study bias.",
+    ]);
+  });
+
+  it("names one it could not read rather than dropping it silently", async () => {
+    const { vault: root, c } = await openedOn(
+      vault(hypothesis()),
+      run("2026-09-20", 3),
+      short
+    );
+    await chmod(join(root, PATH), 0o000);
+    restore.push(() => chmod(join(root, PATH), 0o644));
+
+    const ends = await rows(c);
+    expect(titles(ends)).toEqual([]);
+    expect(ends.problems).toHaveLength(1);
+    expect(ends.problems[0]).toMatch(
+      /^hypotheses\/The pooled effect is mostly small-study bias\.md could not be read: /
+    );
+  });
+
   it("is silenced by mark deliberate keyed by its own row kind, and back on undo", async () => {
     const { c } = await openedOn(
       vault(hypothesis()),

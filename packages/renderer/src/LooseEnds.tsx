@@ -244,7 +244,7 @@ function Row(props: {
     case "stalled-research-question":
       return <Stalled {...props} row={props.row} />;
     case "stalled-hypothesis":
-      return <Quiet row={props.row} resolution={props.resolution} />;
+      return <QuietHypothesis row={props.row} resolution={props.resolution} />;
     case "ambiguous-link":
       return <Ambiguous row={props.row} resolution={props.resolution} />;
   }
@@ -361,7 +361,7 @@ function Stalled({
  * late. Quiet is in open days, as the core judged it — a calendar age here
  * would contradict the rule that put the row on screen (REP-11).
  */
-function Quiet({
+function QuietHypothesis({
   row,
   resolution,
 }: {
@@ -370,10 +370,11 @@ function Quiet({
 }) {
   const address = hashOf({ surface: "hypothesis", path: row.path });
   const days = row.quietOpenDays === 1 ? "open day" : "open days";
+  const noun = row.criteria === 1 ? "criterion" : "criteria";
   const untested =
     row.criteria === 0
       ? "No criteria written yet."
-      : `${row.awaiting} of ${row.criteria} ${row.criteria === 1 ? "criterion" : "criteria"} awaiting evidence.`;
+      : `${row.awaiting} of ${row.criteria} ${noun} awaiting evidence.`;
   return (
     <RowShell
       meta={`hypothesis · inconclusive, quiet ${row.quietOpenDays} ${days}`}

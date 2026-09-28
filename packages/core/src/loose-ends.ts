@@ -132,8 +132,8 @@ export async function looseEnds(
   { days, stalledOpenDays }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
-  const stalled = stalledResearchQuestions(index, days, stalledOpenDays);
-  const quiet = await stalledHypotheses(
+  const questions = stalledResearchQuestions(index, days, stalledOpenDays);
+  const hypotheses = await stalledHypotheses(
     index,
     vaultPath,
     days,
@@ -143,7 +143,7 @@ export async function looseEnds(
     "Broken plumbing": [],
     "Unfinished reading": [],
     "Disconnected material": ambiguousLinks(index),
-    "Stalled questions": [...stalled.rows, ...quiet.rows],
+    "Stalled questions": [...questions.rows, ...hypotheses.rows],
   };
   return {
     // The dismissal is applied here rather than inside each row query, so a
@@ -157,8 +157,8 @@ export async function looseEnds(
     }),
     problems: [
       ...(problem === null ? [] : [problem]),
-      ...stalled.problems,
-      ...quiet.problems,
+      ...questions.problems,
+      ...hypotheses.problems,
     ],
   };
 }
@@ -355,7 +355,8 @@ async function stalledHypotheses(
     if (loop.status === "closed") continue;
     if (criteria > 0 && awaiting === 0) continue;
     // Days compare as written (`writtenDay`), as `promoted` does for the
-    // Research Question; an entry or key with no date to read is no
+    // Research Question — and since each is `YYYY-MM-DD`, the string sort
+    // is the calendar's. An entry or key with no date to read is no
     // evidence of when it last moved.
     const last = [
       ...sections.positionHistory.entries.map((e) => e.at),
