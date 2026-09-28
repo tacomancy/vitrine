@@ -187,9 +187,11 @@ describe("recording an outcome and changing a relationship", () => {
     const recorded = within(await card("C2")).getByRole("radiogroup", {
       name: "Outcome",
     });
-    expect(within(recorded).getByRole("radio", { checked: true }).value).toBe(
-      "not met"
-    );
+    expect(
+      within(recorded)
+        .getByRole("radio", { checked: true })
+        .getAttribute("value")
+    ).toBe("not met");
   });
 
   it("changes the relationship", async () => {
