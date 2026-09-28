@@ -12,7 +12,7 @@ import { addressOf, KIND } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
-import { useVaultStatusLines } from "./VaultStatusLines";
+import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
 /**
  * The Loose Ends dashboard (brief § Loose Ends; prompt 9): a punch list of
@@ -214,20 +214,12 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
         <footer className={styles.footer}>
           {status.lines}
           {ends.isError && (
-            <span className={styles.footerLine} role="status">
-              <span className={styles.warning}>
-                <span aria-hidden="true">‖</span> not read
-              </span>{" "}
-              — {ends.error.message}
-            </span>
+            <WarningLine label="not read">{ends.error.message}</WarningLine>
           )}
           {problems.map((problem) => (
-            <span key={problem} className={styles.footerLine} role="status">
-              <span className={styles.warning} aria-hidden="true">
-                ‖
-              </span>{" "}
+            <WarningLine key={problem} label="could not judge">
               {problem}
-            </span>
+            </WarningLine>
           ))}
         </footer>
       )}

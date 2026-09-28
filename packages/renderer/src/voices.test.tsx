@@ -215,6 +215,7 @@ describe("Loose Ends while the rows or the vault are still being read", () => {
     });
     expect(await within(region).findByText("not read yet")).toBeDefined();
     expect(region.textContent).not.toContain(NOTHING_LOOSE);
+    expect(region.textContent).not.toContain(WARRANT);
     expect(within(region).queryByRole("contentinfo")).toBeNull();
   });
 });
@@ -251,6 +252,7 @@ describe("Loose Ends the app cannot vouch for", () => {
     });
     expect(await within(region).findByText("not known")).toBeDefined();
     expect(region.textContent).not.toContain(NOTHING_LOOSE);
+    expect(region.textContent).not.toContain(WARRANT);
     const footer = within(region).getByRole("contentinfo");
     expect(within(footer).getByRole("status").textContent).toBe(
       "‖ not watching — the app lost permission to read the vault folder · retry"
@@ -269,9 +271,26 @@ describe("Loose Ends the app cannot vouch for", () => {
     });
     expect(await within(region).findByText("not known")).toBeDefined();
     expect(region.textContent).not.toContain(NOTHING_LOOSE);
+    expect(region.textContent).not.toContain(WARRANT);
     const footer = within(region).getByRole("contentinfo");
     expect(within(footer).getByRole("status").textContent).toBe(
-      "‖ .vitrine/dismissals.json could not be read, so nothing is silenced"
+      "‖ could not judge — .vitrine/dismissals.json could not be read, so nothing is silenced"
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says not known when vault.status itself failed, and the footer says why", async () => {
+    const region = await looseEnds({
+      "vault.status": () => {
+        throw new Error("the core did not answer");
+      },
+    });
+    expect(await within(region).findByText("not known")).toBeDefined();
+    expect(region.textContent).not.toContain(NOTHING_LOOSE);
+    expect(region.textContent).not.toContain(WARRANT);
+    const footer = within(region).getByRole("contentinfo");
+    expect(within(footer).getByRole("status").textContent).toBe(
+      "‖ vault state not known — the core did not answer"
     );
     expect(screen.queryByRole("alert")).toBeNull();
   });

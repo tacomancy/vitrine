@@ -24,7 +24,7 @@ import { hashOf, pushRoute, replaceRoute, type Unresolved } from "./router";
 import { monthYear, provenanceOf, rowsOf, STATUS } from "./rows";
 import { PartialGlyph, StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
-import { useVaultStatusLines } from "./VaultStatusLines";
+import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
 const ORDERS: readonly Order[] = ["newest", "oldest"];
 
@@ -549,12 +549,7 @@ export function Inbox({
               same quiet voice: a state the app is in, not a refusal of
               something the user just did (ADR 0033). */}
           {failed && (
-            <span className={styles.footerLine} role="status">
-              <span className={styles.warning}>
-                <span aria-hidden="true">‖</span> not read
-              </span>{" "}
-              — {listing.error.message}
-            </span>
+            <WarningLine label="not read">{listing.error.message}</WarningLine>
           )}
         </footer>
         {linking && selectedRow?.kind === "question" && (

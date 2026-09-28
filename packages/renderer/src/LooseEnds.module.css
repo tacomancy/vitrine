@@ -241,13 +241,3 @@ a.rowTitle:focus-visible {
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
-
-.footerLine {
-  cursor: default;
-}
-
-/* The one spot of warm colour, and it always comes with a glyph and a label;
-   never red (prototype 12). */
-.warning {
-  color: var(--color-warning);
-}
