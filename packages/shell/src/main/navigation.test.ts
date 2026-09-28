@@ -16,7 +16,9 @@ describe("allowNavigation", () => {
   });
 
   it("refuses an object URL the app made, which carries the app's origin", () => {
-    expect(allowNavigation("blob:http://127.0.0.1:51234/1f2e", APP)).toBe(false);
+    expect(allowNavigation("blob:http://127.0.0.1:51234/1f2e", APP)).toBe(
+      false
+    );
   });
 
   it("refuses another port on the same host — a different server, not the app", () => {
@@ -82,10 +84,13 @@ describe("routeLink", () => {
     ["obsidian://open?vault=v", "obsidian:"],
     ["vitrine://question/x", "vitrine:"],
     ["about:blank", "about:"],
-  ])("refuses %s outright, and says which kind of link it was", (url, scheme) => {
-    const route = routeLink(url, APP);
-    expect(route).toEqual({ to: "refused", scheme, url });
-  });
+  ])(
+    "refuses %s outright, and says which kind of link it was",
+    (url, scheme) => {
+      const route = routeLink(url, APP);
+      expect(route).toEqual({ to: "refused", scheme, url });
+    }
+  );
 
   it("refuses what is not a URL at all", () => {
     expect(routeLink("not a url", APP)).toEqual({
