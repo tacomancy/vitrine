@@ -197,8 +197,9 @@ a.rowTitle:focus-visible {
   color: var(--color-fg-secondary);
 }
 
-/* The names the row could not place, and what each one reached: data, so
-   the mono face, and one line per name with its candidates beside it. */
+/* What a row lists inside itself — the names it could not place and what
+   each reached, or the files gone and where each was linked: data, so the
+   mono face, one line per entry with its detail beside it. */
 .matches {
   margin: var(--space-1) 0 0;
   padding: 0;
@@ -223,6 +224,31 @@ a.rowTitle:focus-visible {
 
 .candidate {
   color: var(--color-fg-muted);
+}
+
+/*
+ * A row that must never read as routine (#374): a linked file gone from
+ * under a recorded falsification. A warning-toned rule and tag, as the
+ * history's loud entries are (PositionHistory.module.css) — amber, never
+ * red, since nothing here is an error of the user's.
+ */
+.row[data-loud] {
+  border-left: 2px solid var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.loudTag {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-warning);
+}
+
+.inline {
+  color: inherit;
 }
 
 /*

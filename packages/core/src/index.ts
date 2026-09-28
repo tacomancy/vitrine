@@ -62,6 +62,8 @@ export type {
   LooseEndGroupName,
   LooseEndRow,
   StalledHypothesis,
+  StalledExperiment,
+  MissingArtifacts,
   StalledResearchQuestion,
 } from "./loose-ends.js";
 export type { Candidate, CandidateKind, Candidates } from "./picker.js";

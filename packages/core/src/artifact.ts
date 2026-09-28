@@ -348,6 +348,14 @@ const asField = (text: string) =>
     .trim();
 
 /**
+ * Whether a linked line was recorded on this machine, compared as the line
+ * writes a machine's name — so a name `asField` had to clean is still this
+ * Mac, rather than every link made here reading as the other machine's.
+ */
+export const linkedHere = (artifact: LinkedArtifact, machine: string) =>
+  artifact.machine === asField(machine);
+
+/**
  * The linked line (ADR 0035 decision 5), as `docs/architecture.md` § Vault
  * layout (Experiment) spells it.
  */
