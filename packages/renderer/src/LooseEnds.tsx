@@ -8,7 +8,7 @@ import type {
 import { formatAge } from "./age";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { useState, type ReactNode } from "react";
-import { addressOf, KIND } from "./kinds";
+import { addressOf, KIND, markOf } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
@@ -391,8 +391,7 @@ function Ambiguous({
   // it is shown verbatim rather than passed off as a Note; a file with none
   // is a Note, which is what having no `kind:` means.
   const kind = row.linkingKind;
-  const label =
-    kind === null ? KIND["note"]?.label : (KIND[kind]?.label ?? kind);
+  const label = kind === null ? KIND.note.label : (markOf(kind)?.label ?? kind);
   return (
     <RowShell
       // The file is named whether or not it can be opened: a row that could

@@ -647,6 +647,49 @@ describe("the ordering across the renderer's half and the core's", () => {
   });
 });
 
+describe("a Hypothesis is one command away", () => {
+  // Named by its current claim (#340; spec #327 stories 77, 78), which the
+  // core has already put in `display`; the file name was cut from the
+  // claim as first typed and never follows it.
+  const H_PATH = "hypotheses/Slow-wave density predicts recall gain..md";
+  const CLAIM =
+    "Spindle-coupled slow waves, not density alone, predict recall gain.";
+  const WITH_HYPOTHESIS: Destination[] = [
+    {
+      kind: "research-question",
+      path: RQ_PATH,
+      display: "Spindles and sleep?",
+    },
+    { kind: "hypothesis", path: H_PATH, display: CLAIM },
+    { kind: "question", path: Q_PATH, display: "Spindles, or slow waves?" },
+  ];
+
+  it("is a row with its glyph and Kind, named by its claim, between a Research Question and a Question on a tie", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering(WITH_HYPOTHESIS),
+    });
+    type(dialog, "spindle");
+    expect(said((await settled(dialog, 3)).destinations)).toEqual([
+      row("■", "Spindles and sleep?", "research question"),
+      row("▲", CLAIM, "hypothesis"),
+      row("◆", "Spindles, or slow waves?", "question"),
+    ]);
+  });
+
+  it("lands on the Hypothesis's page", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering(WITH_HYPOTHESIS),
+    });
+    type(dialog, "spindle coupled");
+    await settled(dialog, 1);
+    expect(verbOf(dialog)).toBe(`↵Go to${CLAIM}`);
+    press(dialog, "Enter");
+    expect(window.location.hash).toBe(
+      `#/hypothesis/hypotheses/${encodeURIComponent("Slow-wave density predicts recall gain..md")}`
+    );
+  });
+});
+
 const page: ResearchQuestionPage = {
   readable: true,
   path: RQ_PATH,

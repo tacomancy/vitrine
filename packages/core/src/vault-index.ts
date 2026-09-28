@@ -36,9 +36,10 @@ import {
  * rebuilt, which is the migration path — there is no other (ADR 0014
  * decision 10). 3: the Research Question's Position rows (#209). 4: the
  * Display name columns the Global command matches on (#301). 5: the
- * Hypothesis's Position rows (#333).
+ * Hypothesis's Position rows (#333). 6: a Hypothesis's Display name, read
+ * from its claim Position (#340).
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -673,7 +674,8 @@ function createIndex(
       file?.kind ?? null,
       front === undefined
         ? {}
-        : (JSON.parse(front.value) as Record<string, unknown>)
+        : (JSON.parse(front.value) as Record<string, unknown>),
+      positionsOfPath.all(path) as Position[]
     );
   };
   const moveRows = (from: string, to: string) => {
@@ -699,12 +701,19 @@ function createIndex(
       id?: string | null;
       /** The file's own, for the Kinds that declare a Display name in it. */
       frontmatter?: Record<string, unknown>;
+      /** Its Positions, for the Kinds named by one (a Hypothesis, by its claim). */
+      positions?: Position[];
       file?: { bom: boolean; eol: string; trailingNewline: boolean };
     }
   ) => {
     // Every file has a Display name, a PDF and an unreadable one included:
     // the fallback is the name it is stored under (display-name.ts).
-    const display = displayName(path, row.kind ?? null, row.frontmatter ?? {});
+    const display = displayName(
+      path,
+      row.kind ?? null,
+      row.frontmatter ?? {},
+      row.positions
+    );
     insertFile.run(
       path,
       ...lookupKeys(path),
@@ -741,6 +750,8 @@ function createIndex(
       unknown
     >;
     const id = typeof fm["id"] === "string" ? fm["id"] : null;
+    const positions =
+      read.kind === null ? [] : (positionsOf[read.kind]?.(read, content) ?? []);
     putFile(path, {
       markdown: true,
       size,
@@ -749,6 +760,7 @@ function createIndex(
       kind: read.kind,
       id,
       frontmatter: fm,
+      positions,
       file: read.file,
     });
     const front = read.outline.frontmatter;
@@ -868,10 +880,8 @@ function createIndex(
         );
       }
     }
-    if (read.kind !== null) {
-      for (const p of positionsOf[read.kind]?.(read, content) ?? []) {
-        insertPosition.run(path, p.field, p.text, sha256(p.text));
-      }
+    for (const p of positions) {
+      insertPosition.run(path, p.field, p.text, sha256(p.text));
     }
   };
 

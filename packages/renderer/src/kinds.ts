@@ -9,14 +9,24 @@ import { hashOf, type Route } from "./router";
  * nothing else. A Note is the quietest mark there is, which is what an
  * ordinary Markdown file deserves.
  */
-export const KIND: Record<string, { glyph: string; label: string }> = {
+export type Mark = { glyph: string; label: string };
+
+export const KIND = {
   question: { glyph: "◆", label: "question" },
   "research-question": { glyph: "■", label: "research question" },
   hypothesis: { glyph: "▲", label: "hypothesis" },
   source: { glyph: "●", label: "source" },
   "source-stub": { glyph: "○", label: "source stub" },
   note: { glyph: "·", label: "note" },
-};
+} satisfies Record<string, Mark>;
+
+const byKind: Record<string, Mark | undefined> = KIND;
+
+/**
+ * A Kind's mark by the string the index carries it as, which may be one
+ * the app does not know — each caller decides what that looks like.
+ */
+export const markOf = (kind: string): Mark | undefined => byKind[kind];
 
 /**
  * Where a file of this Kind opens, or null for a Kind with nowhere to open

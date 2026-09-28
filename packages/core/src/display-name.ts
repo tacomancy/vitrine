@@ -16,7 +16,7 @@ import { basename } from "node:path";
 
 /**
  * The frontmatter key each Kind's Display name is written in. Absent from
- * this table — a Note, a Hypothesis, anything the app has yet to meet —
+ * this table and the next — a Note, anything the app has yet to meet —
  * means the file name is the name, which is what a Note's is.
  */
 const NAMED_BY: Record<string, string> = {
@@ -24,6 +24,18 @@ const NAMED_BY: Record<string, string> = {
   "research-question": "question",
   source: "title",
   "source-stub": "title",
+};
+
+/**
+ * The Position each Kind's Display name is read from, for a Kind whose
+ * name is something the user revises in the body. A Hypothesis is named by
+ * its current claim (spec #327 story 78) and never by a frontmatter copy
+ * of it: a copy is a second place the claim lives, and the file itself is
+ * named once, from the claim as typed, so wikilinks to it survive every
+ * narrowing (story 13).
+ */
+const NAMED_BY_POSITION: Record<string, string> = {
+  hypothesis: "claim",
 };
 
 /**
@@ -35,13 +47,20 @@ const NAMED_BY: Record<string, string> = {
 export function displayName(
   path: string,
   kind: string | null,
-  frontmatter: Record<string, unknown>
+  frontmatter: Record<string, unknown>,
+  positions: readonly { field: string; text: string }[] = []
 ): string {
   const key = kind === null ? undefined : NAMED_BY[kind];
   const declared = key === undefined ? undefined : frontmatter[key];
   if (typeof declared === "string" && declared.trim() !== "") {
     return declared.trim();
   }
+  const field = kind === null ? undefined : NAMED_BY_POSITION[kind];
+  const position = positions.find((p) => p.field === field)?.text;
+  // A claim is a paragraph, and one Obsidian wrapped across lines is still
+  // one line on a row.
+  const written = position?.replace(/\s+/g, " ").trim();
+  if (written !== undefined && written !== "") return written;
   return basename(path, ".md");
 }
 
