@@ -24,9 +24,16 @@ export const fixtures = join(
   "../fixtures"
 );
 
-/** A host whose chooser always answers the same way. */
-export function fakeHost(picked: string | null): Host {
-  return { pickFolder: () => Promise.resolve(picked), reveal: () => {} };
+/** A host whose choosers always answer the same way: a folder, and a file. */
+export function fakeHost(
+  picked: string | null,
+  pickedFile: string | null = null
+): Host {
+  return {
+    pickFolder: () => Promise.resolve(picked),
+    pickFile: () => Promise.resolve(pickedFile),
+    reveal: () => {},
+  };
 }
 
 export async function tmp(prefix: string): Promise<string> {

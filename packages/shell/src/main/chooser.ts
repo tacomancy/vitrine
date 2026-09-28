@@ -1,9 +1,9 @@
-// The Host's one duty, kept pure so what it asks the dialog for can be
-// tested without an Electron — the same reason `launch.ts` exists.
+// The Host's two choosers, kept pure so what each asks the dialog for can
+// be tested without an Electron — the same reason `launch.ts` exists.
 
 /** `dialog.showOpenDialog`, narrowed to the part of it the chooser uses. */
 export type ShowOpenDialog = (options: {
-  properties: Array<"openDirectory" | "createDirectory">;
+  properties: Array<"openDirectory" | "createDirectory" | "openFile">;
 }) => Promise<{ canceled: boolean; filePaths: string[] }>;
 
 /**
@@ -21,5 +21,17 @@ export async function pickFolder(show: ShowOpenDialog): Promise<string | null> {
   const result = await show({
     properties: ["openDirectory", "createDirectory"],
   });
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}
+
+/**
+ * Show the standard file chooser for *+ artifact* and answer with the path,
+ * or null when cancelled (ADR 0035). `openFile` alone: one file, since the
+ * caption the page asks for next is one Artifact's; and no `filters`, since
+ * an Artifact is whatever the run produced — a plot, a CSV, a checkpoint —
+ * and a filter would hide the one file that did not fit it.
+ */
+export async function pickFile(show: ShowOpenDialog): Promise<string | null> {
+  const result = await show({ properties: ["openFile"] });
   return result.canceled ? null : (result.filePaths[0] ?? null);
 }
