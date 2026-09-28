@@ -288,6 +288,27 @@ describe("resolution follows the vault without re-outlining the linking file", (
     events.close();
   });
 
+  it("a note moved into a run's folder reaches that run's plot.png, and is ambiguous again once moved out", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await writeFile(join(vault, "Loose.md"), "![[plot.png]]\n");
+    const c = await opened(vault);
+    expect(await resolutions(c, "Loose.md")).toEqual([
+      ["plot.png", "ambiguous", null],
+    ]);
+    const events = await c.events();
+    await rename(join(vault, "Loose.md"), join(vault, "run-a", "Loose.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "run-a/Loose.md")).toEqual([
+      ["plot.png", ...resolved("run-a/plot.png")],
+    ]);
+    await rename(join(vault, "run-a", "Loose.md"), join(vault, "Loose.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "Loose.md")).toEqual([
+      ["plot.png", "ambiguous", null],
+    ]);
+    events.close();
+  });
+
   it("a file renamed in Obsidian (paired by hash, #189) loses the links that named it, gains the ones that name it now, and its own [[#Heading]] follows", async () => {
     const vault = await fixtureCopy("obsidian-corpus");
     await writeFile(join(vault, "Ahead.md"), "[[Consolidation]]\n");

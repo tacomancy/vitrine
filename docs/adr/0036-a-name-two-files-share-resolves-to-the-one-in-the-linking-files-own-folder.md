@@ -10,7 +10,7 @@ Obsidian doesn't pick the first file indexed in that case. `getLinkpathDest` in 
 
 1. **When exactly one candidate sits in the linking file's own folder, the name resolves to it.** This applies to links and embeds alike, as it does in Obsidian.
 2. **Only the linking file's own folder counts.** Obsidian's test is a string prefix of the folder path. It also ranks a candidate in a subfolder, or in a sibling folder whose name starts with the folder's name (`run 2/` from `run/`), and then breaks ties by path length. The app treats those cases as ambiguous, as it did before. A file sitting beside the linking file is the one case Obsidian settles without guessing. For a note at the vault root, the rule applies to other files at the root. L2a stays ambiguous because its two candidates are in `a/` and `b/`, not beside the linking file.
-3. **Stored lines keep the bare name.** `copyArtifact` writes `![[plot.png]]` whatever else in the vault carries the name, which is also what Obsidian's *shortest path when possible* setting writes.
+3. **Stored lines keep the bare name.** `copyArtifact` (#366) is to write `![[plot.png]]` whatever else in the vault carries the name, which is also what Obsidian's *shortest path when possible* setting writes.
 
 ## Considered options
 

@@ -62,7 +62,7 @@ The state of a file open in the Vault editor with unsaved typing whose bytes on 
 _Avoid_: Conflict, merge, stale (a Scout health word)
 
 **Ambiguous link**:
-A bare wikilink whose name matches more than one file, none of them the one file of that name in the linking file's own folder. Resolves to nothing and surfaces as a Loose end rather than picking one.
+A bare wikilink whose name matches more than one file, none of which sits beside the linking file. Resolves to nothing and surfaces as a Loose end rather than picking one.
 _Avoid_: Broken link (that is an unresolved one), conflict
 
 **Unresolved link**:
