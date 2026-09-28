@@ -289,7 +289,9 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
                   : "you are already here")}
             </span>
           </p>
-          <span className={styles.count}>{countLine(rows.length, total)}</span>
+          <span className={styles.count}>
+            {countLine(wanted, rows.length, total)}
+          </span>
         </div>
       </div>
     </div>
@@ -298,12 +300,26 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
 
 const rowId = (index: number) => `global-command-row-${index}`;
 
-/** Never a silent cut: a list longer than one ask says how long it is. */
-function countLine(shown: number, total: number): string {
+/**
+ * What the list is, in the terms of what was typed. Never a silent cut: a
+ * list longer than one ask says how long it is, whichever list it is (ADR
+ * 0027 decision 6).
+ *
+ * Before anything is typed there is nothing to have matched — every object
+ * is in the list and the order is recency — so the line names the set
+ * instead of counting it, and a cut one says the length it was cut from
+ * *inside* that naming rather than in place of it. The prototype's line
+ * dropped the length here; the ADR says a cut list carries it, and the ADR
+ * is what a prototype does not overrule.
+ */
+function countLine(wanted: string, shown: number, total: number): string {
+  const cut = total > shown;
+  if (wanted === "")
+    return cut
+      ? `recent · ${shown} of ${total} · type to narrow`
+      : "recent · type to narrow";
   if (total === 0) return "no destination matches";
-  return total > shown
-    ? `${shown} of ${total} — keep typing`
-    : `${total} matching`;
+  return cut ? `${shown} of ${total} — keep typing` : `${total} matching`;
 }
 
 /**

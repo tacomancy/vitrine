@@ -405,7 +405,7 @@ _Avoid_: Route (the router's type, not the word for users), URL, link (that is a
 _Avoid_: Palette, command palette, search, Picker (the Picker is scoped to one slot and goes nowhere)
 
 **Destination**:
-Somewhere the Global command can go: an object with an Address, matched on its Display name, or one of the Surfaces and Dashboards the renderer merges in beside them. The core's half of the list knows only the objects — Kind, path and Display name — because a Surface is not a file and a hash is not the index's to know (#301). Ranked by how well it answers what was typed, then by Kind, then by how recently its file changed.
+Somewhere the Global command can go: an object with an Address, matched on its Display name, or one of the Surfaces and Dashboards the renderer merges in beside them. The core's half of the list knows only the objects — Kind, path and Display name — because a Surface is not a file and a hash is not the index's to know (#301). Ranked by how well it answers what was typed, then by Kind, then by how recently its file changed. Before a character is typed there is nothing to answer, so the list is the Surfaces and Dashboards and then the objects by that recency alone — what changed on disk, the same measure for every Kind, and never a record of where the user has been (#304).
 _Avoid_: Result, hit, match (the strength of a match is one of a Destination's properties, not its name), target (a wikilink's)
 
 **Capture line**:
