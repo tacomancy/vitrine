@@ -72,7 +72,7 @@
 
 .hint,
 .message,
-.count {
+.aside {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
@@ -96,19 +96,36 @@
   overflow-y: auto;
 }
 
-.destination {
+/* Both halves of the list are rows, and a row is a row: what differs
+   between a destination and the capture is the columns it needs and how
+   tall its text wants to be, and nothing else. */
+.destination,
+.capture {
   position: relative;
   box-sizing: border-box;
-  min-height: 32px;
   display: grid;
+  gap: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: default;
+}
+
+.destination {
+  min-height: 32px;
   /* glyph · name · kind · current. The name takes what is left, so a long
      Question never pushes its Kind out of view. */
   grid-template-columns: 16px minmax(0, 1fr) auto auto;
   align-items: baseline;
-  gap: 0 var(--space-3);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  cursor: default;
+}
+
+/* glyph · what will be written · the Provenance it will be written with.
+   Taller than a destination, because the text it carries is the serif a
+   Question is read in. */
+.capture {
+  min-height: 40px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-2);
 }
 
 /* The choice, with the sapphire rule on the leading edge the Inbox marks
@@ -116,12 +133,16 @@
    Inbox's is: the overlay is already the raised surface, so there is nothing
    above it to step to, and the chosen row is set into it instead. The
    prototype's treatment (branch `prototype/global-command`, variant B),
-   which ADR 0023 decision 2 leaves to the overlay. */
-.destination[aria-selected="true"] {
+   which ADR 0023 decision 2 leaves to the overlay. One rule for both halves
+   of the list, because ↵ acting on a row is one thing whichever half it is
+   in. */
+.destination[aria-selected="true"],
+.capture[aria-selected="true"] {
   background: var(--color-bg-surface);
 }
 
-.destination[aria-selected="true"]::before {
+.destination[aria-selected="true"]::before,
+.capture[aria-selected="true"]::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
@@ -173,6 +194,52 @@
    Kind beside it rather than like a state. */
 .current {
   color: var(--color-fg-secondary);
+}
+
+.captureText {
+  min-width: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-fg);
+}
+
+/* Nothing typed yet: the app talking, so the interface family and quiet. */
+.invite {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+/* The only row there is: the verb below already says the Question in full,
+   so the row stops repeating it and carries what the verb does not — the
+   Kind it will be written as, and the Provenance it will carry. */
+.bare {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.bare .chip {
+  margin-left: auto;
+}
+
+.chip {
+  padding: 2px 7px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+}
+
+/* The chosen row is set into the overlay, so the chip needs the surface
+   above it rather than the one it just became. */
+.capture[aria-selected="true"] .chip {
+  background: var(--color-bg-raised);
 }
 
 .footer {
@@ -238,8 +305,13 @@
   color: var(--color-fg-muted);
 }
 
-.count {
+/* One run, not two statements: the alternative key and the count read as
+   the same quiet aside beside the verb. */
+.aside {
   flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   margin-left: auto;
   white-space: nowrap;
 }
