@@ -26,10 +26,13 @@ const DEFAULT_APP_SUPPORT_DIR = join(
 // A core with no host — started by hand, or later the iPad's — has no chooser.
 const NO_HOST: Host = {
   pickFolder: () => Promise.resolve(null),
+  pickFile: () => Promise.resolve(null),
   reveal: () => {},
 };
 
-const CSP = "default-src 'self'; img-src 'self' data:";
+// `blob:` because an Artifact is drawn from an object URL: an `<img>` cannot
+// carry the bearer header, and the token never travels in a URL (#366).
+const CSP = "default-src 'self'; img-src 'self' data: blob:";
 
 export type RunningCore = {
   port: number;

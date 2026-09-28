@@ -170,6 +170,7 @@ describe("Reveal in Finder, for the PDF folder", () => {
       (v) => mkdir(join(v, "sources/pdf"), { recursive: true }),
       {
         pickFolder: () => Promise.resolve(null),
+        pickFile: () => Promise.resolve(null),
         reveal: (path) => {
           revealed.push(path);
         },

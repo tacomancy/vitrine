@@ -44,7 +44,7 @@ const complete: Readable = {
     purpose: { present: true, text: "See whether it survives." },
     design: { present: true, text: "" },
     whereItRan: { present: true, text: "", lines: [] },
-    artifacts: { present: true, text: "" },
+    artifacts: { present: true, text: "", items: [] },
     observations: { present: true, text: "" },
     positionHistory: { present: true, text: "", entries: [] },
   },

@@ -10,6 +10,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
+import { Artifacts } from "./ExperimentArtifacts";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
@@ -33,7 +34,8 @@ import { WhyLine } from "./WhyLine";
  * ran* are Edited sections, saved as typed with no Revision (spec #362
  * story 18); Design and Observations are Positions, each save a Revision
  * in the one trail in the rail, with a why offered as on every page that
- * has a history (#365; TEST-8, TEST-11).
+ * has a history (#365; TEST-8, TEST-11). The Artifacts are
+ * `ExperimentArtifacts.tsx`; the page owns only the drop.
  *
  * A planned run is a finished plan, not a page with gaps (TEST-9): every
  * empty region says what will go in it.
@@ -61,6 +63,8 @@ export function Experiment({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
   }, []);
   const page = useQuery(trpc.experiments.page.queryOptions({ path }));
+  // The file waiting for its caption, from *+ artifact* or a drop.
+  const [adding, setAdding] = useState<string | null>(null);
   const status = useVaultStatusLines();
   const [attaching, setAttaching] = useState(false);
 
@@ -81,6 +85,21 @@ export function Experiment({
       className={rq.page}
       aria-label="Experiment view"
       tabIndex={-1}
+      // A file dropped anywhere on the page is an Artifact for this run
+      // (story 28). Only a drop carrying files is taken, and its path comes
+      // from the preload: a page is never told where a dropped file lives.
+      onDragOver={(event) => {
+        if (readable !== null && event.dataTransfer.types.includes("Files")) {
+          event.preventDefault();
+        }
+      }}
+      onDrop={(event) => {
+        const file = event.dataTransfer.files[0];
+        if (readable === null || file === undefined) return;
+        event.preventDefault();
+        const source = window.vitrine.pathOf(file);
+        if (source !== "") setAdding(source);
+      }}
     >
       <FrameLines
         error={page.isError ? page.error : null}
@@ -132,15 +151,12 @@ export function Experiment({
                 }
               />
             </Section>
-            <Section
-              name="Artifacts"
-              present={readable.sections.artifacts.present}
-            >
-              <Written
-                text={readable.sections.artifacts.text}
-                empty="Nothing yet. Plots, screenshots and data snippets are the record of the run, and go here — kept beside it in the vault, or, for heavyweight files, linked where they are."
-              />
-            </Section>
+            <Artifacts
+              path={readable.path}
+              section={readable.sections.artifacts}
+              adding={adding}
+              onAdding={setAdding}
+            />
             <Section
               name="Observations"
               present={readable.sections.observations.present}
@@ -418,12 +434,6 @@ function WhereItRan({
       )}
     </Section>
   );
-}
-
-/** A section the page shows as the file holds it, or the sentence on what will go there. */
-function Written({ text, empty }: { text: string; empty: string }) {
-  if (text === "") return <Outline>{empty}</Outline>;
-  return <p className={styles.written}>{text}</p>;
 }
 
 /**

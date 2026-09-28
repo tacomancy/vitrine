@@ -10,6 +10,7 @@ export type CoreReadyMessage = { type: "ready"; port: number; token: string };
 export type CoreMessage =
   | CoreReadyMessage
   | { type: "pickFolder"; id: number }
+  | { type: "pickFile"; id: number }
   // Show this folder in Finder. Nothing is waited for: Finder opening is
   // the whole of the answer, and a window with nothing to report back has
   // no reply to match.
@@ -22,6 +23,7 @@ export type CoreMessage =
 /** Everything the shell sends the core. */
 export type ShellMessage =
   | { type: "pickedFolder"; id: number; path: string | null }
+  | { type: "pickedFile"; id: number; path: string | null }
   // The window came to the front: today is a day at the open vault (#243).
   // The shell is the only one who can see this; the core never infers it
   // from a request, since the renderer re-queries on its own.
@@ -45,7 +47,8 @@ const parentPort = (process as unknown as { parentPort?: ParentPort })
 
 /**
  * The host, over the process channel: each chooser request carries an id so
- * the reply can be matched even if two arrive close together. It does not
+ * the reply can be matched even if two arrive close together — one id space
+ * for both choosers, so a folder's reply can never answer a file's ask. It does not
  * listen for its own replies — the one dispatcher below hands them over, so
  * a new message type is a branch there rather than another listener.
  */
@@ -55,14 +58,16 @@ function hostOver(port: ParentPort): {
 } {
   let nextId = 1;
   const pending = new Map<number, (path: string | null) => void>();
+  const ask = (type: "pickFolder" | "pickFile") =>
+    new Promise<string | null>((resolve) => {
+      const id = nextId++;
+      pending.set(id, resolve);
+      port.postMessage({ type, id });
+    });
   return {
     host: {
-      pickFolder: () =>
-        new Promise((resolve) => {
-          const id = nextId++;
-          pending.set(id, resolve);
-          port.postMessage({ type: "pickFolder", id });
-        }),
+      pickFolder: () => ask("pickFolder"),
+      pickFile: () => ask("pickFile"),
       reveal: (path) => port.postMessage({ type: "reveal", path }),
     },
     picked: ({ id, path }) => {
@@ -120,6 +125,7 @@ if (parentPort && shell) {
   parentPort.on("message", ({ data }) => {
     switch (data.type) {
       case "pickedFolder":
+      case "pickedFile":
         shell.picked(data);
         break;
       case "focused":

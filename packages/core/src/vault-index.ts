@@ -123,6 +123,13 @@ export type VaultIndex = {
    * the disk and lets the watcher recognise the write as its own.
    */
   own: (path: string, content: string) => Promise<void>;
+  /**
+   * `own` for a file whose bytes are not Markdown — a stored Artifact
+   * (ADR 0035) — recorded by its stat and the hash of what the app wrote.
+   * The same promise: the watcher's later event for the copy matches the
+   * row and is no arrival.
+   */
+  ownFile: (path: string, hash: string) => Promise<void>;
   status: () => IndexStatus;
   /** A read-only query; the surfaces compose their own SELECTs over the tables. */
   select: <T>(sql: string, ...params: Array<string | number | null>) => T[];
@@ -1267,6 +1274,22 @@ function createIndex(
       transaction(() => {
         dropRows(path);
         insertOutlined(path, { size: s.size, mtime: s.mtimeMs }, hash, content);
+        resolveLinksTouching([path]);
+      });
+      await raise(vaultChanged([path]));
+    },
+    ownFile: async (path, hash) => {
+      const s = await stat(join(vaultPath, path));
+      if (closed) return;
+      transaction(() => {
+        dropRows(path);
+        putFile(path, {
+          markdown: false,
+          size: s.size,
+          mtime: s.mtimeMs,
+          hash,
+        });
+        // An embed written before the file was here now lands on it.
         resolveLinksTouching([path]);
       });
       await raise(vaultChanged([path]));
