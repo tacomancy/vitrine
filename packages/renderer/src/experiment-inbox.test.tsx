@@ -116,6 +116,7 @@ const planned: Extract<ExperimentPage, { readable: true }> = {
   },
   cameFrom: null,
   evidence: [],
+  questions: [],
   problems: [],
 };
 

@@ -51,6 +51,7 @@ const pageWith = (
   },
   cameFrom: null,
   evidence: [],
+  questions: [],
   problems: [],
 });
 

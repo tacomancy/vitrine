@@ -15,8 +15,10 @@ import { useTRPC } from "./trpc";
 
 /**
  * The chip a capture shows before a character is typed:
- * `Unattached · <when>`, `Pursuing · <the page's file name> · <when>`, or
- * `Resolving · <the Hypothesis's file name> · <when>` for a follow-up.
+ * `Unattached · <when>`, `Pursuing · <the page's file name> · <when>`,
+ * `Resolving · <the Hypothesis's file name> · <when>` for a follow-up, or
+ * `Observing · <the run's name> · <when>` — an Experiment's file is named
+ * by the run.
  */
 export function provenanceChip(provenance: Provenance, at: Date): string {
   return `${where(provenance)} · ${formatDateTime(at)}`;
@@ -27,7 +29,9 @@ function where(provenance: Provenance): string {
   const [word, path] =
     provenance.context === "pursuing"
       ? ["Pursuing", provenance.page]
-      : ["Resolving", provenance.hypothesis];
+      : provenance.context === "resolving"
+        ? ["Resolving", provenance.hypothesis]
+        : ["Observing", provenance.experiment];
   const stem = path.split("/").pop() ?? "";
   return `${word} · ${stem.replace(/\.md$/, "")}`;
 }
