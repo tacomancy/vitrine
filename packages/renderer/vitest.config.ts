@@ -20,6 +20,12 @@ export default defineConfig({
   test: {
     name: "renderer",
     environment: "jsdom",
+    // The methods jsdom does not implement, supplied once for every file.
+    setupFiles: ["src/jsdom-gaps.ts"],
+    // A spy is put back after the test that made it, here rather than in
+    // each suite's own `afterEach`: the same reason `useChosenInView` is an
+    // effect and not a line every key handler has to remember (ADR 0030).
+    restoreMocks: true,
     include: ["src/**/*.test.tsx", "src/**/*.test.ts"],
   },
 });

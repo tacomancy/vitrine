@@ -7,6 +7,7 @@ import {
   pressGlobalChord,
   question,
   renderApp,
+  scrollsInto,
   vault,
 } from "./fake-core";
 
@@ -904,5 +905,86 @@ describe("what ↵ writes", () => {
         name: "Capture a question, or go to something",
       }).value
     ).toBe("Does the effect survive a nap?");
+  });
+});
+
+/**
+ * The row the keyboard is on stays inside the list's window (#320). The
+ * overlay gives the list 300px — about nine rows — and an empty query now
+ * answers with up to fifty recent destinations (#304), with the capture
+ * below all of them. jsdom lays nothing out, so what a test can see is the
+ * call the browser does the scrolling from: which row it was made on, and
+ * the `block` that decides how far the list moves.
+ */
+describe("the row the keyboard is on stays in view", () => {
+  // Twelve destinations and the two screens: fourteen rows in room for nine,
+  // and the capture a fifteenth below them.
+  const MANY: Destination[] = Array.from({ length: 12 }, (_, i) => ({
+    kind: "question",
+    path: `questions/Is the ${i}th night the one that matters.md`,
+    display: `Is the ${i}th night the one that matters?`,
+  }));
+
+  const many = () =>
+    openCommand({ "globalCommand.destinations": answering(MANY) });
+
+  it("follows the choice up out of the capture and through the destinations", async () => {
+    const dialog = await many();
+    const { destinations } = await settled(dialog, 14);
+    const scrolled = scrollsInto();
+    // An empty query is weaker than WORTH_GOING_TO, so the default choice is
+    // the capture — the last row of all. Walking up from it crosses the fold
+    // almost at once.
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
+
+    expect(chosenIn(destinations)).toBe(2);
+    expect(scrolled.at(-1)?.row).toBe(destinations[2]);
+  });
+
+  it("follows it back down to the capture, which every destination stands above", async () => {
+    const dialog = await many();
+    const { capture } = await settled(dialog, 14);
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
+    const scrolled = scrollsInto();
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowDown");
+
+    // The one row a search can never return is also the one fifty
+    // destinations can bury.
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)?.row).toBe(capture);
+  });
+
+  it("moves the list by as little as it can, so the rows already read stay put", async () => {
+    // Watched from before the command opens, because the open makes a call
+    // of its own: the default choice is the capture, below every destination
+    // the recent set answered with, and `nearest` is the whole of why an
+    // already-visible row costs no scroll. How far the list then moves is
+    // the browser's, and no test here can see it — jsdom lays nothing out
+    // (ADR 0030).
+    const scrolled = scrollsInto();
+    const dialog = await many();
+    await settled(dialog, 14);
+    press(dialog, "ArrowUp");
+
+    expect(scrolled.length).toBeGreaterThan(1);
+    expect(new Set(scrolled.map(({ block }) => block))).toEqual(
+      new Set(["nearest"])
+    );
+  });
+
+  it("brings the row a narrowed list re-chose into view", async () => {
+    const dialog = await many();
+    await settled(dialog, 14);
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
+    const scrolled = scrollsInto();
+    // Typed from the name's own first word, so the one survivor is a prefix
+    // hit: weaker than that and the default would be the capture, which is
+    // a different row and a different test.
+    type(dialog, "is the 11th");
+
+    // The choice lands on it, and the list that had been walked to row 2 of
+    // fourteen has to come back up to show it.
+    const { destinations } = await settled(dialog, 1);
+    await vi.waitFor(() => expect(scrolled.at(-1)?.row).toBe(destinations[0]));
   });
 });

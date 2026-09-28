@@ -1,6 +1,13 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { empty, question as q, renderApp, rows, vault } from "./fake-core";
+import {
+  empty,
+  question as q,
+  renderApp,
+  rows,
+  scrollsInto,
+  vault,
+} from "./fake-core";
 
 afterEach(() => {
   cleanup();
@@ -238,5 +245,75 @@ describe("what cannot be shown whole", () => {
     expect(details.textContent).toContain("/v/consolidation-vault/Garbled.md");
     expect(details.textContent).toContain("frontmatter is not a map of keys");
     expect(details.textContent).toContain("EACCES: permission denied");
+  });
+});
+
+/**
+ * The selected row stays inside the list's window (#320). This is the longest
+ * list in the app — every Question in the vault, which the brief's own
+ * realistic scale puts at a few hundred — so `j` held down walks the
+ * selection off the bottom of a pane that would otherwise sit still, leaving
+ * the keyboard acting on a row nobody can see. jsdom lays nothing out, so
+ * what a test can see is the call and the `block` that decides how far the
+ * list moves.
+ */
+describe("the selected row stays in view", () => {
+  // Twelve, newest first: more than the pane shows at any plausible height.
+  const MANY = Array.from({ length: 12 }, (_, i) =>
+    q(
+      `Is the ${i}th night the one that matters?`,
+      `2026-09-${12 - i}T08:00:00Z`
+    )
+  );
+
+  it("follows the selection down as j walks it, and back up on k — the arrows alike", async () => {
+    renderInbox({ questions: MANY });
+    const items = await rows();
+    const list = screen.getByRole("listbox", { name: "Questions" });
+    list.focus();
+    const scrolled = scrollsInto();
+
+    fireEvent.keyDown(list, { key: "Enter" });
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "j" });
+    expect(items[10]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: items[10], block: "nearest" });
+
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "k" });
+    expect(items[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: items[0], block: "nearest" });
+
+    // The arrows share j/k's case rather than a case of their own, and the
+    // claim in the name is about both of them.
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "ArrowDown" });
+    expect(items[10]?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)).toEqual({ row: items[10], block: "nearest" });
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(list, { key: "ArrowUp" });
+    expect(scrolled.at(-1)).toEqual({ row: items[0], block: "nearest" });
+  });
+
+  it("scrolls nothing when j has nowhere left to take the selection", async () => {
+    renderInbox({ questions: MANY });
+    const items = await rows();
+    const list = screen.getByRole("listbox", { name: "Questions" });
+    list.focus();
+    fireEvent.click(items.at(-1)!);
+    const scrolled = scrollsInto();
+
+    fireEvent.keyDown(list, { key: "j" });
+
+    // The selection did not move, so neither does the list: the mechanism is
+    // keyed on where the choice is, not on the key that was pressed.
+    expect(items.at(-1)?.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled).toEqual([]);
+  });
+
+  it("follows a selection that moved for a reason that was not a key", async () => {
+    renderInbox({ questions: MANY });
+    const items = await rows();
+    const scrolled = scrollsInto();
+
+    fireEvent.click(items[9]!);
+
+    expect(scrolled.at(-1)).toEqual({ row: items[9], block: "nearest" });
   });
 });

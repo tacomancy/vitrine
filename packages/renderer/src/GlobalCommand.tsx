@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Destination, Provenance, Question } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { provenanceChip, useCapture } from "./capture";
+import { useChosenInView } from "./chosen";
 import styles from "./GlobalCommand.module.css";
 import { KIND, routeOf } from "./kinds";
 import { matchKey, matchRun, strength } from "./match";
@@ -256,6 +257,14 @@ function Command({
     picked === null ? byDefault : Math.max(0, Math.min(picked, captureAt));
   const onCapture = chosen === captureAt;
   const target = rows[chosen];
+  /**
+   * The chosen row's id: the keyboard's and the list's window alike. Never
+   * absent, because the capture is always the last row — so the one choice
+   * with no `target` behind it is still a row, and still one the list has
+   * to scroll to when fifty destinations stand above it.
+   */
+  const chosenRowId = rowId(chosen);
+  useChosenInView(chosenRowId);
 
   const typed = query.trim();
 
@@ -364,7 +373,7 @@ function Command({
             aria-label="Capture a question, or go to something"
             aria-expanded
             aria-controls="global-command-list"
-            aria-activedescendant={rowId(chosen)}
+            aria-activedescendant={chosenRowId}
             autoComplete="off"
             placeholder="Write a question, or go somewhere"
             value={query}

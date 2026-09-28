@@ -6,7 +6,13 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, question as q, renderApp, vault } from "./fake-core";
+import {
+  empty,
+  question as q,
+  renderApp,
+  scrollsInto,
+  vault,
+} from "./fake-core";
 
 afterEach(cleanup);
 // Each test starts where a fresh window does: no hash at all.
@@ -227,6 +233,28 @@ describe("a Question has an Address", () => {
     open();
     await screen.findByRole("region", { name: "Question Inbox" });
     await vi.waitFor(() => expect(selection()).toEqual(["true", "false"]));
+  });
+
+  it("brings the row it landed on into view, however far down the list it is", async () => {
+    // The arrival is the case an Address makes most: nothing the user did
+    // moved the selection, and the row it names can be anywhere in a list of
+    // hundreds. ADR 0010's rule gives the list the keyboard, and a keyboard
+    // on a row nobody can see is the landing not happening (#320).
+    const newer = Array.from({ length: 11 }, (_, i) =>
+      q(
+        `Is the ${i}th night the one that matters?`,
+        `2026-09-${20 + i}T08:00:00Z`
+      )
+    );
+    const scrolled = scrollsInto();
+    arrive({ questions: [...newer, asked] });
+    await screen.findByRole("region", { name: "Question Inbox" });
+
+    await vi.waitFor(() => expect(selection().at(-1)).toBe("true"));
+    expect(scrolled.at(-1)).toEqual({
+      row: screen.getAllByRole("option").at(-1),
+      block: "nearest",
+    });
   });
 
   it("lands an Address whose Question is not in the vault on the Inbox, naming the Address", async () => {
