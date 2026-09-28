@@ -356,6 +356,14 @@ export const linkedHere = (artifact: LinkedArtifact, machine: string) =>
   artifact.machine === asField(machine);
 
 /**
+ * Whether a linked line points at a URL, known by its target and not only
+ * the line's shape: one hand-written with a size and Fingerprint is still
+ * not a file to open, and opening it as a path would call it gone.
+ */
+export const linksToUrl = (artifact: LinkedArtifact) =>
+  artifact.url || URL_TARGET.test(artifact.target);
+
+/**
  * The linked line (ADR 0035 decision 5), as `docs/architecture.md` § Vault
  * layout (Experiment) spells it.
  */
@@ -487,9 +495,9 @@ export type ArtifactCheck = {
  * and a URL is not touched at all. A stored Artifact is the vault's own and
  * is not checked here.
  *
- * The recorded machine is compared with this one as the line would have
- * written it (`asField`), so a computer name holding the line's own
- * separators still recognises its own links.
+ * The recorded machine is compared with this one by `linkedHere`, as
+ * Loose Ends' missing-artifact row compares it, so the two never disagree
+ * about whose link a line is.
  */
 export async function checkArtifacts(
   ctx: PageContext,
@@ -509,19 +517,16 @@ export async function checkArtifacts(
     read.content,
     section(read.outline, "Artifacts").heading
   );
-  const here = asField(machine);
   const checks = await Promise.all(
     parsedLines(text)
       .filter((line): line is LinkedArtifact => line.kind === "linked")
       .map(async (line): Promise<ArtifactCheck> => {
         const { file, target } = line;
         const checked = { file, target, machine: line.machine };
-        // By the target, not only the line's shape: a URL hand-written with
-        // a size and Fingerprint is still not a file to open.
-        if (line.url || URL_TARGET.test(target)) {
-          return { ...checked, outcome: "notChecked" };
+        if (linksToUrl(line)) return { ...checked, outcome: "notChecked" };
+        if (!linkedHere(line, machine)) {
+          return { ...checked, outcome: "elsewhere" };
         }
-        if (line.machine !== here) return { ...checked, outcome: "elsewhere" };
         return {
           ...checked,
           outcome: (await fingerprintMatches(target, line.fingerprint))

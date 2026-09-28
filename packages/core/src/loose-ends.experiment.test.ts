@@ -298,6 +298,8 @@ describe("looseEnds.rows — the missing linked Artifact", () => {
           artifacts: [
             linked("a.ckpt", join(elsewhere, "a.ckpt"), "laptop"),
             "- run — https://wandb.ai/lab/run/abc · 2026-09-02 · this-mac — the W&B run",
+            // Hand-written with a size and Fingerprint: still a URL, never a path to stat.
+            linked("bucket.ckpt", "s3://lab/bucket.ckpt"),
           ].join("\n"),
         }),
       },

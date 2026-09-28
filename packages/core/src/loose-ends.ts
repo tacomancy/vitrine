@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { linkedHere, type LinkedArtifact } from "./artifact.js";
+import { linkedHere, linksToUrl, type LinkedArtifact } from "./artifact.js";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
 import {
@@ -587,7 +587,7 @@ async function missingHere(
 }> {
   const linked = page.sections.artifacts.items.filter(
     (item): item is LinkedArtifact =>
-      item.kind === "linked" && !item.url && linkedHere(item, machine)
+      item.kind === "linked" && !linksToUrl(item) && linkedHere(item, machine)
   );
   const gone: LinkedArtifact[] = [];
   const unchecked: Array<{ file: string; reason: string }> = [];
