@@ -59,10 +59,11 @@ export function Artifacts({
   const pick = useMutation(trpc.experiments.pickArtifact.mutationOptions());
   const add = useMutation(trpc.experiments.addArtifact.mutationOptions());
   const show = useMutation(trpc.experiments.showArtifact.mutationOptions());
-  // One chooser, one copy, one *show it here* at a time: a second ↵ while the copy is on
-  // its way would store the file again as `plot (2).png`. A ref rather than
-  // `isPending`, because the second ↵ can arrive before the render that
-  // would have told this handler the first was pending.
+  // One chooser, one copy, one *show it here* at a time: a second ↵ while
+  // the copy is on its way would store the file again as `plot (2).png`, and
+  // one while a line is on its way would be refused as already on the page.
+  // A ref rather than `isPending`, because the second ↵ can arrive before
+  // the render that would have told this handler the first was pending.
   const busy = useRef(false);
   const release = () => {
     busy.current = false;
@@ -280,11 +281,10 @@ function FileCard({
 }) {
   const trpc = useTRPC();
   // A line whose file the folder does not hold has nothing to draw or read.
-  const drawn = item.path !== null;
   const preview = useQuery(
     trpc.experiments.artifactPreview.queryOptions(
       { path: pagePath, file: item.file },
-      { enabled: drawn && item.rows }
+      { enabled: item.path !== null && item.rows }
     )
   );
   const caption = item.kind === "stored" ? item.caption : "";
@@ -305,7 +305,7 @@ function FileCard({
       {item.path !== null && item.image && (
         <ArtifactImage path={item.path} alt={caption || item.file} />
       )}
-      {drawn && item.rows && (
+      {item.path !== null && item.rows && (
         <section
           className={styles.rows}
           aria-label={`${item.file}, first rows`}

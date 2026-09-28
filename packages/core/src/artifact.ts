@@ -7,6 +7,7 @@ import { writeOwn, type PageContext, type PageKind } from "./page-write.js";
 import { bodyText, section } from "./page-file.js";
 import { onOneLine } from "./position-history.js";
 import type { VaultIndex } from "./vault-index.js";
+import { artifactName } from "./file-name.js";
 import { copyArtifact, locate, type WriteResult } from "./vault-files.js";
 
 /**
@@ -308,6 +309,12 @@ async function experimentPath(
  * one a line already names, since a second line would draw it twice. That
  * check is made against the file as the write reads it, not as the page
  * last drew it.
+ *
+ * A name a copy would have cleaned (`artifactName`) is refused rather than
+ * written: `![[run#3.png]]` is read — here and by Obsidian — as `run` with
+ * a heading, so the line would name a file that is not there and the file
+ * would stay offered, one broken line per click. The app never renames a
+ * file it did not take in (ADR 0035 decision 2), so the user is told to.
  */
 export async function showStoredArtifact(
   ctx: PageContext,
@@ -321,6 +328,12 @@ export async function showStoredArtifact(
     throw new VaultError(
       "refused",
       `${file} is not a file in the run's folder.`
+    );
+  }
+  if (artifactName(file) !== file) {
+    throw new VaultError(
+      "refused",
+      `${file} cannot be embedded as it is named: a link reads # | ^ [ ] as something else. Rename it in the folder to show it here.`
     );
   }
   return writeOwn(ctx, relativePath, page, (read) => {
@@ -356,12 +369,14 @@ export async function showStoredArtifact(
  * has to guess at a file cut off mid-field.
  */
 export async function artifactPreview(
-  vaultPath: string,
-  pagePath: string,
+  ctx: PageContext,
+  page: PageKind,
+  path: string,
   file: string
 ): Promise<ArtifactPreview> {
+  const vaultPath = ctx.vaultPath;
   const noRows = new VaultError("refused", `${file} has no rows to show.`);
-  const wanted = artifactPath(pagePath, file);
+  const wanted = artifactPath(await experimentPath(ctx, page, path), file);
   if (wanted === null || !ROW_EXTENSIONS.has(extension(file))) throw noRows;
   let head: Buffer;
   let size: number;

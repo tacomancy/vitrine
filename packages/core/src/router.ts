@@ -645,10 +645,16 @@ export const router = t.router({
     // A CSV, TSV or text Artifact's first rows, `file` as its line names it.
     artifactPreview: t.procedure
       .input(pathInput.extend({ file: z.string().min(1) }))
-      .query(async ({ ctx, input }) => {
-        const { vault } = await requireVault(ctx);
-        return refusing(artifactPreview(vault.path, input.path, input.file));
-      }),
+      .query(async ({ ctx, input }) =>
+        refusing(
+          artifactPreview(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
+            input.file
+          )
+        )
+      ),
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the

@@ -229,6 +229,25 @@ describe("experiments.showArtifact", () => {
     expect(await readFile(join(vault, PATH), "utf8")).toBe(page());
   });
 
+  it("refuses a name a link cannot carry, rather than writing a line that names another file", async () => {
+    const { vault, c } = await opened({
+      [PATH]: page(),
+      [`${FOLDER}/run#3.png`]: PLOT,
+    });
+
+    const reply = await c.mutate("experiments.showArtifact", {
+      path: PATH,
+      file: "run#3.png",
+      caption: "Run three.",
+    });
+
+    expect(reply.error?.message).toBe(
+      "run#3.png cannot be embedded as it is named: a link reads # | ^ [ ] as something else. Rename it in the folder to show it here."
+    );
+    expect(await readFile(join(vault, PATH), "utf8")).toBe(page());
+    expect(await readFile(join(vault, FOLDER, "run#3.png"))).toEqual(PLOT);
+  });
+
   it("refuses a blank caption", async () => {
     const { vault, c } = await opened({
       [PATH]: page(),
@@ -350,6 +369,21 @@ describe("experiments.artifactPreview", () => {
     const reply = await preview(c, "written-by-script.csv");
 
     expect(reply.result?.data).toEqual({ lines: ["a,b", "1,2"], more: false });
+  });
+
+  it("refuses a page that is not an Experiment", async () => {
+    const { c } = await opened({
+      [PATH]: page(),
+      "notes/plain.md": "# Plain\n",
+      "notes/rows.csv": "a\n",
+    });
+
+    const reply = await c.query("experiments.artifactPreview", {
+      path: "notes/plain.md",
+      file: "rows.csv",
+    });
+
+    expect(reply.error?.message).toBe("notes/plain.md is not an Experiment.");
   });
 
   it.each([
