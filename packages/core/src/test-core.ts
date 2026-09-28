@@ -56,6 +56,21 @@ export type CoreOptions = Partial<
   }
 >;
 
+/**
+ * How long a core built here lets the watch probe go unanswered. `vault.open`
+ * awaits the probe, and the production bound (5 s, `vault-watcher.ts`) is
+ * Vitest's own default: a probe starved by a loaded FSEvents ran the test out
+ * before the watcher could give up, and failed as a bare timeout naming no
+ * wait. Under it, the give-up runs and says why — *not watching: the watch
+ * gave no sign of life* — which `indexed()` and every `current` read carry.
+ *
+ * Well above what a probe takes when the machine is merely busy — a whole
+ * open peaked at 134 ms across 244 opens under #397's stress loop (parallel
+ * suites beside shell loops churning `/tmp`). And short enough that an open
+ * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside 5 s. The production bound is not this number (ADR 0029, #272).
+ */
+const HARNESS_PROBE_TIMEOUT_MS = 1000;
+
 // Every core a test file started, so `closeCores` can tear them down: a
 // watcher left open keeps reporting into later tests.
 const cores: Array<() => Promise<void>> = [];
@@ -118,9 +133,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       ? { stalledOpenDays: opts.stalledOpenDays }
       : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
-    ...(opts.probeTimeoutMs !== undefined
-      ? { probeTimeoutMs: opts.probeTimeoutMs }
-      : {}),
+    probeTimeoutMs: opts.probeTimeoutMs ?? HARNESS_PROBE_TIMEOUT_MS,
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,
