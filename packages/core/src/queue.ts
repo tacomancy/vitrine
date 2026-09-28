@@ -8,7 +8,7 @@ import { errorMessageWithoutPath } from "./errors.js";
  * § Index): the app state that is **not** re-derivable from the vault, and
  * therefore the one database that is never deleted. This module owns the
  * file, its version, and its migrations; each table's behaviour is its own
- * module's (`pending-revisions.ts`, `open-days.ts`).
+ * module's (`pending-revisions.ts`, `open-days.ts`, `last-arrival.ts`).
  *
  * The queue is the index's opposite. `index.sqlite` is a cache of what the
  * vault already says and is deleted whenever its schema moves; nothing in
@@ -27,8 +27,9 @@ import { errorMessageWithoutPath } from "./errors.js";
  *
  * 1: pending Revisions (#217).
  * 2: open days (#243).
+ * 3: the PDF folder's last arrival (#379).
  */
-export const QUEUE_SCHEMA_VERSION = 2;
+export const QUEUE_SCHEMA_VERSION = 3;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -48,13 +49,27 @@ const OPEN_DAYS = `
 CREATE TABLE open_days (day TEXT PRIMARY KEY);
 `;
 
+// At most one row, pinned by its key, so replacing the arrival can never
+// leave two to choose between.
+const LAST_ARRIVAL = `
+CREATE TABLE last_arrival (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  at TEXT NOT NULL,
+  name TEXT NOT NULL
+);
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
  * keeps the empty case and the upgrade case from drifting apart — there is
  * no separate "current schema" to forget to update.
  */
-const MIGRATIONS: readonly string[] = [PENDING_REVISIONS, OPEN_DAYS];
+const MIGRATIONS: readonly string[] = [
+  PENDING_REVISIONS,
+  OPEN_DAYS,
+  LAST_ARRIVAL,
+];
 
 export class QueueOpenError extends Error {}
 

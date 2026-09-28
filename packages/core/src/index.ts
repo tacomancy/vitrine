@@ -16,6 +16,9 @@ export type {
 } from "./destinations.js";
 export type {
   CameFrom,
+  CriteriaToAttach,
+  CriterionToAttach,
+  EvidenceFor,
   ExperimentFrontmatter,
   ExperimentPage,
   ExperimentSections,
@@ -41,7 +44,12 @@ export type {
 } from "./hypothesis-rule.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
-export type { PdfFolder, ResolvesTo } from "./pdf-folder.js";
+export type {
+  PdfFault,
+  PdfFaultKind,
+  PdfFolder,
+  ResolvesTo,
+} from "./pdf-folder.js";
 export type {
   AmbiguousLinks,
   LooseEnds,
@@ -67,6 +75,7 @@ export type {
   Side,
   WriteBack,
 } from "./research-question.js";
+export type { ArtifactLine, StoredArtifact } from "./artifact.js";
 export type { Revision } from "./position-history.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";

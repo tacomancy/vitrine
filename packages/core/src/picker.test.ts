@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Candidates, CandidateKind } from "./picker.js";
@@ -98,6 +98,25 @@ describe("picker.candidates", () => {
     );
     // A caller that narrowed to nothing gets nothing, not everything.
     expect(shown(await c.candidates({ query: "beta", kinds: [] }))).toEqual([]);
+  });
+
+  it("narrows to the Experiment Kind, a run named by its folder's page (#371)", async () => {
+    const vault = await tmp("runs");
+    await mkdir(join(vault, "experiments/sweep-7"), { recursive: true });
+    await writeFile(
+      join(vault, "experiments/sweep-7/sweep-7.md"),
+      "---\nkind: experiment\nname: sweep-7\n---\n"
+    );
+    await writeFile(join(vault, "sweep notes.md"), "Just a note.\n");
+    const c = await opened(vault);
+    const runs = await c.candidates({ query: "sweep", kinds: ["experiment"] });
+    expect(runs.rows).toEqual([
+      {
+        path: "experiments/sweep-7/sweep-7.md",
+        name: "sweep-7",
+        kind: "experiment",
+      },
+    ]);
   });
 
   it("leaves out the files the caller is standing on, which could only refuse", async () => {

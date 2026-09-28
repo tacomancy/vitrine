@@ -2,7 +2,7 @@ import { basename } from "node:path";
 import type { Heading, Outline } from "markdown";
 import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
-import { resolvesTo } from "./link-text.js";
+import { resolvesTo, wikilinkTo } from "./link-text.js";
 import {
   changedUnderneath,
   historyEntries,
@@ -85,6 +85,10 @@ import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
  */
 
 export const KIND = "hypothesis";
+
+// The Experiment's Kind, spelled here rather than imported: `experiment.ts`
+// reads Hypotheses to list the Evidence a run is, so it imports this module.
+const EXPERIMENT = "experiment";
 
 /** What this Kind's writes expect the file to be (`page-write.ts`). */
 export const PAGE: PageKind = { kind: KIND, noun: "a Hypothesis" };
@@ -619,6 +623,12 @@ type CriterionChange = {
   field: string;
   from: string;
   after: Criterion[];
+  /**
+   * Opens an entry of its own rather than coalescing into the one before:
+   * Evidence arriving is the event the history is kept to date (spec #362
+   * story 50), and folded into an earlier save its moment would be lost.
+   */
+  ownEntry?: true;
 };
 
 /**
@@ -661,7 +671,9 @@ async function writeCriterion(
       // criteria are "versioned more loudly than anything else" (brief §
       // The falsification commitment), and folding a second rewording into
       // the first would lose the wording between them.
-      waiting.length > 0 || change.field.endsWith(AFTER_EVIDENCE)
+      waiting.length > 0 ||
+        change.field.endsWith(AFTER_EVIDENCE) ||
+        change.ownEntry === true
         ? 0
         : coalesceMs
     );
@@ -935,6 +947,66 @@ export async function deleteCriterion(
       field: criterionField(criterion),
       from: block.text,
       after: read.criteria.filter((c) => c !== criterion),
+    };
+  });
+}
+
+/**
+ * A run attached as Evidence for one criterion (#367; spec #362 stories
+ * 47–51; TEST-12): `- [[<run>]] — <note>` appended under its `^c<n>`,
+ * through `writeCriterion` like every other criterion write, so it is a
+ * Revision of that criterion (ADR 0031 decision 4) — *when Evidence
+ * arrived* is on the record, in an entry of its own that never coalesces
+ * into the save before it — and voids a live Override, since the call was
+ * made on the Evidence as it stood. It never records an Outcome: judging
+ * the criterion stays its own act, which is what keeps the Derived state
+ * where it was. Nor is it ever *edited after evidence*: the text and the
+ * Relationship are what that mark guards, and neither moves here.
+ *
+ * The note is required, because it is the difference between Evidence and
+ * a link (`CONTEXT.md` § Evidence); a blank one is refused before anything
+ * is read or written. Nothing refuses a run already under the criterion: a
+ * second reading of one run is a second line, as a second finding from one
+ * paper is on a Research Question.
+ */
+export async function attachEvidence(
+  ctx: PageContext,
+  path: string,
+  input: CriterionWriteInput & { id: string; experiment: string; note: string }
+): Promise<SavedAnswer> {
+  const note = onOneLine(input.note);
+  if (note === "") {
+    throw new VaultError(
+      "refused",
+      "Evidence needs a note: what this run shows for this criterion."
+    );
+  }
+  const [file] = ctx.index.select<{ kind: string | null }>(
+    "SELECT kind FROM files WHERE path = ?",
+    input.experiment
+  );
+  if (file?.kind !== EXPERIMENT) {
+    throw new VaultError(
+      "refused",
+      `${input.experiment} is not an Experiment; only a run is Evidence.`
+    );
+  }
+  const link = wikilinkTo(ctx.index, path, input.experiment);
+  return writeCriterion(ctx, path, input, (read, blocks) => {
+    const block = theOne(blocks, input.id);
+    if ("written" in block) return block;
+    return {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { block: input.id },
+          line: `- ${link} — ${note}`,
+        },
+      ],
+      field: criterionField(block.criterion),
+      from: block.text,
+      after: read.criteria,
+      ownEntry: true,
     };
   });
 }

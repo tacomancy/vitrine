@@ -184,7 +184,9 @@ function WhereThePdfsAre({
           <>
             <div className={styles.row}>
               <dt className={styles.label}>Resolves to</dt>
-              <dd className={styles.value}>{resolvesTo(state)}</dd>
+              <dd className={styles.value}>
+                <ResolvesToRow state={state} />
+              </dd>
             </div>
             <div className={styles.row}>
               <dt className={styles.label}>Holds</dt>
@@ -200,6 +202,10 @@ function WhereThePdfsAre({
                     {formatDateTime(new Date(folder.lastArrived.at))}
                     <span className={styles.note}>
                       {folder.lastArrived.name}
+                      {/* Remembered by the core, so a folder that stopped
+                          resolving still says when it broke (#379). */}
+                      {folder.lastArrived.beforeFault &&
+                        " · the last before it stopped resolving"}
                     </span>
                   </span>
                 </dd>
@@ -219,13 +225,28 @@ function WhereThePdfsAre({
 /** The PDF folder as far as the section has it: not yet answered, a read that failed, or the facts. */
 type Read = "pending" | "failed" | PdfFolder;
 
-function resolvesTo(state: Read): string {
-  if (state === "pending") return "not yet";
-  if (state === "failed" || !state.exists) return "not known";
-  const folder = state;
-  if (folder.resolves === null) return "not known";
-  if (folder.link === null) return "itself — a plain folder in the vault";
-  return folder.resolves.known ?? folder.resolves.path;
+/**
+ * The *Resolves to* row. A fault is the one genuinely broken thing this
+ * surface shows, so it takes the *wrong* Voice, in the core's own words
+ * (#379): the footer channel sounds it and this states it, and neither
+ * names the path, which is the *Folder* row's fact (ADR 0028).
+ */
+function ResolvesToRow({ state }: { state: Read }) {
+  if (state === "pending") return <>not yet</>;
+  if (state === "failed" || !state.exists) return <>not known</>;
+  if (state.fault !== null) return <Wrong>{state.fault.resolvesTo}</Wrong>;
+  if (state.resolves === null) return <>not known</>;
+  if (state.link === null) return <>itself — a plain folder in the vault</>;
+  return <>{state.resolves.known ?? state.resolves.path}</>;
+}
+
+/** The *wrong* Voice on a row: the warning glyph and the words in copper, never red. */
+function Wrong({ children }: { children: React.ReactNode }) {
+  return (
+    <span className={styles.wrong}>
+      <span aria-hidden="true">‖</span> {children}
+    </span>
+  );
 }
 
 /**
@@ -238,8 +259,12 @@ function resolvesTo(state: Read): string {
  */
 function Holds({ state, read }: { state: Read; read: VaultRead }) {
   if (state === "pending") return <>not yet</>;
-  if (state === "failed" || !state.exists || state.holds === null)
-    return <>not known</>;
+  if (state === "failed" || !state.exists) return <>not known</>;
+  // Nothing is counted in a folder that does not resolve, and no number is
+  // invented for it (story 29); the glyph marks it as the fault's, not as
+  // a read still to come.
+  if (state.fault !== null) return <Wrong>not known</Wrong>;
+  if (state.holds === null) return <>not known</>;
   const { count, bytes } = state.holds;
   if (count > 0)
     return (

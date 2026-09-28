@@ -1,10 +1,13 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { addStoredArtifact } from "./artifact.js";
 import type { Events } from "./events.js";
+import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import {
   addCriterion,
+  attachEvidence,
   deleteCriterion,
   editCriterion,
   FIELDS,
@@ -18,6 +21,7 @@ import {
 } from "./hypothesis.js";
 import {
   createExperiment,
+  criteriaToAttach,
   EDITED_SECTIONS as EXPERIMENT_SECTIONS,
   PAGE as EXPERIMENT_PAGE,
   POSITIONS as EXPERIMENT_POSITIONS,
@@ -32,7 +36,6 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
-import { readPdfFolder } from "./pdf-folder.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -69,6 +72,8 @@ export type Context = {
   stalledOpenDays: number;
   /** The id source for an object the router makes itself (an Experiment); pinned by tests. */
   newId: () => string;
+  /** The shell's choosers: *+ artifact*'s file chooser is asked for here (ADR 0035). */
+  host: Host;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -219,8 +224,22 @@ export const router = t.router({
     // is no procedure that makes, re-points or removes the link, or copies a
     // PDF in or out (ADR 0025 decision 6) — the absence is the promise.
     pdfFolder: t.procedure.query(async ({ ctx }) => {
-      const { vault } = await requireVault(ctx);
-      return readPdfFolder(vault.path);
+      const folder = await ctx.vault.pdfFolder();
+      if (folder === null) throw noVault();
+      return folder;
+    }),
+    // The footer channel's *papers not arriving* (#379), on every surface:
+    // the fault alone, so no surface walks the folder to learn it.
+    pdfFault: t.procedure.query(async ({ ctx }) => {
+      await requireVault(ctx);
+      return ctx.vault.pdfFault();
+    }),
+    // The footer's *check again* on *papers not arriving* (#379): the sweep,
+    // and the PDF folder checked and raised on the event stream. It looks
+    // and changes nothing — no more a setter than `pdfFolder` is.
+    checkAgain: t.procedure.mutation(async ({ ctx }) => {
+      await requireVault(ctx);
+      await ctx.vault.checkAgain();
     }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
@@ -451,15 +470,17 @@ export const router = t.router({
   // of Edited sections and Positions, and a status the user sets by hand.
   experiments: t.router({
     // Refused with its reason when the name is taken or empty, never
-    // suffixed; the name is the Experiment's folder.
+    // suffixed; the name is the Experiment's folder. `from` is the path of
+    // what prompted it — a Hypothesis, from a Criterion (#371).
     create: t.procedure
-      .input(z.object({ name: z.string() }))
+      .input(z.object({ name: z.string(), from: z.string().min(1).optional() }))
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(
           createExperiment(vault.path, index, input.name, {
             created: localIso(ctx.now()),
             newId: ctx.newId,
+            ...(input.from === undefined ? {} : { from: input.from }),
           })
         );
       }),
@@ -481,6 +502,38 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(
           saveExperimentSection(await requirePage(ctx), input.path, input)
+        )
+      ),
+    // What *attach as evidence* offers (#367): every Hypothesis's Criteria,
+    // grouped by Hypothesis, falsifying first.
+    criteria: t.procedure.query(async ({ ctx }) => {
+      const { vault, index } = await requireVault(ctx);
+      return criteriaToAttach(index, vault.path);
+    }),
+    // A run attached to one Criterion (#367; TEST-12): written on the
+    // Hypothesis, through its criterion write path — a Revision of that
+    // Criterion, never an Outcome. The note's emptiness is the core's to
+    // refuse, in its words, so the input takes any string.
+    attachEvidence: t.procedure
+      .input(
+        z.object({
+          hypothesis: z.string().min(1),
+          criterion: z.string().min(1),
+          experiment: z.string().min(1),
+          note: z.string(),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          attachEvidence(await requirePage(ctx), input.hypothesis, {
+            id: input.criterion,
+            experiment: input.experiment,
+            note: input.note,
+            basedOn: input.basedOn,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
         )
       ),
     // Design or observations (#365): the section replaced and its Revision
@@ -535,6 +588,32 @@ export const router = t.router({
             await requirePage(ctx),
             input.path,
             EXPERIMENT_PAGE,
+            input
+          )
+        )
+      ),
+    // *+ artifact*'s chooser: one file of any type, or null when cancelled.
+    // The path goes back to the page, which asks for the caption before
+    // anything is copied.
+    pickArtifact: t.procedure.mutation(async ({ ctx }) => ({
+      source: await ctx.host.pickFile(),
+    })),
+    // A stored Artifact (ADR 0035 decision 1): the file copied into the
+    // run's folder, then its line. A line that cannot be written comes back
+    // as the write's refusal, with the file already in the folder.
+    addArtifact: t.procedure
+      .input(
+        pathInput.extend({
+          source: z.string().min(1),
+          caption: z.string().trim().min(1, "An Artifact needs a caption."),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          addStoredArtifact(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
             input
           )
         )

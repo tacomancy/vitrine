@@ -53,6 +53,7 @@ describe("a plain folder in the vault", () => {
       },
       holds: { count: 0, bytes: 0 },
       lastArrived: null,
+      fault: null,
     });
   });
 
@@ -77,6 +78,7 @@ describe("a plain folder in the vault", () => {
     expect(folder.exists && folder.lastArrived).toEqual({
       at: "2026-09-27T16:40:00.000Z",
       name: "ramirez2024.PDF",
+      beforeFault: false,
     });
   });
 });
@@ -168,6 +170,7 @@ describe("Reveal in Finder, for the PDF folder", () => {
       (v) => mkdir(join(v, "sources/pdf"), { recursive: true }),
       {
         pickFolder: () => Promise.resolve(null),
+        pickFile: () => Promise.resolve(null),
         reveal: (path) => {
           revealed.push(path);
         },
@@ -197,7 +200,13 @@ describe("no setter for the PDF folder", () => {
     ).toEqual([]);
     expect(
       mutations.filter((path) => path.startsWith("vault.")).sort()
-    ).toEqual(["vault.open", "vault.pick", "vault.reveal", "vault.rewatch"]);
+    ).toEqual([
+      "vault.checkAgain",
+      "vault.open",
+      "vault.pick",
+      "vault.reveal",
+      "vault.rewatch",
+    ]);
   });
 
   it("reveals only the two folders it names, never a path it is given", async () => {
