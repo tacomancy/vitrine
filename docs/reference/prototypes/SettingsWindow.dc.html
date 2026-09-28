@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#05080D}a{color:#9ABFFA}a:hover{color:#C3D8FC}</style>
+</helmet>
+<div style="box-sizing:border-box;width:1180px;height:780px;background:#09111D;border:1px solid #1C232F;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;color:#D0D8E4">
+  <div style="height:28px;flex:none;display:flex;align-items:center;padding:0 12px;position:relative">
+    <div style="display:flex;gap:8px"><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div></div>
+    <div style="position:absolute;left:0;right:0;text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:#9099A7;pointer-events:none">sleep-lab — Settings</div>
+  </div>
+  <div style="flex:1;min-height:0;display:flex;gap:8px;padding:0 8px {{ bodyPadB }}px">
+    <div style="width:238px;flex:none;background:#121A25;border-radius:5px;display:flex;flex-direction:column;padding-bottom:8px;overflow:hidden">
+      <div style="margin:6px 6px 4px;height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;background:#1C232F;border-radius:3px;cursor:pointer">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+          <div style="font:500 13px 'IBM Plex Mono',monospace;color:#D0D8E4">sleep-lab</div>
+          <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">~/Documents/sleep-lab</div>
+        </div>
+        <span style="font:400 13px 'IBM Plex Mono',monospace;color:#E5B64A">⚙</span>
+      </div>
+      <div style="margin:0 10px 6px;height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1C232F;border-radius:3px">
+        <span style="flex:1;font:400 13px Inter,sans-serif;color:#9099A7">Go to, or capture</span>
+        <span style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">⌘K</span>
+      </div>
+      <div style="padding:12px 16px 6px;font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">SURFACES</div>
+      <sc-for list="{{ surfaces }}" as="n" hint-placeholder-count="8">
+        <div style="height:34px;flex:none;margin:0 6px;padding:0 10px;display:flex;align-items:center;gap:10px;border-radius:3px;cursor:{{ n.cursor }}">
+          <span style="width:14px;flex:none;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:{{ n.gFg }}">{{ n.glyph }}</span>
+          <div style="min-width:0;display:flex;flex-direction:column;gap:1px">
+            <span style="font:400 13px/16px Inter,sans-serif;color:{{ n.fg }};white-space:nowrap">{{ n.label }}</span>
+            <sc-if value="{{ n.hasHint }}" hint-placeholder-val="{{ false }}"><span style="font:400 11px/13px 'IBM Plex Mono',monospace;color:#9099A7;white-space:nowrap">{{ n.hint }}</span></sc-if>
+          </div>
+        </div>
+      </sc-for>
+      <div style="padding:16px 16px 6px;font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">DASHBOARDS</div>
+      <sc-for list="{{ dashboards }}" as="n" hint-placeholder-count="3">
+        <div style="height:34px;flex:none;margin:0 6px;padding:0 10px;display:flex;align-items:center;gap:10px;border-radius:3px;cursor:{{ n.cursor }}">
+          <span style="width:14px;flex:none;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:{{ n.gFg }}">{{ n.glyph }}</span>
+          <div style="min-width:0;display:flex;flex-direction:column;gap:1px">
+            <span style="font:400 13px/16px Inter,sans-serif;color:{{ n.fg }};white-space:nowrap">{{ n.label }}</span>
+            <sc-if value="{{ n.hasHint }}" hint-placeholder-val="{{ false }}"><span style="font:400 11px/13px 'IBM Plex Mono',monospace;color:#9099A7;white-space:nowrap">{{ n.hint }}</span></sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex:1;min-width:0;background:#121A25;border-radius:5px;display:flex;flex-direction:column;overflow:hidden">
+      <div style="height:52px;flex:none;display:flex;align-items:baseline;gap:14px;padding:18px 24px 0;box-sizing:border-box">
+        <div style="font:600 16px Inter,sans-serif;color:#D0D8E4">Settings</div>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#9099A7">how sleep-lab is arranged</div>
+      </div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:0 24px 20px">
+        <sc-for list="{{ sections }}" as="s" hint-placeholder-count="3">
+          <div style="margin-top:12px">
+            <div style="height:30px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1F2835">
+              <span style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">{{ s.label }}</span>
+              <span style="font:500 13px Inter,sans-serif;color:#D0D8E4">{{ s.name }}</span>
+            </div>
+            <sc-for list="{{ s.rows }}" as="r" hint-placeholder-count="3">
+              <div style="min-height:30px;display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:16px;align-items:center;padding:5px 0;box-sizing:border-box;border-bottom:1px solid #1F2835">
+                <div style="font:400 13px Inter,sans-serif;color:#9099A7">{{ r.label }}</div>
+                <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <sc-if value="{{ r.isClaim }}" hint-placeholder-val="{{ false }}">
+                    <span style="font:400 14px Inter,sans-serif;color:#D0D8E4">{{ r.value }}</span>
+                  </sc-if>
+                  <sc-if value="{{ r.isInput }}" hint-placeholder-val="{{ false }}">
+                    <input value="{{ r.value }}" style="width:220px;height:26px;box-sizing:border-box;padding:0 8px;background:#1C232F;border:0;border-radius:3px;outline:0;color:#D0D8E4;font:400 12px 'IBM Plex Mono',monospace" style-focus="box-shadow:0 0 0 2px #E5B64A"></input>
+                  </sc-if>
+                  <sc-if value="{{ r.isFact }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+                      <sc-if value="{{ r.hasGlyph }}" hint-placeholder-val="{{ false }}"><span style="width:12px;flex:none;text-align:center;font:400 13px 'IBM Plex Mono',monospace;color:{{ r.glyphFg }}">{{ r.glyph }}</span></sc-if>
+                      <span style="font:{{ r.font }};color:{{ r.fg }};overflow-wrap:anywhere">{{ r.value }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.hasSub }}" hint-placeholder-val="{{ false }}">
+                    <span style="padding-left:{{ r.subPad }}px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:#9099A7;overflow-wrap:anywhere">{{ r.sub }}</span>
+                  </sc-if>
+                </div>
+                <div style="display:flex;gap:16px;justify-content:flex-end;white-space:nowrap">
+                  <sc-if value="{{ r.hasWarrant }}" hint-placeholder-val="{{ false }}"><span style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">{{ r.warrant }}</span></sc-if>
+                  <sc-for list="{{ r.actions }}" as="a" hint-placeholder-count="0">
+                    <span onClick="{{ a.fn }}" style="font:400 13px Inter,sans-serif;color:#9ABFFA;cursor:pointer" style-hover="color:#C3D8FC">{{ a.label }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ s.hasWaiting }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:4px 0;border-bottom:1px solid #1F2835">
+                <div style="font:400 13px/26px Inter,sans-serif;color:#9099A7">Waiting on this key</div>
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{ s.waiting }}" as="w" hint-placeholder-count="3">
+                    <div style="height:26px;display:flex;align-items:center;gap:10px">
+                      <span style="width:12px;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">◎</span>
+                      <span style="font:400 13px Inter,sans-serif;color:#9ABFFA;cursor:pointer" style-hover="color:#C3D8FC">{{ w.name }}</span>
+                      <span style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">{{ w.src }} · blocked on credentials since {{ w.since }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ s.hasNote }}" hint-placeholder-val="{{ true }}"><p style="margin:6px 0 0;max-width:820px;font:400 12px/1.5 Inter,sans-serif;color:#9099A7;text-wrap:pretty">{{ s.note }}</p></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ hasFooter }}" hint-placeholder-val="{{ false }}">
+    <div style="height:32px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px 0 274px;font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9;white-space:nowrap">
+      <span style="width:12px;text-align:center;color:{{ fGlyphFg }}">{{ fGlyph }}</span>
+      <span style="color:{{ fLabelFg }}">{{ fLabel }}</span>
+      <span>{{ fDetail }}</span>
+      <sc-if value="{{ fHasAction }}" hint-placeholder-val="{{ false }}"><span onClick="{{ recheck }}" style="color:#9ABFFA;cursor:pointer" style-hover="color:#C3D8FC">check again</span></sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:780},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;working&quot;,&quot;fresh&quot;,&quot;broken&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;working&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const NAV_S = [['Home','■'],['Question Inbox','●'],['Reader','▮','▯','opens on a source'],['Research questions','◆','◇','promoted from a question'],['Hypotheses','▲','△','from a research question'],['Experiments','▼','▽','set up from a hypothesis'],['Scout Queue','◉'],['Vault','▣']];
+const NAV_D = [['Question Map','▦','□','drawn from questions'],['Scout Activity','▤','□',"after a Scout's first run"],['Loose Ends','▥']];
+const MONO = "400 12px 'IBM Plex Mono',monospace", MONO13 = "400 13px 'IBM Plex Mono',monospace", SANS = "400 14px Inter,sans-serif";
+const fact = (label, value, o = {}) => ({ label, value, isFact: true, isClaim: false, isInput: false, font: o.font || MONO13, fg: o.fg || '#D0D8E4',
+  hasGlyph: !!o.glyph, glyph: o.glyph || '', glyphFg: o.glyphFg || '#B2BBC9', hasSub: !!o.sub, sub: o.sub || '', subPad: o.glyph ? 20 : 0,
+  hasWarrant: false, warrant: '', actions: o.actions || [] });
+const claim = (label, value, warrant, actions = []) => ({ label, value, isClaim: true, isFact: false, isInput: false, hasSub: false, hasGlyph: false, hasWarrant: true, warrant, actions });
+const input = (label, value, sub) => ({ label, value, isInput: true, isFact: false, isClaim: false, hasSub: !!sub, sub: sub || '', subPad: 0, hasWarrant: false, actions: [] });
+const hhmm = () => { const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+
+class Component extends DCLogic {
+  state = { checking: false, checkedAt: null };
+  componentWillUnmount() { clearTimeout(this.t); }
+  recheck = () => { this.setState({ checking: true }); clearTimeout(this.t); this.t = setTimeout(() => this.setState({ checking: false, checkedAt: hhmm() }), 1800); };
+  renderVals() {
+    const st = this.props.state ?? 'working';
+    const fresh = st === 'fresh', broken = st === 'broken', refused = st === 'refused';
+    const a = l => ({ label: l, fn: () => {} });
+    const nav = arr => arr.map(([label, f, h, wait]) => { const inert = fresh && !!wait;
+      return { label, glyph: inert ? h : f, hint: wait || '', hasHint: inert, gFg: inert ? '#9099A7' : '#B2BBC9', fg: inert ? '#9099A7' : '#B2BBC9', cursor: inert ? 'default' : 'pointer' }; });
+
+    const vault = { label: 'WHERE THE VAULT IS', name: '', hasWaiting: false, waiting: [], hasNote: false, note: '',
+      rows: [
+        fact('Folder', '~/Documents/sleep-lab', { sub: 'opening another folder changes nothing on disk here', actions: [a('Reveal in Finder'), a('Open a different folder…')] }),
+        fact('App state', 'sleep-lab/.vitrine — the one folder the app writes for itself'),
+        fact('Outside changes', fresh ? 'seen — watching since 11:02 today' : 'seen — watching since 08:40 today', { font: MONO, fg: '#B2BBC9' })
+      ] };
+
+    let pdfRows;
+    if (fresh) pdfRows = [
+      fact('Folder', 'sleep-lab/pdfs', { actions: [a('Reveal in Finder')] }),
+      fact('Resolves to', 'itself — a plain folder in the vault', { font: MONO, fg: '#B2BBC9' }),
+      claim('Holds', 'Nothing has arrived yet.', 'read in full · watching')
+    ];
+    else if (broken) pdfRows = [
+      fact('Folder', 'sleep-lab/pdfs', { sub: 'a link, pointing at ~/Dropbox/Papers', actions: [a('Reveal in Finder')] }),
+      fact('Resolves to', 'nothing — the link’s target no longer exists', { glyph: '‖', glyphFg: '#FAA680', fg: '#FAA680', font: MONO13 }),
+      fact('Holds', 'not known', { glyph: '‖', glyphFg: '#FAA680', fg: '#B2BBC9', font: MONO13 }),
+      fact('Last arrived', '2026-09-19 08:02', { sub: 'ramirez-2024-glymphatic-flow.pdf · the last before it stopped resolving' })
+    ];
+    else pdfRows = [
+      fact('Folder', 'sleep-lab/pdfs', { sub: 'a link, pointing at ~/Library/Mobile Documents/com~apple~CloudDocs/Papers', actions: [a('Reveal in Finder')] }),
+      fact('Resolves to', 'iCloud Drive › Papers', { font: SANS }),
+      fact('Holds', '412 PDFs · 1.84 GB'),
+      fact('Last arrived', '2026-09-27 16:40', { sub: 'walker-2017-spindle-coupling.pdf' })
+    ];
+    const pdfs = { label: 'WHERE THE PDFS ARE', name: '', rows: pdfRows, hasWaiting: false, waiting: [],
+      hasNote: true, note: 'The app never moves a file here and has no sync setting: whatever syncs your files syncs this folder. Change the arrangement in Finder.' };
+
+    let keyRows;
+    if (fresh) keyRows = [
+      claim('Key', 'No key is stored.', 'keychain checked', [a('Store a key…')]),
+      input('Model', 'claude-sonnet-4-5'),
+      fact('Goes to', 'api.anthropic.com — nowhere else', { font: MONO, fg: '#B2BBC9', sub: 'no call has been made' })
+    ];
+    else if (refused) keyRows = [
+      fact('Key', 'the key was refused', { glyph: '○', glyphFg: '#D0D8E4', sub: 'a key is stored · the provider did not accept it on test, 10:02 today', actions: [a('Replace…'), a('Test again'), a('Remove')] }),
+      input('Model', 'claude-sonnet-4-5'),
+      fact('Goes to', 'api.anthropic.com — nowhere else', { font: MONO, fg: '#B2BBC9', sub: '1,318 calls since 2026-06-02, all to this address' })
+    ];
+    else keyRows = [
+      fact('Key', 'a key is stored', { sub: 'macOS Keychain · “Vitrine — Anthropic”', actions: [a('Replace…'), a('Remove')] }),
+      input('Model', 'claude-sonnet-4-5'),
+      fact('Test', 'worked · 09:14 today · 0.7 s', { glyph: '✓', glyphFg: '#48DBA2', font: MONO, fg: '#B2BBC9', actions: [a('Test')] }),
+      fact('Goes to', 'api.anthropic.com — nowhere else', { font: MONO, fg: '#B2BBC9', sub: '1,318 calls since 2026-06-02, all to this address' })
+    ];
+    const talks = { label: 'WHAT IT TALKS TO', name: 'Anthropic', rows: keyRows, hasWaiting: refused, hasNote: true,
+      waiting: [
+        { name: 'Sleep spindles', src: 'bioRxiv', since: '10:02' },
+        { name: 'Glymphatic clearance', src: 'PubMed', since: '10:02' },
+        { name: 'Targeted memory reactivation', src: 'arXiv q-bio', since: '10:02' }
+      ],
+      note: 'Held in the macOS Keychain. Never shown back, never written to the vault, sent only to the address above.' };
+
+    const f = !broken ? {} : this.state.checking
+      ? { fGlyph: '◐', fGlyphFg: '#B2BBC9', fLabel: 'checking the PDF folder', fLabelFg: '#D0D8E4', fDetail: '', fHasAction: false }
+      : { fGlyph: '‖', fGlyphFg: '#FAA680', fLabel: 'papers not arriving', fLabelFg: '#FAA680',
+          fDetail: '— the PDF folder is a link to a folder that no longer exists' + (this.state.checkedAt ? ', checked again ' + this.state.checkedAt : '') + ' ·', fHasAction: true };
+    return { surfaces: nav(NAV_S), dashboards: nav(NAV_D), sections: [vault, pdfs, talks],
+      hasFooter: broken, bodyPadB: broken ? 0 : 8, ...f, recheck: this.recheck };
+  }
+}
+</script>
+</body>
+</html>

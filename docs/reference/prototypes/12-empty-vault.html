@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#05080D;font-family:Inter,system-ui,sans-serif;color:#D0D8E4}a{color:#9ABFFA}a:hover{color:#C3D8FC}</style>
+</helmet>
+<section id="1" style="padding:64px 64px 120px;display:flex;flex-direction:column;gap:80px;width:max-content">
+
+  <div style="max-width:1180px;display:flex;flex-direction:column;gap:18px">
+    <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">VITRINE · THE EMPTY VAULT</div>
+    <div style="font:600 25px/1.3 Inter,sans-serif;color:#D0D8E4;text-wrap:pretty">Short because nothing is there — never because something didn't load.</div>
+    <p style="margin:0;max-width:820px;font:400 14px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">One slot, three voices. Every surface that can be empty has a first row, where its contents would begin. What sits in that row is always one of three things, and they differ in typeface, in completeness, and in whether the foot of the window speaks. Learn them on the Inbox and they read the same on any surface drawn after it.</p>
+    <div style="margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <div style="background:#121A25;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">EMPTY — A CLAIM</div>
+        <div style="display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px solid #1F2835">
+          <span style="flex:1;font:400 14px Inter,sans-serif;color:#D0D8E4">No questions have been captured in this vault.</span>
+        </div>
+        <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">read in full · watching</div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">A full sentence in Inter, text colour, with a full stop. Its warrant sits on the right of the row, where every other row carries its provenance. It's the only voice that asserts something, so it's the only one that shows what the assertion rests on. It appears only after a full read, while the vault is being watched.</p>
+      </div>
+      <div style="background:#121A25;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">NOT YET — NO CLAIM</div>
+        <div style="display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #1F2835;font:400 13px 'IBM Plex Mono',monospace;color:#B2BBC9">
+          <span>◐</span><span>not read yet</span>
+        </div>
+        <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">footer · ◐ reading the vault · 1,250 of 8,400 files</div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">A mono fragment in the same slot, with no full stop and no warrant: it makes no claim either way. Progress goes to the footer channel. The rail stops making claims too, so every entry is drawn live until the read finishes.</p>
+      </div>
+      <div style="background:#121A25;border-radius:5px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">SOMETHING WRONG — NO CLAIM, A REASON</div>
+        <div style="display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #1F2835;font:400 13px 'IBM Plex Mono',monospace;color:#B2BBC9">
+          <span style="color:#FAA680">‖</span><span>not known</span>
+        </div>
+        <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">footer · <span style="color:#FAA680">‖ not watching</span> — the reason · <span style="color:#9ABFFA">retry</span></div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">The same fragment shape, with the warning glyph. The reason and the retry go in the footer channel, the one place the vault speaks, and nowhere else. Never red, can't be dismissed, and it goes away as soon as it stops being true.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:64px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">1 — FIRST LAUNCH, NO VAULT OPEN</div>
+      <dc-import name="VaultWindow" surface="launch" mode="empty" hint-size="1180px,780px"></dc-import>
+      <p style="margin:0;max-width:1180px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">Seen once: one sentence and one action. The macOS picker can already make a new folder, so one button handles both cases, and the note beside it says so. Focus starts on the button (brass ring), so ↵ opens the picker. There's no rail, no ⌘K and no capture line, because none of them works yet, and the screen doesn't hint that they exist.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">2 — QUESTION INBOX, NOTHING CAPTURED</div>
+      <dc-import name="VaultWindow" surface="inbox" mode="empty" hint-size="1180px,780px"></dc-import>
+      <p style="margin:0;max-width:1180px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">The columns stay drawn. <em>Question · where it came from · age</em> is the plainest description of what lands here. The claim says <em>captured</em> rather than <em>left</em>: it describes where questions come from, not how many are done, so the empty list can't be read as finished. The paragraph below covers how questions arrive, once, at the page's own size. There are no counts, and nothing reads as <em>all clear</em>.</p>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:64px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">3 — LOOSE ENDS, NOTHING LOOSE</div>
+      <dc-import name="VaultWindow" surface="loose" mode="empty" hint-size="1180px,780px"></dc-import>
+      <p style="margin:0;max-width:1180px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">This keeps <em>that the app can see</em>, because that clause sets the limit of the claim. It drops <em>yet</em>, which sounded like a promise; the honest-empty weight moves into the warrant, where every surface carries it. The paragraph describes scope, not a checklist: it says what this page looks for, so the empty page still reads as the maintenance surface and not as a page that failed to render.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">4 — THE RAIL ON AN EMPTY VAULT</div>
+      <div style="display:flex;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <dc-import name="VaultWindow" surface="inbox" mode="empty" rail-only="{{ true }}" hint-size="254px,780px"></dc-import>
+          <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">read in full · watching</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <dc-import name="VaultWindow" surface="inbox" mode="reading" rail-only="{{ true }}" hint-size="254px,780px"></dc-import>
+          <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">◐ reading</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <dc-import name="VaultWindow" surface="inbox" mode="broken" rail-only="{{ true }}" hint-size="254px,780px"></dc-import>
+          <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7"><span style="color:#FAA680">‖</span> not watching</div>
+        </div>
+      </div>
+      <p style="margin:0;max-width:810px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">An inert entry keeps its place and its label, switches to a hollow glyph, and says where its contents will come from. The rail stays a map of the product. <em>Waiting</em> is shown as provenance still to come, not by greying the entry out, which is what makes an entry look broken. Home, Inbox, Scout Queue, Vault, Loose Ends and Settings stay live, because each has something to do on day one. Saying an entry has nothing is a claim, so it follows the same rule as the empty line: while the vault is being read, or while it can't be watched, every entry is drawn live and the rail claims nothing.</p>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">5 — THE CONTRAST SET · QUESTION INBOX, THREE WAYS</div>
+    <div style="display:flex;gap:32px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <dc-import name="VaultWindow" surface="inbox" mode="empty" hint-size="1180px,780px"></dc-import>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">a · nothing captured yet</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <dc-import name="VaultWindow" surface="inbox" mode="reading" hint-size="1180px,780px"></dc-import>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">b · opened, not finished reading</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <dc-import name="VaultWindow" surface="inbox" mode="broken" hint-size="1180px,780px"></dc-import>
+        <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">c · can't be read — retry works</div>
+      </div>
+    </div>
+    <p style="margin:0;max-width:1180px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">Check by eye, in four places, without reading a word. The first row is a sentence in Inter in (a) and a mono fragment in (b) and (c). The warrant is present only in (a). The footer is absent in (a), shows progress in (b), and shows a warning glyph with a retry in (c). The rail's hollow entries with their hints appear only in (a). All three screens stay short and quiet. Case (c) has one brass-free spot of warm colour, and it always comes with a glyph and a label.</p>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

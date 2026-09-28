@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#05080D;font-family:Inter,system-ui,sans-serif;color:#D0D8E4}a{color:#9ABFFA}a:hover{color:#C3D8FC}</style>
+</helmet>
+<section id="1" style="padding:64px 64px 120px;display:flex;flex-direction:column;gap:56px;width:max-content">
+  <div style="max-width:1180px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">VITRINE · SETTINGS</div>
+    <div style="font:600 25px/1.3 Inter,sans-serif;color:#D0D8E4">Three statements about one vault, each one checkable.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px">
+      <div style="background:#121A25;border-radius:5px;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">THE GEAR</div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">It moves off the foot of the rail and onto the vault's own name at the top. Settings describes this vault, so it opens from the vault. The name and path already sit there as facts, and the gear turns brass when Settings is open.</p>
+      </div>
+      <div style="background:#121A25;border-radius:5px;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">BROKEN ≠ BLOCKED</div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty"><span style="font-family:'IBM Plex Mono',monospace;color:#FAA680">‖</span> copper means something is wrong: here, only a link that doesn't resolve. <span style="font-family:'IBM Plex Mono',monospace;color:#D0D8E4">○</span> hollow, in text colour, means something is absent or not accepted. That's blocked on credentials, and it names the Scouts waiting on the key. The two never share a glyph or a colour.</p>
+      </div>
+      <div style="background:#121A25;border-radius:5px;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">SHOWS, NEVER SETS</div>
+        <p style="margin:0;font:400 13px/1.6 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">The PDF section's only control is Reveal in Finder. Instead of stating the key promise, the screen shows where the key's calls have gone, as an address and a count, which you can check against the world.</p>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1180px 1180px;gap:56px 48px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">1 · fully arranged and working</div>
+      <dc-import name="SettingsWindow" state="working" hint-size="1180px,780px"></dc-import>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">2 · fresh — a plain empty folder, no key</div>
+      <dc-import name="SettingsWindow" state="fresh" hint-size="1180px,780px"></dc-import>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">3 · the symlink broken — check again works</div>
+      <dc-import name="SettingsWindow" state="broken" hint-size="1180px,780px"></dc-import>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9">4 · a key refused — blocked on credentials</div>
+      <dc-import name="SettingsWindow" state="refused" hint-size="1180px,780px"></dc-import>
+    </div>
+  </div>
+  <p style="margin:0;max-width:1180px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">2 and 3, by eye: in (2) the Holds row is an Inter sentence with its note on the right (<em>read in full · watching</em>), the same honest-empty voice as the empty vault. In (3) that row is a mono fragment with a copper ‖ and no note, and the footer channel speaks. The footer sounds the fault and this screen only states it, so it's raised in one place. The reason names the fault. The path it points at appears only as a fact on the Folder row.</p>
+</section>
+</x-dc>
+</body>
+</html>
