@@ -63,6 +63,7 @@ const fresh: Readable = {
     census,
   },
   overridable: false,
+  related: { promotedFrom: null, questions: [] },
   loop: {
     status: "open",
     parent: {

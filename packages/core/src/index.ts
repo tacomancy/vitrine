@@ -22,6 +22,8 @@ export type {
   HypothesisSections,
   Loop,
   LoopParent,
+  Related,
+  RelatedQuestion,
 } from "./hypothesis.js";
 export type {
   Clause,

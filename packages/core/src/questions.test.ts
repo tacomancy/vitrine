@@ -108,7 +108,7 @@ describe("a capture from a Research Question's page", () => {
       "questions.capture",
       {
         text: "Does the effect survive a nap?",
-        provenance: { context: "pursuing", researchQuestion: page },
+        provenance: { context: "pursuing", page },
       }
     );
 
@@ -151,7 +151,7 @@ describe("a capture from a Research Question's page", () => {
 
     const reply = await c.mutate("questions.capture", {
       text: "Orphaned?",
-      provenance: { context: "pursuing", researchQuestion: page },
+      provenance: { context: "pursuing", page },
     });
 
     expect(reply.error?.data.kind).toBe("writeFailed");
@@ -165,11 +165,11 @@ describe("a capture from a Research Question's page", () => {
     );
   });
 
-  it("refuses a `researchQuestion` on an Unattached capture, and a pursuing capture without one, as input errors", async () => {
+  it("refuses a `page` on an Unattached capture, and a pursuing capture without one, as input errors", async () => {
     const c = await core();
     const vault = await openVault(c);
     for (const provenance of [
-      { context: "other", researchQuestion: page },
+      { context: "other", page },
       { context: "pursuing" },
     ]) {
       const reply = await c.mutate("questions.capture", {

@@ -33,21 +33,25 @@ export function App() {
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
-    // A capture made on a page appended its link there (§ Vault layout).
+    // A capture made on a page appended its link there (§ Vault layout),
+    // or joins a Hypothesis's related rail, which is a query over `from:`.
     void queryClient.invalidateQueries(
       trpc.researchQuestions.page.pathFilter()
     );
+    void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
     setLanded(question);
   };
 
   // What a capture records as Provenance (CONTEXT.md), whichever chord
-  // made it: pursuing the page at this address, otherwise Unattached. The
-  // address names a file, not a Kind; a capture on a page that is not a
-  // Research Question is refused by the core, loudly, where it was made.
-  // The Reader will add *reading* here when it exists.
+  // made it: pursuing the page at this address — a Research Question's or
+  // a Hypothesis's — otherwise Unattached. The address names a file, not a
+  // Kind; a capture on a page of any other Kind is refused by the core,
+  // loudly, where it was made. The follow-up a Hypothesis's result raises
+  // is `resolving`, and is the page's own line, not the chord's. The
+  // Reader will add *reading* here when it exists.
   const provenance: Provenance =
-    route.surface === "research-question"
-      ? { context: "pursuing", researchQuestion: route.path }
+    route.surface === "research-question" || route.surface === "hypothesis"
+      ? { context: "pursuing", page: route.path }
       : { context: "other" };
 
   // Nothing is drawn until the core has answered: a First run that flashes
