@@ -28,7 +28,7 @@ The installed `/Applications/Vitrine.app` is the user's daily driver, and `pnpm 
 
 ## What to use as a vault
 
-Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsidian/`, a note, one Question outside `questions/` (so an open shows a row before anything is captured), one freshly promoted Research Question under `questions/` for `#/research-question/…`, and under `sources/` a Source whose PDF is there, one whose `pdf:` names a file that is not, and a stub — the three states the picker's rows distinguish. Never point a run at the user's real vault. A failing write is simulated with `chmod 500` on `questions/`; restore it after.
+Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsidian/`, a note, one Question outside `questions/` (so an open shows a row before anything is captured), one freshly promoted Research Question under `questions/` for `#/research-question/…`, and under `sources/` a Source whose PDF is there, one whose `pdf:` names a file that is not, and a stub — the three states the picker's rows distinguish. Since #375 it also holds a Hypothesis sharpened from that Research Question and four Experiments under `experiments/`, one per state the Experiment surface draws; `fixture-vault.experiments.test.ts` names and pins each. Loose Ends shows neither Experiment row on a fresh copy: the stalled run needs open days recorded in `.vitrine/queue.sqlite`, and the missing link is `Lab iMac`'s, never a row on another machine. Never point a run at the user's real vault. A failing write is simulated with `chmod 500` on `questions/`; restore it after.
 
 ## What cannot be driven this way
 
