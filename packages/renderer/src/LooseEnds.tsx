@@ -32,7 +32,15 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
  * than vanishing out from under the click.
  */
 
-/** Each group's glyph and the line beside it, from prompt 9's punch-list reading. */
+/**
+ * Each group's glyph and the line beside it, from prompt 9's punch-list
+ * reading. A note has to be true of every row its group can hold.
+ * Prototype 9's *promoted, then quiet* stopped being so when runs joined
+ * Stalled questions (#374): an Experiment is never promoted, and a run
+ * whose linked file went missing need not be quiet — an unmounted volume
+ * does it to a run in hand. What every row there shares is work begun
+ * that lacks something it needs.
+ */
 const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
   "Broken plumbing": { glyph: "!", note: "these worsen while ignored" },
   "Unfinished reading": { glyph: "◇", note: "acquired but not yet read" },
@@ -40,7 +48,10 @@ const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
     glyph: "·",
     note: "in the vault, wired to nothing",
   },
-  "Stalled questions": { glyph: "◆", note: "promoted, then quiet" },
+  "Stalled questions": {
+    glyph: "◆",
+    note: "begun, with a piece still missing",
+  },
 };
 
 /**
