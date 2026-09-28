@@ -1,5 +1,9 @@
 import { outline, type Heading } from "markdown";
-import { formatRevision, topLevelItems } from "./position-history.js";
+import {
+  formatRevision,
+  topLevelItems,
+  type Revision,
+} from "./position-history.js";
 import {
   deriveKind,
   type Criterion,
@@ -41,7 +45,15 @@ export type Clause =
   | "allLanded";
 
 export type Derivation = {
+  /** What the criteria say, by the rule alone. */
   state: DerivedState;
+  /**
+   * What the page reads: *supported* while a live Override stands over a
+   * derived *inconclusive*, and the derived state otherwise.
+   */
+  effective: DerivedState;
+  /** The live Override the effective state rests on, or null. */
+  override: { at: string; why: string } | null;
   clause: Clause;
   /**
    * The criteria the clause is about, by label — or `^c<n>` for one with no
@@ -49,6 +61,13 @@ export type Derivation = {
    * that disagree, the ones awaiting, or every deciding one when supported.
    */
   named: string[];
+  /**
+   * Every criterion keeping the state from *supported*, by name, whatever
+   * the clause: a deciding one that has not landed for the claim — awaiting
+   * evidence, or read the wrong way — and one with no Relationship. What an
+   * Override overrules, so the form can list it (spec #327 story 58).
+   */
+  unlanded: string[];
   /** Over every criterion, diagnostic ones included: the shape of the evidence, not the rule. */
   census: {
     met: number;
@@ -103,7 +122,9 @@ export const nameOf = (c: Pick<Criterion, "id" | "relationship">) =>
  * is *awaiting evidence* to the rule, and an unreadable Relationship is none.
  */
 export function derive(
-  criteria: ReadonlyArray<Pick<Criterion, "id" | "relationship" | "outcome">>
+  criteria: ReadonlyArray<Pick<Criterion, "id" | "relationship" | "outcome">>,
+  /** The history's live Override (`liveOverride`), for the effective state; none when omitted. */
+  live: Revision | null = null
 ): Derivation {
   const census = { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 };
   for (const { outcome } of criteria) {
@@ -112,16 +133,41 @@ export function derive(
     else if (outcome === "inconclusive") census.inconclusive++;
     else census.awaiting++;
   }
+  // What a deciding criterion must read for the claim to stand: confirming
+  // met, falsifying not met (the correction above).
+  const supports = (c: (typeof criteria)[number]) =>
+    c.outcome === (c.relationship === "confirming" ? "met" : "not met");
+  const unlanded = criteria
+    .filter(
+      (c) =>
+        c.relationship === null ||
+        (c.relationship !== "diagnostic" && !supports(c))
+    )
+    .map(nameOf);
   const result = (
     state: DerivedState,
     clause: Clause,
     named: string[] = []
-  ) => ({
-    state,
-    clause,
-    named,
-    census,
-  });
+  ): Derivation => {
+    // The Override is only ever *inconclusive → supported* (decision 7).
+    // Anything that could move the derived state voids it in the same
+    // write, so a live one over another state is an Obsidian edit still
+    // parked, not yet spliced — and a result the criteria reached is not
+    // the Override's to contradict meanwhile.
+    const standing =
+      live !== null && live.why !== null && state === "inconclusive"
+        ? { at: live.at, why: live.why }
+        : null;
+    return {
+      state,
+      effective: standing === null ? state : "supported",
+      override: standing,
+      clause,
+      named,
+      unlanded,
+      census,
+    };
+  };
 
   const falsifiedBy = criteria.filter(
     (c) => c.relationship === "falsifying" && c.outcome === "met"
@@ -137,10 +183,6 @@ export function derive(
   const deciding = criteria.filter(
     (c) => c.relationship === "confirming" || c.relationship === "falsifying"
   );
-  // What a deciding criterion must read for the claim to stand: confirming
-  // met, falsifying not met (the correction above).
-  const supports = (c: (typeof deciding)[number]) =>
-    c.outcome === (c.relationship === "confirming" ? "met" : "not met");
   const against = deciding.filter((c) => c.outcome !== null && !supports(c));
   if (against.length > 0) {
     return result("inconclusive", "mixed", against.map(nameOf));
@@ -158,6 +200,60 @@ export function derive(
   if (deciding.length === 0) return result("inconclusive", "onlyDiagnostic");
   return result("supported", "allLanded", deciding.map(nameOf));
 }
+
+/** The field an Override is written under, and the one its void is (§ Vault layout (Hypothesis)). The renderer's `history.ts` repeats both literals. */
+export const OVERRIDE = "override";
+export const OVERRIDE_VOIDED = "override voided";
+
+/**
+ * The Override that stands, from the history's entries in file order,
+ * newest first: the newest `· override` with a why that no
+ * `· override voided` names by its timestamp. An entry typed by hand
+ * without a why is not one — an Override exists only as a considered act
+ * with its reason written (`CONTEXT.md` *Override*) — and it stays in the
+ * history, loud, saying no why was written, so it is not lost either.
+ */
+export function liveOverride(entries: readonly Revision[]): Revision | null {
+  const newest = entries.find((e) => e.field === OVERRIDE && e.why !== null);
+  if (newest === undefined) return null;
+  const voided = entries.some(
+    (e) => e.field === OVERRIDE_VOIDED && e.from.trim() === newest.at
+  );
+  return voided ? null : newest;
+}
+
+/**
+ * Why an Override cannot be made on this derivation, or null when it can
+ * (ADR 0031 decision 7). One function for the page's offer and the core's
+ * refusal, so the line under the rule is never offered for a write the
+ * core would refuse. A why is the write's own check: it is the one
+ * condition the page cannot read off the file.
+ */
+export function overrideRefusal(derivation: Derivation): string | null {
+  if (derivation.override !== null) {
+    return "An override is already live; it stands until something it judged changes, and a new one needs a new why.";
+  }
+  if (derivation.state !== "inconclusive") {
+    return `The criteria derive ${derivation.state}; only an inconclusive hypothesis can be overridden, and only to supported.`;
+  }
+  const { met, notMet, inconclusive } = derivation.census;
+  if (met + notMet + inconclusive === 0) {
+    return "No criterion carries an outcome yet, so there is nothing to be partial about.";
+  }
+  return null;
+}
+
+/**
+ * The void the Override is owed when a write revises what it judged: its
+ * own entry, `from:` the Override's timestamp, stamped with the write that
+ * caused it. Load-bearing (`CLAUDE.md` § Code standard; ADR 0031 decision
+ * 7): an Override is a call made on the criteria and the claim as they
+ * stood, so it must not outlive them — otherwise a page could read
+ * *supported* on evidence nobody ever judged. Design notes never void it:
+ * they describe how the test is run, not what it claims or what counts.
+ */
+export const voidOf = (override: Revision, at: string): string =>
+  formatRevision({ at, field: OVERRIDE_VOIDED, why: null, from: override.at });
 
 /**
  * The suffix a criterion Revision carries when it moved the bar (§ Vault

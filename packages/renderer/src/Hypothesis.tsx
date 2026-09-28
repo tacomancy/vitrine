@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Derivation, HypothesisFrontmatter, Revision } from "core";
+import type {
+  CriterionRead,
+  Derivation,
+  HypothesisFrontmatter,
+  Revision,
+} from "core";
+import { useState } from "react";
 import { formatAge } from "./age";
 import styles from "./Hypothesis.module.css";
+import { hypothesisFilters } from "./history";
 import { Criteria } from "./HypothesisCriteria";
+import { OverrideForm } from "./HypothesisOverride";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
@@ -89,7 +97,13 @@ export function Hypothesis({ path }: { path: string }) {
               }
             />
           </Section>
-          <State derivation={readable.derivation} />
+          <State
+            derivation={readable.derivation}
+            overridable={readable.overridable}
+            criteria={readable.sections.criteria.criteria}
+            path={readable.path}
+            hash={readable.hash}
+          />
           <Section name="Criteria" present={readable.sections.criteria.present}>
             <Criteria
               path={readable.path}
@@ -128,6 +142,9 @@ export function Hypothesis({ path }: { path: string }) {
                 // so what it moved to, for the newest, is the state now.
                 state: readable.derivation.state,
               }}
+              filters={hypothesisFilters(
+                readable.sections.positionHistory.entries
+              )}
               // A why onto any entry, months later (spec #327 story 54): the
               // page's own hash, because no save of the page's stands
               // between the read and this write.
@@ -225,19 +242,58 @@ function baseLine(fm: HypothesisFrontmatter): string {
  * which is the defect the ADR corrects. Every state is drawn by one class:
  * *falsified* is a result as finished as *supported*, never greyed or
  * struck (TEST-7).
+ *
+ * Overridden (#337; decision 7), the word is *supported* and never loses
+ * its qualifier: *overrides inconclusive*, the derived state and its
+ * *because* printed beside it, and the why — so a reader sees both what
+ * the criteria said and what was decided instead (story 59). The Override
+ * is reached from the line under the rule, offered only when the core says
+ * one can be made, never as a control beside the state.
  */
-function State({ derivation }: { derivation: Derivation }) {
+function State({
+  derivation,
+  overridable,
+  criteria,
+  path,
+  hash,
+}: {
+  derivation: Derivation;
+  overridable: boolean;
+  criteria: CriterionRead[];
+  path: string;
+  hash: string;
+}) {
+  const [overriding, setOverriding] = useState(false);
+  const { override } = derivation;
   return (
-    <section className={styles.state} aria-labelledby="hy-state">
-      <h2 id="hy-state" className={rq.label}>
-        Derived state
+    <section className={styles.state} aria-label="Derived state">
+      <h2 className={rq.label}>
+        {override === null
+          ? "Derived state"
+          : `State · asserted ${localDate(override.at)}`}
       </h2>
       <p className={styles.verdict}>
-        <span className={styles.stateWord} data-state={derivation.state}>
-          {derivation.state}
+        <span className={styles.stateWord} data-state={derivation.effective}>
+          {derivation.effective}
         </span>
-        <span className={styles.because}>because {becauseOf(derivation)}</span>
+        {override === null ? (
+          <span className={styles.because}>
+            because {becauseOf(derivation)}
+          </span>
+        ) : (
+          <span className={styles.because}>overrides inconclusive</span>
+        )}
       </p>
+      {override !== null && (
+        <>
+          <p className={styles.derived}>
+            derived {derivation.state}, because {becauseOf(derivation)}
+          </p>
+          <blockquote className={styles.overrideQuote}>
+            “{override.why}”
+          </blockquote>
+        </>
+      )}
       <p className={styles.census}>{censusWords(derivation.census)}</p>
       <ul className={styles.rule} aria-label="The rule">
         <li>any falsifying criterion met → falsified</li>
@@ -248,6 +304,29 @@ function State({ derivation }: { derivation: Derivation }) {
         <li>otherwise → inconclusive</li>
         <li>diagnostic criteria never decide</li>
       </ul>
+      {overridable && !overriding && (
+        <button
+          type="button"
+          className={`${rq.edit} ${styles.offer}`}
+          onClick={() => setOverriding(true)}
+        >
+          disagree with this? override…
+        </button>
+      )}
+      {derivation.state === "falsified" && (
+        <p className={styles.offerNote}>
+          not overridable — a met falsifying criterion is a result
+        </p>
+      )}
+      {overridable && overriding && (
+        <OverrideForm
+          path={path}
+          hash={hash}
+          criteria={criteria}
+          unlanded={derivation.unlanded}
+          onClose={() => setOverriding(false)}
+        />
+      )}
     </section>
   );
 }

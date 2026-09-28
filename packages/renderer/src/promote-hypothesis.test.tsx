@@ -69,10 +69,14 @@ const page: HypothesisPage = {
   },
   derivation: {
     state: "inconclusive",
+    effective: "inconclusive",
+    override: null,
     clause: "noCriteria",
     named: [],
+    unlanded: [],
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
   },
+  overridable: false,
   problems: [],
 };
 

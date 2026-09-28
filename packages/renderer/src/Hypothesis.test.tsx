@@ -55,10 +55,14 @@ const fresh: Readable = {
   },
   derivation: {
     state: "inconclusive",
+    effective: "inconclusive",
+    override: null,
+    unlanded: [],
     clause: "noCriteria",
     named: [],
     census,
   },
+  overridable: false,
   problems: [],
 };
 
@@ -75,13 +79,18 @@ const criterion = (
   ...over,
 });
 
+/** What the rule says, without an Override: the effective state is the derived one. */
+type Rule = Omit<Derivation, "effective" | "override" | "unlanded">;
+
 const withCriteria = (
   criteria: CriterionRead[],
-  derivation: Derivation
+  rule: Rule | Derivation,
+  overridable = false
 ): Readable => ({
   ...fresh,
   sections: { ...fresh.sections, criteria: { present: true, criteria } },
-  derivation,
+  derivation: { effective: rule.state, override: null, unlanded: [], ...rule },
+  overridable,
 });
 
 const answers = {
@@ -322,7 +331,7 @@ describe("the criteria as read", () => {
 });
 
 describe("the derived state", () => {
-  const because: Array<[Derivation, string]> = [
+  const because: Array<[Rule, string]> = [
     [
       { state: "inconclusive", clause: "mixed", named: ["C2"], census },
       "the criteria disagree: C2",
@@ -365,7 +374,7 @@ describe("the derived state", () => {
   }
 
   it("renders falsified as solid and finished as supported — never greyed or struck (TEST-7)", async () => {
-    const drawn = async (derivation: Derivation) => {
+    const drawn = async (derivation: Rule) => {
       const { unmount } = open(() => withCriteria([], derivation));
       const state = await within(await region()).findByRole("region", {
         name: "Derived state",
