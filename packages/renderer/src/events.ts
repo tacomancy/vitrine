@@ -67,6 +67,11 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
+        } else if (event.type === "pdfFolder") {
+          // The core checked the PDF folder (#379): the footer's *papers not
+          // arriving* and Settings' rows re-read what it found.
+          void queryClient.invalidateQueries(trpc.vault.pdfFault.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.pdfFolder.pathFilter());
         } else if (event.type === "vaultSwitched") {
           // Another vault is open (#377), whichever way it was asked for —
           // Settings, First run, or File ▸ Open Vault…, which the shell
