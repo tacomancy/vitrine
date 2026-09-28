@@ -22,8 +22,11 @@ import {
   criteriaToAttach,
   EDITED_SECTIONS as EXPERIMENT_SECTIONS,
   PAGE as EXPERIMENT_PAGE,
+  POSITIONS as EXPERIMENT_POSITIONS,
   readExperimentPage,
+  saveExperimentPosition,
   saveExperimentSection,
+  type ExperimentPosition,
   setExperimentStatus,
   STATUSES as EXPERIMENT_STATUSES,
 } from "./experiment.js";
@@ -31,6 +34,7 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
+import { readPdfFolder } from "./pdf-folder.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -80,6 +84,8 @@ const t = initTRPC.context<Context>().create({
 });
 
 const pathInput = z.object({ path: z.string() });
+
+const revealInput = z.object({ folder: z.enum(["vault", "pdfs"]) });
 
 const listInput = z
   .object({ order: z.enum(["newest", "oldest"]).default("newest") })
@@ -204,11 +210,19 @@ export const router = t.router({
       await requireVault(ctx);
       await ctx.vault.rewatch();
     }),
-    // Settings' *Reveal in Finder* (#376). Takes no path: what can be shown
-    // is decided here, so the window cannot ask Finder about anything else.
-    reveal: t.procedure.mutation(async ({ ctx }) => {
+    // Settings' *Reveal in Finder* (#376, #378). Takes a folder's name, never
+    // a path: what can be shown is decided here, so the window cannot ask
+    // Finder about anything else.
+    reveal: t.procedure.input(revealInput).mutation(async ({ ctx, input }) => {
       await requireVault(ctx);
-      await ctx.vault.reveal();
+      await ctx.vault.reveal(input.folder);
+    }),
+    // Settings' *Where the PDFs are* (#378). A read and nothing else: there
+    // is no procedure that makes, re-points or removes the link, or copies a
+    // PDF in or out (ADR 0025 decision 6) — the absence is the promise.
+    pdfFolder: t.procedure.query(async ({ ctx }) => {
+      const { vault } = await requireVault(ctx);
+      return readPdfFolder(vault.path);
     }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
@@ -498,6 +512,31 @@ export const router = t.router({
             experiment: input.experiment,
             note: input.note,
             basedOn: input.basedOn,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    // Design or observations (#365): the section replaced and its Revision
+    // recorded in one write, as a Hypothesis's claim is saved.
+    savePosition: t.procedure
+      .input(
+        pathInput.extend({
+          field: z.enum(
+            Object.keys(EXPERIMENT_POSITIONS) as [
+              ExperimentPosition,
+              ...ExperimentPosition[],
+            ]
+          ),
+          text: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveExperimentPosition(await requirePage(ctx), input.path, {
+            ...input,
             at: ctx.now(),
             coalesceMs: ctx.coalesceMs,
           })

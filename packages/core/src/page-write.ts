@@ -69,7 +69,7 @@ const HISTORY = "Position history";
  * Kind modules import this one; a Kind that gains a history is added here
  * as it is to `app.ts`'s `positionsOf`.
  */
-const HISTORIED = ["research-question", "hypothesis"];
+const HISTORIED = ["research-question", "hypothesis", "experiment"];
 
 /**
  * What one page write does to the file it finds: the operations and the

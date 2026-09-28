@@ -5,7 +5,7 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import type { VaultStatus } from "core";
+import type { PdfFolder, VaultStatus } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   empty,
@@ -37,9 +37,19 @@ const watched: VaultStatus = {
   current: { ok: true },
 };
 
-const answers = (status: unknown = watched) => ({
+/** A plain `sources/pdf` with nothing in it: a fresh vault. */
+const fresh: PdfFolder = {
+  exists: true,
+  link: null,
+  resolves: { path: `${vault.path}/sources/pdf`, known: null },
+  holds: { count: 0, bytes: 0 },
+  lastArrived: null,
+};
+
+const answers = (status: unknown = watched, pdfFolder: unknown = fresh) => ({
   "vault.current": vault,
   "vault.status": status,
+  "vault.pdfFolder": pdfFolder,
   "vault.kinds": [],
   "questions.list": empty,
   "globalCommand.destinations": { rows: [] },
@@ -150,14 +160,18 @@ describe("Settings at #/settings: where the vault is", () => {
   });
 
   it("reveals the vault's folder in Finder through the core", async () => {
-    const reveal = vi.fn(() => null);
+    const reveal = vi.fn<(input: unknown) => null>(() => null);
     window.location.hash = "#/settings";
     renderApp({ ...answers(), "vault.reveal": reveal });
-    const page = await settings();
+    const section = within(await settings()).getByRole("region", {
+      name: "Where the vault is",
+    });
     fireEvent.click(
-      within(page).getByRole("button", { name: "Reveal in Finder" })
+      within(section).getByRole("button", { name: "Reveal in Finder" })
     );
-    await vi.waitFor(() => expect(reveal).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() =>
+      expect(reveal).toHaveBeenCalledWith({ folder: "vault" })
+    );
   });
 
   it("holds no preference and no Credentials heading", async () => {
@@ -169,8 +183,152 @@ describe("Settings at #/settings: where the vault is", () => {
       page.querySelectorAll("input, select, textarea, [role='switch']")
     ).toHaveLength(0);
     const headings = [...page.querySelectorAll("h2")].map((h) => h.textContent);
-    expect(headings).toEqual(["Where the vault is"]);
+    expect(headings).toEqual(["Where the vault is", "Where the PDFs are"]);
     expect(page.textContent).not.toMatch(/credential|what it talks to/i);
+  });
+});
+
+// *Where the PDFs are* (#378; spec #363 stories 18–27; prototype 13 states
+// 1 and 2). Every row is a fact the researcher can check in Finder; the
+// one row that can say *nothing is there* says it as a claim, with its
+// Warrant (ADR 0032).
+describe("Settings: where the PDFs are", () => {
+  /** The PDF section, once Settings has rendered. */
+  async function pdfSection() {
+    return within(await settings()).getByRole("region", {
+      name: "Where the PDFs are",
+    });
+  }
+
+  it("states a link into iCloud Drive: where it points, what it resolves to, what it holds, and the last arrival", async () => {
+    const icloud =
+      "/Users/r/Library/Mobile Documents/com~apple~CloudDocs/Papers";
+    window.location.hash = "#/settings";
+    renderApp(
+      answers(watched, {
+        exists: true,
+        link: icloud,
+        resolves: { path: icloud, known: "iCloud Drive › Papers" },
+        holds: { count: 412, bytes: 1_843_200_000 },
+        lastArrived: {
+          at: new Date(2026, 8, 27, 16, 40).toISOString(),
+          name: "walker-2017-spindle-coupling.pdf",
+        },
+      } satisfies PdfFolder)
+    );
+    const section = await pdfSection();
+    await vi.waitFor(() =>
+      expect(row(section, "Resolves to")).toBe("iCloud Drive › Papers")
+    );
+    expect(row(section, "Folder")).toContain("consolidation-vault/sources/pdf");
+    expect(row(section, "Folder")).toContain(`a link, pointing at ${icloud}`);
+    expect(row(section, "Holds")).toBe("412 PDFs · 1.84 GB");
+    expect(row(section, "Last arrived")).toContain("27 Sep 2026, 16:40");
+    expect(row(section, "Last arrived")).toContain(
+      "walker-2017-spindle-coupling.pdf"
+    );
+  });
+
+  it("prints a link's resolved path in full when it is under no known root", async () => {
+    window.location.hash = "#/settings";
+    renderApp(
+      answers(watched, {
+        ...fresh,
+        link: "../../papers",
+        resolves: { path: "/Volumes/Archive/papers", known: null },
+        holds: { count: 1, bytes: 812_000 },
+        lastArrived: { at: new Date(2026, 8, 1).toISOString(), name: "a.pdf" },
+      } satisfies PdfFolder)
+    );
+    const section = await pdfSection();
+    await vi.waitFor(() =>
+      expect(row(section, "Resolves to")).toBe("/Volumes/Archive/papers")
+    );
+    expect(row(section, "Holds")).toBe("1 PDF · 812 KB");
+  });
+
+  it("says a fresh, plain, empty folder has had nothing arrive, as a claim with its Warrant", async () => {
+    window.location.hash = "#/settings";
+    renderApp(answers());
+    const section = await pdfSection();
+    await vi.waitFor(() =>
+      expect(row(section, "Holds")).toBe(
+        "Nothing has arrived yet.read in full · watching"
+      )
+    );
+    expect(row(section, "Resolves to")).toBe(
+      "itself — a plain folder in the vault"
+    );
+    expect(row(section, "Folder")).not.toContain("a link");
+    // Nothing has arrived, so there is no last arrival to state.
+    expect(within(section).queryByText("Last arrived")).toBeNull();
+    // Not a fault: no warning glyph anywhere in the section.
+    expect(section.textContent).not.toContain("‖");
+  });
+
+  it("says not yet for what depends on the read while the vault is being read", async () => {
+    window.location.hash = "#/settings";
+    renderApp(
+      answers({
+        indexing: { done: 10, total: 400 },
+        watching: { ok: true, since: SINCE.toISOString() },
+        current: { ok: false, reason: "the index is being built" },
+      })
+    );
+    const section = await pdfSection();
+    await vi.waitFor(() => expect(row(section, "Holds")).toBe("not yet"));
+    expect(row(section, "Resolves to")).toBe("not yet");
+    expect(section.textContent).not.toContain("Nothing has arrived yet.");
+  });
+
+  // Story 11: *Not watching* is sounded in the footer and nowhere else. An
+  // empty folder cannot be claimed empty without a watch to warrant it, so
+  // it is not known — stated plainly, with no glyph and no warm colour.
+  it("does not claim an empty folder while not watching, and raises no second alarm", async () => {
+    window.location.hash = "#/settings";
+    renderApp(
+      answers({
+        indexing: null,
+        watching: { ok: false, reason: "EMFILE: too many open files" },
+        current: { ok: false, reason: "not watching: EMFILE" },
+      })
+    );
+    const section = await pdfSection();
+    await vi.waitFor(() => expect(row(section, "Holds")).toBe("not known"));
+    expect(section.textContent).not.toContain("‖");
+  });
+
+  it("gives a vault with no sources/pdf its own true sentence, not a fault", async () => {
+    window.location.hash = "#/settings";
+    renderApp(answers(watched, { exists: false } satisfies PdfFolder));
+    const section = await pdfSection();
+    await vi.waitFor(() =>
+      expect(row(section, "Folder")).toContain(
+        "This vault has no sources/pdf yet."
+      )
+    );
+    expect(within(section).queryByText("Resolves to")).toBeNull();
+    expect(within(section).queryByText("Holds")).toBeNull();
+    expect(section.textContent).not.toContain("‖");
+    // Nothing to show in Finder, and nothing here offers to make it.
+    expect(within(section).queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("offers Reveal in Finder as its only control, and says the arrangement is changed in Finder", async () => {
+    const reveal = vi.fn<(input: unknown) => null>(() => null);
+    window.location.hash = "#/settings";
+    renderApp({ ...answers(), "vault.reveal": reveal });
+    const section = await pdfSection();
+    const buttons = await within(section).findAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Reveal in Finder"]);
+    expect(section.querySelectorAll("input, select, textarea")).toHaveLength(0);
+    expect(section.textContent).toContain(
+      "The app never moves a file here and has no sync setting: whatever syncs your files syncs this folder. Change the arrangement in Finder."
+    );
+    fireEvent.click(buttons[0]!);
+    await vi.waitFor(() =>
+      expect(reveal).toHaveBeenCalledWith({ folder: "pdfs" })
+    );
   });
 });
 
