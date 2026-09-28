@@ -475,7 +475,8 @@ describe("a rename is one event, and the row follows it", () => {
  * Timed from the unheld event, not from the held one's own arrival: a loaded
  * `fseventsd` has often split the pair already, and adding the latency on top
  * of that delivered the second change two latencies late — the floor as it
- * then stood, so the pair split (the flake on #400's CI run).
+ * then stood, so the pair split (the flake on #400's CI run). A held event
+ * with no unheld one before it goes out at once.
  */
 function deferring(held: string[], lateMs = FSEVENTS_LATENCY_MS) {
   let lastUnheldAt = 0;
@@ -520,8 +521,8 @@ describe("two changes a moment apart are one Batch however FSEvents splits them"
   });
 
   it("a second rename heard 120 ms after the first — the latency, then a stalled event loop — still shares its vaultChanged", async () => {
-    // What a loaded runner was measured doing (#400): every event came in one
-    // callback, then the loop stalled and the held second rename was heard
+    // What a loaded runner was measured doing (#400): the second rename held
+    // one latency, then ~70 ms more while the event loop stalled — heard
     // 123 ms after the first, just behind the first's settle.
     const { vault, stream } = await watching(
       { "notes/A.md": "a\n", "notes/B.md": "b\n" },
