@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import form from "./AttachSource.module.css";
 import styles from "./AttachEvidence.module.css";
 import { useChosenInView } from "./chosen";
+import { useRestoreFocus } from "./focus";
 import { Picker } from "./Picker";
 import picker from "./Picker.module.css";
 import { useTRPC } from "./trpc";
@@ -36,17 +37,7 @@ export function AttachEvidence({
   onClose: () => void;
 }) {
   const [chosen, setChosen] = useState<Chosen | null>(null);
-  // Read during the first render, before the list's own mount effect
-  // takes the keyboard (AttachSource says why).
-  const [restoreTo] = useState(() =>
-    document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
-  );
-  const leave = () => {
-    onClose();
-    restoreTo?.focus();
-  };
+  const leave = useRestoreFocus(onClose);
   return chosen === null ? (
     <CriterionList onChoose={setChosen} onClose={leave} />
   ) : (
@@ -82,18 +73,9 @@ export function AttachRun({
 }) {
   const trpc = useTRPC();
   const [run, setRun] = useState<{ path: string; name: string } | null>(null);
-  // Read during the first render, before the Picker's mount effect takes
-  // the keyboard (AttachSource says why): the note step outlives the
-  // Picker, which only restores focus for its own.
-  const [restoreTo] = useState(() =>
-    document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
-  );
-  const leave = () => {
-    onClose();
-    restoreTo?.focus();
-  };
+  // The note step outlives the Picker, which only restores focus for its
+  // own.
+  const leave = useRestoreFocus(onClose);
   const make = useMutation(
     trpc.experiments.create.mutationOptions({
       onSuccess: ({ path }, { name }) => setRun({ path, name }),

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import styles from "./AttachSource.module.css";
+import { useRestoreFocus } from "./focus";
 import { ATTACHABLE } from "./kinds";
 import { Picker } from "./Picker";
 import { useTRPC } from "./trpc";
@@ -41,20 +42,9 @@ export function AttachSource({
   const [step, setStep] = useState<
     { at: "picker" } | { at: "stub" } | { at: "side"; chosen: Candidate }
   >({ at: "picker" });
-  // Where the keyboard was when the form opened. Read during the first
-  // render rather than in an effect: the Picker's own mount effect runs
-  // first and would otherwise be what this remembers. The Picker restores
-  // focus for its own step; this carries it across the step that replaces
-  // it, so no caller has to remember where the page's keyboard was.
-  const [restoreTo] = useState(() =>
-    document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
-  );
-  const leave = () => {
-    restoreTo?.focus();
-    onClose();
-  };
+  // The Picker restores focus for its own step; this carries it across the
+  // steps that replace it.
+  const leave = useRestoreFocus(onClose);
 
   if (step.at === "picker") {
     return (
