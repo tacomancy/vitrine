@@ -5,7 +5,7 @@ import styles from "./GlobalCommand.module.css";
 import { KIND, routeOf } from "./kinds";
 import { matchKey, matchRun, strength } from "./match";
 import { hashOf, pushRoute, type Route } from "./router";
-import { SCREENS } from "./surfaces";
+import { ADDRESSED, type Addressed } from "./surfaces";
 import { useTRPC } from "./trpc";
 
 /**
@@ -28,7 +28,9 @@ export function GlobalCommand({ route }: { route: Route }) {
   // decision 5), as the Capture line's chord already is.
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.metaKey && event.key === "k") {
+      // Whatever case the key arrives in: caps lock and ⌘⇧K are the chord
+      // too, and a dead key would just look broken.
+      if (event.metaKey && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setOpen(true);
       }
@@ -44,7 +46,8 @@ export function GlobalCommand({ route }: { route: Route }) {
 
 /** A row of the list: where it goes, and what it says about itself. */
 type Row = {
-  key: string;
+  /** Its Address: what it goes to, and what tells it from every other row. */
+  address: string;
   glyph: string;
   /** The Kind's own word, shown beside the glyph: no mark carries a Kind alone. */
   label: string;
@@ -60,15 +63,46 @@ type Row = {
   kindRank: number;
 };
 
-const SCREEN_KIND = {
-  surface: { glyph: "▪", label: "surface", rank: 0 },
-  dashboard: { glyph: "▦", label: "dashboard", rank: 1 },
+/**
+ * The one number line the whole list is ranked on after strength: Surfaces,
+ * Dashboards, then the objects in the order the core already ranks them
+ * among themselves (`destinations.ts` `ADDRESSABLE`). A Kind added to either
+ * half takes its place here and nowhere else.
+ */
+const KIND_ORDER = [
+  "surface",
+  "dashboard",
+  "research-question",
+  "question",
+] as const;
+
+type Kind = (typeof KIND_ORDER)[number];
+
+const rankOf = (kind: Kind) => KIND_ORDER.indexOf(kind);
+
+/**
+ * A screen's mark and its word. The objects take theirs from `KIND`, which
+ * every surface showing a file already shares; a Surface is not a file, so
+ * its own two live here.
+ */
+/**
+ * The objects' marks and words, narrowed from the table every surface
+ * showing a file shares — a closed union, so there is no unreachable
+ * fallback standing where the reach rule already is.
+ */
+const KIND_OF: Record<Destination["kind"], { glyph: string; label: string }> = {
+  question: KIND["question"] ?? { glyph: "◆", label: "question" },
+  "research-question": KIND["research-question"] ?? {
+    glyph: "■",
+    label: "research question",
+  },
 };
 
-const OBJECT_RANK: Record<Destination["kind"], number> = {
-  "research-question": 2,
-  question: 3,
-};
+const SCREEN_KIND: Record<Addressed["kind"], { glyph: string; label: string }> =
+  {
+    surface: { glyph: "▪", label: "surface" },
+    dashboard: { glyph: "▦", label: "dashboard" },
+  };
 
 function Command({ route, onClose }: { route: Route; onClose: () => void }) {
   const trpc = useTRPC();
@@ -100,45 +134,50 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
   });
 
   const wanted = matchKey(query);
-  const screens: Row[] = SCREENS.flatMap((screen) => {
-    const key = matchKey(screen.name);
-    if (!key.includes(wanted)) return [];
-    const { glyph, label, rank } = SCREEN_KIND[screen.kind];
-    const address = hashOf(screen.route);
-    return [
-      {
-        key: address,
-        glyph,
-        label,
-        name: screen.name,
-        route: screen.route,
-        current: address === here,
-        serif: false,
-        strength: strength(wanted, key),
-        kindRank: rank,
-      },
-    ];
-  });
+  /** The half of a row that is the same whichever half of the list it came from. */
+  const rowOf = (
+    kind: Kind,
+    name: string,
+    route: Route,
+    mark: { glyph: string; label: string },
+    serif: boolean
+  ): Row => {
+    const address = hashOf(route);
+    return {
+      address,
+      glyph: mark.glyph,
+      label: mark.label,
+      name,
+      route,
+      current: address === here,
+      serif,
+      strength: strength(wanted, matchKey(name)),
+      kindRank: rankOf(kind),
+    };
+  };
+
+  const screens: Row[] = ADDRESSED.flatMap((screen) =>
+    matchKey(screen.name).includes(wanted)
+      ? [
+          rowOf(
+            screen.kind,
+            screen.name,
+            screen.route,
+            SCREEN_KIND[screen.kind],
+            false
+          ),
+        ]
+      : []
+  );
   const objects: Row[] = (listing.data?.rows ?? []).flatMap((object) => {
     const route = routeOf(object.kind, object.path);
-    // Unreachable by construction — the core answers with addressable
-    // Kinds alone — and the rule is still written once: a Kind with
-    // nowhere to open has no row, so no row can lead to a dead end.
-    if (route === null) return [];
-    const address = hashOf(route);
-    return [
-      {
-        key: address,
-        glyph: KIND[object.kind]?.glyph ?? "◇",
-        label: KIND[object.kind]?.label ?? object.kind,
-        name: object.display,
-        route,
-        current: address === here,
-        serif: true,
-        strength: strength(wanted, matchKey(object.display)),
-        kindRank: OBJECT_RANK[object.kind],
-      },
-    ];
+    // The reach rule, and the only one: a Kind with nowhere to open has no
+    // row, so no row can lead to a dead end. The core answers with
+    // addressable Kinds alone today, and this is what keeps that true if it
+    // ever stops being.
+    return route === null
+      ? []
+      : [rowOf(object.kind, object.display, route, KIND_OF[object.kind], true)];
   });
 
   // Strength, then Kind — so an exact hit leads whatever it is, and a
@@ -184,6 +223,14 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
         event.preventDefault();
         move(chosen - 1);
         return;
+      case "Tab":
+        // The overlay is one tab stop. The key handler is on the input, so
+        // ⇥ walking focus out to the Sidebar behind the scrim would leave
+        // the command with no way left to dismiss it — esc would never
+        // reach it again. #303 takes this key for swapping sides; until
+        // then it does nothing, which is still better than that.
+        event.preventDefault();
+        return;
       default:
         return;
     }
@@ -196,7 +243,13 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
     onClose();
   }
 
-  const total = (listing.data?.total ?? 0) + screens.length;
+  // What the list is, said beside the verb. A read that failed must not be
+  // counted: the Surfaces and Dashboards are still reachable and still
+  // listed, but calling them the whole answer would say the vault holds two
+  // things (§ Invariants, no silent failures).
+  const count = listing.isError
+    ? "the Surfaces and Dashboards only"
+    : countLine(rows.length, (listing.data?.total ?? 0) + screens.length);
 
   return (
     <div className={styles.scrim} onMouseDown={() => inputRef.current?.focus()}>
@@ -244,7 +297,7 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
         >
           {rows.map((row, index) => (
             <li
-              key={row.key}
+              key={row.address}
               id={rowId(index)}
               role="option"
               aria-selected={index === chosen}
@@ -289,7 +342,7 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
                   : "you are already here")}
             </span>
           </p>
-          <span className={styles.count}>{countLine(rows.length, total)}</span>
+          <span className={styles.count}>{count}</span>
         </div>
       </div>
     </div>

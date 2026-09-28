@@ -15,14 +15,18 @@
  */
 
 /**
- * A Display name reduced to what a query is compared against, with each
- * key character's span in the original beside it — same rule as the core's
- * `matchKey`, and the spans are what makes the marked run possible.
+ * The same walk as `matchKey` below, one character at a time, recording
+ * where in the original each key character came from — which is what makes
+ * the marked run possible, and is the one thing this side has that the core
+ * does not.
  *
- * A run of punctuation becomes one space rather than nothing, so *slow-wave
- * density* is found by either half of the word as well as the whole of it.
- * An apostrophe is the exception and goes, because *sleep's role* is one
- * word to anyone typing it. Letters and digits of every script survive.
+ * It is an approximation of `matchKey` and never its definition: lowercasing
+ * per character is not lowercasing the string, because a few mappings are
+ * context-sensitive (final sigma — `ΟΔΟΣ` is `οδος` whole and `οδοσ` by the
+ * character). `matchRun` therefore checks this walk against `matchKey` and
+ * declines to mark rather than mark the wrong run, so the divergence can
+ * only ever cost a highlight. It must never reach `strength`, where it would
+ * cost a row its place.
  */
 function keyed(text: string): { key: string; from: number[]; to: number[] } {
   let key = "";
@@ -56,8 +60,24 @@ function keyed(text: string): { key: string; from: number[]; to: number[] } {
   return { key, from, to };
 }
 
-/** The form a Display name and a query are compared in. */
-export const matchKey = (text: string): string => keyed(text).key;
+/**
+ * The form a Display name and a query are compared in, character for
+ * character as `packages/core/src/display-name.ts` spells it — the whole
+ * string lowercased at once, because that is where the context-sensitive
+ * mappings live. `match.pinned.test.ts` holds the two to each other.
+ *
+ * A run of punctuation becomes one space rather than nothing, so *slow-wave
+ * density* is found by either half of the word as well as the whole of it.
+ * An apostrophe is the exception and goes, because *sleep's role* is one
+ * word to anyone typing it. Letters and digits of every script survive.
+ */
+export const matchKey = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/['\u2019]+/gu, "")
+    // Whitespace is outside the class too, so this collapses runs as well.
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 
 /**
  * How well a name answers the query, the prototype's four rungs
@@ -91,6 +111,9 @@ export function matchRun(
   const wanted = matchKey(query);
   if (wanted === "") return null;
   const { key, from, to } = keyed(display);
+  // The walk disagreeing with the rule is rare and always harmless here:
+  // no mark, rather than a mark over the wrong characters.
+  if (key !== matchKey(display)) return null;
   const start = key.indexOf(wanted);
   if (start < 0) return null;
   const begins = from[start];

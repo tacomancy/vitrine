@@ -8,7 +8,6 @@ import {
   renderApp,
   vault,
 } from "./fake-core";
-import { matchKey, strength } from "./match";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -41,30 +40,31 @@ const OBJECTS: Destination[] = [
   },
 ];
 
-const KIND_ORDER: Destination["kind"][] = ["research-question", "question"];
+/**
+ * Deliberately not `match.ts`'s: the fake stands in for the *core*, and a
+ * fake that reached for the code under test would score a wrong rung
+ * wrongly on both sides and still pass. Spelled out here, once.
+ */
+const asTyped = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/['\u2019]+/gu, "")
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
 
 /**
- * The core's half of the list, as the procedure contract describes it:
- * contains on the Display name, ordered by strength then Kind then
- * recency, capped with the true total beside it. It scores with the
- * renderer's own rungs because ADR 0027 requires the two to agree — a fake
- * that scored differently would be testing a contract nothing implements.
+ * The core's half of the list, as the procedure contract describes it: a
+ * contains on the Display name, answered in the order the core would have
+ * put them in — declaration order, which is this fixture's recency. The
+ * renderer is what decides where the Surfaces and Dashboards land among
+ * them, and that is what the suite is watching.
  */
 const answering =
   (objects: Destination[] = OBJECTS) =>
   (input: unknown): Destinations => {
     const { query } = input as { query: string };
-    const wanted = matchKey(query);
-    const rows = objects
-      .map((row, recency) => ({ row, recency, key: matchKey(row.display) }))
-      .filter(({ key }) => key.includes(wanted))
-      .sort(
-        (a, b) =>
-          strength(wanted, b.key) - strength(wanted, a.key) ||
-          KIND_ORDER.indexOf(a.row.kind) - KIND_ORDER.indexOf(b.row.kind) ||
-          a.recency - b.recency
-      )
-      .map(({ row }) => row);
+    const wanted = asTyped(query);
+    const rows = objects.filter((row) => asTyped(row.display).includes(wanted));
     return { rows, total: rows.length };
   };
 
@@ -208,6 +208,13 @@ describe("typing narrows the list, and each row says why it is here", () => {
     expect((await within(dialog).findByRole("alert")).textContent).toContain(
       "the index is not answering"
     );
+    // The screens are still reachable and still listed — but counting them
+    // as the whole answer would say the vault holds two things.
+    expect(await rowsOf(dialog)).toHaveLength(2);
+    expect(
+      within(dialog).getByText("the Surfaces and Dashboards only")
+    ).toBeDefined();
+    expect(within(dialog).queryByText(/matching/)).toBeNull();
   });
 });
 
@@ -305,6 +312,52 @@ describe("the choice, and where ↵ takes it", () => {
     ).toEqual(["true"]);
   });
 
+  it("keeps the keyboard inside the overlay, so esc is never out of reach", async () => {
+    renderApp(base);
+    const away = await screen.findByRole("link", { name: "Loose Ends" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    // One tab stop: ⇥ walking out would leave the key handler behind the
+    // scrim, and the command would have no way left to dismiss it. jsdom
+    // never moves focus on Tab, so what is asserted is the key being
+    // taken — the only thing standing between the two.
+    const taken = !fireEvent.keyDown(queryBox(dialog), { key: "Tab" });
+    expect(taken).toBe(true);
+    expect(document.activeElement).toBe(queryBox(dialog));
+    fireEvent.keyDown(queryBox(dialog), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(away);
+  });
+
+  it("opens whatever case the chord arrives in, so caps lock is not a dead key", async () => {
+    renderApp(base);
+    await screen.findByRole("banner");
+    fireEvent.keyDown(window, { key: "K", metaKey: true });
+    expect(
+      await screen.findByRole("dialog", { name: "Global command" })
+    ).toBeDefined();
+  });
+
+  it("goes to a Dashboard and leaves the keyboard where the command found it", async () => {
+    renderApp(base);
+    const away = await screen.findByRole("link", { name: "Question Inbox" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
+    expect(window.location.hash).toBe("#/loose-ends");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Loose Ends takes no keyboard of its own, so the restore stands.
+    expect(document.activeElement).toBe(away);
+  });
+
   it("leaves on esc and puts focus back wherever it was", async () => {
     renderApp(base);
     const away = await screen.findByRole("link", { name: "Loose Ends" });
@@ -356,14 +409,17 @@ describe("the ordering across the renderer's half and the core's", () => {
     ]);
   });
 
-  it("puts an exact hit at the top whatever its Kind", async () => {
+  it("puts an exact hit at the top, and the choice lands on it", async () => {
     const dialog = await openCommand({
       "globalCommand.destinations": answering(COLLIDING),
     });
     type(dialog, "loose threads in the replay account");
-    expect(said(await settled(dialog, 1))).toEqual([
+    const rows = await settled(dialog, 1);
+    expect(said(rows)).toEqual([
       row("■", "Loose threads in the replay account?", "research question"),
     ]);
+    expect(chosenIn(rows)).toBe(0);
+    expect(verbOf(dialog)).toBe("↵Go toLoose threads in the replay account?");
   });
 });
 
