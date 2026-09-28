@@ -8,7 +8,7 @@ import {
   type HistoryRow,
 } from "./history";
 import styles from "./PositionHistory.module.css";
-import { localDate } from "./rows";
+import { dayMonth, localDate } from "./rows";
 import { linkLabel } from "./wikilink";
 
 /**
@@ -25,12 +25,18 @@ import { linkLabel } from "./wikilink";
  * holds more than one kind of question to ask of it passes its own
  * `filters` beside *everything* and *explained only* (a Hypothesis's three,
  * spec #327 story 55).
+ *
+ * In a rail (`rail`, the Experiment page's; prototype 05) the date column
+ * narrows to day and month, and the field's name leads the entry's text
+ * instead of sitting under the date: an 18ch column beside a 300px rail
+ * left a revision a word or two a line (#375).
  */
 export function PositionHistory({
   entries,
   current,
   whyLine,
   filters = [],
+  rail = false,
 }: {
   entries: Revision[];
   /** Each field's text as the file holds it now, keyed by field name. */
@@ -42,6 +48,7 @@ export function PositionHistory({
    */
   whyLine?: (revision: Revision, close: () => void) => ReactNode;
   filters?: HistoryFilter[];
+  rail?: boolean;
 }) {
   // One reading at a time, by its button's words: *everything*, *explained
   // only*, or one of the page's own.
@@ -91,13 +98,16 @@ export function PositionHistory({
         )}
         <span className={styles.order}>newest first</span>
       </div>
-      <ol className={styles.entries}>
+      <ol
+        className={rail ? `${styles.entries} ${styles.rail}` : styles.entries}
+      >
         {rows.map((row) => (
           <Row
             key={keyOf(row)}
             row={row}
             named={fields.size > 1}
             explaining={offer}
+            rail={rail}
           />
         ))}
       </ol>
@@ -132,10 +142,12 @@ function Row({
   row,
   named,
   explaining,
+  rail,
 }: {
   row: HistoryRow;
   named: boolean;
   explaining?: Explaining | undefined;
+  rail: boolean;
 }) {
   if (row.kind === "explained") {
     const { revision, to, loud } = row;
@@ -148,8 +160,13 @@ function Row({
           loud === null ? undefined : loud[0]!.toUpperCase() + loud.slice(1)
         }
       >
-        <When at={revision.at} field={named ? revision.field : null} />
+        <When
+          at={revision.at}
+          field={named && !rail ? revision.field : null}
+          rail={rail}
+        />
         <div className={styles.body}>
+          {named && rail && <p className={styles.field}>{revision.field}</p>}
           {loud !== null && <p className={styles.loudTag}>{loud}</p>}
           {to !== "" && <p className={styles.position}>{to}</p>}
           {revision.why === null ? (
@@ -192,7 +209,12 @@ function Row({
     );
   }
   return (
-    <Quiet revisions={row.revisions} named={named} explaining={explaining} />
+    <Quiet
+      revisions={row.revisions}
+      named={named}
+      explaining={explaining}
+      rail={rail}
+    />
   );
 }
 
@@ -207,10 +229,12 @@ function Quiet({
   revisions,
   named,
   explaining,
+  rail,
 }: {
   revisions: Revision[];
   named: boolean;
   explaining?: Explaining | undefined;
+  rail: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // `historyRows` never makes an empty run, so the head is the run's newest
@@ -223,9 +247,11 @@ function Quiet({
       <When
         at={newest.at}
         until={oldest.at === newest.at ? null : oldest.at}
-        field={named ? newest.field : null}
+        field={named && !rail ? newest.field : null}
+        rail={rail}
       />
       <div className={styles.body}>
+        {named && rail && <p className={styles.field}>{newest.field}</p>}
         <button
           type="button"
           className={styles.trail}
@@ -240,7 +266,9 @@ function Quiet({
             {revisions.map((revision) => (
               <li key={idOf(revision)} className={styles.quiet}>
                 <div className={styles.quietWhen}>
-                  <span className={styles.when}>{localDate(revision.at)}</span>
+                  <span className={styles.when}>
+                    {rail ? dayMonth(revision.at) : localDate(revision.at)}
+                  </span>
                   {explaining !== undefined && (
                     <button
                       type="button"
@@ -269,16 +297,20 @@ function When({
   at,
   until,
   field,
+  rail,
 }: {
   at: string;
   until?: string | null;
   field: string | null;
+  rail: boolean;
 }) {
+  // The rail's column holds one date, as prototype 05's does: a quiet run
+  // is dated by its newest, and the dates inside it are one click away.
+  let date = until == null ? localDate(at) : rangeLabel(until, at);
+  if (rail) date = dayMonth(at);
   return (
     <div className={styles.column}>
-      <div className={styles.when}>
-        {until == null ? localDate(at) : rangeLabel(until, at)}
-      </div>
+      <div className={styles.when}>{date}</div>
       {field !== null && <div className={styles.field}>{field}</div>}
     </div>
   );

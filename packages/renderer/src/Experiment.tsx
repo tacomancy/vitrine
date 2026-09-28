@@ -209,6 +209,7 @@ export function Experiment({
               present={readable.sections.positionHistory.present}
             >
               <PositionHistory
+                rail
                 entries={readable.sections.positionHistory.entries}
                 current={{
                   design: readable.sections.design.text,

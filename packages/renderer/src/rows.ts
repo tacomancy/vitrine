@@ -82,6 +82,18 @@ export function localDate(iso: string): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/**
+ * The local date in a narrow column, `14 Sep` (prototype 05's rail): the
+ * year only when it is not this one, where leaving it out would misdate.
+ */
+export function dayMonth(iso: string): string {
+  const d = new Date(iso);
+  const short = `${d.getDate()} ${MONTHS[d.getMonth()]?.slice(0, 3)}`;
+  return d.getFullYear() === new Date().getFullYear()
+    ? short
+    : `${short} ${d.getFullYear()}`;
+}
+
 /** The local time of day, `09:12` — the whole of a time inside one sitting. */
 export function localTime(iso: string): string {
   const d = new Date(iso);
