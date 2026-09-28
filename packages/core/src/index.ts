@@ -16,14 +16,12 @@ export type {
 } from "./destinations.js";
 export type {
   AfterEvidenceMark,
-  Clause,
   CriterionRead,
-  Derivation,
-  DerivedState,
   HypothesisFrontmatter,
   HypothesisPage,
   HypothesisSections,
 } from "./hypothesis.js";
+export type { Clause, Derivation, DerivedState } from "./hypothesis-rule.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {

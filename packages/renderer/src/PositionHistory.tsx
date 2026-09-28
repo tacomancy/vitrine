@@ -135,12 +135,14 @@ function Row({
     return (
       <li
         className={styles.entry}
-        data-loud={loud || undefined}
-        aria-label={loud ? "Edited after evidence" : undefined}
+        data-loud={loud !== null || undefined}
+        aria-label={
+          loud === null ? undefined : loud[0]!.toUpperCase() + loud.slice(1)
+        }
       >
         <When at={revision.at} field={named ? revision.field : null} />
         <div className={styles.body}>
-          {loud && <p className={styles.loudTag}>edited after evidence</p>}
+          {loud !== null && <p className={styles.loudTag}>{loud}</p>}
           {to !== "" && <p className={styles.position}>{to}</p>}
           {revision.why === null ? (
             // Only a loud entry stands here without a why, and it says so.

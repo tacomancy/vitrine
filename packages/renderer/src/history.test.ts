@@ -88,7 +88,10 @@ describe("historyRows", () => {
       "explained",
       "quiet",
     ]);
-    expect(rows[1]).toMatchObject({ loud: true, to: "### B ^c2" });
+    expect(rows[1]).toMatchObject({
+      loud: "edited after evidence",
+      to: "### B ^c2",
+    });
     expect(rows[0]).toEqual({ kind: "quiet", revisions: entries.slice(0, 1) });
   });
 
@@ -109,9 +112,28 @@ describe("historyRows", () => {
     ];
     const rows = historyRows(entries, {});
     expect(rows[1]).toMatchObject({
-      loud: true,
+      loud: "edited after evidence",
       to: "### B ^c2\n\nrelationship:: diagnostic",
     });
+  });
+
+  it("a criterion deleted after evidence is loud too, and says which", () => {
+    const entries: Revision[] = [
+      {
+        at: at("2026-09-05"),
+        field: "criterion F4 · deleted after evidence",
+        why: null,
+        from: "### Gone ^c4",
+      },
+    ];
+    expect(historyRows(entries, {})).toEqual([
+      {
+        kind: "explained",
+        revision: entries[0],
+        to: "",
+        loud: "deleted after evidence",
+      },
+    ]);
   });
 
   it("no entries is no rows", () => {

@@ -142,7 +142,7 @@ async function opened(
 }
 
 describe("the Hypothesis Kind on the positionsOf seam", () => {
-  it("after a build the positions table carries the claim, design notes, and each criterion's whole block under its label", async () => {
+  it("after a build the positions table carries the claim, design notes, and ## Criteria whole", async () => {
     const vault = await vaultWith({
       [PATH]: file(CLAIM, "Nap length is held at 90 minutes."),
     });
@@ -162,10 +162,7 @@ describe("the Hypothesis Kind on the positionsOf seam", () => {
     db.close();
     expect(rows).toEqual([
       { field: "claim", text: CLAIM },
-      {
-        field: "criterion C1",
-        text: CRITERIA.trim(),
-      },
+      { field: "criteria", text: CRITERIA.trim() },
       { field: "design notes", text: "Nap length is held at 90 minutes." },
     ]);
   });
