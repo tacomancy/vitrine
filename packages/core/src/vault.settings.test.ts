@@ -97,7 +97,7 @@ describe("Reveal in Finder", () => {
   it("asks the host to reveal the open vault's folder", async () => {
     const host = revealingHost();
     const { vault, c } = await openedAt({ now: new Date() }, host);
-    const reply = await c.mutate("vault.reveal");
+    const reply = await c.mutate("vault.reveal", { folder: "vault" });
     expect(reply.error).toBeUndefined();
     expect(host.revealed).toEqual([vault]);
   });
@@ -105,7 +105,7 @@ describe("Reveal in Finder", () => {
   it("is refused while no vault is open, and asks the host nothing", async () => {
     const host = revealingHost();
     const c = await core({ host });
-    const reply = await c.mutate("vault.reveal");
+    const reply = await c.mutate("vault.reveal", { folder: "vault" });
     expect(reply.error?.message).toBe("No vault is open.");
     expect(host.revealed).toEqual([]);
   });

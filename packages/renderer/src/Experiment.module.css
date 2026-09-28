@@ -79,17 +79,6 @@
   outline-offset: 1px;
 }
 
-/* A section shown as the file holds it, until its own editing lands. */
-.written {
-  margin: 0;
-  max-width: 64ch;
-  white-space: pre-wrap;
-  font-family: var(--font-serif);
-  font-size: var(--text-md);
-  line-height: var(--leading-relaxed);
-  color: var(--color-fg);
-}
-
 /* *Where it ran* is paths and hashes: the mono, at the rail's size. */
 .where {
   font-family: var(--font-mono);

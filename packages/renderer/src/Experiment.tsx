@@ -22,6 +22,7 @@ import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
+import { WhyLine } from "./WhyLine";
 
 /**
  * The Experiment view (brief § Experiment; prompt 5; prototype 05), at
@@ -29,9 +30,10 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * Design, Artifacts and Observations in the column, and *where it ran*,
  * *came from* and the history in the rail beside it. Purpose and *where it
  * ran* are Edited sections, saved as typed with no Revision (spec #362
- * story 18); Design and Observations are Positions, shown here as the file
- * holds them until their own editing lands with their history (#365). The
- * Artifacts are `ExperimentArtifacts.tsx`; the page owns only the drop.
+ * story 18); Design and Observations are Positions, each save a Revision
+ * in the one trail in the rail, with a why offered as on every page that
+ * has a history (#365; TEST-8, TEST-11). The Artifacts are
+ * `ExperimentArtifacts.tsx`; the page owns only the drop.
  *
  * A planned run is a finished plan, not a page with gaps (TEST-9): every
  * empty region says what will go in it.
@@ -130,9 +132,19 @@ export function Experiment({
               />
             </Section>
             <Section name="Design" present={readable.sections.design.present}>
-              <Written
+              <PositionField
+                position={{ kind: "experiment", field: "design" }}
+                path={readable.path}
+                hash={readable.hash}
                 text={readable.sections.design.text}
-                empty="Written before the run: what is varied, what is held, and how it is measured. Its revisions are kept, so a design changed after the run shows."
+                labelledBy={sectionId("Design")}
+                empty={
+                  <Outline>
+                    Written before the run: what is varied, what is held, and
+                    how it is measured. Its revisions are kept, so a design
+                    changed after the run shows.
+                  </Outline>
+                }
               />
             </Section>
             <Artifacts
@@ -145,9 +157,18 @@ export function Experiment({
               name="Observations"
               present={readable.sections.observations.present}
             >
-              <Written
+              <PositionField
+                position={{ kind: "experiment", field: "observations" }}
+                path={readable.path}
+                hash={readable.hash}
                 text={readable.sections.observations.text}
-                empty="Written after the run, and revisable — interpretation changes more often than data does."
+                labelledBy={sectionId("Observations")}
+                empty={
+                  <Outline>
+                    Written after the run, and revisable — interpretation
+                    changes more often than data does.
+                  </Outline>
+                }
               />
             </Section>
           </div>
@@ -170,6 +191,19 @@ export function Experiment({
                   design: readable.sections.design.text,
                   observations: readable.sections.observations.text,
                 }}
+                // A why onto any entry, months later (spec #362 story 15):
+                // the page's own hash, because no save of the page's stands
+                // between the read and this write.
+                whyLine={({ at, field }, close) => (
+                  <WhyLine
+                    kind="experiment"
+                    path={readable.path}
+                    at={at}
+                    field={field}
+                    basedOn={readable.hash}
+                    onClose={close}
+                  />
+                )}
               />
               <p className={rq.baseLine}>{baseLine(readable.frontmatter)}</p>
             </Section>
@@ -386,11 +420,6 @@ function WhereItRan({
   );
 }
 
-/** A section the page shows as the file holds it, or the sentence on what will go there. */
-function Written({ text, empty }: { text: string; empty: string }) {
-  if (text === "") return <Outline>{empty}</Outline>;
-  return <p className={styles.written}>{text}</p>;
-}
 
 /**
  * What prompted the run (spec #362 story 25), named by its Display name
