@@ -10,7 +10,7 @@ import type {
   ExperimentStatus,
   ListedExperiment,
 } from "core";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useRef, useState, type KeyboardEvent } from "react";
 import { formatAge } from "./age";
 import { AttachEvidence } from "./AttachEvidence";
 import { useChosenInView } from "./chosen";
@@ -244,6 +244,33 @@ export function Experiments({
     </li>
   );
 
+  // A repo is told apart from its neighbours by its tail, and repos under
+  // one owner share everything before it — cut to the column's width, two
+  // of them read the same (#375). So the whole of it is kept, wrapping only
+  // after a slash, with the title for a path longer than a few lines.
+  const projectButton = (repo: string) => (
+    <li key={repo}>
+      <button
+        type="button"
+        className={`${styles.facet} ${styles.project}`}
+        aria-pressed={project === repo}
+        title={repo}
+        onClick={() => setProject(repo)}
+      >
+        {repo.split("/").map((part, i) => (
+          <Fragment key={i}>
+            {i > 0 && (
+              <>
+                /<wbr />
+              </>
+            )}
+            {part}
+          </Fragment>
+        ))}
+      </button>
+    </li>
+  );
+
   return (
     <>
       <section className={styles.surface} aria-label="Experiments">
@@ -301,9 +328,7 @@ export function Experiments({
                   {facetButton("all projects", project === undefined, () =>
                     setProject(undefined)
                   )}
-                  {projects.map((p) =>
-                    facetButton(p, project === p, () => setProject(p))
-                  )}
+                  {projects.map(projectButton)}
                 </ul>
               </>
             )}
