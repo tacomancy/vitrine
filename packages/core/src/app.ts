@@ -3,6 +3,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
+import { artifactBytes } from "./artifact.js";
 import { createEvents } from "./events.js";
 import type { Host } from "./host.js";
 import { STALLED_OPEN_DAYS } from "./loose-ends.js";
@@ -125,6 +126,7 @@ export function createApp({
     coalesceMs: historyWindowMs,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,
     newId: newId ?? randomId,
+    host,
   };
 
   // The renderer is served from the Vite dev server in development and from
@@ -135,6 +137,27 @@ export function createApp({
   // procedure code.
   app.use("/trpc/*", bearerAuth({ token }));
   app.use("/trpc/*", trpcServer({ router, createContext: () => context }));
+
+  // An Artifact's bytes, for the page to draw from an object URL (#366):
+  // behind the same bearer header, since an `<img src>` cannot carry one
+  // and the token never travels in a URL. The path after the prefix is
+  // vault-relative, each segment percent-encoded.
+  app.use("/artifacts/*", cors());
+  app.use("/artifacts/*", bearerAuth({ token }));
+  app.get("/artifacts/*", async (c) => {
+    const opened = await vault.opened();
+    let path: string;
+    try {
+      path = decodeURIComponent(
+        new URL(c.req.url).pathname.slice("/artifacts/".length)
+      );
+    } catch {
+      return c.notFound();
+    }
+    const served =
+      opened === null ? null : await artifactBytes(opened.vault.path, path);
+    return served ?? c.notFound();
+  });
 
   return {
     app,

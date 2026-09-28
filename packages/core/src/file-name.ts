@@ -23,3 +23,27 @@ export function fileName(text: string, id: string): string {
   }
   return name === "" ? id : name;
 }
+
+/**
+ * The name a stored Artifact keeps in its Experiment's folder: the file's
+ * own, less what would break the `![[…]]` that embeds it (Obsidian's
+ * forbidden set, which is `fileName`'s) and a leading dot that would hide
+ * it from every scan. Unlike `fileName` it is never cut: the extension is
+ * what says whether the page draws an image. Empty when nothing survives.
+ */
+export function artifactName(name: string): string {
+  return name
+    .replace(FORBIDDEN, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "")
+    .trimStart();
+}
+
+/** `plot.png` → `plot (2).png`: the Question's suffix rule, before the extension. */
+export function suffixed(name: string, n: number): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0
+    ? `${name.slice(0, dot)} (${n})${name.slice(dot)}`
+    : `${name} (${n})`;
+}

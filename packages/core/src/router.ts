@@ -1,6 +1,8 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { addStoredArtifact } from "./artifact.js";
 import type { Events } from "./events.js";
+import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import {
@@ -70,6 +72,8 @@ export type Context = {
   stalledOpenDays: number;
   /** The id source for an object the router makes itself (an Experiment); pinned by tests. */
   newId: () => string;
+  /** The shell's choosers: *+ artifact*'s file chooser is asked for here (ADR 0035). */
+  host: Host;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -466,15 +470,17 @@ export const router = t.router({
   // of Edited sections and Positions, and a status the user sets by hand.
   experiments: t.router({
     // Refused with its reason when the name is taken or empty, never
-    // suffixed; the name is the Experiment's folder.
+    // suffixed; the name is the Experiment's folder. `from` is the path of
+    // what prompted it — a Hypothesis, from a Criterion (#371).
     create: t.procedure
-      .input(z.object({ name: z.string() }))
+      .input(z.object({ name: z.string(), from: z.string().min(1).optional() }))
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(
           createExperiment(vault.path, index, input.name, {
             created: localIso(ctx.now()),
             newId: ctx.newId,
+            ...(input.from === undefined ? {} : { from: input.from }),
           })
         );
       }),
@@ -582,6 +588,32 @@ export const router = t.router({
             await requirePage(ctx),
             input.path,
             EXPERIMENT_PAGE,
+            input
+          )
+        )
+      ),
+    // *+ artifact*'s chooser: one file of any type, or null when cancelled.
+    // The path goes back to the page, which asks for the caption before
+    // anything is copied.
+    pickArtifact: t.procedure.mutation(async ({ ctx }) => ({
+      source: await ctx.host.pickFile(),
+    })),
+    // A stored Artifact (ADR 0035 decision 1): the file copied into the
+    // run's folder, then its line. A line that cannot be written comes back
+    // as the write's refusal, with the file already in the folder.
+    addArtifact: t.procedure
+      .input(
+        pathInput.extend({
+          source: z.string().min(1),
+          caption: z.string().trim().min(1, "An Artifact needs a caption."),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          addStoredArtifact(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
             input
           )
         )

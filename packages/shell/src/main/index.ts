@@ -17,7 +17,7 @@ import {
 } from "electron";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pickFolder, type ShowOpenDialog } from "./chooser.js";
+import { pickFile, pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { closeCore, type CorePort } from "./close.js";
 import { coreEntry, stateFolder } from "./launch.js";
 import { allowNavigation } from "./navigation.js";
@@ -45,7 +45,7 @@ function frontWindow(): BrowserWindow | undefined {
 }
 
 /**
- * The dialog `pickFolder` shows, attached to the open window when there is
+ * The dialog `pickFolder` and `pickFile` show, attached to the open window when there is
  * one. The core cannot show dialogs, so it asks the shell over the process
  * channel it already has; what the chooser is asked for is `chooser.ts`.
  */
@@ -84,6 +84,11 @@ function spawnCore(): Promise<Session> {
         case "pickFolder":
           void pickFolder(showOpenDialog).then((path) =>
             reply({ type: "pickedFolder", id: message.id, path })
+          );
+          break;
+        case "pickFile":
+          void pickFile(showOpenDialog).then((path) =>
+            reply({ type: "pickedFile", id: message.id, path })
           );
           break;
         case "reveal":
