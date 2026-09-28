@@ -262,8 +262,12 @@ One independently resolvable condition on a Hypothesis, recorded before evidence
 _Avoid_: Test (that is the whole Hypothesis), condition, check
 
 **Edited after evidence** (of a Criterion):
-A change to a Criterion's text or Relationship made while Evidence is attached to it. Permitted, and marked permanently: on the Criterion itself with its previous wording readable, and in the Position history as an entry that never collapses. Recording an Outcome is never this — it is what Evidence is for.
+A change to a Criterion's text or Relationship made while Evidence is attached to it. Permitted, and marked permanently: on the Criterion itself with its previous wording readable, and in the Position history as an entry that never collapses. Recording an Outcome is never this — it is what Evidence is for. An edit made in Obsidian is marked exactly as one made on the page; there, Evidence present at either end of the quiet window counts, since the window cannot say which came first (ADR 0034).
 _Avoid_: Tampered, amended, post-hoc (that is the risk it guards against, not the mark)
+
+**Deleted after evidence** (of a Criterion):
+A Criterion with Evidence under it, gone from the file. The page never does this — a tested Criterion leaves the rule by becoming diagnostic — so only an edit made outside the app can; the watcher records it as the loudest entry in the Position history, naming the Criterion and holding its whole block. A Criterion deleted before any Evidence is a draft withdrawn, recorded quietly.
+_Avoid_: Removed, withdrawn
 
 **Outcome** (of a Criterion):
 *met*, *not met*, or *inconclusive*, recorded by the user. A Criterion with no Outcome recorded is *Awaiting evidence*, never *inconclusive*.

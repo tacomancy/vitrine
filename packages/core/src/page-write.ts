@@ -1,4 +1,5 @@
 import type { Outline } from "markdown";
+import { CRITERIA_FIELD, criteriaEntries } from "./hypothesis-rule.js";
 import type { PendingRevision, PendingRevisions } from "./pending-revisions.js";
 import {
   coalesce,
@@ -107,17 +108,54 @@ export const unchanged = (read: PageFile): WriteResult => ({
   shape: read.shape,
 });
 
-/** The `prependEntry` one pending Revision splices as: a quiet entry, its previous text in full. */
-const spliceOf = (row: PendingRevision): Operation => ({
+/** The `prependEntry` for one entry the splice writes. */
+const prepend = (entry: string): Operation => ({
   op: "prependEntry",
   section: HISTORY,
-  entry: formatRevision({
-    at: row.at,
-    field: row.field,
-    why: null,
-    from: row.from,
-  }),
+  entry,
 });
+
+/**
+ * The entries what this file owes its history splice as, oldest row first.
+ * A row is a quiet entry, its previous text in full — except a Hypothesis's
+ * `## Criteria`, whose row holds the whole section as it was and is judged
+ * criterion by criterion against the section that came after it
+ * (`criteriaEntries`, #336): the edited-after-evidence suffix, the loud
+ * *deleted after evidence* entry, and a `· state` entry are the page's to
+ * write for its own edits, and the splice's for Obsidian's, so the guard
+ * does not depend on which tool was used (spec #327 story 51). What came
+ * after a row is the next row's `from`, or, for the last, the section as
+ * the file holds it now.
+ */
+function splicesOf(read: PageFile, waiting: PendingRevision[]): Operation[] {
+  const quiet = (row: PendingRevision) =>
+    prepend(
+      formatRevision({
+        at: row.at,
+        field: row.field,
+        why: null,
+        from: row.from,
+      })
+    );
+  // With no `## Criteria` heading to judge against — retyped mid-edit, as
+  // `hypothesisPositions` allows for — every criterion would read as
+  // deleted, and a tested one as the loudest entry there is, permanently.
+  // The row is spliced unjudged instead: the section as it was, in full,
+  // so nothing is lost and nothing is claimed.
+  const criteria =
+    read.kind === "hypothesis"
+      ? section(read.outline, "Criteria").heading
+      : undefined;
+  if (criteria === undefined) return waiting.map(quiet);
+  return waiting.flatMap((row, i) => {
+    if (row.field !== CRITERIA_FIELD) return [quiet(row)];
+    const next = waiting
+      .slice(i + 1)
+      .find((later) => later.field === CRITERIA_FIELD);
+    const now = next?.from ?? bodyText(read.content, criteria);
+    return criteriaEntries(row.from, now, row.at).map(prepend);
+  });
+}
 
 /**
  * Where the parked splices sit among the write's own operations. Operations
@@ -189,7 +227,7 @@ export function writeOwn(
       own = planned;
     }
     const result = await write(vaultPath, path, {
-      operations: orderOf(own.operations, waiting.map(spliceOf)),
+      operations: orderOf(own.operations, splicesOf(read, waiting)),
       basedOn: own.basedOn,
     });
     if (result.written) {

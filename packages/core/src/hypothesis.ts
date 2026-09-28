@@ -28,6 +28,16 @@ import {
   type Revision,
 } from "./position-history.js";
 import {
+  AFTER_EVIDENCE,
+  CRITERIA_FIELD,
+  criterionField,
+  derive,
+  labelOf,
+  LETTER,
+  nameOf,
+  type Derivation,
+} from "./hypothesis-rule.js";
+import {
   nextCriterionId,
   type Criterion,
   type Operation,
@@ -113,49 +123,6 @@ export type AfterEvidenceMark = {
   was: { text: string; relationship: Relationship | null };
 };
 
-export type DerivedState = "supported" | "falsified" | "inconclusive";
-
-/**
- * Which clause of the rule applied — what the page's *because* line says,
- * so the one word *inconclusive* never hides two different situations
- * (spec #327 story 39).
- */
-export type Clause =
-  /** A falsifying criterion is met: falsified, whatever the rest say. */
-  | "falsifyingMet"
-  /** Nothing is written under `## Criteria`. */
-  | "noCriteria"
-  /** Criteria exist and not one carries an Outcome. */
-  | "nothingTested"
-  /** A deciding criterion landed the wrong way for support — a confirming one not met or inconclusive, a falsifying one inconclusive. */
-  | "mixed"
-  /** A deciding criterion has no Outcome yet. */
-  | "awaitingEvidence"
-  /** A criterion has no Relationship: it blocks support and cannot falsify. */
-  | "noRelationship"
-  /** Every criterion is diagnostic, and diagnostic criteria never decide. */
-  | "onlyDiagnostic"
-  /** Every confirming criterion met, every falsifying one not met: supported. */
-  | "allLanded";
-
-export type Derivation = {
-  state: DerivedState;
-  clause: Clause;
-  /**
-   * The criteria the clause is about, by label — or `^c<n>` for one with no
-   * Relationship, which has no label: the met falsifying criteria, the ones
-   * that disagree, the ones awaiting, or every deciding one when supported.
-   */
-  named: string[];
-  /** Over every criterion, diagnostic ones included: the shape of the evidence, not the rule. */
-  census: {
-    met: number;
-    notMet: number;
-    inconclusive: number;
-    awaiting: number;
-  };
-};
-
 export type HypothesisSections = {
   claim: { present: boolean; text: string };
   criteria: { present: boolean; criteria: CriterionRead[] };
@@ -177,107 +144,6 @@ export type HypothesisPage =
       problems: ShapeProblem[];
     }
   | { readable: false; path: string; reason: string };
-
-const LETTER: Record<Relationship, string> = {
-  confirming: "C",
-  falsifying: "F",
-  diagnostic: "D",
-};
-
-/**
- * `F1`, `C2`, `D5` — the Relationship's letter and the id's number, so a
- * relabelled criterion changes its letter and never its number, and nothing
- * ever renumbers (ADR 0031 decision 3). The prototype's per-Relationship run
- * (`F1 · C1 · C2`) was rejected there: deleting one would rename the rest.
- */
-export function labelOf(
-  criterion: Pick<Criterion, "id" | "relationship">
-): string | null {
-  if (criterion.relationship === null) return null;
-  return LETTER[criterion.relationship] + criterion.id.slice(1);
-}
-
-/** How a clause names a criterion: its label, or its id when it has none. */
-const nameOf = (c: Pick<Criterion, "id" | "relationship">) =>
-  labelOf(c) ?? `^${c.id}`;
-
-/**
- * The Derived state of a Hypothesis (ADR 0031 decision 1; `CONTEXT.md`
- * *Derived state*). Load-bearing (`CLAUDE.md` § Code standard): this is the
- * function the page prints its rule beside, so a reader checking the rule
- * against the criteria must find it right.
- *
- * The rule is corrected from the brief, not transcribed. The brief says
- * "all criteria met → supported", which read literally makes a falsifying
- * criterion a trap: *met* kills the claim, and *not met* — the claim
- * surviving the test written to kill it — fails "all met", so a Hypothesis
- * with the most honest criterion there is could never be supported. So a
- * falsifying criterion **not met** counts toward support here, exactly as a
- * confirming one met does. Do not "fix" this back to the brief's wording.
- * Diagnostic criteria never decide — the brief defines them that way, and
- * the literal rule let an unmet sanity check block support. With no
- * deciding criterion at all nothing is supported by default: inconclusive.
- *
- * Takes criteria as the core's criteria reader gives them, so a field
- * outside its vocabulary has already become absent: an unreadable Outcome
- * is *awaiting evidence* to the rule, and an unreadable Relationship is none.
- */
-export function derive(
-  criteria: ReadonlyArray<Pick<Criterion, "id" | "relationship" | "outcome">>
-): Derivation {
-  const census = { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 };
-  for (const { outcome } of criteria) {
-    if (outcome === "met") census.met++;
-    else if (outcome === "not met") census.notMet++;
-    else if (outcome === "inconclusive") census.inconclusive++;
-    else census.awaiting++;
-  }
-  const result = (
-    state: DerivedState,
-    clause: Clause,
-    named: string[] = []
-  ) => ({
-    state,
-    clause,
-    named,
-    census,
-  });
-
-  const falsifiedBy = criteria.filter(
-    (c) => c.relationship === "falsifying" && c.outcome === "met"
-  );
-  if (falsifiedBy.length > 0) {
-    return result("falsified", "falsifyingMet", falsifiedBy.map(nameOf));
-  }
-  if (criteria.length === 0) return result("inconclusive", "noCriteria");
-  if (criteria.every((c) => c.outcome === null)) {
-    return result("inconclusive", "nothingTested");
-  }
-
-  const deciding = criteria.filter(
-    (c) => c.relationship === "confirming" || c.relationship === "falsifying"
-  );
-  // What a deciding criterion must read for the claim to stand: confirming
-  // met, falsifying not met (the correction above).
-  const supports = (c: (typeof deciding)[number]) =>
-    c.outcome === (c.relationship === "confirming" ? "met" : "not met");
-  const against = deciding.filter((c) => c.outcome !== null && !supports(c));
-  if (against.length > 0) {
-    return result("inconclusive", "mixed", against.map(nameOf));
-  }
-  const awaiting = deciding.filter((c) => c.outcome === null);
-  if (awaiting.length > 0) {
-    return result("inconclusive", "awaitingEvidence", awaiting.map(nameOf));
-  }
-  // A criterion someone wrote without saying what it means for the claim
-  // does not count yet: it cannot falsify (above), and it blocks support.
-  const unrelated = criteria.filter((c) => c.relationship === null);
-  if (unrelated.length > 0) {
-    return result("inconclusive", "noRelationship", unrelated.map(nameOf));
-  }
-  if (deciding.length === 0) return result("inconclusive", "onlyDiagnostic");
-  return result("supported", "allLanded", deciding.map(nameOf));
-}
 
 const stringList = (value: unknown): string[] =>
   Array.isArray(value)
@@ -429,17 +295,11 @@ export async function readHypothesisPage(
   };
 }
 
-/**
- * The suffix a criterion Revision carries when it moved the bar (§ Vault
- * layout (Hypothesis)). The renderer's `history.ts` reads the same literal
- * to keep these entries out of the quiet trail — it imports only types from
- * the core, so a change here must be made there too.
- */
-const AFTER_EVIDENCE = " · edited after evidence";
-
 // `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one
 // that had no Relationship: the digit is the id, whatever the letter was.
-const MARKED_FIELD = /^criterion (?:[CFD]|\^c)(\d+) · edited after evidence$/;
+const MARKED_FIELD = new RegExp(
+  `^criterion (?:[CFD]|\\^c)(\\d+)${AFTER_EVIDENCE}$`
+);
 
 /**
  * The criterion's *edited after evidence* entries, matched by the id's
@@ -484,20 +344,24 @@ export const FIELDS = {
 } as const;
 export type EditedField = keyof typeof FIELDS;
 
-/** The field a criterion's Revisions carry: `criterion F1`, or `criterion ^c3` while it has no Relationship and so no label. */
-export const criterionField = (c: Pick<Criterion, "id" | "relationship">) =>
-  `criterion ${nameOf(c)}`;
-
 /**
  * The Kind's Positions, for the index's `positions` diff (#217): the claim,
- * the design notes, and every criterion's whole block — heading, fields,
- * Evidence — so that recording an Outcome or detaching a run leaves a trail
- * as rewording does (ADR 0031 decision 4). A section whose heading was
+ * the design notes, and `## Criteria` whole. A section whose heading was
  * retyped reports nothing rather than an empty text that would read as
  * "cleared" when the heading comes back, as the Research Question's does.
+ *
+ * The criteria are one Position here, not one per criterion, because the
+ * diff is generic and counts only a field the file held before and still
+ * holds: keyed per criterion, a criterion deleted in Obsidian — the loudest
+ * edit there is — would be a field gone and so no change at all, and a
+ * Relationship changed there would move the label the field was keyed by.
+ * The section's previous text is what the splice judges the edit against,
+ * criterion by criterion, and turns into the entries the page's own writes
+ * would have made (`criteriaEntries`, #336). The history still names each
+ * criterion by its label; this key never reaches it.
  */
 export function hypothesisPositions(
-  { outline, criteria }: ReadableOutline,
+  { outline }: ReadableOutline,
   content: string
 ): Position[] {
   const positions: Position[] = [];
@@ -509,17 +373,12 @@ export function hypothesisPositions(
   if (notes !== undefined) {
     positions.push({ field: "design notes", text: bodyText(content, notes) });
   }
-  // Keyed by the label as it stands, which the history names: a
-  // Relationship changed in Obsidian therefore reads to the index's diff as
-  // one field gone and another come, which is no change at all to the
-  // generic rule — the watcher's Hypothesis consequences (#336) pair them
-  // by the id's number, which never moves (ADR 0031 decision 3).
-  for (const { criterion, text } of criterionBlocks(
-    outline,
-    criteria,
-    content
-  )) {
-    positions.push({ field: criterionField(criterion), text });
+  const criteria = section(outline, "Criteria").heading;
+  if (criteria !== undefined) {
+    positions.push({
+      field: CRITERIA_FIELD,
+      text: bodyText(content, criteria),
+    });
   }
   return positions;
 }

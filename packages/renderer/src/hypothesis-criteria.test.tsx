@@ -510,3 +510,28 @@ describe("the history of a criterion edited after evidence", () => {
     ).toBeTruthy();
   });
 });
+
+describe("the history of a criterion deleted after evidence", () => {
+  it("stands on its own as loudly as an edit, naming what was deleted (#336, spec #327 story 52)", async () => {
+    const readable = page([criterion()]);
+    readable.sections.positionHistory.entries = [
+      {
+        at: "2026-09-29T10:00:00+02:00",
+        field: "criterion F4 · deleted after evidence",
+        why: null,
+        from: "### Gain vanishes with shuffled labels ^c4\n\nrelationship:: falsifying\n\n- [[sweep-14]] — flat",
+      },
+    ];
+    open(() => readable);
+    const history = await screen.findByRole("region", {
+      name: "Position history",
+    });
+    const loud = within(history).getByRole("listitem", {
+      name: "Deleted after evidence",
+    });
+    expect(loud.textContent).toMatch(/deleted after evidence/);
+    expect(loud.textContent).toMatch(/no why written/);
+    expect(loud.textContent).toMatch(/Gain vanishes with shuffled labels/);
+    expect(within(loud).getByRole("button", { name: "+ why" })).toBeTruthy();
+  });
+});
