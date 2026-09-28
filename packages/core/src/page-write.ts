@@ -1,5 +1,10 @@
 import type { Outline } from "markdown";
-import { CRITERIA_FIELD, criteriaEntries } from "./hypothesis-rule.js";
+import {
+  CRITERIA_FIELD,
+  criteriaEntries,
+  liveOverride,
+  voidOf,
+} from "./hypothesis-rule.js";
 import type { PendingRevision, PendingRevisions } from "./pending-revisions.js";
 import {
   coalesce,
@@ -75,7 +80,15 @@ const HISTORIED = ["research-question", "hypothesis"];
 export type Plan = (
   read: PageFile,
   waiting: PendingRevision[]
-) => Write | WriteResult;
+) => OwnWrite | WriteResult;
+
+/**
+ * A page write, and — when it records a Revision of something a
+ * Hypothesis's Override judged (a criterion, the claim) — that Revision's
+ * timestamp, which the Override's void is stamped with if one is live
+ * (`writeOwn`).
+ */
+export type OwnWrite = Write & { revisesJudged?: string };
 
 // Page writes run one at a time. Planning a write means reading the file —
 // which thread is ticked, what the Position changed from, whether the head
@@ -126,8 +139,16 @@ const prepend = (entry: string): Operation => ({
  * does not depend on which tool was used (spec #327 story 51). What came
  * after a row is the next row's `from`, or, for the last, the section as
  * the file holds it now.
+ *
+ * The first row that revised what a live Override judged — the claim, or
+ * a criterion — is followed by the Override's void, stamped with that row,
+ * as the page's own write would have voided it (#337, story 62). `voided`
+ * says so, so the write's own plan does not void it a second time.
  */
-function splicesOf(read: PageFile, waiting: PendingRevision[]): Operation[] {
+function splicesOf(
+  read: PageFile,
+  waiting: PendingRevision[]
+): { operations: Operation[]; voided: boolean } {
   const quiet = (row: PendingRevision) =>
     prepend(
       formatRevision({
@@ -137,24 +158,53 @@ function splicesOf(read: PageFile, waiting: PendingRevision[]): Operation[] {
         from: row.from,
       })
     );
-  // With no `## Criteria` heading to judge against — retyped mid-edit, as
-  // `hypothesisPositions` allows for — every criterion would read as
-  // deleted, and a tested one as the loudest entry there is, permanently.
-  // The row is spliced unjudged instead: the section as it was, in full,
-  // so nothing is lost and nothing is claimed.
-  const criteria =
-    read.kind === "hypothesis"
-      ? section(read.outline, "Criteria").heading
-      : undefined;
-  if (criteria === undefined) return waiting.map(quiet);
-  return waiting.flatMap((row, i) => {
-    if (row.field !== CRITERIA_FIELD) return [quiet(row)];
-    const next = waiting
-      .slice(i + 1)
-      .find((later) => later.field === CRITERIA_FIELD);
-    const now = next?.from ?? bodyText(read.content, criteria);
-    return criteriaEntries(row.from, now, row.at).map(prepend);
+  if (read.kind !== "hypothesis") {
+    return { operations: waiting.map(quiet), voided: false };
+  }
+  const criteria = section(read.outline, "Criteria").heading;
+  let live = liveOverride(historyEntries(read));
+  let voided = false;
+  const operations = waiting.flatMap((row, i) => {
+    let entries: Operation[];
+    // With no `## Criteria` heading to judge against — retyped mid-edit, as
+    // `hypothesisPositions` allows for — every criterion would read as
+    // deleted, and a tested one as the loudest entry there is, permanently.
+    // The row is spliced unjudged instead: the section as it was, in full,
+    // so nothing is lost and nothing is claimed.
+    if (row.field !== CRITERIA_FIELD || criteria === undefined) {
+      entries = [quiet(row)];
+    } else {
+      const next = waiting
+        .slice(i + 1)
+        .find((later) => later.field === CRITERIA_FIELD);
+      const now = next?.from ?? bodyText(read.content, criteria);
+      entries = criteriaEntries(row.from, now, row.at).map(prepend);
+    }
+    // Design notes never void it (ADR 0031 decision 7); a criteria row the
+    // judge found no change in revised nothing. A row of the criteria
+    // parked by an earlier build (`criterion <label>`) is a criterion
+    // Revision all the same.
+    const revisesJudged =
+      entries.length > 0 &&
+      (row.field === "claim" ||
+        row.field === CRITERIA_FIELD ||
+        row.field.startsWith("criterion "));
+    if (live === null || !revisesJudged) return entries;
+    const override = live;
+    live = null;
+    voided = true;
+    return [...entries, prepend(voidOf(override, row.at))];
   });
+  return { operations, voided };
+}
+
+/** The history's entries as the file holds them, newest first; a line that is not one is left out. */
+export function historyEntries({ content, outline }: PageFile) {
+  const heading = section(outline, HISTORY).heading;
+  if (heading === undefined) return [];
+  return readRevisions(content, outline, heading).flatMap((item) =>
+    item.revision === null ? [] : [item.revision]
+  );
 }
 
 /**
@@ -214,7 +264,7 @@ export function writeOwn(
     }
     const waiting = pending.pending(read.relativePath);
     const planned = plan(read, waiting);
-    let own: Write;
+    let own: OwnWrite;
     if ("written" in planned) {
       // A refusal is the caller's answer, whatever else the file owes:
       // turning it into the splice's success would tell the page its tick
@@ -226,8 +276,19 @@ export function writeOwn(
     } else {
       own = planned;
     }
+    const splices = splicesOf(read, waiting);
+    // The void goes in the write that caused it (ADR 0031 decision 7), on
+    // top of that write's own entries — unless a parked Obsidian edit
+    // spliced into this same write already revised what it judged.
+    const judged = splices.voided ? undefined : own.revisesJudged;
+    const live =
+      judged === undefined ? null : liveOverride(historyEntries(read));
+    const voids =
+      live === null || judged === undefined
+        ? []
+        : [prepend(voidOf(live, judged))];
     const result = await write(vaultPath, path, {
-      operations: orderOf(own.operations, splicesOf(read, waiting)),
+      operations: orderOf([...own.operations, ...voids], splices.operations),
       basedOn: own.basedOn,
     });
     if (result.written) {
@@ -318,6 +379,7 @@ export async function savePosition(
     was,
     at,
     coalesceMs,
+    judged = false,
   }: {
     /** The `##` heading the Position is the body of. */
     section: string;
@@ -328,6 +390,8 @@ export async function savePosition(
     was: string;
     at: Date;
     coalesceMs: number;
+    /** Whether a Hypothesis's Override judged this Position, so its Revision voids one that is live (`writeOwn`): the claim, never design notes. */
+    judged?: boolean;
   }
 ): Promise<SavedAnswer> {
   const text = typed.replace(/\r\n/g, "\n").trim();
@@ -370,6 +434,7 @@ export async function savePosition(
         ...history.operations,
       ],
       basedOn,
+      ...(judged ? { revisesJudged: history.at } : {}),
     };
   });
   // A refused write recorded nothing, whatever the plan had settled on.

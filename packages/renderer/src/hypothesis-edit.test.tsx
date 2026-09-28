@@ -64,10 +64,14 @@ const page = (
   },
   derivation: {
     state: "inconclusive",
+    effective: "inconclusive",
+    override: null,
+    unlanded: [],
     clause: "noCriteria",
     named: [],
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
   },
+  overridable: false,
   problems: [],
 });
 

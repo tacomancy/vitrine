@@ -1,6 +1,11 @@
 import type { Revision } from "core";
 import { describe, expect, it } from "vitest";
-import { historyRows, quietLabel, rangeLabel } from "./history";
+import {
+  historyRows,
+  hypothesisFilters,
+  quietLabel,
+  rangeLabel,
+} from "./history";
 
 // The history's arithmetic (spec #206 story 37): which entries are the
 // narrative, which collapse into a trail, and what a Revision moved the
@@ -136,6 +141,28 @@ describe("historyRows", () => {
     ]);
   });
 
+  it("an Override and its void are loud, never in the quiet trail, with or without a why (#337, spec #327 story 50)", () => {
+    const entries: Revision[] = [
+      {
+        at: at("2026-09-06"),
+        field: "override voided",
+        why: null,
+        from: at("2026-09-05"),
+      },
+      {
+        at: at("2026-09-05"),
+        field: "override",
+        why: null,
+        from: "inconclusive",
+      },
+    ];
+    expect(
+      historyRows(entries, {}).map((row) =>
+        row.kind === "explained" ? row.loud : row.kind
+      )
+    ).toEqual(["override voided", "override"]);
+  });
+
   it("no entries is no rows", () => {
     expect(historyRows([], {})).toEqual([]);
   });
@@ -180,5 +207,93 @@ describe("rangeLabel", () => {
     expect(rangeLabel(at("2025-12-30"), at("2026-01-04"))).toBe(
       "30 December 2025 – 4 January 2026"
     );
+  });
+});
+
+describe("hypothesisFilters", () => {
+  // One write's entries share its timestamp: a criterion's Revision, the
+  // `· state` entry it caused directly above it (#334), and the void of an
+  // Override it revised (#337).
+  const entries: Revision[] = [
+    { at: at("2026-09-09"), field: "design notes", why: null, from: "" },
+    {
+      at: at("2026-09-08"),
+      field: "override voided",
+      why: null,
+      from: at("2026-09-07"),
+    },
+    { at: at("2026-09-08"), field: "state", why: null, from: "inconclusive" },
+    {
+      at: at("2026-09-08"),
+      field: "criterion F2",
+      why: null,
+      from: "### F ^c2",
+    },
+    {
+      at: at("2026-09-07"),
+      field: "override",
+      why: "partial",
+      from: "inconclusive",
+    },
+    {
+      at: at("2026-09-06"),
+      field: "criterion C1 · edited after evidence",
+      why: null,
+      from: "### C ^c1",
+    },
+    { at: at("2026-09-05"), field: "criterion C1", why: null, from: "" },
+    { at: at("2026-09-04"), field: "criteria", why: null, from: "### C ^c1" },
+    { at: at("2026-09-01"), field: "claim", why: null, from: "" },
+  ];
+  const shown = (label: string) => {
+    const filter = hypothesisFilters(entries).find((f) => f.label === label);
+    return entries.filter((e) => filter!.shows(e)).map((e) => e.field);
+  };
+
+  it("offers the claim alone, criterion edits alone, and what decided the state", () => {
+    expect(hypothesisFilters(entries).map((f) => f.label)).toEqual([
+      "claim",
+      "criterion edits",
+      "what decided it",
+    ]);
+    expect(shown("claim")).toEqual(["claim"]);
+    expect(shown("criterion edits")).toEqual([
+      "criterion F2",
+      "criterion C1 · edited after evidence",
+      "criterion C1",
+      "criteria",
+    ]);
+  });
+
+  it("what decided it: each move of the state with the criterion Revision stamped beside it, and the Overrides", () => {
+    expect(shown("what decided it")).toEqual([
+      "override voided",
+      "state",
+      "criterion F2",
+      "override",
+    ]);
+  });
+
+  it("filters rows after the chain is computed, and a quiet run closes over the entries it hides", () => {
+    const filter = hypothesisFilters(entries).find(
+      (f) => f.label === "criterion edits"
+    )!;
+    const rows = historyRows(entries, {}, filter.shows);
+    expect(rows).toEqual([
+      { kind: "quiet", revisions: [entries[3]] },
+      {
+        kind: "explained",
+        revision: entries[5],
+        to: "",
+        loud: "edited after evidence",
+      },
+      { kind: "quiet", revisions: [entries[6], entries[7]] },
+    ]);
+    // The claim's entry is the claim's first: it moved to the claim now,
+    // not to a criterion's text the filter hid.
+    const claim = hypothesisFilters(entries).find((f) => f.label === "claim")!;
+    expect(historyRows(entries, { claim: "Now." }, claim.shows)).toEqual([
+      { kind: "quiet", revisions: [entries[8]] },
+    ]);
   });
 });

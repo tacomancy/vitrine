@@ -4,6 +4,7 @@ import {
   historyRows,
   quietLabel,
   rangeLabel,
+  type HistoryFilter,
   type HistoryRow,
 } from "./history";
 import styles from "./PositionHistory.module.css";
@@ -20,12 +21,16 @@ import { linkLabel } from "./wikilink";
  *
  * The component takes entries, each field's current text, and a way to
  * write one line — nothing about Research Questions — so a Hypothesis claim
- * or an Experiment design renders here too (story 59).
+ * or an Experiment design renders here too (story 59). A page whose history
+ * holds more than one kind of question to ask of it passes its own
+ * `filters` beside *everything* and *explained only* (a Hypothesis's three,
+ * spec #327 story 55).
  */
 export function PositionHistory({
   entries,
   current,
   whyLine,
+  filters = [],
 }: {
   entries: Revision[];
   /** Each field's text as the file holds it now, keyed by field name. */
@@ -36,8 +41,11 @@ export function PositionHistory({
    * written — and no *+ why* is offered at all.
    */
   whyLine?: (revision: Revision, close: () => void) => ReactNode;
+  filters?: HistoryFilter[];
 }) {
-  const [explainedOnly, setExplainedOnly] = useState(false);
+  // One reading at a time, by its button's words: *everything*, *explained
+  // only*, or one of the page's own.
+  const [showing, setShowing] = useState("everything");
   // Which entry has its line open, by timestamp and field (`idOf`) — one at
   // a time, because a why is a sentence and not a form to fill in.
   const [explaining, setExplaining] = useState<string | null>(null);
@@ -47,8 +55,9 @@ export function PositionHistory({
   // The chain that gives each entry the text it moved *to* is computed over
   // every entry, then filtered: hiding the trail must not change what the
   // explained Revisions say the answer became.
-  const rows = historyRows(entries, current).filter(
-    (row) => !explainedOnly || row.kind === "explained"
+  const filter = filters.find((f) => f.label === showing);
+  const rows = historyRows(entries, current, filter?.shows).filter(
+    (row) => showing !== "explained only" || row.kind === "explained"
   );
   // Which field an entry is of only needs saying when the history holds more
   // than one; on a Research Question every entry is the working answer.
@@ -67,20 +76,19 @@ export function PositionHistory({
   return (
     <>
       <div className={styles.filter} role="group" aria-label="Show">
-        {(["everything", "explained only"] as const).map((label) => {
-          const on = (label === "explained only") === explainedOnly;
-          return (
+        {["everything", "explained only", ...filters.map((f) => f.label)].map(
+          (label) => (
             <button
               key={label}
               type="button"
               className={styles.choice}
-              aria-pressed={on}
-              onClick={() => setExplainedOnly(label === "explained only")}
+              aria-pressed={label === showing}
+              onClick={() => setShowing(label)}
             >
               {label}
             </button>
-          );
-        })}
+          )
+        )}
         <span className={styles.order}>newest first</span>
       </div>
       <ol className={styles.entries}>
@@ -164,7 +172,16 @@ function Row({
               <Why text={revision.why} />
             </p>
           )}
-          <From from={revision.from} />
+          {revision.field === "override voided" &&
+          !Number.isNaN(Date.parse(revision.from)) ? (
+            // Its `from:` is the Override's timestamp: the one it ends. One
+            // typed by hand that is not a time shows as written.
+            <p className={styles.from}>
+              voids the override of {localDate(revision.from)}
+            </p>
+          ) : (
+            <From from={revision.from} />
+          )}
           {explaining?.open === id &&
             explaining.line(revision, explaining.close)}
         </div>

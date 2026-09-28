@@ -8,6 +8,7 @@ import {
   deleteCriterion,
   editCriterion,
   FIELDS,
+  overrideState,
   PAGE as HYPOTHESIS_PAGE,
   readHypothesisPage,
   saveHypothesisPosition,
@@ -343,6 +344,20 @@ export const router = t.router({
             ...input,
             at: ctx.now(),
             coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    // The Override (#337): an entry with a required why, refused unless the
+    // derived state is inconclusive with an Outcome recorded and none is
+    // live. The why's emptiness is the core's to refuse, in its words, so
+    // the input takes any string.
+    override: t.procedure
+      .input(pathInput.extend({ why: z.string(), basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          overrideState(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
           })
         )
       ),

@@ -49,10 +49,14 @@ const page = (criteria: CriterionRead[] = [criterion()]): Readable => ({
   },
   derivation: {
     state: "inconclusive",
+    effective: "inconclusive",
+    override: null,
+    unlanded: [],
     clause: "nothingTested",
     named: [],
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: criteria.length },
   },
+  overridable: false,
   problems: [],
 });
 
