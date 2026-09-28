@@ -292,9 +292,16 @@ function RowShell({
   resolution: Resolution;
 }) {
   return (
-    <li className={styles.row} data-loud={loud !== undefined || undefined}>
+    <li
+      className={styles.row}
+      // Put away once resolved, with the rest of the row's detail: the
+      // decision about it is made, and an amber row that says so is noise.
+      data-loud={(loud !== undefined && !resolved) || undefined}
+    >
       <div className={styles.body}>
-        {loud !== undefined && <p className={styles.loudTag}>{loud}</p>}
+        {loud !== undefined && !resolved && (
+          <p className={styles.loudTag}>{loud}</p>
+        )}
         <p className={styles.meta}>{meta}</p>
         {href === undefined ? (
           <span className={styles.rowTitle}>{title}</span>
@@ -394,12 +401,7 @@ function QuietHypothesis({
       why={`${untested} Nothing is wrong with it — it is simply not moving.`}
       resolution={resolution}
       actions={
-        <>
-          <a className={styles.primary} href={address}>
-            open
-          </a>
-          <Deliberate onDismiss={resolution.onDismiss} />
-        </>
+        <OpenOrDeliberate address={address} onDismiss={resolution.onDismiss} />
       }
     />
   );
@@ -486,7 +488,7 @@ function Ambiguous({
   );
 }
 
-/** *open* and *mark deliberate*: what an Experiment row offers (spec #362 story 78). */
+/** *open* and *mark deliberate*: what a row whose object has a page offers. */
 function OpenOrDeliberate({
   address,
   onDismiss,
@@ -586,7 +588,7 @@ function MissingFiles({
             <span key={`${f.path}:${f.criterion ?? i}`}>
               {i > 0 && "; "}
               <a
-                className={styles.inline}
+                className={styles.evidenceLink}
                 href={hashOf({ surface: "hypothesis", path: f.path })}
               >
                 {f.criterion === null ? f.claim : `${f.criterion} · ${f.claim}`}

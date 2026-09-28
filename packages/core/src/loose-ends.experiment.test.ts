@@ -1,4 +1,4 @@
-import { utimes, writeFile } from "node:fs/promises";
+import { chmod, mkdir, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
@@ -194,6 +194,30 @@ describe("looseEnds.rows — the stalled Experiment", () => {
     expect(kinds(await rows(c), "stalled-experiment")).toEqual([]);
   });
 
+  it("leaves out one whose only line under Artifacts is not an Artifact: a note is not a result", async () => {
+    const { c } = await openedOn(
+      files(
+        experiment({ artifacts: "- plots to follow once the sweep is done" })
+      ),
+      days("2026-09-20", 3)
+    );
+    expect(kinds(await rows(c), "stalled-experiment")).toEqual([]);
+  });
+
+  it("counts only the Artifact lines, not a note beside them", async () => {
+    const { c } = await openedOn(
+      files(
+        experiment({
+          artifacts: "- ![[forest.png]] — the forest plot\n- more to come",
+        })
+      ),
+      days("2026-09-20", 3)
+    );
+    expect(kinds(await rows(c), "stalled-experiment")[0]?.row).toMatchObject({
+      artifacts: 1,
+    });
+  });
+
   it("leaves out one that is not complete", async () => {
     for (const status of ["planned", "running", "abandoned"]) {
       const { c } = await openedOn(
@@ -280,6 +304,49 @@ describe("looseEnds.rows — the missing linked Artifact", () => {
       once
     );
     expect(kinds(await rows(c), "missing-artifact")).toEqual([]);
+  });
+
+  it("reads a link made here as this machine's when its name had to be cleaned to fit the line", async () => {
+    const elsewhere = await tmp("disk");
+    const { c } = await openedOn(
+      {
+        // The line cannot hold its own separators, so `Studio · Mac` was
+        // recorded as `Studio Mac`.
+        [RUN]: experiment({
+          artifacts: linked("a.ckpt", join(elsewhere, "a.ckpt"), "Studio Mac"),
+        }),
+      },
+      once,
+      { machine: "Studio · Mac" }
+    );
+    expect(kinds(await rows(c), "missing-artifact")).toHaveLength(1);
+  });
+
+  it("names a path it could not check rather than calling the file gone", async () => {
+    const elsewhere = await tmp("disk");
+    const locked = join(elsewhere, "locked");
+    await mkdir(locked);
+    await writeFile(join(locked, "a.ckpt"), "bytes");
+    await chmod(locked, 0o000);
+    try {
+      const { c } = await openedOn(
+        {
+          [RUN]: experiment({
+            artifacts: linked("a.ckpt", join(locked, "a.ckpt")),
+          }),
+        },
+        once
+      );
+      const ends = await rows(c);
+      expect(kinds(ends, "missing-artifact")).toEqual([]);
+      expect(ends.problems).toEqual([
+        expect.stringMatching(
+          /^experiments\/prereg-exclusions\/prereg-exclusions\.md: a\.ckpt could not be checked/
+        ),
+      ]);
+    } finally {
+      await chmod(locked, 0o755);
+    }
   });
 
   it("is loud, under Broken plumbing, when the run is Evidence under a falsifying Criterion with an Outcome recorded", async () => {

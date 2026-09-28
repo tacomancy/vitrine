@@ -112,7 +112,7 @@ export type StalledExperiment = {
   title: string;
   /** Open days since the file last changed — the unit it is judged in, so the unit it is worded in. */
   quietOpenDays: number;
-  /** How many lines are under `## Artifacts`. */
+  /** How many Artifact lines — stored or linked — are under `## Artifacts`. */
   artifacts: number;
 };
 
@@ -205,16 +205,15 @@ export async function looseEnds(
     stalledOpenDays,
     machine
   );
-  const loud = experiments.missing.filter((row) => row.falsifying.length > 0);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
-    "Broken plumbing": loud,
+    "Broken plumbing": experiments.missingUnderFalsification,
     "Unfinished reading": [],
     "Disconnected material": ambiguousLinks(index),
     "Stalled questions": [
       ...questions.rows,
       ...hypotheses.rows,
       ...experiments.stalled,
-      ...experiments.missing.filter((row) => row.falsifying.length === 0),
+      ...experiments.missing,
     ],
   };
   return {
@@ -468,11 +467,15 @@ async function experimentRows(
   machine: string
 ): Promise<{
   stalled: StalledExperiment[];
+  /** Missing, with no recorded falsification resting on the run. */
   missing: MissingArtifacts[];
+  /** Missing, under a recorded falsification: Broken plumbing, drawn loud (story 76). */
+  missingUnderFalsification: MissingArtifacts[];
   problems: string[];
 }> {
   const stalled: StalledExperiment[] = [];
   const missing: MissingArtifacts[] = [];
+  const missingUnderFalsification: MissingArtifacts[] = [];
   const problems: string[] = [];
   for (const file of index.select<{
     path: string;
@@ -497,32 +500,36 @@ async function experimentRows(
         path: file.path,
         title,
         quietOpenDays: quiet,
-        artifacts: page.sections.artifacts.items.length,
+        artifacts: artifactCount(page),
       });
     }
-    const gone = await missingHere(page, machine);
+    const { gone, unchecked } = await missingHere(page, machine);
+    for (const { file, reason } of unchecked) {
+      problems.push(`${page.path}: ${file} could not be checked: ${reason}`);
+    }
     if (gone.length > 0) {
-      missing.push({
+      const falsifying = page.evidence
+        .filter(
+          ({ criterion }) =>
+            criterion.relationship === "falsifying" &&
+            criterion.outcome !== null
+        )
+        .map(({ hypothesis, criterion }) => ({
+          path: hypothesis.path,
+          claim: hypothesis.claim,
+          criterion: criterion.label,
+        }));
+      (falsifying.length > 0 ? missingUnderFalsification : missing).push({
         kind: "missing-artifact",
         subject,
         path: file.path,
         title,
         missing: gone.map(({ file, target }) => ({ file, target })),
-        falsifying: page.evidence
-          .filter(
-            ({ criterion }) =>
-              criterion.relationship === "falsifying" &&
-              criterion.outcome !== null
-          )
-          .map(({ hypothesis, criterion }) => ({
-            path: hypothesis.path,
-            claim: hypothesis.claim,
-            criterion: criterion.label,
-          })),
+        falsifying,
       });
     }
   }
-  return { stalled, missing, problems };
+  return { stalled, missing, missingUnderFalsification, problems };
 }
 
 /**
@@ -541,13 +548,22 @@ function quietOpenDays(
   days: OpenDays
 ): number | null {
   const { status } = page.frontmatter;
-  const { artifacts, observations } = page.sections;
+  const { observations } = page.sections;
   if (status !== "complete") return null;
-  if (artifacts.items.length === 0) return null;
+  if (artifactCount(page) === 0) return null;
   if (observations.text.trim() !== "") return null;
   if (mtime === null) return null;
   return days.since(localDay(new Date(mtime)));
 }
+
+/**
+ * Stored and linked lines only: a bullet of neither shape is the user's
+ * note — *plots to follow* — and a run holding only that has no result to
+ * have left unread.
+ */
+const artifactCount = (page: Extract<ExperimentPage, { readable: true }>) =>
+  page.sections.artifacts.items.filter((item) => item.kind !== "asWritten")
+    .length;
 
 /**
  * The run's linked Artifacts recorded on this machine whose paths no
@@ -556,22 +572,33 @@ function quietOpenDays(
  * dashboard (story 77). A URL is never checked — nothing here goes to the
  * network (spec #362 § Out of Scope). Checked when Loose Ends is read and
  * never watched, so a disk unplugged since is noticed on the next visit.
+ *
+ * Gone is a path that is not there — `ENOENT`, or a folder on the way
+ * that is now a file. Any other failure (a folder it may not read) says
+ * nothing about whether the file is there, so it is named as unchecked
+ * rather than called gone or passed over (no silent failures).
  */
 async function missingHere(
   page: Extract<ExperimentPage, { readable: true }>,
   machine: string
-): Promise<LinkedArtifact[]> {
+): Promise<{
+  gone: LinkedArtifact[];
+  unchecked: Array<{ file: string; reason: string }>;
+}> {
   const linked = page.sections.artifacts.items.filter(
     (item): item is LinkedArtifact =>
       item.kind === "linked" && !item.url && linkedHere(item, machine)
   );
-  const gone = await Promise.all(
-    linked.map((item) =>
-      stat(item.target).then(
-        () => false,
-        () => true
-      )
-    )
-  );
-  return linked.filter((_, i) => gone[i]);
+  const gone: LinkedArtifact[] = [];
+  const unchecked: Array<{ file: string; reason: string }> = [];
+  for (const item of linked) {
+    try {
+      await stat(item.target);
+    } catch (cause) {
+      const code = (cause as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") gone.push(item);
+      else unchecked.push({ file: item.file, reason: errorMessage(cause) });
+    }
+  }
+  return { gone, unchecked };
 }

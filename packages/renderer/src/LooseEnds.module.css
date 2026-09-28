@@ -247,7 +247,9 @@ a.rowTitle:focus-visible {
   color: var(--color-warning);
 }
 
-.inline {
+/* The Hypothesis a loud row's falsification belongs to: a link in the
+   row's own voice, not an accent competing with the tag above it. */
+.evidenceLink {
   color: inherit;
 }
 
