@@ -83,7 +83,8 @@ const listInput = z
   .object({ order: z.enum(["newest", "oldest"]).default("newest") })
   .default({ order: "newest" });
 
-// Unattached, or pursuing a Research Question from its page (#221). `strict`
+// Unattached, pursuing a Research Question or a Hypothesis from its page
+// (#221, #339), or resolving one — the follow-up its result raised. `strict`
 // is what makes a stray key — or a context no surface has yet — an input
 // error, so later contexts extend this union rather than loosen it.
 const captureInput = z.object({
@@ -94,7 +95,14 @@ const captureInput = z.object({
       .object({
         context: z.literal("pursuing"),
         /** The page's vault-relative path. */
-        researchQuestion: z.string().min(1),
+        page: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        context: z.literal("resolving"),
+        /** The Hypothesis's vault-relative path. */
+        hypothesis: z.string().min(1),
       })
       .strict(),
   ]),
