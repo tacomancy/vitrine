@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { addStoredArtifact } from "./artifact.js";
+import { addArtifact, inspectArtifact } from "./artifact.js";
 import type { Events } from "./events.js";
 import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
@@ -67,6 +67,8 @@ export type Context = {
   events: Events;
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
+  /** This machine's computer name, which a linked Artifact records (ADR 0035 decision 5); tests pass any string. */
+  machine: string;
   coalesceMs: number;
   /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
   stalledOpenDays: number;
@@ -598,23 +600,37 @@ export const router = t.router({
     pickArtifact: t.procedure.mutation(async ({ ctx }) => ({
       source: await ctx.host.pickFile(),
     })),
-    // A stored Artifact (ADR 0035 decision 1): the file copied into the
-    // run's folder, then its line. A line that cannot be written comes back
-    // as the write's refusal, with the file already in the folder.
+    // Stored or linked, proposed by size (ADR 0035 decision 4): asked
+    // before the caption, so the page can say which it will be and offer
+    // the other.
+    inspectArtifact: t.procedure
+      .input(z.object({ source: z.string().min(1) }))
+      .query(({ input }) => refusing(inspectArtifact(input.source))),
+    // An Artifact as the user chose it, whatever was proposed (story 31).
+    // Stored (ADR 0035 decision 1): the file copied into the run's folder,
+    // then its line; a line that cannot be written comes back as the
+    // write's refusal, with the file already in the folder. Linked
+    // (decision 5): the line alone, with this machine and the Fingerprint.
+    // `as` has no default, so no caller stores a 2 GB file by leaving it out.
     addArtifact: t.procedure
       .input(
         pathInput.extend({
           source: z.string().min(1),
+          as: z.enum(["stored", "linked"]),
           caption: z.string().trim().min(1, "An Artifact needs a caption."),
         })
       )
       .mutation(async ({ ctx, input }) =>
         refusing(
-          addStoredArtifact(
+          addArtifact(
             await requirePage(ctx),
             EXPERIMENT_PAGE,
             input.path,
-            input
+            input,
+            {
+              machine: ctx.machine,
+              today: localIso(ctx.now()).slice(0, "YYYY-MM-DD".length),
+            }
           )
         )
       ),

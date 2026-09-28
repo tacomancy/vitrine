@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import styles from "./TypedLine.module.css";
 
-/** What the line is for: an answer in place, the claim of a Hypothesis, the name of a new Experiment, or an Artifact's caption. */
+/** What the line is for: an answer in place, the claim of a Hypothesis, the name of a new Experiment, or a stored Artifact's caption or a linked one's description. */
 export type TypedLinePurpose =
-  "answer" | "hypothesis" | "experiment" | "caption";
+  "answer" | "hypothesis" | "experiment" | "caption" | "description";
 
 const LINES: Record<
   TypedLinePurpose,
@@ -28,6 +28,11 @@ const LINES: Record<
     form: "Add an Artifact",
     input: "Caption",
     hint: "↵ copy it in · esc discards",
+  },
+  description: {
+    form: "Link an Artifact",
+    input: "Description",
+    hint: "↵ link it · esc discards",
   },
 };
 

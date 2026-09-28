@@ -86,19 +86,28 @@ export function Experiment({
       aria-label="Experiment view"
       tabIndex={-1}
       // A file dropped anywhere on the page is an Artifact for this run
-      // (story 28). Only a drop carrying files is taken, and its path comes
-      // from the preload: a page is never told where a dropped file lives.
+      // (story 28), and so is a link dragged from a browser — a W&B panel,
+      // a bucket — which can only be linked. A file's path comes from the
+      // preload: a page is never told where a dropped file lives.
       onDragOver={(event) => {
-        if (readable !== null && event.dataTransfer.types.includes("Files")) {
+        const { types } = event.dataTransfer;
+        if (
+          readable !== null &&
+          (types.includes("Files") || types.includes("text/uri-list"))
+        ) {
           event.preventDefault();
         }
       }}
       onDrop={(event) => {
+        if (readable === null) return;
         const file = event.dataTransfer.files[0];
-        if (readable === null || file === undefined) return;
+        const source =
+          file === undefined
+            ? firstUri(event.dataTransfer.getData("text/uri-list"))
+            : window.vitrine.pathOf(file);
+        if (source === "") return;
         event.preventDefault();
-        const source = window.vitrine.pathOf(file);
-        if (source !== "") setAdding(source);
+        setAdding(source);
       }}
     >
       <FrameLines
@@ -506,4 +515,14 @@ function baseLine(fm: ExperimentFrontmatter): string {
   return fm.created === undefined
     ? "written directly"
     : `created ${localDate(fm.created)}`;
+}
+
+/** A `text/uri-list`'s first URL: one per line, `#` lines are comments (RFC 2483). */
+function firstUri(list: string): string {
+  return (
+    list
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== "" && !line.startsWith("#")) ?? ""
+  );
 }

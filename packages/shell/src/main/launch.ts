@@ -56,3 +56,24 @@ export function buildVersion(git: {
   const described = git.described.trim();
   return git.status.trim() === "" ? described : `${described}-dirty`;
 }
+
+/**
+ * The name a linked Artifact records as the machine it was linked on (ADR
+ * 0035 decision 5): the Mac's computer name — *Studio Mac*, what Sharing
+ * settings shows and what the researcher calls it — rather than the host
+ * name, which is a DNS label the user never chose. Electron does not expose
+ * it, so `scutil --get ComputerName` is asked; if that fails or says
+ * nothing, the host name stands in, since a line must name some machine.
+ */
+export function machineName(options: {
+  computerName: () => string;
+  hostname: string;
+}): string {
+  try {
+    const name = options.computerName().trim();
+    if (name !== "") return name;
+  } catch {
+    // Falls through to the host name.
+  }
+  return options.hostname;
+}
