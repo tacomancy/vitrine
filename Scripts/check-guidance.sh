@@ -89,6 +89,16 @@ if [ -f "$spec_skill" ]; then
   fi
 fi
 
+# 6. to-spec and to-tickets link what they publish into the sub-issue tree
+#    that closes itself from the bottom up (#329). Upstream says nothing about
+#    it, so a re-vendor would publish issues nothing ever closes.
+for name in to-spec to-tickets; do
+  skill="$skills_dir/$name/SKILL.md"
+  [ -f "$skill" ] || continue
+  grep -q '§ Specs, tickets, and beats' "$skill" \
+    || bad "$skill does not link what it publishes into the sub-issue tree (docs/agents/issue-tracker.md § Specs, tickets, and beats)"
+done
+
 for f in CONTEXT.md docs/architecture.md CLAUDE.md CONTRIBUTING.md; do
   [ -e "$f" ] || bad "missing living doc: $f"
 done
