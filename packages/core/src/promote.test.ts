@@ -260,7 +260,7 @@ describe("a sub-question captured on a page that was just promoted", () => {
       "questions.capture",
       {
         text: "Does the effect survive a nap?",
-        provenance: { context: "pursuing", researchQuestion: PAGE_PATH },
+        provenance: { context: "pursuing", page: PAGE_PATH },
       }
     );
 

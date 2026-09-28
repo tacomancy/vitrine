@@ -30,12 +30,37 @@ const QUESTIONS_FOLDER = "questions";
 const META_FOLDER = ".vitrine";
 
 /**
- * Where a Question came from (CONTEXT.md *Provenance*): Unattached, or
- * captured on a Research Question's page — `researchQuestion` is that page's
- * vault-relative path, and the Question is a sub-question of it.
+ * Where a Question came from (CONTEXT.md *Provenance*): Unattached;
+ * captured on a Research Question's or a Hypothesis's page — `page` is that
+ * page's vault-relative path, and the Question is a sub-question of it; or
+ * the follow-up a Hypothesis's result raised (#339, CAP-5).
  */
 export type Provenance =
-  { context: "other" } | { context: "pursuing"; researchQuestion: string };
+  | { context: "other" }
+  | { context: "pursuing"; page: string }
+  | { context: "resolving"; hypothesis: string };
+
+/** The page a capture was made on, and the Kinds its context allows there. */
+function pageOf(
+  provenance: Provenance
+): { path: string; kinds: readonly string[]; noun: string } | null {
+  switch (provenance.context) {
+    case "other":
+      return null;
+    case "pursuing":
+      return {
+        path: provenance.page,
+        kinds: ["research-question", "hypothesis"],
+        noun: "a Research Question or a Hypothesis",
+      };
+    case "resolving":
+      return {
+        path: provenance.hypothesis,
+        kinds: ["hypothesis"],
+        noun: "a Hypothesis",
+      };
+  }
+}
 
 export type Question = {
   id: string;
@@ -292,23 +317,42 @@ export function createQuestionService({
     if (current === null) {
       throw new VaultError("noVault", "No vault is open. Open a vault first.");
     }
-    const pursuing =
-      provenance.context === "pursuing" ? provenance.researchQuestion : null;
+    const onPage = pageOf(provenance);
+    // Checked before anything is written, so a page of the wrong Kind costs
+    // nothing to take back. Only a Research Question's page is written to
+    // as well: a Hypothesis's neighbours are a query over `from:` (ADR 0031
+    // decision 11), so a capture there is the Question alone.
+    let linkOnPage = false;
+    if (onPage !== null) {
+      const page = await readOutline(current.path, onPage.path);
+      const kind = page.readable ? page.kind : null;
+      if (kind === null || !onPage.kinds.includes(kind)) {
+        throw new VaultError(
+          "writeFailed",
+          `Couldn't capture on the page: ${
+            page.readable
+              ? `${page.path} is not ${onPage.noun}: kind is ${kind ?? "absent"}`
+              : `${page.path}: ${page.reason}`
+          }`
+        );
+      }
+      linkOnPage = kind === "research-question";
+    }
     const { written, content } = await writeQuestion(current.path, {
       id: newId(),
       question: text.trim(),
       status: "open",
       captured: localIso(now()),
-      ...(pursuing === null ? {} : { from: wikilinkTo(pursuing) }),
+      ...(onPage === null ? {} : { from: wikilinkTo(onPage.path) }),
       context: provenance.context,
     });
     const opened = await vault.opened();
     const relativePath = (path: string) =>
       relative(current.path, path).split(sep).join("/");
-    if (pursuing !== null) {
+    if (onPage !== null && linkOnPage) {
       let page: { path: string; content: string };
       try {
-        page = await linkFromPage(current.path, pursuing, written);
+        page = await linkFromPage(current.path, onPage.path, written);
       } catch (cause) {
         // Whole or not at all, as with the vault marker: the text is still
         // in the capture line, and a retry is never a duplicate. A Question

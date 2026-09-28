@@ -11,8 +11,10 @@ import { formatAge } from "./age";
 import styles from "./Hypothesis.module.css";
 import { hypothesisFilters } from "./history";
 import { Criteria } from "./HypothesisCriteria";
+import { FollowUp } from "./HypothesisFollowUp";
 import { LoopLine } from "./HypothesisLoop";
 import { OverrideForm } from "./HypothesisOverride";
+import { Related } from "./HypothesisRelated";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
@@ -35,7 +37,8 @@ import { linkLabel } from "./wikilink";
  * first wondered, the claim itself, the Derived state with the rule that
  * computed it printed beside it, the criteria as read — falsifying ones in
  * their own band above the rest — then design notes and the Position
- * history. The claim and design notes are Positions edited in place like a
+ * history, with the related rail beside them (#339). The claim and design
+ * notes are Positions edited in place like a
  * Working answer (#333, `PositionField.tsx`), each save a Revision in the
  * one timeline below. There is no status control anywhere on the
  * page: the state is the core's function of the criteria, and a control
@@ -76,94 +79,102 @@ export function Hypothesis({ path }: { path: string }) {
       />
       {readable !== null && (
         <div className={rq.scroll}>
-          <Header
-            frontmatter={readable.frontmatter}
-            entries={readable.sections.positionHistory.entries}
-          />
-          {/* The claim in the serif, as the page's lead — and a text field,
+          <div className={styles.columns}>
+            <div className={styles.main}>
+              <Header
+                frontmatter={readable.frontmatter}
+                entries={readable.sections.positionHistory.entries}
+              />
+              {/* The claim in the serif, as the page's lead — and a text field,
               because sharpening it must be as fast as editing text (spec
               #327 story 16). Its Revisions are the header's count. */}
-          <Section name="Claim" present={readable.sections.claim.present}>
-            <PositionField
-              position={{ kind: "hypothesis", field: "claim" }}
-              path={readable.path}
-              hash={readable.hash}
-              text={readable.sections.claim.text}
-              labelledBy="rq-claim"
-              className={styles.claim}
-              empty={
-                <Outline>
-                  No claim written. A falsifiable statement goes here — one the
-                  criteria below could show false.
-                </Outline>
-              }
-            />
-          </Section>
-          <State
-            derivation={readable.derivation}
-            overridable={readable.overridable}
-            loop={readable.loop}
-            criteria={readable.sections.criteria.criteria}
-            path={readable.path}
-            hash={readable.hash}
-          />
-          <Section name="Criteria" present={readable.sections.criteria.present}>
-            <Criteria
-              path={readable.path}
-              hash={readable.hash}
-              criteria={readable.sections.criteria.criteria}
-            />
-          </Section>
-          <Section
-            name="Design notes"
-            present={readable.sections.designNotes.present}
-          >
-            <PositionField
-              position={{ kind: "hypothesis", field: "design notes" }}
-              path={readable.path}
-              hash={readable.hash}
-              text={readable.sections.designNotes.text}
-              labelledBy="rq-design-notes"
-              empty={
-                <Outline>
-                  Nothing yet. What is varied, what is held constant, and the
-                  confounds you know about — a paragraph, not a form.
-                </Outline>
-              }
-            />
-          </Section>
-          <Section
-            name="Position history"
-            present={readable.sections.positionHistory.present}
-          >
-            <PositionHistory
-              entries={readable.sections.positionHistory.entries}
-              current={{
-                claim: readable.sections.claim.text,
-                "design notes": readable.sections.designNotes.text,
-                // A `· state` entry's `from:` is the state it left (#334),
-                // so what it moved to, for the newest, is the state now.
-                state: readable.derivation.state,
-              }}
-              filters={hypothesisFilters(
-                readable.sections.positionHistory.entries
-              )}
-              // A why onto any entry, months later (spec #327 story 54): the
-              // page's own hash, because no save of the page's stands
-              // between the read and this write.
-              whyLine={({ at, field }, close) => (
-                <WhyLine
-                  kind="hypothesis"
+              <Section name="Claim" present={readable.sections.claim.present}>
+                <PositionField
+                  position={{ kind: "hypothesis", field: "claim" }}
                   path={readable.path}
-                  at={at}
-                  field={field}
-                  basedOn={readable.hash}
-                  onClose={close}
+                  hash={readable.hash}
+                  text={readable.sections.claim.text}
+                  labelledBy="rq-claim"
+                  className={styles.claim}
+                  empty={
+                    <Outline>
+                      No claim written. A falsifiable statement goes here — one
+                      the criteria below could show false.
+                    </Outline>
+                  }
                 />
-              )}
-            />
-            <p className={rq.baseLine}>{baseLine(readable.frontmatter)}</p>
-          </Section>
+              </Section>
+              <State
+                derivation={readable.derivation}
+                overridable={readable.overridable}
+                loop={readable.loop}
+                criteria={readable.sections.criteria.criteria}
+                path={readable.path}
+                hash={readable.hash}
+              />
+              <Section
+                name="Criteria"
+                present={readable.sections.criteria.present}
+              >
+                <Criteria
+                  path={readable.path}
+                  hash={readable.hash}
+                  criteria={readable.sections.criteria.criteria}
+                />
+              </Section>
+              <Section
+                name="Design notes"
+                present={readable.sections.designNotes.present}
+              >
+                <PositionField
+                  position={{ kind: "hypothesis", field: "design notes" }}
+                  path={readable.path}
+                  hash={readable.hash}
+                  text={readable.sections.designNotes.text}
+                  labelledBy="rq-design-notes"
+                  empty={
+                    <Outline>
+                      Nothing yet. What is varied, what is held constant, and
+                      the confounds you know about — a paragraph, not a form.
+                    </Outline>
+                  }
+                />
+              </Section>
+              <Section
+                name="Position history"
+                present={readable.sections.positionHistory.present}
+              >
+                <PositionHistory
+                  entries={readable.sections.positionHistory.entries}
+                  current={{
+                    claim: readable.sections.claim.text,
+                    "design notes": readable.sections.designNotes.text,
+                    // A `· state` entry's `from:` is the state it left (#334),
+                    // so what it moved to, for the newest, is the state now.
+                    state: readable.derivation.state,
+                  }}
+                  filters={hypothesisFilters(
+                    readable.sections.positionHistory.entries
+                  )}
+                  // A why onto any entry, months later (spec #327 story 54): the
+                  // page's own hash, because no save of the page's stands
+                  // between the read and this write.
+                  whyLine={({ at, field }, close) => (
+                    <WhyLine
+                      kind="hypothesis"
+                      path={readable.path}
+                      at={at}
+                      field={field}
+                      basedOn={readable.hash}
+                      onClose={close}
+                    />
+                  )}
+                />
+                <p className={rq.baseLine}>{baseLine(readable.frontmatter)}</p>
+              </Section>
+            </div>
+            <Related related={readable.related} />
+          </div>
         </div>
       )}
       {hasFooter && (
@@ -254,7 +265,9 @@ function baseLine(fm: HypothesisFrontmatter): string {
  * one can be made, never as a control beside the state.
  *
  * Below it, the loop (#338): the result written back to where the
- * Hypothesis came from, or why it cannot be (`HypothesisLoop.tsx`).
+ * Hypothesis came from, or why it cannot be (`HypothesisLoop.tsx`) — and,
+ * whenever it is closable, the follow-up it raises (#339,
+ * `HypothesisFollowUp.tsx`).
  */
 function State({
   derivation,
@@ -336,6 +349,8 @@ function State({
         />
       )}
       <LoopLine loop={loop} path={path} hash={hash} />
+      {/* Whenever the result is closable, parent or none (story 74). */}
+      {loop.refusal === null && <FollowUp path={path} />}
     </section>
   );
 }

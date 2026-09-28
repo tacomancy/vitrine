@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import type { Heading, Outline } from "markdown";
 import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
+import { resolvesTo } from "./link-text.js";
 import {
   changedUnderneath,
   historyEntries,
@@ -168,6 +169,8 @@ export type HypothesisPage =
       overridable: boolean;
       /** Where the result would be written, and whether it has been — read from that object, never from this one. */
       loop: Loop;
+      /** The related rail: a query, never a section the page keeps (ADR 0031 decision 11). */
+      related: Related;
       /** What could not be shown: the file's shape problems, then a section missing or doubled, then history lines that are not entries. */
       problems: ShapeProblem[];
     }
@@ -329,8 +332,94 @@ export async function readHypothesisPage(
     derivation,
     overridable: overrideRefusal(derivation) === null,
     loop,
+    related: relatedOf(index, relativePath, frontmatter.promotedFrom),
     problems,
   };
+}
+
+/**
+ * The Hypothesis's neighbours (#339; spec #327 story 18): the object it was
+ * promoted from, and every Question whose `from:` names it — the follow-up
+ * its result raised (`resolving`) and the sub-questions captured on the page
+ * (`pursuing`). Derived from the links alone, so there is no
+ * related-questions section to keep, and a Question retargeted in Obsidian
+ * leaves the rail as soon as the index sees it.
+ */
+export type Related = {
+  /** Null when promoted from nothing; `path` null when the link lands nowhere, which is shown rather than dropped. */
+  promotedFrom: {
+    link: string;
+    path: string | null;
+    kind: string | null;
+    display: string | null;
+  } | null;
+  /** Newest captured first, as the Inbox lists them. */
+  questions: RelatedQuestion[];
+};
+
+export type RelatedQuestion = {
+  /** Vault-relative, as the index keys it. */
+  path: string;
+  question: string;
+  status: string;
+  context: string;
+  captured: string;
+};
+
+function relatedOf(
+  index: VaultIndex,
+  path: string,
+  promotedFrom: string | undefined
+): Related {
+  let parent: Related["promotedFrom"] = null;
+  if (promotedFrom !== undefined) {
+    const landed = resolvesTo(index, path, promotedFrom.trim());
+    const [file] =
+      landed === null
+        ? []
+        : index.select<{ kind: string | null; display: string | null }>(
+            "SELECT kind, display FROM files WHERE path = ?",
+            landed
+          );
+    parent = {
+      link: promotedFrom,
+      path: landed,
+      kind: file?.kind ?? null,
+      display: file?.display ?? null,
+    };
+  }
+
+  // A Question's `fields` rows are its reader's (`readQuestion`), so each
+  // value has passed its vocabulary; a Partial Question has none and is
+  // the Inbox's to report, not the rail's.
+  const byPath = new Map<string, Record<string, unknown>>();
+  for (const row of index.select<{ path: string; key: string; value: string }>(
+    `SELECT path, key, value FROM fields
+     WHERE path IN (SELECT path FROM files WHERE kind = 'question')`
+  )) {
+    const fields = byPath.get(row.path) ?? {};
+    fields[row.key] = JSON.parse(row.value) as unknown;
+    byPath.set(row.path, fields);
+  }
+  const questions: RelatedQuestion[] = [];
+  for (const [at, fields] of byPath) {
+    const from = fields["from"];
+    if (
+      typeof from !== "string" ||
+      resolvesTo(index, at, from.trim()) !== path
+    ) {
+      continue;
+    }
+    questions.push({
+      path: at,
+      question: String(fields["question"]),
+      status: String(fields["status"]),
+      context: String(fields["context"]),
+      captured: String(fields["captured"]),
+    });
+  }
+  questions.sort((a, b) => Date.parse(b.captured) - Date.parse(a.captured));
+  return { promotedFrom: parent, questions };
 }
 
 // `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one

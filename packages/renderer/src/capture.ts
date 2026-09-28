@@ -15,7 +15,8 @@ import { useTRPC } from "./trpc";
 
 /**
  * The chip a capture shows before a character is typed:
- * `Unattached · <when>`, or `Pursuing · <the page's file name> · <when>`.
+ * `Unattached · <when>`, `Pursuing · <the page's file name> · <when>`, or
+ * `Resolving · <the Hypothesis's file name> · <when>` for a follow-up.
  */
 export function provenanceChip(provenance: Provenance, at: Date): string {
   return `${where(provenance)} · ${formatDateTime(at)}`;
@@ -23,8 +24,12 @@ export function provenanceChip(provenance: Provenance, at: Date): string {
 
 function where(provenance: Provenance): string {
   if (provenance.context === "other") return "Unattached";
-  const stem = provenance.researchQuestion.split("/").pop() ?? "";
-  return `Pursuing · ${stem.replace(/\.md$/, "")}`;
+  const [word, path] =
+    provenance.context === "pursuing"
+      ? ["Pursuing", provenance.page]
+      : ["Resolving", provenance.hypothesis];
+  const stem = path.split("/").pop() ?? "";
+  return `${word} · ${stem.replace(/\.md$/, "")}`;
 }
 
 export type Capture = {
