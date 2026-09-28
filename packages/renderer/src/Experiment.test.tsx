@@ -422,6 +422,7 @@ describe("an Evidence line on a Hypothesis page", () => {
       },
       overridable: false,
       loop: { status: "none", refusal: null, result: "falsified" },
+      related: { promotedFrom: null, questions: [] },
       problems: [],
     };
     window.location.hash = "#/hypothesis/hypotheses/h.md";
