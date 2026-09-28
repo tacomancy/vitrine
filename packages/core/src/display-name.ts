@@ -24,6 +24,7 @@ const NAMED_BY: Record<string, string> = {
   "research-question": "question",
   source: "title",
   "source-stub": "title",
+  experiment: "name",
 };
 
 /**

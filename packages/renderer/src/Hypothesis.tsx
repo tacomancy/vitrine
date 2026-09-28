@@ -23,6 +23,7 @@ import {
   Outline,
   provenanceLine,
   Section,
+  sectionId,
 } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
@@ -94,7 +95,7 @@ export function Hypothesis({ path }: { path: string }) {
                   path={readable.path}
                   hash={readable.hash}
                   text={readable.sections.claim.text}
-                  labelledBy="rq-claim"
+                  labelledBy={sectionId("Claim")}
                   className={styles.claim}
                   empty={
                     <Outline>
@@ -131,7 +132,7 @@ export function Hypothesis({ path }: { path: string }) {
                   path={readable.path}
                   hash={readable.hash}
                   text={readable.sections.designNotes.text}
-                  labelledBy="rq-design-notes"
+                  labelledBy={sectionId("Design notes")}
                   empty={
                     <Outline>
                       Nothing yet. What is varied, what is held constant, and
