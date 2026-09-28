@@ -66,3 +66,15 @@ Decision 6's keyboard triage — *accept, reject, defer, next* — is re-cut as 
 Beat 6 (#173) ships the grammar for the Queue and beat 8 (#175) inherits it for the inferred-link review rather than inventing one. Neither spec grill reopens the names or the keys, on the terms decision 6 set for its own list.
 
 **Undo is not settled here.** Prototype 06 offers `⌘Z` after a reject or a defer, prototype 11 after a link or a skip, and story REP-2 asks for one after every Loose Ends resolution (#251, beat 2 #169) — three surfaces drawing the same affordance that no decision has yet named. Whether the grammar carries an undo, and for which moves, belongs to the beat that first ships one.
+
+## Update (2026-09-28, #313)
+
+Decision 10 is amended in two places by **ADR 0032**, which settles how a Scout that is quietly fine is told apart from one that has stopped parsing. The derivation it fixes — health as a query over `scout_runs`, never stored on the Scout — is unchanged, and so is *broken* meaning the most recent run did not succeed.
+
+**The deferral is discharged, not satisfied.** Decision 10 ends *"'A reliably productive source gone unusually quiet' waits for run history to compare against (beat 9)."* ADR 0032 decision 5 decides it needs no state at all: the Warrant on a quiet Scout's claim carries *what this source usually yields* beside *when it last ran*, so a source gone unusually quiet is a claim that visibly undercuts itself. No threshold, no flag, and no amber state between *fine* and *broken*. Beat 9 loses the item rather than inheriting it.
+
+**"Cannot disagree" now covers the sentence, not only the query.** Decision 10 single-sources the derivation so Home, Loose Ends and Scout Activity cannot disagree; the three pinned prototypes nonetheless describe one broken Scout in three different sentences. ADR 0032 decision 7 extends the guarantee: one fault statement per error kind, derived in the core from the run row and rendered verbatim wherever the fault appears, with surfaces differing only in their actions. Scout Activity may add one further sentence about the accept rate being meaningless while the fault holds, which is its own question and appears nowhere else.
+
+**Two things decision 10's list did not name.** *Blocked on credentials* (ADR 0017, ADR 0025) and *paused* are not failures and not quiet fields — a Scout that has not looked cannot claim the field is quiet — so both take the *not yet* Voice, with the reason it has not looked. And fields arriving systematically empty is not a health state at all: those items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed (ADR 0032 decision 6). Prototype 10's `stale` labelling is withdrawn there; *stale* keeps `CONTEXT.md`'s narrow meaning.
+
+Beats 6 (#173), 7 (#174), 9 (#176) and 12 (#182) inherit all of it, and none of their spec grills reopens the Voice assignment or the Warrant's contents, on the terms decision 6 set for its own list.
