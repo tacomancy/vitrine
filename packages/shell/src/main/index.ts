@@ -197,37 +197,67 @@ function installMenu(client: CoreClient) {
 
 /**
  * A link out of the window, once `routeLink` has said where it goes. Only
- * `route.url` — the parsed URL whose scheme was checked — ever reaches
- * `shell.openExternal`, never the text the page asked for.
+ * `route.url` of a browser route — the parsed URL whose scheme was checked —
+ * ever reaches `shell.openExternal`, never the text the page asked for.
  *
- * A refusal is a message box: clicking a link is the user's act, and a
- * refusal of it is said rather than swallowed (ADR 0033 decision 1). Under
- * VITRINE_SNAPSHOT both go to the log instead, since a browser tab or a
- * dialog appearing is the interruption a hidden run exists to avoid, and the
- * log is what the drive checks.
+ * A refused link is said in a message box, and so is one the OS could not
+ * open (a `mailto:` with no mail app set): either way the click did nothing,
+ * and a link that does nothing without saying so is the silent failure #392
+ * exists to end. Under VITRINE_SNAPSHOT both go to the log instead, since a
+ * browser tab or a dialog appearing is the interruption a hidden run exists
+ * to avoid, and the log is what the drive checks.
  */
-function followOut(
+function leaveWindow(
   win: BrowserWindow,
-  url: string,
   route: Exclude<LinkRoute, { to: "window" }>
 ) {
   const hidden = Boolean(process.env.VITRINE_SNAPSHOT);
   if (route.to === "browser") {
-    if (hidden) console.log(`vitrine: open externally ${route.url}`);
-    else void shell.openExternal(route.url);
+    if (hidden) {
+      console.log(`vitrine: open externally ${route.url}`);
+      return;
+    }
+    shell.openExternal(route.url).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error);
+      sayNotOpened(win, "Vitrine could not open this link.", reason, route.url);
+    });
     return;
   }
   if (hidden) {
-    console.log(`vitrine: refused link ${url}`);
+    console.log(`vitrine: refused link ${route.url}`);
     return;
   }
   const kind = route.scheme ? `a ${route.scheme} link` : "this link";
-  void dialog.showMessageBox(win, {
-    type: "none",
-    message: `Vitrine does not open ${kind}.`,
-    detail: `Only web and mail links open, in your default browser.\n\n${clip(url)}`,
-    buttons: ["OK"],
-  });
+  sayNotOpened(
+    win,
+    `Vitrine does not open ${kind}.`,
+    "Only web and mail links open, in your default browser.",
+    route.url
+  );
+}
+
+// One box at a time: `will-navigate` also fires for a script's navigation,
+// which nobody clicked, and a loop of them must not stack a dialog per turn.
+let saying = false;
+
+function sayNotOpened(
+  win: BrowserWindow,
+  message: string,
+  why: string,
+  url: string
+) {
+  if (saying) return;
+  saying = true;
+  void dialog
+    .showMessageBox(win, {
+      type: "none",
+      message,
+      detail: `${why}\n\n${clip(url)}`,
+      buttons: ["OK"],
+    })
+    .finally(() => {
+      saying = false;
+    });
 }
 
 /** A URL short enough to read in a dialog; a `data:` one can be megabytes. */
@@ -289,7 +319,7 @@ function createWindow({ port }: Session) {
     const route = routeLink(url, appUrl);
     if (route.to === "window") return;
     event.preventDefault();
-    followOut(win, url, route);
+    leaveWindow(win, route);
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
     const route = routeLink(url, appUrl);
@@ -298,7 +328,7 @@ function createWindow({ port }: Session) {
       // page, and the app has one window; this is a bug to hear about.
       console.error(`vitrine: refused a second window on ${url}`);
     } else {
-      followOut(win, url, route);
+      leaveWindow(win, route);
     }
     return { action: "deny" };
   });

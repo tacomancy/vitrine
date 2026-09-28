@@ -33,7 +33,7 @@ const EXTERNAL_SCHEMES = new Set(["https:", "http:", "mailto:"]);
 export type LinkRoute =
   | { to: "window" }
   | { to: "browser"; url: string }
-  | { to: "refused"; scheme: string | undefined };
+  | { to: "refused"; scheme: string | undefined; url: string };
 
 /**
  * Where a link the window was asked to follow goes: the app's own routes
@@ -41,8 +41,9 @@ export type LinkRoute =
  * default browser, and anything else is refused — and said to be, since a
  * link that does nothing is a silent failure (#392).
  *
- * `url` is the parsed URL's own spelling, not the text that arrived, so what
- * reaches `shell.openExternal` is exactly what the scheme check looked at.
+ * A browser route's `url` is the parsed URL's own spelling, not the text that
+ * arrived, so what reaches `shell.openExternal` is exactly what the scheme
+ * check looked at. A refusal keeps the text as it came, to be shown.
  */
 export function routeLink(url: string, appUrl: string): LinkRoute {
   if (allowNavigation(url, appUrl)) return { to: "window" };
@@ -50,9 +51,9 @@ export function routeLink(url: string, appUrl: string): LinkRoute {
   try {
     parsed = new URL(url);
   } catch {
-    return { to: "refused", scheme: undefined };
+    return { to: "refused", scheme: undefined, url };
   }
   return EXTERNAL_SCHEMES.has(parsed.protocol)
     ? { to: "browser", url: parsed.href }
-    : { to: "refused", scheme: parsed.protocol };
+    : { to: "refused", scheme: parsed.protocol, url };
 }

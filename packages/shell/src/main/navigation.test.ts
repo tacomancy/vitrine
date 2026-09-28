@@ -84,14 +84,14 @@ describe("routeLink", () => {
     ["about:blank", "about:"],
   ])("refuses %s outright, and says which kind of link it was", (url, scheme) => {
     const route = routeLink(url, APP);
-    expect(route.to).toBe("refused");
-    if (route.to === "refused") expect(route.scheme).toBe(scheme);
+    expect(route).toEqual({ to: "refused", scheme, url });
   });
 
   it("refuses what is not a URL at all", () => {
     expect(routeLink("not a url", APP)).toEqual({
       to: "refused",
       scheme: undefined,
+      url: "not a url",
     });
   });
 });
