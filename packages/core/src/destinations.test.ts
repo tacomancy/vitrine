@@ -2,7 +2,7 @@ import { mkdir, rename, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Destinations } from "./destinations.js";
-import { fileName } from "./questions.js";
+import { fileName } from "./file-name.js";
 import {
   closeCores,
   core,

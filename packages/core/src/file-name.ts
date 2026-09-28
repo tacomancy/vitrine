@@ -8,7 +8,8 @@ const NAME_LIMIT = 80;
 const FORBIDDEN = /[*"\\/<>:|?#^[\]]/g;
 
 /**
- * The file name a Question's text yields, or the id when nothing survives.
+ * The file name typed text yields — a Question's text, a Hypothesis's
+ * claim — or the id when nothing survives.
  * Pure, so the rules can be read off a table of cases.
  */
 export function fileName(text: string, id: string): string {

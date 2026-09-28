@@ -112,16 +112,19 @@ const stubInput = z.object({
 const relationshipInput = z.enum(["confirming", "falsifying", "diagnostic"]);
 
 /** *Answer in place*: the one line the user typed, never empty. */
-// The claim is not trimmed or refused here: an empty one is the core's
-// `refused`, said on the row like every other triage refusal.
-const promoteToHypothesisInput = z.object({
-  path: z.string(),
-  claim: z.string(),
-});
-
 const answerInput = z.object({
   path: z.string(),
   line: z.string().trim().min(1, "The answer is empty."),
+});
+
+/**
+ * Promote to Hypothesis: the claim typed on the row. Not refused here when
+ * empty — the core refuses it, so the rule holds for every caller, not only
+ * the Inbox, whose line never sends one.
+ */
+const promoteToHypothesisInput = z.object({
+  path: z.string(),
+  claim: z.string(),
 });
 
 const noVault = () =>

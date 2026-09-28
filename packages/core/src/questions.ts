@@ -72,8 +72,6 @@ export type QuestionServiceOptions = {
   newId?: (() => string) | undefined;
 };
 
-export { fileName };
-
 // RFC 4648 base32, lowercased: 32 symbols, 5 bits each.
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 
@@ -184,11 +182,11 @@ export function createQuestionService({
   now = () => new Date(),
   newId = randomId,
 }: QuestionServiceOptions): QuestionService {
-  // Captures and promotions run one at a time: each picks a free name —
-  // in questions/, or in hypotheses/. Two arriving together (the window and, later, the iPad)
-  // would otherwise both find the same name free and the second rename
-  // would silently replace the first — one record where there should be
-  // two. The queue is per service, not per module: two services are two
+  // Captures and promotions run one at a time: each picks a free name, in
+  // questions/ or in hypotheses/. Two arriving together (the window and,
+  // later, the iPad) would otherwise both find the same name free and the
+  // second rename would silently replace the first — one record where
+  // there should be two. The queue is per service, not per module: two services are two
   // vaults, and a capture in one has no name to lose to the other.
   const serially = serialised();
 
