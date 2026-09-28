@@ -13,6 +13,7 @@ import styles from "./VaultStatusLines.module.css";
 export function useVaultStatusLines(): {
   hasLines: boolean;
   lines: React.ReactNode;
+  read: VaultRead;
 } {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -25,18 +26,43 @@ export function useVaultStatusLines(): {
   );
   const indexing = status.data?.indexing ?? null;
   const watching = status.data?.watching ?? { ok: true };
+  const read: VaultRead = status.isError
+    ? "unknown"
+    : status.data === undefined || indexing !== null
+      ? "reading"
+      : watching.ok
+        ? "full"
+        : "unwatched";
   return {
-    hasLines: indexing !== null || !watching.ok,
+    read,
+    hasLines: status.isError || indexing !== null || !watching.ok,
     lines: (
       <>
+        {/* Without the status the app cannot say the vault was read, so a
+            surface cannot claim — and a *not known* with no reason anywhere
+            would be a silent failure (ADR 0033). */}
+        {status.isError && (
+          <span className={styles.line} role="status">
+            <span className={styles.warning}>
+              <span aria-hidden="true">‖</span> vault state not known
+            </span>{" "}
+            — {status.error.message}
+          </span>
+        )}
         {indexing !== null && (
           <span className={styles.line}>
-            indexing… {thousands(indexing.done)} of {thousands(indexing.total)}
+            <span aria-hidden="true">◐</span> reading the vault ·{" "}
+            {thousands(indexing.done)} of {thousands(indexing.total)} files
           </span>
         )}
         {!watching.ok && (
-          <span className={styles.line}>
-            not watching — {watching.reason} ·{" "}
+          // A state the app is in, so polite: `alert` is kept for a refusal
+          // of something the user just did (ADR 0033).
+          <span className={styles.line} role="status">
+            <span className={styles.warning}>
+              <span aria-hidden="true">‖</span> not watching
+            </span>{" "}
+            — {watching.reason} ·{" "}
             <button
               type="button"
               className={styles.retry}
@@ -51,6 +77,14 @@ export function useVaultStatusLines(): {
     ),
   };
 }
+
+/**
+ * How far the vault has been read, which is what decides whether an empty
+ * surface may make a claim (ADR 0032): only `full` — read in full and
+ * watched — warrants *nothing is there*. `reading` has not looked yet;
+ * `unwatched` and `unknown` tried and could not say.
+ */
+export type VaultRead = "full" | "reading" | "unwatched" | "unknown";
 
 /** `1,250`: the one place the chrome shows a count that can reach thousands. */
 const thousands = (n: number) => n.toLocaleString("en-US");

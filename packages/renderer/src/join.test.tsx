@@ -142,7 +142,7 @@ describe("a capture lands in the Inbox", () => {
     renderVault([]);
     await screen.findByRole("listbox", { name: "Questions" });
     const inbox = screen.getByRole("region", { name: "Question Inbox" });
-    expect(inbox.textContent).toContain("0 questions");
+    expect(inbox.textContent).not.toMatch(/\d+ questions?/);
     expect(inbox.textContent).not.toContain("since");
 
     await captureFromSidebar("Does this hold for sparse inputs?");

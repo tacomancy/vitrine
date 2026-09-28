@@ -120,6 +120,12 @@ describe("the event stream in the renderer", () => {
       const { stream } = renderApp({
         "vault.current": vault,
         "questions.list": () => listing,
+        // A vault in good health, so any status line below is the removal's.
+        "vault.status": {
+          indexing: null,
+          watching: { ok: true },
+          current: { ok: true },
+        },
       });
       const items = await rows();
       const list = screen.getByRole("listbox", { name: "Questions" });

@@ -164,18 +164,7 @@ describe("selection", () => {
 });
 
 describe("what cannot be shown whole", () => {
-  it("states a failed read in place of the list, never as zero questions", async () => {
-    renderApp({
-      "vault.current": vault,
-      "questions.list": () => {
-        throw new Error("No vault is open.");
-      },
-    });
-    const inbox = await screen.findByRole("region", { name: "Question Inbox" });
-    expect(await within(inbox).findByRole("alert")).toBeDefined();
-    expect(inbox.textContent).toContain("No vault is open.");
-    expect(inbox.textContent).not.toContain("0 questions");
-  });
+  // A failed read is `voices.test.tsx`'s: it is the *wrong* Voice.
 
   it("names each row's status for assistive technology, not by colour alone", async () => {
     renderInbox({ questions: [newest, oldest] });
