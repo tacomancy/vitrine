@@ -88,6 +88,43 @@ exports[`corpus > b/Klinzing 2019.md: outline snapshot 1`] = `
 }
 `;
 
+exports[`corpus > b/links-same-folder.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": false,
+      "heading": [],
+      "range": {
+        "end": 17,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "Klinzing 2019",
+    },
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": true,
+      "heading": [],
+      "range": {
+        "end": 37,
+        "start": 19,
+      },
+      "syntax": "wikilink",
+      "target": "Klinzing 2019",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
 exports[`corpus > blocks-annotations-section.md: outline snapshot 1`] = `
 {
   "blockIds": [
@@ -1759,6 +1796,56 @@ exports[`corpus > props-types.md: outline snapshot 1`] = `
   "headings": [],
   "inlineFields": [],
   "links": [],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > run-a/run-a.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": true,
+      "heading": [],
+      "range": {
+        "end": 13,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "plot.png",
+    },
+  ],
+  "listItems": [],
+  "tags": [],
+}
+`;
+
+exports[`corpus > run-b/run-b.md: outline snapshot 1`] = `
+{
+  "blockIds": [],
+  "frontmatter": null,
+  "headings": [],
+  "inlineFields": [],
+  "links": [
+    {
+      "alias": null,
+      "blockId": null,
+      "embed": true,
+      "heading": [],
+      "range": {
+        "end": 13,
+        "start": 0,
+      },
+      "syntax": "wikilink",
+      "target": "plot.png",
+    },
+  ],
   "listItems": [],
   "tags": [],
 }
