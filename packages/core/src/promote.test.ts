@@ -109,6 +109,7 @@ describe("questions.promote", () => {
           link: "[[Does slow-wave density predict recall gain (RQ)]]",
           path: PAGE_PATH,
           kind: "research-question",
+          display: "Does slow-wave density predict recall gain?",
         },
       }),
     ]);

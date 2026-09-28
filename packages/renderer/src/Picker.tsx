@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Candidate, CandidateKind } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
-import { KIND } from "./kinds";
+import { markOf } from "./kinds";
 import styles from "./Picker.module.css";
 import { useTRPC } from "./trpc";
 
@@ -187,7 +187,7 @@ const candidateId = (index: number) => `picker-candidate-${index}`;
 
 /** A file's Kind as its glyph, with the Kind as the accessible name. */
 function KindGlyph({ kind }: { kind: CandidateKind }) {
-  const { glyph, label } = KIND[kind] ?? { glyph: "◇", label: kind };
+  const { glyph, label } = markOf(kind) ?? { glyph: "◇", label: kind };
   return (
     <span className={styles.glyph} role="img" aria-label={label} title={label}>
       {glyph}

@@ -575,11 +575,20 @@ export function Outline({ children }: { children: ReactNode }) {
   return <p className={styles.outline}>{children}</p>;
 }
 
-/** `rasch2013#^h4`: the link's target as written, with its block id. */
-const targetText = ({ link }: LinkLine) =>
-  link === null
-    ? ""
-    : `${link.target}${link.blockId === null ? "" : `#^${link.blockId}`}`;
+/**
+ * `rasch2013#^h4`: the link's target as written, with its block id — or,
+ * for a Hypothesis, the claim it makes now (#340). Its file keeps the name
+ * the claim was first typed as, so the link as written would go on naming
+ * a claim the page no longer makes; every other Kind is named as written,
+ * because there the citekey or file name is what the reader wrote.
+ */
+const targetText = ({ link }: LinkLine) => {
+  if (link === null) return "";
+  if (link.resolvedKind === "hypothesis" && link.resolvedDisplay !== null) {
+    return link.resolvedDisplay;
+  }
+  return `${link.target}${link.blockId === null ? "" : `#^${link.blockId}`}`;
+};
 
 /**
  * Source and related lines: the link as written, its note, and what the
