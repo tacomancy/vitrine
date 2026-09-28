@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CameFrom,
+  EvidenceFor,
   ExperimentFrontmatter,
   ExperimentSections,
   ExperimentStatus,
 } from "core";
 import { useEffect, useId, useRef, useState } from "react";
+import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
 import { FrameLines, usePageFrame } from "./page-frame";
@@ -21,6 +23,7 @@ import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
+import { WhyLine } from "./WhyLine";
 
 /**
  * The Experiment view (brief § Experiment; prompt 5; prototype 05), at
@@ -28,8 +31,9 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * Design, Artifacts and Observations in the column, and *where it ran*,
  * *came from* and the history in the rail beside it. Purpose and *where it
  * ran* are Edited sections, saved as typed with no Revision (spec #362
- * story 18); Design and Observations are Positions, shown here as the file
- * holds them until their own editing lands with their history (#365).
+ * story 18); Design and Observations are Positions, each save a Revision
+ * in the one trail in the rail, with a why offered as on every page that
+ * has a history (#365; TEST-8, TEST-11).
  *
  * A planned run is a finished plan, not a page with gaps (TEST-9): every
  * empty region says what will go in it.
@@ -58,6 +62,7 @@ export function Experiment({
   }, []);
   const page = useQuery(trpc.experiments.page.queryOptions({ path }));
   const status = useVaultStatusLines();
+  const [attaching, setAttaching] = useState(false);
 
   const data = page.data;
   const { sectionRef, removed, resolved } = usePageFrame(
@@ -90,6 +95,7 @@ export function Experiment({
               path={readable.path}
               hash={readable.hash}
               frontmatter={readable.frontmatter}
+              onAttach={() => setAttaching(true)}
             />
             <Section name="Purpose" present={readable.sections.purpose.present}>
               <PositionField
@@ -111,9 +117,19 @@ export function Experiment({
               />
             </Section>
             <Section name="Design" present={readable.sections.design.present}>
-              <Written
+              <PositionField
+                position={{ kind: "experiment", field: "design" }}
+                path={readable.path}
+                hash={readable.hash}
                 text={readable.sections.design.text}
-                empty="Written before the run: what is varied, what is held, and how it is measured. Its revisions are kept, so a design changed after the run shows."
+                labelledBy={sectionId("Design")}
+                empty={
+                  <Outline>
+                    Written before the run: what is varied, what is held, and
+                    how it is measured. Its revisions are kept, so a design
+                    changed after the run shows.
+                  </Outline>
+                }
               />
             </Section>
             <Section
@@ -129,9 +145,18 @@ export function Experiment({
               name="Observations"
               present={readable.sections.observations.present}
             >
-              <Written
+              <PositionField
+                position={{ kind: "experiment", field: "observations" }}
+                path={readable.path}
+                hash={readable.hash}
                 text={readable.sections.observations.text}
-                empty="Written after the run, and revisable — interpretation changes more often than data does."
+                labelledBy={sectionId("Observations")}
+                empty={
+                  <Outline>
+                    Written after the run, and revisable — interpretation
+                    changes more often than data does.
+                  </Outline>
+                }
               />
             </Section>
           </div>
@@ -141,6 +166,7 @@ export function Experiment({
               hash={readable.hash}
               section={readable.sections.whereItRan}
             />
+            <AttachedAsEvidence evidence={readable.evidence} />
             {readable.cameFrom !== null && (
               <CameFromSection cameFrom={readable.cameFrom} />
             )}
@@ -154,11 +180,30 @@ export function Experiment({
                   design: readable.sections.design.text,
                   observations: readable.sections.observations.text,
                 }}
+                // A why onto any entry, months later (spec #362 story 15):
+                // the page's own hash, because no save of the page's stands
+                // between the read and this write.
+                whyLine={({ at, field }, close) => (
+                  <WhyLine
+                    kind="experiment"
+                    path={readable.path}
+                    at={at}
+                    field={field}
+                    basedOn={readable.hash}
+                    onClose={close}
+                  />
+                )}
               />
               <p className={rq.baseLine}>{baseLine(readable.frontmatter)}</p>
             </Section>
           </aside>
         </div>
+      )}
+      {readable !== null && attaching && (
+        <AttachEvidence
+          experiment={readable.path}
+          onClose={() => setAttaching(false)}
+        />
       )}
       {hasFooter && (
         <footer className={rq.footer}>
@@ -183,10 +228,12 @@ function Header({
   path,
   hash,
   frontmatter,
+  onAttach,
 }: {
   path: string;
   hash: string;
   frontmatter: ExperimentFrontmatter;
+  onAttach: () => void;
 }) {
   return (
     <header className={rq.header}>
@@ -198,6 +245,9 @@ function Header({
           status={frontmatter.status}
           unreadable={frontmatter.statusUnreadable}
         />
+        <button type="button" className={styles.action} onClick={onAttach}>
+          attach as evidence
+        </button>
       </div>
       <p className={styles.name}>
         <span>{frontmatter.name}</span>
@@ -374,6 +424,47 @@ function WhereItRan({
 function Written({ text, empty }: { text: string; empty: string }) {
   if (text === "") return <Outline>{empty}</Outline>;
   return <p className={styles.written}>{text}</p>;
+}
+
+/**
+ * Every Criterion this run is Evidence for (spec #362 stories 22–24), read
+ * back from the Hypotheses — each with its label, Relationship and Outcome,
+ * the claim, and the note written for it, and each opening its Hypothesis.
+ * A run that bears on no claim says so as a plain fact: most runs never
+ * attach, and one that doesn't is not unfinished business (HOLD-6).
+ */
+function AttachedAsEvidence({ evidence }: { evidence: EvidenceFor[] }) {
+  return (
+    <Section name="Attached as evidence" present>
+      {evidence.length === 0 ? (
+        <p className={styles.quiet}>
+          Nothing. Most runs never bear on a claim, and a run that doesn&rsquo;t
+          is not unfinished.
+        </p>
+      ) : (
+        <ul className={styles.evidence}>
+          {evidence.map(({ hypothesis, criterion, note }, i) => (
+            <li key={i}>
+              <a
+                className={styles.attachment}
+                href={addressOf("hypothesis", hypothesis.path) ?? undefined}
+                data-relationship={criterion.relationship ?? undefined}
+              >
+                <span className={styles.attachmentLabel}>
+                  {criterionName(criterion)}
+                </span>
+                <span className={styles.caption}>{standing(criterion)}</span>
+                <span className={styles.attachmentClaim}>
+                  {hypothesis.claim}
+                </span>
+                <span className={styles.attachmentNote}>{note}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
 }
 
 /**

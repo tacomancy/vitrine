@@ -3,14 +3,22 @@ import { join } from "node:path";
 import type { Heading } from "markdown";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
+import {
+  KIND as HYPOTHESIS,
+  readHypothesisPage,
+  type CriterionRead,
+  type HypothesisPage,
+} from "./hypothesis.js";
 import { landing } from "./link-text.js";
 import { bodyText, readPageFile, revisionsOf, section } from "./page-file.js";
 import {
   saveEditedSection,
+  savePosition,
   unchanged,
   writeOwn,
   type PageContext,
   type PageKind,
+  type SavedAnswer,
 } from "./page-write.js";
 import type { Revision } from "./position-history.js";
 import { asString, quoted } from "./question-kind.js";
@@ -21,7 +29,7 @@ import {
   type ShapeProblem,
   type WriteResult,
 } from "./vault-files.js";
-import type { VaultIndex } from "./vault-index.js";
+import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
 /**
  * The Experiment Kind (`docs/architecture.md` § Vault layout (Experiment),
@@ -56,6 +64,17 @@ export const SECTIONS = [
  */
 export const EDITED_SECTIONS = ["Purpose", "Where it ran"] as const;
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
+
+/**
+ * The two Positions, by the field their Revisions carry, and the `##`
+ * heading each is the body of: a design changed after the run and a
+ * reading of it changed later both show (TEST-8, TEST-11).
+ */
+export const POSITIONS = {
+  design: "Design",
+  observations: "Observations",
+} as const;
+export type ExperimentPosition = keyof typeof POSITIONS;
 
 /** Hand-maintained; the app never moves it (TEST-10). */
 export const STATUSES = [
@@ -117,9 +136,44 @@ export type ExperimentPage =
       frontmatter: ExperimentFrontmatter;
       sections: ExperimentSections;
       cameFrom: CameFrom | null;
+      /** Every Criterion this run is Evidence for; empty is a run that bears on no claim, which is not a fault (HOLD-6). */
+      evidence: EvidenceFor[];
       problems: ShapeProblem[];
     }
   | { readable: false; path: string; reason: string };
+
+/** A Criterion as the attach list and the page's rail name it. */
+export type CriterionToAttach = Pick<
+  CriterionRead,
+  "id" | "label" | "text" | "relationship" | "outcome"
+>;
+
+/**
+ * One attachment as the Experiment page shows it (spec #362 story 22):
+ * the Criterion, the claim it bears on, and the note written for it —
+ * each opening its Hypothesis.
+ */
+export type EvidenceFor = {
+  hypothesis: { path: string; claim: string };
+  criterion: CriterionToAttach;
+  note: string;
+};
+
+/**
+ * What *attach as evidence* offers (spec #362 story 45): every Hypothesis,
+ * each with its Criteria falsifying first, and the hash each write is
+ * `basedOn`. A Hypothesis the core could not read is a problem named,
+ * never a group quietly missing from the list.
+ */
+export type CriteriaToAttach = {
+  groups: {
+    path: string;
+    claim: string;
+    hash: string;
+    criteria: CriterionToAttach[];
+  }[];
+  problems: { path: string; reason: string }[];
+};
 
 const isStatus = (value: string): value is ExperimentStatus =>
   (STATUSES as readonly string[]).includes(value);
@@ -241,7 +295,106 @@ export async function readExperimentPage(
       },
     },
     cameFrom: cameFromOf(index, relativePath, frontmatter.from),
+    evidence: await evidenceFor(index, vaultPath, relativePath),
     problems,
+  };
+}
+
+// Falsifying first, as the Hypothesis page draws its band (brief § What a
+// Hypothesis holds: falsifying criteria carry more weight); the rest keep
+// the file's order, which a stable sort leaves alone.
+const falsifyingFirst = (criteria: CriterionRead[]) =>
+  [...criteria].sort(
+    (a, b) =>
+      Number(b.relationship === "falsifying") -
+      Number(a.relationship === "falsifying")
+  );
+
+const toAttach = ({
+  id,
+  label,
+  text,
+  relationship,
+  outcome,
+}: CriterionRead): CriterionToAttach => ({
+  id,
+  label,
+  text,
+  relationship,
+  outcome,
+});
+
+type ReadHypothesis = Extract<HypothesisPage, { readable: true }>;
+
+/** Hypotheses in the order both lists show them: by claim, as a reader would look one up. */
+const byClaim = (a: ReadHypothesis, b: ReadHypothesis) =>
+  a.sections.claim.text.localeCompare(b.sections.claim.text);
+
+/**
+ * The Criteria this run is Evidence for, read back from the Hypotheses —
+ * the only place an attachment is written (§ Vault layout (Experiment)).
+ * The Index says which Hypotheses link here, so only those are read; the
+ * page read then keeps the links that are Evidence lines under a
+ * criterion, so a mention in the claim or design notes is not an
+ * attachment. A line written in Obsidian is found the same way, once the
+ * watcher has told the Index.
+ */
+async function evidenceFor(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string
+): Promise<EvidenceFor[]> {
+  const linking = index.select<{ path: string }>(
+    `SELECT DISTINCT path FROM links WHERE resolved_path = ?
+     AND path IN (SELECT path FROM files WHERE kind = ?)`,
+    path,
+    HYPOTHESIS
+  );
+  const pages = (
+    await Promise.all(
+      linking.map((row) => readHypothesisPage(index, vaultPath, row.path))
+    )
+  ).filter((page): page is ReadHypothesis => page.readable);
+  return pages.sort(byClaim).flatMap((page) =>
+    falsifyingFirst(page.sections.criteria.criteria).flatMap((criterion) =>
+      criterion.evidence
+        .filter((line) => line.link?.resolvedPath === path)
+        .map((line) => ({
+          hypothesis: { path: page.path, claim: page.sections.claim.text },
+          criterion: toAttach(criterion),
+          note: line.note,
+        }))
+    )
+  );
+}
+
+/** Every Hypothesis's Criteria, for *attach as evidence* (spec #362 story 45). */
+export async function criteriaToAttach(
+  index: VaultIndex,
+  vaultPath: string
+): Promise<CriteriaToAttach> {
+  const paths = index.select<{ path: string }>(
+    "SELECT path FROM files WHERE kind = ?",
+    HYPOTHESIS
+  );
+  const read = await Promise.all(
+    paths.map((row) => readHypothesisPage(index, vaultPath, row.path))
+  );
+  return {
+    groups: read
+      .filter((page): page is ReadHypothesis => page.readable)
+      .sort(byClaim)
+      .map((page) => ({
+        path: page.path,
+        claim: page.sections.claim.text,
+        hash: page.hash,
+        criteria: falsifyingFirst(page.sections.criteria.criteria).map(
+          toAttach
+        ),
+      })),
+    problems: read.flatMap((page) =>
+      page.readable ? [] : [{ path: page.path, reason: page.reason }]
+    ),
   };
 }
 
@@ -349,6 +502,60 @@ export function createExperiment(
     }
     await index.own(path, written.content);
     return { path };
+  });
+}
+
+/**
+ * The Kind's Positions for the index (§ Index): `design` and
+ * `observations`, each the body of its heading, and no row for one whose
+ * heading is not in the file — a heading retyped mid-edit in Obsidian must
+ * not read as the section having been cleared. The index diffs these
+ * between reads of the file, which is what parks an Obsidian edit to
+ * either as a pending Revision (#217); Purpose and *where it ran* are
+ * absent, so an edit to them parks nothing (spec #362 story 18).
+ */
+export function experimentPositions(
+  { outline }: ReadableOutline,
+  content: string
+): Position[] {
+  const positions: Position[] = [];
+  const design = section(outline, POSITIONS.design).heading;
+  if (design !== undefined) {
+    positions.push({ field: "design", text: bodyText(content, design) });
+  }
+  const observations = section(outline, POSITIONS.observations).heading;
+  if (observations !== undefined) {
+    positions.push({
+      field: "observations",
+      text: bodyText(content, observations),
+    });
+  }
+  return positions;
+}
+
+/**
+ * The design or the observations saved, with the Revision it records
+ * (`savePosition`). Either may be saved empty — a planned run has no
+ * observations, and clearing a design is itself a revision worth keeping.
+ * Neither is `judged`: an Experiment has no Override for a Revision to
+ * void, and what a Criterion's Override judged is the Hypothesis's own
+ * text, never the run's.
+ */
+export async function saveExperimentPosition(
+  ctx: PageContext,
+  path: string,
+  input: {
+    field: ExperimentPosition;
+    text: string;
+    basedOn: string;
+    was: string;
+    at: Date;
+    coalesceMs: number;
+  }
+): Promise<SavedAnswer> {
+  return savePosition(ctx, path, PAGE, {
+    ...input,
+    section: POSITIONS[input.field],
   });
 }
 

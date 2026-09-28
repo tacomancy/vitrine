@@ -183,3 +183,88 @@
 .unlabelled {
   grid-column: 1 / -1;
 }
+
+/* *attach as evidence*, at the kicker's far end as prototype 05 draws it:
+   sapphire, because it is an action (BRAND.md law 2), soft-cornered and
+   without the prototype's outline (ADR 0023). */
+.action {
+  margin: 0 0 0 auto;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-fg-inverse);
+  cursor: pointer;
+}
+
+/* A run that is Evidence for nothing: a plain sentence, not an outline
+   around a gap — there is nothing missing (HOLD-6). */
+.quiet {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+}
+
+.evidence {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* One attachment, as prototype 05's rail card: the label and where the
+   Criterion stands, the claim, then the note set in from them. A surface
+   step rather than a hairline box (ADR 0023). */
+.attachment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.attachment:hover .attachmentClaim {
+  text-decoration: underline;
+}
+
+.attachmentLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+}
+
+/* Falsifying weighs more (prompt 4): the accent, as on the Hypothesis page. */
+.attachment[data-relationship="falsifying"] .attachmentLabel {
+  color: var(--color-accent);
+}
+
+.attachmentClaim {
+  flex-basis: 100%;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+
+.attachmentNote {
+  flex-basis: 100%;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-line);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+}
