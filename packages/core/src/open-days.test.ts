@@ -115,7 +115,7 @@ describe("the record of open days", () => {
 });
 
 describe("the queue's schema", () => {
-  it("migrates a version-1 queue to 2, keeping what it already holds", async () => {
+  it("migrates a version-1 queue to the current version, keeping what it already holds", async () => {
     const vault = await vaultWith({ "a.md": "# a\n" });
     // A queue as the build before this one left it: version 1, one parked
     // Revision, and no `open_days` table.
@@ -148,7 +148,6 @@ describe("the queue's schema", () => {
         (db.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
       ).toBe(QUEUE_SCHEMA_VERSION);
-      expect(QUEUE_SCHEMA_VERSION).toBe(2);
       // The parked Revision is still there, and the new table beside it.
       expect(
         db.prepare("SELECT from_text FROM pending_revisions").all()
