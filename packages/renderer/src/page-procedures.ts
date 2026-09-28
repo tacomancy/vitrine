@@ -13,11 +13,22 @@ import { useTRPC, useTRPCClient } from "./trpc";
  * than quietly calling another Kind's procedures.
  */
 
-/** Each Kind with a Position history, and the fields its page edits as text — named as their Revisions carry them. */
+/**
+ * Each Kind with a Position history, and the fields its page edits as text
+ * — a Position, named as its Revisions carry it, or an Edited section saved
+ * with no Revision at all (an Experiment's purpose and *where it ran*).
+ */
 type EditedFields = {
   "research-question": "working answer";
   hypothesis: "claim" | "design notes";
+  experiment: "purpose" | "where it ran";
 };
+
+/** The Experiment's text fields and the `##` sections they save whole. */
+const EXPERIMENT_SECTIONS = {
+  purpose: "Purpose",
+  "where it ran": "Where it ran",
+} as const;
 
 /** The Kinds whose pages hold a Position history. */
 export type HistoriedKind = keyof EditedFields;
@@ -102,6 +113,32 @@ export function usePageProcedures() {
         if (!page.readable) return page;
         const { claim, designNotes } = page.sections;
         const text = field === "claim" ? claim.text : designNotes.text;
+        return { readable: true, base: { hash: page.hash, text } };
+      },
+    },
+    experiment: {
+      reread: (path) =>
+        queryClient.invalidateQueries(
+          trpc.experiments.page.queryFilter({ path })
+        ),
+      explain: (input) => client.experiments.explainRevision.mutate(input),
+      // An Edited section records no Revision, so there is none to name.
+      save: async (field, { text, ...input }) => ({
+        ...(await client.experiments.saveSection.mutate({
+          ...input,
+          section: EXPERIMENT_SECTIONS[field],
+          body: text,
+        })),
+        revision: null,
+      }),
+      read: async (path, field) => {
+        const page = await queryClient.fetchQuery({
+          ...trpc.experiments.page.queryOptions({ path }),
+          staleTime: 0,
+        });
+        if (!page.readable) return page;
+        const { purpose, whereItRan } = page.sections;
+        const text = field === "purpose" ? purpose.text : whereItRan.text;
         return { readable: true, base: { hash: page.hash, text } };
       },
     },

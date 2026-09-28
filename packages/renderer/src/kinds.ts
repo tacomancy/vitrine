@@ -15,6 +15,7 @@ export const KIND = {
   question: { glyph: "◆", label: "question" },
   "research-question": { glyph: "■", label: "research question" },
   hypothesis: { glyph: "▲", label: "hypothesis" },
+  experiment: { glyph: "▼", label: "experiment" },
   source: { glyph: "●", label: "source" },
   "source-stub": { glyph: "○", label: "source stub" },
   note: { glyph: "·", label: "note" },
@@ -50,6 +51,8 @@ export function routeOf(
       return { surface: "research-question", path };
     case "hypothesis":
       return { surface: "hypothesis", path };
+    case "experiment":
+      return { surface: "experiment", path };
     default:
       return null;
   }

@@ -1,5 +1,4 @@
 import { basename, join } from "node:path";
-import { parseWikilink } from "markdown";
 import type {
   ListedQuestion,
   Listing,
@@ -7,6 +6,7 @@ import type {
   QuestionFields,
 } from "./question-kind.js";
 import type { LoopResult } from "./hypothesis-rule.js";
+import { landing } from "./link-text.js";
 import type { answeredBy } from "./question-kind.js";
 import type { ShapeProblem } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -76,24 +76,8 @@ export function listQuestions(
   }
   // The page's Kind comes with it: a Question promoted to a Hypothesis
   // points at a different surface than one promoted to a Research Question.
-  function pageOf(
-    path: string,
-    link: string
-  ): { path: string | null; kind: string | null; display: string | null } {
-    const nowhere = { path: null, kind: null, display: null };
-    const inner = /^\[\[(.*)\]\]$/.exec(link)?.[1];
-    if (inner === undefined) return nowhere;
-    const { resolvedPath } = index.resolve(path, parseWikilink(inner));
-    if (resolvedPath === null) return nowhere;
-    const [file] = index.select<{ kind: string | null; display: string }>(
-      "SELECT kind, display FROM files WHERE path = ?",
-      resolvedPath
-    );
-    return {
-      path: resolvedPath,
-      kind: file?.kind ?? null,
-      display: file?.display ?? null,
-    };
+  function pageOf(path: string, link: string) {
+    return landing(index, path, link);
   }
 
   const partial = index

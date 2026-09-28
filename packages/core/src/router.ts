@@ -16,6 +16,15 @@ import {
   setCriterionField,
   type EditedField,
 } from "./hypothesis.js";
+import {
+  createExperiment,
+  EDITED_SECTIONS as EXPERIMENT_SECTIONS,
+  PAGE as EXPERIMENT_PAGE,
+  readExperimentPage,
+  saveExperimentSection,
+  setExperimentStatus,
+  STATUSES as EXPERIMENT_STATUSES,
+} from "./experiment.js";
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
@@ -55,6 +64,8 @@ export type Context = {
   coalesceMs: number;
   /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
   stalledOpenDays: number;
+  /** The id source for an object the router makes itself (an Experiment); pinned by tests. */
+  newId: () => string;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -428,6 +439,74 @@ export const router = t.router({
             await requirePage(ctx),
             input.path,
             HYPOTHESIS_PAGE,
+            input
+          )
+        )
+      ),
+  }),
+  // The Experiment (#364; spec #362): made by name on its surface, a page
+  // of Edited sections and Positions, and a status the user sets by hand.
+  experiments: t.router({
+    // Refused with its reason when the name is taken or empty, never
+    // suffixed; the name is the Experiment's folder.
+    create: t.procedure
+      .input(z.object({ name: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          createExperiment(vault.path, index, input.name, {
+            created: localIso(ctx.now()),
+            newId: ctx.newId,
+          })
+        );
+      }),
+    page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(readExperimentPage(index, vault.path, input.path));
+    }),
+    // Purpose and *where it ran*: replaced whole, no Revision, and refused
+    // when the section changed underneath (the Research Question's guard).
+    saveSection: t.procedure
+      .input(
+        pathInput.extend({
+          section: z.enum(EXPERIMENT_SECTIONS),
+          body: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveExperimentSection(await requirePage(ctx), input.path, input)
+        )
+      ),
+    // One key in frontmatter; never a Revision (TEST-10).
+    setStatus: t.procedure
+      .input(
+        pathInput.extend({
+          status: z.enum(EXPERIMENT_STATUSES),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(setExperimentStatus(await requirePage(ctx), input.path, input))
+      ),
+    // A why onto any entry of the page's history, as on the other pages.
+    explainRevision: t.procedure
+      .input(
+        pathInput.extend({
+          at: z.string().min(1),
+          field: z.string().min(1),
+          why: z.string().trim().min(1, "The why is empty."),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          explainRevision(
+            await requirePage(ctx),
+            input.path,
+            EXPERIMENT_PAGE,
             input
           )
         )

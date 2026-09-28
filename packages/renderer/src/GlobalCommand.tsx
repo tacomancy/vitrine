@@ -99,6 +99,7 @@ const KIND_ORDER = [
   "settings",
   "research-question",
   "hypothesis",
+  "experiment",
   "question",
 ] as const;
 
