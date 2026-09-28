@@ -159,7 +159,7 @@ A lightweight capture that always carries Provenance. Has a Status. The app's pr
 _Avoid_: Idea, task, todo, item
 
 **Provenance**:
-What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving*, *pursuing* (captured on a Research Question's page — the new Question is a sub-question of it), or *other*.
+What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving* (the follow-up captured as a Hypothesis's loop is closed), *pursuing* (captured on a Research Question's or a Hypothesis's page — the new Question is a sub-question of it), or *other*.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
 **Unattached**:
@@ -193,10 +193,10 @@ _Avoid_: Refresh, sync, notification
 Acting on a Question from the Inbox: promote to Research Question, promote to Hypothesis, link, answer, or drop.
 
 **Promotion**:
-Turning a Question into a Research Question or a Hypothesis. The Question stays as its own record with Status *promoted*, and the new object carries a copy of the Provenance. A Research Question may sharpen into a Hypothesis; that is the expected route.
+Turning a Question into a Research Question or a Hypothesis. The Question stays as its own record with Status *promoted*, and the new object carries a copy of the Provenance. A Research Question may sharpen into a Hypothesis; that is the expected route, and the Research Question stays *open* — reading may go on beside the test — gaining only a line under its related questions. Promotion to a Hypothesis asks for one thing, the claim: a question cannot be turned into a falsifiable statement by copying its words.
 
 **Write-back**:
-A resolved Hypothesis or Resolved Research Question answering the Question it came from, and any Research Question in between: each becomes *answered* with one line pointing at the result. Falsified is a real answer. An abandoned Research Question writes back the same way, and the Question becomes *abandoned*: the Inbox is the record, and *promoted* would be a lie about a pursuit that ended.
+A Resolved Research Question answering the Question it came from, or a Hypothesis whose loop is closed writing its result to the object it was promoted from — one hop, never further. A Question written to becomes *answered* with one line pointing at the result. A Research Question written to gains the line and keeps its Status: a test of a sharpened claim has not answered the broader question, and resolving it stays the user's, which then writes back to its own Question. Falsified is a real answer. An abandoned Research Question writes back the same way, and the Question becomes *abandoned*: the Inbox is the record, and *promoted* would be a lie about a pursuit that ended.
 _Avoid_: Close, resolve (that is what happens to the Hypothesis)
 
 **Related** (of a Question):
@@ -238,7 +238,7 @@ _Avoid_: Unsorted (the prototype's third side, rejected — ADR 0020), for/again
 ### Position history
 
 **Position**:
-A claim held at a time — a Working answer, a Hypothesis claim, an Experiment design or observation, or a Criterion. Editing one adds a Revision rather than overwriting.
+A claim held at a time — a Working answer, a Hypothesis claim or its design notes, an Experiment design or observation, or a Criterion. Editing one adds a Revision rather than overwriting. A Criterion's Position is its whole block — text, Relationship, Outcome, and Evidence — so recording an Outcome or detaching Evidence leaves a trail as rewording does.
 
 **Revision**:
 One entry in a Position history: when it changed and what it changed from, in full. Recorded automatically; edits to the same Position within a short window are one Revision. May carry a *why*.
@@ -258,19 +258,32 @@ A promoted Question answered by testing: a falsifiable claim with Criteria. Its 
 _Avoid_: Status dropdown, any verb like "mark supported"
 
 **Criterion**:
-One independently resolvable condition on a Hypothesis, recorded before evidence arrives. Has an Outcome and a Relationship.
+One independently resolvable condition on a Hypothesis, recorded before evidence arrives. Has an Outcome and a Relationship. Its identity is a number that is never reused, not while the Criterion exists and not after it is deleted; its label is the Relationship's letter and that number — `F1`, `C2`, `D5` — so changing the Relationship changes the letter and never the number. A Position history entry records the label as it stood.
+_Avoid_: Test (that is the whole Hypothesis), condition, check
+
+**Edited after evidence** (of a Criterion):
+A change to a Criterion's text or Relationship made while Evidence is attached to it. Permitted, and marked permanently: on the Criterion itself with its previous wording readable, and in the Position history as an entry that never collapses. Recording an Outcome is never this — it is what Evidence is for.
+_Avoid_: Tampered, amended, post-hoc (that is the risk it guards against, not the mark)
 
 **Outcome** (of a Criterion):
-*met*, *not met*, or *inconclusive*.
+*met*, *not met*, or *inconclusive*, recorded by the user. A Criterion with no Outcome recorded is *Awaiting evidence*, never *inconclusive*.
+
+**Awaiting evidence** (of a Criterion):
+No Outcome recorded yet — the state every Criterion is written in. Not an Outcome: *not yet tested* must never read as *tested and inconclusive*, so the difference is whether anyone recorded one. Whether any Evidence is attached is a separate fact; a Criterion with an Outcome and nothing attached says so rather than showing the Outcome alone.
+_Avoid_: Pending, untested (as an Outcome value), unresolved (that includes *inconclusive*)
 
 **Relationship** (of a Criterion to its claim):
-*confirming* (met supports), *falsifying* (met kills the claim regardless of the others), or *diagnostic* (informative, does not decide).
+*confirming* (met supports), *falsifying* (met kills the claim regardless of the others), or *diagnostic* (informative, does not decide). Chosen when the Criterion is written, with no default. A Criterion with no Relationship does not count yet: it blocks *supported* and cannot falsify. Making a Criterion diagnostic is how it leaves the rule once Evidence exists — it stays on the page, marked Edited after evidence — rather than being deleted.
 
 **Derived state** (of a Hypothesis):
-*supported* when all Criteria are met; *falsified* when any falsifying Criterion is met; otherwise *inconclusive*. Inconclusive is the default and a real outcome. Never stored, always recomputed.
+*falsified* when any falsifying Criterion is met; *supported* when none is, every confirming Criterion is met, every falsifying Criterion is not met, and there is at least one of either; otherwise *inconclusive*. Diagnostic Criteria never decide. A Criterion Awaiting evidence blocks *supported* without deciding anything, and a Hypothesis with no Criteria, or only diagnostic ones, is inconclusive. Inconclusive is the default and a real outcome. Never stored, always recomputed; each time it moves, the move is an entry in the Position history — a record of when the rule began returning a different answer, not a stored state.
+
+**Close the loop** (of a Hypothesis):
+The user's act of writing a result back, and the moment the follow-up capture is offered. Open when the Derived state is *supported* (an Override included, and the line says so) or *falsified*, and when it is *inconclusive* with every Criterion carrying an Outcome — tested and undecided is an answer; not yet tested is not. Never automatic: the Derived state is live and may move again, and a write into another object is the user's to make. Nothing is stored on the Hypothesis — whether the loop is closed is read from the Write-back line in the object it was promoted from, whichever Kind that is. If the Derived state later moves, the page says the line no longer matches, and closing again appends a new line; a Write-back line is never edited. A Hypothesis written directly, promoted from nothing, has no loop to close; the follow-up capture is still offered.
+_Avoid_: Resolve (a Research Question's verb), conclude, mark done
 
 **Override**:
-A considered call that an inconclusive Hypothesis is supported on partial evidence. Exists only as a Revision with a mandatory why; any later change to a Criterion voids it, and the voiding is itself a Revision.
+A considered call that an inconclusive Hypothesis is supported on partial evidence — never falsified, and never with no Outcome recorded at all, since there is then nothing to be partial about. Exists only as a Revision with a mandatory why. Voided by any later Revision of a Criterion, by a Criterion added or deleted, or by a Revision of the claim it judged; never by design notes. The voiding is itself a Revision, and a fresh Override is a fresh why.
 _Avoid_: Manual status, force supported
 
 **Experiment**:
@@ -421,7 +434,7 @@ The one keyboard list of vault files three places open — Link from the Inbox, 
 _Avoid_: Search, autocomplete, quick open, palette (the Global command is a different thing)
 
 **Display name**:
-The one string a file is named by on screen — a Question's text, a Research Question's title, a Source's title, a Note's file name. Distinct from the name it is stored under, which strips the characters Obsidian forbids and truncates, so the two diverge in the middle of a long or punctuated Question and not only at its tail. The Global command matches this; the Picker matches the stored name (ADR 0027).
+The one string a file is named by on screen — a Question's text, a Research Question's title, a Hypothesis's current claim, a Source's title, a Note's file name. Distinct from the name it is stored under, which strips the characters Obsidian forbids and truncates, so the two diverge in the middle of a long or punctuated Question and not only at its tail. The Global command matches this; the Picker matches the stored name (ADR 0027).
 _Avoid_: Title (a Source's own field), label, name (the stored basename)
 
 **Loose end**:
