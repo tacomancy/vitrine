@@ -32,6 +32,7 @@ export function useCoreEvents(): Set<Listener> {
           // have no consumer yet, but the rule is one.
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.tags.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.kinds.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.outline.pathFilter());
           void queryClient.invalidateQueries(
             trpc.researchQuestions.page.pathFilter()

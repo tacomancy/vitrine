@@ -28,6 +28,7 @@ import {
   tickThread,
   type PageContext,
 } from "./research-question.js";
+import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
 
@@ -159,6 +160,10 @@ export const router = t.router({
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
       return tagTree(index);
+    }),
+    kinds: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return kindsHeld(index);
     }),
   }),
   events: t.router({

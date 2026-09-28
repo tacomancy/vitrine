@@ -72,6 +72,41 @@
   background: var(--color-line-strong);
 }
 
+/* A built entry the vault provably holds nothing for (#347): the same
+   place and label, a hollow mark, and where its contents will come from.
+   Muted rather than disabled — waiting, not broken (prototype 12, panel 4). */
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  color: var(--color-fg-muted);
+}
+
+.hollow {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: 1px;
+  border: 1px solid var(--color-line-strong);
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.from {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+
 /* The foot of the map, below everything the map is for. Separated by the
    space above it rather than by a rule: a hairline inside one surface
    would be permitted (ADR 0023 decision 3), but quiet is the whole point
