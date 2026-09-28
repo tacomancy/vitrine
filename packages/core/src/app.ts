@@ -91,6 +91,8 @@ export function createApp({
     // The window a page save coalesces by is the window an Obsidian edit
     // must be quiet for before it is spliced (#217): one number, one seam.
     coalesceMs: historyWindowMs,
+    onSwitched: (switched) =>
+      events.emit({ type: "vaultSwitched", vault: switched }),
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's
