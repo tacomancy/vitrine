@@ -69,8 +69,9 @@ export async function closeCores(): Promise<void> {
  * The core in-process, driven as a caller would drive it: plain requests
  * with the bearer token, no socket. Every test asserts on the reply and on
  * disk, never on how the core got there. `indexed()` waits for the open
- * vault to be current — on status changes, never on a timer — and
- * `changes` is every `vaultChanged` raised so far.
+ * vault to be current — on status changes, never on a timer, but bounded as
+ * a `next()` is (`NEXT_TIMEOUT_MS`) — and `changes` is every `vaultChanged`
+ * raised so far.
  */
 export async function core(opts: CoreOptions = {}): Promise<{
   appSupportDir: string;
@@ -90,6 +91,9 @@ export async function core(opts: CoreOptions = {}): Promise<{
   const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
   const changes: VaultChanged[] = [];
   const statusWaiters: Array<() => void> = [];
+  // What `current` last said when it was not ok: what a wait that runs out
+  // reports, since "never came current" alone does not say what was missing.
+  let notCurrent = "no status was read";
   const headers = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
@@ -130,8 +134,11 @@ export async function core(opts: CoreOptions = {}): Promise<{
         // resolves only once the event that made the vault current has
         // been seen by everyone.
         const reply = await query<VaultStatus>("vault.status");
-        if (reply.result?.data.current.ok) {
+        const current = reply.result?.data.current;
+        if (current?.ok) {
           for (const wake of statusWaiters.splice(0)) wake();
+        } else if (current) {
+          notCurrent = current.reason;
         }
       },
     },
@@ -166,8 +173,29 @@ export async function core(opts: CoreOptions = {}): Promise<{
       const current = new Promise<void>((wake) => statusWaiters.push(wake));
       const reply = await query<VaultStatus>("vault.status");
       if (reply.error) throw new Error(reply.error.message);
-      if (reply.result?.data.current.ok) return;
-      await current;
+      const now = reply.result!.data.current;
+      if (now.ok) return;
+      notCurrent = now.reason;
+      // Bounded, where it once waited forever: a status change the core never
+      // raised left this hanging into a bare Vitest timeout, which named no
+      // wait at all (a batch ending silently behind a sweep, #294's sibling).
+      let timer: NodeJS.Timeout | undefined;
+      const lost = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `waited ${NEXT_TIMEOUT_MS}ms for the vault to be current: ${notCurrent}`
+              )
+            ),
+          NEXT_TIMEOUT_MS
+        );
+      });
+      try {
+        await Promise.race([current, lost]);
+      } finally {
+        clearTimeout(timer);
+      }
     },
     changes,
   };

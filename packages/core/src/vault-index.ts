@@ -1263,7 +1263,14 @@ function createIndex(
       return serially(async () => {
         if (closed) return;
         await runRefresh(paths);
-      }).finally(() => batchesInFlight--);
+      }).finally(async () => {
+        batchesInFlight--;
+        // The last batch out turns `current` true, and a listener that read
+        // it false — the sweep's final status, raised with this batch queued
+        // behind it — is only told otherwise here. Silent, a footer stays on
+        // "not current" over an index that is.
+        if (batchesInFlight === 0 && !closed) await raiseStatus();
+      });
     },
     own: async (path, content) => {
       const s = await stat(join(vaultPath, path));
