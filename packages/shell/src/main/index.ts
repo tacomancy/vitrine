@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { pickFile, pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { closeCore, type CorePort } from "./close.js";
 import { coreEntry, machineName, stateFolder } from "./launch.js";
-import { allowNavigation } from "./navigation.js";
+import { routeLink, type LinkRoute } from "./navigation.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
 
@@ -195,6 +195,46 @@ function installMenu(client: CoreClient) {
   Menu.setApplicationMenu(menu);
 }
 
+/**
+ * A link out of the window, once `routeLink` has said where it goes. Only
+ * `route.url` — the parsed URL whose scheme was checked — ever reaches
+ * `shell.openExternal`, never the text the page asked for.
+ *
+ * A refusal is a message box: clicking a link is the user's act, and a
+ * refusal of it is said rather than swallowed (ADR 0033 decision 1). Under
+ * VITRINE_SNAPSHOT both go to the log instead, since a browser tab or a
+ * dialog appearing is the interruption a hidden run exists to avoid, and the
+ * log is what the drive checks.
+ */
+function followOut(
+  win: BrowserWindow,
+  url: string,
+  route: Exclude<LinkRoute, { to: "window" }>
+) {
+  const hidden = Boolean(process.env.VITRINE_SNAPSHOT);
+  if (route.to === "browser") {
+    if (hidden) console.log(`vitrine: open externally ${route.url}`);
+    else void shell.openExternal(route.url);
+    return;
+  }
+  if (hidden) {
+    console.log(`vitrine: refused link ${url}`);
+    return;
+  }
+  const kind = route.scheme ? `a ${route.scheme} link` : "this link";
+  void dialog.showMessageBox(win, {
+    type: "none",
+    message: `Vitrine does not open ${kind}.`,
+    detail: `Only web and mail links open, in your default browser.\n\n${clip(url)}`,
+    buttons: ["OK"],
+  });
+}
+
+/** A URL short enough to read in a dialog; a `data:` one can be megabytes. */
+function clip(url: string): string {
+  return url.length > 200 ? `${url.slice(0, 200)}…` : url;
+}
+
 function createWindow({ port }: Session) {
   const win = new BrowserWindow({
     width: 1180,
@@ -242,12 +282,26 @@ function createWindow({ port }: Session) {
     process.env.ELECTRON_RENDERER_URL ?? `http://127.0.0.1:${port}/`;
 
   // The window is the app and nothing else: leaving its origin (a link, a
-  // script, a dropped file) replaces the app until a reload, so it is
-  // refused (`navigation.ts`), and so is any new window.
+  // script, a dropped file) replaces the app until a reload, so it never
+  // does, and no new window opens. A web or mail link goes to the default
+  // browser instead; anything else is refused aloud (`navigation.ts`).
   win.webContents.on("will-navigate", (event, url) => {
-    if (!allowNavigation(url, appUrl)) event.preventDefault();
+    const route = routeLink(url, appUrl);
+    if (route.to === "window") return;
+    event.preventDefault();
+    followOut(win, url, route);
   });
-  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const route = routeLink(url, appUrl);
+    if (route.to === "window") {
+      // Only the app's own code can ask for a second window on its own
+      // page, and the app has one window; this is a bug to hear about.
+      console.error(`vitrine: refused a second window on ${url}`);
+    } else {
+      followOut(win, url, route);
+    }
+    return { action: "deny" };
+  });
 
   void win.loadURL(appUrl);
 }
