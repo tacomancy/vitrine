@@ -21,7 +21,7 @@ import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 // "Small" is bounded from below as well as above (#268). Two tests here time
 // something rather than merely waiting for it: the staggered-write Batch,
 // whose stagger must land inside the window, and the watch-then-sweep race,
-// which runs against `PROBE_TIMEOUT_MS`. Both measure real elapsed time, and
+// which runs against the probe's bound. Both measure real elapsed time, and
 // a `setTimeout(n)` fires *at least* n ms later — unboundedly later on a
 // loaded CI runner. At a 40 ms window a 13 ms stagger overran it and the two
 // writes arrived as two Batches. The window is now wide enough, and the
@@ -40,12 +40,13 @@ afterEach(closeCores);
 const SETTLE_MS = 200;
 
 /**
- * Above `PROBE_TIMEOUT_MS` (5 s), never equal to it. The watch-then-sweep test
- * exercises a probe that is *allowed* to take the full 5 s before `watchVault`
- * gives up on it; at Vitest's 5 s default the test died before the code could
- * reach its own bound, so a slow probe read as a broken test. The give-up
- * itself is `vault-watcher.health.test.ts`'s (#272), which injects a shorter
- * bound rather than waiting this one out.
+ * Above the probe's bound, never equal to it. At Vitest's 5 s default, the
+ * watch-then-sweep test died before a slow probe reached the production 5 s
+ * give-up, so a slow probe read as a broken test (#269). The harness now
+ * bounds the probe at 1 s itself (`test-core.ts`), so a slow one fails here
+ * by name rather than timing out; this stays wide so that elapsed-time
+ * tests never race their own budget. The give-up itself is
+ * `vault-watcher.health.test.ts`'s (#272).
  */
 const TIMING_TIMEOUT_MS = 20_000;
 

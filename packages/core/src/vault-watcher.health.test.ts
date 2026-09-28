@@ -311,6 +311,22 @@ describe("the harness's indexed() on a vault that never comes current", () => {
       /^waited \d+ms for the vault to be current: not watching: ENOSPC: no space left on device$/
     );
   });
+
+  // The open's own wait: `vault.open` resolves only once the probe is
+  // answered or given up on, and the production bound on that is Vitest's
+  // 5 s default. No `probeTimeoutMs` here, unlike the give-up test below —
+  // the harness's own bound is what is under test.
+  it("a probe that is never answered gives up, and says so, inside the test's own timeout", async () => {
+    const fs = await deaf();
+    const vault = await tmp("never-answered");
+    await mkdir(join(vault, "questions"));
+    const c = await core({ settleMs: SETTLE_MS, watch: fs.watch });
+    await c.mutate<Vault>("vault.open", { path: vault });
+
+    await expect(c.indexed()).rejects.toThrow(
+      /: not watching: the watch gave no sign of life$/
+    );
+  });
 });
 
 describe("current names a settled batch not yet applied", () => {
