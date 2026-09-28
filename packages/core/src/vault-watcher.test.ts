@@ -6,11 +6,13 @@ import {
   utimes,
   writeFile,
 } from "node:fs/promises";
+import { watch as fsWatch, type WatchListener } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
 import { closeCores, core, tmp, type CoreOptions } from "./test-core.js";
 import type { VaultChanged } from "./vault-index.js";
+import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
 // The watcher at the harness seam (spec #177 § Testing decisions): a real
 // `fs.watch` on a temp vault, the settle window injected small, every wait on
@@ -457,6 +459,54 @@ describe("a rename is one event, and the row follows it", () => {
       ["Was B, longer", a],
       ["Was A", b],
     ]);
+    stream.close();
+  });
+});
+
+/**
+ * The real `fs.watch`, except that an event naming one of `held` reaches the
+ * listener `FSEVENTS_LATENCY_MS` late — what FSEvents does to the second of
+ * two changes a millisecond apart whenever `fseventsd` is busy: the first goes
+ * out at once, the second waits out the stream's latency in the next callback.
+ * Deterministic here where, on a real machine, it depends on what else is
+ * writing to disk.
+ */
+function deferring(held: string[]) {
+  const watch: typeof fsWatch = ((
+    folder: string,
+    options: { recursive: boolean },
+    listener: WatchListener<string>
+  ) =>
+    fsWatch(folder, options, (kind, filename) => {
+      if (filename !== null && held.includes(filename)) {
+        setTimeout(() => listener(kind, filename), FSEVENTS_LATENCY_MS);
+      } else {
+        listener(kind, filename);
+      }
+    })) as typeof fsWatch;
+  return watch;
+}
+
+describe("two changes a moment apart are one Batch however FSEvents splits them", () => {
+  it("a second rename delivered one FSEvents latency after the first shares its vaultChanged, even at a settle window injected shorter than that latency", async () => {
+    // 40 ms is what most suites inject; below the latency, the first rename
+    // settled and closed its Batch before the second was heard (#393's
+    // flaking rename-pairing test in `resolution.test.ts`).
+    const { vault, stream } = await watching(
+      { "notes/A.md": "a\n", "notes/B.md": "b\n" },
+      { settleMs: 40, watch: deferring(["notes/B.md", "notes/D.md"]) }
+    );
+    await rename(join(vault, "notes", "A.md"), join(vault, "notes", "C.md"));
+    await rename(join(vault, "notes", "B.md"), join(vault, "notes", "D.md"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [
+        { from: "notes/A.md", to: "notes/C.md" },
+        { from: "notes/B.md", to: "notes/D.md" },
+      ],
+    });
     stream.close();
   });
 });

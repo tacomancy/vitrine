@@ -35,6 +35,25 @@ import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 /** Quiet for this long, with two stats agreeing, before a file is read (§ Watcher and Ingest). */
 export const SETTLE_MS = 2000;
 
+/**
+ * libuv's FSEvents stream latency (0.05 s, `src/unix/fsevents.c`). The stream
+ * is created with `NoDefer`, so the first change goes out at once and any that
+ * follow inside the latency are held for the next callback: two renames a
+ * millisecond apart can reach the listener 50 ms apart — measured exactly
+ * that while `fseventsd` was busy (#393).
+ */
+export const FSEVENTS_LATENCY_MS = 50;
+
+/**
+ * The shortest settle window honoured. At or under `FSEVENTS_LATENCY_MS`, the
+ * first of two back-to-back changes settles and closes its Batch before the
+ * second is heard, so a pair of renames pairs as two Batches — or, under
+ * enough load, a rename's own halves could. Twice the latency leaves the
+ * first change's own delivery lag the other half. Production's `SETTLE_MS`
+ * is far above it; this is the floor under a test's injected window.
+ */
+export const MIN_SETTLE_MS = 2 * FSEVENTS_LATENCY_MS;
+
 /** The one folder whose symlink is followed, so an iCloud or Dropbox PDF folder is watched. */
 const PDF_FOLDER = "sources/pdf";
 
@@ -45,6 +64,7 @@ const PROBE_TICK_MS = 50;
 const PROBE_TIMEOUT_MS = 5000;
 
 export type WatcherOptions = {
+  /** Raised to `MIN_SETTLE_MS` if given below it. */
   settleMs: number;
   /** A settled Batch of vault-relative paths; awaited before the next fires. */
   onSettled: (paths: string[]) => Promise<void>;
@@ -116,7 +136,7 @@ export async function pdfFolderOutside(root: string): Promise<string | null> {
 export async function watchVault(
   root: string,
   {
-    settleMs,
+    settleMs: asked,
     onSettled,
     onError,
     onBatchFailed,
@@ -124,6 +144,7 @@ export async function watchVault(
     probeTimeoutMs = PROBE_TIMEOUT_MS,
   }: WatcherOptions
 ): Promise<Watcher> {
+  const settleMs = Math.max(asked, MIN_SETTLE_MS);
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
   /** Settled and waiting for the batch to close: path → when it settled. */
   const settled = new Map<string, number>();
