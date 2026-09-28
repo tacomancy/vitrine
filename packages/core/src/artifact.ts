@@ -61,6 +61,22 @@ const extension = (file: string) =>
 const STORED = /^!\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\](?:\s+—\s+(.*))?$/;
 
 /**
+ * Whether a vault path is one the page can draw: a file inside an
+ * Experiment's folder that is not the page itself. The page read and the
+ * bytes route both ask this, so a line is never offered as *in vault* and
+ * then refused its bytes.
+ */
+function servable(path: string): boolean {
+  const parts = path.split("/");
+  return (
+    parts.length >= 3 &&
+    parts[0] === "experiments" &&
+    !parts.some((part) => part === "" || part === "." || part === "..") &&
+    !path.endsWith(".md")
+  );
+}
+
+/**
  * The section's lines, in the user's order (story 38). A stored line's file
  * is looked for beside the page — where the app puts it, and where Obsidian
  * looks first — unless the embed names a vault path of its own.
@@ -81,7 +97,7 @@ export async function artifactLines(
       if (match === null) return { kind: "asWritten", text: line };
       const file = match[1]!.trim();
       const wanted = file.includes("/") ? file : `${folder}/${file}`;
-      const found = await sized(vaultPath, wanted);
+      const found = servable(wanted) ? await sized(vaultPath, wanted) : null;
       return {
         kind: "stored",
         file,
@@ -105,10 +121,14 @@ async function sized(vaultPath: string, path: string): Promise<number | null> {
   }
 }
 
-/** The line a stored Artifact is appended as: an ordinary embed, so Obsidian draws it too (story 44). */
+/**
+ * The line a stored Artifact is appended as: an ordinary embed, so Obsidian
+ * draws it too (story 44). The caption is required — the router refuses a
+ * blank one, as the page's caption line does — because a plot that does not
+ * say what it shows is a chip by another name (story 34).
+ */
 export function storedLine(file: string, caption: string): string {
-  const said = onOneLine(caption);
-  return said === "" ? `- ![[${file}]]` : `- ![[${file}]] — ${said}`;
+  return `- ![[${file}]] — ${onOneLine(caption)}`;
 }
 
 /**
@@ -163,7 +183,7 @@ export async function addStoredArtifact(
 /**
  * An Artifact's bytes for the page to draw (#366): a file in an Experiment's
  * folder, streamed with its type. Anything else — a path outside
- * `experiments/<name>/`, a dot-entry, a symlink out of the vault, a folder,
+ * `experiments/<name>/`, the page itself, a dot-entry, a symlink out of the vault, a folder,
  * a file that is not there — is null, which the route answers as 404
  * without saying which, since the route is not a way to probe the disk.
  *
@@ -175,11 +195,7 @@ export async function artifactBytes(
   vaultPath: string,
   path: string
 ): Promise<Response | null> {
-  const parts = path.split("/");
-  if (parts.length < 3 || parts[0] !== "experiments") return null;
-  if (parts.some((part) => part === "" || part === "." || part === "..")) {
-    return null;
-  }
+  if (!servable(path)) return null;
   try {
     const { absolute } = await locate(vaultPath, path, { anyFile: true });
     const found = await stat(absolute);

@@ -517,7 +517,7 @@ export const router = t.router({
       .input(
         pathInput.extend({
           source: z.string().min(1),
-          caption: z.string(),
+          caption: z.string().trim().min(1, "An Artifact needs a caption."),
         })
       )
       .mutation(async ({ ctx, input }) =>

@@ -1224,12 +1224,13 @@ export function copyArtifact(
         `Nothing in "${basename(source)}" can name a file; rename it and add it again.`
       );
     }
+    // Refuses a folder reached through a symlink out of the vault, as every
+    // write does, before the folder is so much as listed.
+    await locate(vaultPath, `${folder}/${name}`, { anyFile: true });
     let file = name;
     for (let n = 2; await present(join(vaultPath, folder, file)); n++) {
       file = suffixed(name, n);
     }
-    // Refuses a folder reached through a symlink out of the vault, as every
-    // write does, before a byte is copied.
     const { absolute, relativePath } = await locate(
       vaultPath,
       `${folder}/${file}`,

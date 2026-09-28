@@ -353,4 +353,55 @@ describe("adding an Artifact", () => {
     );
     expect(caption.value).toBe("Gone.");
   });
+
+  it("copies once however many times ↵ is pressed while the copy is on its way", async () => {
+    const added: unknown[] = [];
+    let land: (value: unknown) => void = () => undefined;
+    open(() => pageWith([]), {
+      "experiments.pickArtifact": () => ({ source: "/Users/r/plot.png" }),
+      "experiments.addArtifact": (input: unknown) => {
+        added.push(input);
+        // Held open, as a large copy is.
+        return new Promise((resolve) => (land = resolve));
+      },
+    });
+    const section = await artifacts();
+    fireEvent.click(
+      within(section).getByRole("button", { name: "+ artifact" })
+    );
+    const caption = await within(section).findByRole("textbox", {
+      name: "Caption",
+    });
+    fireEvent.change(caption, { target: { value: "A plot." } });
+    fireEvent.keyDown(caption, { key: "Enter" });
+    fireEvent.keyDown(caption, { key: "Enter" });
+    await waitFor(() => expect(added).toHaveLength(1));
+    land(written());
+    await waitFor(() => expect(within(section).queryByRole("form")).toBeNull());
+    expect(added).toHaveLength(1);
+  });
+
+  it("a second file dropped while the first waits for its caption starts with an empty one", async () => {
+    open(() => pageWith([]));
+    const page = await screen.findByRole("region", { name: "Experiment view" });
+    await artifacts();
+    const first = new File(["x"], "first.png");
+    const second = new File(["y"], "second.png");
+
+    fireEvent.drop(page, {
+      dataTransfer: { files: [first], types: ["Files"] },
+    });
+    const caption = await screen.findByRole<HTMLInputElement>("textbox", {
+      name: "Caption",
+    });
+    fireEvent.change(caption, { target: { value: "For the first." } });
+    fireEvent.drop(page, {
+      dataTransfer: { files: [second], types: ["Files"] },
+    });
+
+    await waitFor(() => expect(page.textContent).toContain("second.png"));
+    expect(
+      screen.getByRole<HTMLInputElement>("textbox", { name: "Caption" }).value
+    ).toBe("");
+  });
 });

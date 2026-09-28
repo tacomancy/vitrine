@@ -34,21 +34,29 @@ export function Artifacts({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [caption, setCaption] = useState("");
   const [said, setSaid] = useState<string | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
 
   const done = () => {
     onAdding(null);
-    setCaption("");
     addRef.current?.focus();
   };
   const pick = useMutation(trpc.experiments.pickArtifact.mutationOptions());
   const add = useMutation(trpc.experiments.addArtifact.mutationOptions());
+  // One chooser, and one copy, at a time: a second ↵ while the copy is on
+  // its way would store the file again as `plot (2).png`. A ref rather than
+  // `isPending`, because the second ↵ can arrive before the render that
+  // would have told this handler the first was pending.
+  const busy = useRef(false);
+  const release = () => {
+    busy.current = false;
+  };
   // The callbacks go with each call rather than into the options: they hand
   // the keyboard back to *+ artifact*, which is a ref, and the options are
   // built during render.
-  const choose = () =>
+  const choose = () => {
+    if (busy.current) return;
+    busy.current = true;
     pick.mutate(undefined, {
       onSuccess: ({ source }) => {
         if (source === null) {
@@ -60,8 +68,12 @@ export function Artifacts({
       },
       onError: (error) =>
         setSaid(`could not open the chooser: ${error.message}`),
+      onSettled: release,
     });
-  const copyIn = (source: string, text: string) =>
+  };
+  const copyIn = (source: string, text: string) => {
+    if (busy.current) return;
+    busy.current = true;
     add.mutate(
       { path, source, caption: text },
       {
@@ -81,8 +93,10 @@ export function Artifacts({
         },
         // Refused before anything was copied: the caption is kept to try again.
         onError: (error) => setSaid(`could not add it: ${error.message}`),
+        onSettled: release,
       }
     );
+  };
 
   return (
     <Section
@@ -95,16 +109,14 @@ export function Artifacts({
       }
     >
       {adding !== null && (
-        <div className={styles.adding}>
-          <span className={styles.addingName}>{fileOf(adding)}</span>
-          <TypedLine
-            purpose="caption"
-            value={caption}
-            onChange={setCaption}
-            onSubmit={(text) => copyIn(adding, text)}
-            onDiscard={done}
-          />
-        </div>
+        // Keyed by the file, so a second drop starts with an empty caption
+        // rather than lending it the first file's.
+        <CaptionLine
+          key={adding}
+          source={adding}
+          onSubmit={(text) => copyIn(adding, text)}
+          onDiscard={done}
+        />
       )}
       {said !== null && (
         <p role="status" className={styles.refusal}>
@@ -132,6 +144,31 @@ export function Artifacts({
   );
 }
 
+/** The caption line, with the file it is for named above it. */
+function CaptionLine({
+  source,
+  onSubmit,
+  onDiscard,
+}: {
+  source: string;
+  onSubmit: (text: string) => void;
+  onDiscard: () => void;
+}) {
+  const [caption, setCaption] = useState("");
+  return (
+    <div className={styles.adding}>
+      <span className={styles.addingName}>{fileOf(source)}</span>
+      <TypedLine
+        purpose="caption"
+        value={caption}
+        onChange={setCaption}
+        onSubmit={onSubmit}
+        onDiscard={onDiscard}
+      />
+    </div>
+  );
+}
+
 /** The name a path on disk ends in — all the caption line needs to say which file it is for. */
 const fileOf = (source: string) => source.replace(/^.*[/\\]/, "");
 
@@ -143,7 +180,7 @@ function ArtifactCard({ item }: { item: ArtifactLine }) {
     <figure className={styles.artifact}>
       <div className={styles.artifactHead}>
         <span className={styles.artifactName}>{item.file}</span>
-        <span className={styles.caption}>{about(item)}</span>
+        <span className={styles.caption}>{sizeLine(item)}</span>
       </div>
       {item.image && item.path !== null && (
         <ArtifactImage path={item.path} alt={item.caption || item.file} />
@@ -158,13 +195,13 @@ function ArtifactCard({ item }: { item: ArtifactLine }) {
 }
 
 /** `412 KB · in vault`; a line whose file the folder does not hold says so rather than drawing a gap. */
-function about(item: StoredArtifact): string {
+function sizeLine(item: StoredArtifact): string {
   if (item.size === null) return "not in the folder";
   return `${formatSize(item.size)} · in vault`;
 }
 
 /** Bytes as the prototype writes them: `412 KB`, `1.1 MB`. */
-export function formatSize(bytes: number): string {
+function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KB`;
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;

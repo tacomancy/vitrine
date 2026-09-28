@@ -29,7 +29,8 @@ type SubscriptionObserver = {
   }) => void;
 };
 
-// A link that answers every procedure from a table, so the renderer is tested
+// A link that answers every procedure from a table (or, for a promise, once
+// it settles), so the renderer is tested
 // against the router's contract without a socket or the core itself. An
 // answer that throws reaches the component as the error the core would send.
 // A subscription is held open and driven by the FakeStream.
@@ -61,6 +62,19 @@ function fakeLink(
             typeof answer === "function"
               ? (answer as (input: unknown) => unknown)(op.input)
               : answer;
+          // An answer that is a promise is one the test holds open — a
+          // copy still on its way — and lands when the test resolves it.
+          if (data instanceof Promise) {
+            data.then(
+              (value) => {
+                observer.next({ result: { type: "data", data: value } });
+                observer.complete();
+              },
+              (error: unknown) =>
+                observer.error(TRPCClientError.from(error as Error))
+            );
+            return;
+          }
           observer.next({ result: { type: "data", data } });
           observer.complete();
         } catch (error) {

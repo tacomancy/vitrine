@@ -225,9 +225,10 @@
   overflow-wrap: anywhere;
 }
 
+/* At the column's width whatever the plot's own size (story 35). */
 .image {
   display: block;
-  max-width: 100%;
+  width: 100%;
   height: auto;
   border-radius: var(--radius-sm);
 }

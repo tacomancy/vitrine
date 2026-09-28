@@ -222,6 +222,22 @@ describe("experiments.addArtifact", () => {
     ]);
   });
 
+  it("refuses a blank caption, and copies nothing", async () => {
+    const { vault, c } = await opened();
+    const source = await outside("plot.png");
+
+    const reply = await c.mutate("experiments.addArtifact", {
+      path: PATH,
+      source,
+      caption: "   ",
+    });
+
+    expect(reply.error?.message).toContain("An Artifact needs a caption.");
+    expect(await readdir(join(vault, FOLDER))).toEqual([
+      "prereg-exclusions.md",
+    ]);
+  });
+
   it("refuses a page that is not an Experiment, and copies nothing", async () => {
     const note = "notes/plain.md";
     const { vault, c } = await opened({ [note]: "# Plain\n" });
@@ -306,6 +322,26 @@ describe("experiments.page — the Artifacts", () => {
       },
       // Never dropped: what the user wrote is shown as written.
       { kind: "asWritten", text: "a line the page cannot read yet" },
+    ]);
+  });
+
+  it("does not offer as in the vault a file the page could never draw — one outside the Experiments", async () => {
+    const { c } = await opened({
+      [PATH]: page("- ![[figs/plot.png]] — Kept elsewhere."),
+      "figs/plot.png": PLOT,
+    });
+
+    const { sections } = await pageOf(c);
+
+    expect(sections.artifacts.items).toEqual([
+      {
+        kind: "stored",
+        file: "figs/plot.png",
+        caption: "Kept elsewhere.",
+        path: null,
+        size: null,
+        image: true,
+      },
     ]);
   });
 
@@ -403,6 +439,8 @@ describe("the Artifact bytes route", () => {
       `${FOLDER}/%2e%2e/%2e%2e/notes/private.png`,
       `${FOLDER}/.hidden.png`,
       `${FOLDER}/missing.png`,
+      // The page itself is read through the router, never as bytes.
+      PATH,
     ]) {
       const res = await c.raw(`/artifacts/${path}`, { headers: auth });
       expect(res.status, path).toBe(404);
