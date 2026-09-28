@@ -58,6 +58,7 @@ const sourceLine = (target: string, note: string): LinkLine => ({
     resolution: "resolved",
     resolvedPath: `sources/${target}.md`,
     resolvedKind: "source",
+    resolvedDisplay: null,
   },
   note,
 });
@@ -461,6 +462,7 @@ describe("moving and detaching a source", () => {
         resolvedPath: null,
         candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
         resolvedKind: null,
+        resolvedDisplay: null,
       },
       note: "",
     };
@@ -472,6 +474,7 @@ describe("moving and detaching a source", () => {
         resolution: "unresolved",
         resolvedPath: null,
         resolvedKind: null,
+        resolvedDisplay: null,
       },
       note: "a citekey with a digit dropped",
     };
@@ -504,6 +507,7 @@ describe("moving and detaching a source", () => {
         resolvedPath: null,
         candidates: ["sources/rasch2013.md"],
         resolvedKind: null,
+        resolvedDisplay: null,
       },
       note: "the block an Ingest renumbered",
     };

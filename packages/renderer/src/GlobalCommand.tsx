@@ -79,7 +79,7 @@ type Row = {
   route: Route;
   /** Where the window already is. Listed, marked, never the default choice. */
   current: boolean;
-  /** The reading family, for the Kinds whose Display name is a question. */
+  /** The reading family, for the Kinds whose Display name is a question or a claim. */
   serif: boolean;
   /** How well it answers what was typed, the rung both halves score on. */
   strength: number;
@@ -97,6 +97,7 @@ const KIND_ORDER = [
   "surface",
   "dashboard",
   "research-question",
+  "hypothesis",
   "question",
 ] as const;
 
@@ -120,6 +121,7 @@ const KIND_OF: Record<Destination["kind"], { glyph: string; label: string }> = {
     glyph: "■",
     label: "research question",
   },
+  hypothesis: KIND["hypothesis"] ?? { glyph: "▲", label: "hypothesis" },
 };
 
 const SCREEN_KIND: Record<Addressed["kind"], { glyph: string; label: string }> =
@@ -500,7 +502,8 @@ const rowId = (index: number) => `global-command-row-${index}`;
 
 /**
  * What ↵ is about to do: the mode, and the thing in full rather than a
- * category. `serif` is the reading family, for a name that is a question.
+ * category. `serif` is the reading family, for a name that is a question
+ * or a claim.
  */
 type Act = { mode: string; target: string; serif: boolean; pending: boolean };
 

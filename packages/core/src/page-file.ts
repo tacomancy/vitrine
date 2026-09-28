@@ -40,6 +40,12 @@ export type LinkLine = {
     candidates?: string[];
     /** The `kind:` of the file the link lands on: what decides whether the page can open it. */
     resolvedKind: string | null;
+    /**
+     * The Display name of the file the link lands on (`CONTEXT.md`): what a
+     * line names a Hypothesis by, since its claim moves on and the file
+     * name the link was written against never does.
+     */
+    resolvedDisplay: string | null;
   } | null;
   note: string;
 };
@@ -96,13 +102,13 @@ export function linkLine(
   if (link === undefined) return { text, link: null, note: text };
   const note = text.slice(link.range.end - textStart).replace(SEPARATOR, "");
   const { candidates, ...resolved } = index.resolve(path, link);
-  const resolvedKind =
+  const landed =
     resolved.resolvedPath === null
-      ? null
-      : (index.select<{ kind: string | null }>(
-          "SELECT kind FROM files WHERE path = ?",
+      ? undefined
+      : index.select<{ kind: string | null; display: string }>(
+          "SELECT kind, display FROM files WHERE path = ?",
           resolved.resolvedPath
-        )[0]?.kind ?? null);
+        )[0];
   return {
     text,
     link: {
@@ -110,7 +116,8 @@ export function linkLine(
       blockId: link.blockId,
       ...resolved,
       ...(candidates.length === 0 ? {} : { candidates }),
-      resolvedKind,
+      resolvedKind: landed?.kind ?? null,
+      resolvedDisplay: landed?.display ?? null,
     },
     note: note.trim(),
   };

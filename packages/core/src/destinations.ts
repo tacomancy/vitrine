@@ -21,7 +21,7 @@ import type { VaultIndex } from "./vault-index.js";
  * page and never before (ADR 0027 decision 4). The order is the order a
  * tie between two Kinds is broken in.
  */
-const ADDRESSABLE = ["research-question", "question"] as const;
+const ADDRESSABLE = ["research-question", "hypothesis", "question"] as const;
 
 export type DestinationKind = (typeof ADDRESSABLE)[number];
 

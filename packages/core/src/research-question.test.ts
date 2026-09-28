@@ -125,6 +125,7 @@ describe("researchQuestions.page", () => {
             resolution: "resolved",
             resolvedPath: "sources/rasch2013.md",
             resolvedKind: "source",
+            resolvedDisplay: "rasch2013",
           },
           note: "TMR effects survive encoding controls.",
         },
@@ -136,6 +137,7 @@ describe("researchQuestions.page", () => {
             resolution: "resolved",
             resolvedPath: "sources/klinzing2019.md",
             resolvedKind: "source-stub",
+            resolvedDisplay: "klinzing2019",
           },
           note: "",
         },
@@ -156,6 +158,7 @@ describe("researchQuestions.page", () => {
             // two it is caught between rather than only that it is.
             candidates: ["a/wamsley2019.md", "sources/wamsley2019.md"],
             resolvedKind: null,
+            resolvedDisplay: null,
           },
           note: "Waking rest produces a comparable benefit.",
         },
@@ -178,6 +181,7 @@ describe("researchQuestions.page", () => {
             resolution: "resolved",
             resolvedPath: "questions/What counts as a reactivation event.md",
             resolvedKind: "question",
+            resolvedDisplay: "What counts as a reactivation event?",
           },
           note: "shares 2 sources",
         },
@@ -189,6 +193,7 @@ describe("researchQuestions.page", () => {
             resolution: "unresolved",
             resolvedPath: null,
             resolvedKind: null,
+            resolvedDisplay: null,
           },
           note: "",
         },
@@ -1076,6 +1081,7 @@ describe("researchQuestions.saveSection", () => {
         resolution: "resolved",
         resolvedPath: "questions/What counts as a reactivation event.md",
         resolvedKind: "question",
+        resolvedDisplay: "What counts as a reactivation event?",
       },
       note: "the same edge, twice",
     });
@@ -1233,6 +1239,7 @@ describe("researchQuestions.attachSource", () => {
         resolution: "resolved",
         resolvedPath: "sources/rasch2013.md",
         resolvedKind: "source",
+        resolvedDisplay: "rasch2013",
       },
       note: "Table 2 reverses once preregistered studies are separated out.",
     });
@@ -1440,6 +1447,7 @@ describe("researchQuestions.moveSource and detachSource", () => {
         resolution: "resolved",
         resolvedPath: "sources/rasch2013.md",
         resolvedKind: "source",
+        resolvedDisplay: "rasch2013",
       },
       note: "TMR effects survive encoding controls.",
     });
@@ -1611,6 +1619,7 @@ describe("a source line whose link did not land", () => {
       resolution: "unresolved",
       resolvedPath: null,
       resolvedKind: null,
+      resolvedDisplay: null,
     });
     expect(links[2]).toMatchObject({
       resolution: "ambiguous",

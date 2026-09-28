@@ -141,6 +141,7 @@ describe("questions.promoteToHypothesis", () => {
           link: "[[Slow-wave density during the nap predicts next-day recall gain.]]",
           path: HYPOTHESIS_PATH,
           kind: "hypothesis",
+          display: CLAIM,
         },
       }),
     ]);
