@@ -10,7 +10,9 @@ import { useTRPC } from "./trpc";
  * Closing the loop (#338; ADR 0031 decision 8; spec #327 stories 64–70,
  * 74, 75): the result written one hop up, to the object the Hypothesis was
  * promoted from. Offered only when the core says the state is closable and
- * there is one parent to write to — never automatically, because the state
+ * there is one parent to write to — and when it is not closable, the
+ * core's reason stands where the offer would, so the act is never simply
+ * missing — never automatically, because the state
  * is live and a write into another file is the user's to make.
  *
  * What it shows is read from that parent, never from this page: the newest
@@ -70,10 +72,13 @@ export function LoopLine({
         <p className={rq.refusal}>cannot write back: {loop.reason}</p>
       )}
       {loop.status === "open" &&
-        loop.closable &&
-        offer(
-          `close the loop — write ${loop.result} to ${nameOf(loop.parent.path)}`
-        )}
+        (loop.refusal === null ? (
+          offer(
+            `close the loop — write ${loop.result} to ${nameOf(loop.parent.path)}`
+          )
+        ) : (
+          <NotYet refusal={loop.refusal} />
+        ))}
       {loop.status === "closed" &&
         (loop.written.result === loop.result ? (
           <p className={styles.loopClosed}>
@@ -87,8 +92,11 @@ export function LoopLine({
               {dayOf(loop.written.date)} says {loop.written.result}; the state
               is now {loop.result}, so it no longer matches
             </p>
-            {loop.closable &&
-              offer(`close the loop again — append ${loop.result}`)}
+            {loop.refusal === null ? (
+              offer(`close the loop again — append ${loop.result}`)
+            ) : (
+              <NotYet refusal={loop.refusal} />
+            )}
           </>
         ))}
       {refusal !== null && (
@@ -98,6 +106,11 @@ export function LoopLine({
       )}
     </section>
   );
+}
+
+/** Why the act is not offered, in the core's words, in the offer's quiet voice. */
+function NotYet({ refusal }: { refusal: string }) {
+  return <p className={styles.offerNote}>not closable yet — {refusal}</p>;
 }
 
 /** A vault-relative path as the parent is named on screen: its file name. */

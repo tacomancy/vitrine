@@ -183,6 +183,53 @@ describe("hypotheses.closeLoop to a Question", () => {
     expect(row?.answeredWith).toBe("falsified");
   });
 
+  it("drops the result from the row once the Question is reopened", async () => {
+    const h = await opened({
+      [QUESTION_PATH]: QUESTION,
+      [PATH]: hypothesis(FALSIFIED),
+    });
+    await h.close();
+    expect(
+      (await h.c.mutate("questions.reopen", { path: QUESTION_PATH })).error
+    ).toBeUndefined();
+
+    const listing = await h.c.query<Listing>("questions.list");
+    const row = listing.result?.data.questions.find((q) =>
+      q.path.endsWith(QUESTION_PATH)
+    );
+    expect(row?.status).toBe("open");
+    expect(row?.answeredWith).toBeUndefined();
+  });
+
+  it("reads no result from a line that names something other than a Hypothesis, or that a newer answer follows", async () => {
+    const byHand = QUESTION.replace("status: promoted", "status: answered")
+      .replace(
+        'promoted_to: "[[The pooled effect is mostly small-study bias]]"\n',
+        ""
+      )
+      .concat("Answered by [[Some note]] \u2014 supported, 2026-09-01\n");
+    const superseded = QUESTION.replace(
+      "status: promoted",
+      "status: answered"
+    ).concat(
+      "Answered by [[The pooled effect is mostly small-study bias]] \u2014 falsified, 2026-09-01\n\nAnswered by [[Why do the effects disperse (RQ)]] \u2014 2026-09-20\n"
+    );
+    const h = await opened({
+      ["questions/By hand.md"]: byHand,
+      [QUESTION_PATH]: superseded,
+      ["Some note.md"]: "A note.\n",
+      [RQ_PATH]: RQ,
+      [PATH]: hypothesis(FALSIFIED),
+    });
+
+    const listing = await h.c.query<Listing>("questions.list");
+    const rows = listing.result?.data.questions ?? [];
+    expect(rows.map((q) => [q.status, q.answeredWith])).toEqual([
+      ["answered", undefined],
+      ["answered", undefined],
+    ]);
+  });
+
   it("reads the loop closed on the page, from the Question's line", async () => {
     const h = await opened({
       [QUESTION_PATH]: QUESTION,
@@ -191,7 +238,7 @@ describe("hypotheses.closeLoop to a Question", () => {
     expect((await h.page()).loop).toEqual({
       status: "open",
       parent: { path: QUESTION_PATH, kind: "question" },
-      closable: true,
+      refusal: null,
       result: "falsified",
     });
 
@@ -200,7 +247,7 @@ describe("hypotheses.closeLoop to a Question", () => {
     expect((await h.page()).loop).toEqual({
       status: "closed",
       parent: { path: QUESTION_PATH, kind: "question" },
-      closable: true,
+      refusal: null,
       result: "falsified",
       written: { result: "falsified", date: "2026-09-30" },
     });
@@ -268,15 +315,29 @@ describe("refusals", () => {
       [QUESTION_PATH]: QUESTION,
       [PATH]: hypothesis(AWAITING),
     });
-    expect((await h.page()).loop).toMatchObject({
-      status: "open",
-      closable: false,
-    });
+    const refusal =
+      "A criterion still awaits evidence: not yet tested is not an answer.";
+    expect((await h.page()).loop).toMatchObject({ status: "open", refusal });
 
     const reply = await h.close();
 
     expect(reply.error?.data.kind).toBe("refused");
-    expect(reply.error?.message).toMatch(/not yet tested/);
+    expect(reply.error?.message).toBe(refusal);
+    expect(await h.bytes(QUESTION_PATH)).toBe(QUESTION);
+  });
+
+  it("refuses a Hypothesis with no criteria written", async () => {
+    const h = await opened({
+      [QUESTION_PATH]: QUESTION,
+      [PATH]: hypothesis(""),
+    });
+    const refusal = "No criteria are written: not yet tested is not an answer.";
+    expect((await h.page()).loop).toMatchObject({ status: "open", refusal });
+
+    const reply = await h.close();
+
+    expect(reply.error?.data.kind).toBe("refused");
+    expect(reply.error?.message).toBe(refusal);
     expect(await h.bytes(QUESTION_PATH)).toBe(QUESTION);
   });
 
@@ -285,7 +346,7 @@ describe("refusals", () => {
 
     expect((await h.page()).loop).toEqual({
       status: "none",
-      closable: true,
+      refusal: null,
       result: "falsified",
     });
     const reply = await h.close();

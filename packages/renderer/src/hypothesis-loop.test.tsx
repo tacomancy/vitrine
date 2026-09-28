@@ -89,14 +89,14 @@ describe("closing the loop", () => {
     let current = page({
       status: "open",
       parent,
-      closable: true,
+      refusal: null,
       result: "falsified",
     });
     const closeLoop = vi.fn(() => {
       current = page({
         status: "closed",
         parent,
-        closable: true,
+        refusal: null,
         result: "falsified",
         written: { result: "falsified", date: "2026-09-30" },
       });
@@ -122,12 +122,40 @@ describe("closing the loop", () => {
     expect(within(loop).queryByRole("button")).toBeNull();
   });
 
-  it("is not offered while something still awaits evidence", async () => {
+  it("is not offered while something still awaits evidence, and says why", async () => {
     open(() =>
-      page({ status: "open", parent, closable: false, result: "inconclusive" })
+      page({
+        status: "open",
+        parent,
+        refusal:
+          "A criterion still awaits evidence: not yet tested is not an answer.",
+        result: "inconclusive",
+      })
     );
     const loop = await loopRegion();
     expect(within(loop).queryByRole("button")).toBeNull();
+    expect(
+      within(loop).getByText(
+        "not closable yet — A criterion still awaits evidence: not yet tested is not an answer."
+      )
+    ).toBeTruthy();
+  });
+
+  it("says the line no longer matches, and why it cannot be closed again yet", async () => {
+    open(() =>
+      page({
+        status: "closed",
+        parent,
+        refusal:
+          "A criterion still awaits evidence: not yet tested is not an answer.",
+        result: "inconclusive",
+        written: { result: "falsified", date: "2026-09-30" },
+      })
+    );
+    const loop = await loopRegion();
+    expect(within(loop).getByText(/no longer matches/)).toBeTruthy();
+    expect(within(loop).queryByRole("button")).toBeNull();
+    expect(within(loop).getByText(/^not closable yet — /)).toBeTruthy();
   });
 
   it("says when the written line no longer matches, and closes again by appending", async () => {
@@ -137,7 +165,7 @@ describe("closing the loop", () => {
         page({
           status: "closed",
           parent,
-          closable: true,
+          refusal: null,
           result: "supported",
           written: { result: "falsified", date: "2026-09-30" },
         }),
@@ -166,7 +194,7 @@ describe("closing the loop", () => {
     });
     open(
       () =>
-        page({ status: "open", parent, closable: true, result: "falsified" }),
+        page({ status: "open", parent, refusal: null, result: "falsified" }),
       { "hypotheses.closeLoop": closeLoop }
     );
 
@@ -183,7 +211,7 @@ describe("closing the loop", () => {
 
 describe("no one to write back to", () => {
   it("says once and quietly that a Hypothesis written directly has nothing to write back to", async () => {
-    open(() => page({ status: "none", closable: true, result: "falsified" }));
+    open(() => page({ status: "none", refusal: null, result: "falsified" }));
     const loop = await loopRegion();
     expect(
       within(loop).getByText(
@@ -200,7 +228,7 @@ describe("no one to write back to", () => {
         status: "unresolved",
         reason:
           "[[Does the reanalysis shrink the pooled effect]] matches more than one file",
-        closable: true,
+        refusal: null,
         result: "falsified",
       })
     );

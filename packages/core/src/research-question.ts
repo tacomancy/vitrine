@@ -689,7 +689,7 @@ export type ResolveResult = { page: WriteResult; question: WriteBack };
 // The write-back does not care what the Question's Status is: the page is
 // the authority for a pursuit that ended, and a page resolved twice across
 // a reopen must still be able to say so.
-export const ANY_STATUS: readonly QuestionStatus[] = [
+const ANY_STATUS: readonly QuestionStatus[] = [
   "open",
   "promoted",
   "answered",
@@ -744,12 +744,7 @@ export async function resolveResearchQuestion(
 
 /**
  * The Question the page was promoted from, answered or abandoned with one
- * line in its *lead* — the body before the first `##`, so the line can never
- * land inside a section the user keeps (ADR 0008 decision 2). One write:
- * the keys and the line together, so the Question never carries one without
- * the other. Outside the page queue, because the file is not this page: a
- * triage action racing it from the Inbox is what the protocol's hash check
- * is for, and the loser refuses rather than overwrites.
+ * line in its lead (`writeToQuestion`).
  */
 async function writeBack(
   index: VaultIndex,
@@ -765,22 +760,39 @@ async function writeBack(
       reason: "the page has no promoted_from: there is no Question to answer",
     };
   }
+  const parent = resolvePromotedFrom(index, page.relativePath, promotedFrom);
+  if ("reason" in parent) return { written: false, reason: parent.reason };
+  const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
+  return writeToQuestion(index, vaultPath, parent.path, {
+    keys: keysFor(status, at),
+    line,
+  });
+}
+
+/**
+ * The file a page's `promoted_from` names, or why none can be written to:
+ * not a wikilink, no file by that name, or two — which resolves to
+ * nothing rather than to whichever was indexed first. Where the link lands
+ * is the index's to say, by the same rule every `links` row is resolved
+ * by — never a guess from the link's text. Shared by every write-back — a
+ * resolved Research Question's and a closed Hypothesis loop's (#338) — so
+ * one broken link is refused in the same words wherever it is followed.
+ */
+export function resolvePromotedFrom(
+  index: VaultIndex,
+  linkingPath: string,
+  promotedFrom: string
+): { path: string } | { reason: string } {
   const inner = /^\[\[(.*)\]\]$/.exec(promotedFrom.trim())?.[1];
   if (inner === undefined) {
-    return {
-      written: false,
-      reason: `promoted_from is not a wikilink: ${promotedFrom}`,
-    };
+    return { reason: `promoted_from is not a wikilink: ${promotedFrom}` };
   }
-  // Where the link lands is the index's to say, by the same rule every
-  // `links` row is resolved by — never a guess from the link's text.
   const { resolution, resolvedPath } = index.resolve(
-    page.relativePath,
+    linkingPath,
     parseWikilink(inner)
   );
   if (resolvedPath === null) {
     return {
-      written: false,
       reason: `${promotedFrom} ${
         resolution === "ambiguous"
           ? "matches more than one file"
@@ -788,19 +800,39 @@ async function writeBack(
       }`,
     };
   }
+  return { path: resolvedPath };
+}
+
+/**
+ * A write-back landing on a Question: `keys` and one line in its *lead* —
+ * the body before the first `##`, so the line can never land inside a
+ * section the user keeps (ADR 0008 decision 2) — in one write, so the
+ * Question never carries one without the other. Outside any page queue,
+ * because the file is not the page's: a triage action racing it from the
+ * Inbox is what the protocol's hash check is for, and the loser refuses
+ * rather than overwrites. Any Status: the write-back is the page's act,
+ * and a Question answered once can be answered again. The index is told
+ * before this returns, so the Inbox row reads the new Status at once.
+ */
+export async function writeToQuestion(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string,
+  { keys, line }: { keys: Record<string, string>; line: string }
+): Promise<WriteBack> {
   // The same read every triage action makes, with the same refusals — a
   // write-back is triage the page asked for. Its throw is data here: the
-  // page is already resolved, so this half reports rather than raises.
+  // caller decides whether a write-back that could not land is a report
+  // or a refusal.
   let question: QuestionFile;
   try {
-    question = await readQuestionForWrite(vaultPath, resolvedPath, ANY_STATUS);
+    question = await readQuestionForWrite(vaultPath, path, ANY_STATUS);
   } catch (cause) {
     return { written: false, reason: errorMessage(cause) };
   }
-  const line = `${status === "answered" ? "Answered by" : "Abandoned with"} [[${basename(page.relativePath, ".md")}]] — ${dateOf(at)}`;
   const result = await write(vaultPath, question.path, {
     operations: [
-      { op: "setFrontmatter", keys: keysFor(status, at) },
+      { op: "setFrontmatter", keys },
       { op: "appendToSection", target: "lead", line },
     ],
     basedOn: question.hash,

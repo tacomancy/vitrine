@@ -92,7 +92,12 @@ const page = (
   },
   derivation: inconclusive,
   overridable: true,
-  loop: { status: "none", closable: false, result: "inconclusive" },
+  loop: {
+    status: "none",
+    refusal:
+      "A criterion still awaits evidence: not yet tested is not an answer.",
+    result: "inconclusive",
+  },
   problems: [],
   ...over,
 });

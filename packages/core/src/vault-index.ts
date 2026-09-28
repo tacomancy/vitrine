@@ -11,7 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import type { PositionChange } from "./pending-revisions.js";
-import { answeredWith, readQuestion } from "./question-kind.js";
+import { answeredBy, readQuestion } from "./question-kind.js";
 import {
   analyseFile,
   sha256,
@@ -36,8 +36,8 @@ import {
  * rebuilt, which is the migration path — there is no other (ADR 0014
  * decision 10). 3: the Research Question's Position rows (#209). 4: the
  * Display name columns the Global command matches on (#301). 5: the
- * Hypothesis's Position rows (#333). 6: a Question's `answeredWith`, the
- * result of the newest loop closed onto it (#338).
+ * Hypothesis's Position rows (#333). 6: a Question's `answeredBy`, its
+ * newest write-back line's link and result (#338).
  */
 export const SCHEMA_VERSION = 6;
 
@@ -858,9 +858,9 @@ function createIndex(
           for (const [key, value] of Object.entries(fields)) {
             insertField.run(path, key, JSON.stringify(value));
           }
-          const result = answeredWith(content, read.outline);
-          if (result !== null) {
-            insertField.run(path, "answeredWith", JSON.stringify(result));
+          const by = answeredBy(content, read.outline);
+          if (by !== null) {
+            insertField.run(path, "answeredBy", JSON.stringify(by));
           }
         }
       } catch (error) {

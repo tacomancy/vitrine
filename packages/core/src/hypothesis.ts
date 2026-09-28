@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { parseWikilink, type Heading, type Outline } from "markdown";
+import type { Heading, Outline } from "markdown";
 import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
 import {
@@ -14,9 +14,8 @@ import {
   type PageKind,
   type SavedAnswer,
 } from "./page-write.js";
-import { asString, readQuestionForWrite } from "./question-kind.js";
+import { asString, leadRange, readQuestionForWrite } from "./question-kind.js";
 import {
-  ANY_STATUS,
   copiedKeys,
   dateOf,
   markPromoted,
@@ -24,6 +23,8 @@ import {
   PAGE as RESEARCH_QUESTION,
   quoted,
   readResearchQuestion,
+  resolvePromotedFrom,
+  writeToQuestion,
 } from "./research-question.js";
 import { localIso } from "./time.js";
 import {
@@ -67,7 +68,6 @@ import {
   type Relationship,
   type ShapeProblem,
   type WriteResult,
-  write,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
@@ -1112,11 +1112,13 @@ export type LoopParent = {
  * means a Write-back line naming this page stands in the parent, and
  * `written` is the newest one's result and date — which the page compares
  * with `result`, the word closing now would write, to say the line no
- * longer matches. `closable` is `closeRefusal` on the derivation, whatever
- * the parent: a Hypothesis written by hand can still be *tested and
- * undecided*, and only the write needs somewhere to go.
+ * longer matches. `refusal` is `closeRefusal` on the derivation — null
+ * when the state is closable — whatever the parent: a Hypothesis written
+ * by hand can still be *tested and undecided*, and only the write needs
+ * somewhere to go. The page prints it, so the act that is not offered
+ * always says why.
  */
-export type Loop = { closable: boolean; result: LoopResult } & (
+export type Loop = { refusal: string | null; result: LoopResult } & (
   | { status: "none" }
   | { status: "unresolved"; reason: string }
   | { status: "open"; parent: LoopParent }
@@ -1127,13 +1129,14 @@ export type Loop = { closable: boolean; result: LoopResult } & (
     }
 );
 
-const PARENT_KINDS = ["question", "research-question"] as const;
+const isParentKind = (kind: string): kind is LoopParent["kind"] =>
+  kind === "question" || kind === "research-question";
 
 /**
- * The parent `promoted_from` names, resolved by the index as every link
- * is — never a guess from the link's text — and read from disk, or why
- * there is none to write to. Two files by one name are refused rather than
- * one picked (story 75): the app never guesses where an answer belongs.
+ * The parent `promoted_from` names, resolved as every write-back resolves
+ * it (`resolvePromotedFrom`) and read from disk, or why there is none to
+ * write to. Two files by one name are refused rather than one picked
+ * (story 75): the app never guesses where an answer belongs.
  */
 async function parentOf(
   index: VaultIndex,
@@ -1146,45 +1149,27 @@ async function parentOf(
   | { status: "found"; parent: LoopParent; read: PageFile }
 > {
   if (promotedFrom === undefined) return { status: "none" };
-  const inner = /^\[\[(.*)\]\]$/.exec(promotedFrom.trim())?.[1];
-  if (inner === undefined) {
-    return {
-      status: "unresolved",
-      reason: `promoted_from is not a wikilink: ${promotedFrom}`,
-    };
-  }
-  const { resolution, resolvedPath } = index.resolve(
-    path,
-    parseWikilink(inner)
-  );
-  if (resolvedPath === null) {
-    return {
-      status: "unresolved",
-      reason: `${promotedFrom} ${
-        resolution === "ambiguous"
-          ? "matches more than one file"
-          : "matches no file in the vault"
-      }`,
-    };
+  const resolved = resolvePromotedFrom(index, path, promotedFrom);
+  if ("reason" in resolved) {
+    return { status: "unresolved", reason: resolved.reason };
   }
   const read = await readPageFile(
     vaultPath,
-    resolvedPath,
-    PARENT_KINDS,
+    resolved.path,
+    ["question", "research-question"],
     "a Question or a Research Question"
   );
-  if (!read.readable) {
+  if (!read.readable || !isParentKind(read.kind)) {
     return {
       status: "unresolved",
-      reason: `${promotedFrom} cannot take the result: ${read.reason}`,
+      reason: `${promotedFrom} cannot take the result: ${
+        read.readable ? `kind is ${read.kind}` : read.reason
+      }`,
     };
   }
   return {
     status: "found",
-    parent: {
-      path: read.relativePath,
-      kind: read.kind as LoopParent["kind"],
-    },
+    parent: { path: read.relativePath, kind: read.kind },
     read,
   };
 }
@@ -1205,12 +1190,7 @@ function newestLine(
 ): { result: LoopResult; date: string } | null {
   const region =
     kind === "question"
-      ? {
-          start: 0,
-          end:
-            outline.headings.find((h) => h.level === 2)?.range.start ??
-            content.length,
-        }
+      ? leadRange(outline, content.length)
       : section(outline, "Related questions").heading?.body;
   if (region === undefined) return null;
   const prefix = kind === "question" ? /^Answered by $/ : /^\s*[-*+] $/;
@@ -1246,7 +1226,7 @@ async function loopOf(
   derivation: Derivation
 ): Promise<Loop> {
   const now = {
-    closable: closeRefusal(derivation) === null,
+    refusal: closeRefusal(derivation),
     result: resultOf(derivation),
   };
   const found = await parentOf(index, vaultPath, path, promotedFrom);
@@ -1266,7 +1246,9 @@ async function loopOf(
  * user's to make.
  *
  * - **A Question** becomes *answered* — `status`, `answered`, and one line
- *   in its lead, in one write, as a Research Question's write-back makes it.
+ *   in its lead, by the same write a Research Question's write-back makes
+ *   (`writeToQuestion`), whatever its Status: the close is the user's act,
+ *   and a Question answered once is answered again.
  * - **A Research Question** gains the line under `## Related questions` and
  *   keeps its Status: a test of a sharpened claim has not answered the
  *   broader question.
@@ -1295,9 +1277,8 @@ export async function closeLoop(
       `${page.path} changed on disk since the page read it; nothing was written back.`
     );
   }
-  const refusal = closeRefusal(page.derivation);
-  if (refusal !== null) throw new VaultError("refused", refusal);
   const { loop } = page;
+  if (loop.refusal !== null) throw new VaultError("refused", loop.refusal);
   if (loop.status === "none") {
     throw new VaultError(
       "refused",
@@ -1337,32 +1318,15 @@ export async function closeLoop(
     return { path: parent.path };
   }
 
-  // The Question's own file, outside any page queue, as a Research
-  // Question's write-back writes it: a triage action racing it from the
-  // Inbox is what the protocol's hash check is for. Any Status — the close
-  // is the user's act, and a Question answered once is answered again.
-  const question = await readQuestionForWrite(
-    vaultPath,
-    parent.path,
-    ANY_STATUS
-  );
-  const result = await write(vaultPath, question.path, {
-    operations: [
-      { op: "setFrontmatter", keys: { status: "answered", answered: at } },
-      {
-        op: "appendToSection",
-        target: "lead",
-        line: `Answered by ${link}${tail}`,
-      },
-    ],
-    basedOn: question.hash,
+  const written = await writeToQuestion(index, vaultPath, parent.path, {
+    keys: { status: "answered", answered: at },
+    line: `Answered by ${link}${tail}`,
   });
-  if (!result.written) {
+  if (!written.written) {
     throw new VaultError(
       "refused",
-      `Couldn't write the result to ${question.path}: ${result.detail}`
+      `Couldn't write the result back: ${written.reason}`
     );
   }
-  await index.own(question.path, result.content);
-  return { path: question.path };
+  return { path: written.path };
 }
