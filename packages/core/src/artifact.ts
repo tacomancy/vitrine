@@ -1,10 +1,12 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { posix } from "node:path";
 import { Readable } from "node:stream";
 import { VaultError } from "./errors.js";
 import { writeOwn, type PageContext, type PageKind } from "./page-write.js";
+import { bodyText, section } from "./page-file.js";
 import { onOneLine } from "./position-history.js";
+import type { VaultIndex } from "./vault-index.js";
 import { copyArtifact, locate, type WriteResult } from "./vault-files.js";
 
 /**
@@ -29,6 +31,8 @@ export type StoredArtifact = {
   size: number | null;
   /** Drawn inline at the column's width (story 35), rather than as a named card. */
   image: boolean;
+  /** Drawn as its first rows (story 36), from `artifactPreview`. */
+  rows: boolean;
 };
 
 /**
@@ -36,6 +40,25 @@ export type StoredArtifact = {
  * as written. Linked Artifacts arrive as their own kind with #369.
  */
 export type ArtifactLine = StoredArtifact | { kind: "asWritten"; text: string };
+
+/**
+ * A file in the Experiment's folder that no line names (ADR 0035 decision
+ * 3; stories 41–43): a plot a script wrote there, a file dragged in from
+ * Finder, or one whose line was removed. Drawn as *in the folder, not on
+ * the page*, with *show it here*. `file` is its name in the folder — what
+ * `showArtifact` and `artifactPreview` take, and what its line will embed.
+ */
+export type InFolderArtifact = {
+  kind: "inFolder";
+  file: string;
+  path: string;
+  size: number | null;
+  image: boolean;
+  rows: boolean;
+};
+
+/** A text Artifact's head (story 36): its first lines, and whether the file goes on past them. */
+export type ArtifactPreview = { lines: string[]; more: boolean };
 
 /**
  * What the bytes route answers with for each extension the page draws as an
@@ -55,6 +78,15 @@ const IMAGE_TYPES: Record<string, string> = {
 
 const extension = (file: string) =>
   /\.([^./]+)$/.exec(file)?.[1]?.toLowerCase() ?? "";
+
+// What the page draws as its first rows: a data snippet or a sample output,
+// read as text (story 36). Anything else is an image or a named card.
+const ROW_EXTENSIONS = new Set(["csv", "tsv", "txt", "log", "json", "jsonl"]);
+
+// The prototype's CSV card says *first 6 rows*. The byte cap is what bounds
+// the read, since a minified JSON or a log with no line breaks is one row.
+const PREVIEW_ROWS = 6;
+const PREVIEW_BYTES = 16 * 1024;
 
 // `![[name]]`, `![[name|300]]` (a width), then ` — caption`. The embed is
 // Obsidian's grammar; the dash is the app's, as a source line's is.
@@ -77,37 +109,112 @@ function servable(path: string): boolean {
 }
 
 /**
- * The section's lines, in the user's order (story 38). A stored line's file
- * is looked for beside the page — where the app puts it, and where Obsidian
- * looks first — unless the embed names a vault path of its own.
+ * The vault path a line's file is looked for at: beside the page — where
+ * the app puts it, and where Obsidian looks first — unless the embed names a
+ * vault path of its own. Null when it is not a file the page could draw.
  */
+function artifactPath(pagePath: string, file: string): string | null {
+  const wanted = file.includes("/")
+    ? file
+    : `${posix.dirname(pagePath)}/${file}`;
+  return servable(wanted) ? wanted : null;
+}
+
+type ParsedLine =
+  | { kind: "stored"; file: string; caption: string }
+  | { kind: "asWritten"; text: string };
+
+function parsedLines(text: string): ParsedLine[] {
+  return text
+    .split("\n")
+    .map((line) => /^\s*[-*+]\s+(.*)$/.exec(line)?.[1]?.trim())
+    .filter((line): line is string => line !== undefined && line !== "")
+    .map((line) => {
+      const match = STORED.exec(line);
+      if (match === null) return { kind: "asWritten", text: line };
+      return {
+        kind: "stored",
+        file: match[1]!.trim(),
+        caption: (match[2] ?? "").trim(),
+      };
+    });
+}
+
+/**
+ * Every vault path the section's lines name, lowercased: the Mac's disk
+ * does not tell `Plot.png` from `plot.png`, so a line naming either names
+ * the one file, and the file is not also offered as off the page.
+ */
+function namedPaths(pagePath: string, text: string): Set<string> {
+  const named = new Set<string>();
+  for (const line of parsedLines(text)) {
+    if (line.kind !== "stored") continue;
+    const path = artifactPath(pagePath, line.file);
+    if (path !== null) named.add(path.toLowerCase());
+  }
+  return named;
+}
+
+/** The section's lines, in the user's order (story 38). */
 export async function artifactLines(
   vaultPath: string,
   pagePath: string,
   text: string
 ): Promise<ArtifactLine[]> {
-  const folder = posix.dirname(pagePath);
-  const lines = text
-    .split("\n")
-    .map((line) => /^\s*[-*+]\s+(.*)$/.exec(line)?.[1]?.trim())
-    .filter((line): line is string => line !== undefined && line !== "");
   return Promise.all(
-    lines.map(async (line): Promise<ArtifactLine> => {
-      const match = STORED.exec(line);
-      if (match === null) return { kind: "asWritten", text: line };
-      const file = match[1]!.trim();
-      const wanted = file.includes("/") ? file : `${folder}/${file}`;
-      const found = servable(wanted) ? await sized(vaultPath, wanted) : null;
+    parsedLines(text).map(async (line): Promise<ArtifactLine> => {
+      if (line.kind === "asWritten") return line;
+      const wanted = artifactPath(pagePath, line.file);
+      const found = wanted === null ? null : await sized(vaultPath, wanted);
       return {
-        kind: "stored",
-        file,
-        caption: (match[2] ?? "").trim(),
+        ...line,
         path: found === null ? null : wanted,
         size: found,
-        image: extension(file) in IMAGE_TYPES,
+        ...drawnAs(line.file),
       };
     })
   );
+}
+
+const drawnAs = (file: string) => ({
+  image: extension(file) in IMAGE_TYPES,
+  rows: ROW_EXTENSIONS.has(extension(file)),
+});
+
+/**
+ * The files in the Experiment's folder that no line names (ADR 0035
+ * decision 3), read from the index — the file is an Index row with no line
+ * on the page, which is the decision's own wording, and the watcher is what
+ * makes a script's new plot a row.
+ *
+ * Only the folder itself, not the folders below it: a run's `checkpoints/`
+ * holding a thousand steps is not a thousand things to offer, and a file a
+ * script wants on the page it writes straight into the folder (story 41).
+ * The page's own `.md`, and any other note, is never an Artifact.
+ */
+export function inFolderArtifacts(
+  index: VaultIndex,
+  pagePath: string,
+  text: string
+): InFolderArtifact[] {
+  const prefix = `${posix.dirname(pagePath)}/`;
+  const named = namedPaths(pagePath, text);
+  const rows = index.select<{ path: string; size: number | null }>(
+    "SELECT path, size FROM files WHERE lpath LIKE ? ESCAPE '\\' ORDER BY path",
+    `${prefix.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+  );
+  return rows
+    .filter(
+      ({ path }) =>
+        path.startsWith(prefix) &&
+        !path.slice(prefix.length).includes("/") &&
+        servable(path) &&
+        !named.has(path.toLowerCase())
+    )
+    .map(({ path, size }) => {
+      const file = path.slice(prefix.length);
+      return { kind: "inFolder", file, path, size, ...drawnAs(file) };
+    });
 }
 
 /** A vault file's size, or null when it is not a file the vault holds. */
@@ -142,10 +249,6 @@ export function storedLine(file: string, caption: string): string {
  * — rather than a line naming a file that never arrived, or a result lost
  * between the two. The answer carries the stored name either way, so the
  * page can say where the file went when the line did not follow.
- *
- * The page's Kind is taken from the index, not by reading the file: a file
- * of another Kind must not get a copy beside it, and reading the page here
- * would be a second read the line's own write makes anyway.
  */
 export async function addStoredArtifact(
   ctx: PageContext,
@@ -153,14 +256,7 @@ export async function addStoredArtifact(
   path: string,
   { source, caption }: { source: string; caption: string }
 ): Promise<WriteResult & { file: string }> {
-  const { relativePath } = await locate(ctx.vaultPath, path);
-  const [row] = ctx.index.select<{ kind: string | null }>(
-    "SELECT kind FROM files WHERE path = ?",
-    relativePath
-  );
-  if (row?.kind !== page.kind) {
-    throw new VaultError("refused", `${relativePath} is not ${page.noun}.`);
-  }
+  const relativePath = await experimentPath(ctx, page, path);
   const copied = await copyArtifact(
     ctx.vaultPath,
     source,
@@ -178,6 +274,124 @@ export async function addStoredArtifact(
     basedOn: read.hash,
   }));
   return { ...result, file: copied.file };
+}
+
+/**
+ * The page's vault path, once the index says it is the Kind asked for. The
+ * Kind is taken from the index, not by reading the file: a file of another
+ * Kind must not get a copy beside it, and reading the page here would be a
+ * second read the line's own write makes anyway.
+ */
+async function experimentPath(
+  ctx: PageContext,
+  page: PageKind,
+  path: string
+): Promise<string> {
+  const { relativePath } = await locate(ctx.vaultPath, path);
+  const [row] = ctx.index.select<{ kind: string | null }>(
+    "SELECT kind FROM files WHERE path = ?",
+    relativePath
+  );
+  if (row?.kind !== page.kind) {
+    throw new VaultError("refused", `${relativePath} is not ${page.noun}.`);
+  }
+  return relativePath;
+}
+
+/**
+ * *show it here* (ADR 0035 decision 3; story 42): the stored line for a
+ * file already in the run's folder, appended — and nothing else. The file
+ * is not copied, renamed or touched, so its bytes and date stay exactly as
+ * the script that wrote it left them.
+ *
+ * Only a file directly in the folder, which is all the page offers; and not
+ * one a line already names, since a second line would draw it twice. That
+ * check is made against the file as the write reads it, not as the page
+ * last drew it.
+ */
+export async function showStoredArtifact(
+  ctx: PageContext,
+  page: PageKind,
+  path: string,
+  { file, caption }: { file: string; caption: string }
+): Promise<WriteResult> {
+  const relativePath = await experimentPath(ctx, page, path);
+  const wanted = file.includes("/") ? null : artifactPath(relativePath, file);
+  if (wanted === null || (await sized(ctx.vaultPath, wanted)) === null) {
+    throw new VaultError(
+      "refused",
+      `${file} is not a file in the run's folder.`
+    );
+  }
+  return writeOwn(ctx, relativePath, page, (read) => {
+    const text = bodyText(
+      read.content,
+      section(read.outline, "Artifacts").heading
+    );
+    if (namedPaths(relativePath, text).has(wanted.toLowerCase())) {
+      throw new VaultError("refused", `${file} is already on the page.`);
+    }
+    return {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { section: "Artifacts" },
+          line: storedLine(file, caption),
+        },
+      ],
+      basedOn: read.hash,
+    };
+  });
+}
+
+/**
+ * A CSV, TSV or text Artifact's first rows (story 36), for the card to draw
+ * without the page ever holding the file whole: only the head is read, so a
+ * 2 GB log costs what a 2 KB one does. `file` is named as a line names it,
+ * and is refused — without saying why, as the bytes route is — when it is
+ * not a text file the page could draw.
+ *
+ * Rows are lines. A quoted CSV field with a line break in it splits across
+ * two, which a snippet read at a glance can bear better than a parser that
+ * has to guess at a file cut off mid-field.
+ */
+export async function artifactPreview(
+  vaultPath: string,
+  pagePath: string,
+  file: string
+): Promise<ArtifactPreview> {
+  const noRows = new VaultError("refused", `${file} has no rows to show.`);
+  const wanted = artifactPath(pagePath, file);
+  if (wanted === null || !ROW_EXTENSIONS.has(extension(file))) throw noRows;
+  let head: Buffer;
+  let size: number;
+  try {
+    const { absolute } = await locate(vaultPath, wanted, { anyFile: true });
+    const handle = await open(absolute, "r");
+    try {
+      const found = await handle.stat();
+      if (!found.isFile()) throw noRows;
+      size = found.size;
+      const buffer = Buffer.alloc(Math.min(size, PREVIEW_BYTES));
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+      head = buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    throw noRows;
+  }
+  const lines = head
+    .toString("utf8")
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/);
+  // A final newline is not a row; a head cut short ends in a partial one,
+  // which is still shown, since it is the most of that row there is.
+  if (head.length === size && lines.at(-1) === "") lines.pop();
+  return {
+    lines: lines.slice(0, PREVIEW_ROWS),
+    more: lines.length > PREVIEW_ROWS || head.length < size,
+  };
 }
 
 /**
