@@ -56,18 +56,18 @@ describe("stateFolder", () => {
 
 describe("buildVersion", () => {
   it("is the describe string for a clean tree", () => {
-    expect(buildVersion({ described: "beat-2b-12-g5f08a59", status: "" })).toBe(
-      "beat-2b-12-g5f08a59"
+    expect(buildVersion({ described: "beat-2-39-g5f08a59", status: "" })).toBe(
+      "beat-2-39-g5f08a59"
     );
   });
 
   it("appends -dirty when git status reports anything", () => {
     expect(
       buildVersion({
-        described: "beat-2b-12-g5f08a59",
+        described: "beat-2-39-g5f08a59",
         status: " M packages/shell/src/main/index.ts\n",
       })
-    ).toBe("beat-2b-12-g5f08a59-dirty");
+    ).toBe("beat-2-39-g5f08a59-dirty");
   });
 
   // `git describe --always` in a clone with no tags fetched: a bare sha, which

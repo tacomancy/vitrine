@@ -42,12 +42,12 @@ export function stateFolder(options: {
  * The build identity the packager passes as `buildVersion`, from
  * `git describe --tags --always` and `git status --porcelain` as printed:
  * the describe string, `-dirty` appended when the tree has uncommitted
- * changes. `beat-2b-12-g5f08a59` places the build against the last beat that
+ * changes. `beat-2-39-g5f08a59` places the build against the last beat that
  * shipped, which a bare sha cannot; `--always` means a clone with no tags
  * fetched still describes itself, as that sha, rather than failing the build.
  *
- * `-dirty` is computed here from `status` rather than taken from
- * `describe --dirty`, so one suffix has one source (#323).
+ * `-dirty` comes from `status`, never `describe --dirty`: describe ignores
+ * untracked files and status does not, and one suffix wants one source.
  */
 export function buildVersion(git: {
   described: string;
