@@ -96,7 +96,7 @@ export function Experiment({ path }: { path: string }) {
             >
               <Written
                 text={readable.sections.artifacts.text}
-                empty="Nothing yet. Plots and snippets added here are stored in the vault beside the run; anything over 25 MB is linked, with a warning."
+                empty="Nothing yet. Plots, screenshots and data snippets are the record of the run, and go here — kept beside it in the vault, or, for heavyweight files, linked where they are."
               />
             </Section>
             <Section

@@ -1,8 +1,9 @@
 import { mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
-import { parseWikilink, type Heading } from "markdown";
-import { VaultError } from "./errors.js";
+import type { Heading } from "markdown";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
+import { landing } from "./link-text.js";
 import { bodyText, readPageFile, revisionsOf, section } from "./page-file.js";
 import {
   saveEditedSection,
@@ -177,21 +178,7 @@ function cameFromOf(
   from: string | undefined
 ): CameFrom | null {
   if (from === undefined || from.trim() === "") return null;
-  const inner = /^\[\[(.*)\]\]$/.exec(from.trim())?.[1];
-  const none = { text: from, path: null, kind: null, display: null };
-  if (inner === undefined) return none;
-  const { resolvedPath } = index.resolve(path, parseWikilink(inner));
-  if (resolvedPath === null) return none;
-  const landed = index.select<{ kind: string | null; display: string }>(
-    "SELECT kind, display FROM files WHERE path = ?",
-    resolvedPath
-  )[0];
-  return {
-    text: from,
-    path: resolvedPath,
-    kind: landed?.kind ?? null,
-    display: landed?.display ?? null,
-  };
+  return { text: from, ...landing(index, path, from.trim()) };
 }
 
 /** The page as the file holds it: the body read from disk, links resolved by the index. */
@@ -342,7 +329,7 @@ export function createExperiment(
       }
       throw new VaultError(
         "writeFailed",
-        `Couldn't make the folder for ${stem}.`
+        `Couldn't make the folder for ${stem}: ${errorMessageWithoutPath(cause)}`
       );
     }
     const content = composeExperiment({ id: newId(), name, created });
