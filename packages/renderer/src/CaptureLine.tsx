@@ -2,12 +2,17 @@ import type { Provenance, Question } from "core";
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
   type KeyboardEvent,
+  type Ref,
 } from "react";
 import { provenanceChip, useCapture } from "./capture";
 import styles from "./CaptureLine.module.css";
+
+/** What a surface may ask of the Capture line: open it on a Provenance of its choosing. */
+export type CaptureLineHandle = { open: (provenance: Provenance) => void };
 
 /**
  * The two-keystroke capture: ⌘' opens one line at the bottom of the window
@@ -17,16 +22,25 @@ import styles from "./CaptureLine.module.css";
  * Question once written is the window's business, not the line's: it
  * reports the landing and closes. `provenance` is what the window says was
  * open when the chord was pressed: the chip shows it, and the Question
- * carries it.
+ * carries it. A surface can open the line on something it has chosen
+ * instead — the Experiment Inbox's `Q` on its chosen run (#373) — through
+ * `ref`'s `open`, so there is still one Capture line and one landing.
  */
 export function CaptureLine({
   provenance,
   onCaptured,
+  ref,
 }: {
   provenance: Provenance;
   onCaptured: (question: Question) => void;
+  ref?: Ref<CaptureLineHandle>;
 }) {
-  const [openedAt, setOpenedAt] = useState<Date | null>(null);
+  // The Provenance is fixed when the line opens, as its time is: it is
+  // what was open at the chord, whatever the window shows after.
+  const [opened, setOpened] = useState<{
+    at: Date;
+    provenance: Provenance;
+  } | null>(null);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // Where focus was when the line opened, so closing puts it back.
@@ -35,7 +49,7 @@ export function CaptureLine({
   const capture = useCapture();
 
   const close = () => {
-    setOpenedAt(null);
+    setOpened(null);
     setText("");
     // The component stays mounted, so a failed attempt's message would
     // otherwise greet the next open.
@@ -44,17 +58,22 @@ export function CaptureLine({
     restoreTo.current = null;
   };
 
-  const open = useCallback(() => {
-    if (openedAt === null) {
-      restoreTo.current =
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null;
-    }
-    // Re-resolved on every open: the chip says when this capture is, not
-    // when the first one was.
-    setOpenedAt(new Date());
-  }, [openedAt]);
+  const open = useCallback(
+    (from: Provenance) => {
+      if (opened === null) {
+        restoreTo.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+      }
+      // Re-resolved on every open: the chip says when this capture is, not
+      // when the first one was.
+      setOpened({ at: new Date(), provenance: from });
+    },
+    [opened]
+  );
+
+  useImperativeHandle(ref, () => ({ open }), [open]);
 
   // A renderer key handler, not a native shortcut: the chord is the app's,
   // and works the same in the iPad client with no menu bar.
@@ -62,24 +81,24 @@ export function CaptureLine({
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.metaKey && event.key === "'") {
         event.preventDefault();
-        open();
+        open(provenance);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, provenance]);
 
   useEffect(() => {
-    if (openedAt !== null) inputRef.current?.focus();
-  }, [openedAt]);
+    if (opened !== null) inputRef.current?.focus();
+  }, [opened]);
 
-  if (openedAt === null) return null;
+  if (opened === null) return null;
 
   // `useCapture` holds the write's own two rules. The input is never
   // disabled for the wait, because disabling it drops focus and a failed
   // write should leave the user exactly where they were, text and all.
   const submit = () =>
-    capture.write(text, provenance, (question) => {
+    capture.write(text, opened.provenance, (question) => {
       close();
       onCaptured(question);
     });
@@ -107,7 +126,7 @@ export function CaptureLine({
       <div className={styles.row}>
         <span className={styles.label}>Capture</span>
         <span className={styles.chip}>
-          {provenanceChip(provenance, openedAt)}
+          {provenanceChip(opened.provenance, opened.at)}
         </span>
         <input
           ref={inputRef}

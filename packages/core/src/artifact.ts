@@ -4,7 +4,7 @@ import { basename, posix } from "node:path";
 import { Readable } from "node:stream";
 import { VaultError } from "./errors.js";
 import { writeOwn, type PageContext, type PageKind } from "./page-write.js";
-import { bodyText, section } from "./page-file.js";
+import { bodyText, readPageFile, section } from "./page-file.js";
 import { onOneLine } from "./position-history.js";
 import type { VaultIndex } from "./vault-index.js";
 import { artifactName } from "./file-name.js";
@@ -447,6 +447,96 @@ async function fingerprintOf(
     return { size, fingerprint: `${size}:${Math.floor(found.mtimeMs)}:${sha}` };
   } finally {
     await handle.close();
+  }
+}
+
+/**
+ * What the check says of one linked Artifact (TEST-13; ADR 0035 decisions
+ * 6–7), the moment a run is trusted as Evidence:
+ * - `unchanged` — linked on this machine, and its Fingerprint read now is
+ *   the one the line recorded: same size, date and ends, which the page
+ *   says rather than *identical* (the ADR's accepted cost);
+ * - `elsewhere` — linked on `machine`, another computer, and not this
+ *   one's to judge: its path may mean nothing here, or something else;
+ * - `changed` — linked here, and the file is gone, unreadable, or its
+ *   Fingerprint differs: *changed or gone*;
+ * - `notChecked` — a URL. Checking one would take a network call and often
+ *   a login, and a claim the app has not checked is not one it makes.
+ *
+ * None of these refuses the attach (story 53).
+ */
+export type ArtifactCheck = {
+  file: string;
+  target: string;
+  /** The computer the line says it was linked on. */
+  machine: string;
+  outcome: "unchanged" | "elsewhere" | "changed" | "notChecked";
+};
+
+/**
+ * Check each linked Artifact on the run's page, in the page's order
+ * (stories 52–54). The file is only read — its ends, for the Fingerprint —
+ * and a URL is not touched at all. A stored Artifact is the vault's own and
+ * is not checked here.
+ *
+ * The recorded machine is compared with this one as the line would have
+ * written it (`asField`), so a computer name holding the line's own
+ * separators still recognises its own links.
+ */
+export async function checkArtifacts(
+  ctx: PageContext,
+  page: PageKind,
+  path: string,
+  machine: string
+): Promise<{ checks: ArtifactCheck[] }> {
+  const relativePath = await experimentPath(ctx, page, path);
+  const read = await readPageFile(
+    ctx.vaultPath,
+    relativePath,
+    [page.kind],
+    page.noun
+  );
+  if (!read.readable) throw new VaultError("refused", read.reason);
+  const text = bodyText(
+    read.content,
+    section(read.outline, "Artifacts").heading
+  );
+  const here = asField(machine);
+  const checks = await Promise.all(
+    parsedLines(text)
+      .filter((line): line is LinkedArtifact => line.kind === "linked")
+      .map(async (line): Promise<ArtifactCheck> => {
+        const { file, target } = line;
+        const checked = { file, target, machine: line.machine };
+        // By the target, not only the line's shape: a URL hand-written with
+        // a size and Fingerprint is still not a file to open.
+        if (line.url || URL_TARGET.test(target)) {
+          return { ...checked, outcome: "notChecked" };
+        }
+        if (line.machine !== here) return { ...checked, outcome: "elsewhere" };
+        return {
+          ...checked,
+          outcome: (await fingerprintMatches(target, line.fingerprint))
+            ? "unchanged"
+            : "changed",
+        };
+      })
+  );
+  return { checks };
+}
+
+/** Whether the file at `target` still has the Fingerprint recorded; false when it cannot be read at all. */
+async function fingerprintMatches(
+  target: string,
+  recorded: string | null
+): Promise<boolean> {
+  try {
+    return (await fingerprintOf(target)).fingerprint === recorded;
+  } catch {
+    // Gone, unreadable or a folder: each is *changed or gone* to the
+    // reader of the Evidence, and the check is a report, never a refusal
+    // (ADR 0035 decision 6) — so it answers rather than throws.
+    return false;
   }
 }
 

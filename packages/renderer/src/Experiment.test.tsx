@@ -47,6 +47,7 @@ const planned: Readable = {
   },
   cameFrom: null,
   evidence: [],
+  questions: [],
   problems: [],
 };
 

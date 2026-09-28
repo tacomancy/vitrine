@@ -33,12 +33,15 @@ const META_FOLDER = ".vitrine";
  * Where a Question came from (CONTEXT.md *Provenance*): Unattached;
  * captured on a Research Question's or a Hypothesis's page — `page` is that
  * page's vault-relative path, and the Question is a sub-question of it; or
- * the follow-up a Hypothesis's result raised (#339, CAP-5).
+ * the follow-up a Hypothesis's result raised (#339, CAP-5); or wondered
+ * while observing a run — `experiment` is the Experiment's path (#373,
+ * CAP-6).
  */
 export type Provenance =
   | { context: "other" }
   | { context: "pursuing"; page: string }
-  | { context: "resolving"; hypothesis: string };
+  | { context: "resolving"; hypothesis: string }
+  | { context: "observing"; experiment: string };
 
 /** The page a capture was made on, and the Kinds its context allows there. */
 function pageOf(
@@ -58,6 +61,12 @@ function pageOf(
         path: provenance.hypothesis,
         kinds: ["hypothesis"],
         noun: "a Hypothesis",
+      };
+    case "observing":
+      return {
+        path: provenance.experiment,
+        kinds: ["experiment"],
+        noun: "an Experiment",
       };
   }
 }
@@ -321,7 +330,8 @@ export function createQuestionService({
     // Checked before anything is written, so a page of the wrong Kind costs
     // nothing to take back. Only a Research Question's page is written to
     // as well: a Hypothesis's neighbours are a query over `from:` (ADR 0031
-    // decision 11), so a capture there is the Question alone.
+    // decision 11), and so are an Experiment's — the run's file stays the
+    // user's (spec #362 story 71) — so a capture there is the Question alone.
     let linkOnPage = false;
     if (onPage !== null) {
       const page = await readOutline(current.path, onPage.path);

@@ -2,7 +2,8 @@ import { basename } from "node:path";
 import type { Heading, Outline } from "markdown";
 import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
-import { resolvesTo, wikilinkTo } from "./link-text.js";
+import { wikilinkTo } from "./link-text.js";
+import { questionsNaming, type RelatedQuestion } from "./questions-naming.js";
 import {
   changedUnderneath,
   historyEntries,
@@ -370,15 +371,6 @@ export type Related = {
   questions: RelatedQuestion[];
 };
 
-export type RelatedQuestion = {
-  /** Vault-relative, as the index keys it. */
-  path: string;
-  question: string;
-  status: string;
-  context: string;
-  captured: string;
-};
-
 function relatedOf(
   index: VaultIndex,
   path: string,
@@ -412,38 +404,7 @@ function relatedOf(
     }
   }
 
-  // Only the Questions whose `from:` lands here are read whole: the page is
-  // read on every capture, and the vault's Questions are the Inbox's
-  // hundreds. A Question's `fields` rows are its reader's (`readQuestion`),
-  // so each value has passed its vocabulary; a Partial Question has none
-  // and is the Inbox's to report, not the rail's.
-  const naming = index
-    .select<{ path: string; value: string }>(
-      `SELECT path, value FROM fields WHERE key = 'from'
-       AND path IN (SELECT path FROM files WHERE kind = 'question')`
-    )
-    .filter(
-      ({ path: at, value }) =>
-        resolvesTo(index, at, (JSON.parse(value) as string).trim()) === path
-    );
-  const questions: RelatedQuestion[] = naming.map(({ path: at }) => {
-    const fields: Record<string, unknown> = {};
-    for (const row of index.select<{ key: string; value: string }>(
-      "SELECT key, value FROM fields WHERE path = ?",
-      at
-    )) {
-      fields[row.key] = JSON.parse(row.value) as unknown;
-    }
-    return {
-      path: at,
-      question: String(fields["question"]),
-      status: String(fields["status"]),
-      context: String(fields["context"]),
-      captured: String(fields["captured"]),
-    };
-  });
-  questions.sort((a, b) => Date.parse(b.captured) - Date.parse(a.captured));
-  return { promotedFrom: parent, questions };
+  return { promotedFrom: parent, questions: questionsNaming(index, path) };
 }
 
 // `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one

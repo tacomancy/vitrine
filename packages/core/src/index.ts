@@ -39,8 +39,8 @@ export type {
   Loop,
   LoopParent,
   Related,
-  RelatedQuestion,
 } from "./hypothesis.js";
+export type { RelatedQuestion } from "./questions-naming.js";
 export type {
   Clause,
   Derivation,
@@ -82,6 +82,7 @@ export type {
 } from "./research-question.js";
 export type {
   ArtifactAs,
+  ArtifactCheck,
   ArtifactLine,
   ArtifactPreview,
   InFolderArtifact,

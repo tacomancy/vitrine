@@ -44,6 +44,7 @@ const pageWith = (items: ArtifactLine[]): Readable => ({
   },
   cameFrom: null,
   evidence: [],
+  questions: [],
   problems: [],
 });
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   addArtifact,
   artifactPreview,
+  checkArtifacts,
   inspectArtifact,
   showStoredArtifact,
 } from "./artifact.js";
@@ -106,7 +107,8 @@ const listInput = z
   .default({ order: "newest" });
 
 // Unattached, pursuing a Research Question or a Hypothesis from its page
-// (#221, #339), or resolving one — the follow-up its result raised. `strict`
+// (#221, #339), resolving one — the follow-up its result raised — or
+// observing an Experiment, the run the wondering came from (#373). `strict`
 // is what makes a stray key — or a context no surface has yet — an input
 // error, so later contexts extend this union rather than loosen it.
 const captureInput = z.object({
@@ -125,6 +127,13 @@ const captureInput = z.object({
         context: z.literal("resolving"),
         /** The Hypothesis's vault-relative path. */
         hypothesis: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        context: z.literal("observing"),
+        /** The Experiment's vault-relative path. */
+        experiment: z.string().min(1),
       })
       .strict(),
   ]),
@@ -690,6 +699,22 @@ export const router = t.router({
             EXPERIMENT_PAGE,
             input.path,
             input.file
+          )
+        )
+      ),
+    // TEST-13 (#370; ADR 0035 decisions 6–7): each linked Artifact read
+    // back as here and unchanged, on another machine, changed or gone, or a
+    // URL not checked here — shown beside the attach, and never a reason
+    // to refuse it. Asked when the note opens, before the line is written.
+    checkArtifacts: t.procedure
+      .input(pathInput)
+      .query(async ({ ctx, input }) =>
+        refusing(
+          checkArtifacts(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
+            ctx.machine
           )
         )
       ),
