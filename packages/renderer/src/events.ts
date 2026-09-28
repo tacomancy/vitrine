@@ -67,6 +67,10 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           void queryClient.invalidateQueries(
             trpc.experiments.inbox.pathFilter()
           );
+          // A CSV a script rewrote in place is the same line with new rows.
+          void queryClient.invalidateQueries(
+            trpc.experiments.artifactPreview.pathFilter()
+          );
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());

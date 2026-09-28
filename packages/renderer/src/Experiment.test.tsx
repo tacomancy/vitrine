@@ -41,7 +41,7 @@ const planned: Readable = {
     purpose: { present: true, text: "" },
     design: { present: true, text: "" },
     whereItRan: { present: true, text: "", lines: [] },
-    artifacts: { present: true, text: "", items: [] },
+    artifacts: { present: true, text: "", items: [], inFolder: [] },
     observations: { present: true, text: "" },
     positionHistory: { present: true, text: "", entries: [] },
   },

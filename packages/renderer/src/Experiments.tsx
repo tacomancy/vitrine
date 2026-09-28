@@ -478,7 +478,7 @@ function RunDetail({
             <p className={styles.quiet}>Nothing on the page yet.</p>
           ) : (
             <>
-              <ArtifactCard item={row.firstArtifact} />
+              <ArtifactCard pagePath={row.path} item={row.firstArtifact} />
               {row.artifacts > 1 && (
                 <p className={styles.quiet}>
                   the first of {itemsOf(row.artifacts)}

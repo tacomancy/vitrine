@@ -1,7 +1,12 @@
 import { mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Heading } from "markdown";
-import { artifactLines, type ArtifactLine } from "./artifact.js";
+import {
+  artifactLines,
+  inFolderArtifacts,
+  type ArtifactLine,
+  type InFolderArtifact,
+} from "./artifact.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
 import {
@@ -123,7 +128,13 @@ export type ExperimentSections = {
   design: { present: boolean; text: string };
   whereItRan: { present: boolean; text: string; lines: WhereItRanLine[] };
   /** The lines in the user's order, stored and (from #369) linked alike (story 38). */
-  artifacts: { present: boolean; text: string; items: ArtifactLine[] };
+  artifacts: {
+    present: boolean;
+    text: string;
+    items: ArtifactLine[];
+    /** Files in the run's folder that no line names, drawn after the lines (#368). */
+    inFolder: InFolderArtifact[];
+  };
   observations: { present: boolean; text: string };
   positionHistory: { present: boolean; text: string; entries: Revision[] };
 };
@@ -293,6 +304,7 @@ export async function readExperimentPage(
       artifacts: {
         ...artifacts,
         items: await artifactLines(vaultPath, relativePath, artifacts.text),
+        inFolder: inFolderArtifacts(index, relativePath, artifacts.text),
       },
       observations: text("Observations"),
       positionHistory: {

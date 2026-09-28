@@ -58,6 +58,7 @@ const SWEEP = listed("bayes-sceptic", {
     path: "experiments/bayes-sceptic/pooled-summary.csv",
     size: 2048,
     image: false,
+    rows: true,
   },
   whereItRan: [
     { label: "repo", value: "eeg-pipeline" },
@@ -109,7 +110,7 @@ const planned: Extract<ExperimentPage, { readable: true }> = {
     purpose: { present: true, text: SWEEP.purpose },
     design: { present: true, text: "" },
     whereItRan: { present: true, text: "", lines: [] },
-    artifacts: { present: true, text: "", items: [] },
+    artifacts: { present: true, text: "", items: [], inFolder: [] },
     observations: { present: true, text: "" },
     positionHistory: { present: true, text: "", entries: [] },
   },
@@ -129,6 +130,10 @@ function open(
     "vault.status": well,
     "looseEnds.rows": { groups: [], problems: [] },
     "experiments.inbox": answer,
+    "experiments.artifactPreview": {
+      lines: ["set,k,d", "all,41,0.44"],
+      more: false,
+    },
     ...more,
   });
 }
@@ -287,6 +292,8 @@ describe("the Experiment Inbox", () => {
     const detail = screen.getByRole("complementary", { name: "This run" });
     expect(detail.textContent).toContain("pooled-summary.csv");
     expect(detail.textContent).toContain("the pooled rows");
+    // Its first rows, as the page draws a CSV (#368).
+    expect(await within(detail).findByText(/all,41,0.44/)).toBeDefined();
     expect(detail.textContent).toContain("repo");
     expect(detail.textContent).toContain("eeg-pipeline");
     expect(detail.textContent).toContain("acc0f1");
