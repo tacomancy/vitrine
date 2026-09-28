@@ -15,7 +15,8 @@ export type Route =
   | { surface: "hypothesis"; path: string }
   | { surface: "experiment"; path: string }
   | { surface: "experiments" }
-  | { surface: "loose-ends" };
+  | { surface: "loose-ends" }
+  | { surface: "settings" };
 
 /**
  * An Address the window arrived on and could not reach, and what came back
@@ -31,6 +32,7 @@ export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
+export const SETTINGS: Route = { surface: "settings" };
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -64,6 +66,8 @@ export function hashOf(route: Route): string {
       return "#/loose-ends";
     case "experiments":
       return "#/experiments";
+    case "settings":
+      return "#/settings";
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
@@ -104,6 +108,7 @@ function pathUnder(hash: string, prefix: string): string | null {
 function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
   if (hash === "#/experiments") return EXPERIMENTS;
+  if (hash === "#/settings") return SETTINGS;
   const question = pathUnder(hash, QUESTION);
   if (question !== null) return { surface: "inbox", question };
   const page = pathUnder(hash, RESEARCH_QUESTION);

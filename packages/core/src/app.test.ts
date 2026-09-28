@@ -7,7 +7,7 @@ import { createApp } from "./app.js";
 const token = "test-token";
 const options = {
   token,
-  host: { pickFolder: () => Promise.resolve(null) },
+  host: { pickFolder: () => Promise.resolve(null), reveal: () => {} },
   appSupportDir: await mkdtemp(join(tmpdir(), "vitrine-support-")),
 };
 

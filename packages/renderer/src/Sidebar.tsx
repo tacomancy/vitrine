@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import type { Vault } from "core";
 import { voiceOf } from "./FirstSlot";
-import { hashOf, type Route } from "./router";
+import { hashOf, SETTINGS, type Route } from "./router";
 import styles from "./Sidebar.module.css";
 import { DASHBOARDS, SURFACES, type Entry } from "./surfaces";
 import { useTRPC } from "./trpc";
@@ -11,7 +12,7 @@ import { useVaultStatusLines } from "./VaultStatusLines";
 // destination is a link; the rest are drawn inert so the product's shape is
 // visible — plain list items, not controls.
 
-export function Sidebar({ route }: { route: Route }) {
+export function Sidebar({ route, vault }: { route: Route; vault: Vault }) {
   const trpc = useTRPC();
   const { read } = useVaultStatusLines();
   const kinds = useQuery(trpc.vault.kinds.queryOptions());
@@ -78,8 +79,27 @@ export function Sidebar({ route }: { route: Route }) {
       </li>
     );
   };
+  const inSettings = route.surface === "settings";
   return (
     <nav className={styles.sidebar} aria-label="Surfaces">
+      {/* The vault the window is on, as two facts, and the gear on it:
+          Settings describes this vault, so it opens from the vault's name
+          (prototype 13). Not an entry on the map — Settings is not one of
+          the Surfaces (ADR 0025 decision 1). */}
+      <div className={styles.vault}>
+        <div className={styles.vaultFacts}>
+          <span className={styles.vaultName}>{vault.name}</span>
+          <span className={styles.vaultPath}>{vault.path}</span>
+        </div>
+        <a
+          href={hashOf(SETTINGS)}
+          className={inSettings ? styles.gearCurrent : styles.gear}
+          aria-label="Settings"
+          aria-current={inSettings ? "page" : undefined}
+        >
+          <span aria-hidden="true">⚙</span>
+        </a>
+      </div>
       <div className={styles.label}>Surfaces</div>
       <ul className={styles.list}>{SURFACES.map(item)}</ul>
       <div className={styles.label}>Dashboards</div>

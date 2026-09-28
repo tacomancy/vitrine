@@ -12,7 +12,7 @@ afterEach(cleanup);
 
 const well: VaultStatus = {
   indexing: null,
-  watching: { ok: true },
+  watching: { ok: true, since: "2026-09-19T08:00:00Z" },
   current: { ok: true },
 };
 

@@ -1,4 +1,4 @@
-import { EXPERIMENTS, INBOX, LOOSE_ENDS, type Route } from "./router";
+import { EXPERIMENTS, INBOX, LOOSE_ENDS, SETTINGS, type Route } from "./router";
 
 /**
  * The product's own map: the eight Surfaces the brief names, in
@@ -60,13 +60,13 @@ export const DASHBOARDS: readonly Entry[] = [
 ];
 
 /**
- * A Surface or a Dashboard that has somewhere to go. `CONTEXT.md` keeps the
- * two words apart and this deliberately coins no third one for the pair:
- * what these rows have in common is the Address, which is why the Global
- * command can offer them at all.
+ * A screen that has somewhere to go: a Surface, a Dashboard, or Settings.
+ * `CONTEXT.md` keeps the three words apart and this deliberately coins no
+ * fourth one for them: what these rows have in common is the Address, which
+ * is why the Global command can offer them at all.
  */
 export type Addressed = {
-  kind: "surface" | "dashboard";
+  kind: "surface" | "dashboard" | "settings";
   name: string;
   route: Route;
 };
@@ -75,11 +75,16 @@ export type Addressed = {
  * The ones with an Address and no others, which is the whole of the reach
  * rule as it applies to screens (ADR 0027 decision 4) — the same rule
  * `routeOf` is for a file. Surfaces first, so a tie between the two breaks
- * the way the ordering says.
+ * the way the ordering says. Settings last: it is not on the map, since the
+ * Sidebar draws it as the vault's gear rather than an entry (ADR 0025
+ * decision 1), but it has an Address, so ⌘K reaches it.
  */
 export const ADDRESSED: readonly Addressed[] = [
-  ...SURFACES.map((entry) => ({ kind: "surface" as const, ...entry })),
-  ...DASHBOARDS.map((entry) => ({ kind: "dashboard" as const, ...entry })),
-].flatMap(({ kind, name, to }) =>
-  to === undefined ? [] : [{ kind, name, route: to }]
-);
+  ...[
+    ...SURFACES.map((entry) => ({ kind: "surface" as const, ...entry })),
+    ...DASHBOARDS.map((entry) => ({ kind: "dashboard" as const, ...entry })),
+  ].flatMap(({ kind, name, to }) =>
+    to === undefined ? [] : [{ kind, name, route: to }]
+  ),
+  { kind: "settings", name: "Settings", route: SETTINGS },
+];

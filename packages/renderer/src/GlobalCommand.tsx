@@ -83,7 +83,7 @@ type Row = {
   serif: boolean;
   /** How well it answers what was typed, the rung both halves score on. */
   strength: number;
-  /** Surfaces, then Dashboards, then the objects: the tie-break after strength. */
+  /** Surfaces, Dashboards, Settings, then the objects: the tie-break after strength. */
   kindRank: number;
 };
 
@@ -96,6 +96,7 @@ type Row = {
 const KIND_ORDER = [
   "surface",
   "dashboard",
+  "settings",
   "research-question",
   "hypothesis",
   "experiment",
@@ -122,6 +123,8 @@ const SCREEN_KIND: Record<Addressed["kind"], { glyph: string; label: string }> =
   {
     surface: { glyph: "▪", label: "surface" },
     dashboard: { glyph: "▦", label: "dashboard" },
+    // The rail's gear, so the row and the way in it names look alike.
+    settings: { glyph: "⚙", label: "settings" },
   };
 
 /**
@@ -330,11 +333,11 @@ function Command({
   }
 
   // What the list is, said beside the verb. A read that failed must not be
-  // counted: the Surfaces and Dashboards are still reachable and still
-  // listed, but calling them the whole answer would say the vault holds two
-  // things (§ Invariants, no silent failures).
+  // counted: the screens are still reachable and still listed, but calling
+  // them the whole answer would say the vault holds three things
+  // (§ Invariants, no silent failures).
   const count = listing.isError
-    ? "the Surfaces and Dashboards only"
+    ? "the Surfaces, Dashboards and Settings only"
     : countLine(
         wanted,
         rows.length,
