@@ -1,6 +1,7 @@
-import { basename } from "node:path";
+import { unlink } from "node:fs/promises";
+import { basename, join } from "node:path";
 import type { Heading, Outline } from "markdown";
-import { VaultError } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
 import {
   changedUnderneath,
@@ -14,7 +15,13 @@ import {
   type SavedAnswer,
 } from "./page-write.js";
 import { asString, readQuestionForWrite } from "./question-kind.js";
-import { copiedKeys, markPromoted, quoted } from "./research-question.js";
+import {
+  copiedKeys,
+  markPromoted,
+  PAGE as RESEARCH_QUESTION,
+  quoted,
+  readResearchQuestion,
+} from "./research-question.js";
 import {
   bodyText,
   linkLine,
@@ -847,13 +854,7 @@ export async function promoteToHypothesis(
   /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
   { promoted, newId }: { promoted: string; newId: () => string }
 ): Promise<{ path: string }> {
-  const claim = typed.trim();
-  if (claim === "") {
-    throw new VaultError(
-      "refused",
-      "A Hypothesis needs a claim: type the statement to test."
-    );
-  }
+  const claim = claimOf(typed);
   const {
     path: questionPath,
     hash,
@@ -861,29 +862,170 @@ export async function promoteToHypothesis(
     outline,
   } = await readQuestionForWrite(vaultPath, path, ["open"]);
 
-  const id = newId();
+  const created = await createHypothesis(vaultPath, fm, outline, {
+    promotedFrom: questionPath,
+    promoted,
+    claim,
+    id: newId(),
+  });
+  const marked = await markPromoted(
+    vaultPath,
+    questionPath,
+    hash,
+    created.path
+  );
+  await index.own(created.path, created.content);
+  await index.own(questionPath, marked);
+  return { path: created.path };
+}
+
+/**
+ * Sharpen an open Research Question into a Hypothesis from its page (#332;
+ * brief § Hypothesis vs Research Question: the expected route). The same
+ * page a Question's promotion writes, `promoted_from` naming the Research
+ * Question, then one line under its `## Related questions` —
+ * `- [[hypothesis]] — sharpened into a hypothesis, <date>` — and nothing
+ * else: the Research Question stays open, because reading goes on beside
+ * the test (spec #327 story 8). When that line cannot be written the
+ * Hypothesis is taken back, as a Question's promotion takes it back: a
+ * Hypothesis nothing points at is a stray the user never asked for.
+ *
+ * The line goes through the page's own write queue, so an Obsidian edit
+ * still owed the page's history is spliced in the same write. The caller
+ * serialises this with every other write that picks a name — the Question
+ * service's queue — since the Hypothesis's name is picked in `hypotheses/`
+ * as a Question's promotion picks it.
+ */
+export async function sharpenIntoHypothesis(
+  ctx: PageContext,
+  path: string,
+  typed: string,
+  /** The timestamp for `promoted:`, formatted by the caller's clock, and the id source. */
+  { promoted, newId }: { promoted: string; newId: () => string }
+): Promise<{ path: string }> {
+  const claim = claimOf(typed);
+  const { vaultPath, index } = ctx;
+  const read = await readPageFile(
+    vaultPath,
+    path,
+    [RESEARCH_QUESTION.kind],
+    RESEARCH_QUESTION.noun
+  );
+  if (!read.readable) {
+    throw new VaultError(
+      "refused",
+      `Couldn't read ${read.path}: ${read.reason}`
+    );
+  }
+  const fm = (read.outline.frontmatter?.value ?? {}) as Record<string, unknown>;
+  // The page's own status reader, so a status it would refuse is refused
+  // here in its words. A resolved pursuit is reopened first: sharpening
+  // one that is closed would leave a test hanging off a finished question.
+  let status: string;
+  try {
+    status = readResearchQuestion(fm).status;
+  } catch (cause) {
+    throw new VaultError(
+      "refused",
+      `Couldn't read ${read.relativePath}: ${errorMessage(cause)}`
+    );
+  }
+  if (status !== "open") {
+    throw new VaultError(
+      "refused",
+      `${read.relativePath} is ${status}; only an open Research Question sharpens into a Hypothesis`
+    );
+  }
+
+  const created = await createHypothesis(vaultPath, fm, read.outline, {
+    promotedFrom: read.relativePath,
+    promoted,
+    claim,
+    id: newId(),
+  });
+  const takeBack = () =>
+    unlink(join(vaultPath, created.path)).catch(() => undefined);
+  const line = `- [[${basename(created.path, ".md")}]] \u2014 sharpened into a hypothesis, ${promoted.slice(0, 10)}`;
+  let result: WriteResult;
+  try {
+    result = await writeOwn(
+      ctx,
+      read.relativePath,
+      RESEARCH_QUESTION,
+      (now) => ({
+        operations: [
+          {
+            op: "appendToSection",
+            target: { section: "Related questions" },
+            line,
+          },
+        ],
+        basedOn: now.hash,
+      })
+    );
+  } catch (cause) {
+    await takeBack();
+    throw cause;
+  }
+  if (!result.written) {
+    await takeBack();
+    throw new VaultError(
+      "refused",
+      `Couldn't add the line to ${read.relativePath}: ${result.detail}`
+    );
+  }
+  await index.own(created.path, created.content);
+  return { path: created.path };
+}
+
+/** The claim as typed, trimmed; an empty one refuses, whichever route asked. */
+function claimOf(typed: string): string {
+  const claim = typed.trim();
+  if (claim === "") {
+    throw new VaultError(
+      "refused",
+      "A Hypothesis needs a claim: type the statement to test."
+    );
+  }
+  return claim;
+}
+
+/**
+ * The Hypothesis file, created whole from the object it was promoted from —
+ * a Question or a Research Question, whose Provenance and tags it copies
+ * (PROM-5) — or the refusal that says why not. Not told to the index: the
+ * caller does that once the second write has landed, so a page taken back
+ * is never read.
+ */
+async function createHypothesis(
+  vaultPath: string,
+  from: Record<string, unknown>,
+  outline: Pick<Outline, "tags">,
+  {
+    promotedFrom,
+    promoted,
+    claim,
+    id,
+  }: { promotedFrom: string; promoted: string; claim: string; id: string }
+): Promise<{ path: string; content: string }> {
   const tags = outline.tags
     .filter((t) => t.valid && t.source === "frontmatter")
     .map((t) => t.text);
-  const content = composeHypothesis(fm, tags, {
+  const content = composeHypothesis(from, tags, {
     id,
-    promotedFrom: `[[${basename(questionPath, ".md")}]]`,
+    promotedFrom: `[[${basename(promotedFrom, ".md")}]]`,
     promoted,
     claim,
   });
-  const pagePath = `${FOLDER}/${fileName(claim, id)}.md`;
-  const created = await createFile(vaultPath, pagePath, content);
+  const path = `${FOLDER}/${fileName(claim, id)}.md`;
+  const created = await createFile(vaultPath, path, content);
   if (!created.written) {
     throw new VaultError(
       created.reason === "alreadyExists" ? "refused" : "writeFailed",
       created.reason === "alreadyExists"
-        ? `Couldn't write ${pagePath}: a file by that name is already in the vault`
-        : `Couldn't write ${pagePath}: ${created.detail}`
+        ? `Couldn't write ${path}: a file by that name is already in the vault`
+        : `Couldn't write ${path}: ${created.detail}`
     );
   }
-
-  const marked = await markPromoted(vaultPath, questionPath, hash, pagePath);
-  await index.own(pagePath, created.content);
-  await index.own(questionPath, marked);
-  return { path: pagePath };
+  return { path, content: created.content };
 }

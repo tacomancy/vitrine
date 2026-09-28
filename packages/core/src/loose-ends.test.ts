@@ -229,6 +229,38 @@ describe("looseEnds.rows — the stalled Research Question", () => {
     expect(titles(await rows(c))).toEqual([]);
   });
 
+  it("leaves out one some Hypothesis names as promoted_from: sharpened into a test is not gone quiet", async () => {
+    const hypothesis = (from: string) => `---
+id: hy-${from}
+kind: hypothesis
+promoted_from: "[[${from}]]"
+promoted: ${PROMOTED}
+---
+
+## Claim
+
+A claim.
+
+## Criteria
+
+## Design notes
+
+## Position history
+`;
+    const { c } = await openedOn(
+      {
+        "q/sharpened (RQ).md": page("sharpened", { promoted: PROMOTED }),
+        "q/stale (RQ).md": page("stale", { promoted: PROMOTED }),
+        "hypotheses/A claim.md": hypothesis("sharpened (RQ)"),
+        // Named by a link that lands nowhere: it excuses nothing.
+        "hypotheses/Another claim.md": hypothesis("stale RQ"),
+      },
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual(["stale?"]);
+  });
+
   it("uses fourteen open days when the caller names no threshold", async () => {
     const files = { "q/stale (RQ).md": page("stale", { promoted: PROMOTED }) };
     const { c } = await openedOn(files, run("2026-09-01", 13));
