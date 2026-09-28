@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Picker } from "./Picker";
+import { usePageProcedures, type HistoriedKind } from "./page-procedures";
 import { useTRPC } from "./trpc";
 import styles from "./WhyLine.module.css";
 
@@ -26,11 +27,14 @@ import styles from "./WhyLine.module.css";
  * so a name two files answer to can never send the why to the wrong one.
  */
 export function WhyLine({
+  kind,
   path,
   at,
   basedOn,
   onClose,
 }: {
+  /** Which Kind's page the Revision is on: the procedure that writes the why is that Kind's. */
+  kind: HistoriedKind;
   /** The page's vault-relative path. */
   path: string;
   /** The Revision's timestamp, which is the whole of its identity (ADR 0020 decision 2). */
@@ -41,6 +45,7 @@ export function WhyLine({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const procedures = usePageProcedures(kind);
   const [text, setText] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
   // Where inside the line the picker was opened: the offset just past the
@@ -76,23 +81,20 @@ export function WhyLine({
     input?.setSelectionRange(to, to);
   }, [text]);
 
-  const explain = useMutation(
-    trpc.researchQuestions.explainRevision.mutationOptions({
-      onSuccess: async (result) => {
-        if (!result.written) {
-          // The typing stays: a why that could not be written is worth
-          // more in the field than in the reason it failed for.
-          setRefusal(`not explained — ${result.detail}`);
-          return;
-        }
-        await queryClient.invalidateQueries(
-          trpc.researchQuestions.page.queryFilter({ path })
-        );
-        onClose();
-      },
-      onError: (error) => setRefusal(`not explained — ${error.message}`),
-    })
-  );
+  const explain = useMutation({
+    mutationFn: procedures.explain,
+    onSuccess: async (result) => {
+      if (!result.written) {
+        // The typing stays: a why that could not be written is worth
+        // more in the field than in the reason it failed for.
+        setRefusal(`not explained — ${result.detail}`);
+        return;
+      }
+      await procedures.reread(path);
+      onClose();
+    },
+    onError: (error) => setRefusal(`not explained — ${error.message}`),
+  });
 
   const write = () => {
     const why = text.trim();

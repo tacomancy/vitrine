@@ -22,6 +22,8 @@ import { AttachSource } from "./AttachSource";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { addressOf } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
+import type { Base, DiskCopy } from "./page-procedures";
+import { ChangedOnDisk, PositionField } from "./PositionField";
 import styles from "./ResearchQuestion.module.css";
 import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
@@ -115,10 +117,18 @@ export function ResearchQuestion({
             name="Working answer"
             present={readable.sections.workingAnswer.present}
           >
-            <WorkingAnswer
+            <PositionField
+              position={{ kind: "research-question", field: FIELD }}
               path={readable.path}
               hash={readable.hash}
               text={readable.sections.workingAnswer.text}
+              labelledBy="rq-working-answer"
+              empty={
+                <Outline>
+                  Nothing written yet. What you currently believe goes here —
+                  provisional, and every change to it is kept.
+                </Outline>
+              }
             />
           </Section>
           <div className={styles.evidence}>
@@ -190,6 +200,7 @@ export function ResearchQuestion({
               // read and this write.
               whyLine={(at, close) => (
                 <WhyLine
+                  kind="research-question"
                   path={readable.path}
                   at={at}
                   basedOn={readable.hash}
@@ -459,198 +470,6 @@ function revisionLine(entries: Revision[]): string {
   return `revision ${ofField.length} of ${ofField.length} · held since ${localDate(newest.at)}`;
 }
 
-/**
- * The working answer as a plain text field (§ Research Question view and
- * triage, Editing on the page): autosave on blur, ⌘↵ saves now, ⌥↵ saves
- * and opens one line for *why* (#216), esc reverts unsaved typing. A save
- * carries the hash the page was given; the core diffs and records the
- * Revision, so nothing here knows the grammar. A refusal is a line under
- * the field with its reason, and the typing stays — never silent, never
- * lost (CLAUDE.md § Invariants).
- */
-function WorkingAnswer({
-  path,
-  hash,
-  text,
-}: {
-  path: string;
-  hash: string;
-  text: string;
-}) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const diskCopy = useDiskCopy(path);
-  // Null while the field shows the file's text; the typing otherwise.
-  const [draft, setDraft] = useState<string | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
-  // Up while the *changed on disk* line is: autosave is suspended until
-  // one of its two actions is chosen (#215).
-  const [conflict, setConflict] = useState(false);
-  // What the typing is a change *to*, captured when the field went dirty
-  // and not re-taken from a re-read underneath it — an Obsidian edit to
-  // another section must not make this save look based on the new file.
-  const [base, setBase] = useState<Base | null>(null);
-  // Set while a save is in flight, so a blur right after ⌘↵ is one save.
-  const inFlight = useRef(false);
-  // The Revision to explain and the file as the save that recorded it left
-  // it; null when no why line is open (#216).
-  const [why, setWhy] = useState<{ at: string; basedOn: string } | null>(null);
-  // The keys, while the field has the keyboard: ⌥↵ is otherwise a gesture
-  // nothing on the page mentions.
-  const [focused, setFocused] = useState(false);
-  const save = useMutation(
-    trpc.researchQuestions.saveWorkingAnswer.mutationOptions({
-      onSuccess: async (result, { text: saved, basedOn }) => {
-        if (!result.written) {
-          if (result.reason === "changedAndUnreapplyable") setConflict(true);
-          else setRefusal(`not saved — ${result.detail}`);
-          return;
-        }
-        setRefusal(null);
-        setConflict(false);
-        await queryClient.invalidateQueries(
-          trpc.researchQuestions.page.queryFilter({ path })
-        );
-        // Typing that went on past the save is kept; the field shows the
-        // re-read page only when it holds what was typed. Typing that
-        // stayed is now a change to what this save put on disk.
-        setDraft((current) => (current === saved ? null : current));
-        setBase((current) =>
-          current === null || current.hash === basedOn
-            ? { hash: result.hash, text: saved.trim() }
-            : current
-        );
-      },
-      onError: (error) => setRefusal(`not saved — ${error.message}`),
-    })
-  );
-
-  /**
-   * `explain` is ⌥↵'s one addition: the same save, with the why line
-   * opened on the Revision it turns out to have recorded. It rides on this
-   * call rather than on a flag the next reply would have to read, so a
-   * blur's save can never be mistaken for the one ⌥↵ asked for.
-   */
-  const send = (text: string, on: Base, explain = false) => {
-    inFlight.current = true;
-    save.mutate(
-      { path, text, basedOn: on.hash, was: on.text },
-      {
-        onSuccess: (result) => {
-          // Based on the file as this save left it: the page's hash, which
-          // the field carried in, is one write out of date by now.
-          if (explain && result.written && result.revision !== null) {
-            setWhy({ at: result.revision, basedOn: result.hash });
-          }
-        },
-        onSettled: () => {
-          inFlight.current = false;
-        },
-      }
-    );
-  };
-  const commit = (explain = false) => {
-    if (draft === null || inFlight.current || conflict) return;
-    if (draft.trim() === text) {
-      setDraft(null);
-      setBase(null);
-      return;
-    }
-    send(draft, base ?? { hash, text }, explain);
-  };
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && event.metaKey) {
-      event.preventDefault();
-      commit();
-    } else if (event.key === "Enter" && event.altKey) {
-      event.preventDefault();
-      // Nothing to save is nothing to explain: the line waits for a
-      // Revision rather than opening over the last one, which already
-      // said what it had to say.
-      commit(true);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      setDraft(null);
-      setBase(null);
-    }
-  };
-  const type = (typed: string) => {
-    setBase((current) => current ?? { hash, text });
-    setDraft(typed);
-  };
-  // *Keep mine*: the disk copy read afresh, then the typing saved over it.
-  const keepMine = async () => {
-    const disk = await diskCopy("Working answer");
-    setConflict(false);
-    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
-    if (draft === null) return;
-    setBase(disk.base);
-    send(draft, disk.base);
-  };
-  // *Take the disk copy*: the typing let go, the field showing the file.
-  // The read is also what puts that file in the page's cache — `text`
-  // arrives as a prop, and a field showing the file is one with no draft.
-  const takeTheDiskCopy = async () => {
-    const disk = await diskCopy("Working answer");
-    setConflict(false);
-    // Nothing to take: the typing stays rather than being dropped for a
-    // copy that could not be read.
-    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
-    setDraft(null);
-    setBase(null);
-  };
-  const shown = draft ?? text;
-  return (
-    <>
-      {shown === "" && (
-        <Outline>
-          Nothing written yet. What you currently believe goes here —
-          provisional, and every change to it is kept.
-        </Outline>
-      )}
-      <textarea
-        className={styles.field}
-        aria-labelledby="rq-working-answer"
-        value={shown}
-        rows={shown === "" ? 2 : undefined}
-        onChange={(event) => type(event.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
-          setFocused(false);
-          commit();
-        }}
-        onKeyDown={onKeyDown}
-      />
-      {focused && (
-        <p className={styles.keys}>
-          <span>⌘↵ save</span>
-          <span>⌥↵ save with a note on what changed</span>
-          <span>esc reverts</span>
-        </p>
-      )}
-      {why !== null && (
-        <WhyLine
-          path={path}
-          at={why.at}
-          basedOn={why.basedOn}
-          onClose={() => setWhy(null)}
-        />
-      )}
-      {conflict && (
-        <ChangedOnDisk
-          keepMine={() => void keepMine()}
-          takeTheDiskCopy={() => void takeTheDiskCopy()}
-        />
-      )}
-      {refusal !== null && (
-        <p role="status" className={styles.refusal}>
-          {refusal}
-        </p>
-      )}
-    </>
-  );
-}
-
 /** The history's base line, derived from the frontmatter and never written as an entry (spec #206 story 39). */
 function baseLine(fm: ResearchQuestionFrontmatter): string {
   const when = fm.promoted === undefined ? "" : `, ${localDate(fm.promoted)}`;
@@ -871,27 +690,17 @@ function Sources({
   );
 }
 
-/** The Edited sections the page holds a text field for (core's `EditedSection`, plus the Position). */
-type EditableSection = "Working answer" | "Open threads" | "Related questions";
-
-/** What a field is editing against: the file's hash and the section's text, as it read them. */
-type Base = { hash: string; text: string };
-
-/** The disk copy, or why there is none — a read that failed is a line, never a shrug. */
-type DiskCopy = { read: true; base: Base } | { read: false; reason: string };
-
 /**
- * The section as the file holds it now — read afresh, not from the page's
- * cache, because the point of the read is that the cache is behind. Both
- * resolutions of *changed on disk* need it: *keep mine* saves over it,
- * *take the disk copy* shows it. `changedAndUnreapplyable` also covers a
- * file that is gone, so this read is where that case separates itself: the
- * typing stays in the field and the reason is said, rather than a button
- * that quietly does nothing (CLAUDE.md § Invariants, no silent failures).
+ * The section as the file holds it now, for an Edited section's field —
+ * read afresh, not from the page's cache, because the point of the read is
+ * that the cache is behind. Both resolutions of *changed on disk* need it:
+ * *keep mine* saves over it, *take the disk copy* shows it. A read that
+ * failed is a line, never a button that quietly does nothing (CLAUDE.md
+ * § Invariants, no silent failures).
  */
 function useDiskCopy(
   path: string
-): (name: EditableSection) => Promise<DiskCopy> {
+): (name: "Open threads" | "Related questions") => Promise<DiskCopy> {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return async (name) => {
@@ -905,44 +714,10 @@ function useDiskCopy(
       return { read: false, reason: (error as Error).message };
     }
     if (!page.readable) return { read: false, reason: page.reason };
-    const { workingAnswer, openThreads, related } = page.sections;
-    const text =
-      name === "Working answer"
-        ? workingAnswer.text
-        : name === "Open threads"
-          ? openThreads.text
-          : related.text;
+    const { openThreads, related } = page.sections;
+    const text = name === "Open threads" ? openThreads.text : related.text;
     return { read: true, base: { hash: page.hash, text } };
   };
-}
-
-/**
- * The Vault editor's *changed on disk* line (ADR 0015 decision 5), inside
- * the section that refused: the section was edited elsewhere between the
- * page's read and this save, so re-applying would have replaced those words
- * with these. Not a modal and not a silent overwrite — the typing stays in
- * the field, autosave is suspended until one of the two is chosen, and
- * *keep mine* is the one place a byte the user did not type is overwritten
- * on their explicit say-so.
- */
-function ChangedOnDisk({
-  keepMine,
-  takeTheDiskCopy,
-}: {
-  keepMine: () => void;
-  takeTheDiskCopy: () => void;
-}) {
-  return (
-    <p role="status" className={styles.conflict}>
-      <span>changed on disk</span>
-      <button type="button" className={styles.edit} onClick={keepMine}>
-        keep mine
-      </button>
-      <button type="button" className={styles.edit} onClick={takeTheDiskCopy}>
-        take the disk copy
-      </button>
-    </p>
-  );
 }
 
 /**

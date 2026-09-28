@@ -6,9 +6,10 @@ import { empty, renderApp, vault } from "./fake-core";
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
-// The Hypothesis view's first state (#330; brief § Testing, prompt 4; ADR
-// 0031): read-only. The claim, its provenance, the Derived state with the
-// rule printed beside it, the criteria as read, design notes and the history.
+// The Hypothesis view as it reads its file (#330; brief § Testing, prompt 4;
+// ADR 0031): the claim, its provenance, the Derived state with the rule
+// printed beside it, the criteria as read, design notes and the history.
+// Editing the claim and design notes is `hypothesis-edit.test.tsx`'s.
 
 const PATH = "hypotheses/Slow-wave density predicts recall gain.md";
 const HASH =
@@ -133,8 +134,10 @@ describe("the freshly promoted page", () => {
   it("leads with the claim in the serif and the provenance line beneath it", async () => {
     open(() => fresh);
     const page = await region();
-    const claim = await within(page).findByRole("heading", { level: 1 });
-    expect(claim.textContent).toBe(fresh.sections.claim.text);
+    const claim = await within(page).findByRole("textbox", { name: "Claim" });
+    expect((claim as HTMLTextAreaElement).value).toBe(
+      fresh.sections.claim.text
+    );
     expect(page.textContent).toContain(
       "first wondered 14 August 2026 · 09:12 · while reading Rasch & Born 2013 · p.699"
     );
@@ -169,8 +172,9 @@ describe("the freshly promoted page", () => {
     expect(within(page).queryByRole("combobox")).toBeNull();
     expect(within(page).queryByRole("listbox")).toBeNull();
     expect(within(page).queryByRole("radio")).toBeNull();
-    // The only controls on a read-only page are the history's own — its
-    // filter and its trail — which read the history, never set a state.
+    // The only buttons on the page are the history's own — its filter and
+    // its trail — which read the history, never set a state; the claim and
+    // design notes are text fields, which are not a state either.
     const history = within(page).getByRole("region", {
       name: "Position history",
     });
@@ -421,7 +425,7 @@ describe("a file the app cannot read fully", () => {
       ],
     }));
     const page = await region();
-    await within(page).findByRole("heading", { level: 1 });
+    await within(page).findByRole("textbox", { name: "Claim" });
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toContain("A criterion with no id");
     expect(footer.textContent).toContain("Design notes is not in the file");
@@ -460,12 +464,12 @@ describe("the page under external change", () => {
     let page: HypothesisPage = fresh;
     const { stream } = open(() => page);
     const before = await region();
-    await within(before).findByRole("heading", { level: 1 });
+    await within(before).findByRole("textbox", { name: "Claim" });
     page = { readable: false, path: PATH, reason: "missing from the vault" };
     act(() => stream.push(changed({ removed: [PATH] })));
     const after = await region();
     await waitFor(() =>
-      expect(within(after).queryByRole("heading", { level: 1 })).toBeNull()
+      expect(within(after).queryByRole("textbox", { name: "Claim" })).toBeNull()
     );
     expect(after.textContent).toContain(`${PATH} — removed from the vault`);
     expect(screen.queryByRole("alert")).toBeNull();

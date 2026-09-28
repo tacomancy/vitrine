@@ -159,11 +159,14 @@
   color: var(--color-fg);
 }
 
-.prose {
-  margin: 0;
-  max-width: 64ch;
-  white-space: pre-wrap;
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-  color: var(--color-fg);
+/* The claim is the page's lead (prototype 04, "The claim"): the Working
+   answer's field, at the display size the Research Question gives its
+   question, with the accent rule the prototype draws beside it. Qualified
+   by the element because it shares the textarea with that field's class
+   from another stylesheet, and must not depend on which loads last. */
+textarea.claim {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-display);
+  border-left-color: var(--color-accent);
 }

@@ -1,11 +1,6 @@
 import { unlink } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import {
-  parseWikilink,
-  type Heading,
-  type ListItem,
-  type Outline,
-} from "markdown";
+import { parseWikilink, type Heading, type ListItem } from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";

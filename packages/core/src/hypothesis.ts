@@ -436,6 +436,11 @@ export function hypothesisPositions(
   }
   const within = section(outline, "Criteria").heading;
   if (within === undefined) return positions;
+  // Keyed by the label as it stands, which the history names: a
+  // Relationship changed in Obsidian therefore reads to the index's diff as
+  // one field gone and another come, which is no change at all to the
+  // generic rule — the watcher's Hypothesis consequences (#336) pair them
+  // by the id's number, which never moves (ADR 0031 decision 3).
   for (const criterion of criteria) {
     const heading = outline.headings.find(
       (h) =>
