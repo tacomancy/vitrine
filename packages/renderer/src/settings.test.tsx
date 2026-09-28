@@ -44,6 +44,7 @@ const fresh: PdfFolder = {
   resolves: { path: `${vault.path}/sources/pdf`, known: null },
   holds: { count: 0, bytes: 0 },
   lastArrived: null,
+  fault: null,
 };
 
 const answers = (status: unknown = watched, pdfFolder: unknown = fresh) => ({
@@ -213,7 +214,9 @@ describe("Settings: where the PDFs are", () => {
         lastArrived: {
           at: new Date(2026, 8, 27, 16, 40).toISOString(),
           name: "walker-2017-spindle-coupling.pdf",
+          beforeFault: false,
         },
+        fault: null,
       } satisfies PdfFolder)
     );
     const section = await pdfSection();
@@ -237,7 +240,11 @@ describe("Settings: where the PDFs are", () => {
         link: "../../papers",
         resolves: { path: "/Volumes/Archive/papers", known: null },
         holds: { count: 1, bytes: 812_000 },
-        lastArrived: { at: new Date(2026, 8, 1).toISOString(), name: "a.pdf" },
+        lastArrived: {
+          at: new Date(2026, 8, 1).toISOString(),
+          name: "a.pdf",
+          beforeFault: false,
+        },
       } satisfies PdfFolder)
     );
     const section = await pdfSection();

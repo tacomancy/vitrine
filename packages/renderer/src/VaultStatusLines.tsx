@@ -4,8 +4,9 @@ import styles from "./VaultStatusLines.module.css";
 
 /**
  * The vault's state in every surface's footer channel (`docs/architecture.md`
- * § Index, Status): a build's progress, and a watcher that is down for good
- * with its *retry*. Nothing when all is well — a footer that is always
+ * § Index, Status): a build's progress, a watcher that is down for good
+ * with its *retry*, and a PDF folder that does not resolve with its *check
+ * again* (#379). Nothing when all is well — a footer that is always
  * there would teach the eye to skip it — so the surface asks `hasLines`
  * before drawing the footer at all. A broken watcher must never look like a
  * quiet vault, and it is never red: a fact to act on, not an alarm.
@@ -24,6 +25,15 @@ export function useVaultStatusLines(): {
         queryClient.invalidateQueries(trpc.vault.status.pathFilter()),
     })
   );
+  // The PDF folder's fault is sounded here, on every surface, and only
+  // stated on Settings (spec #363 story 31) — never a Loose Ends row, which
+  // would be a second place to raise it. `pdfFault` rather than
+  // `pdfFolder`, so no surface walks the folder to learn it. A read that
+  // failed is not a fault of the folder, so it adds no line. *check again*
+  // needs no invalidation of its own: the check it runs is raised as
+  // `pdfFolder`, which `events.ts` answers.
+  const pdfFault = useQuery(trpc.vault.pdfFault.queryOptions()).data ?? null;
+  const checkAgain = useMutation(trpc.vault.checkAgain.mutationOptions());
   const indexing = status.data?.indexing ?? null;
   const watching = status.data?.watching ?? { ok: true };
   const read: VaultRead = status.isError
@@ -35,7 +45,8 @@ export function useVaultStatusLines(): {
         : "unwatched";
   return {
     read,
-    hasLines: status.isError || indexing !== null || !watching.ok,
+    hasLines:
+      status.isError || indexing !== null || !watching.ok || pdfFault !== null,
     lines: (
       <>
         {/* Without the status the app cannot say the vault was read, so a
@@ -62,6 +73,19 @@ export function useVaultStatusLines(): {
               onClick={() => rewatch.mutate()}
             >
               retry
+            </button>
+          </WarningLine>
+        )}
+        {pdfFault !== null && (
+          <WarningLine label="papers not arriving">
+            {pdfFault.reason} ·{" "}
+            <button
+              type="button"
+              className={styles.retry}
+              disabled={checkAgain.isPending}
+              onClick={() => checkAgain.mutate()}
+            >
+              check again
             </button>
           </WarningLine>
         )}
