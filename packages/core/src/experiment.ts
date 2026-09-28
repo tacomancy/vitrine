@@ -9,7 +9,7 @@ import {
   type CriterionRead,
   type HypothesisPage,
 } from "./hypothesis.js";
-import { landing } from "./link-text.js";
+import { landing, wikilinkTo } from "./link-text.js";
 import { bodyText, readPageFile, revisionsOf, section } from "./page-file.js";
 import {
   saveEditedSection,
@@ -403,6 +403,8 @@ export function composeExperiment(page: {
   id: string;
   name: string;
   created: string;
+  /** The wikilink to what prompted it, when it was made from somewhere. */
+  from?: string;
 }): string {
   return [
     "---",
@@ -411,6 +413,7 @@ export function composeExperiment(page: {
     `name: ${quoted(page.name)}`,
     "status: planned",
     `created: ${page.created}`,
+    ...(page.from === undefined ? [] : [`from: ${quoted(page.from)}`]),
     "tags: []",
     "---",
     "",
@@ -439,12 +442,21 @@ const serially = serialised();
  * there — on macOS's case-insensitive disk that also catches `Sweep-7`
  * beside `sweep-7`, which a name comparison here would have to re-derive.
  * The index is told before this returns, so ⌘K finds the run at once.
+ *
+ * `from` is the vault path of what prompted the run — a Hypothesis, when
+ * it is made from a Criterion's *attach evidence* (#371) — written as
+ * `from:`, which the page draws as *came from*. Nothing is written to that
+ * file: an Experiment is not a Promotion (spec #362 story 9).
  */
 export function createExperiment(
   vaultPath: string,
   index: VaultIndex,
   typed: string,
-  { created, newId }: { created: string; newId: () => string }
+  {
+    created,
+    newId,
+    from,
+  }: { created: string; newId: () => string; from?: string }
 ): Promise<{ path: string }> {
   return serially(async () => {
     const name = typed.trim();
@@ -465,6 +477,9 @@ export function createExperiment(
       );
     }
     const path = `${FOLDER}/${stem}/${stem}.md`;
+    // Before the folder is claimed, so a came-from the vault does not hold
+    // is refused with nothing made.
+    const link = from === undefined ? undefined : wikilinkTo(index, path, from);
     // Refuses a folder reached through a symlink out of the vault before
     // anything is made on the way to it.
     const { absolute } = await locate(vaultPath, path);
@@ -484,7 +499,12 @@ export function createExperiment(
         `Couldn't make the folder for ${stem}: ${errorMessageWithoutPath(cause)}`
       );
     }
-    const content = composeExperiment({ id: newId(), name, created });
+    const content = composeExperiment({
+      id: newId(),
+      name,
+      created,
+      ...(link === undefined ? {} : { from: link }),
+    });
     const written = await createFile(vaultPath, path, content).catch(
       (cause: unknown) => ({
         written: false as const,

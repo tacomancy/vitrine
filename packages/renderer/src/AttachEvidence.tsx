@@ -4,11 +4,14 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import form from "./AttachSource.module.css";
 import styles from "./AttachEvidence.module.css";
 import { useChosenInView } from "./chosen";
+import { Picker } from "./Picker";
 import picker from "./Picker.module.css";
 import { useTRPC } from "./trpc";
 
 type Group = CriteriaToAttach["groups"][number];
-type Chosen = { group: Group; criterion: CriterionToAttach };
+/** What the note and its write need of a Hypothesis, from either door. */
+type Hypothesis = Pick<Group, "path" | "claim" | "hash">;
+type Chosen = { group: Hypothesis; criterion: CriterionToAttach };
 
 /**
  * *Attach as evidence* from an Experiment page (#367; spec #362 stories 45,
@@ -48,6 +51,86 @@ export function AttachEvidence({
     <CriterionList onChoose={setChosen} onClose={leave} />
   ) : (
     <Note experiment={experiment} chosen={chosen} onDone={leave} />
+  );
+}
+
+/**
+ * *attach evidence* from a Criterion on the Hypothesis page (#371; spec
+ * #362 stories 7–8, 46): the other door onto the same write. The Picker
+ * narrowed to Experiments — here the rows *are* vault files — then the
+ * same required note as the Experiment page's door.
+ *
+ * When no run matches, *new experiment named …* makes one from what was
+ * typed, `from:` this Hypothesis, so its page says what prompted it; the
+ * run is made when the row is taken and attached only once the note is
+ * written. Leaving the note leaves a planned run with nothing attached,
+ * which is a run like any other — an Experiment exists independently of
+ * any claim (brief § Experiment). A refusal to make it (a taken name) is
+ * `onRefused`'s to show, since the Picker has closed by then.
+ */
+export function AttachRun({
+  group,
+  criterion,
+  onRefused,
+  onClose,
+}: {
+  /** The Hypothesis as the page read it: its path, claim, and the hash the write is `basedOn`. */
+  group: Hypothesis;
+  criterion: CriterionToAttach;
+  onRefused: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const trpc = useTRPC();
+  const [run, setRun] = useState<{ path: string; name: string } | null>(null);
+  // Read during the first render, before the Picker's mount effect takes
+  // the keyboard (AttachSource says why): the note step outlives the
+  // Picker, which only restores focus for its own.
+  const [restoreTo] = useState(() =>
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+  );
+  const leave = () => {
+    onClose();
+    restoreTo?.focus();
+  };
+  const make = useMutation(
+    trpc.experiments.create.mutationOptions({
+      onSuccess: ({ path }, { name }) => setRun({ path, name }),
+      onError: (error) => {
+        onRefused(`could not make the run: ${error.message}`);
+        leave();
+      },
+    })
+  );
+  const name = criterionName(criterion);
+
+  if (run !== null) {
+    return (
+      <Note
+        experiment={run.path}
+        run={run.name}
+        chosen={{ group, criterion }}
+        onDone={leave}
+      />
+    );
+  }
+  return (
+    <Picker
+      label={`Evidence for ${name}`}
+      kinds={["experiment"]}
+      newRow={(query) => {
+        const typed = query.trim();
+        // No name, no run: the core would only refuse it.
+        if (typed === "" || make.isPending) return undefined;
+        return {
+          label: `new experiment named ${typed}`,
+          onChoose: () => make.mutate({ name: typed, from: group.path }),
+        };
+      }}
+      onChoose={(chosen) => setRun({ path: chosen.path, name: chosen.name })}
+      onClose={leave}
+    />
   );
 }
 
@@ -204,10 +287,13 @@ const rowId = (index: number) => `evidence-criterion-${index}`;
  */
 function Note({
   experiment,
+  run,
   chosen: { group, criterion },
   onDone,
 }: {
   experiment: string;
+  /** The run's name, shown when the note is reached from the Criterion's side, where the run is what was just chosen. */
+  run?: string;
   chosen: Chosen;
   onDone: () => void;
 }) {
@@ -275,6 +361,7 @@ function Note({
         <span className={form.hint}>↵ attaches · esc leaves</span>
       </div>
       <p className={styles.chosen}>
+        {run !== undefined && <span className={styles.run}>{run}</span>}
         <span className={styles.claimLine}>{group.claim}</span>
         <span className={styles.standing}>{standing(criterion)}</span>
         <span className={styles.text}>{criterion.text}</span>

@@ -178,6 +178,44 @@ describe("experiments.create", () => {
     ).toBe(question);
   });
 
+  it("made from a Criterion, says the Hypothesis it came from", async () => {
+    const hypothesis = "hypotheses/Exclusions shrink the effect.md";
+    const { vault, c } = await opened({
+      [hypothesis]:
+        "---\nkind: hypothesis\n---\n\n## Claim\n\nExclusions shrink the effect.\n",
+    });
+    const before = await readFile(join(vault, hypothesis), "utf8");
+    const reply = await c.mutate<{ path: string }>("experiments.create", {
+      name: "sweep-7",
+      from: hypothesis,
+    });
+    expect(reply.error).toBeUndefined();
+    const path = "experiments/sweep-7/sweep-7.md";
+    // Between `created` and `tags`, where § Vault layout (Experiment) puts it.
+    expect(await readFile(join(vault, path), "utf8")).toContain(
+      `created: ${localIso(NOW)}\nfrom: "[[Exclusions shrink the effect]]"\ntags: []\n`
+    );
+    const page = await pageOf(c, path);
+    expect(page.cameFrom).toEqual({
+      text: "[[Exclusions shrink the effect]]",
+      path: hypothesis,
+      kind: "hypothesis",
+      display: "Exclusions shrink the effect.",
+    });
+    // Not a Promotion: what it came from is not written to.
+    expect(await readFile(join(vault, hypothesis), "utf8")).toBe(before);
+  });
+
+  it("refuses a came-from that is not in the vault, and makes nothing", async () => {
+    const { vault, c } = await opened();
+    const reply = await c.mutate("experiments.create", {
+      name: "sweep-7",
+      from: "hypotheses/Gone.md",
+    });
+    expect(reply.error?.data.kind).toBe("refused");
+    await expect(readdir(join(vault, "experiments"))).rejects.toThrow();
+  });
+
   it("is indexed at once: ⌘K finds it by its name", async () => {
     const { c } = await opened();
     await c.mutate("experiments.create", { name: "run: sweep 7" });

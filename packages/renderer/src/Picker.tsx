@@ -15,6 +15,8 @@ import { useTRPC } from "./trpc";
  * Focus goes back to wherever it was when the picker opened — the picker
  * owns that, so no caller has to remember to restore it.
  */
+type NewRow = { label: string; onChoose: () => void };
+
 export function Picker({
   label,
   kinds,
@@ -31,11 +33,13 @@ export function Picker({
   exclude?: string[];
   /**
    * What the caller offers when nothing matched — the attach form's *new
-   * stub* (#220). Shown only in that state, where `↵` takes it because
-   * there is no row to take: a picker with rows in it is for choosing one.
-   * Omitted, a vault with no match just says so.
+   * stub* (#220), a Criterion's *new experiment named …* (#371). Shown
+   * only in that state, where `↵` takes it because there is no row to
+   * take: a picker with rows in it is for choosing one. Omitted, a vault
+   * with no match just says so. A function of what was typed when the row
+   * is named by it; returning nothing offers no row for that text.
    */
-  newRow?: { label: string; onChoose: () => void };
+  newRow?: NewRow | ((query: string) => NewRow | undefined);
   onChoose: (candidate: Candidate) => void;
   onClose: () => void;
 }) {
@@ -66,6 +70,7 @@ export function Picker({
     placeholderData: keepPreviousData,
   });
   const rows = listing.data?.rows ?? [];
+  const offered = typeof newRow === "function" ? newRow(query) : newRow;
   const total = listing.data?.total ?? 0;
   // The choice never points past the list a new query returned.
   const chosen = Math.min(arrowedTo, Math.max(rows.length - 1, 0));
@@ -85,7 +90,7 @@ export function Picker({
         event.preventDefault();
         const row = rows[chosen];
         if (row !== undefined) onChoose(row);
-        else if (rows.length === 0) newRow?.onChoose();
+        else if (rows.length === 0) offered?.onChoose();
         return;
       }
       case "ArrowDown":
@@ -162,13 +167,13 @@ export function Picker({
       {!listing.isError && rows.length === 0 && (
         <p className={styles.message}>
           Nothing in the vault matches that name.
-          {newRow !== undefined && (
+          {offered !== undefined && (
             <button
               type="button"
               className={styles.new}
-              onClick={newRow.onChoose}
+              onClick={offered.onChoose}
             >
-              {newRow.label}
+              {offered.label}
             </button>
           )}
         </p>
