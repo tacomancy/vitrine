@@ -13,6 +13,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from "react";
+import { AttachRun } from "./AttachEvidence";
 import styles from "./Hypothesis.module.css";
 import { Lines, Outline } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
@@ -34,10 +35,13 @@ import { useTRPC } from "./trpc";
 export function Criteria({
   path,
   hash,
+  claim,
   criteria,
 }: {
   path: string;
   hash: string;
+  /** The claim as read: what *attach evidence*'s note is written against. */
+  claim: string;
   criteria: CriterionRead[];
 }) {
   const falsifying = criteria.filter((c) => c.relationship === "falsifying");
@@ -54,6 +58,7 @@ export function Criteria({
       key={c.id}
       path={path}
       hash={hash}
+      claim={claim}
       criterion={c}
       onInstead={(draft) => setInstead({ ...draft, n: instead.n + 1 })}
     />
@@ -160,11 +165,13 @@ function Refusal({ refusal }: { refusal: string | null }) {
 function Card({
   path,
   hash,
+  claim,
   criterion,
   onInstead,
 }: {
   path: string;
   hash: string;
+  claim: string;
   criterion: CriterionRead;
   onInstead: (draft: Draft) => void;
 }) {
@@ -179,6 +186,9 @@ function Card({
   const [editing, setEditing] = useState<string | null>(null);
   // A Relationship chosen on a tested criterion, waiting on the warning.
   const [relabel, setRelabel] = useState<Relationship | null>(null);
+  // *attach evidence* open (#371), and a run it could not make.
+  const [attaching, setAttaching] = useState(false);
+  const [unmade, setUnmade] = useState<string | null>(null);
   const write = useCriterionWrite("record it");
   const rewording = useCriterionWrite("save the criterion", () =>
     setEditing(null)
@@ -311,6 +321,16 @@ function Card({
               edit
             </button>
           )}
+          <button
+            type="button"
+            className={rq.edit}
+            onClick={() => {
+              setUnmade(null);
+              setAttaching(true);
+            }}
+          >
+            attach evidence
+          </button>
           {tested && relationship !== "diagnostic" && (
             // The sanctioned way out of the rule, so it asks nothing: the
             // core marks it all the same (ADR 0031 decision 5).
@@ -336,6 +356,15 @@ function Card({
       <Refusal refusal={write.refusal} />
       <Refusal refusal={rewording.refusal} />
       <Refusal refusal={deleting.refusal} />
+      <Refusal refusal={unmade} />
+      {attaching && (
+        <AttachRun
+          hypothesis={{ path, claim, hash }}
+          criterion={criterion}
+          onRefused={setUnmade}
+          onClose={() => setAttaching(false)}
+        />
+      )}
     </article>
   );
 }

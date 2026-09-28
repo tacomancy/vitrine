@@ -470,15 +470,17 @@ export const router = t.router({
   // of Edited sections and Positions, and a status the user sets by hand.
   experiments: t.router({
     // Refused with its reason when the name is taken or empty, never
-    // suffixed; the name is the Experiment's folder.
+    // suffixed; the name is the Experiment's folder. `from` is the path of
+    // what prompted it — a Hypothesis, from a Criterion (#371).
     create: t.procedure
-      .input(z.object({ name: z.string() }))
+      .input(z.object({ name: z.string(), from: z.string().min(1).optional() }))
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(
           createExperiment(vault.path, index, input.name, {
             created: localIso(ctx.now()),
             newId: ctx.newId,
+            ...(input.from === undefined ? {} : { from: input.from }),
           })
         );
       }),

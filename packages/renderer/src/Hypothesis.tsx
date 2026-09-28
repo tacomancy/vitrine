@@ -120,6 +120,7 @@ export function Hypothesis({ path }: { path: string }) {
                 <Criteria
                   path={readable.path}
                   hash={readable.hash}
+                  claim={readable.sections.claim.text}
                   criteria={readable.sections.criteria.criteria}
                 />
               </Section>

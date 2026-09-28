@@ -77,3 +77,12 @@
 .chosen .text {
   white-space: normal;
 }
+
+/* The run the note is written for, when the note is reached from a
+   Criterion (#371): a name, in the interface family the Picker's rows
+   named it in. */
+.run {
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  color: var(--color-fg);
+}
