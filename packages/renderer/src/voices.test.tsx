@@ -321,10 +321,13 @@ async function rail(answers: Record<string, unknown>) {
   return nav;
 }
 
-const entry = (nav: HTMLElement, name: string) =>
-  within(nav)
+function entry(nav: HTMLElement, name: string): HTMLElement {
+  const found = within(nav)
     .getAllByRole("listitem")
-    .find((li) => li.textContent?.startsWith(name)) as HTMLElement;
+    .find((li) => li.textContent?.startsWith(name));
+  if (!found) throw new Error(`no rail entry ${name}`);
+  return found;
+}
 
 describe("the rail on an empty vault, read in full and watched", () => {
   it("draws a built entry with nothing in it hollow, with where its contents come from", async () => {
@@ -350,6 +353,28 @@ describe("the rail on an empty vault, read in full and watched", () => {
     );
     expect(entry(nav, "Hypothesis view").textContent).toBe(
       "Hypothesis view" + HYP_HINT
+    );
+  });
+});
+
+describe("the rail on the page an entry leads to", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("lights the entry rather than drawing it hollow, whatever the Kinds read said", async () => {
+    window.location.hash = "#/hypothesis/hypotheses/naps.md";
+    renderApp({
+      "vault.current": vault,
+      "vault.status": well,
+      "vault.kinds": [],
+      "hypotheses.page": () => new Promise(() => {}),
+    });
+    const nav = await screen.findByRole("navigation", { name: "Surfaces" });
+    // The other entry still claims, so the Kinds read has landed.
+    await within(nav).findByText(RQ_HINT);
+    const hyp = entry(nav, "Hypothesis view");
+    expect(hyp.textContent).toBe("Hypothesis view");
+    expect(within(hyp).getByRole("link").getAttribute("aria-current")).toBe(
+      "page"
     );
   });
 });

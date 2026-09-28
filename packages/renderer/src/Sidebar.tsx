@@ -38,10 +38,10 @@ export function Sidebar({ route }: { route: Route }) {
     if (!current && holds && held !== null && !held.has(holds.kind))
       return (
         <li key={name} className={styles.waiting}>
-          <span className={styles.hollow} />
+          <span className={`${styles.dot} ${styles.hollow}`} />
           <span className={styles.entry}>
             {name}
-            <span className={styles.from}>{holds.from}</span>
+            <span className={styles.hint}>{holds.hint}</span>
           </span>
         </li>
       );

@@ -30,7 +30,8 @@
 
 .live,
 .current,
-.disabled {
+.disabled,
+.waiting {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -72,25 +73,14 @@
   background: var(--color-line-strong);
 }
 
-/* A built entry the vault provably holds nothing for (#347): the same
-   place and label, a hollow mark, and where its contents will come from.
-   Muted rather than disabled — waiting, not broken (prototype 12, panel 4). */
+/* Muted rather than disabled: see the waiting entry in Sidebar.tsx. */
 .waiting {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px var(--space-2);
-  font-size: var(--text-sm);
-  line-height: var(--leading-ui);
   color: var(--color-fg-muted);
 }
 
-.hollow {
-  width: 5px;
-  height: 5px;
-  flex: none;
+.dot.hollow {
   box-sizing: border-box;
-  border-radius: 1px;
+  background: none;
   border: 1px solid var(--color-line-strong);
 }
 
@@ -101,7 +91,7 @@
   min-width: 0;
 }
 
-.from {
+.hint {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   white-space: nowrap;
