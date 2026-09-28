@@ -68,8 +68,10 @@ describe("startCore", () => {
     running = await startCore({ staticDir: dir, ...(await support()) });
 
     const res = await fetch(`http://127.0.0.1:${running.port}/`);
+    // `blob:` for images and nothing else: an Artifact is drawn from an
+    // object URL, since an `<img>` cannot carry the bearer header (#366).
     expect(res.headers.get("content-security-policy")).toBe(
-      "default-src 'self'; img-src 'self' data:"
+      "default-src 'self'; img-src 'self' data: blob:"
     );
   });
 });

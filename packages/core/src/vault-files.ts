@@ -1,6 +1,21 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import {
+  access,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  stat,
+} from "node:fs/promises";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { isMap, isScalar, isSeq, YAMLSeq, type Document } from "yaml";
 import {
   BOM,
@@ -16,8 +31,10 @@ import {
   type Range,
   type Tag,
 } from "markdown";
-import { writeAtomically } from "./atomic-write.js";
+import { copyAtomically, writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
+import { artifactName, suffixed } from "./file-name.js";
+import { serialised } from "./serialise.js";
 
 /**
  * The core's reading of one Markdown file: the outline `packages/markdown`
@@ -149,11 +166,14 @@ const CRITERION_ID = /^c\d+$/;
  * disk, refusing anything the app does not treat as vault content: a path
  * outside the folder, a dot-entry, a symlink that leaves the vault (the
  * walks never follow one, so a single read must not either), or a file that
- * is not Markdown.
+ * is not Markdown — unless the caller asks for `anyFile`, as the one
+ * operation whose bytes are not Markdown (`copyArtifact`) and the route that
+ * serves them do.
  */
 export async function locate(
   vaultPath: string,
-  path: string
+  path: string,
+  { anyFile = false }: { anyFile?: boolean } = {}
 ): Promise<{ absolute: string; relativePath: string }> {
   const absolute = isAbsolute(path) ? resolve(path) : resolve(vaultPath, path);
   const relativePath = relative(vaultPath, absolute);
@@ -165,7 +185,7 @@ export async function locate(
   if (outside) {
     throw new VaultError("outsideVault", `${path} is not in the vault.`);
   }
-  if (!absolute.endsWith(".md")) {
+  if (!anyFile && !absolute.endsWith(".md")) {
     throw new VaultError("notMarkdown", `${path} is not a Markdown file.`);
   }
   // The index's walk skips every symlink, so a single read or write
@@ -1164,3 +1184,72 @@ export async function createFile(
   await mkdir(dirname(absolute), { recursive: true });
   return commit(absolute, relativePath, text);
 }
+
+// Two copies of one name into one folder would otherwise both find it free,
+// and the second rename would replace the first's file. Module scope, per
+// `serialise.ts`: the hazard is this operation's.
+const copying = serialised();
+
+/**
+ * The eighth write operation, and the only one whose bytes are not Markdown
+ * (ADR 0035 decision 1; ADR 0008's update of 2026-09-28): a file copied
+ * into an Experiment's folder, through a temp file and a rename as every
+ * write is. Never out of the vault, never a move, never a delete — the
+ * source is only read, and is where the user left it afterwards (decision
+ * 2, story 32). A name already taken in the folder takes ` (2)`, ` (3)`, …
+ * as a Question's does, so nothing already stored is overwritten (story 33).
+ *
+ * `folder` is vault-relative. Answers with the stored file's vault-relative
+ * path, its name, and the hash of the bytes written, for the caller to
+ * record as the app's own write. Only a rename that lost a race with some
+ * other writer of the same name in the same instant could replace a file,
+ * and nothing in the app is that other writer.
+ */
+export function copyArtifact(
+  vaultPath: string,
+  source: string,
+  folder: string
+): Promise<{ path: string; file: string; hash: string }> {
+  return copying(async () => {
+    const unreadable = new VaultError(
+      "refused",
+      `${basename(source)} is not a file that can be read.`
+    );
+    const found = await stat(source).catch(() => null);
+    if (found === null || !found.isFile()) throw unreadable;
+    const name = artifactName(basename(source));
+    if (name === "") {
+      throw new VaultError(
+        "refused",
+        `Nothing in "${basename(source)}" can name a file; rename it and add it again.`
+      );
+    }
+    let file = name;
+    for (let n = 2; await present(join(vaultPath, folder, file)); n++) {
+      file = suffixed(name, n);
+    }
+    // Refuses a folder reached through a symlink out of the vault, as every
+    // write does, before a byte is copied.
+    const { absolute, relativePath } = await locate(
+      vaultPath,
+      `${folder}/${file}`,
+      { anyFile: true }
+    );
+    await mkdir(dirname(absolute), { recursive: true });
+    try {
+      const hash = await copyAtomically(source, absolute);
+      return { path: relativePath, file, hash };
+    } catch (cause) {
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't copy ${basename(source)} into the vault: ${errorMessageWithoutPath(cause)}`
+      );
+    }
+  });
+}
+
+const present = (path: string) =>
+  access(path).then(
+    () => true,
+    () => false
+  );

@@ -1,6 +1,7 @@
 import { mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Heading } from "markdown";
+import { artifactLines, type ArtifactLine } from "./artifact.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
 import { landing } from "./link-text.js";
@@ -102,7 +103,8 @@ export type ExperimentSections = {
   purpose: { present: boolean; text: string };
   design: { present: boolean; text: string };
   whereItRan: { present: boolean; text: string; lines: WhereItRanLine[] };
-  artifacts: { present: boolean; text: string };
+  /** The lines in the user's order, stored and (from #369) linked alike (story 38). */
+  artifacts: { present: boolean; text: string; items: ArtifactLine[] };
   observations: { present: boolean; text: string };
   positionHistory: { present: boolean; text: string; entries: Revision[] };
 };
@@ -223,6 +225,7 @@ export async function readExperimentPage(
     text: bodyText(content, found[name]),
   });
   const whereItRan = text("Where it ran");
+  const artifacts = text("Artifacts");
 
   return {
     readable: true,
@@ -233,7 +236,10 @@ export async function readExperimentPage(
       purpose: text("Purpose"),
       design: text("Design"),
       whereItRan: { ...whereItRan, lines: whereItRanLines(whereItRan.text) },
-      artifacts: text("Artifacts"),
+      artifacts: {
+        ...artifacts,
+        items: await artifactLines(vaultPath, relativePath, artifacts.text),
+      },
       observations: text("Observations"),
       positionHistory: {
         ...text("Position history"),

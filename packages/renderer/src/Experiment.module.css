@@ -183,3 +183,89 @@
 .unlabelled {
   grid-column: 1 / -1;
 }
+
+/*
+ * The Artifacts (prototype 05): each one a card at the column's width, the
+ * name and size in the data voice above, the caption below. Plots are the
+ * record of the run, so an image is drawn as large as the column allows
+ * rather than as a chip (prompt 5's push-back). A card is a raised surface
+ * with no hairline (ADR 0023 decision 1).
+ */
+.artifacts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.artifact {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+.artifactHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.artifactName {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+/* Where an image will be while its bytes are on their way: held open, so
+   the list below does not jump when it lands. */
+.imageWaiting {
+  min-height: 8rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+}
+
+.artifactCaption {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+}
+
+/* A line the page cannot read yet, as the file holds it. */
+.asWritten {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The caption line, with the file it is for named before it. */
+.adding {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.addingName {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
