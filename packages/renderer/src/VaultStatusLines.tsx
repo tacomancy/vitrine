@@ -35,9 +35,20 @@ export function useVaultStatusLines(): {
         : "unwatched";
   return {
     read,
-    hasLines: indexing !== null || !watching.ok,
+    hasLines: status.isError || indexing !== null || !watching.ok,
     lines: (
       <>
+        {/* Without the status the app cannot say the vault was read, so a
+            surface cannot claim — and a *not known* with no reason anywhere
+            would be a silent failure (ADR 0033). */}
+        {status.isError && (
+          <span className={styles.line} role="status">
+            <span className={styles.warning}>
+              <span aria-hidden="true">‖</span> vault state not known
+            </span>{" "}
+            — {status.error.message}
+          </span>
+        )}
         {indexing !== null && (
           <span className={styles.line}>
             <span aria-hidden="true">◐</span> reading the vault ·{" "}

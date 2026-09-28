@@ -40,6 +40,10 @@ describe("an empty Inbox, read in full and watched", () => {
     // The claim is the only word on how many: no count, and nothing that
     // reads as *all clear* (prototype 12, panel 2).
     expect(region.textContent).not.toMatch(/\d+ questions?/);
+    // The footer holds the key legend and nothing the vault has to say.
+    expect(within(region).getByRole("contentinfo").textContent).toBe(
+      "j/k movep promotel linka answerd dropr reopen"
+    );
   });
 });
 
@@ -102,6 +106,7 @@ describe("an empty Inbox the app cannot vouch for", () => {
     });
     const region = await inbox();
     expect(await within(region).findByText("not known")).toBeDefined();
+    expect(region.textContent).not.toContain(CLAIM);
     expect(region.textContent).not.toContain(WARRANT);
     const footer = within(region).getByRole("contentinfo");
     expect(within(footer).getByRole("status").textContent).toBe(
@@ -110,5 +115,42 @@ describe("an empty Inbox the app cannot vouch for", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     // A failed read must never read as an empty vault.
     expect(region.textContent).not.toMatch(/\d+ questions?/);
+  });
+
+  it("says not known when files could not be read, since the vault was not read in full", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": {
+        ...empty,
+        unreadable: [
+          { path: "/v/consolidation-vault/Garbled.md", reason: "bad" },
+        ],
+      },
+      "vault.status": well,
+    });
+    const region = await inbox();
+    expect(await within(region).findByText("not known")).toBeDefined();
+    expect(region.textContent).not.toContain(CLAIM);
+    expect(region.textContent).not.toContain(WARRANT);
+    // The reason is the footer's, as the unreadable count already says it.
+    expect(region.textContent).toContain("1 file could not be read");
+  });
+
+  it("says not known when vault.status itself failed, and the footer says why", async () => {
+    renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "vault.status": () => {
+        throw new Error("the core did not answer");
+      },
+    });
+    const region = await inbox();
+    expect(await within(region).findByText("not known")).toBeDefined();
+    expect(region.textContent).not.toContain(CLAIM);
+    const footer = within(region).getByRole("contentinfo");
+    expect(within(footer).getByRole("status").textContent).toBe(
+      "‖ vault state not known — the core did not answer"
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

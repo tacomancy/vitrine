@@ -425,7 +425,12 @@ export function Inbox({
         {rows.length === 0 && (
           <FirstSlot
             voice={
-              failed || status.read === "unwatched" || status.read === "unknown"
+              // A file that could not be read means the vault was not read
+              // in full, so nothing can be claimed about what it holds.
+              failed ||
+              unreadable.length > 0 ||
+              status.read === "unwatched" ||
+              status.read === "unknown"
                 ? "wrong"
                 : listing.data === undefined || status.read === "reading"
                   ? "not yet"

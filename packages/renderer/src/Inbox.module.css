@@ -231,11 +231,12 @@
   overflow-wrap: anywhere;
 }
 
-/* A read that failed says so where the list would be, in the same quiet mono. */
 /*
  * The first slot, where the rows would begin when there are none (ADR 0032,
- * prototype 12): a row's height and inset, so what sits in it reads as the
- * list's first line rather than a message laid over the list.
+ * prototype 12): a row's height and the header's inset, so what sits in it
+ * reads as the list's first line rather than a message laid over the list.
+ * The measures here that are off the 4px grid (10px, 22px, 580px) are
+ * prototype 12's own.
  */
 .slot {
   margin: 0;
