@@ -107,6 +107,21 @@
   text-align: left;
 }
 
+/* And prototype 05's rail type: the entry and its why in the sans at the
+   rail's size, secondary as the prototype draws it, rather than the
+   page's serif — a revision set at page size beside a 300px rail is what
+   left it a few words a line. The why keeps its accent rule. */
+.rail .position,
+.rail .why {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+}
+
+.rail .position {
+  color: var(--color-fg-secondary);
+}
+
 /* What the answer became, in the serif: the entry's own sentence. */
 .position {
   margin: 0;
