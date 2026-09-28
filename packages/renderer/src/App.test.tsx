@@ -113,10 +113,14 @@ describe("the window with a vault open", () => {
   it("names both chords in a footer line that is neither a control nor an entry", async () => {
     renderApp({ "vault.current": vault });
     const nav = await screen.findByRole("navigation", { name: "Surfaces" });
-    const chords = within(nav).getByRole("note", { name: "Chords" });
-    expect(chords.textContent).toBe("⌘K go anywhere, or capture⌘' capture");
-    // The map's entries are what they were: the line adds no eleventh row
-    // and nothing the keyboard can land on.
+    const chords = within(nav).getByRole("note", {
+      name: "Keyboard shortcuts",
+    });
+    expect(
+      Array.from(chords.querySelectorAll("p"), (p) => p.textContent)
+    ).toEqual(["⌘K go anywhere, or capture", "⌘' capture"]);
+    // The map's entries are what they were: the line adds no tenth row and
+    // nothing the keyboard can land on.
     expect(chords.querySelectorAll("li, a, button, [tabindex]")).toHaveLength(
       0
     );

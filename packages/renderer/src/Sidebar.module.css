@@ -72,10 +72,10 @@
   background: var(--color-line-strong);
 }
 
-/* The foot of the map, below everything the map is for. A hairline above
-   it would be permitted here — the no-line rule holds between surfaces,
-   not inside one (ADR 0023 decision 3) — but quiet is the whole point of
-   this line, and size and colour say it without drawing anything. */
+/* The foot of the map, below everything the map is for. Separated by the
+   space above it rather than by a rule: a hairline inside one surface
+   would be permitted (ADR 0023 decision 3), but quiet is the whole point
+   of this line. */
 .chords {
   margin-top: auto;
   padding: var(--space-4) var(--space-4) 0;
@@ -84,6 +84,9 @@
   gap: 2px;
 }
 
+/* 2xs — the size this pane already gives its section labels — and not the
+   xs of the Inbox's key line: both fit the 238px column, so the tie goes
+   to the pane the line lives in rather than to the other footer. */
 .chord {
   margin: 0;
   font-family: var(--font-mono);

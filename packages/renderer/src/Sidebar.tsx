@@ -39,7 +39,11 @@ export function Sidebar({ route }: { route: Route }) {
           does not name the faster way is failing at being one (ADR 0027
           decision 10). Ancillary, not an entry — nothing to click, nothing
           the keyboard stops on. */}
-      <div className={styles.chords} role="note" aria-label="Chords">
+      <div
+        className={styles.chords}
+        role="note"
+        aria-label="Keyboard shortcuts"
+      >
         <p className={styles.chord}>
           <span className={styles.key}>⌘K</span> go anywhere, or capture
         </p>
