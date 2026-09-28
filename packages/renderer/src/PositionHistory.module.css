@@ -48,6 +48,7 @@
 }
 
 .entries {
+  container-type: inline-size;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -89,6 +90,27 @@
   flex-direction: column;
   gap: var(--space-2);
   max-width: 72ch;
+}
+
+/*
+ * In a rail (the Experiment page's, prototype 05) there is no room for a
+ * date column beside the entry: 18ch of date left a revision one or two
+ * words wide (#375). The date and field go on a line above instead, and
+ * the entry keeps the rail's whole width, as it keeps the page's on a
+ * Hypothesis or Research Question.
+ */
+@container (width < 24rem) {
+  .entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .column {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+    text-align: left;
+  }
 }
 
 /* What the answer became, in the serif: the entry's own sentence. */

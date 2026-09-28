@@ -253,6 +253,24 @@ describe("the Experiment Inbox", () => {
     ).toBeNull();
   });
 
+  // Seen in beat 4's demo (#375): two repos under one owner both cut to
+  // `github.com/sleep-lab…` in the facet column and could not be told apart.
+  it("keeps the whole of a project's repo on its facet, breaking only after a slash", async () => {
+    const repos = [
+      "github.com/sleep-lab/spindles",
+      "github.com/sleep-lab/sw-density",
+    ];
+    open(listing([SWEEP], { projects: repos }));
+    const region = await surface();
+    await list();
+    const facets = within(region).getByRole("navigation", { name: "Views" });
+    for (const repo of repos) {
+      const facet = within(facets).getByRole("button", { name: repo });
+      expect(facet.getAttribute("title")).toBe(repo);
+      expect(facet.querySelectorAll("wbr")).toHaveLength(2);
+    }
+  });
+
   it("sorts by newest, oldest, most artifacts, or a shuffle", async () => {
     const asked: { sort?: string; seed?: number }[] = [];
     open((input) => {

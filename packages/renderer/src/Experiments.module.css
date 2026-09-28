@@ -125,6 +125,11 @@
   white-space: nowrap;
 }
 
+/* A repo wraps after a slash instead, so its tail shows (`facetButton`). */
+.facet.repo {
+  white-space: normal;
+}
+
 .column {
   flex: 1;
   min-width: 0;
