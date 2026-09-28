@@ -41,6 +41,25 @@ export function wikilinkTo(
   return `[[${targetPath.replace(/\.md$/, "")}]]`;
 }
 
+/**
+ * Where a `[[…]]` entry lands, with the landed file's Kind and Display
+ * name — what a line that points at a page needs to open it and name it.
+ * All three are null when the entry is not a wikilink or resolves nowhere.
+ */
+export function landing(
+  index: VaultIndex,
+  linkingPath: string,
+  entry: string
+): { path: string | null; kind: string | null; display: string | null } {
+  const path = resolvesTo(index, linkingPath, entry);
+  if (path === null) return { path: null, kind: null, display: null };
+  const [file] = index.select<{ kind: string | null; display: string }>(
+    "SELECT kind, display FROM files WHERE path = ?",
+    path
+  );
+  return { path, kind: file?.kind ?? null, display: file?.display ?? null };
+}
+
 /** Where a `[[…]]` entry lands, or null when it is not a resolving wikilink. */
 export function resolvesTo(
   index: VaultIndex,

@@ -124,7 +124,7 @@ export function ResearchQuestion({
               path={readable.path}
               hash={readable.hash}
               text={readable.sections.workingAnswer.text}
-              labelledBy="rq-working-answer"
+              labelledBy={sectionId("Working answer")}
               empty={
                 <Outline>
                   Nothing written yet. What you currently believe goes here —
@@ -538,6 +538,10 @@ function baseLine(fm: ResearchQuestionFrontmatter): string {
  * and named again in the footer: the page never loses its shape because one
  * heading did.
  */
+/** The id a section's label carries, for a field inside it to be labelled by. */
+export const sectionId = (name: string) =>
+  `rq-${name.toLowerCase().replace(/\s+/g, "-")}`;
+
 export function Section({
   name,
   present,
@@ -550,7 +554,7 @@ export function Section({
   action?: ReactNode;
   children: ReactNode;
 }) {
-  const id = `rq-${name.toLowerCase().replace(/\s+/g, "-")}`;
+  const id = sectionId(name);
   return (
     <section className={styles.section} aria-labelledby={id}>
       <div className={styles.labelRow}>

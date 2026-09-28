@@ -15,14 +15,18 @@ import {
   type PageKind,
   type SavedAnswer,
 } from "./page-write.js";
-import { asString, leadRange, readQuestionForWrite } from "./question-kind.js";
+import {
+  asString,
+  leadRange,
+  quoted,
+  readQuestionForWrite,
+} from "./question-kind.js";
 import {
   copiedKeys,
   dateOf,
   markPromoted,
   orTakeBack,
   PAGE as RESEARCH_QUESTION,
-  quoted,
   readResearchQuestion,
   resolvePromotedFrom,
   writeToQuestion,
