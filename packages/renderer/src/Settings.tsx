@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Vault, Watching } from "core";
 import { useEffect } from "react";
 import { hashOf, pushRoute, SETTINGS } from "./router";
+import { localTime } from "./rows";
 import styles from "./Settings.module.css";
 import { formatDateTime } from "./time";
 import { useTRPC } from "./trpc";
@@ -92,10 +93,8 @@ export function Settings({ vault }: { vault: Vault }) {
 function outsideChanges(watching: Watching, now: Date): string {
   if (!watching.ok) return "not watching";
   const since = new Date(watching.since);
-  const today = since.toDateString() === now.toDateString();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return today
-    ? `seen — watching since ${pad(since.getHours())}:${pad(since.getMinutes())} today`
+  return since.toDateString() === now.toDateString()
+    ? `seen — watching since ${localTime(watching.since)} today`
     : `seen — watching since ${formatDateTime(since)}`;
 }
 
