@@ -378,20 +378,28 @@ export function experimentPositions(
   { outline }: ReadableOutline,
   content: string
 ): Position[] {
-  return (Object.keys(POSITIONS) as ExperimentPosition[]).flatMap((field) => {
-    const heading = section(outline, POSITIONS[field]).heading;
-    return heading === undefined
-      ? []
-      : [{ field, text: bodyText(content, heading) }];
-  });
+  const positions: Position[] = [];
+  const design = section(outline, POSITIONS.design).heading;
+  if (design !== undefined) {
+    positions.push({ field: "design", text: bodyText(content, design) });
+  }
+  const observations = section(outline, POSITIONS.observations).heading;
+  if (observations !== undefined) {
+    positions.push({
+      field: "observations",
+      text: bodyText(content, observations),
+    });
+  }
+  return positions;
 }
 
 /**
- * The design or the observations saved, with the Revision it records,
- * through the write every Position's save takes (`savePosition`): one
- * queue, the coalescing window keyed by field, anything an Obsidian edit
- * left parked folded in. Either may be saved empty — a planned run has no
+ * The design or the observations saved, with the Revision it records
+ * (`savePosition`). Either may be saved empty — a planned run has no
  * observations, and clearing a design is itself a revision worth keeping.
+ * Neither is `judged`: an Experiment has no Override for a Revision to
+ * void, and what a Criterion's Override judged is the Hypothesis's own
+ * text, never the run's.
  */
 export async function saveExperimentPosition(
   ctx: PageContext,

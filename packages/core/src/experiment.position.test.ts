@@ -262,6 +262,28 @@ describe("design and observations edited in Obsidian", () => {
     );
   });
 
+  it("are spliced by the quiet window's timer with no other write to carry them", async () => {
+    // A window short enough to pass in a test, and no page write to carry
+    // the entry: only the timer can splice it.
+    const { obsidian, setNow, bytes, c } = await opened(undefined, {
+      coalesceMs: 60,
+    });
+    const stream = await c.events();
+    setNow(at(5));
+    await obsidian(file(DESIGN, "Smaller, by eye."));
+    // This stream opened before the edit: its change, then the splice's write.
+    await stream.next("vaultChanged");
+    await stream.next("vaultChanged");
+
+    expect(await bytes()).toBe(
+      file(
+        DESIGN,
+        "Smaller, by eye.",
+        history(entry(at(5), "observations", ""))
+      )
+    );
+  });
+
   it("an edit to Purpose alone parks nothing", async () => {
     const { obsidian, bytes, c } = await opened();
     const edited = file(DESIGN, "").replace(

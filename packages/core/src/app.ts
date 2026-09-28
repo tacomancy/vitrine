@@ -98,8 +98,8 @@ export function createApp({
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's
       // `## Working answer`, the Hypothesis's claim, design notes and
-      // criteria, and the Experiment's design and observations. A test's stand-in may add to or override the registry,
-      // never lose it.
+      // criteria, and the Experiment's design and observations. A test's
+      // stand-in may add to or override the registry, never lose it.
       positionsOf: {
         [RESEARCH_QUESTION]: researchQuestionPositions,
         [HYPOTHESIS]: hypothesisPositions,

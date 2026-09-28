@@ -175,9 +175,9 @@ export function Experiment({
                   design: readable.sections.design.text,
                   observations: readable.sections.observations.text,
                 }}
-                // A why onto any entry, months later: the page's own hash,
-                // because no save of the page's stands between the read and
-                // this write.
+                // A why onto any entry, months later (spec #362 story 15):
+                // the page's own hash, because no save of the page's stands
+                // between the read and this write.
                 whyLine={({ at, field }, close) => (
                   <WhyLine
                     kind="experiment"
