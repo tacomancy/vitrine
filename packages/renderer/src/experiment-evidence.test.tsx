@@ -346,3 +346,153 @@ describe("the rail's attached as evidence", () => {
     expect(within(rail).queryByRole("listitem")).toBeNull();
   });
 });
+
+// The check before the line is written (#370; TEST-13; stories 52–54): each
+// linked Artifact reported beside the note in one of four ways, and none of
+// them — nor a check still out, nor one that failed — holding up the attach.
+describe("the check beside the attach", () => {
+  const LINKED = "/Volumes/Scratch/prereg/step-4000.ckpt";
+  const checks = {
+    checks: [
+      {
+        file: "step-4000.ckpt",
+        target: LINKED,
+        machine: "Studio Mac",
+        outcome: "unchanged",
+      },
+      {
+        file: "pooled.parquet",
+        target: "/Users/me/pooled.parquet",
+        machine: "Laptop",
+        outcome: "elsewhere",
+      },
+      {
+        file: "sweep.tar",
+        target: "/tmp/sweep.tar",
+        machine: "Studio Mac",
+        outcome: "changed",
+      },
+      {
+        file: "model.ckpt",
+        target: "https://wandb.ai/lab/prereg/model.ckpt",
+        machine: "Studio Mac",
+        outcome: "notChecked",
+      },
+    ],
+  };
+
+  /** The note for F2, reached from the page's door. */
+  async function noteFor() {
+    const { list } = await openAttach();
+    fireEvent.keyDown(list, { key: "j" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    return screen.findByRole("dialog", { name: "Evidence for F2" });
+  }
+
+  it("says what each linked Artifact is, checked now, before anything is written", async () => {
+    const asked: unknown[] = [];
+    open(() => complete, {
+      "experiments.checkArtifacts": (input: unknown) => {
+        asked.push(input);
+        return checks;
+      },
+    });
+    const form = await noteFor();
+    const list = await within(form).findByRole("list", {
+      name: "Linked artifacts, checked now",
+    });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((row) => row.textContent)
+    ).toEqual([
+      "step-4000.ckpthere and unchanged — same size, date and ends",
+      "pooled.parqueton another machine — linked on Laptop",
+      "sweep.tarchanged or gone since it was linked",
+      "model.ckpta URL — not checked here",
+    ]);
+    expect(asked).toEqual([{ path: PATH }]);
+  });
+
+  it("attaches whatever the check says", async () => {
+    const asked: unknown[] = [];
+    open(() => complete, {
+      "experiments.checkArtifacts": () => ({
+        checks: [
+          {
+            file: "sweep.tar",
+            target: "/tmp/sweep.tar",
+            machine: "Studio Mac",
+            outcome: "changed",
+          },
+        ],
+      }),
+      "experiments.attachEvidence": (input: unknown) => {
+        asked.push(input);
+        return { ...written(), revision: "2026-09-28T10:00:00+02:00" };
+      },
+    });
+    const form = await noteFor();
+    await within(form).findByText("changed or gone since it was linked");
+    fireEvent.change(within(form).getByRole("textbox"), {
+      target: { value: "d = 0.41" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+  });
+
+  it("attaches without waiting on a check still out", async () => {
+    const asked: unknown[] = [];
+    open(() => complete, {
+      "experiments.checkArtifacts": () => new Promise(() => undefined),
+      "experiments.attachEvidence": (input: unknown) => {
+        asked.push(input);
+        return { ...written(), revision: "2026-09-28T10:00:00+02:00" };
+      },
+    });
+    const form = await noteFor();
+    expect(
+      await within(form).findByText("checking the linked artifacts…")
+    ).toBeTruthy();
+    fireEvent.change(within(form).getByRole("textbox"), {
+      target: { value: "d = 0.41" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+  });
+
+  it("says a check that failed failed, rather than showing nothing, and still attaches", async () => {
+    const asked: unknown[] = [];
+    open(() => complete, {
+      "experiments.checkArtifacts": () => {
+        throw new Error("the vault is not open");
+      },
+      "experiments.attachEvidence": (input: unknown) => {
+        asked.push(input);
+        return { ...written(), revision: "2026-09-28T10:00:00+02:00" };
+      },
+    });
+    const form = await noteFor();
+    expect(
+      await within(form).findByText(
+        "could not check the linked artifacts: the vault is not open"
+      )
+    ).toBeTruthy();
+    fireEvent.change(within(form).getByRole("textbox"), {
+      target: { value: "d = 0.41" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+  });
+
+  it("shows no check for a run with nothing linked", async () => {
+    open(() => complete, {
+      "experiments.checkArtifacts": () => ({ checks: [] }),
+    });
+    const form = await noteFor();
+    await waitFor(() =>
+      expect(within(form).queryByText(/checking the linked/)).toBeNull()
+    );
+    expect(within(form).queryByRole("list")).toBeNull();
+  });
+});

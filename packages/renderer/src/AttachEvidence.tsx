@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CriteriaToAttach, CriterionToAttach } from "core";
+import type { ArtifactCheck, CriteriaToAttach, CriterionToAttach } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import form from "./AttachSource.module.css";
 import styles from "./AttachEvidence.module.css";
@@ -350,6 +350,7 @@ function Note({
         <span className={styles.standing}>{standing(criterion)}</span>
         <span className={styles.text}>{criterion.text}</span>
       </p>
+      <ArtifactChecks experiment={experiment} />
       <div className={form.field}>
         <span className={form.fieldLabel} aria-hidden>
           What this run shows for {name}
@@ -394,5 +395,63 @@ function Note({
         </p>
       )}
     </div>
+  );
+}
+
+/** Each outcome in the words ADR 0035 decision 6 gives it; the machine is named where it is the answer. */
+function verdict({ outcome, machine }: ArtifactCheck): string {
+  switch (outcome) {
+    case "unchanged":
+      // Not *identical*: the Fingerprint reads the ends, not the middle.
+      return "here and unchanged — same size, date and ends";
+    case "elsewhere":
+      return `on another machine — linked on ${machine}`;
+    case "changed":
+      return "changed or gone since it was linked";
+    case "notChecked":
+      return "a URL — not checked here";
+  }
+}
+
+/**
+ * The TEST-13 check (#370; stories 52–54; ADR 0035 decisions 6–7): each
+ * linked Artifact the run rests on, read now, at the moment the run is
+ * trusted — beside the note, and never between the note and the write.
+ * The attach button does not wait on it and does not read it: two machines
+ * are the researcher's arrangement (KEEP-11), and a file on the other one
+ * is no reason to refuse.
+ *
+ * Nothing is drawn for a run with nothing linked. A check still out says
+ * so, and one that failed says it failed, so an absent result is never
+ * read as a clean one.
+ */
+function ArtifactChecks({ experiment }: { experiment: string }) {
+  const trpc = useTRPC();
+  const check = useQuery(
+    trpc.experiments.checkArtifacts.queryOptions({ path: experiment })
+  );
+  if (check.isPending) {
+    return <p className={styles.checking}>checking the linked artifacts…</p>;
+  }
+  if (check.isError) {
+    return (
+      <p className={styles.checking}>
+        could not check the linked artifacts: {check.error.message}
+      </p>
+    );
+  }
+  const checks = check.data?.checks ?? [];
+  if (checks.length === 0) return null;
+  return (
+    <ul className={styles.checks} aria-label="Linked artifacts, checked now">
+      {checks.map((c, at) => (
+        <li key={at} className={styles.check} data-outcome={c.outcome}>
+          <span className={styles.checkFile} title={c.target}>
+            {c.file}
+          </span>
+          <span className={styles.verdict}>{verdict(c)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
