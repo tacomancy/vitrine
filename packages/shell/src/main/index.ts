@@ -227,9 +227,9 @@ function createWindow({ port }: Session) {
   const appUrl =
     process.env.ELECTRON_RENDERER_URL ?? `http://127.0.0.1:${port}/`;
 
-  // The window is the app and nothing else: a navigation that would leave
-  // its origin — a link, a script — would replace the app
-  // until a reload, so it is refused, as is any new window (`navigation.ts`).
+  // The window is the app and nothing else: leaving its origin (a link, a
+  // script, a dropped file) replaces the app until a reload, so it is
+  // refused (`navigation.ts`), and so is any new window.
   win.webContents.on("will-navigate", (event, url) => {
     if (!allowNavigation(url, appUrl)) event.preventDefault();
   });
