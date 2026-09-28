@@ -295,6 +295,40 @@ describe("a watcher that fails is reopened and the vault swept", () => {
   });
 });
 
+describe("the harness's indexed() on a vault that never comes current", () => {
+  // The instrument, not the product: a wait for `current` that nothing
+  // answers must fail naming what `current` last said, never as a bare
+  // Vitest timeout — the one a lost status event once hid behind (#294).
+  it("fails with the reason current gave, inside the test's own timeout", async () => {
+    const fs = injectable();
+    fs.refuseNext("ENOSPC: no space left on device");
+    const vault = await tmp("never-current");
+    await mkdir(join(vault, "questions"));
+    const c = await core({ settleMs: SETTLE_MS, watch: fs.watch });
+    await c.mutate<Vault>("vault.open", { path: vault });
+
+    await expect(c.indexed()).rejects.toThrow(
+      /^waited \d+ms for the vault to be current: not watching: ENOSPC: no space left on device$/
+    );
+  });
+
+  // The open's own wait: `vault.open` resolves only once the probe is
+  // answered or given up on, and the production bound on that is Vitest's
+  // 5 s default. No `probeTimeoutMs` here, unlike the give-up test below —
+  // the harness's own bound is what is under test.
+  it("a probe that is never answered gives up, and says so, inside the test's own timeout", async () => {
+    const fs = await deaf();
+    const vault = await tmp("never-answered");
+    await mkdir(join(vault, "questions"));
+    const c = await core({ settleMs: SETTLE_MS, watch: fs.watch });
+    await c.mutate<Vault>("vault.open", { path: vault });
+
+    await expect(c.indexed()).rejects.toThrow(
+      /: not watching: the watch gave no sign of life$/
+    );
+  });
+});
+
 describe("current names a settled batch not yet applied", () => {
   it("is false while a batch is being applied, and true once it is", async () => {
     // The index's after-commit listener runs inside the batch: what
@@ -320,6 +354,24 @@ describe("current names a settled batch not yet applied", () => {
     expect(inside).toEqual([
       { ok: false, reason: expect.stringMatching(/batch/) as string },
     ]);
+    expect((await status()).current).toEqual({ ok: true });
+  });
+
+  // A batch ending is a change to `current` like any other, and a renderer
+  // only re-reads `vault.status` when told to. Read directly, as the test
+  // above does, the silent version passes; this one waits the way the footer
+  // does. Found as a hang in `indexed()`: a batch delivered late by a loaded
+  // FSEvents landed behind the reopen's sweep, whose last status event read
+  // "a settled batch is not yet applied", and nothing ever said otherwise.
+  it("says so with a vaultStatus once the batch is applied", async () => {
+    const { vault, c, status } = await opened();
+    const stream = await c.events();
+    await writeFile(join(vault, "questions", "Q.md"), questionFile("Q"));
+    await stream.next("vaultChanged");
+    // After `vaultChanged` and never before it: that event is raised inside
+    // the batch, so a status event behind it is the batch's own ending.
+    await stream.next("vaultStatus");
+    stream.close();
     expect((await status()).current).toEqual({ ok: true });
   });
 });
@@ -384,7 +436,7 @@ describe("a watch whose probe cannot be written", () => {
     // normally. It is the probe that fails, not the watcher. And no
     // `probeTimeoutMs`, unlike the give-up test above: the write is the first
     // statement in the probe loop, so this fails on the first tick and the
-    // 5 s bound is never reached.
+    // harness's bound is never reached.
     const c = await core({ settleMs: SETTLE_MS });
 
     // The vault opens: a probe that cannot be written must not hold it shut.

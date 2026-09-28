@@ -56,6 +56,21 @@ export type CoreOptions = Partial<
   }
 >;
 
+/**
+ * How long a core built here lets the watch probe go unanswered. `vault.open`
+ * awaits the probe, and the production bound (5 s, `vault-watcher.ts`) is
+ * Vitest's own default: a probe starved by a loaded FSEvents ran the test out
+ * before the watcher could give up, and failed as a bare timeout naming no
+ * wait. Under it, the give-up runs and says why — *not watching: the watch
+ * gave no sign of life* — which `indexed()` and every `current` read carry.
+ *
+ * Well above what a probe takes when the machine is merely busy — a whole
+ * open peaked at 134 ms across 244 opens under #397's stress loop (parallel
+ * suites beside shell loops churning `/tmp`). And short enough that an open
+ * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside 5 s. The production bound is not this number (ADR 0029, #272).
+ */
+const HARNESS_PROBE_TIMEOUT_MS = 1000;
+
 // Every core a test file started, so `closeCores` can tear them down: a
 // watcher left open keeps reporting into later tests.
 const cores: Array<() => Promise<void>> = [];
@@ -69,8 +84,9 @@ export async function closeCores(): Promise<void> {
  * The core in-process, driven as a caller would drive it: plain requests
  * with the bearer token, no socket. Every test asserts on the reply and on
  * disk, never on how the core got there. `indexed()` waits for the open
- * vault to be current — on status changes, never on a timer — and
- * `changes` is every `vaultChanged` raised so far.
+ * vault to be current — on status changes, never on a timer, but bounded as
+ * a `next()` is (`NEXT_TIMEOUT_MS`) — and `changes` is every `vaultChanged`
+ * raised so far.
  */
 export async function core(opts: CoreOptions = {}): Promise<{
   appSupportDir: string;
@@ -90,6 +106,9 @@ export async function core(opts: CoreOptions = {}): Promise<{
   const appSupportDir = opts.appSupportDir ?? (await tmp("support"));
   const changes: VaultChanged[] = [];
   const statusWaiters: Array<() => void> = [];
+  // What `current` last said when it was not ok: what a wait that runs out
+  // reports, since "never came current" alone does not say what was missing.
+  let notCurrent = "no status was read";
   const headers = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
@@ -114,9 +133,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       ? { stalledOpenDays: opts.stalledOpenDays }
       : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
-    ...(opts.probeTimeoutMs !== undefined
-      ? { probeTimeoutMs: opts.probeTimeoutMs }
-      : {}),
+    probeTimeoutMs: opts.probeTimeoutMs ?? HARNESS_PROBE_TIMEOUT_MS,
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,
@@ -130,8 +147,11 @@ export async function core(opts: CoreOptions = {}): Promise<{
         // resolves only once the event that made the vault current has
         // been seen by everyone.
         const reply = await query<VaultStatus>("vault.status");
-        if (reply.result?.data.current.ok) {
+        const current = reply.result?.data.current;
+        if (current?.ok) {
           for (const wake of statusWaiters.splice(0)) wake();
+        } else if (current) {
+          notCurrent = current.reason;
         }
       },
     },
@@ -163,11 +183,38 @@ export async function core(opts: CoreOptions = {}): Promise<{
       // Registered before the status is read, so an event that lands
       // during the read is not missed; a waiter left behind by an early
       // return is woken and ignored, nothing more.
-      const current = new Promise<void>((wake) => statusWaiters.push(wake));
+      let wake: () => void = () => undefined;
+      const current = new Promise<void>((resolve) => {
+        wake = resolve;
+        statusWaiters.push(resolve);
+      });
       const reply = await query<VaultStatus>("vault.status");
       if (reply.error) throw new Error(reply.error.message);
-      if (reply.result?.data.current.ok) return;
-      await current;
+      const now = reply.result!.data.current;
+      if (now.ok) return;
+      notCurrent = now.reason;
+      // Bounded: a status change the core never raises would otherwise hang
+      // into a bare Vitest timeout, which names no wait at all (#294).
+      let timer: NodeJS.Timeout | undefined;
+      const lost = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `waited ${NEXT_TIMEOUT_MS}ms for the vault to be current: ${notCurrent}`
+              )
+            ),
+          NEXT_TIMEOUT_MS
+        );
+      });
+      try {
+        await Promise.race([current, lost]);
+      } finally {
+        clearTimeout(timer);
+        // Off the list, as `next()` drops its waiter: nothing waits on it now.
+        const at = statusWaiters.indexOf(wake);
+        if (at !== -1) statusWaiters.splice(at, 1);
+      }
     },
     changes,
   };
