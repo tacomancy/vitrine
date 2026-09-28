@@ -590,7 +590,9 @@ const rowId = (index: number) => `question-row-${index}`;
  * open is the default and its accent glyph says so. On a promoted row the
  * word is the link to its page, on the surface the page's Kind opens on; a
  * page the index cannot find leaves the word plain rather than a link into
- * the void.
+ * the void. A Hypothesis is named as well, by the claim it makes now
+ * (#340): its file keeps the name the claim was first typed as, so the
+ * link as written would go on naming a claim the page no longer makes.
  */
 function StatusWord({ question }: { question: ListedQuestion }) {
   if (question.status === "open") return null;
@@ -601,26 +603,27 @@ function StatusWord({ question }: { question: ListedQuestion }) {
     question.answeredWith === undefined
       ? STATUS[question.status].label
       : `${STATUS[question.status].label} \u2014 ${question.answeredWith}`;
-  const page = question.promotedTo?.path ?? null;
+  const target = question.promotedTo;
+  const page = target?.path ?? null;
+  if (page === null) return <>{` · ${label}`}</>;
+  const hypothesis = target?.kind === "hypothesis";
+  const claim = hypothesis ? (target?.display ?? null) : null;
+  // Promoted *to* the claim; answered *by* it, once its loop is closed.
+  const joiner = question.status === "answered" ? "by" : "to";
   return (
     <>
-      {" · "}
-      {page === null ? (
-        label
-      ) : (
-        <a
-          className={styles.page}
-          href={hashOf({
-            surface:
-              question.promotedTo?.kind === "hypothesis"
-                ? "hypothesis"
-                : "research-question",
-            path: page,
-          })}
-        >
-          {label}
-        </a>
-      )}
+      {claim === null ? " · " : ` · ${label} ${joiner} `}
+      <a
+        className={styles.page}
+        href={hashOf({
+          surface: hypothesis ? "hypothesis" : "research-question",
+          path: page,
+        })}
+        // Cut to the column's width, so the whole claim is on hover.
+        title={claim ?? undefined}
+      >
+        {claim ?? label}
+      </a>
     </>
   );
 }

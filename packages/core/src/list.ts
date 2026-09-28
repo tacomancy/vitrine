@@ -79,16 +79,21 @@ export function listQuestions(
   function pageOf(
     path: string,
     link: string
-  ): { path: string | null; kind: string | null } {
+  ): { path: string | null; kind: string | null; display: string | null } {
+    const nowhere = { path: null, kind: null, display: null };
     const inner = /^\[\[(.*)\]\]$/.exec(link)?.[1];
-    if (inner === undefined) return { path: null, kind: null };
+    if (inner === undefined) return nowhere;
     const { resolvedPath } = index.resolve(path, parseWikilink(inner));
-    if (resolvedPath === null) return { path: null, kind: null };
-    const [file] = index.select<{ kind: string | null }>(
-      "SELECT kind FROM files WHERE path = ?",
+    if (resolvedPath === null) return nowhere;
+    const [file] = index.select<{ kind: string | null; display: string }>(
+      "SELECT kind, display FROM files WHERE path = ?",
       resolvedPath
     );
-    return { path: resolvedPath, kind: file?.kind ?? null };
+    return {
+      path: resolvedPath,
+      kind: file?.kind ?? null,
+      display: file?.display ?? null,
+    };
   }
 
   const partial = index

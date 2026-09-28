@@ -152,6 +152,7 @@ describe("the freshly promoted state", () => {
                 resolution: "resolved",
                 resolvedPath: "sources/rasch2013.md",
                 resolvedKind: "source",
+                resolvedDisplay: null,
               },
               note: "TMR effects survive encoding controls.",
             },
@@ -168,6 +169,7 @@ describe("the freshly promoted state", () => {
                 resolution: "ambiguous",
                 resolvedPath: null,
                 resolvedKind: null,
+                resolvedDisplay: null,
               },
               note: "",
             },
@@ -185,6 +187,7 @@ describe("the freshly promoted state", () => {
                 resolution: "unresolved",
                 resolvedPath: null,
                 resolvedKind: null,
+                resolvedDisplay: null,
               },
               note: "a note",
             },
@@ -663,6 +666,7 @@ const RELATED: ResearchQuestionSections["related"] = {
         resolution: "resolved" as const,
         resolvedPath: "questions/What counts as a reactivation event.md",
         resolvedKind: "question",
+        resolvedDisplay: null,
       },
       note: "shares 2 sources",
     },
@@ -1119,6 +1123,7 @@ describe("links on the page", () => {
         resolvedPath === null ? ("unresolved" as const) : ("resolved" as const),
       resolvedPath,
       resolvedKind,
+      resolvedDisplay: null,
     },
     note: "",
   });
@@ -1165,6 +1170,48 @@ describe("links on the page", () => {
   });
 });
 
+describe("the line a sharpened Hypothesis left", () => {
+  it("names the Hypothesis by the claim it makes now, and opens its page", async () => {
+    // #340: the link was written against the file name, cut from the claim
+    // as first typed; the claim has narrowed since, and the file never
+    // follows it.
+    const claim =
+      "Spindle-coupled slow waves, not density alone, predict recall gain.";
+    open(() =>
+      withRelated({
+        present: true,
+        text: "",
+        lines: [
+          {
+            text: "[[Slow-wave density predicts recall gain.]] — sharpened into a hypothesis, 2026-09-28",
+            link: {
+              target: "Slow-wave density predicts recall gain.",
+              blockId: null,
+              resolution: "resolved",
+              resolvedPath:
+                "hypotheses/Slow-wave density predicts recall gain..md",
+              resolvedKind: "hypothesis",
+              resolvedDisplay: claim,
+            },
+            note: "sharpened into a hypothesis, 2026-09-28",
+          },
+        ],
+      })
+    );
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    const link = within(related).getByRole("link", { name: claim });
+    expect(link.getAttribute("href")).toBe(
+      "#/hypothesis/hypotheses/Slow-wave%20density%20predicts%20recall%20gain..md"
+    );
+    expect(related.textContent).not.toContain("density predicts recall gain.");
+    expect(related.textContent).toContain(
+      "sharpened into a hypothesis, 2026-09-28"
+    );
+  });
+});
+
 describe("capturing from the page", () => {
   it("⌘' on the page captures pursuing this Research Question; the new Question lands under related and the keyboard goes back where it was", async () => {
     let page = withRelated(RELATED);
@@ -1183,6 +1230,7 @@ describe("capturing from the page", () => {
               resolution: "resolved" as const,
               resolvedPath: `questions/${text.replace("?", "")}.md`,
               resolvedKind: "question",
+              resolvedDisplay: null,
             },
             note: "",
           },

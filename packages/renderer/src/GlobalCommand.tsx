@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { provenanceChip, useCapture } from "./capture";
 import { useChosenInView } from "./chosen";
 import styles from "./GlobalCommand.module.css";
-import { KIND, routeOf } from "./kinds";
+import { KIND, routeOf, type Mark } from "./kinds";
 import { matchKey, matchRun, strength } from "./match";
 import { hashOf, pushRoute, type Route } from "./router";
 import { ADDRESSED, type Addressed } from "./surfaces";
@@ -79,7 +79,7 @@ type Row = {
   route: Route;
   /** Where the window already is. Listed, marked, never the default choice. */
   current: boolean;
-  /** The reading family, for the Kinds whose Display name is a question. */
+  /** The reading family, for the Kinds whose Display name is a question or a claim. */
   serif: boolean;
   /** How well it answers what was typed, the rung both halves score on. */
   strength: number;
@@ -97,6 +97,7 @@ const KIND_ORDER = [
   "surface",
   "dashboard",
   "research-question",
+  "hypothesis",
   "question",
 ] as const;
 
@@ -111,16 +112,10 @@ const rankOf = (kind: Kind) => KIND_ORDER.indexOf(kind);
  */
 /**
  * The objects' marks and words, narrowed from the table every surface
- * showing a file shares — a closed union, so there is no unreachable
- * fallback standing where the reach rule already is.
+ * showing a file shares — a closed union, so a Kind the core can answer
+ * with and `KIND` has no mark for fails to compile rather than falling back.
  */
-const KIND_OF: Record<Destination["kind"], { glyph: string; label: string }> = {
-  question: KIND["question"] ?? { glyph: "◆", label: "question" },
-  "research-question": KIND["research-question"] ?? {
-    glyph: "■",
-    label: "research question",
-  },
-};
+const KIND_OF: Record<Destination["kind"], Mark> = KIND;
 
 const SCREEN_KIND: Record<Addressed["kind"], { glyph: string; label: string }> =
   {
@@ -500,7 +495,8 @@ const rowId = (index: number) => `global-command-row-${index}`;
 
 /**
  * What ↵ is about to do: the mode, and the thing in full rather than a
- * category. `serif` is the reading family, for a name that is a question.
+ * category. `serif` is the reading family, for a name that is a question
+ * or a claim.
  */
 type Act = { mode: string; target: string; serif: boolean; pending: boolean };
 

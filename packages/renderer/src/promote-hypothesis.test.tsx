@@ -40,6 +40,7 @@ const promoted = q(
       link: "[[Reward-based triage predates 2010.]]",
       path: "hypotheses/Reward-based triage predates 2010..md",
       kind: "hypothesis",
+      display: "Reward-based triage predates 2010.",
     },
   }
 );
@@ -207,19 +208,33 @@ describe("promote to Hypothesis", () => {
     expect(promote).not.toHaveBeenCalled();
   });
 
-  it("a row promoted to a Hypothesis carries the word as a link to the Hypothesis view", async () => {
+  it("a row promoted to a Hypothesis names it by its claim, as a link to the Hypothesis view", async () => {
     renderInbox([promoted]);
     const [row] = await rows();
     expect(within(row!).getByRole("img", { name: "promoted" })).toBeDefined();
-    const link = within(row!).getByRole("link", { name: "promoted" });
+    expect(row!.textContent).toContain("promoted to Reward-based triage");
+    const link = within(row!).getByRole("link", {
+      name: "Reward-based triage predates 2010.",
+    });
     expect(link.getAttribute("href")).toBe(
       "#/hypothesis/hypotheses/Reward-based%20triage%20predates%202010..md"
     );
   });
 
   it("a row answered by closing a Hypothesis's loop reads answered with the result, linking to the Hypothesis", async () => {
+    // No claim read: the word itself is the link.
     renderInbox([
-      { ...promoted, status: "answered", answeredWith: "supported (override)" },
+      {
+        ...promoted,
+        status: "answered",
+        answeredWith: "supported (override)",
+        promotedTo: {
+          link: "[[Reward-based triage predates 2010.]]",
+          path: "hypotheses/Reward-based triage predates 2010..md",
+          kind: "hypothesis",
+          display: null,
+        },
+      },
     ]);
     const [row] = await rows();
     expect(within(row!).getByRole("img", { name: "answered" })).toBeDefined();
@@ -229,6 +244,48 @@ describe("promote to Hypothesis", () => {
     expect(link.getAttribute("href")).toBe(
       "#/hypothesis/hypotheses/Reward-based%20triage%20predates%202010..md"
     );
+  });
+
+  it("a row answered by a Hypothesis with a current claim reads answered — <result> by the claim", async () => {
+    const claim = "Reward-based triage predates 2005, in wartime surgery.";
+    renderInbox([
+      {
+        ...promoted,
+        status: "answered",
+        answeredWith: "falsified",
+        promotedTo: {
+          link: "[[Reward-based triage predates 2010.]]",
+          path: "hypotheses/Reward-based triage predates 2010..md",
+          kind: "hypothesis",
+          display: claim,
+        },
+      },
+    ]);
+    const [row] = await rows();
+    expect(row!.textContent).toContain(`answered — falsified by ${claim}`);
+    expect(within(row!).getByRole("link", { name: claim })).toBeDefined();
+  });
+
+  it("names the Hypothesis by the claim it makes now, not the one the link was written against", async () => {
+    // #340: the file keeps the name the claim was first typed as, and the
+    // core reads the current claim into `display`.
+    const revised = "Reward-based triage predates 2005, in wartime surgery.";
+    renderInbox([
+      {
+        ...promoted,
+        promotedTo: {
+          link: "[[Reward-based triage predates 2010.]]",
+          path: "hypotheses/Reward-based triage predates 2010..md",
+          kind: "hypothesis",
+          display: revised,
+        },
+      },
+    ]);
+    const [row] = await rows();
+    const link = within(row!).getByRole("link", { name: revised });
+    // Cut to the row's width, so the whole of it is on hover.
+    expect(link.getAttribute("title")).toBe(revised);
+    expect(row!.textContent).not.toContain("predates 2010");
   });
 
   it("lists h hypothesis in the footer beside the other triage keys", async () => {

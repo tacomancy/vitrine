@@ -222,7 +222,12 @@ describe("questions.list", () => {
         page: 7,
         annotation: "h12",
         // The page the link names is not in this vault.
-        promotedTo: { link: "[[From a paper (RQ)]]", path: null, kind: null },
+        promotedTo: {
+          link: "[[From a paper (RQ)]]",
+          path: null,
+          kind: null,
+          display: null,
+        },
       },
     ]);
   });
