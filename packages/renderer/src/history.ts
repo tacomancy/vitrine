@@ -18,8 +18,27 @@ export type HistoryRow =
       revision: Revision;
       /** The text this Revision moved the field *to*; empty when nothing says. */
       to: string;
+      /** An entry that stands on its own whether or not it carries a why (`isLoud`). */
+      loud: boolean;
     }
   | { kind: "quiet"; revisions: Revision[] };
+
+const AFTER_EVIDENCE = " · edited after evidence";
+
+/**
+ * A criterion changed after evidence was attached (TEST-5; ADR 0031
+ * decision 4) is never collapsed into the quiet trail, with a why or
+ * without: the absence of a reason there is the thing a reader most needs
+ * to see (prototype 04, the history's loud entries; spec #327 story 50).
+ */
+export const isLoud = (revision: Revision) =>
+  revision.field.endsWith(AFTER_EVIDENCE);
+
+/** The field a chain runs along: a marked entry is still its criterion's. */
+const chainOf = (field: string) =>
+  field.endsWith(AFTER_EVIDENCE)
+    ? field.slice(0, -AFTER_EVIDENCE.length)
+    : field;
 
 /**
  * The entries as rows, in the file's newest-first order. An entry records
@@ -37,10 +56,12 @@ export function historyRows(
   const latest = new Map(Object.entries(current));
   const rows: HistoryRow[] = [];
   for (const revision of entries) {
-    const to = latest.get(revision.field) ?? "";
-    latest.set(revision.field, revision.from);
-    if (revision.why !== null) {
-      rows.push({ kind: "explained", revision, to });
+    const chain = chainOf(revision.field);
+    const to = latest.get(chain) ?? "";
+    latest.set(chain, revision.from);
+    const loud = isLoud(revision);
+    if (revision.why !== null || loud) {
+      rows.push({ kind: "explained", revision, to, loud });
       continue;
     }
     const last = rows[rows.length - 1];

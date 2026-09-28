@@ -261,3 +261,59 @@ textarea.claim {
   border-radius: var(--radius-md);
   background: var(--color-bg-raised);
 }
+
+/*
+ * *Edited after evidence* on a criterion (#335; prototype 04): the warning
+ * at the moment of editing and the mark forever afterwards share one
+ * treatment — the warning tone the brand gives what must be seen, amber and
+ * never red, on a soft surface with its rule at the left (ADR 0023), at the
+ * criterion text's own weight so the page cannot be read without it.
+ */
+.afterEvidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+}
+
+.mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.afterEvidenceHead {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-warning);
+}
+
+.afterEvidenceText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-secondary);
+}
+
+.afterEvidenceWhy {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg);
+}
+
+/* The warning leads with a sentence, not a tag: the prototype's sans. */
+.afterEvidenceLead {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-fg);
+}
