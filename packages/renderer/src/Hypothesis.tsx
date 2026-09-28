@@ -38,11 +38,11 @@ import { linkLabel } from "./wikilink";
  * computed it printed beside it, the criteria as read — falsifying ones in
  * their own band above the rest — then design notes and the Position
  * history, with the related rail beside them (#339). The claim and design
- * notes are Positions edited in place like a
- * Working answer (#333, `PositionField.tsx`), each save a Revision in the
- * one timeline below. There is no status control anywhere on the
- * page: the state is the core's function of the criteria, and a control
- * would make it a label someone chose (spec #327 story 36).
+ * notes are Positions edited in place like a Working answer (#333,
+ * `PositionField.tsx`), each save a Revision in the one timeline below.
+ * There is no status control anywhere on the page: the state is the core's
+ * function of the criteria, and a control would make it a label someone
+ * chose (spec #327 story 36).
  *
  * The frame — the page read's lines, the rename and removal handling, the
  * arrival that did not resolve — is `page-frame.tsx`, shared with the

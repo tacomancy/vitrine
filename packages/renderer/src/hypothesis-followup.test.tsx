@@ -215,6 +215,7 @@ describe("the related rail", () => {
           path: QUESTION,
           kind: "question",
           display: "Does the reanalysis shrink the pooled effect?",
+          reason: null,
         },
         questions: [
           {
@@ -265,6 +266,7 @@ describe("the related rail", () => {
           path: null,
           kind: null,
           display: null,
+          reason: "[[Nowhere]] matches no file in the vault",
         },
         questions: [],
       })
@@ -272,7 +274,7 @@ describe("the related rail", () => {
     const neighbours = await rail();
     expect(within(neighbours).queryByRole("link")).toBeNull();
     expect(neighbours.textContent).toContain("Nowhere");
-    expect(neighbours.textContent).toContain("does not resolve");
+    expect(neighbours.textContent).toContain("matches no file in the vault");
   });
 
   it("says quietly what belongs there when there is nothing yet", async () => {

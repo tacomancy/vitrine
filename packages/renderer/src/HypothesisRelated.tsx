@@ -33,7 +33,7 @@ export function Related({ related }: { related: RelatedRead }) {
                     {linkLabel(promotedFrom.link)}
                   </span>
                   <span className={styles.railRel}>
-                    the parent · does not resolve
+                    the parent · {promotedFrom.reason}
                   </span>
                 </>
               ) : (
@@ -71,8 +71,10 @@ function Named({ text, href }: { text: string; href: string | null }) {
   );
 }
 
-const kindWord = (kind: string | null) =>
-  (kind === null ? undefined : markOf(kind)?.label) ?? kind ?? "file";
+function kindWord(kind: string | null): string {
+  if (kind === null) return "file";
+  return markOf(kind)?.label ?? kind;
+}
 
 /**
  * How the Question came to name this page, in its Provenance's words: the

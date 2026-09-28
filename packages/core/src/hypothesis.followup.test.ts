@@ -226,6 +226,7 @@ describe("the related rail", () => {
       path: QUESTION_PATH,
       kind: "question",
       display: "Does the reanalysis shrink the pooled effect?",
+      reason: null,
     });
     expect(related.questions).toEqual([
       {
@@ -264,6 +265,7 @@ describe("the related rail", () => {
       path: null,
       kind: null,
       display: null,
+      reason: "[[Nowhere]] matches no file in the vault",
     });
   });
 });

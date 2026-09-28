@@ -346,13 +346,18 @@ export async function readHypothesisPage(
  * leaves the rail as soon as the index sees it.
  */
 export type Related = {
-  /** Null when promoted from nothing; `path` null when the link lands nowhere, which is shown rather than dropped. */
+  /**
+   * Null when promoted from nothing. A link that lands nowhere, or on two
+   * files, has `path` null and the reason — shown rather than dropped.
+   */
   promotedFrom: {
     link: string;
     path: string | null;
     kind: string | null;
     display: string | null;
+    reason: string | null;
   } | null;
+
   /** Newest captured first, as the Inbox lists them. */
   questions: RelatedQuestion[];
 };
@@ -373,51 +378,62 @@ function relatedOf(
 ): Related {
   let parent: Related["promotedFrom"] = null;
   if (promotedFrom !== undefined) {
-    const landed = resolvesTo(index, path, promotedFrom.trim());
-    const [file] =
-      landed === null
-        ? []
-        : index.select<{ kind: string | null; display: string | null }>(
-            "SELECT kind, display FROM files WHERE path = ?",
-            landed
-          );
-    parent = {
-      link: promotedFrom,
-      path: landed,
-      kind: file?.kind ?? null,
-      display: file?.display ?? null,
-    };
+    // Resolved as the loop and every write-back resolve it, so the rail
+    // and the loop line never disagree about where the page came from.
+    const resolved = resolvePromotedFrom(index, path, promotedFrom);
+    if ("reason" in resolved) {
+      parent = {
+        link: promotedFrom,
+        path: null,
+        kind: null,
+        display: null,
+        reason: resolved.reason,
+      };
+    } else {
+      const [file] = index.select<{
+        kind: string | null;
+        display: string | null;
+      }>("SELECT kind, display FROM files WHERE path = ?", resolved.path);
+      parent = {
+        link: promotedFrom,
+        path: resolved.path,
+        kind: file?.kind ?? null,
+        display: file?.display ?? null,
+        reason: null,
+      };
+    }
   }
 
-  // A Question's `fields` rows are its reader's (`readQuestion`), so each
-  // value has passed its vocabulary; a Partial Question has none and is
-  // the Inbox's to report, not the rail's.
-  const byPath = new Map<string, Record<string, unknown>>();
-  for (const row of index.select<{ path: string; key: string; value: string }>(
-    `SELECT path, key, value FROM fields
-     WHERE path IN (SELECT path FROM files WHERE kind = 'question')`
-  )) {
-    const fields = byPath.get(row.path) ?? {};
-    fields[row.key] = JSON.parse(row.value) as unknown;
-    byPath.set(row.path, fields);
-  }
-  const questions: RelatedQuestion[] = [];
-  for (const [at, fields] of byPath) {
-    const from = fields["from"];
-    if (
-      typeof from !== "string" ||
-      resolvesTo(index, at, from.trim()) !== path
-    ) {
-      continue;
+  // Only the Questions whose `from:` lands here are read whole: the page is
+  // read on every capture, and the vault's Questions are the Inbox's
+  // hundreds. A Question's `fields` rows are its reader's (`readQuestion`),
+  // so each value has passed its vocabulary; a Partial Question has none
+  // and is the Inbox's to report, not the rail's.
+  const naming = index
+    .select<{ path: string; value: string }>(
+      `SELECT path, value FROM fields WHERE key = 'from'
+       AND path IN (SELECT path FROM files WHERE kind = 'question')`
+    )
+    .filter(
+      ({ path: at, value }) =>
+        resolvesTo(index, at, (JSON.parse(value) as string).trim()) === path
+    );
+  const questions: RelatedQuestion[] = naming.map(({ path: at }) => {
+    const fields: Record<string, unknown> = {};
+    for (const row of index.select<{ key: string; value: string }>(
+      "SELECT key, value FROM fields WHERE path = ?",
+      at
+    )) {
+      fields[row.key] = JSON.parse(row.value) as unknown;
     }
-    questions.push({
+    return {
       path: at,
       question: String(fields["question"]),
       status: String(fields["status"]),
       context: String(fields["context"]),
       captured: String(fields["captured"]),
-    });
-  }
+    };
+  });
   questions.sort((a, b) => Date.parse(b.captured) - Date.parse(a.captured));
   return { promotedFrom: parent, questions };
 }
