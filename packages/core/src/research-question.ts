@@ -826,7 +826,7 @@ const keysFor = (status: "answered" | "abandoned", at: string) =>
 
 // The line is prose the user reads, so it carries the day, not the second;
 // the timestamp itself is in `answered:`, where a machine reads it.
-const dateOf = (iso: string) => iso.slice(0, 10);
+export const dateOf = (iso: string) => iso.slice(0, 10);
 
 /**
  * Reopen the page: `status: open`, and nothing else — the body, the
@@ -896,11 +896,9 @@ export async function promoteQuestion(
 }
 
 /**
- * The second write of any promotion: the Question's `status: promoted` and
- * `promoted_to`, naming the page just created. A page nothing points at is
- * a stray the user never asked for, so when this write is refused — or
- * fails outright — the page is taken back before the reason is thrown.
- * Returns the Question's new content, for the index.
+ * The second write of a promotion from a Question: its `status: promoted`
+ * and `promoted_to`, naming the page just created, or the page taken back
+ * (`orTakeBack`). Returns the Question's new content, for the index.
  */
 export async function markPromoted(
   vaultPath: string,
@@ -908,34 +906,53 @@ export async function markPromoted(
   basedOn: string,
   pagePath: string
 ): Promise<string> {
+  return orTakeBack(
+    vaultPath,
+    pagePath,
+    `Couldn't mark ${questionPath} promoted`,
+    () =>
+      write(vaultPath, questionPath, {
+        basedOn,
+        operations: [
+          {
+            op: "setFrontmatter",
+            keys: {
+              status: "promoted",
+              promoted_to: `[[${basename(pagePath, ".md")}]]`,
+            },
+          },
+        ],
+      })
+  );
+}
+
+/**
+ * The second write of any promotion — the object promoted from, made to
+ * point at the page just created. A page nothing points at is a stray the
+ * user never asked for, so when this write is refused (`refusedAs` and the
+ * protocol's detail) or fails outright, the page is taken back before the
+ * reason is thrown. Returns the written file's new content.
+ */
+export async function orTakeBack(
+  vaultPath: string,
+  pagePath: string,
+  refusedAs: string,
+  second: () => Promise<WriteResult>
+): Promise<string> {
   const takeBack = () =>
     unlink(join(vaultPath, pagePath)).catch(() => undefined);
-  let marked: WriteResult;
+  let result: WriteResult;
   try {
-    marked = await write(vaultPath, questionPath, {
-      basedOn,
-      operations: [
-        {
-          op: "setFrontmatter",
-          keys: {
-            status: "promoted",
-            promoted_to: `[[${basename(pagePath, ".md")}]]`,
-          },
-        },
-      ],
-    });
+    result = await second();
   } catch (cause) {
     await takeBack();
     throw cause;
   }
-  if (!marked.written) {
+  if (!result.written) {
     await takeBack();
-    throw new VaultError(
-      "refused",
-      `Couldn't mark ${questionPath} promoted: ${marked.detail}`
-    );
+    throw new VaultError("refused", `${refusedAs}: ${result.detail}`);
   }
-  return marked.content;
+  return result.content;
 }
 
 /**

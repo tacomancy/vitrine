@@ -426,7 +426,12 @@ export const router = t.router({
     promoteToHypothesis: t.procedure
       .input(promoteToHypothesisInput)
       .mutation(({ ctx, input }) =>
-        refusing(ctx.questions.sharpen(input.path, input.claim))
+        refusing(
+          ctx.questions.promoteResearchQuestionToHypothesis(
+            input.path,
+            input.claim
+          )
+        )
       ),
     // Resolving is a status, not an archive: reopen puts the page back to
     // open and leaves every other byte — and the Question's line — alone.

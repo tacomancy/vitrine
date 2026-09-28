@@ -1,7 +1,7 @@
 import { basename } from "node:path";
-import { parseWikilink } from "markdown";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
+import { resolvesTo } from "./link-text.js";
 import { writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -196,12 +196,10 @@ function sharpenedIntoHypotheses(index: VaultIndex): Set<string> {
     const from = (JSON.parse(row.value) as Record<string, unknown> | null)?.[
       "promoted_from"
     ];
-    const inner =
+    const resolvedPath =
       typeof from === "string"
-        ? /^\[\[(.*)\]\]$/.exec(from.trim())?.[1]
-        : undefined;
-    if (inner === undefined) continue;
-    const { resolvedPath } = index.resolve(row.path, parseWikilink(inner));
+        ? resolvesTo(index, row.path, from.trim())
+        : null;
     if (resolvedPath !== null) named.add(resolvedPath);
   }
   return named;

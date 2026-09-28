@@ -30,6 +30,7 @@ import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { linkLabel } from "./wikilink";
 import { pushRoute } from "./router";
+import { TypedLine } from "./TypedLine";
 import { useVaultStatusLines } from "./VaultStatusLines";
 import { WhyLine } from "./WhyLine";
 
@@ -393,27 +394,17 @@ function Resolving({
       onError: sharpening.fail,
     })
   );
-  // The claim being typed, or null while the line is closed. Held until ↵
-  // writes it or esc discards it, as the Inbox's typed line holds it.
+  // The claim being typed, or null while the line is closed. A page that
+  // stops being open while the line is up — resolved in another window —
+  // closes it, since the core would refuse it.
   const [claim, setClaim] = useState<string | null>(null);
-  const claimRef = useRef<HTMLInputElement>(null);
+  if (status !== "open" && claim !== null) setClaim(null);
   const promoteRef = useRef<HTMLButtonElement>(null);
-  const claiming = claim !== null;
-  useEffect(() => {
-    if (claiming) claimRef.current?.focus();
-  }, [claiming]);
 
   const busy = resolve.isPending || reopen.isPending || promote.isPending;
   const ask = (next: "answered" | "abandoned") => {
     reopening.clear();
     resolve.mutate({ path, status: next });
-  };
-  /** ↵: the claim, trimmed. A stray ↵ never writes a Hypothesis with no claim. */
-  const submitClaim = () => {
-    const text = claim?.trim() ?? "";
-    if (text === "" || promote.isPending) return;
-    sharpening.clear();
-    promote.mutate({ path, claim: text });
   };
   return (
     <>
@@ -463,42 +454,23 @@ function Resolving({
           </button>
         )}
       </span>
-      {status === "open" && claim !== null && (
-        <form
+      {claim !== null && (
+        <TypedLine
+          purpose="hypothesis"
           className={styles.claimLine}
-          aria-label="Promote to Hypothesis"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitClaim();
+          value={claim}
+          onChange={setClaim}
+          onSubmit={(text) => {
+            if (promote.isPending) return;
+            sharpening.clear();
+            promote.mutate({ path, claim: text });
           }}
-        >
-          <input
-            ref={claimRef}
-            className={styles.claimInput}
-            type="text"
-            aria-label="Claim"
-            autoComplete="off"
-            value={claim}
-            onChange={(event) => setClaim(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) return;
-              if (event.key === "Enter") {
-                event.preventDefault();
-                submitClaim();
-              } else if (event.key === "Escape") {
-                // esc discards the typing and writes nothing; the control
-                // that opened the line takes the keyboard back.
-                event.preventDefault();
-                setClaim(null);
-                sharpening.clear();
-                promoteRef.current?.focus();
-              }
-            }}
-          />
-          <span className={styles.claimHint}>
-            ↵ promote to hypothesis · esc discards
-          </span>
-        </form>
+          onDiscard={() => {
+            setClaim(null);
+            sharpening.clear();
+            promoteRef.current?.focus();
+          }}
+        />
       )}
       {/* Under the kicker rather than in a dialog: a write that did not
           happen is said where it was asked for. */}

@@ -10,7 +10,10 @@ import {
   type QuestionFile,
   type QuestionStatus,
 } from "./question-kind.js";
-import { promoteToHypothesis, sharpenIntoHypothesis } from "./hypothesis.js";
+import {
+  promoteToHypothesis,
+  promoteResearchQuestionToHypothesis,
+} from "./hypothesis.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
 import { serialised } from "./serialise.js";
 import { localIso } from "./time.js";
@@ -55,7 +58,10 @@ export type QuestionService = {
   /** Promote to Hypothesis (#331): the page written whole from the typed claim, then the Question marked. */
   promoteToHypothesis: (path: string, claim: string) => Promise<Promotion>;
   /** Sharpen a Research Question into a Hypothesis (#332): the page written whole, then the sharpened line. */
-  sharpen: (path: string, claim: string) => Promise<Promotion>;
+  promoteResearchQuestionToHypothesis: (
+    path: string,
+    claim: string
+  ) => Promise<Promotion>;
   /** Link (#211): a wikilink appended to the Question's `related`, the linking side only. */
   link: (path: string, target: string) => Promise<Linked>;
   /** Answer in place (#212): the typed line into the lead, then the two keys. */
@@ -361,10 +367,10 @@ export function createQuestionService({
     // The same name, picked from a Research Question's page (#332): in the
     // same queue, so the Inbox and the page promoting one claim at once
     // cannot both find it free.
-    sharpen: (path, claim) =>
+    promoteResearchQuestionToHypothesis: (path, claim) =>
       serially(async () => {
         const { vault: open, index, pending } = await opened();
-        return sharpenIntoHypothesis(
+        return promoteResearchQuestionToHypothesis(
           { vaultPath: open.path, index, pending },
           path,
           claim,

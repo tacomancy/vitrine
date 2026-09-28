@@ -1,5 +1,4 @@
-import { unlink } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import type { Heading, Outline } from "markdown";
 import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
@@ -17,7 +16,9 @@ import {
 import { asString, readQuestionForWrite } from "./question-kind.js";
 import {
   copiedKeys,
+  dateOf,
   markPromoted,
+  orTakeBack,
   PAGE as RESEARCH_QUESTION,
   quoted,
   readResearchQuestion,
@@ -896,7 +897,7 @@ export async function promoteToHypothesis(
  * service's queue — since the Hypothesis's name is picked in `hypotheses/`
  * as a Question's promotion picks it.
  */
-export async function sharpenIntoHypothesis(
+export async function promoteResearchQuestionToHypothesis(
   ctx: PageContext,
   path: string,
   typed: string,
@@ -943,16 +944,13 @@ export async function sharpenIntoHypothesis(
     claim,
     id: newId(),
   });
-  const takeBack = () =>
-    unlink(join(vaultPath, created.path)).catch(() => undefined);
-  const line = `- [[${basename(created.path, ".md")}]] \u2014 sharpened into a hypothesis, ${promoted.slice(0, 10)}`;
-  let result: WriteResult;
-  try {
-    result = await writeOwn(
-      ctx,
-      read.relativePath,
-      RESEARCH_QUESTION,
-      (now) => ({
+  const line = `- [[${basename(created.path, ".md")}]] \u2014 sharpened into a hypothesis, ${dateOf(promoted)}`;
+  await orTakeBack(
+    vaultPath,
+    created.path,
+    `Couldn't add the line to ${read.relativePath}`,
+    () =>
+      writeOwn(ctx, read.relativePath, RESEARCH_QUESTION, (now) => ({
         operations: [
           {
             op: "appendToSection",
@@ -961,19 +959,8 @@ export async function sharpenIntoHypothesis(
           },
         ],
         basedOn: now.hash,
-      })
-    );
-  } catch (cause) {
-    await takeBack();
-    throw cause;
-  }
-  if (!result.written) {
-    await takeBack();
-    throw new VaultError(
-      "refused",
-      `Couldn't add the line to ${read.relativePath}: ${result.detail}`
-    );
-  }
+      }))
+  );
   await index.own(created.path, created.content);
   return { path: created.path };
 }

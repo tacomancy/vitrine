@@ -1,0 +1,31 @@
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* Room above for the brass ring, which is drawn 2px outside the field
+     and would otherwise cross the text above it. */
+  padding: var(--space-2) 0;
+}
+
+/* The capture line's field: what is typed reads as text, not as a form
+   field. The brass ring on focus is the global one. */
+.input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-fg);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+}
+
+.hint {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

@@ -18,6 +18,7 @@ import { Detail } from "./Detail";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { useVaultChanged } from "./events";
 import styles from "./Inbox.module.css";
+import { TypedLine, type TypedLinePurpose } from "./TypedLine";
 import { LINKABLE } from "./kinds";
 import { Picker } from "./Picker";
 import { hashOf, pushRoute, replaceRoute, type Unresolved } from "./router";
@@ -78,7 +79,7 @@ export function Inbox({
   const [typing, setTyping] = useState<{
     path: string;
     text: string;
-    line: TypedLine;
+    line: TypedLinePurpose;
   } | null>(null);
   if (typing !== null && typing.path !== selected) setTyping(null);
 
@@ -204,11 +205,6 @@ export function Inbox({
   useEffect(() => {
     if (resolved === true) listRef.current?.focus();
   }, [resolved]);
-  const typingRef = useRef<HTMLInputElement>(null);
-  const typingKey = typing === null ? null : `${typing.line}:${typing.path}`;
-  useEffect(() => {
-    if (typingKey !== null) typingRef.current?.focus();
-  }, [typingKey]);
 
   // Switching the sort re-queries; the old list stays until the new one lands
   // rather than flashing empty.
@@ -365,13 +361,9 @@ export function Inbox({
     setSelected(rows[next]?.path ?? null);
   }
 
-  /**
-   * ↵: the typed line, trimmed. A stray ↵ never answers with nothing, and
-   * never writes a Hypothesis with no claim — the line stays open for one.
-   */
-  function submitTyped() {
-    const text = typing?.text.trim() ?? "";
-    if (typing === null || text === "") return;
+  /** ↵: the typed line, trimmed and never empty (`TypedLine`). */
+  function submitTyped(text: string) {
+    if (typing === null) return;
     setRefusal(null);
     if (typing.line === "hypothesis") {
       // The window leaves for the page on success; a refusal keeps the
@@ -392,20 +384,6 @@ export function Inbox({
         },
       }
     );
-  }
-
-  function onTypedKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.nativeEvent.isComposing) return;
-    if (event.key === "Enter") {
-      event.preventDefault();
-      submitTyped();
-    } else if (event.key === "Escape") {
-      // esc discards the typing and writes nothing; the list takes the
-      // keyboard back with the row still selected.
-      event.preventDefault();
-      setTyping(null);
-      listRef.current?.focus();
-    }
   }
 
   return (
@@ -514,30 +492,20 @@ export function Inbox({
               )}
               <span className={styles.age}>{formatAge(row.when, now)}</span>
               {typing?.path === row.path && (
-                <form
+                <TypedLine
+                  key={typing.line}
+                  purpose={typing.line}
                   className={styles.answer}
-                  aria-label={LINES[typing.line].form}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    submitTyped();
+                  value={typing.text}
+                  onChange={(text) => setTyping({ ...typing, text })}
+                  onSubmit={submitTyped}
+                  onDiscard={() => {
+                    // The list takes the keyboard back with the row still
+                    // selected.
+                    setTyping(null);
+                    listRef.current?.focus();
                   }}
-                >
-                  <input
-                    ref={typingRef}
-                    className={styles.answerInput}
-                    type="text"
-                    aria-label={LINES[typing.line].input}
-                    autoComplete="off"
-                    value={typing.text}
-                    onChange={(event) =>
-                      setTyping({ ...typing, text: event.target.value })
-                    }
-                    onKeyDown={onTypedKeyDown}
-                  />
-                  <span className={styles.answerHint}>
-                    {LINES[typing.line].hint}
-                  </span>
-                </form>
+                />
               )}
               {refusal?.path === row.path && (
                 <p className={styles.refusal} role="alert">
@@ -613,23 +581,6 @@ export function Inbox({
     </>
   );
 }
-
-/** What the row's typed line is for: an answer, or the claim of a Hypothesis. */
-type TypedLine = "answer" | "hypothesis";
-
-const LINES: Record<TypedLine, { form: string; input: string; hint: string }> =
-  {
-    answer: {
-      form: "Answer in place",
-      input: "Answer",
-      hint: "↵ answer · esc discards",
-    },
-    hypothesis: {
-      form: "Promote to Hypothesis",
-      input: "Claim",
-      hint: "↵ promote to hypothesis · esc discards",
-    },
-  };
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `question-row-${index}`;
