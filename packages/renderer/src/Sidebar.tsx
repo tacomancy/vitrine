@@ -2,14 +2,10 @@ import { hashOf, type Route } from "./router";
 import styles from "./Sidebar.module.css";
 import { DASHBOARDS, SURFACES, type Entry } from "./surfaces";
 
-// The eight surfaces in CONTEXT.md's order, then the one dashboard that has
-// an address; the Sidebar stands in for Home until beat 12. An entry with a
+// The map, drawn from `surfaces.ts` — which the Global command reads too, so
+// the two cannot disagree about what is reachable. An entry with a
 // destination is a link; the rest are drawn inert so the product's shape is
-// visible — plain list items, not controls. The Research Question view has
-// no destination of its own (a page needs a path): it lights when a page is
-// open and is inert otherwise. The list itself is `surfaces.ts`, shared with
-// the Global command so the map and the command cannot disagree about what
-// is reachable.
+// visible — plain list items, not controls.
 
 export function Sidebar({ route }: { route: Route }) {
   const item = ({ name, to, lit }: Entry) => {

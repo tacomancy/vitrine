@@ -9,7 +9,6 @@ import {
   renderApp,
   vault,
 } from "./fake-core";
-import { matchKey, strength } from "./match";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -47,30 +46,31 @@ const OBJECTS: Destination[] = [
   },
 ];
 
-const KIND_ORDER: Destination["kind"][] = ["research-question", "question"];
+/**
+ * Deliberately not `match.ts`'s: the fake stands in for the *core*, and a
+ * fake that reached for the code under test would score a wrong rung
+ * wrongly on both sides and still pass. Spelled out here, once.
+ */
+const asTyped = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/['\u2019]+/gu, "")
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
 
 /**
- * The core's half of the list, as the procedure contract describes it:
- * contains on the Display name, ordered by strength then Kind then
- * recency, capped with the true total beside it. It scores with the
- * renderer's own rungs because ADR 0027 requires the two to agree — a fake
- * that scored differently would be testing a contract nothing implements.
+ * The core's half of the list, as the procedure contract describes it: a
+ * contains on the Display name, answered in the order the core would have
+ * put them in — declaration order, which is this fixture's recency. The
+ * renderer is what decides where the Surfaces and Dashboards land among
+ * them, and that is what the suite is watching.
  */
 const answering =
   (objects: Destination[] = OBJECTS) =>
   (input: unknown): Destinations => {
     const { query } = input as { query: string };
-    const wanted = matchKey(query);
-    const rows = objects
-      .map((row, recency) => ({ row, recency, key: matchKey(row.display) }))
-      .filter(({ key }) => key.includes(wanted))
-      .sort(
-        (a, b) =>
-          strength(wanted, b.key) - strength(wanted, a.key) ||
-          KIND_ORDER.indexOf(a.row.kind) - KIND_ORDER.indexOf(b.row.kind) ||
-          a.recency - b.recency
-      )
-      .map(({ row }) => row);
+    const wanted = asTyped(query);
+    const rows = objects.filter((row) => asTyped(row.display).includes(wanted));
     return { rows, total: rows.length };
   };
 
@@ -121,7 +121,7 @@ async function settled(dialog: HTMLElement, destinations: number) {
   const options = await optionsOf(dialog);
   return {
     destinations: options.slice(0, -1),
-    capture: options.at(-1)!,
+    capture: options[options.length - 1] as HTMLElement,
     all: options,
   };
 }
@@ -138,6 +138,7 @@ function type(dialog: HTMLElement, text: string) {
   fireEvent.change(queryBox(dialog), { target: { value: text } });
 }
 
+/** Returns false when the handler took the key, as `fireEvent` reports it. */
 const press = (dialog: HTMLElement, key: string) =>
   fireEvent.keyDown(queryBox(dialog), { key });
 
@@ -238,6 +239,14 @@ describe("typing narrows the list, and each row says why it is here", () => {
     expect((await within(dialog).findByRole("alert")).textContent).toContain(
       "the index is not answering"
     );
+    // The screens are still reachable and still listed — but counting them
+    // as the whole answer would say the vault holds two things. The
+    // capture is there as always, and is not one of them.
+    expect((await settled(dialog, 2)).destinations).toHaveLength(2);
+    expect(
+      within(dialog).getByText("the Surfaces and Dashboards only")
+    ).toBeDefined();
+    expect(within(dialog).queryByText(/matching/)).toBeNull();
   });
 });
 
@@ -316,35 +325,6 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
     expect(within(dialog).queryByRole("alert")).toBeNull();
   });
 
-  it("⇥ swaps sides, and the overlay's one tab stop is the input, so the key costs nothing", async () => {
-    const dialog = await openCommand();
-    type(dialog, "loose");
-    await settled(dialog, 1);
-    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
-
-    press(dialog, "Tab");
-    expect(verbOf(dialog)).toBe("↵Captureloose");
-    expect(
-      (await settled(dialog, 1)).capture.getAttribute("aria-selected")
-    ).toBe("true");
-
-    press(dialog, "Tab");
-    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
-
-    // Nothing else in the overlay was ever going to take ⇥.
-    expect(
-      within(dialog)
-        .getAllByRole("combobox")
-        .concat(
-          Array.from(
-            dialog.querySelectorAll<HTMLElement>(
-              'a[href], button, select, textarea, [tabindex]:not([tabindex="-1"])'
-            )
-          )
-        )
-    ).toEqual([queryBox(dialog)]);
-  });
-
   it("names the alternative key beside the count, in one muted run", async () => {
     const dialog = await openCommand();
     type(dialog, "loose");
@@ -385,6 +365,216 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
   });
 });
 
+describe("the choice, and where ↵ takes it", () => {
+  it("goes with one push of the route, so back returns where the user was", async () => {
+    window.location.hash = "#/loose-ends";
+    const dialog = await openCommand();
+    type(dialog, "does slow-wave");
+    await settled(dialog, 1);
+    expect(verbOf(dialog)).toBe(
+      "↵Go toDoes slow-wave density predict recall gain?"
+    );
+    press(dialog, "Enter");
+    expect(window.location.hash).toBe(RQ_HASH);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    window.history.back();
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/loose-ends"));
+  });
+
+  it("lands the keyboard where the object landed, as a capture does", async () => {
+    const asked = {
+      ...question(
+        "Is replay necessary for consolidation?",
+        "2026-09-19T08:00:00Z"
+      ),
+      path: `${vault.path}/${Q_PATH}`,
+    };
+    const dialog = await openCommand({
+      "questions.list": { ...empty, questions: [asked] },
+    });
+    type(dialog, "is replay");
+    await settled(dialog, 1);
+    press(dialog, "Enter");
+
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("listbox", { name: "Questions" })
+      )
+    );
+    expect(
+      screen.getAllByRole("option").map((r) => r.getAttribute("aria-selected"))
+    ).toEqual(["true"]);
+  });
+
+  it("⇥ swaps sides and never focus, so esc is never out of reach", async () => {
+    renderApp(base);
+    const away = await screen.findByRole("link", { name: "Loose Ends" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+
+    // Taking ⇥ costs nothing, because the input is the overlay's only tab
+    // stop — and ⇥ walking out would leave the key handler behind the
+    // scrim with no way left to dismiss the command (#317). jsdom never
+    // moves focus on Tab, so what is asserted is the key being taken.
+    expect(
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      )
+    ).toEqual([queryBox(dialog)]);
+    const taken = !press(dialog, "Tab");
+    expect(taken).toBe(true);
+    expect(document.activeElement).toBe(queryBox(dialog));
+    expect(verbOf(dialog)).toBe("↵Captureloose");
+
+    press(dialog, "Tab");
+    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+    press(dialog, "Escape");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(away);
+  });
+
+  it("opens whatever case the chord arrives in, so caps lock is not a dead key", async () => {
+    renderApp(base);
+    await screen.findByRole("banner");
+    fireEvent.keyDown(window, { key: "K", metaKey: true });
+    expect(
+      await screen.findByRole("dialog", { name: "Global command" })
+    ).toBeDefined();
+  });
+
+  it("goes to a Dashboard and leaves the keyboard where the command found it", async () => {
+    renderApp(base);
+    const away = await screen.findByRole("link", { name: "Question Inbox" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    press(dialog, "Enter");
+    expect(window.location.hash).toBe("#/loose-ends");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Loose Ends takes no keyboard of its own, so the restore stands.
+    expect(document.activeElement).toBe(away);
+  });
+
+  it("leaves on esc and puts focus back wherever it was", async () => {
+    renderApp(base);
+    const away = await screen.findByRole("link", { name: "Loose Ends" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    expect(document.activeElement).toBe(queryBox(dialog));
+    press(dialog, "Escape");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(away);
+  });
+});
+
+describe("the ordering across the renderer's half and the core's", () => {
+  // A vault where a screen's name and an object's collide, which is the
+  // only place the two halves of the ordering can be seen deciding.
+  const COLLIDING: Destination[] = [
+    {
+      kind: "question",
+      path: "questions/Inbox triage.md",
+      display: "Inbox triage: what belongs here?",
+    },
+    {
+      kind: "research-question",
+      path: "questions/Loose threads (RQ).md",
+      display: "Loose threads in the replay account?",
+    },
+  ];
+
+  it("puts a better match above a better Kind, and breaks a tie by Kind", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering(COLLIDING),
+    });
+    // The Question is a prefix hit and the Surface only a word start, so
+    // the small fixed set does not win on being small.
+    type(dialog, "inbox");
+    expect(said((await settled(dialog, 2)).destinations)).toEqual([
+      row("◆", "Inbox triage: what belongs here?", "question"),
+      row("▪", "Question Inbox", "surface", true),
+    ]);
+    // Both are prefix hits, and now the Dashboard leads: Kind is what a
+    // tie is broken by, never what beats a better answer.
+    type(dialog, "loose");
+    expect(said((await settled(dialog, 2)).destinations)).toEqual([
+      row("▦", "Loose Ends", "dashboard"),
+      row("■", "Loose threads in the replay account?", "research question"),
+    ]);
+  });
+
+  it("puts an exact hit at the top, and the choice lands on it", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering(COLLIDING),
+    });
+    type(dialog, "loose threads in the replay account");
+    const { destinations } = await settled(dialog, 1);
+    expect(said(destinations)).toEqual([
+      row("■", "Loose threads in the replay account?", "research question"),
+    ]);
+    expect(chosenIn(destinations)).toBe(0);
+    expect(verbOf(dialog)).toBe("↵Go toLoose threads in the replay account?");
+  });
+});
+
+const page: ResearchQuestionPage = {
+  readable: true,
+  path: RQ_PATH,
+  hash: "abc",
+  frontmatter: {
+    question: "Does slow-wave density predict recall gain?",
+    status: "open",
+    promoted: "2026-09-20T10:00:00+02:00",
+    context: "reading",
+    from: "[[Rasch & Born 2013]]",
+    tags: [],
+  },
+  sections: {
+    workingAnswer: { present: true, text: "Probably both." },
+    supporting: { present: true, lines: [] },
+    opposing: { present: true, lines: [] },
+    related: { present: true, text: "", lines: [] },
+    openThreads: { present: true, text: "", threads: [] },
+    positionHistory: { present: true, text: "", entries: [] },
+  },
+  problems: [],
+};
+
+describe("the command opens over a page as it does over a list", () => {
+  it("opens from a Research Question's page, with that page marked current", async () => {
+    window.location.hash = RQ_HASH;
+    const dialog = await openCommand({ "researchQuestions.page": page });
+    const { destinations, capture } = await settled(dialog, 5);
+    expect(said(destinations)[2]).toBe(
+      row(
+        "■",
+        "Does slow-wave density predict recall gain?",
+        "research question",
+        true
+      )
+    );
+    // Still not the default choice: ↵ is never a no-op by accident.
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+  });
+});
+
 describe("the capture row", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -395,7 +585,7 @@ describe("the capture row", () => {
   it("is last in the list, under every destination, and carries the Kind glyph and the Provenance", async () => {
     const dialog = await openCommand();
     const { all, capture } = await settled(dialog, 5);
-    expect(all.at(-1)).toBe(capture);
+    expect(all[all.length - 1]).toBe(capture);
     expect(capture.textContent).toContain("Unattached · 19 Sep 2026, 07:04");
     // The mark ships with a word, never alone (BRAND.md law 6).
     expect(
@@ -601,151 +791,5 @@ describe("what ↵ writes", () => {
         name: "Capture a question, or go to something",
       }).value
     ).toBe("Does the effect survive a nap?");
-  });
-});
-
-describe("the choice, and where ↵ takes it", () => {
-  it("goes with one push of the route, so back returns where the user was", async () => {
-    window.location.hash = "#/loose-ends";
-    const dialog = await openCommand();
-    type(dialog, "does slow-wave");
-    await settled(dialog, 1);
-    expect(verbOf(dialog)).toBe(
-      "↵Go toDoes slow-wave density predict recall gain?"
-    );
-    press(dialog, "Enter");
-    expect(window.location.hash).toBe(RQ_HASH);
-    expect(screen.queryByRole("dialog")).toBeNull();
-
-    window.history.back();
-    await vi.waitFor(() => expect(window.location.hash).toBe("#/loose-ends"));
-  });
-
-  it("lands the keyboard where the object landed, as a capture does", async () => {
-    const asked = {
-      ...question(
-        "Is replay necessary for consolidation?",
-        "2026-09-19T08:00:00Z"
-      ),
-      path: `${vault.path}/${Q_PATH}`,
-    };
-    const dialog = await openCommand({
-      "questions.list": { ...empty, questions: [asked] },
-    });
-    type(dialog, "is replay");
-    await settled(dialog, 1);
-    press(dialog, "Enter");
-
-    await vi.waitFor(() =>
-      expect(document.activeElement).toBe(
-        screen.getByRole("listbox", { name: "Questions" })
-      )
-    );
-    expect(
-      screen.getAllByRole("option").map((r) => r.getAttribute("aria-selected"))
-    ).toEqual(["true"]);
-  });
-
-  it("leaves on esc and puts focus back wherever it was", async () => {
-    renderApp(base);
-    const away = await screen.findByRole("link", { name: "Loose Ends" });
-    away.focus();
-    pressGlobalChord();
-    const dialog = await screen.findByRole("dialog", {
-      name: "Global command",
-    });
-    expect(document.activeElement).toBe(queryBox(dialog));
-    press(dialog, "Escape");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(away);
-  });
-});
-
-describe("the ordering across the renderer's half and the core's", () => {
-  // A vault where a screen's name and an object's collide, which is the
-  // only place the two halves of the ordering can be seen deciding.
-  const COLLIDING: Destination[] = [
-    {
-      kind: "question",
-      path: "questions/Inbox triage.md",
-      display: "Inbox triage: what belongs here?",
-    },
-    {
-      kind: "research-question",
-      path: "questions/Loose threads (RQ).md",
-      display: "Loose threads in the replay account?",
-    },
-  ];
-
-  it("puts a better match above a better Kind, and breaks a tie by Kind", async () => {
-    const dialog = await openCommand({
-      "globalCommand.destinations": answering(COLLIDING),
-    });
-    // The Question is a prefix hit and the Surface only a word start, so
-    // the small fixed set does not win on being small.
-    type(dialog, "inbox");
-    expect(said((await settled(dialog, 2)).destinations)).toEqual([
-      row("◆", "Inbox triage: what belongs here?", "question"),
-      row("▪", "Question Inbox", "surface", true),
-    ]);
-    // Both are prefix hits, and now the Dashboard leads: Kind is what a
-    // tie is broken by, never what beats a better answer.
-    type(dialog, "loose");
-    expect(said((await settled(dialog, 2)).destinations)).toEqual([
-      row("▦", "Loose Ends", "dashboard"),
-      row("■", "Loose threads in the replay account?", "research question"),
-    ]);
-  });
-
-  it("puts an exact hit at the top whatever its Kind", async () => {
-    const dialog = await openCommand({
-      "globalCommand.destinations": answering(COLLIDING),
-    });
-    type(dialog, "loose threads in the replay account");
-    expect(said((await settled(dialog, 1)).destinations)).toEqual([
-      row("■", "Loose threads in the replay account?", "research question"),
-    ]);
-  });
-});
-
-const page: ResearchQuestionPage = {
-  readable: true,
-  path: RQ_PATH,
-  hash: "abc",
-  frontmatter: {
-    question: "Does slow-wave density predict recall gain?",
-    status: "open",
-    promoted: "2026-09-20T10:00:00+02:00",
-    context: "reading",
-    from: "[[Rasch & Born 2013]]",
-    tags: [],
-  },
-  sections: {
-    workingAnswer: { present: true, text: "Probably both." },
-    supporting: { present: true, lines: [] },
-    opposing: { present: true, lines: [] },
-    related: { present: true, text: "", lines: [] },
-    openThreads: { present: true, text: "", threads: [] },
-    positionHistory: { present: true, text: "", entries: [] },
-  },
-  problems: [],
-};
-
-describe("the command opens over a page as it does over a list", () => {
-  it("opens from a Research Question's page, with that page marked current", async () => {
-    window.location.hash = RQ_HASH;
-    const dialog = await openCommand({ "researchQuestions.page": page });
-    const { destinations, capture } = await settled(dialog, 5);
-    expect(said(destinations)[2]).toBe(
-      row(
-        "■",
-        "Does slow-wave density predict recall gain?",
-        "research question",
-        true
-      )
-    );
-    // Still not the default choice: ↵ is never a no-op by accident.
-    expect(chosenIn(destinations)).toBe(-1);
-    expect(capture.getAttribute("aria-selected")).toBe("true");
   });
 });
