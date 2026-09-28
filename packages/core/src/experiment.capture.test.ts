@@ -52,13 +52,19 @@ Four of the 41 share a first author.
 const NOTE_PATH = "notes/Reading log.md";
 
 /** A Question written by another hand, naming whatever `from` says. */
-const question = (id: string, text: string, from: string, context: string) =>
+const question = (
+  id: string,
+  text: string,
+  from: string,
+  context: string,
+  captured: string
+) =>
   `---
 id: ${id}
 kind: question
 question: "${text}"
 status: open
-captured: 2026-09-2${id.at(-1)}T09:00:00+05:30
+captured: ${captured}
 from: "${from}"
 context: ${context}
 ---
@@ -180,27 +186,31 @@ describe("the Questions the Experiment page lists", () => {
         "q000000002",
         "Seen in the plot?",
         NAME,
-        "observing"
+        "observing",
+        "2026-09-22T09:00:00+05:30"
       ),
       // A `from:` written by hand names the run too, whatever its context.
       "questions/Named by hand.md": question(
         "q000000003",
         "Named by hand?",
         NAME,
-        "other"
+        "other",
+        "2026-09-23T09:00:00+05:30"
       ),
       // Naming a different page, and naming nothing: neither is listed.
       "questions/Elsewhere.md": question(
         "q000000004",
         "Elsewhere?",
         "[[Reading log]]",
-        "observing"
+        "observing",
+        "2026-09-24T09:00:00+05:30"
       ),
       "questions/Free text.md": question(
         "q000000005",
         "Free text?",
         "prereg-exclusions",
-        "other"
+        "other",
+        "2026-09-25T09:00:00+05:30"
       ),
     });
 

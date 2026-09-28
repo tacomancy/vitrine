@@ -140,7 +140,7 @@ describe("the Questions the Experiment page lists", () => {
             question: "Does a shared first author matter?",
             status: "open",
             context: "observing",
-            captured: "2026-09-23T09:00:00+05:30",
+            captured: "2026-09-23T12:00:00Z",
           },
           {
             path: "questions/Named by hand.md",
@@ -163,7 +163,7 @@ describe("the Questions the Experiment page lists", () => {
         .getAllByRole("listitem")
         .map((item) => item.textContent)
     ).toEqual([
-      "Does a shared first author matter?question · captured from this run",
+      "Does a shared first author matter?question · captured 23 September 2026 from this run",
       "Named by hand?question · names this run · answered",
     ]);
     expect(

@@ -536,15 +536,17 @@ function QuestionsFromThisRun({ questions }: { questions: RelatedQuestion[] }) {
       ) : (
         <ul className={styles.questions}>
           {questions.map((q) => (
-            <li key={q.path} className={styles.cameFrom}>
+            <li key={q.path} className={styles.question}>
               <a href={addressOf("question", q.path) ?? undefined}>
                 {q.question}
               </a>
               <span className={styles.caption}>
                 {[
                   "question",
+                  // Dated as prototype 05's rail dates it: when the
+                  // wondering happened is part of where it came from.
                   q.context === "observing"
-                    ? "captured from this run"
+                    ? `captured ${localDate(q.captured)} from this run`
                     : "names this run",
                   ...(q.status === "open" ? [] : [q.status]),
                 ].join(" · ")}
