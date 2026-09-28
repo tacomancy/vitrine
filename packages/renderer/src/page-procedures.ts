@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { WriteResult } from "core";
+import type { SavedAnswer, WriteResult } from "core";
 import { useTRPC, useTRPCClient } from "./trpc";
 
 /**
@@ -7,17 +7,25 @@ import { useTRPC, useTRPCClient } from "./trpc";
  * Research Question's and the Hypothesis's pages call the core by
  * different names; everything else about editing a Position and
  * explaining a Revision is the same, so `PositionField.tsx` and
- * `WhyLine.tsx` are written once over this and a later Kind (an
- * Experiment's design) adds a case rather than a copy.
+ * `WhyLine.tsx` are written once over this. The Kinds are one table typed
+ * over every `HistoriedKind`, so a later Kind (an Experiment's design)
+ * that is added to the union and not to the table fails to compile rather
+ * than quietly calling another Kind's procedures.
  */
 
-/** The Kinds whose pages hold a Position history. */
-export type HistoriedKind = "research-question" | "hypothesis";
+/** Each Kind with a Position history, and the fields its page edits as text — named as their Revisions carry them. */
+type EditedFields = {
+  "research-question": "working answer";
+  hypothesis: "claim" | "design notes";
+};
 
-/** Each Kind's Positions that the page edits as text, by the field name their Revisions carry. */
-export type EditedPosition =
-  | { kind: "research-question"; field: "working answer" }
-  | { kind: "hypothesis"; field: "claim" | "design notes" };
+/** The Kinds whose pages hold a Position history. */
+export type HistoriedKind = keyof EditedFields;
+
+/** One Position the page edits as text: its Kind, and its field. */
+export type EditedPosition = {
+  [K in HistoriedKind]: { kind: K; field: EditedFields[K] };
+}[HistoriedKind];
 
 /** What a field is editing against: the file's hash and the section's text, as it read them. */
 export type Base = { hash: string; text: string };
@@ -26,61 +34,92 @@ export type Base = { hash: string; text: string };
 export type DiskCopy =
   { read: true; base: Base } | { read: false; reason: string };
 
+type Save = { path: string; text: string; basedOn: string; was: string };
+type Explain = {
+  path: string;
+  at: string;
+  field: string;
+  why: string;
+  basedOn: string;
+};
+
+/** What one Kind's page answers to. `read` is afresh, never the cache. */
+type Procedures<K extends HistoriedKind> = {
+  reread: (path: string) => Promise<void>;
+  explain: (input: Explain) => Promise<WriteResult>;
+  save: (field: EditedFields[K], input: Save) => Promise<SavedAnswer>;
+  read: (
+    path: string,
+    field: EditedFields[K]
+  ) => Promise<
+    { readable: true; base: Base } | { readable: false; reason: string }
+  >;
+};
+
 /**
- * The page procedures a Kind's field and why line call, chosen by Kind.
- * The re-read is the page's own query; a save or a why that landed
- * invalidates it so the field and the history show the file at once, as
- * the own write's `vaultChanged` would a moment later.
+ * The page procedures, by Kind. The re-read is the page's own query; a
+ * save or a why that landed invalidates it so the field and the history
+ * show the file at once, as the own write's `vaultChanged` would a moment
+ * later.
  */
-export function usePageProcedures(kind: HistoriedKind) {
+export function usePageProcedures() {
   const trpc = useTRPC();
   const client = useTRPCClient();
   const queryClient = useQueryClient();
-  /** The page's text for one Position, and its hash, read afresh. */
-  const readAfresh = async (
-    path: string,
-    position: EditedPosition
-  ): Promise<
-    { readable: true; base: Base } | { readable: false; reason: string }
-  > => {
-    if (position.kind === "hypothesis") {
-      const page = await queryClient.fetchQuery({
-        ...trpc.hypotheses.page.queryOptions({ path }),
-        staleTime: 0,
-      });
-      if (!page.readable) return page;
-      const { claim, designNotes } = page.sections;
-      const text = position.field === "claim" ? claim.text : designNotes.text;
-      return { readable: true, base: { hash: page.hash, text } };
-    }
-    const page = await queryClient.fetchQuery({
-      ...trpc.researchQuestions.page.queryOptions({ path }),
-      staleTime: 0,
-    });
-    if (!page.readable) return page;
-    return {
-      readable: true,
-      base: { hash: page.hash, text: page.sections.workingAnswer.text },
-    };
+  const byKind: { [K in HistoriedKind]: Procedures<K> } = {
+    "research-question": {
+      reread: (path) =>
+        queryClient.invalidateQueries(
+          trpc.researchQuestions.page.queryFilter({ path })
+        ),
+      explain: (input) =>
+        client.researchQuestions.explainRevision.mutate(input),
+      save: (_field, input) =>
+        client.researchQuestions.saveWorkingAnswer.mutate(input),
+      read: async (path) => {
+        const page = await queryClient.fetchQuery({
+          ...trpc.researchQuestions.page.queryOptions({ path }),
+          staleTime: 0,
+        });
+        if (!page.readable) return page;
+        const text = page.sections.workingAnswer.text;
+        return { readable: true, base: { hash: page.hash, text } };
+      },
+    },
+    hypothesis: {
+      reread: (path) =>
+        queryClient.invalidateQueries(
+          trpc.hypotheses.page.queryFilter({ path })
+        ),
+      explain: (input) => client.hypotheses.explainRevision.mutate(input),
+      save: (field, input) =>
+        client.hypotheses.savePosition.mutate({ ...input, field }),
+      read: async (path, field) => {
+        const page = await queryClient.fetchQuery({
+          ...trpc.hypotheses.page.queryOptions({ path }),
+          staleTime: 0,
+        });
+        if (!page.readable) return page;
+        const { claim, designNotes } = page.sections;
+        const text = field === "claim" ? claim.text : designNotes.text;
+        return { readable: true, base: { hash: page.hash, text } };
+      },
+    },
   };
+  // The one place a Position's Kind and field are taken apart: the table
+  // is indexed by the Kind, and the field goes to that Kind's entry.
+  const of = <K extends HistoriedKind>(position: {
+    kind: K;
+    field: EditedFields[K];
+  }) => ({ procedures: byKind[position.kind] as Procedures<K>, ...position });
   return {
-    reread: (path: string) =>
-      kind === "hypothesis"
-        ? queryClient.invalidateQueries(
-            trpc.hypotheses.page.queryFilter({ path })
-          )
-        : queryClient.invalidateQueries(
-            trpc.researchQuestions.page.queryFilter({ path })
-          ),
-    explain: (input: {
-      path: string;
-      at: string;
-      why: string;
-      basedOn: string;
-    }): Promise<WriteResult> =>
-      kind === "hypothesis"
-        ? client.hypotheses.explainRevision.mutate(input)
-        : client.researchQuestions.explainRevision.mutate(input),
+    reread: (kind: HistoriedKind, path: string) => byKind[kind].reread(path),
+    explain: (kind: HistoriedKind, input: Explain) =>
+      byKind[kind].explain(input),
+    save: (position: EditedPosition, input: Save) => {
+      const { procedures, field } = of(position);
+      return procedures.save(field, input);
+    },
     /**
      * The Position as the file holds it now — read afresh, not from the
      * page's cache, because the point of the read is that the cache is
@@ -92,7 +131,8 @@ export function usePageProcedures(kind: HistoriedKind) {
       position: EditedPosition
     ): Promise<DiskCopy> => {
       try {
-        const read = await readAfresh(path, position);
+        const { procedures, field } = of(position);
+        const read = await procedures.read(path, field);
         return read.readable
           ? { read: true, base: read.base }
           : { read: false, reason: read.reason };

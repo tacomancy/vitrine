@@ -167,6 +167,7 @@ describe("the claim, edited in place", () => {
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: RECORDED,
+        field: "claim",
         why: "Encoding was the confound.",
         basedOn: "def",
       })
@@ -366,7 +367,45 @@ describe("the history on the page", () => {
       expect(explain).toHaveBeenCalledWith({
         path: PATH,
         at: "2026-09-28T10:00:00+02:00",
+        field: "claim",
         why: "Sharpened after the pilot.",
+        basedOn: "abc",
+      })
+    );
+  });
+});
+
+describe("two fields stamped the same second", () => {
+  it("+ why opens only the entry asked for, and names it by its field as well as its timestamp", async () => {
+    const same = "2026-09-29T10:00:00+02:00";
+    const explain = vi.fn(() => ({ written: true, hash: "ghi", shape: [] }));
+    open(
+      () =>
+        page({
+          entries: [revision(same, "design notes"), revision(same, "claim")],
+        }),
+      { "hypotheses.explainRevision": explain }
+    );
+    const history = await within(await region()).findByRole("region", {
+      name: "Position history",
+    });
+    fireEvent.click(
+      await within(history).findByRole("button", { name: /quiet/ })
+    );
+    const [, claimWhy] = within(history).getAllByRole("button", {
+      name: "+ why",
+    });
+    fireEvent.click(claimWhy!);
+    expect(screen.getAllByRole("textbox", { name: "Why" })).toHaveLength(1);
+    const line = screen.getByRole("textbox", { name: "Why" });
+    fireEvent.change(line, { target: { value: "Narrowed after the pilot." } });
+    fireEvent.keyDown(line, { key: "Enter" });
+    await waitFor(() =>
+      expect(explain).toHaveBeenCalledWith({
+        path: PATH,
+        at: same,
+        field: "claim",
+        why: "Narrowed after the pilot.",
         basedOn: "abc",
       })
     );

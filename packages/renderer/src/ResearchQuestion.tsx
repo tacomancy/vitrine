@@ -198,11 +198,12 @@ export function ResearchQuestion({
               // A why written months after the fact (#216): the page's own
               // hash, because no save of the page's stands between the
               // read and this write.
-              whyLine={(at, close) => (
+              whyLine={({ at, field }, close) => (
                 <WhyLine
                   kind="research-question"
                   path={readable.path}
                   at={at}
+                  field={field}
                   basedOn={readable.hash}
                   onClose={close}
                 />

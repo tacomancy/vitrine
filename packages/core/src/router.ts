@@ -4,8 +4,8 @@ import type { Events } from "./events.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import {
-  explainHypothesisRevision,
   FIELDS,
+  PAGE as HYPOTHESIS_PAGE,
   readHypothesisPage,
   saveHypothesisPosition,
   type EditedField,
@@ -270,13 +270,20 @@ export const router = t.router({
       .input(
         pathInput.extend({
           at: z.string().min(1),
+          /** The Revision's field: the timestamp names an entry only within its field. */
+          field: z.string().min(1),
           why: z.string().trim().min(1, "The why is empty."),
           basedOn: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) =>
         refusing(
-          explainHypothesisRevision(await requirePage(ctx), input.path, input)
+          explainRevision(
+            await requirePage(ctx),
+            input.path,
+            HYPOTHESIS_PAGE,
+            input
+          )
         )
       ),
   }),
@@ -406,6 +413,8 @@ export const router = t.router({
         pathInput.extend({
           /** The Revision's `at`, verbatim as the page read it. */
           at: z.string().min(1),
+          /** The Revision's field: the timestamp names an entry only within its field. */
+          field: z.string().min(1),
           // A line nobody wrote is a decline, which the page makes by not
           // calling: an empty why here is a caller's mistake, not a Revision
           // to strip the `why:` line from.

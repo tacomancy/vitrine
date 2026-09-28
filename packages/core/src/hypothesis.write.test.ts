@@ -118,10 +118,11 @@ async function opened(
     expect(reply.error).toBeUndefined();
     return reply.result?.data as Saved;
   };
-  const explain = async (revision: string, why: string) => {
+  const explain = async (revision: string, field: string, why: string) => {
     const reply = await c.mutate<Written>("hypotheses.explainRevision", {
       path: PATH,
       at: revision,
+      field,
       why,
       basedOn: (await page()).hash,
     });
@@ -347,11 +348,45 @@ describe("hypotheses.explainRevision", () => {
     const { explain, bytes, page } = await opened(undefined, {
       now: () => t0,
     });
-    expect(await explain(PROMOTED, WHY)).toMatchObject({ written: true });
+    expect(await explain(PROMOTED, "claim", WHY)).toMatchObject({
+      written: true,
+    });
     expect(await bytes()).toBe(
       file(CLAIM, "", `- ${PROMOTED} · claim\n  why: ${WHY}\n  from:\n`)
     );
     expect((await page()).sections.positionHistory.entries[0]?.why).toBe(WHY);
+  });
+
+  it("names an entry by its timestamp and its field: two fields saved in one second are two entries a why can tell apart", async () => {
+    // A blur on the claim and ⌘↵ in the design notes can land in the same
+    // second, and so can a parked Obsidian edit and the save that splices
+    // it. The timestamp alone would name both and the why would refuse.
+    const same = "2026-09-29T10:00:00+02:00";
+    const history =
+      [
+        entry(same, "design notes", ""),
+        entry(same, "claim", "An earlier claim."),
+        entry(PROMOTED, "claim", ""),
+      ].join("\n") + "\n";
+    const { explain, bytes } = await opened({
+      [PATH]: file(CLAIM, "Held: nap length.", history),
+    });
+    expect(
+      await explain(same, "claim", "Narrowed after the pilot.")
+    ).toMatchObject({
+      written: true,
+    });
+    expect(await bytes()).toBe(
+      file(
+        CLAIM,
+        "Held: nap length.",
+        [
+          entry(same, "design notes", ""),
+          `- ${same} · claim\n  why: Narrowed after the pilot.\n  from:\n    An earlier claim.`,
+          entry(PROMOTED, "claim", ""),
+        ].join("\n") + "\n"
+      )
+    );
   });
 });
 

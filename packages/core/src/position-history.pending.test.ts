@@ -318,6 +318,7 @@ describe("an edit made in Obsidian becomes a pending Revision", () => {
       {
         path: PATH,
         at: localIso(t0),
+        field: "working answer",
         why: "Cordi's funnel plot. [[cordi2021]]",
         basedOn: (await read()).hash,
       }

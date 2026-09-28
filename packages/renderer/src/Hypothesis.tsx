@@ -129,11 +129,12 @@ export function Hypothesis({ path }: { path: string }) {
               // A why onto any entry, months later (spec #327 story 54): the
               // page's own hash, because no save of the page's stands
               // between the read and this write.
-              whyLine={(at, close) => (
+              whyLine={({ at, field }, close) => (
                 <WhyLine
                   kind="hypothesis"
                   path={readable.path}
                   at={at}
+                  field={field}
                   basedOn={readable.hash}
                   onClose={close}
                 />

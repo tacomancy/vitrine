@@ -265,12 +265,7 @@ export async function readResearchQuestionPage(
   vaultPath: string,
   path: string
 ): Promise<ResearchQuestionPage> {
-  const read = await readPageFile(
-    vaultPath,
-    path,
-    [KIND],
-    "a Research Question"
-  );
+  const read = await readPageFile(vaultPath, path, [PAGE.kind], PAGE.noun);
   if (!read.readable) return read;
   const { relativePath } = read;
   let frontmatter: ResearchQuestionFrontmatter;

@@ -57,6 +57,9 @@ const HISTORY = "Position history";
  * The Kinds whose files carry a Position history, and so the files a
  * parked Revision can be owed by. The splice does not know which one it is
  * writing to — the watcher parked the row by path — so it accepts any.
+ * Spelled here rather than imported from each Kind's `KIND`, because both
+ * Kind modules import this one; a Kind that gains a history is added here
+ * as it is to `app.ts`'s `positionsOf`.
  */
 const HISTORIED = ["research-question", "hypothesis"];
 
@@ -391,17 +394,25 @@ function historyOperations(
  * other byte of it spliced back, because the operation set has no "edit
  * one entry".
  *
- * The timestamp is the entry's whole identity (ADR 0020 decision 2), so a
- * timestamp no entry carries — or one two entries carry, which two of a
- * Hypothesis's fields could — refuses and names which, as a ticked thread
- * does. Writing the why onto a guess would put words in a Revision the
- * user was not looking at.
+ * An entry has no id; its timestamp identifies it within its field (ADR
+ * 0020 decision 2), so the why names both. The timestamp alone was enough
+ * while a page had one Position, and stopped being so with the
+ * Hypothesis: a claim saved on blur and design notes saved on ⌘↵ can land
+ * in the same second, as can a parked Obsidian edit and the save that
+ * splices it (#333). A pair no entry carries — or one two entries carry —
+ * refuses and says which, as a ticked thread does. Writing the why onto a
+ * guess would put words in a Revision the user was not looking at.
  */
 export async function explainRevision(
   ctx: PageContext,
   path: string,
   page: PageKind,
-  { at, why, basedOn }: { at: string; why: string; basedOn: string }
+  {
+    at,
+    field,
+    why,
+    basedOn,
+  }: { at: string; field: string; why: string; basedOn: string }
 ): Promise<WriteResult> {
   return writeOwn(ctx, path, page, ({ content, outline }) => {
     const heading = section(outline, HISTORY).heading;
@@ -413,13 +424,13 @@ export async function explainRevision(
       };
     }
     const matches = readRevisions(content, outline, heading).filter(
-      (item) => item.revision?.at === at
+      (item) => item.revision?.at === at && item.revision.field === field
     );
     const [only] = matches;
     if (matches.length !== 1 || only?.revision == null) {
       return notExactlyOne(matches.length, {
-        none: `no revision in ## ${HISTORY} is stamped ${at}`,
-        several: `${matches.length} revisions in ## ${HISTORY} are stamped ${at}`,
+        none: `no ${field} revision in ## ${HISTORY} is stamped ${at}`,
+        several: `${matches.length} ${field} revisions in ## ${HISTORY} are stamped ${at}`,
       });
     }
     // A why is a sentence the user wrote, and this write replaces the

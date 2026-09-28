@@ -1,5 +1,4 @@
 import { useMutation } from "@tanstack/react-query";
-import type { SavedAnswer } from "core";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   usePageProcedures,
@@ -7,25 +6,7 @@ import {
   type EditedPosition,
 } from "./page-procedures";
 import styles from "./ResearchQuestion.module.css";
-import { useTRPCClient } from "./trpc";
 import { WhyLine } from "./WhyLine";
-
-/** One save of a Position: the write, and the Revision it recorded. */
-function useSave(position: EditedPosition) {
-  const client = useTRPCClient();
-  return (input: {
-    path: string;
-    text: string;
-    basedOn: string;
-    was: string;
-  }): Promise<SavedAnswer> =>
-    position.kind === "hypothesis"
-      ? client.hypotheses.savePosition.mutate({
-          ...input,
-          field: position.field,
-        })
-      : client.researchQuestions.saveWorkingAnswer.mutate(input);
-}
 
 /**
  * A Position as a plain text field (§ Research Question view and triage,
@@ -58,8 +39,7 @@ export function PositionField({
   /** The field's own face, where it differs from a Working answer's — the claim's display size. */
   className?: string | undefined;
 }) {
-  const procedures = usePageProcedures(position.kind);
-  const saveFn = useSave(position);
+  const procedures = usePageProcedures();
   // Null while the field shows the file's text; the typing otherwise.
   const [draft, setDraft] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -79,7 +59,12 @@ export function PositionField({
   // nothing on the page mentions.
   const [focused, setFocused] = useState(false);
   const save = useMutation({
-    mutationFn: saveFn,
+    mutationFn: (input: {
+      path: string;
+      text: string;
+      basedOn: string;
+      was: string;
+    }) => procedures.save(position, input),
     onSuccess: async (result, { text: saved, basedOn }) => {
       if (!result.written) {
         if (result.reason === "changedAndUnreapplyable") setConflict(true);
@@ -88,7 +73,7 @@ export function PositionField({
       }
       setRefusal(null);
       setConflict(false);
-      await procedures.reread(path);
+      await procedures.reread(position.kind, path);
       // Typing that went on past the save is kept; the field shows the
       // re-read page only when it holds what was typed. Typing that
       // stayed is now a change to what this save put on disk.
@@ -210,6 +195,7 @@ export function PositionField({
           kind={position.kind}
           path={path}
           at={why.at}
+          field={position.field}
           basedOn={why.basedOn}
           onClose={() => setWhy(null)}
         />

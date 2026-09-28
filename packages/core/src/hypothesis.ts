@@ -1,7 +1,6 @@
 import type { Heading } from "markdown";
 import { VaultError } from "./errors.js";
 import {
-  explainRevision,
   savePosition,
   type PageContext,
   type PageKind,
@@ -290,7 +289,7 @@ export async function readHypothesisPage(
   vaultPath: string,
   path: string
 ): Promise<HypothesisPage> {
-  const read = await readPageFile(vaultPath, path, [KIND], "a Hypothesis");
+  const read = await readPageFile(vaultPath, path, [PAGE.kind], PAGE.noun);
   if (!read.readable) return read;
   const { relativePath, content, outline } = read;
   const frontmatter = readHypothesis(
@@ -490,10 +489,3 @@ export async function saveHypothesisPosition(
     section: FIELDS[input.field],
   });
 }
-
-/** A why onto any entry of the page's history, the claim's first included (spec #327 story 54). */
-export const explainHypothesisRevision = (
-  ctx: PageContext,
-  path: string,
-  input: { at: string; why: string; basedOn: string }
-) => explainRevision(ctx, path, PAGE, input);
