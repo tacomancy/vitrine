@@ -1,4 +1,3 @@
-import { useMutation } from "@tanstack/react-query";
 import type { Provenance, Question } from "core";
 import {
   useCallback,
@@ -7,9 +6,8 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { provenanceChip, useCapture } from "./capture";
 import styles from "./CaptureLine.module.css";
-import { formatDateTime } from "./time";
-import { useTRPC } from "./trpc";
 
 /**
  * The two-keystroke capture: ⌘' opens one line at the bottom of the window
@@ -28,14 +26,13 @@ export function CaptureLine({
   provenance: Provenance;
   onCaptured: (question: Question) => void;
 }) {
-  const trpc = useTRPC();
   const [openedAt, setOpenedAt] = useState<Date | null>(null);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // Where focus was when the line opened, so closing puts it back.
   const restoreTo = useRef<HTMLElement | null>(null);
 
-  const capture = useMutation(trpc.questions.capture.mutationOptions());
+  const capture = useCapture();
 
   const close = () => {
     setOpenedAt(null);
@@ -78,23 +75,14 @@ export function CaptureLine({
 
   if (openedAt === null) return null;
 
-  const submit = () => {
-    const trimmed = text.trim();
-    // A stray ↵ never makes a blank Question; a second ↵ mid-write never
-    // makes a duplicate. The input is never disabled for the wait, because
-    // disabling it drops focus and a failed write should leave the user
-    // exactly where they were, text and all.
-    if (trimmed === "" || capture.isPending) return;
-    capture.mutate(
-      { text: trimmed, provenance },
-      {
-        onSuccess: (question) => {
-          close();
-          onCaptured(question);
-        },
-      }
-    );
-  };
+  // `useCapture` holds the write's own two rules. The input is never
+  // disabled for the wait, because disabling it drops focus and a failed
+  // write should leave the user exactly where they were, text and all.
+  const submit = () =>
+    capture.write(text, provenance, (question) => {
+      close();
+      onCaptured(question);
+    });
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -119,7 +107,7 @@ export function CaptureLine({
       <div className={styles.row}>
         <span className={styles.label}>Capture</span>
         <span className={styles.chip}>
-          {chipText(provenance)} · {formatDateTime(openedAt)}
+          {provenanceChip(provenance, openedAt)}
         </span>
         <input
           ref={inputRef}
@@ -133,18 +121,11 @@ export function CaptureLine({
         />
         <span className={styles.hint}>↵ capture · esc discards</span>
       </div>
-      {capture.isError && (
+      {capture.error !== null && (
         <p className={styles.message} role="alert">
           {capture.error.message}
         </p>
       )}
     </form>
   );
-}
-
-/** `Unattached`, or `Pursuing · <the page's file name>`: what the Provenance will say. */
-function chipText(provenance: Provenance): string {
-  if (provenance.context === "other") return "Unattached";
-  const stem = provenance.researchQuestion.split("/").pop() ?? "";
-  return `Pursuing · ${stem.replace(/\.md$/, "")}`;
 }
