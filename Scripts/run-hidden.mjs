@@ -22,7 +22,9 @@
 //             once the page has painted, before the capture
 //
 // `page` offers: eval(js) → value; key(key, {code, vk, text, modifiers});
-// type(text); wait(js) → polls until truthy; sleep(ms). ⌘ is modifiers 4.
+// type(text); wait(js) → polls until truthy; sleep(ms); send(method, params)
+// → any other CDP command, e.g. Input.dispatchDragEvent to drop a file. ⌘ is
+// modifiers 4.
 //
 // Without --app, needs `pnpm --filter core... build && pnpm --filter shell
 // build` first: the shell spawns core/dist/main.js, so a stale dist is stale
@@ -151,6 +153,7 @@ const { send, ws } = await connect(target.webSocketDebuggerUrl);
 
 const page = {
   sleep,
+  send,
   eval: async (js) => {
     const { result, exceptionDetails } = await send("Runtime.evaluate", {
       expression: js,

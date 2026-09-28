@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { closeCore, type CorePort } from "./close.js";
 import { coreEntry, stateFolder } from "./launch.js";
+import { allowNavigation } from "./navigation.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
 
@@ -223,8 +224,18 @@ function createWindow({ port }: Session) {
   win.on("focus", () => coreProcess?.postMessage({ type: "focused" }));
 
   // Development loads from Vite for HMR; otherwise the core serves the bundle.
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  void win.loadURL(devUrl ?? `http://127.0.0.1:${port}/`);
+  const appUrl =
+    process.env.ELECTRON_RENDERER_URL ?? `http://127.0.0.1:${port}/`;
+
+  // The window is the app and nothing else: a navigation that would leave
+  // its origin — a link, a script — would replace the app
+  // until a reload, so it is refused, as is any new window (`navigation.ts`).
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!allowNavigation(url, appUrl)) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
+  void win.loadURL(appUrl);
 }
 
 void app.whenReady().then(async () => {
