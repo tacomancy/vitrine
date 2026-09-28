@@ -20,8 +20,11 @@ import {
   createExperiment,
   EDITED_SECTIONS as EXPERIMENT_SECTIONS,
   PAGE as EXPERIMENT_PAGE,
+  POSITIONS as EXPERIMENT_POSITIONS,
   readExperimentPage,
+  saveExperimentPosition,
   saveExperimentSection,
+  type ExperimentPosition,
   setExperimentStatus,
   STATUSES as EXPERIMENT_STATUSES,
 } from "./experiment.js";
@@ -478,6 +481,31 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(
           saveExperimentSection(await requirePage(ctx), input.path, input)
+        )
+      ),
+    // Design or observations (#365): the section replaced and its Revision
+    // recorded in one write, as a Hypothesis's claim is saved.
+    savePosition: t.procedure
+      .input(
+        pathInput.extend({
+          field: z.enum(
+            Object.keys(EXPERIMENT_POSITIONS) as [
+              ExperimentPosition,
+              ...ExperimentPosition[],
+            ]
+          ),
+          text: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveExperimentPosition(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
         )
       ),
     // One key in frontmatter; never a Revision (TEST-10).
