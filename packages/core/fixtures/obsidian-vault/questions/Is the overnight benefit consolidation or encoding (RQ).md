@@ -21,6 +21,8 @@ tags:
 
 ## Related questions
 
+- [[Slow-wave density on the retention night predicts overnight recall gain beyond]] — sharpened into a hypothesis, 2026-09-21
+
 ## Open threads
 
 ## Position history

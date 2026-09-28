@@ -316,7 +316,7 @@ describe("the positionsOf seam", () => {
 
   it("is not called for a Kind with nothing registered", async () => {
     const vault = await fixtureCopy("obsidian-vault");
-    const { calls, positionsOf } = standIn("hypothesis");
+    const { calls, positionsOf } = standIn("scout");
     const c = await opened(vault, { positionsOf });
     await c.indexed();
     expect(calls).toEqual([]);
