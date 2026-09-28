@@ -234,6 +234,20 @@ describe("hypotheses.override", () => {
   });
 });
 
+describe("a why added afterwards", () => {
+  it("never makes an Override of an entry that was not one — it would stand over evidence it never judged", async () => {
+    const bare = entry(t0, "override", "inconclusive");
+    const { call, bytes } = await opened(PARTIAL, history(bare, PROMOTION));
+    const reply = await call("explainRevision", {
+      at: localIso(t0),
+      field: "override",
+      why: "late reasons",
+    });
+    expect(reply.error?.message).toMatch(/override/);
+    expect(await bytes()).toBe(file(PARTIAL, history(bare, PROMOTION)));
+  });
+});
+
 describe("the void, in the write that caused it", () => {
   it("an Outcome recorded voids the Override, above the criterion's Revision, and the page reads the derived state again", async () => {
     const { wrote, bytes, page, setNow } = await overridden();

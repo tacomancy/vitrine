@@ -156,7 +156,10 @@ function Row({
             // Only a loud entry stands here without a why, and it says so.
             <div className={styles.quietWhen}>
               <span className={styles.noWhy}>no why written</span>
-              {explaining !== undefined && (
+              {/* Never onto an override: one without a why is not an
+                  Override, and a why added later would make it one that
+                  nothing it came after has voided (the core refuses too). */}
+              {explaining !== undefined && loud !== "override" && (
                 <button
                   type="button"
                   className={styles.addWhy}
@@ -172,7 +175,7 @@ function Row({
               <Why text={revision.why} />
             </p>
           )}
-          {revision.field === "override voided" &&
+          {loud === "override voided" &&
           !Number.isNaN(Date.parse(revision.from)) ? (
             // Its `from:` is the Override's timestamp: the one it ends. One
             // typed by hand that is not a time shows as written.

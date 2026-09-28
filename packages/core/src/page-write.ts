@@ -3,8 +3,10 @@ import {
   CRITERIA_FIELD,
   criteriaEntries,
   liveOverride,
+  OVERRIDE,
   voidOf,
 } from "./hypothesis-rule.js";
+import { VaultError } from "./errors.js";
 import type { PendingRevision, PendingRevisions } from "./pending-revisions.js";
 import {
   coalesce,
@@ -517,6 +519,16 @@ export async function explainRevision(
     basedOn,
   }: { at: string; field: string; why: string; basedOn: string }
 ): Promise<WriteResult> {
+  // An `· override` without a why is not an Override (`liveOverride`), so
+  // nothing it came after ever voided it; a why written onto it now would
+  // stand it over criteria it never judged, past every refusal the Override
+  // itself makes (ADR 0031 decision 7). A fresh call is a fresh Override.
+  if (field === OVERRIDE) {
+    throw new VaultError(
+      "refused",
+      "An override's why is written with it; make a new override instead."
+    );
+  }
   return writeOwn(ctx, path, page, ({ content, outline }) => {
     const heading = section(outline, HISTORY).heading;
     if (heading === undefined) {

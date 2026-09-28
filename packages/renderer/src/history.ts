@@ -87,9 +87,13 @@ export function historyRows(
   const latest = new Map(Object.entries(current));
   const rows: HistoryRow[] = [];
   for (const revision of entries) {
+    // An Override and its void are acts on the state, not Positions: their
+    // `from:` is the state overruled or the Override ended, never text a
+    // newer entry of the same field moved on from.
+    const positional = !OVERRIDES.includes(revision.field as Loud);
     const chain = chainOf(revision.field);
-    const to = latest.get(chain) ?? "";
-    latest.set(chain, revision.from);
+    const to = positional ? (latest.get(chain) ?? "") : "";
+    if (positional) latest.set(chain, revision.from);
     if (!shows(revision)) continue;
     const loud = loudness(revision);
     if (revision.why !== null || loud !== null) {

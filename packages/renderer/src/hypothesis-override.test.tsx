@@ -328,6 +328,22 @@ describe("the history", () => {
     expect(override.textContent).toContain("partial call");
   });
 
+  it("offers no why onto an override that has none — a why added later would make an Override nothing voided", async () => {
+    open(() =>
+      page({}, [
+        { at: at("07"), field: "override", why: null, from: "inconclusive" },
+      ])
+    );
+    const region = await screen.findByRole("region", {
+      name: "Position history",
+    });
+    const override = within(region).getByRole("listitem", { name: "Override" });
+    expect(override.textContent).toContain("no why written");
+    expect(
+      within(override).queryByRole("button", { name: "+ why" })
+    ).toBeNull();
+  });
+
   it("filters to the claim alone, criterion edits alone, or what decided the state", async () => {
     const region = await history();
     const choose = (label: string) =>

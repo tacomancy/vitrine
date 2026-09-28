@@ -163,6 +163,22 @@ describe("historyRows", () => {
     ).toEqual(["override voided", "override"]);
   });
 
+  it("an Override is not a Position: an older one never reads a newer one's from as what it moved to", () => {
+    const override = (day: string): Revision => ({
+      at: at(day),
+      field: "override",
+      why: "call",
+      from: "inconclusive",
+    });
+    const rows = historyRows(
+      [override("2026-09-08"), override("2026-09-05")],
+      {}
+    );
+    expect(
+      rows.map((row) => (row.kind === "explained" ? row.to : null))
+    ).toEqual(["", ""]);
+  });
+
   it("no entries is no rows", () => {
     expect(historyRows([], {})).toEqual([]);
   });

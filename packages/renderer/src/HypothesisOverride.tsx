@@ -54,6 +54,8 @@ export function OverrideForm({
     if (!ready || record.isPending) return;
     record.mutate({ path, why, basedOn: hash });
   };
+  // The core's `nameOf`, repeated (the renderer imports only types): it is
+  // how `unlanded` names a criterion, so the two must spell it alike.
   const nameOf = (c: CriterionRead) => c.label ?? `^${c.id}`;
   const overruled = criteria.filter((c) => unlanded.includes(nameOf(c)));
 
