@@ -14,6 +14,15 @@ export type {
   DestinationKind,
   Destinations,
 } from "./destinations.js";
+export type {
+  Clause,
+  CriterionRead,
+  Derivation,
+  DerivedState,
+  HypothesisFrontmatter,
+  HypothesisPage,
+  HypothesisSections,
+} from "./hypothesis.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {

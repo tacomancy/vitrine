@@ -25,7 +25,13 @@ export const SURFACES: readonly Entry[] = [
     name: "Research Question view",
     lit: (at) => at.surface === "research-question",
   },
-  { name: "Hypothesis view" },
+  {
+    name: "Hypothesis view",
+    // No list surface: a Hypothesis is reached from its parent, its
+    // Question's row, and ⌘K, so the entry lights only while one is on
+    // screen (spec #327 story 79).
+    lit: (at) => at.surface === "hypothesis",
+  },
   { name: "Experiment view" },
   { name: "Scout Queue" },
   { name: "Vault" },

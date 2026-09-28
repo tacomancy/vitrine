@@ -477,13 +477,19 @@ function Resolving({
   );
 }
 
+/** The Provenance keys a page's frontmatter carries, whichever Kind the page is. */
+type ProvenanceKeys = Pick<
+  ResearchQuestionFrontmatter,
+  "captured" | "context" | "from" | "page"
+>;
+
 /**
  * `first wondered 14 August 2026 · 09:12 · while reading Rasch & Born 2013 ·
  * p.699`. The context is the Provenance's own word (CONTEXT.md); `from` is
  * shown without its brackets — how a Source reads here is the Reader
  * slice's call, as on the Inbox.
  */
-function provenanceLine(fm: ResearchQuestionFrontmatter): string {
+export function provenanceLine(fm: ProvenanceKeys): string {
   const parts: string[] = [];
   if (fm.captured !== undefined) {
     parts.push(`first wondered ${localDateTime(fm.captured)}`);
@@ -492,7 +498,7 @@ function provenanceLine(fm: ResearchQuestionFrontmatter): string {
   return parts.join(" · ");
 }
 
-function whileDoing(fm: ResearchQuestionFrontmatter): string {
+export function whileDoing(fm: ProvenanceKeys): string {
   if (fm.from === undefined) return "unattached";
   const where =
     fm.page === undefined
@@ -720,7 +726,7 @@ function baseLine(fm: ResearchQuestionFrontmatter): string {
  * and named again in the footer: the page never loses its shape because one
  * heading did.
  */
-function Section({
+export function Section({
   name,
   present,
   action,
@@ -753,7 +759,7 @@ function Section({
 }
 
 /** An empty section: a quiet outline around one sentence on what belongs there. */
-function Outline({ children }: { children: ReactNode }) {
+export function Outline({ children }: { children: ReactNode }) {
   return <p className={styles.outline}>{children}</p>;
 }
 
@@ -769,7 +775,7 @@ const targetText = ({ link }: LinkLine) =>
  * line; the Related column passes none, because *move to opposing* on a
  * neighbouring question means nothing.
  */
-function Lines({
+export function Lines({
   lines,
   empty,
   actions,
@@ -1276,7 +1282,7 @@ function Threads({
 }
 
 /** One problem as the footer says it: the section named, the fault in plain words. */
-function describeProblem(problem: ShapeProblem): string {
+export function describeProblem(problem: ShapeProblem): string {
   const block = problem.block ?? "";
   switch (problem.problem) {
     case "sectionMissing":
@@ -1286,7 +1292,11 @@ function describeProblem(problem: ShapeProblem): string {
       return `${block} is in the file twice`;
     case "historyEntryUnparsed":
       return `a line under Position history is not a revision (${block})`;
-    default:
-      return `${problem.problem}${block === "" ? "" : ` (${block})`}`;
+    case "criteriaMissing":
+      return "Criteria is not in the file";
+    case "criterionWithoutId":
+      return `a criterion has no ^c id (${block})`;
+    case "fieldOutsideVocabulary":
+      return `^${block} has a field outside its vocabulary`;
   }
 }

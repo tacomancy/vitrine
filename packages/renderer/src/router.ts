@@ -12,6 +12,7 @@ import { useEffect, useSyncExternalStore } from "react";
 export type Route =
   | { surface: "inbox"; question?: string; unresolved?: Unresolved }
   | { surface: "research-question"; path: string }
+  | { surface: "hypothesis"; path: string }
   | { surface: "loose-ends" };
 
 /**
@@ -36,6 +37,7 @@ export const LOOSE_ENDS: Route = { surface: "loose-ends" };
  */
 const QUESTION = "#/question/";
 const RESEARCH_QUESTION = "#/research-question/";
+const HYPOTHESIS = "#/hypothesis/";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -57,6 +59,8 @@ export function hashOf(route: Route): string {
       return "#/loose-ends";
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
+    case "hypothesis":
+      return HYPOTHESIS + encodePath(route.path);
   }
 }
 
@@ -94,6 +98,8 @@ function parseHash(hash: string): Route {
   if (question !== null) return { surface: "inbox", question };
   const page = pathUnder(hash, RESEARCH_QUESTION);
   if (page !== null) return { surface: "research-question", path: page };
+  const hypothesis = pathUnder(hash, HYPOTHESIS);
+  if (hypothesis !== null) return { surface: "hypothesis", path: hypothesis };
   if (hash.startsWith(RETIRED))
     return {
       surface: "inbox",

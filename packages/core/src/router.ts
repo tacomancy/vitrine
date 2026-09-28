@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Events } from "./events.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
+import { readHypothesisPage } from "./hypothesis.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
@@ -223,6 +224,14 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return refusing(createSourceStub(vault.path, index, input));
       }),
+  }),
+  hypotheses: t.router({
+    // The page (#330): the file's body from disk, the Derived state computed
+    // from its criteria, each Evidence link's resolution from the index.
+    page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(readHypothesisPage(index, vault.path, input.path));
+    }),
   }),
   researchQuestions: t.router({
     // The page: the file's body from disk, each link's resolution from the

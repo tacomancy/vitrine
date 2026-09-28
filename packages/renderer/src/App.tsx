@@ -6,6 +6,7 @@ import { CaptureLine } from "./CaptureLine";
 import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
 import { GlobalCommand } from "./GlobalCommand";
+import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ResearchQuestion } from "./ResearchQuestion";
@@ -92,6 +93,9 @@ export function App() {
               attachOnArrival={attachOnArrival === route.path}
               onArrival={() => setAttachOnArrival(null)}
             />
+          )}
+          {route.surface === "hypothesis" && (
+            <Hypothesis key={route.path} path={route.path} />
           )}
           {route.surface === "loose-ends" && (
             <LooseEnds

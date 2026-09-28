@@ -12,6 +12,7 @@ import { hashOf, type Route } from "./router";
 export const KIND: Record<string, { glyph: string; label: string }> = {
   question: { glyph: "◆", label: "question" },
   "research-question": { glyph: "■", label: "research question" },
+  hypothesis: { glyph: "▲", label: "hypothesis" },
   source: { glyph: "●", label: "source" },
   "source-stub": { glyph: "○", label: "source stub" },
   note: { glyph: "·", label: "note" },
@@ -37,6 +38,8 @@ export function routeOf(
       return { surface: "inbox", question: path };
     case "research-question":
       return { surface: "research-question", path };
+    case "hypothesis":
+      return { surface: "hypothesis", path };
     default:
       return null;
   }
