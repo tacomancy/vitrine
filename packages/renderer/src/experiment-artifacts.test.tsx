@@ -41,6 +41,7 @@ const pageWith = (items: ArtifactLine[]): Readable => ({
     positionHistory: { present: true, text: "", entries: [] },
   },
   cameFrom: null,
+  evidence: [],
   problems: [],
 });
 

@@ -7,6 +7,7 @@ import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import {
   addCriterion,
+  attachEvidence,
   deleteCriterion,
   editCriterion,
   FIELDS,
@@ -20,6 +21,7 @@ import {
 } from "./hypothesis.js";
 import {
   createExperiment,
+  criteriaToAttach,
   EDITED_SECTIONS as EXPERIMENT_SECTIONS,
   PAGE as EXPERIMENT_PAGE,
   POSITIONS as EXPERIMENT_POSITIONS,
@@ -485,6 +487,38 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(
           saveExperimentSection(await requirePage(ctx), input.path, input)
+        )
+      ),
+    // What *attach as evidence* offers (#367): every Hypothesis's Criteria,
+    // grouped by Hypothesis, falsifying first.
+    criteria: t.procedure.query(async ({ ctx }) => {
+      const { vault, index } = await requireVault(ctx);
+      return criteriaToAttach(index, vault.path);
+    }),
+    // A run attached to one Criterion (#367; TEST-12): written on the
+    // Hypothesis, through its criterion write path — a Revision of that
+    // Criterion, never an Outcome. The note's emptiness is the core's to
+    // refuse, in its words, so the input takes any string.
+    attachEvidence: t.procedure
+      .input(
+        z.object({
+          hypothesis: z.string().min(1),
+          criterion: z.string().min(1),
+          experiment: z.string().min(1),
+          note: z.string(),
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          attachEvidence(await requirePage(ctx), input.hypothesis, {
+            id: input.criterion,
+            experiment: input.experiment,
+            note: input.note,
+            basedOn: input.basedOn,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
         )
       ),
     // Design or observations (#365): the section replaced and its Revision

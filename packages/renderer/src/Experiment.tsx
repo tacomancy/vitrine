@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CameFrom,
+  EvidenceFor,
   ExperimentFrontmatter,
   ExperimentSections,
   ExperimentStatus,
 } from "core";
 import { useEffect, useId, useRef, useState } from "react";
+import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
 import { Artifacts } from "./ExperimentArtifacts";
@@ -64,6 +66,7 @@ export function Experiment({
   // The file waiting for its caption, from *+ artifact* or a drop.
   const [adding, setAdding] = useState<string | null>(null);
   const status = useVaultStatusLines();
+  const [attaching, setAttaching] = useState(false);
 
   const data = page.data;
   const { sectionRef, removed, resolved } = usePageFrame(
@@ -111,6 +114,7 @@ export function Experiment({
               path={readable.path}
               hash={readable.hash}
               frontmatter={readable.frontmatter}
+              onAttach={() => setAttaching(true)}
             />
             <Section name="Purpose" present={readable.sections.purpose.present}>
               <PositionField
@@ -178,6 +182,7 @@ export function Experiment({
               hash={readable.hash}
               section={readable.sections.whereItRan}
             />
+            <AttachedAsEvidence evidence={readable.evidence} />
             {readable.cameFrom !== null && (
               <CameFromSection cameFrom={readable.cameFrom} />
             )}
@@ -210,6 +215,12 @@ export function Experiment({
           </aside>
         </div>
       )}
+      {readable !== null && attaching && (
+        <AttachEvidence
+          experiment={readable.path}
+          onClose={() => setAttaching(false)}
+        />
+      )}
       {hasFooter && (
         <footer className={rq.footer}>
           {problems.length > 0 && (
@@ -233,10 +244,12 @@ function Header({
   path,
   hash,
   frontmatter,
+  onAttach,
 }: {
   path: string;
   hash: string;
   frontmatter: ExperimentFrontmatter;
+  onAttach: () => void;
 }) {
   return (
     <header className={rq.header}>
@@ -248,6 +261,9 @@ function Header({
           status={frontmatter.status}
           unreadable={frontmatter.statusUnreadable}
         />
+        <button type="button" className={styles.action} onClick={onAttach}>
+          attach as evidence
+        </button>
       </div>
       <p className={styles.name}>
         <span>{frontmatter.name}</span>
@@ -415,6 +431,47 @@ function WhereItRan({
             </Outline>
           }
         />
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Every Criterion this run is Evidence for (spec #362 stories 22–24), read
+ * back from the Hypotheses — each with its label, Relationship and Outcome,
+ * the claim, and the note written for it, and each opening its Hypothesis.
+ * A run that bears on no claim says so as a plain fact: most runs never
+ * attach, and one that doesn't is not unfinished business (HOLD-6).
+ */
+function AttachedAsEvidence({ evidence }: { evidence: EvidenceFor[] }) {
+  return (
+    <Section name="Attached as evidence" present>
+      {evidence.length === 0 ? (
+        <p className={styles.quiet}>
+          Nothing. Most runs never bear on a claim, and a run that doesn&rsquo;t
+          is not unfinished.
+        </p>
+      ) : (
+        <ul className={styles.evidence}>
+          {evidence.map(({ hypothesis, criterion, note }, i) => (
+            <li key={i}>
+              <a
+                className={styles.attachment}
+                href={addressOf("hypothesis", hypothesis.path) ?? undefined}
+                data-relationship={criterion.relationship ?? undefined}
+              >
+                <span className={styles.attachmentLabel}>
+                  {criterionName(criterion)}
+                </span>
+                <span className={styles.caption}>{standing(criterion)}</span>
+                <span className={styles.attachmentClaim}>
+                  {hypothesis.claim}
+                </span>
+                <span className={styles.attachmentNote}>{note}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       )}
     </Section>
   );
