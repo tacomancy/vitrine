@@ -307,12 +307,15 @@ function sizeLine(item: StoredArtifact): string {
   return `${formatSize(item.size)} · in vault`;
 }
 
-/** Bytes as the prototype writes them: `412 KB`, `1.1 MB`. */
+/**
+ * Bytes as the prototype writes them — `412 KB`, `1.1 MB` — in decimal
+ * units, as Finder counts them and as the core writes a linked line's size.
+ */
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes < 1e3) return `${bytes} B`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} KB`;
+  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
 /**

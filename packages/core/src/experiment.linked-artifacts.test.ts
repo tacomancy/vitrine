@@ -35,7 +35,8 @@ type Inspected = { size: number | null; proposed: "stored" | "linked" };
 const PATH = "experiments/prereg-exclusions/prereg-exclusions.md";
 const FOLDER = "experiments/prereg-exclusions";
 const MIB = 1024 * 1024;
-const THRESHOLD = 25 * MIB;
+// 25 MB as the ADR and Finder count it: decimal megabytes.
+const THRESHOLD = 25_000_000;
 // Local noon, so the date the line records is the same in every zone the
 // suite runs in.
 const NOW = new Date(2026, 8, 28, 12, 0, 0);
@@ -172,7 +173,10 @@ describe("experiments.inspectArtifact", () => {
 describe("experiments.addArtifact — linked", () => {
   it("writes the linked line with its path, size, date, machine and Fingerprint, and copies nothing", async () => {
     const { vault, c } = await opened();
-    const source = await heavy("bootstrap-draws.parquet", THRESHOLD + 3 * MIB);
+    const source = await heavy(
+      "bootstrap-draws.parquet",
+      THRESHOLD + 3_000_000
+    );
     const fingerprint = await fingerprintOf(source);
 
     const reply = await c.mutate<Added>("experiments.addArtifact", {
@@ -195,7 +199,7 @@ describe("experiments.addArtifact — linked", () => {
     );
     expect(await folderHolds(vault)).toEqual(["prereg-exclusions.md"]);
     // The source is only read.
-    expect((await stat(source)).size).toBe(THRESHOLD + 3 * MIB);
+    expect((await stat(source)).size).toBe(THRESHOLD + 3_000_000);
   });
 
   it("hashes a file of 2 MiB or less whole, since its ends are all of it", async () => {
@@ -279,6 +283,53 @@ describe("experiments.addArtifact — linked", () => {
 
     expect(reply.error?.message).toBe(
       "never-written.pt is not a file that can be read."
+    );
+    expect(await readFile(join(vault, PATH), "utf8")).toBe(page());
+  });
+});
+
+describe("a path the line must carry back", () => {
+  it("reads back a path with the line's own dash in it as the path it was", async () => {
+    const { vault, c } = await opened();
+    const folder = join(await tmp("desktop"), "run 3 — final");
+    await mkdir(folder);
+    const source = join(folder, "weights.pt");
+    await writeFile(source, "weights");
+
+    await c.mutate("experiments.addArtifact", {
+      path: PATH,
+      source,
+      as: "linked",
+      caption: "Final — after the rerun.",
+    });
+
+    expect(await readFile(join(vault, PATH), "utf8")).toContain(
+      `- weights.pt — ${source} · 7 B · `
+    );
+    const [item] = (await pageOf(c)).sections.artifacts.items;
+    expect(item).toMatchObject({
+      kind: "linked",
+      target: source,
+      description: "Final — after the rerun.",
+    });
+  });
+
+  it("refuses a path with a line break in it, which the list item could not hold", async () => {
+    const { vault, c } = await opened();
+    const folder = join(await tmp("desktop"), "two\nlines");
+    await mkdir(folder);
+    const source = join(folder, "weights.pt");
+    await writeFile(source, "weights");
+
+    const reply = await c.mutate("experiments.addArtifact", {
+      path: PATH,
+      source,
+      as: "linked",
+      caption: "x",
+    });
+
+    expect(reply.error?.message).toBe(
+      "weights.pt cannot be linked: its path has a line break in it."
     );
     expect(await readFile(join(vault, PATH), "utf8")).toBe(page());
   });

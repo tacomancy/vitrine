@@ -44,6 +44,7 @@ import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
   attachSource,
+  dateOf,
   detachSource,
   EDITED_SECTIONS,
   moveSource,
@@ -629,7 +630,7 @@ export const router = t.router({
             input,
             {
               machine: ctx.machine,
-              today: localIso(ctx.now()).slice(0, "YYYY-MM-DD".length),
+              today: dateOf(localIso(ctx.now())),
             }
           )
         )

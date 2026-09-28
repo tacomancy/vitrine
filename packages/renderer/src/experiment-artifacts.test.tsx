@@ -52,7 +52,7 @@ const funnel: ArtifactLine = {
   file: "funnel-all-41.png",
   caption: "Asymmetric, as before.",
   path: `${FOLDER}/funnel-all-41.png`,
-  size: 412 * 1024,
+  size: 412_000,
   image: true,
 };
 
@@ -61,7 +61,7 @@ const summary: ArtifactLine = {
   file: "pooled-summary.csv",
   caption: "First rows.",
   path: `${FOLDER}/pooled-summary.csv`,
-  size: 2 * 1024,
+  size: 2_000,
   image: false,
 };
 
@@ -510,10 +510,7 @@ describe("stored or linked, proposed by size", () => {
 
   it("proposes a file of 25 MB or more as linked, with the warning, and links it", async () => {
     const added: unknown[] = [];
-    const section = await chosen(
-      { size: 2.4 * 1024 ** 3, proposed: "linked" },
-      added
-    );
+    const section = await chosen({ size: 2.4e9, proposed: "linked" }, added);
 
     const form = await within(section).findByRole("form", {
       name: "Link an Artifact",
@@ -542,7 +539,7 @@ describe("stored or linked, proposed by size", () => {
   });
 
   it("proposes a smaller file as stored, and says so", async () => {
-    const section = await chosen({ size: 412 * 1024, proposed: "stored" }, []);
+    const section = await chosen({ size: 412_000, proposed: "stored" }, []);
 
     await within(section).findByRole("form", { name: "Add an Artifact" });
     expect(section.textContent).toContain("412 KB · copied into the vault");
@@ -551,10 +548,7 @@ describe("stored or linked, proposed by size", () => {
 
   it("stores a heavy file when asked to, keeping what was typed", async () => {
     const added: unknown[] = [];
-    const section = await chosen(
-      { size: 40 * 1024 ** 2, proposed: "linked" },
-      added
-    );
+    const section = await chosen({ size: 40e6, proposed: "linked" }, added);
     const description = await within(section).findByRole("textbox", {
       name: "Description",
     });
@@ -587,7 +581,7 @@ describe("stored or linked, proposed by size", () => {
   it("links a small file when asked to, with the warning", async () => {
     const added: unknown[] = [];
     const section = await chosen(
-      { size: 2 * 1024 ** 2, proposed: "stored" },
+      { size: 2e6, proposed: "stored" },
       added,
       "/Users/r/notes.txt"
     );

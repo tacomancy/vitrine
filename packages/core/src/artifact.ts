@@ -71,10 +71,11 @@ const MIB = 1024 * 1024;
 /**
  * At or above this a file is proposed as linked, below it as stored (KEEP-9,
  * #94). A proposal only — the user overrides it per Artifact — and a code
- * constant, never a Setting (ADR 0035 decision 4). Mebibytes, so the size
- * the page shows beside a file just under it reads as under.
+ * constant, never a Setting (ADR 0035 decision 4). Decimal megabytes, as
+ * the ADR and Finder both count them, so the size the page shows beside a
+ * file is the size Finder shows for it.
  */
-export const LINK_AT = 25 * MIB;
+const LINK_AT = 25_000_000;
 
 /**
  * What the bytes route answers with for each extension the page draws as an
@@ -169,20 +170,32 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FINGERPRINT = /^\d+:\d+:[0-9a-f]{12}$/;
 
 /**
- * A linked line, or null when the line is not one. The fields are read from
- * the right, so a path is whatever is left of them and keeps a ` · ` of its
- * own; the description is everything after the second dash, so it keeps
- * one of its own too.
+ * A linked line, or null when the line is not one. A path may hold the
+ * line's own separators, so the fields are found rather than split out:
+ * the middle ends at the first ` — ` after which the fields read as a
+ * linked line's, and the fields are read from its right, so a path is
+ * whatever is left of them. A description keeps whatever it holds.
  */
 function linkedFrom(line: string): LinkedArtifact | null {
-  const [file, middle, ...rest] = line.split(" — ");
-  if (file === undefined || middle === undefined || file.trim() === "") {
-    return null;
+  const parts = line.split(" — ");
+  const file = parts[0]!.trim();
+  if (file === "") return null;
+  for (let end = 2; end <= parts.length; end++) {
+    const fields = fieldsFrom(parts.slice(1, end).join(" — "));
+    if (fields !== null) {
+      const description = parts.slice(end).join(" — ").trim();
+      return { kind: "linked", file, ...fields, description };
+    }
   }
+  return null;
+}
+
+/** The middle of a linked line — a path's five fields or a URL's three — or null when it is neither. */
+function fieldsFrom(
+  middle: string
+): Omit<LinkedArtifact, "kind" | "file" | "description"> | null {
   const fields = middle.split(" · ");
-  const description = rest.join(" — ").trim();
-  const last = fields.at(-1) ?? "";
-  if (FINGERPRINT.test(last) && fields.length >= 5) {
+  if (fields.length >= 5 && FINGERPRINT.test(fields.at(-1)!)) {
     const [size, date, machine, fingerprint] = fields.slice(-4) as [
       string,
       string,
@@ -191,17 +204,7 @@ function linkedFrom(line: string): LinkedArtifact | null {
     ];
     const target = fields.slice(0, -4).join(" · ");
     if (!DATE.test(date) || machine === "" || target === "") return null;
-    return {
-      kind: "linked",
-      file: file.trim(),
-      target,
-      url: false,
-      size,
-      date,
-      machine,
-      fingerprint,
-      description,
-    };
+    return { target, url: false, size, date, machine, fingerprint };
   }
   if (fields.length >= 3) {
     const [date, machine] = fields.slice(-2) as [string, string];
@@ -209,27 +212,22 @@ function linkedFrom(line: string): LinkedArtifact | null {
     if (!DATE.test(date) || machine === "" || !URL_TARGET.test(target)) {
       return null;
     }
-    return {
-      kind: "linked",
-      file: file.trim(),
-      target,
-      url: true,
-      size: null,
-      date,
-      machine,
-      fingerprint: null,
-      description,
-    };
+    return { target, url: true, size: null, date, machine, fingerprint: null };
   }
   return null;
 }
 
-/** Bytes as the prototype writes them: `412 KB`, `2.4 GB`. */
+/**
+ * Bytes as the prototype writes them — `412 KB`, `2.4 GB` — in decimal
+ * units, as Finder and `LINK_AT` count them. The renderer's `formatSize`
+ * draws a stored card's size by the same rule; the two sit either side of
+ * the process boundary, which carries only types.
+ */
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < MIB) return `${Math.round(bytes / 1024)} KB`;
-  if (bytes < 1024 * MIB) return `${(bytes / MIB).toFixed(1)} MB`;
-  return `${(bytes / (1024 * MIB)).toFixed(1)} GB`;
+  if (bytes < 1e3) return `${bytes} B`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} KB`;
+  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
 /** A field of the linked line on one line and free of the line's own separators, so it reads back as the field it was. */
@@ -368,6 +366,14 @@ async function addLinkedArtifact(
 ): Promise<WriteResult & { file: string }> {
   const url = URL_TARGET.test(source);
   const file = url ? urlName(source) : basename(source);
+  // The target is written as it is, so the line names the file exactly; a
+  // line break would end the list item and the rest would read as prose.
+  if (/[\r\n]/.test(source)) {
+    throw new VaultError(
+      "refused",
+      `${file} cannot be linked: its ${url ? "URL" : "path"} has a line break in it.`
+    );
+  }
   const measured = url ? null : await fingerprintOf(source);
   const line = linkedLine({
     file,
