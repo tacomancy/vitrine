@@ -40,12 +40,12 @@ afterEach(closeCores);
 const SETTLE_MS = 200;
 
 /**
- * Above the probe's bound, never equal to it. At Vitest's 5 s default, the
+ * Wide, so that tests measuring elapsed time never race their own budget.
+ * It was first raised for the probe (#269): at Vitest's 5 s default, the
  * watch-then-sweep test died before a slow probe reached the production 5 s
- * give-up, so a slow probe read as a broken test (#269). The harness now
- * bounds the probe at 1 s itself (`test-core.ts`), so a slow one fails here
- * by name rather than timing out; this stays wide so that elapsed-time
- * tests never race their own budget. The give-up itself is
+ * give-up. The harness now bounds the probe at 1 s (`test-core.ts`), so a
+ * slow one here fails by name — *not watching* — where it once waited
+ * out the full 5 s. The give-up itself is
  * `vault-watcher.health.test.ts`'s (#272).
  */
 const TIMING_TIMEOUT_MS = 20_000;

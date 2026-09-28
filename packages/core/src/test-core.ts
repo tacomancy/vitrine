@@ -64,12 +64,12 @@ export type CoreOptions = Partial<
  * wait. Under it, the give-up runs and says why — *not watching: the watch
  * gave no sign of life* — which `indexed()` and every `current` read carry.
  *
- * Well above what a probe takes when the machine is merely busy: under load
- * with background filesystem churn, a whole open took at most 134 ms. And short enough
- * that an open and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit
- * inside 5 s. The production bound is not this number (ADR 0029, #272).
+ * Well above what a probe takes when the machine is merely busy — a whole
+ * open peaked at 134 ms across 244 opens under #397's stress loop (parallel
+ * suites beside shell loops churning `/tmp`). And short enough that an open
+ * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside 5 s. The production bound is not this number (ADR 0029, #272).
  */
-const PROBE_TIMEOUT_MS = 1000;
+const HARNESS_PROBE_TIMEOUT_MS = 1000;
 
 // Every core a test file started, so `closeCores` can tear them down: a
 // watcher left open keeps reporting into later tests.
@@ -133,7 +133,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       ? { stalledOpenDays: opts.stalledOpenDays }
       : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
-    probeTimeoutMs: opts.probeTimeoutMs ?? PROBE_TIMEOUT_MS,
+    probeTimeoutMs: opts.probeTimeoutMs ?? HARNESS_PROBE_TIMEOUT_MS,
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,
