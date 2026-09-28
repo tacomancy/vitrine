@@ -304,13 +304,10 @@ function When({
   field: string | null;
   rail: boolean;
 }) {
-  const date = rail
-    ? until == null
-      ? dayMonth(at)
-      : `${dayMonth(until)} – ${dayMonth(at)}`
-    : until == null
-      ? localDate(at)
-      : rangeLabel(until, at);
+  // The rail's column holds one date, as prototype 05's does: a quiet run
+  // is dated by its newest, and the dates inside it are one click away.
+  let date = until == null ? localDate(at) : rangeLabel(until, at);
+  if (rail) date = dayMonth(at);
   return (
     <div className={styles.column}>
       <div className={styles.when}>{date}</div>

@@ -186,6 +186,29 @@ describe("the history trail", () => {
     }
   });
 
+  it("dates a quiet run in the rail by its newest revision alone, as prototype 05 does", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 9, 0, 0));
+    try {
+      open(() =>
+        page({
+          entries: [
+            revision("2026-09-22T10:00:00+02:00", "design"),
+            revision("2026-09-10T10:00:00+02:00", "design"),
+          ],
+        })
+      );
+      const history = await within(await region()).findByRole("region", {
+        name: "Position history",
+      });
+      await within(history).findByRole("button", { name: /quiet/ });
+      const [run] = [...history.querySelectorAll("ol > li")];
+      expect(run!.firstElementChild!.textContent).toBe("22 Sep");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("leads with explained revisions and collapses the quiet ones into dates", async () => {
     open(() =>
       page({
