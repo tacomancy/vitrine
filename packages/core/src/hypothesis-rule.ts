@@ -241,7 +241,8 @@ function blocksOf(body: string): Block[] {
  * changed to fit it — the exact move the mark exists for — would read as
  * an untested criterion reworded if only the first end counted. Marking the
  * rarer honest order too (reword, then name the run) is the loud side of an
- * ambiguity the window cannot resolve, and the entry takes a why.
+ * ambiguity the window cannot resolve, and the page offers a why on it
+ * like any marked entry (ADR 0034).
  */
 export function criteriaEntries(
   was: string,
@@ -250,13 +251,12 @@ export function criteriaEntries(
 ): string[] {
   const before = blocksOf(was);
   const after = blocksOf(now);
-  const number = (b: Block) => b.criterion.id;
   const entries: string[] = [];
   const revision = (field: string, from: string) =>
     entries.push(formatRevision({ at, field, why: null, from }));
 
   for (const old of before) {
-    const still = after.find((b) => number(b) === number(old));
+    const still = after.find((b) => b.criterion.id === old.criterion.id);
     const field = criterionField(old.criterion);
     if (still === undefined) {
       revision(old.tested ? field + DELETED_AFTER_EVIDENCE : field, old.text);
@@ -274,7 +274,7 @@ export function criteriaEntries(
     );
   }
   for (const added of after) {
-    if (!before.some((b) => number(b) === number(added))) {
+    if (!before.some((b) => b.criterion.id === added.criterion.id)) {
       revision(criterionField(added.criterion), "");
     }
   }

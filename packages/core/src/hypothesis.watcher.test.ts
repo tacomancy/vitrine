@@ -309,6 +309,23 @@ describe("a criterion edited in Obsidian, spliced", () => {
     );
   });
 
+  it("with ## Criteria's heading gone when the splice lands, the row is spliced unjudged rather than as every criterion deleted", async () => {
+    const tested = `${F2_BLOCK}\n\n${EVIDENCE}`;
+    const { obsidian, setNow, c, bytes, vault } = await opened(tested);
+
+    setNow(at(5));
+    await obsidian(tested.replace("shuffled", "permuted"));
+    // Then the heading retyped mid-edit, and the vault closed before it came back.
+    const retyped = (await bytes()).replace("## Criteria\n", "## Criteri\n");
+    await writeFile(join(vault, PATH), retyped);
+    await c.indexed();
+    await c.close();
+
+    const written = await bytes();
+    expect(written).not.toContain("deleted after evidence");
+    expect(written).toContain(entry(at(5), "criteria", tested));
+  });
+
   it("is judged by the app's next write too, whose own entry lands above the splice's", async () => {
     const { obsidian, setNow, c, bytes, page } = await opened(
       `${C1_BLOCK}\n\n${F2_BLOCK}`

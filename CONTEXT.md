@@ -262,7 +262,7 @@ One independently resolvable condition on a Hypothesis, recorded before evidence
 _Avoid_: Test (that is the whole Hypothesis), condition, check
 
 **Edited after evidence** (of a Criterion):
-A change to a Criterion's text or Relationship made while Evidence is attached to it. Permitted, and marked permanently: on the Criterion itself with its previous wording readable, and in the Position history as an entry that never collapses. Recording an Outcome is never this — it is what Evidence is for. An edit made in Obsidian is marked exactly as one made on the page; there, Evidence present at either end of the quiet window counts, since the window cannot say which came first.
+A change to a Criterion's text or Relationship made while Evidence is attached to it. Permitted, and marked permanently: on the Criterion itself with its previous wording readable, and in the Position history as an entry that never collapses. Recording an Outcome is never this — it is what Evidence is for. An edit made in Obsidian is marked exactly as one made on the page; there, Evidence present at either end of the quiet window counts, since the window cannot say which came first (ADR 0034).
 _Avoid_: Tampered, amended, post-hoc (that is the risk it guards against, not the mark)
 
 **Deleted after evidence** (of a Criterion):

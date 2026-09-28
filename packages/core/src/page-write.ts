@@ -128,23 +128,27 @@ const prepend = (entry: string): Operation => ({
  * the file holds it now.
  */
 function splicesOf(read: PageFile, waiting: PendingRevision[]): Operation[] {
+  const quiet = (row: PendingRevision) =>
+    prepend(
+      formatRevision({
+        at: row.at,
+        field: row.field,
+        why: null,
+        from: row.from,
+      })
+    );
+  // With no `## Criteria` heading to judge against — retyped mid-edit, as
+  // `hypothesisPositions` allows for — every criterion would read as
+  // deleted, and a tested one as the loudest entry there is, permanently.
+  // The row is spliced unjudged instead: the section as it was, in full,
+  // so nothing is lost and nothing is claimed.
   const criteria =
     read.kind === "hypothesis"
       ? section(read.outline, "Criteria").heading
       : undefined;
+  if (criteria === undefined) return waiting.map(quiet);
   return waiting.flatMap((row, i) => {
-    if (read.kind !== "hypothesis" || row.field !== CRITERIA_FIELD) {
-      return [
-        prepend(
-          formatRevision({
-            at: row.at,
-            field: row.field,
-            why: null,
-            from: row.from,
-          })
-        ),
-      ];
-    }
+    if (row.field !== CRITERIA_FIELD) return [quiet(row)];
     const next = waiting
       .slice(i + 1)
       .find((later) => later.field === CRITERIA_FIELD);

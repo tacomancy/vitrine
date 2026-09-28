@@ -297,7 +297,9 @@ export async function readHypothesisPage(
 
 // `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one
 // that had no Relationship: the digit is the id, whatever the letter was.
-const MARKED_FIELD = /^criterion (?:[CFD]|\^c)(\d+) · edited after evidence$/;
+const MARKED_FIELD = new RegExp(
+  `^criterion (?:[CFD]|\\^c)(\\d+)${AFTER_EVIDENCE}$`
+);
 
 /**
  * The criterion's *edited after evidence* entries, matched by the id's
