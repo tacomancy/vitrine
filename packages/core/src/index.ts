@@ -16,6 +16,9 @@ export type {
 } from "./destinations.js";
 export type {
   CameFrom,
+  CriteriaToAttach,
+  CriterionToAttach,
+  EvidenceFor,
   ExperimentFrontmatter,
   ExperimentPage,
   ExperimentSections,
