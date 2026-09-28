@@ -55,20 +55,33 @@ describe("stateFolder", () => {
 });
 
 describe("buildVersion", () => {
-  it("is the short sha for a clean tree", () => {
-    expect(buildVersion({ sha: "559ddf8", status: "" })).toBe("559ddf8");
+  it("is the describe string for a clean tree", () => {
+    expect(buildVersion({ described: "beat-2-39-g5f08a59", status: "" })).toBe(
+      "beat-2-39-g5f08a59"
+    );
   });
 
   it("appends -dirty when git status reports anything", () => {
     expect(
       buildVersion({
-        sha: "559ddf8",
+        described: "beat-2-39-g5f08a59",
         status: " M packages/shell/src/main/index.ts\n",
       })
+    ).toBe("beat-2-39-g5f08a59-dirty");
+  });
+
+  // `git describe --always` in a clone with no tags fetched: a bare sha, which
+  // the resolver must pass through rather than treat as a missing identity.
+  it("is the bare sha when describe found no tag to describe against", () => {
+    expect(buildVersion({ described: "559ddf8", status: "" })).toBe("559ddf8");
+    expect(
+      buildVersion({ described: "559ddf8", status: "?? Scripts/x.mjs\n" })
     ).toBe("559ddf8-dirty");
   });
 
-  it("trims the sha and status as git prints them", () => {
-    expect(buildVersion({ sha: "559ddf8\n", status: "\n" })).toBe("559ddf8");
+  it("trims the describe string and status as git prints them", () => {
+    expect(buildVersion({ described: "beat-2b\n", status: "\n" })).toBe(
+      "beat-2b"
+    );
   });
 });

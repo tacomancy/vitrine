@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { renderApp, vault } from "./fake-core";
 
@@ -15,6 +15,9 @@ describe("First run", () => {
     expect(screen.getByText(/one folder beside them/)).toBeDefined();
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("navigation")).toBeNull();
+    // Neither chord is live before a vault is open (ADR 0027 decision 1),
+    // so nothing here offers one.
+    expect(document.body.textContent).not.toContain("⌘");
   });
 
   it("shows a refused pick as a plain message under the action and stays put", async () => {
@@ -100,8 +103,28 @@ describe("the window with a vault open", () => {
       "Question Inbox"
     );
     expect(nav.querySelectorAll("button, [tabindex]")).toHaveLength(0);
-    expect(nav.textContent).not.toContain("⌘K");
+    // The nav named no chord while none existed. Both do now, and the map
+    // that does not name the faster route fails at being a map (#305, ADR
+    // 0027 decision 10) — so this assertion is inverted, not dropped.
+    expect(nav.textContent).toContain("⌘K");
     expect(nav.textContent).not.toContain("THREADS");
+  });
+
+  it("names both chords in a footer line that is neither a control nor an entry", async () => {
+    renderApp({ "vault.current": vault });
+    const nav = await screen.findByRole("navigation", { name: "Surfaces" });
+    const chords = within(nav).getByRole("note", {
+      name: "Keyboard shortcuts",
+    });
+    expect(
+      Array.from(chords.querySelectorAll("p"), (p) => p.textContent)
+    ).toEqual(["⌘K go anywhere, or capture", "⌘' capture"]);
+    // The map's entries are what they were: the line adds no tenth row and
+    // nothing the keyboard can land on.
+    expect(chords.querySelectorAll("li, a, button, [tabindex]")).toHaveLength(
+      0
+    );
+    expect(nav.querySelectorAll("li")).toHaveLength(9);
   });
 
   it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {

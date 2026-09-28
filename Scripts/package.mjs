@@ -77,8 +77,10 @@ if (!flags.has("--install-only")) {
   );
   const git = (args) =>
     execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+  // `--always` so a clone with no tags fetched still builds, as a bare sha.
+  // `--dirty=` marks nothing — it says the suffix is `status`'s, not describe's.
   const version = buildVersion({
-    sha: git(["rev-parse", "--short", "HEAD"]),
+    described: git(["describe", "--tags", "--always", "--dirty="]),
     status: git(["status", "--porcelain"]),
   });
   run(
