@@ -207,6 +207,37 @@ describe("experiments.attachEvidence", () => {
     );
   });
 
+  it("keeps each arrival of Evidence as its own entry, never folded into the one before", async () => {
+    const { attach, bytes, c, later } = await opened({
+      [H1]: hypothesis(CLAIM_1, F2),
+    });
+    // An Outcome recorded, then two runs named minutes apart — all inside
+    // the 30-minute window a rewording would coalesce in.
+    const set = await c.mutate<Written>("hypotheses.setCriterionField", {
+      path: H1,
+      id: "c2",
+      field: "outcome",
+      value: "not met",
+      basedOn: (
+        await c.query<{ hash: string }>("hypotheses.page", { path: H1 })
+      ).result!.data.hash,
+    });
+    expect(set.result?.data).toMatchObject({ written: true });
+    later(5);
+    await attach({ criterion: "c2", note: "first run" });
+    later(10);
+    await attach({ criterion: "c2", experiment: OTHER_RUN, note: "second" });
+    const text = await bytes(H1);
+    const stamps = [...text.matchAll(/^- (\S+) · criterion F2$/gm)].map(
+      (m) => m[1]
+    );
+    expect(stamps).toEqual([
+      localIso(new Date(t0.getTime() + 10 * minute)),
+      localIso(new Date(t0.getTime() + 5 * minute)),
+      localIso(t0),
+    ]);
+  });
+
   it("refuses a blank note before anything is written", async () => {
     const { attach, bytes } = await opened({
       [H1]: hypothesis(CLAIM_1, `${C1}\n\n${F2}`),

@@ -51,8 +51,15 @@ export function AttachEvidence({
   );
 }
 
+/** A Criterion by its label, or its id when it has no Relationship to letter it. */
+export const criterionName = (c: Pick<CriterionToAttach, "id" | "label">) =>
+  c.label ?? `^${c.id}`;
+
 /** A Criterion's Relationship and Outcome, in the Hypothesis page's words. */
-function standing({ relationship, outcome }: CriterionToAttach): string {
+export function standing({
+  relationship,
+  outcome,
+}: Pick<CriterionToAttach, "relationship" | "outcome">): string {
   return `${relationship ?? "no relationship"} · ${outcome ?? "awaiting evidence"}`;
 }
 
@@ -159,7 +166,7 @@ function CriterionList({
                     onClick={() => onChoose({ group, criterion })}
                   >
                     <span className={styles.label}>
-                      {criterion.label ?? `^${criterion.id}`}
+                      {criterionName(criterion)}
                     </span>
                     <span className={styles.standing}>
                       {standing(criterion)}
@@ -213,7 +220,7 @@ function Note({
   useEffect(() => {
     noteRef.current?.focus();
   }, []);
-  const name = criterion.label ?? `^${criterion.id}`;
+  const name = criterionName(criterion);
 
   const attach = useMutation(
     trpc.experiments.attachEvidence.mutationOptions({

@@ -7,7 +7,7 @@ import type {
   ExperimentStatus,
 } from "core";
 import { useEffect, useId, useRef, useState } from "react";
-import { AttachEvidence } from "./AttachEvidence";
+import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
 import { FrameLines, usePageFrame } from "./page-frame";
@@ -417,12 +417,9 @@ function AttachedAsEvidence({ evidence }: { evidence: EvidenceFor[] }) {
                 data-relationship={criterion.relationship ?? undefined}
               >
                 <span className={styles.attachmentLabel}>
-                  {criterion.label ?? `^${criterion.id}`}
+                  {criterionName(criterion)}
                 </span>
-                <span className={styles.caption}>
-                  {criterion.relationship ?? "no relationship"} ·{" "}
-                  {criterion.outcome ?? "awaiting evidence"}
-                </span>
+                <span className={styles.caption}>{standing(criterion)}</span>
                 <span className={styles.attachmentClaim}>
                   {hypothesis.claim}
                 </span>

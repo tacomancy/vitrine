@@ -262,7 +262,7 @@
 .attachmentNote {
   flex-basis: 100%;
   padding-left: var(--space-3);
-  border-left: 2px solid var(--color-bg-sunken);
+  border-left: 2px solid var(--color-line);
   font-family: var(--font-serif);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);

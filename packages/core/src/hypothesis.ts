@@ -623,6 +623,12 @@ type CriterionChange = {
   field: string;
   from: string;
   after: Criterion[];
+  /**
+   * Opens an entry of its own rather than coalescing into the one before:
+   * Evidence arriving is the event the history is kept to date (spec #362
+   * story 50), and folded into an earlier save its moment would be lost.
+   */
+  ownEntry?: true;
 };
 
 /**
@@ -665,7 +671,9 @@ async function writeCriterion(
       // criteria are "versioned more loudly than anything else" (brief §
       // The falsification commitment), and folding a second rewording into
       // the first would lose the wording between them.
-      waiting.length > 0 || change.field.endsWith(AFTER_EVIDENCE)
+      waiting.length > 0 ||
+        change.field.endsWith(AFTER_EVIDENCE) ||
+        change.ownEntry === true
         ? 0
         : coalesceMs
     );
@@ -948,7 +956,8 @@ export async function deleteCriterion(
  * 47–51; TEST-12): `- [[<run>]] — <note>` appended under its `^c<n>`,
  * through `writeCriterion` like every other criterion write, so it is a
  * Revision of that criterion (ADR 0031 decision 4) — *when Evidence
- * arrived* is on the record — and voids a live Override, since the call was
+ * arrived* is on the record, in an entry of its own that never coalesces
+ * into the save before it — and voids a live Override, since the call was
  * made on the Evidence as it stood. It never records an Outcome: judging
  * the criterion stays its own act, which is what keeps the Derived state
  * where it was. Nor is it ever *edited after evidence*: the text and the
@@ -997,6 +1006,7 @@ export async function attachEvidence(
       field: criterionField(block.criterion),
       from: block.text,
       after: read.criteria,
+      ownEntry: true,
     };
   });
 }
