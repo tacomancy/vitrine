@@ -10,8 +10,8 @@ import { useTRPC } from "./trpc";
 
 type Group = CriteriaToAttach["groups"][number];
 /** What the note and its write need of a Hypothesis, from either door. */
-type Hypothesis = Pick<Group, "path" | "claim" | "hash">;
-type Chosen = { group: Hypothesis; criterion: CriterionToAttach };
+type HypothesisRead = Pick<Group, "path" | "claim" | "hash">;
+type Chosen = { group: HypothesisRead; criterion: CriterionToAttach };
 
 /**
  * *Attach as evidence* from an Experiment page (#367; spec #362 stories 45,
@@ -69,13 +69,13 @@ export function AttachEvidence({
  * `onRefused`'s to show, since the Picker has closed by then.
  */
 export function AttachRun({
-  group,
+  hypothesis,
   criterion,
   onRefused,
   onClose,
 }: {
   /** The Hypothesis as the page read it: its path, claim, and the hash the write is `basedOn`. */
-  group: Hypothesis;
+  hypothesis: HypothesisRead;
   criterion: CriterionToAttach;
   onRefused: (reason: string) => void;
   onClose: () => void;
@@ -110,7 +110,7 @@ export function AttachRun({
       <Note
         experiment={run.path}
         run={run.name}
-        chosen={{ group, criterion }}
+        chosen={{ group: hypothesis, criterion }}
         onDone={leave}
       />
     );
@@ -125,7 +125,7 @@ export function AttachRun({
         if (typed === "" || make.isPending) return undefined;
         return {
           label: `new experiment named ${typed}`,
-          onChoose: () => make.mutate({ name: typed, from: group.path }),
+          onChoose: () => make.mutate({ name: typed, from: hypothesis.path }),
         };
       }}
       onChoose={(chosen) => setRun({ path: chosen.path, name: chosen.name })}

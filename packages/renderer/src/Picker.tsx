@@ -6,6 +6,8 @@ import { markOf } from "./kinds";
 import styles from "./Picker.module.css";
 import { useTRPC } from "./trpc";
 
+type NewRow = { label: string; onChoose: () => void };
+
 /**
  * The one picker (`docs/architecture.md` § Research Question view and
  * triage): a name-contains list over the index's files, narrowed to the
@@ -15,8 +17,6 @@ import { useTRPC } from "./trpc";
  * Focus goes back to wherever it was when the picker opened — the picker
  * owns that, so no caller has to remember to restore it.
  */
-type NewRow = { label: string; onChoose: () => void };
-
 export function Picker({
   label,
   kinds,

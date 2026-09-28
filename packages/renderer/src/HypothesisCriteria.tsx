@@ -359,7 +359,7 @@ function Card({
       <Refusal refusal={unmade} />
       {attaching && (
         <AttachRun
-          group={{ path, claim, hash }}
+          hypothesis={{ path, claim, hash }}
           criterion={criterion}
           onRefused={setUnmade}
           onClose={() => setAttaching(false)}
