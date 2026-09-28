@@ -3,7 +3,7 @@ import type { Provenance, Question, Vault } from "core";
 import { useState } from "react";
 import styles from "./App.module.css";
 import { CaptureLine } from "./CaptureLine";
-import { Experiment } from "./Experiment";
+import { Experiment, type WriteOnArrival } from "./Experiment";
 import { Experiments } from "./Experiments";
 import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
@@ -70,9 +70,13 @@ function Workspace({ vault }: { vault: Vault }) {
   // returning to the same address later is an ordinary visit.
   const [attachOnArrival, setAttachOnArrival] = useState<string | null>(null);
   // An Experiment just made is one gesture too: its page opens with the
-  // keyboard in Purpose (spec #362 story 5). Only that arrival — a run
-  // visited later with no purpose yet is read, not written into.
-  const [madeOnArrival, setMadeOnArrival] = useState<string | null>(null);
+  // keyboard in Purpose (spec #362 story 5). So is the Experiment Inbox's
+  // `O`, with the keyboard in Observations (#372). Only that arrival — a
+  // run visited later is read, not written into.
+  const [writeOnArrival, setWriteOnArrival] = useState<{
+    path: string;
+    field: WriteOnArrival;
+  } | null>(null);
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -125,14 +129,20 @@ function Workspace({ vault }: { vault: Vault }) {
           <Experiment
             key={route.path}
             path={route.path}
-            writeOnArrival={madeOnArrival === route.path}
-            onArrival={() => setMadeOnArrival(null)}
+            writeOnArrival={
+              writeOnArrival?.path === route.path ? writeOnArrival.field : null
+            }
+            onArrival={() => setWriteOnArrival(null)}
           />
         )}
         {route.surface === "experiments" && (
           <Experiments
             onMade={(path) => {
-              setMadeOnArrival(path);
+              setWriteOnArrival({ path, field: "purpose" });
+              pushRoute({ surface: "experiment", path });
+            }}
+            onObserve={(path) => {
+              setWriteOnArrival({ path, field: "observations" });
               pushRoute({ surface: "experiment", path });
             }}
           />

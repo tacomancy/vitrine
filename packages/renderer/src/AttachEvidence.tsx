@@ -299,6 +299,8 @@ function Note({
         }
         // The line is read back from the Hypothesis on both pages.
         void queryClient.invalidateQueries(trpc.experiments.page.pathFilter());
+        // Attaching may take a run out of the Experiment Inbox (#372).
+        void queryClient.invalidateQueries(trpc.experiments.inbox.pathFilter());
         void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
         void queryClient.invalidateQueries(
           trpc.experiments.criteria.pathFilter()

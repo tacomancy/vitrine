@@ -348,7 +348,7 @@ function warningFor(url: boolean): string {
     : "Outside the vault. If this file moves or is cleaned up, the vault will not notice and this page will point at nothing.";
 }
 
-function ArtifactCard({
+export function ArtifactCard({
   pagePath,
   item,
   action,

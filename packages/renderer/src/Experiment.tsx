@@ -43,14 +43,20 @@ import { WhyLine } from "./WhyLine";
  * The frame — the page read's lines, the rename and removal handling, the
  * arrival that did not resolve — is `page-frame.tsx`, as every page's is.
  */
+/** The field that takes the keyboard on an arrival that came to write. */
+export type WriteOnArrival = "purpose" | "observations";
+
 export function Experiment({
   path,
-  writeOnArrival = false,
+  writeOnArrival = null,
   onArrival,
 }: {
   path: string;
-  /** Just made: Purpose takes the keyboard when it mounts. */
-  writeOnArrival?: boolean;
+  /**
+   * Purpose, for a run just made; Observations, for the Experiment
+   * Inbox's `O` (#372). That field takes the keyboard when it mounts.
+   */
+  writeOnArrival?: WriteOnArrival | null;
   onArrival?: () => void;
 }) {
   const trpc = useTRPC();
@@ -59,7 +65,7 @@ export function Experiment({
   // so coming back to this address later is an ordinary visit.
   const [writing] = useState(writeOnArrival);
   useEffect(() => {
-    if (writeOnArrival) onArrival?.();
+    if (writeOnArrival !== null) onArrival?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
   }, []);
   const page = useQuery(trpc.experiments.page.queryOptions({ path }));
@@ -135,7 +141,7 @@ export function Experiment({
                 withWhy={false}
                 // A run just made opens where the writing starts (spec #362
                 // story 5); any other arrival leaves the keyboard with the page.
-                autoFocus={writing}
+                autoFocus={writing === "purpose"}
                 empty={
                   <Outline>
                     Nothing yet. What you are trying to find out — looser than a
@@ -176,6 +182,7 @@ export function Experiment({
                 hash={readable.hash}
                 text={readable.sections.observations.text}
                 labelledBy={sectionId("Observations")}
+                autoFocus={writing === "observations"}
                 empty={
                   <Outline>
                     Written after the run, and revisable — interpretation
