@@ -114,15 +114,16 @@ function coreClient({ port, token }: Session) {
 }
 
 /**
- * File ▸ Open Vault… goes through the core exactly as the renderer's own
- * action does. The renderer has no push channel yet, and a vault switch
- * discards every piece of window state anyway, so the window is reloaded
- * to show the new vault; a refused folder is stated in a plain message.
+ * File ▸ Open Vault… goes through the core exactly as Settings' *Open a
+ * different folder…* does, and nothing more: the core raises
+ * `vaultSwitched` on the event stream and the window resets itself in
+ * place (#377), so the two ways in cannot differ. No reload. A refused
+ * folder is stated in a plain message, since the menu has no line of its
+ * own in the window to say it on.
  */
 async function openVaultFromMenu(client: CoreClient) {
   try {
-    const vault = await client.vault.pick.mutate();
-    if (vault) frontWindow()?.reload();
+    await client.vault.pick.mutate();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const win = frontWindow();

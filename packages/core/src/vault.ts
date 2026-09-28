@@ -59,6 +59,8 @@ export type VaultServiceOptions = {
   now?: (() => Date) | undefined;
   /** How long a file must be quiet before its pending Revisions are spliced (#217). */
   coalesceMs: number;
+  /** An open made `vault` the current one: `vaultSwitched` (#377). */
+  onSwitched?: ((vault: Vault) => void) | undefined;
 };
 
 export type VaultService = {
@@ -152,6 +154,7 @@ export function createVaultService({
   probeTimeoutMs,
   now = () => new Date(),
   coalesceMs,
+  onSwitched,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -434,7 +437,15 @@ export function createVaultService({
       throw cause;
     }
     const vault = { name: basename(absolute), path: absolute };
+    const was = opened?.vault.path ?? null;
     await install(vault, resources);
+    // Raised here, where every open passes — First run's, Settings' and the
+    // File menu's alike — so the window resets one way whichever asked
+    // (#377). Not by the restore at launch, which no window is watching;
+    // not for an open a later one overtook, whose vault is not on screen;
+    // and not for the folder already open, which is reopened but not a
+    // different vault, so the window keeps its place.
+    if (opened?.vault === vault && was !== absolute) onSwitched?.(vault);
     return vault;
   }
 

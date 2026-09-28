@@ -20,6 +20,10 @@ export function Settings({ vault }: { vault: Vault }) {
   const trpc = useTRPC();
   const status = useQuery(trpc.vault.status.queryOptions());
   const reveal = useMutation(trpc.vault.reveal.mutationOptions());
+  // First run's chooser (spec #363 story 12). Nothing is done with the
+  // reply: a switch reaches the window as `vaultSwitched` (`events.ts`), as
+  // File ▸ Open Vault…'s does, and a cancel is null and changes nothing.
+  const pick = useMutation(trpc.vault.pick.mutationOptions());
   const footer = useVaultStatusLines();
 
   return (
@@ -42,13 +46,34 @@ export function Settings({ vault }: { vault: Vault }) {
             <div className={styles.row}>
               <dt className={styles.label}>Folder</dt>
               <dd className={styles.value}>
-                <span className={styles.fact}>{vault.path}</span>
+                <span className={styles.fact}>
+                  {vault.path}
+                  <span className={styles.sub}>
+                    opening another folder changes nothing on disk here
+                  </span>
+                  {/* A refused folder is the chooser's answer, not the
+                      vault's state, so it is said here where it was asked
+                      for rather than in the footer channel. */}
+                  {pick.isError && (
+                    <span className={styles.refusal} role="alert">
+                      {pick.error.message}
+                    </span>
+                  )}
+                </span>
                 <button
                   type="button"
                   className={styles.action}
                   onClick={() => reveal.mutate({ folder: "vault" })}
                 >
                   Reveal in Finder
+                </button>
+                <button
+                  type="button"
+                  className={styles.action}
+                  onClick={() => pick.mutate()}
+                  disabled={pick.isPending}
+                >
+                  Open a different folder…
                 </button>
               </dd>
             </div>
