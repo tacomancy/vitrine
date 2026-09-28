@@ -4,6 +4,7 @@ import { errorMessage, VaultError } from "./errors.js";
 import { fileName } from "./file-name.js";
 import {
   changedUnderneath,
+  historyEntries,
   historyOperations,
   notExactlyOne,
   savePosition,
@@ -23,6 +24,7 @@ import {
   quoted,
   readResearchQuestion,
 } from "./research-question.js";
+import { localIso } from "./time.js";
 import {
   bodyText,
   linkLine,
@@ -45,7 +47,10 @@ import {
   derive,
   labelOf,
   LETTER,
+  liveOverride,
   nameOf,
+  OVERRIDE,
+  overrideRefusal,
   type Derivation,
 } from "./hypothesis-rule.js";
 import {
@@ -151,7 +156,10 @@ export type HypothesisPage =
       hash: string;
       frontmatter: HypothesisFrontmatter;
       sections: HypothesisSections;
+      /** The derived state, and the effective one a live Override makes of it. */
       derivation: Derivation;
+      /** Whether an Override can be made now (`overrideRefusal`): the page offers its line only then. */
+      overridable: boolean;
       /** What could not be shown: the file's shape problems, then a section missing or doubled, then history lines that are not entries. */
       problems: ShapeProblem[];
     }
@@ -280,6 +288,7 @@ export async function readHypothesisPage(
   });
 
   problems.push(...history.problems);
+  const derivation = derive(read.criteria, liveOverride(history.entries));
 
   return {
     readable: true,
@@ -302,7 +311,8 @@ export async function readHypothesisPage(
         entries: history.entries,
       },
     },
-    derivation: derive(read.criteria),
+    derivation,
+    overridable: overrideRefusal(derivation) === null,
     problems,
   };
 }
@@ -462,6 +472,9 @@ export async function saveHypothesisPosition(
   return savePosition(ctx, path, PAGE, {
     ...input,
     section: FIELDS[input.field],
+    // The claim is what an Override judged; design notes are how the test
+    // is run, and tidying them never undoes the call (spec #327 story 61).
+    judged: input.field === "claim",
   });
 }
 
@@ -548,6 +561,10 @@ async function writeCriterion(
     return {
       operations: [...change.operations, ...history.operations, ...moved],
       basedOn,
+      // Every criterion Revision — an Outcome, a Relationship, a
+      // rewording, one added or deleted — voids a live Override (ADR 0031
+      // decision 7): the call was made on the criteria as they stood.
+      revisesJudged: history.at,
     };
   });
   return result.written
@@ -795,6 +812,55 @@ export async function deleteCriterion(
       after: read.criteria.filter((c) => c !== criterion),
     };
   });
+}
+
+/**
+ * An inconclusive Hypothesis called supported on partial evidence (spec
+ * #327 stories 56–59, 63; TEST-6; ADR 0031 decision 7). Not a state set:
+ * an entry in the history, `· override` with its why and `from:
+ * inconclusive`, beside the derived state it contradicts, which the page
+ * goes on printing. Refused without a why, and wherever `overrideRefusal`
+ * refuses — judged inside the queue, against the file as re-read. There is
+ * no way to override to *falsified*: concluding "no" goes through a
+ * falsifying criterion's Outcome, where it is recorded like any other.
+ */
+export async function overrideState(
+  ctx: PageContext,
+  path: string,
+  input: { why: string; basedOn: string; at: Date }
+): Promise<SavedAnswer> {
+  const why = onOneLine(input.why);
+  if (why === "") {
+    throw new VaultError(
+      "refused",
+      "An override needs a why: it lands in the history and stays there."
+    );
+  }
+  const at = localIso(input.at);
+  const result = await writeOwn(ctx, path, PAGE, (read) => {
+    const refusal = overrideRefusal(
+      derive(read.criteria, liveOverride(historyEntries(read)))
+    );
+    if (refusal !== null) throw new VaultError("refused", refusal);
+    return {
+      operations: [
+        {
+          op: "prependEntry",
+          section: "Position history",
+          entry: formatRevision({
+            at,
+            field: OVERRIDE,
+            why,
+            from: "inconclusive",
+          }),
+        },
+      ],
+      basedOn: input.basedOn,
+    };
+  });
+  return result.written
+    ? { ...result, revision: at }
+    : { ...result, revision: null };
 }
 
 /** Where promotion writes a Hypothesis (§ Vault layout). */

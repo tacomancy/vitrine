@@ -23,16 +23,21 @@ export type HistoryRow =
     }
   | { kind: "quiet"; revisions: Revision[] };
 
-/** The two suffixes that make an entry loud, as the history writes them. */
-export type Loud = "edited after evidence" | "deleted after evidence";
+/** What makes an entry loud: a criterion's two suffixes, and an Override's two fields, as the history writes them. */
+export type Loud =
+  | "edited after evidence"
+  | "deleted after evidence"
+  | "override"
+  | "override voided";
 
-// The grammar's suffixes, as `hypothesis-rule.ts` in the core writes them;
-// the renderer imports only types from the core, so the literals are
-// repeated.
-const LOUD: readonly Loud[] = [
+// The grammar's suffixes and fields, as `hypothesis-rule.ts` in the core
+// writes them; the renderer imports only types from the core, so the
+// literals are repeated.
+const SUFFIXES: readonly Loud[] = [
   "edited after evidence",
   "deleted after evidence",
 ];
+const OVERRIDES: readonly Loud[] = ["override", "override voided"];
 
 /**
  * A criterion changed after evidence was attached (TEST-5; ADR 0031
@@ -40,10 +45,14 @@ const LOUD: readonly Loud[] = [
  * without: the absence of a reason there is the thing a reader most needs
  * to see (prototype 04, the history's loud entries; spec #327 story 50).
  * Nor is one deleted after evidence in Obsidian — the extreme case of
- * moving the bar (story 52; #336).
+ * moving the bar (story 52; #336). Nor an Override or its void (story 50;
+ * #337): the call that contradicted the derived state, and the moment it
+ * stopped standing, are what a reader six months on most needs to find.
  */
 export const loudness = (revision: Revision): Loud | null =>
-  LOUD.find((suffix) => revision.field.endsWith(` · ${suffix}`)) ?? null;
+  OVERRIDES.find((field) => revision.field === field) ??
+  SUFFIXES.find((suffix) => revision.field.endsWith(` · ${suffix}`)) ??
+  null;
 
 /**
  * The field a chain runs along. A criterion's runs by its number, which
@@ -67,14 +76,25 @@ const chainOf = (field: string) => {
 export function historyRows(
   entries: Revision[],
   /** Each field's text as the file holds it now, keyed by field name. */
-  current: Record<string, string>
+  current: Record<string, string>,
+  /**
+   * Which entries become rows (`hypothesisFilters`). The chain still runs
+   * over every entry, so hiding one never changes what another moved to;
+   * a quiet run closes over the entries it hides.
+   */
+  shows: (revision: Revision) => boolean = () => true
 ): HistoryRow[] {
   const latest = new Map(Object.entries(current));
   const rows: HistoryRow[] = [];
   for (const revision of entries) {
+    // An Override and its void are acts on the state, not Positions: their
+    // `from:` is the state overruled or the Override ended, never text a
+    // newer entry of the same field moved on from.
+    const positional = !OVERRIDES.includes(revision.field as Loud);
     const chain = chainOf(revision.field);
-    const to = latest.get(chain) ?? "";
-    latest.set(chain, revision.from);
+    const to = positional ? (latest.get(chain) ?? "") : "";
+    if (positional) latest.set(chain, revision.from);
+    if (!shows(revision)) continue;
     const loud = loudness(revision);
     if (revision.why !== null || loud !== null) {
       rows.push({ kind: "explained", revision, to, loud });
@@ -85,6 +105,41 @@ export function historyRows(
     else rows.push({ kind: "quiet", revisions: [revision] });
   }
   return rows;
+}
+
+/** One way of reading a long history: its button's words, and which entries it keeps. */
+export type HistoryFilter = {
+  label: string;
+  shows: (revision: Revision) => boolean;
+};
+
+/**
+ * A Hypothesis's history read for the question asked of it (spec #327
+ * story 55; prototype 04's *claim · criteria · every overrule*): the claim
+ * alone; criterion edits alone — every `criterion` entry, and a `criteria`
+ * row an Obsidian edit left unjudged (#336); and what decided the state —
+ * each `· state` entry with the criterion Revision stamped beside it,
+ * since that shared timestamp is what attributes the move (#334), and every
+ * Override and void. Over the entries given, because the pairing is found
+ * by timestamp.
+ */
+export function hypothesisFilters(entries: Revision[]): HistoryFilter[] {
+  const moves = new Set(
+    entries.filter((e) => e.field === "state").map((e) => e.at)
+  );
+  const ofCriterion = (field: string) =>
+    field === "criteria" || field.startsWith("criterion ");
+  return [
+    { label: "claim", shows: (e) => e.field === "claim" },
+    { label: "criterion edits", shows: (e) => ofCriterion(e.field) },
+    {
+      label: "what decided it",
+      shows: (e) =>
+        e.field === "state" ||
+        OVERRIDES.includes(e.field as Loud) ||
+        (ofCriterion(e.field) && moves.has(e.at)),
+    },
+  ];
 }
 
 const DAY = 24 * 60 * 60 * 1000;

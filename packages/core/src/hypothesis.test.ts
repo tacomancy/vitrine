@@ -219,6 +219,46 @@ describe("the derived state, through the page read", () => {
     });
   }
 
+  // The table's last two rows (#337; ADR 0031 decision 7): the Override is
+  // read from the history, the derived state from the criteria alone, and
+  // the page carries both — the effective state is the Override only while
+  // it is live.
+  const partial =
+    criterion(1, "Density predicts gain", "confirming", "met") +
+    criterion(2, "Gain vanishes when encoding is controlled", "falsifying");
+  const override =
+    "- 2026-09-29T10:00:00+02:00 · override\n  why: F2 cannot run here\n  from:\n    inconclusive\n";
+  const withHistory = async (entries: string) => {
+    const { page } = await pageOf({
+      [PATH]: hypothesis(partial).replace(
+        "## Position history\n\n",
+        `## Position history\n\n${entries}`
+      ),
+    });
+    return page as Readable;
+  };
+
+  it("a live override → supported over a derived inconclusive (awaitingEvidence)", async () => {
+    const page = await withHistory(override);
+    expect(page.derivation.state).toBe("inconclusive");
+    expect(page.derivation.clause).toBe("awaitingEvidence");
+    expect(page.derivation.effective).toBe("supported");
+    expect(page.derivation.override).toEqual({
+      at: "2026-09-29T10:00:00+02:00",
+      why: "F2 cannot run here",
+    });
+  });
+
+  it("a voided override → the derived state alone", async () => {
+    const page = await withHistory(
+      "- 2026-09-29T11:00:00+02:00 · override voided\n  from:\n    2026-09-29T10:00:00+02:00\n" +
+        override
+    );
+    expect(page.derivation.state).toBe("inconclusive");
+    expect(page.derivation.effective).toBe("inconclusive");
+    expect(page.derivation.override).toBeNull();
+  });
+
   it("counts the census over every criterion, diagnostic ones included", async () => {
     const page = await readable(
       criterion(1, "Gain vanishes when encoding is controlled", "falsifying") +

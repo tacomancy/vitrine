@@ -317,3 +317,135 @@ textarea.claim {
   font-weight: 500;
   color: var(--color-fg);
 }
+
+/*
+ * The Override (#337; prototype 04, *overriding inconclusive — a written
+ * act*). Overridden, the state keeps its qualifier and the derived state
+ * stays printed under it in the secondary voice; the why is quoted in the
+ * serif it was written in.
+ */
+.derived {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-secondary);
+}
+
+.overrideQuote {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-line);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg);
+}
+
+/* The small line under the rule: quiet until wanted, never beside the word. */
+.offer {
+  align-self: flex-start;
+}
+
+.offerNote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+/*
+ * The form sits on the sunken surface inside the state's raised one — a
+ * written act on its own ground, separated by tone rather than a border
+ * (ADR 0023).
+ */
+.override {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
+.overrideMove {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.overrideFrom,
+.overrideTo {
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg);
+}
+
+.overrideTo {
+  color: var(--color-accent);
+}
+
+.overrideHead {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.overruled {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-secondary);
+}
+
+.overruledLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.overruledOutcome {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.overrideHint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.overrideWhy {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-left: 2px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg);
+  resize: vertical;
+}
+
+.overrideWhy:focus-visible {
+  outline: none;
+}
