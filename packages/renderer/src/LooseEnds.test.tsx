@@ -801,7 +801,36 @@ describe("the Experiment rows", () => {
     const row = group.querySelector("[data-loud]");
     expect(row).not.toBeNull();
     expect(row!.textContent).toMatch(/a falsification rests on it/i);
-    expect(row!.textContent).toContain(`F1 · ${claim}`);
+    expect(row!.textContent).toContain(
+      "F1 · Preregistered reanalysis will shrink the pooled effect"
+    );
+  });
+
+  it("ends a claim's own sentence where the falsifying line carries on, so its punctuation is never doubled", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [
+          {
+            group: "Broken plumbing",
+            rows: [
+              gone([
+                {
+                  path: "hypotheses/H.md",
+                  claim: "Spindle density predicts strength.",
+                  criterion: "F2",
+                },
+              ]),
+            ],
+          },
+        ],
+      },
+    });
+    const view = await dashboard();
+    await within(view).findByRole("link", { name: "prereg-exclusions" });
+    expect(view.textContent).toContain(
+      "Evidence for F2 · Spindle density predicts strength, with its Outcome recorded."
+    );
   });
 
   it.each([
