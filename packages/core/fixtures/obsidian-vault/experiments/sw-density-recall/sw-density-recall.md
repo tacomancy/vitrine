@@ -29,7 +29,7 @@ out: /Users/lab/runs/sw-density/
 
 - ![[recall-vs-density.png]] — Recall gain against slow-wave density, one dot per subject.
 - ![[per-subject.csv]] — Per-subject density, gain, and evening recall.
-- bootstrap-draws.parquet — /Users/lab/runs/sw-density/bootstrap-draws.parquet · 2.4 GB · 2026-09-24 · Lab iMac · 2576980378:1790262000000:4f2ac1e9b0d3 — Every bootstrap draw behind the interval.
+- bootstrap-draws.parquet — /Users/lab/runs/sw-density/bootstrap-draws.parquet · 2.4 GB · 2026-09-24 · Lab iMac · 2400000000:1790262000000:4f2ac1e9b0d3 — Every bootstrap draw behind the interval.
 
 ## Observations
 

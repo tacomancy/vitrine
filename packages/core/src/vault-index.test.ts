@@ -316,7 +316,9 @@ describe("the positionsOf seam", () => {
 
   it("is not called for a Kind with nothing registered", async () => {
     const vault = await fixtureCopy("obsidian-vault");
-    const { calls, positionsOf } = standIn("scout");
+    // A Kind no vault holds, so a fixture growing a new Kind never makes
+    // this pass or fail for the wrong reason.
+    const { calls, positionsOf } = standIn("no-such-kind");
     const c = await opened(vault, { positionsOf });
     await c.indexed();
     expect(calls).toEqual([]);
