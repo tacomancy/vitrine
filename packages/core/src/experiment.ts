@@ -13,8 +13,7 @@ import {
   type PageKind,
 } from "./page-write.js";
 import type { Revision } from "./position-history.js";
-import { asString } from "./question-kind.js";
-import { quoted } from "./research-question.js";
+import { asString, quoted } from "./question-kind.js";
 import { serialised } from "./serialise.js";
 import {
   createFile,

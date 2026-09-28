@@ -33,6 +33,10 @@ export function App() {
   // its attach form on arrival. The intent is spent by that arrival, so
   // returning to the same address later is an ordinary visit.
   const [attachOnArrival, setAttachOnArrival] = useState<string | null>(null);
+  // An Experiment just made is one gesture too: its page opens with the
+  // keyboard in Purpose (spec #362 story 5). Only that arrival — a run
+  // visited later with no purpose yet is read, not written into.
+  const [madeOnArrival, setMadeOnArrival] = useState<string | null>(null);
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -105,9 +109,21 @@ export function App() {
             <Hypothesis key={route.path} path={route.path} />
           )}
           {route.surface === "experiment" && (
-            <Experiment key={route.path} path={route.path} />
+            <Experiment
+              key={route.path}
+              path={route.path}
+              writeOnArrival={madeOnArrival === route.path}
+              onArrival={() => setMadeOnArrival(null)}
+            />
           )}
-          {route.surface === "experiments" && <Experiments />}
+          {route.surface === "experiments" && (
+            <Experiments
+              onMade={(path) => {
+                setMadeOnArrival(path);
+                pushRoute({ surface: "experiment", path });
+              }}
+            />
+          )}
           {route.surface === "settings" && <Settings vault={vault.data} />}
           {route.surface === "loose-ends" && (
             <LooseEnds

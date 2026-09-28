@@ -1,7 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import styles from "./Experiment.module.css";
-import { pushRoute } from "./router";
 import { useTRPC } from "./trpc";
 import { TypedLine } from "./TypedLine";
 
@@ -15,7 +14,12 @@ import { TypedLine } from "./TypedLine";
  * The Experiment Inbox — the surface's default view once it exists — is
  * #371's; every run made meanwhile is one ⌘K away by name.
  */
-export function Experiments() {
+export function Experiments({
+  onMade,
+}: {
+  /** Where the made run's page opens — the window's, since it moves the Address. */
+  onMade: (path: string) => void;
+}) {
   const trpc = useTRPC();
   const [name, setName] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -24,7 +28,7 @@ export function Experiments() {
       onSuccess: ({ path }) => {
         setName("");
         setRefusal(null);
-        pushRoute({ surface: "experiment", path });
+        onMade(path);
       },
       onError: (error) => setRefusal(error.message),
     })

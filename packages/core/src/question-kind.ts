@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { stringify } from "yaml";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import { RESULT_TAIL, type LoopResult } from "./hypothesis-rule.js";
 import {
@@ -65,6 +66,14 @@ const STATUSES: readonly QuestionStatus[] = [
 
 /** The value when it is a string; a Kind reader's "present and readable" test. */
 export const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+// Always double-quoted, as the Question's own `question:` is: deciding when
+// a plain scalar is safe means carrying YAML's rules, and one wrong call
+// makes the page unreadable. A wikilink starts with `[`, which is why the
+// fixture pages quote `from:` and `promoted_from:` too. Here beside
+// `asString` because every Kind that writes frontmatter quotes this way.
+export const quoted = (value: string) =>
+  stringify(value, { lineWidth: 0, defaultStringType: "QUOTE_DOUBLE" }).trim();
 
 /** The frontmatter keys the app reads on a Question: what the index stores per row. */
 export type QuestionFields = {

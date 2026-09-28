@@ -6,6 +6,7 @@ import { errorMessage, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";
 import {
   asString,
+  quoted,
   readQuestionForWrite,
   type QuestionFile,
   type QuestionStatus,
@@ -180,12 +181,6 @@ export function copiedKeys(
   return lines;
 }
 
-// Always double-quoted, as the Question's own `question:` is: deciding when
-// a plain scalar is safe means carrying YAML's rules, and one wrong call
-// makes the page unreadable. A wikilink starts with `[`, which is why the
-// fixture pages quote `from:` and `promoted_from:` too.
-export const quoted = (value: string) =>
-  stringify(value, { lineWidth: 0, defaultStringType: "QUOTE_DOUBLE" }).trim();
 /** Plain where YAML allows it, quoted by `yaml` where it does not. */
 const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
 

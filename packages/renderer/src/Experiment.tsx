@@ -1,12 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CameFrom, ExperimentFrontmatter, ExperimentStatus } from "core";
-import { useState } from "react";
+import type {
+  CameFrom,
+  ExperimentFrontmatter,
+  ExperimentSections,
+  ExperimentStatus,
+} from "core";
+import { useEffect, useId, useRef, useState } from "react";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
-import { describeProblem, Outline, Section } from "./ResearchQuestion";
+import {
+  describeProblem,
+  Outline,
+  Section,
+  sectionId,
+} from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
@@ -27,8 +37,25 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * The frame — the page read's lines, the rename and removal handling, the
  * arrival that did not resolve — is `page-frame.tsx`, as every page's is.
  */
-export function Experiment({ path }: { path: string }) {
+export function Experiment({
+  path,
+  writeOnArrival = false,
+  onArrival,
+}: {
+  path: string;
+  /** Just made: Purpose takes the keyboard when it mounts. */
+  writeOnArrival?: boolean;
+  onArrival?: () => void;
+}) {
   const trpc = useTRPC();
+  // Kept past the arrival that brought it, because the field it is for
+  // mounts only once the page's read lands; the window's copy is spent now,
+  // so coming back to this address later is an ordinary visit.
+  const [writing] = useState(writeOnArrival);
+  useEffect(() => {
+    if (writeOnArrival) onArrival?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
   const page = useQuery(trpc.experiments.page.queryOptions({ path }));
   const status = useVaultStatusLines();
 
@@ -70,12 +97,11 @@ export function Experiment({ path }: { path: string }) {
                 path={readable.path}
                 hash={readable.hash}
                 text={readable.sections.purpose.text}
-                labelledBy="rq-purpose"
+                labelledBy={sectionId("Purpose")}
                 withWhy={false}
-                // A run with no purpose written is one just made, or one
-                // asking for it: the keyboard goes where the writing starts
-                // (spec #362 story 5).
-                autoFocus={readable.sections.purpose.text === ""}
+                // A run just made opens where the writing starts (spec #362
+                // story 5); any other arrival leaves the keyboard with the page.
+                autoFocus={writing}
                 empty={
                   <Outline>
                     Nothing yet. What you are trying to find out — looser than a
@@ -110,26 +136,11 @@ export function Experiment({ path }: { path: string }) {
             </Section>
           </div>
           <aside className={styles.rail} aria-label="About this run">
-            <Section
-              name="Where it ran"
-              present={readable.sections.whereItRan.present}
-            >
-              <PositionField
-                position={{ kind: "experiment", field: "where it ran" }}
-                path={readable.path}
-                hash={readable.hash}
-                text={readable.sections.whereItRan.text}
-                labelledBy="rq-where-it-ran"
-                withWhy={false}
-                className={styles.where}
-                empty={
-                  <Outline>
-                    One line each, labels your own — repo, commit, entry,
-                    config, w&amp;b, out.
-                  </Outline>
-                }
-              />
-            </Section>
+            <WhereItRan
+              path={readable.path}
+              hash={readable.hash}
+              section={readable.sections.whereItRan}
+            />
             {readable.cameFrom !== null && (
               <CameFromSection cameFrom={readable.cameFrom} />
             )}
@@ -228,6 +239,8 @@ function StatusChips({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<string | null>(null);
+  // One group per page mounted, whatever else the window holds.
+  const group = useId();
   const set = useMutation(
     trpc.experiments.setStatus.mutationOptions({
       onSuccess: (result) => {
@@ -251,7 +264,7 @@ function StatusChips({
           <label key={value} className={styles.chip}>
             <input
               type="radio"
-              name="experiment-status"
+              name={group}
               value={value}
               checked={status === value}
               onChange={() =>
@@ -274,6 +287,86 @@ function StatusChips({
         </span>
       )}
     </>
+  );
+}
+
+/**
+ * *Where it ran* (spec #362 story 17): the file's `label: value` lines drawn
+ * as labels and values, the labels the user's own; *edit* opens the lines
+ * as text, saved whole with no Revision (story 18), and they are drawn
+ * again once the field has nothing left to hold. With nothing written yet
+ * the field is open from the start, since there is nothing else to show.
+ */
+function WhereItRan({
+  path,
+  hash,
+  section,
+}: {
+  path: string;
+  hash: string;
+  section: ExperimentSections["whereItRan"];
+}) {
+  const [editing, setEditing] = useState(false);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const reading = !editing && section.lines.length > 0;
+  // The keyboard goes back to *edit* when the field closes on it.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (!editing && wasEditing.current) editRef.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
+  return (
+    <Section
+      name="Where it ran"
+      present={section.present}
+      action={
+        reading && (
+          <button
+            ref={editRef}
+            type="button"
+            className={rq.edit}
+            onClick={() => setEditing(true)}
+          >
+            edit
+          </button>
+        )
+      }
+    >
+      {reading ? (
+        <dl className={styles.lines}>
+          {section.lines.map(({ label, value }, i) => (
+            <div key={i} className={styles.line}>
+              {label === null ? (
+                <dd className={styles.unlabelled}>{value}</dd>
+              ) : (
+                <>
+                  <dt className={styles.lineLabel}>{label}</dt>
+                  <dd className={styles.lineValue}>{value}</dd>
+                </>
+              )}
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <PositionField
+          position={{ kind: "experiment", field: "where it ran" }}
+          path={path}
+          hash={hash}
+          text={section.text}
+          labelledBy={sectionId("Where it ran")}
+          withWhy={false}
+          autoFocus={editing}
+          onDone={() => setEditing(false)}
+          className={styles.where}
+          empty={
+            <Outline>
+              One line each, labels your own — repo, commit, entry, config,
+              w&amp;b, out.
+            </Outline>
+          }
+        />
+      )}
+    </Section>
   );
 }
 

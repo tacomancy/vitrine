@@ -1,5 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   usePageProcedures,
   type Base,
@@ -29,6 +35,7 @@ export function PositionField({
   className,
   withWhy = true,
   autoFocus = false,
+  onDone,
 }: {
   position: EditedPosition;
   path: string;
@@ -48,10 +55,23 @@ export function PositionField({
   withWhy?: boolean;
   /** Takes the keyboard as it mounts: the field a page's arrival is for. */
   autoFocus?: boolean;
+  /**
+   * The field has nothing left to hold — a blur with no change, a save
+   * that landed with no typing past it, or esc — for a caller that draws
+   * the text some other way when it is not being edited. Never called on a
+   * refusal or a conflict: the typing stays in the field until answered.
+   */
+  onDone?: () => void;
 }) {
   const procedures = usePageProcedures();
   // Null while the field shows the file's text; the typing otherwise.
   const [draft, setDraft] = useState<string | null>(null);
+  // The typing as of now, for the save's reply to tell whether any went
+  // on past what it saved.
+  const typing = useRef<string | null>(null);
+  useEffect(() => {
+    typing.current = draft;
+  }, [draft]);
   const [refusal, setRefusal] = useState<string | null>(null);
   // Up while the *changed on disk* line is: autosave is suspended until
   // one of its two actions is chosen (#215).
@@ -88,6 +108,7 @@ export function PositionField({
       // re-read page only when it holds what was typed. Typing that
       // stayed is now a change to what this save put on disk.
       setDraft((current) => (current === saved ? null : current));
+      if (typing.current === null || typing.current === saved) onDone?.();
       setBase((current) =>
         current === null || current.hash === basedOn
           ? { hash: result.hash, text: saved.trim() }
@@ -122,10 +143,11 @@ export function PositionField({
     );
   };
   const commit = (explain = false) => {
-    if (draft === null || inFlight.current || conflict) return;
-    if (draft.trim() === text) {
+    if (inFlight.current || conflict) return;
+    if (draft === null || draft.trim() === text) {
       setDraft(null);
       setBase(null);
+      onDone?.();
       return;
     }
     send(draft, base ?? { hash, text }, explain);
@@ -145,6 +167,7 @@ export function PositionField({
       event.preventDefault();
       setDraft(null);
       setBase(null);
+      onDone?.();
     }
   };
   const type = (typed: string) => {

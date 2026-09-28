@@ -111,6 +111,13 @@ describe("making an Experiment on its surface", () => {
     await waitFor(() => expect(document.activeElement).toBe(purpose));
   });
 
+  it("leaves the keyboard with the page on any other arrival, purpose written or not", async () => {
+    open(() => planned);
+    const page = await region();
+    await screen.findByRole("textbox", { name: "Purpose" });
+    await waitFor(() => expect(document.activeElement).toBe(page));
+  });
+
   it("shows a refused name's reason on the line and keeps the typing", async () => {
     window.location.hash = "#/experiments";
     renderApp({
@@ -265,6 +272,75 @@ describe("the page of a run designed but not yet run", () => {
           was: "",
         },
       ])
+    );
+  });
+
+  it("draws where it ran as the user's labels and values, and edits it as lines", async () => {
+    const text = "repo: nap-reanalysis\ncommit: 8c41f0d\nhttps://wandb.ai/x";
+    const saved: unknown[] = [];
+    open(
+      () => ({
+        ...planned,
+        sections: {
+          ...planned.sections,
+          whereItRan: {
+            present: true,
+            text,
+            lines: [
+              { label: "repo", value: "nap-reanalysis" },
+              { label: "commit", value: "8c41f0d" },
+              { label: null, value: "https://wandb.ai/x" },
+            ],
+          },
+        },
+      }),
+      {
+        "experiments.saveSection": (input: unknown) => {
+          saved.push(input);
+          return written();
+        },
+      }
+    );
+    const page = await region();
+    const where = within(page).getByRole("region", { name: "Where it ran" });
+    expect(
+      within(where)
+        .getAllByRole("term")
+        .map((t) => t.textContent)
+    ).toEqual(["repo", "commit"]);
+    expect(
+      within(where)
+        .getAllByRole("definition")
+        .map((d) => d.textContent)
+    ).toEqual(["nap-reanalysis", "8c41f0d", "https://wandb.ai/x"]);
+    expect(within(where).queryByRole("textbox")).toBeNull();
+
+    fireEvent.click(within(where).getByRole("button", { name: "edit" }));
+    const field = within(where).getByRole("textbox", { name: "Where it ran" });
+    expect((field as HTMLTextAreaElement).value).toBe(text);
+    expect(document.activeElement).toBe(field);
+    // esc with nothing typed puts the lines back.
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(within(where).queryByRole("textbox")).toBeNull();
+
+    fireEvent.click(within(where).getByRole("button", { name: "edit" }));
+    const again = within(where).getByRole("textbox", { name: "Where it ran" });
+    fireEvent.change(again, { target: { value: `${text}\nout: out/` } });
+    fireEvent.blur(again);
+    await waitFor(() =>
+      expect(saved).toEqual([
+        {
+          path: PATH,
+          section: "Where it ran",
+          body: `${text}\nout: out/`,
+          basedOn: "abc",
+          was: text,
+        },
+      ])
+    );
+    // Saved with no typing past it: the field closes on the lines.
+    await waitFor(() =>
+      expect(within(where).queryByRole("textbox")).toBeNull()
     );
   });
 
