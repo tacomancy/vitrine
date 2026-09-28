@@ -125,8 +125,8 @@
   white-space: nowrap;
 }
 
-/* A repo wraps after a slash instead (`projectButton`), so its tail shows. */
-.facet.project {
+/* A repo wraps after a slash instead, so its tail shows (`facetButton`). */
+.facet.repo {
   white-space: normal;
 }
 

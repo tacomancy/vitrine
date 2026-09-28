@@ -227,46 +227,33 @@ export function Experiments({
     setSelected(rows[next]?.path ?? null);
   }
 
+  // A repo is told apart from its neighbours by its tail, and repos under
+  // one owner share everything before it — cut to the column's width, two
+  // of them read the same (#375). So a repo wraps after each slash and keeps
+  // the whole of its path; the title is for a name with no slash to break at.
   const facetButton = (
     label: string,
     pressed: boolean,
-    onClick: () => void
+    onClick: () => void,
+    repo = false
   ) => (
     <li key={label}>
       <button
         type="button"
-        className={styles.facet}
+        className={repo ? `${styles.facet} ${styles.repo}` : styles.facet}
         aria-pressed={pressed}
         onClick={onClick}
+        {...(repo ? { title: label } : {})}
       >
-        {label}
-      </button>
-    </li>
-  );
-
-  // A repo is told apart from its neighbours by its tail, and repos under
-  // one owner share everything before it — cut to the column's width, two
-  // of them read the same (#375). So the whole of it is kept, wrapping only
-  // after a slash, with the title for a path longer than a few lines.
-  const projectButton = (repo: string) => (
-    <li key={repo}>
-      <button
-        type="button"
-        className={`${styles.facet} ${styles.project}`}
-        aria-pressed={project === repo}
-        title={repo}
-        onClick={() => setProject(repo)}
-      >
-        {repo.split("/").map((part, i) => (
-          <Fragment key={i}>
-            {i > 0 && (
-              <>
-                /<wbr />
-              </>
-            )}
-            {part}
-          </Fragment>
-        ))}
+        {repo
+          ? label.split("/").map((part, i) => (
+              <Fragment key={i}>
+                {i > 0 && "/"}
+                {i > 0 && <wbr />}
+                {part}
+              </Fragment>
+            ))
+          : label}
       </button>
     </li>
   );
@@ -328,7 +315,9 @@ export function Experiments({
                   {facetButton("all projects", project === undefined, () =>
                     setProject(undefined)
                   )}
-                  {projects.map(projectButton)}
+                  {projects.map((p) =>
+                    facetButton(p, project === p, () => setProject(p), true)
+                  )}
                 </ul>
               </>
             )}
