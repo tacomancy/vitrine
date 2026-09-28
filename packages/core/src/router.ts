@@ -29,7 +29,6 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
-import { readPdfFolder } from "./pdf-folder.js";
 import { candidates } from "./picker.js";
 import { createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -216,8 +215,17 @@ export const router = t.router({
     // is no procedure that makes, re-points or removes the link, or copies a
     // PDF in or out (ADR 0025 decision 6) — the absence is the promise.
     pdfFolder: t.procedure.query(async ({ ctx }) => {
-      const { vault } = await requireVault(ctx);
-      return readPdfFolder(vault.path);
+      await requireVault(ctx);
+      const folder = await ctx.vault.pdfFolder();
+      if (folder === null) throw noVault();
+      return folder;
+    }),
+    // The footer's *check again* on *papers not arriving* (#379): the sweep,
+    // and the PDF folder checked and raised on the event stream. It looks
+    // and changes nothing — no more a setter than `pdfFolder` is.
+    sweep: t.procedure.mutation(async ({ ctx }) => {
+      await requireVault(ctx);
+      await ctx.vault.sweep();
     }),
     tags: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);

@@ -65,7 +65,16 @@ export type WatcherOptions = {
   probeTimeoutMs?: number | undefined;
 };
 
-export type Watcher = { close: () => void };
+export type Watcher = {
+  close: () => void;
+  /**
+   * The PDF folder's real path this watcher follows, or null when it follows
+   * none (`sources/pdf` inside the vault, absent, or not resolving when the
+   * watch came up). The vault service compares it with `pdfFolderOutside`
+   * now, to tell a watch left pointing where the link no longer leads (#379).
+   */
+  pdfFolder: string | null;
+};
 
 /** What two stats must agree on: `null` is a path that is not there. */
 type StatKey = { size: number; mtime: number } | null;
@@ -90,7 +99,7 @@ const isDotEntry = (path: string) =>
  * Where a second watch is needed: the PDF folder's real path when it lies
  * outside the vault, so events from it can be rebased onto `sources/pdf/…`.
  */
-async function pdfFolderOutside(root: string): Promise<string | null> {
+export async function pdfFolderOutside(root: string): Promise<string | null> {
   let real: string;
   try {
     real = await realpath(join(root, PDF_FOLDER));
@@ -275,9 +284,10 @@ export async function watchVault(
   // Both watches are started before the probe: adding a handle recreates
   // the shared stream, so proving the root live and then adding the PDF
   // folder would reopen the gap the probe exists to close.
+  let pdfReal: string | null = null;
   try {
     start(root, (path) => path);
-    const pdfReal = await pdfFolderOutside(root);
+    pdfReal = await pdfFolderOutside(root);
     if (pdfReal !== null && !closed) {
       start(pdfReal, (path) => `${PDF_FOLDER}/${path}`);
     }
@@ -290,5 +300,5 @@ export async function watchVault(
     throw cause;
   }
   starting = false;
-  return { close };
+  return { close, pdfFolder: pdfReal };
 }

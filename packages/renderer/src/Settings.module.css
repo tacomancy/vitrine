@@ -190,3 +190,9 @@
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
+
+/* The *wrong* Voice on a row (#379): glyph and words in the one warm
+   colour, never red (prototype 13, state 3). */
+.wrong {
+  color: var(--color-warning);
+}

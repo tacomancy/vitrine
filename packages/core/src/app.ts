@@ -93,6 +93,7 @@ export function createApp({
     coalesceMs: historyWindowMs,
     onSwitched: (switched) =>
       events.emit({ type: "vaultSwitched", vault: switched }),
+    onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's

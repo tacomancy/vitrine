@@ -9,9 +9,9 @@ export const PDF_FOLDER = "sources/pdf";
  * Settings' *Where the PDFs are* (#378; `docs/architecture.md` § Settings):
  * facts about an arrangement the researcher made in Finder, each checkable
  * against it. `exists: false` is a vault with no `sources/pdf` yet, which is
- * a true sentence and never a fault. `resolves` is null when the entry does
- * not lead to a folder that can be read; which of those it is, and the
- * sentence that says so, is #379's.
+ * a true sentence and never a fault. An entry that does not lead to a folder
+ * that can be read is a `fault` (#379), and then nothing it would hold is
+ * claimed: `resolves` and `holds` are null.
  */
 export type PdfFolder =
   | { exists: false }
@@ -22,9 +22,47 @@ export type PdfFolder =
       resolves: ResolvesTo | null;
       /** Every PDF under the folder, by stat: never opened. */
       holds: { count: number; bytes: number } | null;
-      /** The newest PDF by mtime; null when there is none. */
-      lastArrived: { at: string; name: string } | null;
+      /**
+       * The newest PDF by mtime; null when there is none. `beforeFault` marks
+       * the one `queue.sqlite` remembered, answered while the folder does not
+       * resolve: *the last before it stopped resolving*.
+       */
+      lastArrived: { at: string; name: string; beforeFault: boolean } | null;
+      fault: PdfFault | null;
     };
+
+/**
+ * Why the PDF folder does not resolve (#379). Worded here, once, and rendered
+ * verbatim: `reason` by the footer channel after *papers not arriving*,
+ * `resolvesTo` by Settings' *Resolves to* row. Neither carries a path (ADR
+ * 0028) — the target as written is a fact on the *Folder* row, and the
+ * sentence says what is wrong with it.
+ */
+export type PdfFault = {
+  kind: PdfFaultKind;
+  reason: string;
+  resolvesTo: string;
+};
+
+export type PdfFaultKind = "target-gone" | "not-a-folder" | "unreadable";
+
+const FAULTS: Record<PdfFaultKind, PdfFault> = {
+  "target-gone": {
+    kind: "target-gone",
+    reason: "the PDF folder is a link to a folder that no longer exists",
+    resolvesTo: "nothing — the link's target no longer exists",
+  },
+  "not-a-folder": {
+    kind: "not-a-folder",
+    reason: "the PDF folder leads to a file, not a folder",
+    resolvesTo: "a file, not a folder",
+  },
+  unreadable: {
+    kind: "unreadable",
+    reason: "the PDF folder can't be read — check its permissions",
+    resolvesTo: "a folder the app cannot read",
+  },
+};
 
 export type ResolvesTo = {
   /** `realpath` of the entry. */
@@ -42,20 +80,35 @@ export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
     return { exists: false };
   }
   const link = isLink ? await readlink(entry) : null;
+  const faulted = (kind: PdfFaultKind): PdfFolder => ({
+    exists: true,
+    link,
+    resolves: null,
+    holds: null,
+    lastArrived: null,
+    fault: FAULTS[kind],
+  });
+  // Three separate steps because each failure is a different sentence: a
+  // `realpath` that finds nothing is a link left dangling (ENOENT, or ELOOP
+  // for a link that leads back to itself); one that finds a file is not a
+  // folder; and a folder whose listing is refused cannot be counted. Any
+  // other failure to resolve is also one the researcher fixes with
+  // permissions, so it is `unreadable` rather than an unnamed error.
   let path: string;
-  let pdfs: Pdf[];
   try {
     path = await realpath(entry);
-    if (!(await stat(path)).isDirectory()) throw new Error("not a folder");
+  } catch (cause) {
+    const code = (cause as NodeJS.ErrnoException).code;
+    return faulted(
+      code === "ENOENT" || code === "ELOOP" ? "target-gone" : "unreadable"
+    );
+  }
+  let pdfs: Pdf[];
+  try {
+    if (!(await stat(path)).isDirectory()) return faulted("not-a-folder");
     pdfs = await pdfsUnder(path);
   } catch {
-    return {
-      exists: true,
-      link,
-      resolves: null,
-      holds: null,
-      lastArrived: null,
-    };
+    return faulted("unreadable");
   }
   const newest = pdfs.reduce<Pdf | null>(
     (best, pdf) => (best === null || pdf.mtimeMs > best.mtimeMs ? pdf : best),
@@ -72,7 +125,12 @@ export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
     lastArrived:
       newest === null
         ? null
-        : { at: new Date(newest.mtimeMs).toISOString(), name: newest.name },
+        : {
+            at: new Date(newest.mtimeMs).toISOString(),
+            name: newest.name,
+            beforeFault: false,
+          },
+    fault: null,
   };
 }
 
