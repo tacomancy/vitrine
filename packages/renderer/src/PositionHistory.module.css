@@ -48,7 +48,6 @@
 }
 
 .entries {
-  container-type: inline-size;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -80,6 +79,7 @@
 }
 
 .field {
+  margin: 0;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
@@ -93,24 +93,18 @@
 }
 
 /*
- * In a rail (the Experiment page's, prototype 05) there is no room for a
- * date column beside the entry: 18ch of date left a revision one or two
- * words wide (#375). The date and field go on a line above instead, and
- * the entry keeps the rail's whole width, as it keeps the page's on a
- * Hypothesis or Research Question.
+ * In a rail (the Experiment page's): prototype 05's narrow date column,
+ * day and month over the year when there is one, beside text that keeps
+ * the rest of the rail's width. The field's name leads the text instead
+ * (`PositionHistory`), since none fits the column.
  */
-@container (width < 24rem) {
-  .entry {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
-  }
+.rail .entry {
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
 
-  .column {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--space-2);
-    text-align: left;
-  }
+.rail .column {
+  text-align: left;
 }
 
 /* What the answer became, in the serif: the entry's own sentence. */
