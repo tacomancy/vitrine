@@ -50,11 +50,14 @@ export const FSEVENTS_LATENCY_MS = 50;
  * second is heard: two renames land as two Batches, and a rename whose halves
  * straddle a callback lands as a removal and an addition. The window must
  * cover the latency *plus* whatever the first change spends being stat-ted and
- * waiting on a busy event loop; twice the latency gives that another 50 ms.
- * Production's `SETTLE_MS` is far above it — this is a floor under the windows
- * tests inject, most of which ask for 40 ms and now get this.
+ * waiting on a busy event loop. Twice the latency left 50 ms for that, and a
+ * loaded CI runner spent it: the loop stalled ~70 ms, the second rename was
+ * heard 123 ms after the first, and the first had already closed (#400). Four
+ * times leaves 150 ms. Production's `SETTLE_MS` is far above it — this is a
+ * floor under the windows tests inject, most of which ask for 40 ms and now
+ * get this, at under a second on the core suite.
  */
-const MIN_SETTLE_MS = 2 * FSEVENTS_LATENCY_MS;
+const MIN_SETTLE_MS = 4 * FSEVENTS_LATENCY_MS;
 
 /** The one folder whose symlink is followed, so an iCloud or Dropbox PDF folder is watched. */
 const PDF_FOLDER = "sources/pdf";
