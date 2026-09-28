@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400&family=Josefin+Sans:wght@300&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#05080D}a{color:#9ABFFA}a:hover{color:#C3D8FC}input::placeholder{color:#9099A7}</style>
+</helmet>
+<div style="box-sizing:border-box;width:{{ winW }}px;height:780px;background:#09111D;border:1px solid #1C232F;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;font-family:Inter,system-ui,sans-serif;color:#D0D8E4">
+  <div style="height:28px;flex:none;display:flex;align-items:center;padding:0 12px;position:relative">
+    <div style="display:flex;gap:8px"><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div><div style="width:11px;height:11px;border-radius:50%;background:#2A3342"></div></div>
+    <div style="position:absolute;left:0;right:0;text-align:center;font:400 11px 'IBM Plex Mono',monospace;color:#9099A7;pointer-events:none">{{ title }}</div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;gap:8px;padding:0 8px {{ bodyPadB }}px">
+
+    <sc-if value="{{ isLaunch }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;background:#121A25;border-radius:5px;display:flex;flex-direction:column;padding:26px 30px">
+        <div style="font:300 13px 'Josefin Sans',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#B2BBC9">Vitrine</div>
+        <div style="margin:auto 0;padding:0 0 60px 72px;max-width:640px;display:flex;flex-direction:column;gap:30px">
+          <p style="margin:0;font:400 21px/1.45 Inter,sans-serif;color:#D0D8E4;text-wrap:pretty">Your files stay plain Markdown on disk, in a folder you choose; the app keeps its own state in one folder beside them.</p>
+          <div style="display:flex;align-items:center;gap:18px">
+            <div style="padding:9px 16px;background:#2062C7;color:#FFFFFF;border-radius:3px;font:500 14px Inter,sans-serif;box-shadow:0 0 0 2px #121A25,0 0 0 4px #E5B64A;cursor:pointer" style-hover="background:#2A6FD6">Choose a folder…</div>
+            <div style="font:400 12px 'IBM Plex Mono',monospace;color:#9099A7">an existing one, or make one in the picker</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasRail }}" hint-placeholder-val="{{ true }}">
+      <div style="width:238px;flex:none;background:#121A25;border-radius:5px;display:flex;flex-direction:column;padding-bottom:8px;overflow:hidden">
+        <div style="margin:6px 6px 4px;height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:3px;cursor:pointer" style-hover="background:#1C232F">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+            <div style="font:500 13px 'IBM Plex Mono',monospace;color:#D0D8E4">sleep-lab</div>
+            <div style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">~/Documents/sleep-lab</div>
+          </div>
+          <span style="font:400 13px 'IBM Plex Mono',monospace;color:#B2BBC9">⚙</span>
+        </div>
+        <div style="margin:0 10px 6px;height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1C232F;border-radius:3px">
+          <span style="flex:1;font:400 13px Inter,sans-serif;color:#9099A7">Go to, or capture</span>
+          <span style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">⌘K</span>
+        </div>
+        <div style="padding:12px 16px 6px;font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">SURFACES</div>
+        <sc-for list="{{ surfaces }}" as="n" hint-placeholder-count="8">
+          <div style="height:34px;flex:none;margin:0 6px;padding:0 10px;display:flex;align-items:center;gap:10px;border-radius:3px;background:{{ n.bg }};cursor:{{ n.cursor }}">
+            <span style="width:14px;flex:none;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:{{ n.gFg }}">{{ n.glyph }}</span>
+            <div style="min-width:0;display:flex;flex-direction:column;gap:1px">
+              <span style="font:{{ n.weight }} 13px/16px Inter,sans-serif;color:{{ n.fg }};white-space:nowrap">{{ n.label }}</span>
+              <sc-if value="{{ n.hasHint }}" hint-placeholder-val="{{ false }}"><span style="font:400 11px/13px 'IBM Plex Mono',monospace;color:#9099A7;white-space:nowrap">{{ n.hint }}</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding:16px 16px 6px;font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">DASHBOARDS</div>
+        <sc-for list="{{ dashboards }}" as="n" hint-placeholder-count="3">
+          <div style="height:34px;flex:none;margin:0 6px;padding:0 10px;display:flex;align-items:center;gap:10px;border-radius:3px;background:{{ n.bg }};cursor:{{ n.cursor }}">
+            <span style="width:14px;flex:none;text-align:center;font:400 12px 'IBM Plex Mono',monospace;color:{{ n.gFg }}">{{ n.glyph }}</span>
+            <div style="min-width:0;display:flex;flex-direction:column;gap:1px">
+              <span style="font:{{ n.weight }} 13px/16px Inter,sans-serif;color:{{ n.fg }};white-space:nowrap">{{ n.label }}</span>
+              <sc-if value="{{ n.hasHint }}" hint-placeholder-val="{{ false }}"><span style="font:400 11px/13px 'IBM Plex Mono',monospace;color:#9099A7;white-space:nowrap">{{ n.hint }}</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+        
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasMain }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-width:0;background:#121A25;border-radius:5px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px">
+          <div style="flex:1;font:600 16px Inter,sans-serif;color:#D0D8E4">{{ surfName }}</div>
+          <sc-if value="{{ isInbox }}" hint-placeholder-val="{{ true }}">
+            <div style="width:230px;height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1C232F;border-radius:3px">
+              <input placeholder="Search questions" style="flex:1;min-width:0;background:transparent;border:0;outline:0;color:#D0D8E4;font:400 13px Inter,sans-serif"></input>
+              <span style="font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">/</span>
+            </div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ isInbox }}" hint-placeholder-val="{{ true }}">
+          <div style="height:30px;flex:none;display:grid;grid-template-columns:minmax(0,1fr) 230px 64px;gap:16px;align-items:center;padding:0 20px;border-top:1px solid #1F2835;border-bottom:1px solid #1F2835;font:400 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#9099A7">
+            <div>QUESTION</div><div>WHERE IT CAME FROM</div><div style="text-align:right">AGE</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isLoose }}" hint-placeholder-val="{{ false }}">
+          <div style="height:1px;flex:none;background:#1F2835"></div>
+        </sc-if>
+
+        <div style="min-height:36px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid #1F2835">
+          <sc-if value="{{ isClaim }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;min-width:0;font:400 14px Inter,sans-serif;color:#D0D8E4">{{ claim }}</div>
+            <div style="flex:none;font:400 11px 'IBM Plex Mono',monospace;color:#9099A7">{{ warrant }}</div>
+          </sc-if>
+          <sc-if value="{{ isWithheld }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;font:400 13px 'IBM Plex Mono',monospace;color:#B2BBC9">
+              <span style="width:12px;text-align:center;color:{{ wGlyphFg }}">{{ wGlyph }}</span>
+              <span style="color:{{ wLabelFg }}">{{ wLabel }}</span>
+            </div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ showExplain }}" hint-placeholder-val="{{ true }}">
+          <sc-if value="{{ isInbox }}" hint-placeholder-val="{{ true }}">
+            <p style="margin:22px 20px 0;max-width:580px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">A question lands here when you capture one — <span style="padding:1px 5px;background:#1C232F;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#D0D8E4">⌘'</span> from anywhere in the app, or <span style="padding:1px 5px;background:#1C232F;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#D0D8E4">Q</span> on a passage in the Reader. It arrives carrying where it came from: the source, the page, the moment you asked. It can stay open for as long as it is worth keeping.</p>
+          </sc-if>
+          <sc-if value="{{ isLoose }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:22px 20px 0;max-width:580px;font:400 13px/1.65 Inter,sans-serif;color:#B2BBC9;text-wrap:pretty">This page gathers what has come apart or gone quiet — Scouts that stop returning, links and files that no longer land, sources acquired and never opened, material wired to nothing, questions promoted and then left alone. Each kind appears as its own group only when there is something in it.</p>
+          </sc-if>
+        </sc-if>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ hasFooter }}" hint-placeholder-val="{{ false }}">
+    <div style="height:32px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px 0 274px;font:400 12px 'IBM Plex Mono',monospace;color:#B2BBC9;white-space:nowrap">
+      <span style="width:12px;text-align:center;color:{{ fGlyphFg }}">{{ fGlyph }}</span>
+      <span style="color:{{ fLabelFg }}">{{ fLabel }}</span>
+      <span>{{ fDetail }}</span>
+      <sc-if value="{{ fHasAction }}" hint-placeholder-val="{{ false }}">
+        <span onClick="{{ retry }}" style="color:#9ABFFA;cursor:pointer" style-hover="color:#C3D8FC">retry</span>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:780},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;launch&quot;,&quot;inbox&quot;,&quot;loose&quot;],&quot;default&quot;:&quot;inbox&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;empty&quot;,&quot;reading&quot;,&quot;broken&quot;],&quot;default&quot;:&quot;empty&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;railOnly&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const NAV_S = [
+  ['home','Home','■','□'],
+  ['inbox','Question Inbox','●','○'],
+  ['reader','Reader','▮','▯','opens on a source'],
+  ['rq','Research questions','◆','◇','promoted from a question'],
+  ['hyp','Hypotheses','▲','△','from a research question'],
+  ['exp','Experiments','▼','▽','set up from a hypothesis'],
+  ['scouts','Scout Queue','◉','◎'],
+  ['vault','Vault','▣','□']
+];
+const NAV_D = [
+  ['map','Question Map','▦','□','drawn from questions'],
+  ['activity','Scout Activity','▤','□',"after a Scout's first run"],
+  ['loose','Loose Ends','▥','□']
+];
+const hhmm = () => { const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+
+class Component extends DCLogic {
+  state = { retrying:false, retriedAt:null };
+  componentWillUnmount(){ clearTimeout(this.t); }
+  retry = () => {
+    this.setState({ retrying:true });
+    clearTimeout(this.t);
+    this.t = setTimeout(() => this.setState({ retrying:false, retriedAt: hhmm() }), 2200);
+  };
+  renderVals(){
+    const surface = this.props.surface ?? 'inbox';
+    const railOnly = !!this.props.railOnly;
+    const base = this.props.mode ?? 'empty';
+    const mode = this.state.retrying ? 'retrying' : base;
+    const isLaunch = surface === 'launch';
+    const empty = mode === 'empty';
+    const nav = arr => arr.map(([k,label,f,h,wait]) => {
+      const inert = empty && !!wait, active = k === surface;
+      return { label, glyph: inert ? h : f, hint: wait || '', hasHint: inert,
+        gFg: active ? '#E5B64A' : inert ? '#9099A7' : '#B2BBC9',
+        fg: active ? '#D0D8E4' : inert ? '#9099A7' : '#B2BBC9',
+        weight: active ? 500 : 400, bg: active ? '#1C232F' : 'transparent',
+        cursor: inert ? 'default' : 'pointer' };
+    });
+    const surfName = { inbox:'Question Inbox', loose:'Loose ends' }[surface] || '';
+    const showFooter = !isLaunch && !railOnly && !empty;
+    let f = {};
+    if (mode === 'reading') f = { fGlyph:'◐', fGlyphFg:'#B2BBC9', fLabel:'reading the vault', fLabelFg:'#D0D8E4', fDetail:'· 1,250 of 8,400 files', fHasAction:false };
+    if (mode === 'retrying') f = { fGlyph:'◐', fGlyphFg:'#B2BBC9', fLabel:'retrying', fLabelFg:'#D0D8E4', fDetail:'· checking access to the vault folder', fHasAction:false };
+    if (mode === 'broken') f = { fGlyph:'‖', fGlyphFg:'#FAA680', fLabel:'not watching', fLabelFg:'#FAA680',
+      fDetail: this.state.retriedAt
+        ? '— the app still has no permission to read the vault folder, retried ' + this.state.retriedAt + ' ·'
+        : '— the app lost permission to read the vault folder ·',
+      fHasAction:true };
+    const withheld = mode === 'broken'
+      ? { wGlyph:'‖', wGlyphFg:'#FAA680', wLabel:'not known', wLabelFg:'#B2BBC9' }
+      : { wGlyph:'◐', wGlyphFg:'#B2BBC9', wLabel:'not read yet', wLabelFg:'#B2BBC9' };
+    return {
+      winW: railOnly ? 254 : 1180,
+      title: railOnly ? '' : isLaunch ? 'no vault open' : 'sleep-lab — ' + (surface === 'inbox' ? 'Question Inbox' : 'Loose Ends'),
+      bodyPadB: showFooter ? 0 : 8,
+      isLaunch, hasRail: !isLaunch, hasMain: !isLaunch && !railOnly,
+      surfaces: nav(NAV_S), dashboards: nav(NAV_D),
+      surfName, isInbox: surface === 'inbox', isLoose: surface === 'loose',
+      isClaim: empty, isWithheld: !empty, showExplain: empty,
+      claim: surface === 'loose' ? 'Nothing is loose that the app can see.' : 'No questions have been captured in this vault.',
+      warrant: 'read in full · watching',
+      ...withheld,
+      hasFooter: showFooter, ...f,
+      retry: this.retry
+    };
+  }
+}
+</script>
+</body>
+</html>
