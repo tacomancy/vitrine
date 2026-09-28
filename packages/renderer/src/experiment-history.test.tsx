@@ -54,6 +54,7 @@ const page = (
     positionHistory: { present: true, text: "…", entries: over.entries ?? [] },
   },
   cameFrom: null,
+  evidence: [],
   problems: [],
 });
 
