@@ -88,8 +88,13 @@ async function openCommand(answers: Record<string, unknown> = {}) {
   return screen.findByRole("dialog", { name: "Global command" });
 }
 
-const listOf = (dialog: HTMLElement) =>
-  within(dialog).findByRole("listbox", { name: "Destinations" });
+// Unnamed here: the list's own name is what it is before anything is
+// typed and what it is after, which is a thing to assert on rather than a
+// thing to find it by.
+const listOf = (dialog: HTMLElement) => within(dialog).findByRole("listbox");
+
+const nameOfList = async (dialog: HTMLElement) =>
+  (await listOf(dialog)).getAttribute("aria-label");
 
 async function rowsOf(dialog: HTMLElement) {
   const list = await listOf(dialog);
@@ -368,6 +373,18 @@ describe("before a character is typed, the list is what changed most recently", 
     expect(
       await within(dialog).findByText("recent · 5 of 314 · type to narrow")
     ).toBeDefined();
+  });
+
+  it("calls the list what it is, so it is not announced as matches for nothing", async () => {
+    // The count line says which list this is, and it is read by whoever can
+    // see it; the list's own name is what says it to whoever cannot.
+    const dialog = await openCommand();
+    await settled(dialog, 5);
+    expect(await nameOfList(dialog)).toBe("Recent");
+
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(await nameOfList(dialog)).toBe("Destinations");
   });
 
   it("counts matches while there is a query, and returns to the recent set when it is cleared", async () => {

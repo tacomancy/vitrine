@@ -236,11 +236,14 @@ function Command({ route, onClose }: { route: Route; onClose: () => void }) {
             {listing.error.message}
           </p>
         )}
+        {/* The list's name is the count line's sentence, said to whoever
+            cannot see it: before anything is typed these rows are the
+            recent set and not matches for anything (#304). */}
         <ul
           id="global-command-list"
           className={styles.list}
           role="listbox"
-          aria-label="Destinations"
+          aria-label={wanted === "" ? "Recent" : "Destinations"}
         >
           {rows.map((row, index) => (
             <li
