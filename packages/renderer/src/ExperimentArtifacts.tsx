@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  ArtifactAs,
   ArtifactLine,
   ExperimentSections,
   InFolderArtifact,
+  LinkedArtifact,
   StoredArtifact,
 } from "core";
 import { useEffect, useRef, useState } from "react";
@@ -19,11 +21,12 @@ import { TypedLine, type TypedLinePurpose } from "./TypedLine";
  * anything else a named card with its size, every one in the order the
  * file holds them.
  *
- * *+ artifact* asks the Host's file chooser; a file dropped on the page
- * arrives as `adding` from the page, which owns the drop. Either way the
- * caption is asked for next, and only then is anything copied (ADR 0035
- * decision 1). Every Artifact added here is stored; proposing a heavy one
- * as linked is #369's.
+ * *+ artifact* asks the Host's file chooser; a file or a URL dropped on
+ * the page arrives as `adding` from the page, which owns the drop. Either
+ * way the core is asked what it proposes — stored under 25 MB, linked at or
+ * above it, a URL always linked (ADR 0035 decision 4) — and the caption is
+ * asked for next, with the proposal said beside it and the other choice one
+ * button away (story 31). Only then is anything copied or linked.
  *
  * A file already in the run's folder with no line — a plot a script wrote
  * there, or one whose line was removed — is drawn after the lines as *in
@@ -88,11 +91,11 @@ export function Artifacts({
       onSettled: release,
     });
   };
-  const copyIn = (source: string, text: string) => {
+  const addAs = (source: string, as: ArtifactAs, text: string) => {
     if (busy.current) return;
     busy.current = true;
     add.mutate(
-      { path, source, caption: text },
+      { path, source, as, caption: text },
       {
         onSuccess: (result) => {
           // The copy lands before the line: a refused line still means a
@@ -153,13 +156,16 @@ export function Artifacts({
     >
       {adding !== null && (
         // Keyed by the file, so a second drop starts with an empty caption
-        // rather than lending it the first file's.
-        <CaptionLine
+        // and a fresh proposal rather than lending it the first file's.
+        <AddingLine
           key={adding}
-          purpose="caption"
           source={adding}
-          onSubmit={(text) => copyIn(adding, text)}
+          onSubmit={(as, text) => addAs(adding, as, text)}
           onDiscard={done}
+          onRefused={(message) => {
+            setSaid(`could not add it: ${message}`);
+            done();
+          }}
         />
       )}
       {said !== null && (
@@ -224,7 +230,84 @@ export function Artifacts({
   );
 }
 
-/** The caption line, with the file it is for named above it. */
+/**
+ * The caption line, with the file it is for named above it and what the
+ * core proposes for it: stored, or linked with the brief's warning (KEEP-9).
+ * The other choice is one button away, and switching keeps what was typed
+ * — the line is re-made for its new purpose, so it takes the keyboard back.
+ * A URL has no bytes to copy, so it is only ever linked.
+ */
+function AddingLine({
+  source,
+  onSubmit,
+  onDiscard,
+  onRefused,
+}: {
+  source: string;
+  onSubmit: (as: ArtifactAs, text: string) => void;
+  onDiscard: () => void;
+  /** The file could not be looked at: nothing can be added, so the line closes and says why. */
+  onRefused: (message: string) => void;
+}) {
+  const trpc = useTRPC();
+  const inspected = useQuery({
+    ...trpc.experiments.inspectArtifact.queryOptions({ source }),
+    // A file gone or unreadable is not going to come back by asking again.
+    retry: false,
+  });
+  const [caption, setCaption] = useState("");
+  // The user's choice, once they have made one; until then, the proposal.
+  const [chose, setChose] = useState<ArtifactAs | null>(null);
+  const refusal = inspected.isError ? inspected.error.message : null;
+  useEffect(() => {
+    if (refusal !== null) onRefused(refusal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per refusal
+  }, [refusal]);
+  if (inspected.data === undefined) {
+    return (
+      <div className={styles.adding}>
+        <span className={styles.addingName}>{fileOf(source)}</span>
+      </div>
+    );
+  }
+  const { size, proposed } = inspected.data;
+  const as = chose ?? proposed;
+  const url = size === null;
+  const other: ArtifactAs = as === "stored" ? "linked" : "stored";
+  return (
+    <div className={styles.adding} data-as={as}>
+      <div className={styles.artifactHead}>
+        <span className={styles.addingName}>
+          {url ? source : fileOf(source)}
+        </span>
+        <span className={styles.caption}>
+          {url ? "URL" : formatSize(size)} ·{" "}
+          {as === "stored" ? "copied into the vault" : "linked, not copied"}
+        </span>
+        {!url && (
+          <button
+            type="button"
+            className={rq.edit}
+            onClick={() => setChose(other)}
+          >
+            {other === "stored" ? "copy it in instead" : "link it instead"}
+          </button>
+        )}
+      </div>
+      {as === "linked" && <p className={styles.warning}>{warningFor(url)}</p>}
+      <TypedLine
+        key={as}
+        purpose={as === "stored" ? "caption" : "description"}
+        value={caption}
+        onChange={setCaption}
+        onSubmit={(text) => onSubmit(as, text)}
+        onDiscard={onDiscard}
+      />
+    </div>
+  );
+}
+
+/** *show it here*'s caption line, with the file it is for named above it: the file is already in the folder, so nothing is proposed. */
 function CaptionLine({
   purpose,
   source,
@@ -254,6 +337,17 @@ function CaptionLine({
 /** The name a path on disk ends in — all the caption line needs to say which file it is for. */
 const fileOf = (source: string) => source.replace(/^.*[/\\]/, "");
 
+/**
+ * The warning the brief asks for rather than a silent link (§ Artifact
+ * storage): the vault cannot see outside itself, so a linked Artifact can
+ * vanish without anything here noticing. Prototype 05's words.
+ */
+function warningFor(url: boolean): string {
+  return url
+    ? "Outside the vault. If this page moves or is taken down, the vault will not notice and this link will point at nothing."
+    : "Outside the vault. If this file moves or is cleaned up, the vault will not notice and this page will point at nothing.";
+}
+
 export function ArtifactCard({
   pagePath,
   item,
@@ -266,6 +360,7 @@ export function ArtifactCard({
   if (item.kind === "asWritten") {
     return <p className={styles.asWritten}>{item.text}</p>;
   }
+  if (item.kind === "linked") return <LinkedCard item={item} />;
   return <FileCard pagePath={pagePath} item={item} action={action} />;
 }
 
@@ -293,7 +388,7 @@ function FileCard({
       ? ` · first ${preview.data.lines.length} rows`
       : "";
   return (
-    <figure className={styles.artifact}>
+    <figure className={styles.artifact} data-kind={item.kind}>
       <div className={styles.artifactHead}>
         <span className={styles.artifactName}>{item.file}</span>
         <span className={styles.caption}>
@@ -331,6 +426,38 @@ function FileCard({
 }
 
 /**
+ * A linked Artifact (stories 38–39; prototype 05's warning card): where it
+ * is, how big, the machine it was linked on and when — enough to find it
+ * again — and the warning, since nothing here will notice if it goes.
+ * Nothing is fetched for it: its bytes are not the vault's to serve.
+ */
+function LinkedCard({ item }: { item: LinkedArtifact }) {
+  return (
+    <figure
+      className={`${styles.artifact} ${styles.linked}`}
+      data-kind="linked"
+    >
+      <div className={styles.artifactHead}>
+        <span className={styles.artifactName}>{item.file}</span>
+        <span className={styles.linkedMark}>
+          {item.url ? "URL" : item.size} · linked
+        </span>
+      </div>
+      <span className={styles.target}>{item.target}</span>
+      <p className={styles.warning}>{warningFor(item.url)}</p>
+      <span className={styles.caption}>
+        linked on {item.machine} · {item.date}
+      </span>
+      {item.description !== "" && (
+        <figcaption className={styles.artifactCaption}>
+          {item.description}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/**
  * `412 KB · in vault`; a line whose file the folder does not hold says so
  * rather than drawing a gap, and a file no line names says where it is.
  */
@@ -343,12 +470,15 @@ function sizeLine(item: StoredArtifact | InFolderArtifact): string {
   return `${formatSize(item.size)} · in vault`;
 }
 
-/** Bytes as the prototype writes them: `412 KB`, `1.1 MB`. */
+/**
+ * Bytes as the prototype writes them — `412 KB`, `1.1 MB` — in decimal
+ * units, as Finder counts them and as the core writes a linked line's size.
+ */
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes < 1e3) return `${bytes} B`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} KB`;
+  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e9).toFixed(1)} GB`;
 }
 
 /**

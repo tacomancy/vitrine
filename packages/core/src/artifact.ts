@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { open, stat } from "node:fs/promises";
-import { posix } from "node:path";
+import { basename, posix } from "node:path";
 import { Readable } from "node:stream";
 import { VaultError } from "./errors.js";
 import { writeOwn, type PageContext, type PageKind } from "./page-write.js";
@@ -37,10 +37,50 @@ export type StoredArtifact = {
 };
 
 /**
- * A line under `## Artifacts` that is not one the page can read yet, shown
- * as written. Linked Artifacts arrive as their own kind with #369.
+ * A linked Artifact (ADR 0035 decision 5; stories 39–40): `- <file> —
+ * <path or URL> · <size> · <date> · <machine> · <fingerprint> —
+ * <description>`, the file left where it was. Every field is read as
+ * written, since the line is the record and Obsidian is its other reader.
+ * A URL has no `size` and no `fingerprint`: nothing is fetched to learn
+ * them (spec #362 § Out of Scope).
  */
-export type ArtifactLine = StoredArtifact | { kind: "asWritten"; text: string };
+export type LinkedArtifact = {
+  kind: "linked";
+  file: string;
+  /** The path on the machine it was linked on, or the URL. */
+  target: string;
+  url: boolean;
+  /** As the line writes it — `2.4 GB` — for the page to show. */
+  size: string | null;
+  /** The day it was linked, `YYYY-MM-DD`. */
+  date: string;
+  /** The computer it was linked on. */
+  machine: string;
+  /** `<size>:<mtime>:<sha256 of first and last MiB, first 12 hex>`. */
+  fingerprint: string | null;
+  description: string;
+};
+
+/**
+ * A line under `## Artifacts` as the page reads it: stored, linked, or a
+ * line of neither shape, shown as written.
+ */
+export type ArtifactLine =
+  StoredArtifact | LinkedArtifact | { kind: "asWritten"; text: string };
+
+/** Stored or linked: what `inspectArtifact` proposes and what the user chose. */
+export type ArtifactAs = "stored" | "linked";
+
+const MIB = 1024 * 1024;
+
+/**
+ * At or above this a file is proposed as linked, below it as stored (KEEP-9,
+ * #94). A proposal only — the user overrides it per Artifact — and a code
+ * constant, never a Setting (ADR 0035 decision 4). Decimal megabytes, as
+ * the ADR and Finder both count them, so the size the page shows beside a
+ * file is the size Finder shows for it.
+ */
+const LINK_AT = 25_000_000;
 
 /**
  * A file in the Experiment's folder that no line names (ADR 0035 decision
@@ -123,6 +163,7 @@ function artifactPath(pagePath: string, file: string): string | null {
 
 type ParsedLine =
   | { kind: "stored"; file: string; caption: string }
+  | LinkedArtifact
   | { kind: "asWritten"; text: string };
 
 function parsedLines(text: string): ParsedLine[] {
@@ -132,7 +173,9 @@ function parsedLines(text: string): ParsedLine[] {
     .filter((line): line is string => line !== undefined && line !== "")
     .map((line) => {
       const match = STORED.exec(line);
-      if (match === null) return { kind: "asWritten", text: line };
+      if (match === null) {
+        return linkedFrom(line) ?? { kind: "asWritten", text: line };
+      }
       return {
         kind: "stored",
         file: match[1]!.trim(),
@@ -164,7 +207,9 @@ export async function artifactLines(
 ): Promise<ArtifactLine[]> {
   return Promise.all(
     parsedLines(text).map(async (line): Promise<ArtifactLine> => {
-      if (line.kind === "asWritten") return line;
+      // A linked line is read whole from the line: its file is not the
+      // vault's to size or serve.
+      if (line.kind !== "stored") return line;
       const wanted = artifactPath(pagePath, line.file);
       const found = wanted === null ? null : await sized(vaultPath, wanted);
       return {
@@ -229,6 +274,259 @@ async function sized(vaultPath: string, path: string): Promise<number | null> {
   }
 }
 
+// A URL is anything with a scheme — `https://`, but also `s3://` or
+// `gs://`, where heavy outputs often live. A path on disk never starts so.
+const URL_TARGET = /^[a-z][a-z0-9+.-]*:\/\//i;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const FINGERPRINT = /^\d+:\d+:[0-9a-f]{12}$/;
+
+/**
+ * A linked line, or null when the line is not one. A path may hold the
+ * line's own separators, so the fields are found rather than split out:
+ * the middle ends at the first ` — ` after which the fields read as a
+ * linked line's, and the fields are read from its right, so a path is
+ * whatever is left of them. A description keeps whatever it holds.
+ */
+function linkedFrom(line: string): LinkedArtifact | null {
+  const parts = line.split(" — ");
+  const file = parts[0]!.trim();
+  if (file === "") return null;
+  for (let end = 2; end <= parts.length; end++) {
+    const fields = fieldsFrom(parts.slice(1, end).join(" — "));
+    if (fields !== null) {
+      const description = parts.slice(end).join(" — ").trim();
+      return { kind: "linked", file, ...fields, description };
+    }
+  }
+  return null;
+}
+
+/** The middle of a linked line — a path's five fields or a URL's three — or null when it is neither. */
+function fieldsFrom(
+  middle: string
+): Omit<LinkedArtifact, "kind" | "file" | "description"> | null {
+  const fields = middle.split(" · ");
+  if (fields.length >= 5 && FINGERPRINT.test(fields.at(-1)!)) {
+    const [size, date, machine, fingerprint] = fields.slice(-4) as [
+      string,
+      string,
+      string,
+      string,
+    ];
+    const target = fields.slice(0, -4).join(" · ");
+    if (!DATE.test(date) || machine === "" || target === "") return null;
+    return { target, url: false, size, date, machine, fingerprint };
+  }
+  if (fields.length >= 3) {
+    const [date, machine] = fields.slice(-2) as [string, string];
+    const target = fields.slice(0, -2).join(" · ");
+    if (!DATE.test(date) || machine === "" || !URL_TARGET.test(target)) {
+      return null;
+    }
+    return { target, url: true, size: null, date, machine, fingerprint: null };
+  }
+  return null;
+}
+
+/**
+ * Bytes as the prototype writes them — `412 KB`, `2.4 GB` — in decimal
+ * units, as Finder and `LINK_AT` count them. The renderer's `formatSize`
+ * draws a stored card's size by the same rule; the two sit either side of
+ * the process boundary, which carries only types.
+ */
+function formatSize(bytes: number): string {
+  if (bytes < 1e3) return `${bytes} B`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} KB`;
+  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e9).toFixed(1)} GB`;
+}
+
+/** A field of the linked line on one line and free of the line's own separators, so it reads back as the field it was. */
+const asField = (text: string) =>
+  onOneLine(text)
+    .replace(/\s*[·—]\s*/g, " ")
+    .trim();
+
+/**
+ * The linked line (ADR 0035 decision 5), as `docs/architecture.md` § Vault
+ * layout (Experiment) spells it.
+ */
+function linkedLine(artifact: Omit<LinkedArtifact, "kind" | "url">): string {
+  const fields = [
+    artifact.target,
+    ...(artifact.size === null ? [] : [artifact.size]),
+    artifact.date,
+    asField(artifact.machine),
+    ...(artifact.fingerprint === null ? [] : [artifact.fingerprint]),
+  ];
+  return `- ${asField(artifact.file)} — ${fields.join(" · ")} — ${onOneLine(artifact.description)}`;
+}
+
+/** Refused in the words `copyArtifact` uses, so a stored and a linked add fail alike. */
+const unreadable = (source: string) =>
+  new VaultError(
+    "refused",
+    `${basename(source)} is not a file that can be read.`
+  );
+
+/**
+ * Stored or linked, proposed by size (stories 29–30; ADR 0035 decision 4).
+ * A URL is linked, with no size: nothing is fetched to learn one.
+ */
+export async function inspectArtifact(
+  source: string
+): Promise<{ size: number | null; proposed: ArtifactAs }> {
+  if (URL_TARGET.test(source)) return { size: null, proposed: "linked" };
+  let found;
+  try {
+    found = await stat(source);
+  } catch {
+    throw unreadable(source);
+  }
+  if (!found.isFile()) throw unreadable(source);
+  return {
+    size: found.size,
+    proposed: found.size < LINK_AT ? "stored" : "linked",
+  };
+}
+
+/**
+ * A file's Fingerprint (ADR 0035 decision 5): its size, its modification
+ * time in whole milliseconds, and the first 12 hex of a SHA-256 of its first
+ * and last mebibyte — enough to tell an edited or replaced file from the one
+ * linked without reading a 40 GB checkpoint whole (the ADR's rejected full
+ * hash). A file of 2 MiB or less is hashed whole, since its ends are all of
+ * it. Size and time come from the open handle, so all three describe the
+ * same file even if the path is replaced mid-read.
+ *
+ * Off the request thread: the reads are the handle's, and the digest is
+ * WebCrypto's, both of which run on libuv's pool, so hashing 2 MiB never
+ * holds up another request.
+ */
+async function fingerprintOf(
+  source: string
+): Promise<{ size: number; fingerprint: string }> {
+  let handle;
+  try {
+    handle = await open(source, "r");
+  } catch {
+    throw unreadable(source);
+  }
+  try {
+    const found = await handle.stat();
+    if (!found.isFile()) throw unreadable(source);
+    const { size } = found;
+    const ends: Array<[position: number, length: number]> =
+      size <= 2 * MIB
+        ? [[0, size]]
+        : [
+            [0, MIB],
+            [size - MIB, MIB],
+          ];
+    const bytes = Buffer.alloc(
+      ends.reduce((sum, [, length]) => sum + length, 0)
+    );
+    let offset = 0;
+    for (const [position, length] of ends) {
+      let got = 0;
+      while (got < length) {
+        const { bytesRead } = await handle.read(
+          bytes,
+          offset + got,
+          length - got,
+          position + got
+        );
+        // Shorter than its stat said: it changed under the read.
+        if (bytesRead === 0) throw unreadable(source);
+        got += bytesRead;
+      }
+      offset += length;
+    }
+    const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes));
+    const sha = digest.toString("hex").slice(0, 12);
+    return { size, fingerprint: `${size}:${Math.floor(found.mtimeMs)}:${sha}` };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** The name a URL's card goes by: its last path segment, or its host when it has none. */
+function urlName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const segment = parsed.pathname.split("/").filter(Boolean).at(-1);
+    return segment === undefined
+      ? parsed.host || url
+      : decodeURIComponent(segment);
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Add a linked Artifact (stories 30, 39–40; ADR 0035 decision 5): its line
+ * appended, nothing copied. The file is only read, for its Fingerprint; a
+ * URL is not read at all.
+ */
+async function addLinkedArtifact(
+  ctx: PageContext,
+  page: PageKind,
+  relativePath: string,
+  { source, caption }: { source: string; caption: string },
+  { machine, today }: { machine: string; today: string }
+): Promise<WriteResult & { file: string }> {
+  const url = URL_TARGET.test(source);
+  const file = url ? urlName(source) : basename(source);
+  // The target is written as it is, so the line names the file exactly; a
+  // line break would end the list item and the rest would read as prose.
+  if (/[\r\n]/.test(source)) {
+    throw new VaultError(
+      "refused",
+      `${file} cannot be linked: its ${url ? "URL" : "path"} has a line break in it.`
+    );
+  }
+  const measured = url ? null : await fingerprintOf(source);
+  const line = linkedLine({
+    file,
+    target: source,
+    size: measured === null ? null : formatSize(measured.size),
+    date: today,
+    machine,
+    fingerprint: measured?.fingerprint ?? null,
+    description: caption,
+  });
+  const result = await writeOwn(ctx, relativePath, page, (read) => ({
+    operations: [
+      { op: "appendToSection", target: { section: "Artifacts" }, line },
+    ],
+    basedOn: read.hash,
+  }));
+  return { ...result, file };
+}
+
+/**
+ * Add an Artifact as the user chose — stored or linked, whatever was
+ * proposed (story 31). A URL can only be linked.
+ */
+export async function addArtifact(
+  ctx: PageContext,
+  page: PageKind,
+  path: string,
+  input: { source: string; as: ArtifactAs; caption: string },
+  linkedOn: { machine: string; today: string }
+): Promise<WriteResult & { file: string }> {
+  if (input.as === "stored" && URL_TARGET.test(input.source)) {
+    throw new VaultError(
+      "refused",
+      "A URL can only be linked: there is no file to copy in."
+    );
+  }
+  const relativePath = await experimentPath(ctx, page, path);
+  return input.as === "stored"
+    ? addStoredArtifact(ctx, page, relativePath, input)
+    : addLinkedArtifact(ctx, page, relativePath, input, linkedOn);
+}
+
 /**
  * The line a stored Artifact is appended as: an ordinary embed, so Obsidian
  * draws it too (story 44). The caption is required — the router refuses a
@@ -251,13 +549,12 @@ export function storedLine(file: string, caption: string): string {
  * between the two. The answer carries the stored name either way, so the
  * page can say where the file went when the line did not follow.
  */
-export async function addStoredArtifact(
+async function addStoredArtifact(
   ctx: PageContext,
   page: PageKind,
-  path: string,
+  relativePath: string,
   { source, caption }: { source: string; caption: string }
 ): Promise<WriteResult & { file: string }> {
-  const relativePath = await experimentPath(ctx, page, path);
   const copied = await copyArtifact(
     ctx.vaultPath,
     source,

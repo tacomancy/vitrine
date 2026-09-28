@@ -81,10 +81,13 @@ const staticDir = process.env["VITRINE_STATIC_DIR"];
 // Overridable so a verification run can start from a folder of its own
 // rather than the real Application Support.
 const appSupportDir = process.env["VITRINE_APP_SUPPORT_DIR"];
+// The Mac's computer name, which only the shell asks the system for.
+const machine = process.env["VITRINE_MACHINE"];
 const shell = parentPort ? hostOver(parentPort) : null;
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(appSupportDir === undefined ? {} : { appSupportDir }),
+  ...(machine === undefined || machine === "" ? {} : { machine }),
   ...(shell ? { host: shell.host } : {}),
 });
 

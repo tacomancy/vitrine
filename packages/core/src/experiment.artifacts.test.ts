@@ -98,6 +98,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate<Added>("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "Asymmetric, as before.",
     });
 
@@ -129,6 +130,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate<Added>("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "The second.",
     });
 
@@ -152,6 +154,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate<Added>("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "Final.",
     });
 
@@ -166,6 +169,7 @@ describe("experiments.addArtifact", () => {
     await c.mutate<Added>("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "  Pooled estimate\nin the bottom row.  ",
     });
 
@@ -184,6 +188,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate<Added>("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "Kept for the sweep config.",
     });
     await chmod(join(vault, PATH), 0o644);
@@ -205,11 +210,13 @@ describe("experiments.addArtifact", () => {
     const gone = await c.mutate("experiments.addArtifact", {
       path: PATH,
       source: join(folder, "never-written.png"),
+      as: "stored",
       caption: "x",
     });
     const directory = await c.mutate("experiments.addArtifact", {
       path: PATH,
       source: folder,
+      as: "stored",
       caption: "x",
     });
 
@@ -229,6 +236,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "   ",
     });
 
@@ -246,6 +254,7 @@ describe("experiments.addArtifact", () => {
     const reply = await c.mutate("experiments.addArtifact", {
       path: note,
       source,
+      as: "stored",
       caption: "x",
     });
 
@@ -261,6 +270,7 @@ describe("experiments.addArtifact", () => {
     await c.mutate("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "Funnel.",
     });
     // The copy's own event, then the page's.
@@ -359,6 +369,7 @@ describe("experiments.page — the Artifacts", () => {
     await c.mutate("experiments.addArtifact", {
       path: PATH,
       source,
+      as: "stored",
       caption: "Second.",
     });
 
