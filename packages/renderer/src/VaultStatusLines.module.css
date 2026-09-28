@@ -15,3 +15,9 @@
   outline: 1px solid var(--color-fg-muted);
   outline-offset: 2px;
 }
+
+/* A line the vault could not keep: its glyph and label in the one warm
+   colour, never red (prototype 12); the reason stays in the footer's grey. */
+.warning {
+  color: var(--color-warning);
+}

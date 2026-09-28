@@ -386,8 +386,10 @@ export function Inbox({
           <h1 id="inbox-title" className={styles.title}>
             Question Inbox
           </h1>
-          {/* A failed read must never read as an empty vault (no silent failures). */}
-          {!failed && (
+          {/* A failed read must never read as an empty vault (no silent
+              failures), and an empty one carries no count at all: its first
+              slot's claim says so, warranted (prototype 12). */}
+          {!failed && count > 0 && (
             <span className={styles.count}>
               {count} {count === 1 ? "question" : "questions"}
               {since !== null && ` · since ${monthYear(since)}`}
@@ -420,10 +422,16 @@ export function Inbox({
             {unresolved.address} — {unresolved.reason}
           </p>
         )}
-        {failed && (
-          <p className={styles.failed} role="alert">
-            {listing.error.message}
-          </p>
+        {rows.length === 0 && (
+          <FirstSlot
+            voice={
+              failed || status.read === "unwatched" || status.read === "unknown"
+                ? "wrong"
+                : listing.data === undefined || status.read === "reading"
+                  ? "not yet"
+                  : "claim"
+            }
+          />
         )}
         <ul
           ref={listRef}
@@ -526,6 +534,17 @@ export function Inbox({
             </details>
           )}
           {status.lines}
+          {/* The listing's own failure speaks where the vault's do, in the
+              same quiet voice: a state the app is in, not a refusal of
+              something the user just did (ADR 0033). */}
+          {failed && (
+            <span className={styles.footerLine} role="status">
+              <span className={styles.warning}>
+                <span aria-hidden="true">‖</span> not read
+              </span>{" "}
+              — {listing.error.message}
+            </span>
+          )}
         </footer>
         {linking && selectedRow?.kind === "question" && (
           <Picker
@@ -586,5 +605,49 @@ function StatusWord({ question }: { question: ListedQuestion }) {
         </a>
       )}
     </>
+  );
+}
+
+/**
+ * Where the Inbox's contents would begin, when it has none: one of the three
+ * Voices (ADR 0032, prototype 12). Only the claim asserts anything — that
+ * the vault was read in full, is being watched, and holds no Question — so
+ * only the claim carries a Warrant. The other two are fragments that assert
+ * nothing; what is happening, and why, is the footer channel's to say.
+ */
+function FirstSlot({ voice }: { voice: "claim" | "not yet" | "wrong" }) {
+  if (voice === "claim")
+    return (
+      <>
+        <p className={styles.slot}>
+          <span className={styles.claim}>
+            No questions have been captured in this vault.
+          </span>
+          <span className={styles.warrant}>read in full · watching</span>
+        </p>
+        {/* Prototype 12's paragraph, less its Reader clause: *Q on a passage
+            in the Reader* names a way in that does not exist until beat 5,
+            and this line is a description, not a promise. */}
+        <p className={styles.arrival}>
+          A question lands here when you capture one —{" "}
+          <kbd className={styles.chord}>⌘&apos;</kbd> from anywhere in the app.
+          It arrives carrying where it came from: the source, the page, the
+          moment you asked. It can stay open for as long as it is worth keeping.
+        </p>
+      </>
+    );
+  return (
+    <p className={styles.slot}>
+      <span className={styles.fragment}>
+        {voice === "wrong" ? (
+          <span className={styles.warningGlyph} aria-hidden="true">
+            ‖
+          </span>
+        ) : (
+          <span aria-hidden="true">◐</span>
+        )}
+        <span>{voice === "wrong" ? "not known" : "not read yet"}</span>
+      </span>
+    </p>
   );
 }

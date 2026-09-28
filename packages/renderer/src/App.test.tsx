@@ -127,7 +127,7 @@ describe("the window with a vault open", () => {
     expect(nav.querySelectorAll("li")).toHaveLength(9);
   });
 
-  it("shows the Inbox header counting zero questions, no rows, and an empty detail pane", async () => {
+  it("shows the Inbox header with no count on an empty vault, no rows, and an empty detail pane", async () => {
     renderApp({
       "vault.current": vault,
       "questions.list": {
@@ -138,7 +138,8 @@ describe("the window with a vault open", () => {
       },
     });
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
-    expect(inbox.textContent).toContain("0 questions");
+    // Prototype 12: an empty Inbox carries no count; its claim says it.
+    expect(inbox.textContent).not.toMatch(/\d+ questions?/);
     expect(inbox.textContent).not.toContain("since");
     expect(inbox.querySelectorAll("li")).toHaveLength(0);
     expect(screen.getByRole("complementary").textContent).toBe("");

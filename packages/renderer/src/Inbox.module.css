@@ -232,12 +232,71 @@
 }
 
 /* A read that failed says so where the list would be, in the same quiet mono. */
-.failed {
+/*
+ * The first slot, where the rows would begin when there are none (ADR 0032,
+ * prototype 12): a row's height and inset, so what sits in it reads as the
+ * list's first line rather than a message laid over the list.
+ */
+.slot {
   margin: 0;
-  padding: var(--space-3) var(--space-5);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* The claim: a sentence in the interface face, with a full stop. */
+.claim {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--color-fg);
+}
+
+/* The Warrant sits where a row carries its Provenance, in the same voice. */
+.warrant {
+  flex: none;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--color-fg-muted);
+}
+
+/* *Not yet* and *wrong*: a mono fragment, no full stop, nothing to warrant. */
+.fragment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+/* The one spot of warm colour, and it always comes with a glyph and a label;
+   never red (prototype 12). */
+.warningGlyph,
+.warning {
+  color: var(--color-warning);
+}
+
+/* How questions arrive, said once at the page's own size. */
+.arrival {
+  margin: 22px var(--space-5) 0;
+  max-width: 580px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-secondary);
+}
+
+.chord {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--color-fg);
 }
 
 /*

@@ -33,7 +33,9 @@ describe("the footer channel and vault.status", () => {
     });
     await rows();
     const footer = screen.getByRole("contentinfo");
-    expect(footer.textContent).toContain("indexing… 1,250 of 4,000");
+    expect(footer.textContent).toContain(
+      "◐ reading the vault · 1,250 of 4,000 files"
+    );
     expect(footer.textContent).toContain("1 file could not be read");
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -57,7 +59,7 @@ describe("the footer channel and vault.status", () => {
     await rows();
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toContain(
-      "not watching — EMFILE: too many open files · retry"
+      "‖ not watching — EMFILE: too many open files · retry"
     );
     expect(screen.queryByRole("alert")).toBeNull();
 
@@ -90,10 +92,10 @@ describe("the footer channel and vault.status", () => {
       "vault.status": read,
     });
     await rows();
-    expect(screen.queryByText(/indexing/)).toBeNull();
+    expect(screen.queryByText(/reading the vault/)).toBeNull();
 
     status = { ...well, indexing: { done: 3, total: 12 } };
     act(() => stream.push({ type: "vaultStatus" }));
-    await screen.findByText("indexing… 3 of 12");
+    await screen.findByText(/reading the vault · 3 of 12 files/);
   });
 });
