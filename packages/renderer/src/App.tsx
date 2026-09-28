@@ -20,7 +20,7 @@ export function App() {
   const vault = useQuery(trpc.vault.current.queryOptions());
   const listeners = useCoreEvents();
   const route = useRoute();
-  // The last Question the capture line wrote. The Inbox re-reads the vault
+  // The last Question either chord wrote. The Inbox re-reads the vault
   // and makes it the selection, so the user sees it land (brief § Question
   // Inbox: "everything captured recently, newest first").
   const [landed, setLanded] = useState<Question | null>(null);
@@ -39,11 +39,11 @@ export function App() {
     setLanded(question);
   };
 
-  // What the capture line records as Provenance (CONTEXT.md): pursuing the
-  // page at this address, otherwise Unattached. The address names a file,
-  // not a Kind; a capture on a page that is not a Research Question is
-  // refused by the core, loudly, in the capture line. The Reader will add
-  // *reading* here when it exists.
+  // What a capture records as Provenance (CONTEXT.md), whichever chord
+  // made it: pursuing the page at this address, otherwise Unattached. The
+  // address names a file, not a Kind; a capture on a page that is not a
+  // Research Question is refused by the core, loudly, where it was made.
+  // The Reader will add *reading* here when it exists.
   const provenance: Provenance =
     route.surface === "research-question"
       ? { context: "pursuing", researchQuestion: route.path }
@@ -104,8 +104,13 @@ export function App() {
         </div>
         <CaptureLine provenance={provenance} onCaptured={onCaptured} />
         {/* Both chords are mounted here and nowhere else, so neither is
-            live before a vault is open (ADR 0027 decision 1). */}
-        <GlobalCommand route={route} />
+            live before a vault is open, and both are handed the same
+            Provenance and the same landing (ADR 0027 decision 1). */}
+        <GlobalCommand
+          route={route}
+          provenance={provenance}
+          onCaptured={onCaptured}
+        />
       </div>
     </VaultChangedListeners>
   );
