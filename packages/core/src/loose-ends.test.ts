@@ -258,7 +258,13 @@ A claim.
       run("2026-09-20", 5),
       short
     );
-    expect(titles(await rows(c))).toEqual(["stale?"]);
+    // The two Hypotheses are quiet themselves, which is their own row kind.
+    expect(
+      (await rows(c)).groups
+        .flatMap((g) => g.rows)
+        .filter((r) => r.kind === "stalled-research-question")
+        .map((r) => r.title)
+    ).toEqual(["stale?"]);
   });
 
   it("uses fourteen open days when the caller names no threshold", async () => {
@@ -269,6 +275,290 @@ A claim.
     // The fourteenth open day since is the one that makes it a row.
     const { c: one } = await openedOn(files, run("2026-09-01", 14));
     expect(titles(await rows(one))).toEqual(["stale?"]);
+  });
+});
+
+describe("looseEnds.rows — the stalled Hypothesis", () => {
+  // A test committed to and let go quiet (#341; spec #327 stories 81–85):
+  // quiet since the newest Position history entry, counted in open days.
+  const PROMOTED = "2026-01-05T09:00:00+01:00";
+  const short = { stalledOpenDays: 3 };
+
+  const C1 =
+    "### The trim-and-fill estimate stays above 0.2 ^c1\n\nrelationship:: confirming";
+  const F2 =
+    "### The effect vanishes in the large-study stratum ^c2\n\nrelationship:: falsifying";
+
+  const QUESTION = `---
+id: q000000001
+kind: question
+question: "Does the reanalysis shrink the pooled effect?"
+status: promoted
+captured: 2026-01-01T09:12:00+01:00
+context: other
+promoted_to: "[[The pooled effect is mostly small-study bias]]"
+---
+`;
+
+  const hypothesis = ({
+    criteria = "",
+    history = "",
+    promoted = PROMOTED,
+    claim = "The pooled effect is mostly small-study bias.",
+  }: {
+    criteria?: string;
+    history?: string;
+    promoted?: string | null;
+    claim?: string;
+  } = {}) => `---
+id: hy00000001
+kind: hypothesis
+promoted_from: "[[Does the reanalysis shrink the pooled effect]]"
+${promoted === null ? "" : `promoted: ${promoted}\n`}context: other
+---
+
+## Claim
+
+${claim}
+
+## Criteria
+
+${criteria}
+
+## Design notes
+
+## Position history
+
+${history}`;
+
+  const PATH = "hypotheses/The pooled effect is mostly small-study bias.md";
+  const vault = (h: string, question = QUESTION) => ({
+    "questions/Does the reanalysis shrink the pooled effect.md": question,
+    [PATH]: h,
+  });
+
+  it("lists one quiet the threshold's open days since promoted, named by its current claim and how long it has been quiet", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({
+          criteria: `${C1}\n\n${F2}\noutcome:: not met`,
+          claim: "The pooled effect is mostly publication bias.",
+        })
+      ),
+      run("2026-09-20", 4),
+      short
+    );
+    const ends = await rows(c);
+    expect(ends.groups).toEqual([
+      {
+        group: "Stalled questions",
+        rows: [
+          {
+            kind: "stalled-hypothesis",
+            subject: "hy00000001",
+            path: PATH,
+            title: "The pooled effect is mostly publication bias.",
+            quietOpenDays: 4,
+            criteria: 2,
+            awaiting: 1,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("leaves one out while it has been quiet fewer open days than the threshold", async () => {
+    const { c } = await openedOn(
+      vault(hypothesis()),
+      run("2026-09-20", 2),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("counts from the newest Position history entry, not from promoted", async () => {
+    const files = vault(
+      hypothesis({
+        criteria: C1,
+        history: `- 2026-09-22T10:00:00+01:00 · criterion C1
+  from:
+
+- ${PROMOTED} · claim
+  from:
+`,
+      })
+    );
+    // Open 20–24 September: two open days after the entry on the 22nd.
+    const { c } = await openedOn(files, run("2026-09-20", 5), short);
+    expect(titles(await rows(c))).toEqual([]);
+
+    // Open 20–25 September: three.
+    const { c: later } = await openedOn(files, run("2026-09-20", 6), short);
+    expect((await rows(later)).groups[0]?.rows).toMatchObject([
+      {
+        kind: "stalled-hypothesis",
+        quietOpenDays: 3,
+        criteria: 1,
+        awaiting: 1,
+      },
+    ]);
+  });
+
+  it("lists one with no criteria written at all", async () => {
+    const { c } = await openedOn(
+      vault(hypothesis()),
+      run("2026-09-20", 3),
+      short
+    );
+    expect((await rows(c)).groups[0]?.rows).toMatchObject([
+      { kind: "stalled-hypothesis", criteria: 0, awaiting: 0 },
+    ]);
+  });
+
+  it("leaves one out whose every criterion carries an outcome, even undecided", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({
+          criteria: `${C1}\noutcome:: inconclusive\n\n${F2}\noutcome:: not met`,
+        })
+      ),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("leaves one out that is falsified, though a criterion still awaits evidence", async () => {
+    const { c } = await openedOn(
+      vault(hypothesis({ criteria: `${C1}\n\n${F2}\noutcome:: met` })),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("leaves one out whose loop is closed", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({ criteria: `${C1}\n\n${F2}\noutcome:: not met` }),
+        QUESTION.replace("status: promoted", "status: answered") +
+          "\nAnswered by [[The pooled effect is mostly small-study bias]] — inconclusive, 2026-01-06\n"
+      ),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("leaves one out that is overridden to supported", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({
+          criteria: `${C1}\noutcome:: met\n\n${F2}`,
+          history: `- ${PROMOTED} · override
+  why: the large-study stratum cannot be run on this sample
+  from:
+    inconclusive
+`,
+        })
+      ),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("leaves out one with no history and no promoted: — there is no date to be quiet since", async () => {
+    const { c } = await openedOn(
+      vault(hypothesis({ promoted: null })),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([]);
+  });
+
+  it("lists one whose override was voided: the call it made no longer stands", async () => {
+    const { c } = await openedOn(
+      vault(
+        hypothesis({
+          criteria: `${C1}\noutcome:: met\n\n${F2}`,
+          history: `- 2026-01-06T09:00:00+01:00 · override voided
+  from:
+    ${PROMOTED}
+
+- ${PROMOTED} · override
+  why: the large-study stratum cannot be run on this sample
+  from:
+    inconclusive
+`,
+        })
+      ),
+      run("2026-09-20", 5),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([
+      "The pooled effect is mostly small-study bias.",
+    ]);
+  });
+
+  it("lists one written by hand with nothing it was promoted from: there is no loop to close", async () => {
+    const { c } = await openedOn(
+      {
+        [PATH]: hypothesis().replace(
+          'promoted_from: "[[Does the reanalysis shrink the pooled effect]]"\n',
+          ""
+        ),
+      },
+      run("2026-09-20", 3),
+      short
+    );
+    expect(titles(await rows(c))).toEqual([
+      "The pooled effect is mostly small-study bias.",
+    ]);
+  });
+
+  it("names one it could not read rather than dropping it silently", async () => {
+    const { vault: root, c } = await openedOn(
+      vault(hypothesis()),
+      run("2026-09-20", 3),
+      short
+    );
+    await chmod(join(root, PATH), 0o000);
+    restore.push(() => chmod(join(root, PATH), 0o644));
+
+    const ends = await rows(c);
+    expect(titles(ends)).toEqual([]);
+    expect(ends.problems).toHaveLength(1);
+    expect(ends.problems[0]).toMatch(
+      /^hypotheses\/The pooled effect is mostly small-study bias\.md could not be read: /
+    );
+  });
+
+  it("is silenced by mark deliberate keyed by its own row kind, and back on undo", async () => {
+    const { c } = await openedOn(
+      vault(hypothesis()),
+      run("2026-09-20", 3),
+      short
+    );
+    const row = { subject: "hy00000001", kind: "stalled-hypothesis" };
+    expect((await c.mutate("looseEnds.dismiss", row)).error).toBeUndefined();
+    expect(titles(await rows(c))).toEqual([]);
+
+    // Another row kind about the same Hypothesis is not what was silenced.
+    expect(
+      (
+        await c.mutate("looseEnds.undismiss", {
+          ...row,
+          kind: "stalled-research-question",
+        })
+      ).error
+    ).toBeUndefined();
+    expect(titles(await rows(c))).toEqual([]);
+
+    expect((await c.mutate("looseEnds.undismiss", row)).error).toBeUndefined();
+    expect(titles(await rows(c))).toEqual([
+      "The pooled effect is mostly small-study bias.",
+    ]);
   });
 });
 
