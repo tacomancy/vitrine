@@ -32,6 +32,7 @@ const criterion = (over: Partial<CriterionRead> = {}): CriterionRead => ({
   outcome: null,
   outcomeUnreadable: null,
   evidence: [],
+  editedAfterEvidence: [],
   ...over,
 });
 
@@ -309,5 +310,203 @@ describe("deleting a criterion", () => {
     );
     const c1 = await card("C1");
     expect(within(c1).queryByRole("button", { name: "delete" })).toBeNull();
+  });
+});
+
+// Edited after evidence (#335; TEST-5; spec #327 stories 32, 47–50): a
+// tested criterion can still be reworded or relabelled, but the page says
+// at the moment of editing that the change will be marked, and offers the
+// honest alternative — a new criterion beside the old one. Once tested,
+// *delete* gives way to *make diagnostic*. The mark, once written, stays on
+// the criterion with the wording it replaced.
+describe("a criterion with evidence under it", () => {
+  const RUN = {
+    text: "[[run-14]] — gain tracked density",
+    link: { target: "run-14", blockId: null, resolution: "unresolved" },
+    note: "gain tracked density",
+  } as CriterionRead["evidence"][number];
+  const tested = (over: Partial<CriterionRead> = {}) =>
+    criterion({ evidence: [RUN], ...over });
+
+  it("warns, when edit is opened, that the change will be marked — and neither blur nor the warning's alternative saves", async () => {
+    const edit = vi.fn(() => wrote);
+    open(() => page([tested()]), { "hypotheses.editCriterion": edit });
+    const c1 = await card("C1");
+    fireEvent.click(within(c1).getByRole("button", { name: "edit" }));
+    const warning = within(c1).getByRole("note", {
+      name: "Edited after evidence",
+    });
+    expect(warning.textContent).toMatch(/one line of evidence/);
+    expect(warning.textContent).toMatch(
+      /recorded as edited after evidence and shown on the criterion permanently/
+    );
+    const box = within(c1).getByRole("textbox", { name: "Criterion C1" });
+    fireEvent.change(box, { target: { value: "Moved bar" } });
+    fireEvent.blur(box);
+    expect(edit).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(warning).getByRole("button", { name: "save the edit" })
+    );
+    await waitFor(() =>
+      expect(edit).toHaveBeenCalledWith({
+        path: PATH,
+        id: "c1",
+        text: "Moved bar",
+        was: "Recall gain tracks density across the sample",
+        basedOn: "abc",
+      })
+    );
+  });
+
+  it("offers a new criterion instead: the edit closes unsaved and the new-criterion form opens with the typing, no relationship chosen", async () => {
+    const edit = vi.fn(() => wrote);
+    open(() => page([tested()]), { "hypotheses.editCriterion": edit });
+    const c1 = await card("C1");
+    fireEvent.click(within(c1).getByRole("button", { name: "edit" }));
+    const box = within(c1).getByRole("textbox", { name: "Criterion C1" });
+    fireEvent.change(box, { target: { value: "Gain within subjects" } });
+    fireEvent.click(
+      within(c1).getByRole("button", { name: "add a new criterion instead" })
+    );
+
+    expect(within(c1).queryByRole("textbox")).toBeNull();
+    const form = screen.getByRole("form", { name: "New criterion" });
+    const text = within(form).getByRole("textbox", { name: "Criterion" });
+    expect((text as HTMLInputElement).value).toBe("Gain within subjects");
+    expect(within(form).queryByRole("radio", { checked: true })).toBeNull();
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it("warns before relabelling it, writing only when the change is confirmed", async () => {
+    const set = vi.fn(() => wrote);
+    open(() => page([tested()]), { "hypotheses.setCriterionField": set });
+    const c1 = await card("C1");
+    fireEvent.click(
+      within(
+        within(c1).getByRole("radiogroup", { name: "Relationship" })
+      ).getByRole("radio", { name: "falsifying" })
+    );
+    expect(set).not.toHaveBeenCalled();
+    const warning = within(c1).getByRole("note", {
+      name: "Edited after evidence",
+    });
+    fireEvent.click(
+      within(warning).getByRole("button", { name: "make it falsifying" })
+    );
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith({
+        path: PATH,
+        id: "c1",
+        field: "relationship",
+        value: "falsifying",
+        basedOn: "abc",
+      })
+    );
+  });
+
+  it("records an outcome without a warning — that is what evidence is for", async () => {
+    const set = vi.fn(() => wrote);
+    open(() => page([tested()]), { "hypotheses.setCriterionField": set });
+    const c1 = await card("C1");
+    fireEvent.click(
+      within(within(c1).getByRole("radiogroup", { name: "Outcome" })).getByRole(
+        "radio",
+        { name: "met" }
+      )
+    );
+    await waitFor(() => expect(set).toHaveBeenCalled());
+    expect(within(c1).queryByRole("note")).toBeNull();
+  });
+
+  it("offers make diagnostic in place of delete, which takes it out of the rule by relabelling", async () => {
+    const set = vi.fn(() => wrote);
+    open(() => page([tested()]), { "hypotheses.setCriterionField": set });
+    const c1 = await card("C1");
+    expect(within(c1).queryByRole("button", { name: "delete" })).toBeNull();
+    fireEvent.click(
+      within(c1).getByRole("button", { name: "make diagnostic" })
+    );
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith({
+        path: PATH,
+        id: "c1",
+        field: "relationship",
+        value: "diagnostic",
+        basedOn: "abc",
+      })
+    );
+  });
+
+  it("offers neither delete nor make diagnostic on a tested criterion that is already diagnostic", async () => {
+    open(() => page([tested({ label: "D1", relationship: "diagnostic" })]));
+    const d1 = await card("D1");
+    expect(within(d1).queryByRole("button", { name: "delete" })).toBeNull();
+    expect(
+      within(d1).queryByRole("button", { name: "make diagnostic" })
+    ).toBeNull();
+  });
+
+  it("carries the mark permanently, with the wording and relationship it replaced and the why when there is one", async () => {
+    open(() =>
+      page([
+        tested({
+          editedAfterEvidence: [
+            {
+              at: "2026-09-29T10:00:00+02:00",
+              why: "the size distribution is bimodal",
+              was: {
+                text: "The effect shrinks monotonically",
+                relationship: "confirming",
+              },
+            },
+          ],
+        }),
+      ])
+    );
+    const mark = within(await card("C1")).getByRole("note", {
+      name: "Edited after evidence",
+    });
+    expect(mark.textContent).toMatch(
+      /edited 29 September 2026, after evidence/
+    );
+    expect(mark.textContent).toMatch(
+      /was — “The effect shrinks monotonically” · confirming/
+    );
+    expect(mark.textContent).toMatch(/the size distribution is bimodal/);
+  });
+});
+
+describe("the history of a criterion edited after evidence", () => {
+  it("never collapses the entry into the quiet trail: it stands on its own, says no why was written, and offers one", async () => {
+    const readable = page([criterion()]);
+    readable.sections.positionHistory.entries = [
+      {
+        at: "2026-09-29T10:05:00+02:00",
+        field: "criterion C1",
+        why: null,
+        from: "### Reworded ^c1",
+      },
+      {
+        at: "2026-09-29T10:00:00+02:00",
+        field: "criterion C1 · edited after evidence",
+        why: null,
+        from: "### The effect shrinks monotonically ^c1",
+      },
+    ];
+    open(() => readable);
+    const history = await screen.findByRole("region", {
+      name: "Position history",
+    });
+    const loud = within(history).getByRole("listitem", {
+      name: "Edited after evidence",
+    });
+    expect(loud.textContent).toMatch(/no why written/);
+    expect(loud.textContent).toMatch(/The effect shrinks monotonically/);
+    expect(within(loud).getByRole("button", { name: "+ why" })).toBeTruthy();
+    // The quiet one beside it is still a trail of one.
+    expect(
+      within(history).getByRole("button", { name: /1 quiet revision/ })
+    ).toBeTruthy();
   });
 });

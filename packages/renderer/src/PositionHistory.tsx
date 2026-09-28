@@ -130,16 +130,41 @@ function Row({
   explaining?: Explaining | undefined;
 }) {
   if (row.kind === "explained") {
-    const { revision, to } = row;
+    const { revision, to, loud } = row;
+    const id = idOf(revision);
     return (
-      <li className={styles.entry}>
+      <li
+        className={styles.entry}
+        data-loud={loud || undefined}
+        aria-label={loud ? "Edited after evidence" : undefined}
+      >
         <When at={revision.at} field={named ? revision.field : null} />
         <div className={styles.body}>
+          {loud && <p className={styles.loudTag}>edited after evidence</p>}
           {to !== "" && <p className={styles.position}>{to}</p>}
-          <p className={styles.why}>
-            <Why text={revision.why ?? ""} />
-          </p>
+          {revision.why === null ? (
+            // Only a loud entry stands here without a why, and it says so.
+            <div className={styles.quietWhen}>
+              <span className={styles.noWhy}>no why written</span>
+              {explaining !== undefined && (
+                <button
+                  type="button"
+                  className={styles.addWhy}
+                  aria-expanded={explaining.open === id}
+                  onClick={() => explaining.toggle(id)}
+                >
+                  + why
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className={styles.why}>
+              <Why text={revision.why} />
+            </p>
+          )}
           <From from={revision.from} />
+          {explaining?.open === id &&
+            explaining.line(revision, explaining.close)}
         </div>
       </li>
     );

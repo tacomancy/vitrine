@@ -94,6 +94,23 @@ export type CriterionRead = {
   outcomeUnreadable: string | null;
   /** The `- [[run]] — what it shows` lines under the criterion, each whether or not its link resolves (decision 10). */
   evidence: LinkLine[];
+  /**
+   * Every time the criterion's text or Relationship changed while Evidence
+   * sat under it, newest first — read from the history, so the mark lasts
+   * as long as the entry does (TEST-5; ADR 0031 decision 4).
+   */
+  editedAfterEvidence: AfterEvidenceMark[];
+};
+
+/**
+ * One *edited after evidence* entry as the criterion shows it: when, the
+ * why if one was written, and what the criterion said before — so the page
+ * cannot be read as though it had always said this.
+ */
+export type AfterEvidenceMark = {
+  at: string;
+  why: string | null;
+  was: { text: string; relationship: Relationship | null };
 };
 
 export type DerivedState = "supported" | "falsified" | "inconclusive";
@@ -334,6 +351,14 @@ export async function readHypothesisPage(
     }
   }
 
+  const history = revisionsOf(
+    relativePath,
+    KIND,
+    content,
+    outline,
+    found["Position history"]
+  );
+
   // The criteria reader (`vault-files.ts`) has already decided which `###`
   // is a criterion and read its fields; what it leaves out — the heading's
   // range for the Evidence under it, and the verbatim value of an Outcome
@@ -372,16 +397,10 @@ export async function readHypothesisPage(
           : topLevelItems(outline, heading).map((item) =>
               linkLine(index, relativePath, outline, content, item)
             ),
+      editedAfterEvidence: marksOf(criterion.id, history.entries),
     };
   });
 
-  const history = revisionsOf(
-    relativePath,
-    KIND,
-    content,
-    outline,
-    found["Position history"]
-  );
   problems.push(...history.problems);
 
   return {
@@ -408,6 +427,49 @@ export async function readHypothesisPage(
     derivation: derive(read.criteria),
     problems,
   };
+}
+
+/**
+ * The suffix a criterion Revision carries when it moved the bar (§ Vault
+ * layout (Hypothesis)). The renderer's `history.ts` reads the same literal
+ * to keep these entries out of the quiet trail — it imports only types from
+ * the core, so a change here must be made there too.
+ */
+const AFTER_EVIDENCE = " · edited after evidence";
+
+// `criterion C2 · edited after evidence`, or `criterion ^c2 · …` for one
+// that had no Relationship: the digit is the id, whatever the letter was.
+const MARKED_FIELD = /^criterion (?:[CFD]|\^c)(\d+) · edited after evidence$/;
+
+/**
+ * The criterion's *edited after evidence* entries, matched by the id's
+ * number rather than the label, because a Relationship change — making it
+ * diagnostic, the way out of the rule — moves the letter the entry named
+ * (ADR 0031 decision 3). The previous wording is the `### ` line of the
+ * block the entry records as `from:`; an entry written by hand whose
+ * `from:` has no heading shows its first line rather than nothing.
+ */
+function marksOf(id: string, entries: Revision[]): AfterEvidenceMark[] {
+  const number = id.slice(1);
+  return entries.flatMap(({ at, why, field, from }) => {
+    if (MARKED_FIELD.exec(field)?.[1] !== number) return [];
+    const firstLine = from.split("\n")[0] ?? "";
+    const heading = /^###\s+(.*?)(?:\s+\^c\d+)?\s*$/.exec(firstLine);
+    const related = /^relationship::\s*(.*?)\s*$/m.exec(from)?.[1];
+    return [
+      {
+        at,
+        why,
+        was: {
+          text: heading?.[1] ?? firstLine.trim(),
+          relationship:
+            related !== undefined && related in LETTER
+              ? (related as Relationship)
+              : null,
+        },
+      },
+    ];
+  });
 }
 
 /**
@@ -586,8 +648,13 @@ async function writeCriterion(
       read.outline,
       { field: change.field, from: change.from, at },
       // A parked Obsidian edit closes the window, as it does for a claim
-      // save (`savePosition` says why).
-      waiting.length > 0 ? 0 : coalesceMs
+      // save (`savePosition` says why). So does an edit after evidence: the
+      // criteria are "versioned more loudly than anything else" (brief §
+      // The falsification commitment), and folding a second rewording into
+      // the first would lose the wording between them.
+      waiting.length > 0 || change.field.endsWith(AFTER_EVIDENCE)
+        ? 0
+        : coalesceMs
     );
     recorded.at = history.at;
     const before = derive(read.criteria).state;
@@ -635,6 +702,33 @@ function theOne(
     });
   }
   return only;
+}
+
+/** Whether any line sits under the criterion's heading: Evidence, read as found (ADR 0031 decision 10). */
+const tested = (read: PageFile, heading: Heading) =>
+  topLevelItems(read.outline, heading).length > 0;
+
+/**
+ * The field a criterion Revision is written under. Load-bearing (TEST-5;
+ * ADR 0031 decision 4; `CLAUDE.md` § Code standard): runs are cheap, and
+ * the risk the brief names is running two hundred and then rewording the
+ * criterion to fit whichever result looks best. So a change to what the
+ * criterion *says* — its text, or its Relationship, which is what it means
+ * for the claim — made while Evidence was under it when the file was read
+ * carries ` · edited after evidence`, and that entry is never collapsed and
+ * never expires. Recording an Outcome is what Evidence is for, so it is
+ * never marked (story 49). A marked entry never coalesces (`writeCriterion`),
+ * so each rewording keeps the wording it replaced; and since the suffix is
+ * part of the field, an Outcome recorded minutes later opens its own entry
+ * rather than absorbing the mark.
+ */
+function revisionField(
+  read: PageFile,
+  { criterion, heading }: CriterionBlock,
+  movesTheBar: boolean
+): string {
+  const field = criterionField(criterion);
+  return movesTheBar && tested(read, heading) ? field + AFTER_EVIDENCE : field;
 }
 
 /** A criterion's text as it is written: one line, since it is a heading, and never empty. */
@@ -754,7 +848,7 @@ export async function setCriterionField(
               value: input.value,
             },
       ],
-      field: criterionField(criterion),
+      field: revisionField(read, block, input.field === "relationship"),
       from: block.text,
       after: read.criteria.map((c) => (c === criterion ? changed : c)),
     };
@@ -785,7 +879,7 @@ export async function editCriterion(
       operations: [
         criteriaWith(read, heading.range, `### ${text} ^${criterion.id}`),
       ],
-      field: criterionField(criterion),
+      field: revisionField(read, block, true),
       from: block.text,
       after: read.criteria.map((c) => (c === criterion ? { ...c, text } : c)),
     };
@@ -811,7 +905,7 @@ export async function deleteCriterion(
     const { criterion, heading } = block;
     // A refusal of the act, not a disk conflict: `changedAndUnreapplyable`
     // is what a page reads as *changed on disk*, which this is not.
-    if (topLevelItems(read.outline, heading).length > 0) {
+    if (tested(read, heading)) {
       throw new VaultError(
         "refused",
         `${nameOf(criterion)} has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted`

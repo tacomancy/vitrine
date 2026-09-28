@@ -15,6 +15,7 @@ export type {
   Destinations,
 } from "./destinations.js";
 export type {
+  AfterEvidenceMark,
   Clause,
   CriterionRead,
   Derivation,

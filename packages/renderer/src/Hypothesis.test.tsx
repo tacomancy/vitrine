@@ -71,6 +71,7 @@ const criterion = (
   outcome: null,
   outcomeUnreadable: null,
   evidence: [],
+  editedAfterEvidence: [],
   ...over,
 });
 

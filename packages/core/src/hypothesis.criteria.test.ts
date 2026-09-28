@@ -495,3 +495,190 @@ describe("hypotheses.deleteCriterion", () => {
     );
   });
 });
+
+// The guard against moving the bar (#335; TEST-5; spec #327 stories 32,
+// 47–50; ADR 0031 decisions 4–5). A change to a criterion's text or
+// Relationship while an Evidence line sits under it carries the
+// `· edited after evidence` suffix; recording an Outcome never does. The
+// mark is read back from the history onto the criterion, with the wording
+// it had before, for as long as the entry is in the file.
+describe("edited after evidence", () => {
+  const RUN = "- [[run-14]] — gain tracked density";
+  const TESTED = `${C1_BLOCK}\n\n${RUN}`;
+  const MARKED = "criterion C1 · edited after evidence";
+
+  it("marks a rewording made while evidence is attached, and the page reads the mark with the old wording", async () => {
+    const { wrote, bytes, page } = await opened(TESTED);
+    const reply = await wrote("editCriterion", {
+      id: "c1",
+      text: "Recall gain tracks density within each subject",
+      was: "Recall gain tracks density across the sample",
+    });
+    expect(reply).toMatchObject({ written: true, revision: localIso(t0) });
+    expect(await bytes()).toBe(
+      file(
+        `### Recall gain tracks density within each subject ^c1\n\nrelationship:: confirming\n\n${RUN}`,
+        [entry(t0, MARKED, TESTED), PROMOTION].join("\n") + "\n"
+      )
+    );
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence
+    ).toEqual([
+      {
+        at: localIso(t0),
+        why: null,
+        was: {
+          text: "Recall gain tracks density across the sample",
+          relationship: "confirming",
+        },
+      },
+    ]);
+  });
+
+  it("marks a relationship changed while evidence is attached — making it diagnostic included — and the mark follows the number, not the letter", async () => {
+    const { wrote, bytes, page } = await opened(
+      `${TESTED}`.replace(
+        "relationship:: confirming",
+        "relationship:: confirming\noutcome:: met"
+      )
+    );
+    await wrote("setCriterionField", {
+      id: "c1",
+      field: "relationship",
+      value: "diagnostic",
+    });
+    const written = await bytes();
+    expect(written).toContain(`· ${MARKED}\n`);
+    // Taking the only deciding criterion out of the rule moves the state.
+    expect(written).toContain(entry(t0, "state", "supported"));
+    const [criterion] = (await page()).sections.criteria.criteria;
+    expect(criterion?.label).toBe("D1");
+    expect(criterion?.editedAfterEvidence).toEqual([
+      {
+        at: localIso(t0),
+        why: null,
+        was: {
+          text: "Recall gain tracks density across the sample",
+          relationship: "confirming",
+        },
+      },
+    ]);
+  });
+
+  it("never marks recording an outcome, evidence or not", async () => {
+    const { wrote, bytes, page } = await opened(TESTED);
+    await wrote("setCriterionField", {
+      id: "c1",
+      field: "outcome",
+      value: "met",
+    });
+    const written = await bytes();
+    expect(written).toContain(entry(t0, "criterion C1", TESTED));
+    expect(written).not.toContain("after evidence");
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence
+    ).toEqual([]);
+  });
+
+  it("does not mark a rewording or relabelling made before any evidence", async () => {
+    const { wrote, bytes, setNow } = await opened(C1_BLOCK);
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "Reworded before any run",
+      was: "Recall gain tracks density across the sample",
+    });
+    setNow(at(60));
+    await wrote("setCriterionField", {
+      id: "c1",
+      field: "relationship",
+      value: "falsifying",
+    });
+    expect(await bytes()).not.toContain("after evidence");
+  });
+
+  it("keeps the mark when an outcome is recorded inside the coalescing window — the two are separate entries", async () => {
+    const { wrote, bytes, page, setNow } = await opened(TESTED);
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "Reworded after the run",
+      was: "Recall gain tracks density across the sample",
+    });
+    setNow(at(5));
+    await wrote("setCriterionField", {
+      id: "c1",
+      field: "outcome",
+      value: "not met",
+    });
+    const reworded = TESTED.replace(
+      "Recall gain tracks density across the sample",
+      "Reworded after the run"
+    );
+    expect(await bytes()).toContain(
+      [
+        entry(at(5), "criterion C1", reworded),
+        entry(t0, MARKED, TESTED),
+        PROMOTION,
+      ].join("\n")
+    );
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence
+    ).toHaveLength(1);
+  });
+
+  it("never coalesces one edit after evidence into another: each rewording keeps the wording it replaced", async () => {
+    const { wrote, bytes, page, setNow } = await opened(TESTED);
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "First rewording",
+      was: "Recall gain tracks density across the sample",
+    });
+    setNow(at(5));
+    await wrote("editCriterion", {
+      id: "c1",
+      text: "Second rewording",
+      was: "First rewording",
+    });
+    expect(await bytes()).toContain(
+      [
+        entry(
+          at(5),
+          MARKED,
+          TESTED.replace(
+            "Recall gain tracks density across the sample",
+            "First rewording"
+          )
+        ),
+        entry(t0, MARKED, TESTED),
+      ].join("\n")
+    );
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence.map(
+        (m) => m.was.text
+      )
+    ).toEqual([
+      "First rewording",
+      "Recall gain tracks density across the sample",
+    ]);
+  });
+
+  it("reads a mark written by hand, with its why, onto the criterion its number names", async () => {
+    const history =
+      [
+        `- 2026-09-28T12:00:00+02:00 · criterion F1 · edited after evidence\n  why: the size distribution is bimodal\n  from:\n    ### The effect shrinks monotonically ^c1\n\n    relationship:: falsifying\n\n    ${RUN}`,
+        PROMOTION,
+      ].join("\n") + "\n";
+    const { page } = await opened(TESTED, history);
+    expect(
+      (await page()).sections.criteria.criteria[0]?.editedAfterEvidence
+    ).toEqual([
+      {
+        at: "2026-09-28T12:00:00+02:00",
+        why: "the size distribution is bimodal",
+        was: {
+          text: "The effect shrinks monotonically",
+          relationship: "falsifying",
+        },
+      },
+    ]);
+  });
+});

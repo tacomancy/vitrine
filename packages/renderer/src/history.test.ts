@@ -66,6 +66,54 @@ describe("historyRows", () => {
     ).toEqual(["", "A third the size.", "Probably both."]);
   });
 
+  it("an edit after evidence is never collapsed into the trail, with a why or without, and its chain is its criterion's (TEST-5)", () => {
+    const entries: Revision[] = [
+      {
+        at: at("2026-09-06"),
+        field: "criterion C2",
+        why: null,
+        from: "### B ^c2",
+      },
+      {
+        at: at("2026-09-05"),
+        field: "criterion C2 · edited after evidence",
+        why: null,
+        from: "### A ^c2",
+      },
+      revision("2026-07-02", null, "Mostly consolidation."),
+    ];
+    const rows = historyRows(entries, {});
+    expect(rows.map((row) => row.kind)).toEqual([
+      "quiet",
+      "explained",
+      "quiet",
+    ]);
+    expect(rows[1]).toMatchObject({ loud: true, to: "### B ^c2" });
+    expect(rows[0]).toEqual({ kind: "quiet", revisions: entries.slice(0, 1) });
+  });
+
+  it("a criterion's chain runs by its number, so an entry made diagnostic still knows what it became", () => {
+    const entries: Revision[] = [
+      {
+        at: at("2026-09-06"),
+        field: "criterion D2",
+        why: null,
+        from: "### B ^c2\n\nrelationship:: diagnostic",
+      },
+      {
+        at: at("2026-09-05"),
+        field: "criterion C2 · edited after evidence",
+        why: null,
+        from: "### B ^c2\n\nrelationship:: confirming",
+      },
+    ];
+    const rows = historyRows(entries, {});
+    expect(rows[1]).toMatchObject({
+      loud: true,
+      to: "### B ^c2\n\nrelationship:: diagnostic",
+    });
+  });
+
   it("no entries is no rows", () => {
     expect(historyRows([], {})).toEqual([]);
   });
