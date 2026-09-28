@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { closeCores, core, NEXT_TIMEOUT_MS, tmp } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  NEXT_TIMEOUT_MS,
+  openEventStream,
+  tmp,
+} from "./test-core.js";
 
 // The event stream at the harness seam (spec #177, ADR 0013 decision 11): one
 // SSE subscription per renderer, guarded by the bearer header, carrying a
@@ -58,7 +64,11 @@ describe("the harness's wait on the event stream is bounded", () => {
     await expect(
       stream.next("vaultSwitched", { timeoutMs: 50 })
     ).rejects.toThrow(
-      "waited 50ms on the event stream for vaultSwitched: nothing arrived"
+      // The clause about the stream is the rest of the answer (#308): a bound
+      // reached on a live stream is a different report from a stream that died
+      // under the wait, and the message has to say which one this was.
+      "waited 50ms on the event stream for vaultSwitched: nothing arrived, " +
+        "and the stream was still open"
     );
     stream.close();
   });
@@ -106,5 +116,100 @@ describe("the harness's wait on the event stream is bounded", () => {
     await expect(waiting).rejects.toThrow(
       "the event stream closed while waiting for vaultSwitched"
     );
+  });
+});
+
+// The other half of the same instrument (#308). A bound makes a lost event
+// legible; it does nothing for a stream that has *died* — the body erroring or
+// closing early used to be swallowed whole, so every wait after it sat out its
+// bound and was told the event was merely late. A dead stream and a quiet one
+// have to read differently, for the same reason a broken Scout and a quiet
+// field do.
+describe("a stream that dies says so, instead of leaving every wait to its bound", () => {
+  /**
+   * A stream over a body this test drives: `push` carries an event, `finish`
+   * closes the body cleanly, `fail` errors it. Ending or failing a real
+   * subscription means killing the core out from under it, so both deaths are
+   * driven at the one seam `openEventStream` reads, a `Response` with a body.
+   */
+  async function driven() {
+    const encoder = new TextEncoder();
+    let push!: (chunk: string) => void;
+    let finish!: () => void;
+    let fail!: (cause: Error) => void;
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        push = (chunk) => controller.enqueue(encoder.encode(chunk));
+        finish = () => controller.close();
+        fail = (cause) => controller.error(cause);
+      },
+    });
+    const opening = openEventStream(() =>
+      Promise.resolve(new Response(body, { status: 200 }))
+    );
+    // Sent before the open is awaited: `openEventStream` does not resolve
+    // until the `connected` message has come through.
+    push("event: connected\ndata: \n\n");
+    return { stream: await opening, push, finish, fail };
+  }
+
+  /**
+   * A turn for the body's own reads to run. A death is recorded a microtask
+   * after `finish()` or `fail()`, so a wait made in the same turn is still the
+   * outstanding-waiter case — which the first two cases below already cover,
+   * and which passes whether or not a wait arriving *after* the death is
+   * answered at all.
+   */
+  const bodyCatchesUp = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("rejects a wait with the reason the body gave, rather than discarding it", async () => {
+    const { stream, fail } = await driven();
+    const waiting = stream.next("vaultSwitched");
+
+    fail(new Error("the connection dropped"));
+
+    await expect(waiting).rejects.toThrow(
+      "the event stream failed (the connection dropped) while waiting for vaultSwitched"
+    );
+  });
+
+  it("rejects a wait when the body ends early, which no event can follow", async () => {
+    const { stream, finish } = await driven();
+    const waiting = stream.next("vaultStatus");
+
+    finish();
+
+    await expect(waiting).rejects.toThrow(
+      "the event stream ended while waiting for vaultStatus"
+    );
+  });
+
+  it("tells a wait that comes later at once, not once its bound is up", async () => {
+    const { stream, finish } = await driven();
+    finish();
+    await bodyCatchesUp();
+
+    // A bound past Vitest's own default, so only an answer that declines to
+    // wait for it can get this to green.
+    await expect(
+      stream.next("vaultStatus", { timeoutMs: 60_000 })
+    ).rejects.toThrow("the event stream ended while waiting for vaultStatus");
+  });
+
+  it("still hands over an event that arrived before the stream died", async () => {
+    const { stream, push, finish } = await driven();
+
+    push(`data: ${JSON.stringify({ type: "vaultStatus" })}\n\n`);
+    finish();
+    await bodyCatchesUp();
+
+    // The death is not the whole story: an event already queued is that wait's
+    // answer, or the instrument invents a failure of its own.
+    expect(await stream.next("vaultStatus")).toEqual({ type: "vaultStatus" });
+    // And the stream was dead the whole time it did: a bound this far past
+    // Vitest's own cannot be what answered this one.
+    await expect(
+      stream.next("vaultStatus", { timeoutMs: 60_000 })
+    ).rejects.toThrow("the event stream ended while waiting for vaultStatus");
   });
 });
