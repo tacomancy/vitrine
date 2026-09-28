@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import form from "./AttachSource.module.css";
 import styles from "./AttachEvidence.module.css";
 import { useChosenInView } from "./chosen";
+import { useRestoreFocus } from "./focus";
 import picker from "./Picker.module.css";
 import { useTRPC } from "./trpc";
 
@@ -33,17 +34,7 @@ export function AttachEvidence({
   onClose: () => void;
 }) {
   const [chosen, setChosen] = useState<Chosen | null>(null);
-  // Read during the first render, before the list's own mount effect
-  // takes the keyboard (AttachSource says why).
-  const [restoreTo] = useState(() =>
-    document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
-  );
-  const leave = () => {
-    onClose();
-    restoreTo?.focus();
-  };
+  const leave = useRestoreFocus(onClose);
   return chosen === null ? (
     <CriterionList onChoose={setChosen} onClose={leave} />
   ) : (
