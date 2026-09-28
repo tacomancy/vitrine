@@ -79,7 +79,7 @@ describe("the footer channel and vault.status", () => {
     await rows();
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toBe(
-      "j/k movep promotel linka answerd dropr reopen"
+      "j/k movep promoteh hypothesisl linka answerd dropr reopen"
     );
   });
 

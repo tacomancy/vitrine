@@ -3,12 +3,14 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
+import { fileName } from "./file-name.js";
 import { linkQuestion, type Linked } from "./link.js";
 import {
   readQuestionForWrite,
   type QuestionFile,
   type QuestionStatus,
 } from "./question-kind.js";
+import { promoteToHypothesis } from "./hypothesis.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
 import { serialised } from "./serialise.js";
 import { localIso } from "./time.js";
@@ -50,6 +52,8 @@ export type QuestionService = {
   capture: (text: string, provenance: Provenance) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
+  /** Promote to Hypothesis (#331): the page written whole from the typed claim, then the Question marked. */
+  promoteToHypothesis: (path: string, claim: string) => Promise<Promotion>;
   /** Link (#211): a wikilink appended to the Question's `related`, the linking side only. */
   link: (path: string, target: string) => Promise<Linked>;
   /** Answer in place (#212): the typed line into the lead, then the two keys. */
@@ -74,26 +78,6 @@ const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 /** A 10-character id from 50 random bits (docs/architecture.md § Vault layout). */
 export function randomId(): string {
   return Array.from(randomBytes(10), (byte) => BASE32[byte & 31]).join("");
-}
-
-const NAME_LIMIT = 80;
-// Obsidian refuses these in a file name; the second set breaks wikilinks.
-const FORBIDDEN = /[*"\\/<>:|?#^[\]]/g;
-
-/**
- * The file name a Question's text yields, or the id when nothing survives.
- * Pure, so the rules can be read off a table of cases.
- */
-export function fileName(text: string, id: string): string {
-  let name = text.replace(FORBIDDEN, "").replace(/\s+/g, " ").trim();
-  // A leading dot would make the file a dot-entry, which every scan of the
-  // vault skips — a captured Question that never appears in the Inbox.
-  name = name.replace(/^\.+/, "").trimStart();
-  if (name.length > NAME_LIMIT) {
-    const cut = name.lastIndexOf(" ", NAME_LIMIT);
-    name = name.slice(0, cut > 0 ? cut : NAME_LIMIT).trimEnd();
-  }
-  return name === "" ? id : name;
 }
 
 // Always double-quoted: deciding when a plain scalar is safe means carrying
@@ -198,11 +182,11 @@ export function createQuestionService({
   now = () => new Date(),
   newId = randomId,
 }: QuestionServiceOptions): QuestionService {
-  // Captures and promotions run one at a time: both pick a free name in
-  // questions/. Two arriving together (the window and, later, the iPad)
-  // would otherwise both find the same name free and the second rename
-  // would silently replace the first — one record where there should be
-  // two. The queue is per service, not per module: two services are two
+  // Captures and promotions run one at a time: each picks a free name, in
+  // questions/ or in hypotheses/. Two arriving together (the window and,
+  // later, the iPad) would otherwise both find the same name free and the
+  // second rename would silently replace the first — one record where
+  // there should be two. The queue is per service, not per module: two services are two
   // vaults, and a capture in one has no name to lose to the other.
   const serially = serialised();
 
@@ -358,6 +342,16 @@ export function createQuestionService({
       serially(async () => {
         const open = await opened();
         return promoteQuestion(open.vault.path, open.index, path, {
+          promoted: localIso(now()),
+          newId,
+        });
+      }),
+    // In the same queue: the Hypothesis's name is picked as the page's is,
+    // and two promotions of one claim must not both find it free.
+    promoteToHypothesis: (path, claim) =>
+      serially(async () => {
+        const open = await opened();
+        return promoteToHypothesis(open.vault.path, open.index, path, claim, {
           promoted: localIso(now()),
           newId,
         });

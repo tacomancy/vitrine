@@ -138,8 +138,30 @@ export function composeResearchQuestion(
     "status: open",
     `promoted_from: ${quoted(page.promotedFrom)}`,
     `promoted: ${page.promoted}`,
+    ...copiedKeys(question, tags),
+    "---",
+    "",
   ];
-  // The Provenance, as the Question holds it; a key it lacks is not invented.
+  const related = stringList(question["related"]);
+  for (const name of SECTIONS) {
+    lines.push(`## ${name}`, "");
+    if (name === "Related questions" && related.length > 0) {
+      lines.push(...related.map((link) => `- ${link}`), "");
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * The Question's Provenance and tags as frontmatter lines, copied rather
+ * than re-derived (PROM-5): a key the Question lacks is not invented. Every
+ * page promoted from a Question carries these, whichever Kind it is.
+ */
+export function copiedKeys(
+  question: Record<string, unknown>,
+  tags: string[]
+): string[] {
+  const lines: string[] = [];
   const captured = question["captured"];
   if (typeof captured === "string") lines.push(`captured: ${plain(captured)}`);
   const context = question["context"];
@@ -155,22 +177,14 @@ export function composeResearchQuestion(
   if (tags.length > 0) {
     lines.push("tags:", ...tags.map((tag) => `  - ${plain(tag)}`));
   }
-  lines.push("---", "");
-  const related = stringList(question["related"]);
-  for (const name of SECTIONS) {
-    lines.push(`## ${name}`, "");
-    if (name === "Related questions" && related.length > 0) {
-      lines.push(...related.map((link) => `- ${link}`), "");
-    }
-  }
-  return lines.join("\n");
+  return lines;
 }
 
 // Always double-quoted, as the Question's own `question:` is: deciding when
 // a plain scalar is safe means carrying YAML's rules, and one wrong call
 // makes the page unreadable. A wikilink starts with `[`, which is why the
 // fixture pages quote `from:` and `promoted_from:` too.
-const quoted = (value: string) =>
+export const quoted = (value: string) =>
   stringify(value, { lineWidth: 0, defaultStringType: "QUOTE_DOUBLE" }).trim();
 /** Plain where YAML allows it, quoted by `yaml` where it does not. */
 const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
@@ -875,28 +889,53 @@ export async function promoteQuestion(
     content
   );
 
-  const marked = await write(vaultPath, relativePath, {
-    basedOn: hash,
-    operations: [
-      {
-        op: "setFrontmatter",
-        keys: {
-          status: "promoted",
-          promoted_to: `[[${basename(pagePath, ".md")}]]`,
+  const marked = await markPromoted(vaultPath, relativePath, hash, pagePath);
+  await index.own(pagePath, created.content);
+  await index.own(relativePath, marked);
+  return { path: pagePath };
+}
+
+/**
+ * The second write of any promotion: the Question's `status: promoted` and
+ * `promoted_to`, naming the page just created. A page nothing points at is
+ * a stray the user never asked for, so when this write is refused — or
+ * fails outright — the page is taken back before the reason is thrown.
+ * Returns the Question's new content, for the index.
+ */
+export async function markPromoted(
+  vaultPath: string,
+  questionPath: string,
+  basedOn: string,
+  pagePath: string
+): Promise<string> {
+  const takeBack = () =>
+    unlink(join(vaultPath, pagePath)).catch(() => undefined);
+  let marked: WriteResult;
+  try {
+    marked = await write(vaultPath, questionPath, {
+      basedOn,
+      operations: [
+        {
+          op: "setFrontmatter",
+          keys: {
+            status: "promoted",
+            promoted_to: `[[${basename(pagePath, ".md")}]]`,
+          },
         },
-      },
-    ],
-  });
+      ],
+    });
+  } catch (cause) {
+    await takeBack();
+    throw cause;
+  }
   if (!marked.written) {
-    await unlink(join(vaultPath, pagePath)).catch(() => undefined);
+    await takeBack();
     throw new VaultError(
       "refused",
-      `Couldn't mark ${relativePath} promoted: ${marked.detail}`
+      `Couldn't mark ${questionPath} promoted: ${marked.detail}`
     );
   }
-  await index.own(pagePath, created.content);
-  await index.own(relativePath, marked.content);
-  return { path: pagePath };
+  return marked.content;
 }
 
 /**

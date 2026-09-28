@@ -2,7 +2,8 @@ import { chmod, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { fileName, randomId } from "./questions.js";
+import { fileName } from "./file-name.js";
+import { randomId } from "./questions.js";
 import { core, fingerprint, tmp } from "./test-core.js";
 
 const fixtures = join(
