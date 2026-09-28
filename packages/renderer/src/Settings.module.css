@@ -115,6 +115,49 @@
   text-decoration: underline;
 }
 
+/* What qualifies a fact, under it: where a link points, which file arrived. */
+.note {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+/* A true sentence where a fact would be: the interface face, full stop. */
+.sentence {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-sans);
+  color: var(--color-fg-secondary);
+}
+
+/* The claim and its Warrant, as the first slot draws them (ADR 0032):
+   the sentence in the interface face, the Warrant at the row's right. */
+.claim {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+}
+
+.warrant {
+  flex: none;
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+/* Warm colour only with a glyph and a label; never red (prototype 12). */
+.warning {
+  color: var(--color-warning);
+}
+
+/* What the section is for, said once beneath its rows. */
+.paragraph {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
 /*
  * The footer channel, as every surface draws it: what the vault has to say,
  * one quiet mono line each (prototype 12). Nothing here is red.

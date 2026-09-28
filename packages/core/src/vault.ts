@@ -23,6 +23,9 @@ import {
 
 export type Vault = { name: string; path: string };
 
+/** What *Reveal in Finder* may show: named, never a path (#376, #378). */
+export type RevealedFolder = "vault" | "pdfs";
+
 /**
  * Whether changes made outside the app are reaching the index; false is
  * *Not watching* (`CONTEXT.md`). `since` is when the live watch came up —
@@ -68,8 +71,8 @@ export type VaultService = {
   status: () => Promise<VaultStatus | null>;
   /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
   rewatch: () => Promise<void>;
-  /** Show the open vault's folder in Finder, through the host; nothing when none is open. */
-  reveal: () => Promise<void>;
+  /** Show the open vault's folder, or its PDF folder, in Finder through the host; nothing when none is open. */
+  reveal: (folder: RevealedFolder) => Promise<void>;
   /**
    * The window came to the front: today is a day at this vault (#243).
    * Nothing when no vault is open — a day is a day at a *vault*.
@@ -478,9 +481,16 @@ export function createVaultService({
       }
       await watchAndSweep(opened, false);
     },
-    reveal: async () => {
+    reveal: async (folder) => {
       await restored;
-      if (opened !== null) host.reveal(opened.vault.path);
+      if (opened === null) return;
+      // The PDF folder as it sits in the vault — the link itself when it is
+      // one, which is the arrangement the researcher would change in Finder.
+      host.reveal(
+        folder === "pdfs"
+          ? join(opened.vault.path, "sources", "pdf")
+          : opened.vault.path
+      );
     },
     focused: async () => {
       await restored;

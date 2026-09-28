@@ -33,6 +33,7 @@ export type {
 } from "./hypothesis-rule.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
+export type { PdfFolder, ResolvesTo } from "./pdf-folder.js";
 export type {
   AmbiguousLinks,
   LooseEnds,
