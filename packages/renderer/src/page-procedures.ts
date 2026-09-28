@@ -21,7 +21,7 @@ import { useTRPC, useTRPCClient } from "./trpc";
 type EditedFields = {
   "research-question": "working answer";
   hypothesis: "claim" | "design notes";
-  experiment: "purpose" | "where it ran";
+  experiment: "purpose" | "where it ran" | "design" | "observations";
 };
 
 /** The Experiment's text fields and the `##` sections they save whole. */
@@ -122,23 +122,31 @@ export function usePageProcedures() {
           trpc.experiments.page.queryFilter({ path })
         ),
       explain: (input) => client.experiments.explainRevision.mutate(input),
-      // An Edited section records no Revision, so there is none to name.
-      save: async (field, { text, ...input }) => ({
-        ...(await client.experiments.saveSection.mutate({
-          ...input,
-          section: EXPERIMENT_SECTIONS[field],
-          body: text,
-        })),
-        revision: null,
-      }),
+      save: async (field, { text, ...input }) =>
+        field === "design" || field === "observations"
+          ? client.experiments.savePosition.mutate({ ...input, text, field })
+          : // An Edited section records no Revision, so there is none to name.
+            {
+              ...(await client.experiments.saveSection.mutate({
+                ...input,
+                section: EXPERIMENT_SECTIONS[field],
+                body: text,
+              })),
+              revision: null,
+            },
       read: async (path, field) => {
         const page = await queryClient.fetchQuery({
           ...trpc.experiments.page.queryOptions({ path }),
           staleTime: 0,
         });
         if (!page.readable) return page;
-        const { purpose, whereItRan } = page.sections;
-        const text = field === "purpose" ? purpose.text : whereItRan.text;
+        const { purpose, whereItRan, design, observations } = page.sections;
+        const text = {
+          purpose: purpose.text,
+          "where it ran": whereItRan.text,
+          design: design.text,
+          observations: observations.text,
+        }[field];
         return { readable: true, base: { hash: page.hash, text } };
       },
     },

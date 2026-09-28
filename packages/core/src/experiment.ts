@@ -7,10 +7,12 @@ import { landing } from "./link-text.js";
 import { bodyText, readPageFile, revisionsOf, section } from "./page-file.js";
 import {
   saveEditedSection,
+  savePosition,
   unchanged,
   writeOwn,
   type PageContext,
   type PageKind,
+  type SavedAnswer,
 } from "./page-write.js";
 import type { Revision } from "./position-history.js";
 import { asString, quoted } from "./question-kind.js";
@@ -21,7 +23,7 @@ import {
   type ShapeProblem,
   type WriteResult,
 } from "./vault-files.js";
-import type { VaultIndex } from "./vault-index.js";
+import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
 /**
  * The Experiment Kind (`docs/architecture.md` § Vault layout (Experiment),
@@ -56,6 +58,17 @@ export const SECTIONS = [
  */
 export const EDITED_SECTIONS = ["Purpose", "Where it ran"] as const;
 export type EditedSection = (typeof EDITED_SECTIONS)[number];
+
+/**
+ * The two Positions, by the field their Revisions carry, and the `##`
+ * heading each is the body of: a design changed after the run and a
+ * reading of it changed later both show (TEST-8, TEST-11).
+ */
+export const POSITIONS = {
+  design: "Design",
+  observations: "Observations",
+} as const;
+export type ExperimentPosition = keyof typeof POSITIONS;
 
 /** Hand-maintained; the app never moves it (TEST-10). */
 export const STATUSES = [
@@ -349,6 +362,52 @@ export function createExperiment(
     }
     await index.own(path, written.content);
     return { path };
+  });
+}
+
+/**
+ * The Kind's Positions for the index (§ Index): `design` and
+ * `observations`, each the body of its heading, and no row for one whose
+ * heading is not in the file — a heading retyped mid-edit in Obsidian must
+ * not read as the section having been cleared. The index diffs these
+ * between reads of the file, which is what parks an Obsidian edit to
+ * either as a pending Revision (#217); Purpose and *where it ran* are
+ * absent, so an edit to them parks nothing (spec #362 story 18).
+ */
+export function experimentPositions(
+  { outline }: ReadableOutline,
+  content: string
+): Position[] {
+  return (Object.keys(POSITIONS) as ExperimentPosition[]).flatMap((field) => {
+    const heading = section(outline, POSITIONS[field]).heading;
+    return heading === undefined
+      ? []
+      : [{ field, text: bodyText(content, heading) }];
+  });
+}
+
+/**
+ * The design or the observations saved, with the Revision it records,
+ * through the write every Position's save takes (`savePosition`): one
+ * queue, the coalescing window keyed by field, anything an Obsidian edit
+ * left parked folded in. Either may be saved empty — a planned run has no
+ * observations, and clearing a design is itself a revision worth keeping.
+ */
+export async function saveExperimentPosition(
+  ctx: PageContext,
+  path: string,
+  input: {
+    field: ExperimentPosition;
+    text: string;
+    basedOn: string;
+    was: string;
+    at: Date;
+    coalesceMs: number;
+  }
+): Promise<SavedAnswer> {
+  return savePosition(ctx, path, PAGE, {
+    ...input,
+    section: POSITIONS[input.field],
   });
 }
 
