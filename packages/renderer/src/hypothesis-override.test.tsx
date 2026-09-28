@@ -193,9 +193,9 @@ describe("the form", () => {
 
   it("will not complete without a why", async () => {
     const { form, override } = await opened();
-    const record = within(form).getByRole("button", {
+    const record = within(form).getByRole<HTMLButtonElement>("button", {
       name: "override and record",
-    }) as HTMLButtonElement;
+    });
     const why = within(form).getByRole("textbox", {
       name: "Why you are overriding",
     });
