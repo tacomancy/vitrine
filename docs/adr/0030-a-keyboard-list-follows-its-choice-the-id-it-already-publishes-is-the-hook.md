@@ -20,6 +20,7 @@ All three of the app's keyboard lists scroll, and none of them scrolled to its o
 
 - **+** The three lists behave alike, so nobody has to learn which of the app's lists follow their choice. A later keyboard list inherits the behaviour by calling one hook.
 - **+** `aria-activedescendant` gains a second consumer, which makes it load-bearing rather than an attribute nothing in the app reads. A list that stops publishing it correctly now fails a visible test rather than only an audit.
+- **+** The Global command's capture row is covered without knowing it exists. It is the last row of all, with no destination behind it, so with the recent set open (#304) it is both the row the choice starts on and the row every destination buries — and it is a row, which is the whole of what the hook asks.
 - **+** The Inbox's `j` held down works at the scale the brief actually describes — "a few hundred questions" — which it did not before.
 - **−** The renderer's suite now has a setup file, and every test file inherits a `scrollIntoView` that jsdom does not have. A future environment gap gets added there rather than guarded at the call site, and anyone reading the hook in isolation will not know why it is safe.
 - **−** How far the list moves is the browser's, so no test in this repo asserts it, and neither does any test assert that an already-visible row costs no scroll. What is asserted is the call, the row it was made on, and the `block` — the rest is `nearest`'s contract, and only a real browser can show it. The `/run` path is where a doubt about that gets settled.

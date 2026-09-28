@@ -3,6 +3,7 @@ import type { Destination, Destinations, ResearchQuestionPage } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   empty,
+  pressCaptureChord,
   pressGlobalChord,
   question,
   renderApp,
@@ -13,13 +14,18 @@ import {
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
-// ⌘K opens, lists and goes (#302; ADR 0027 decisions 2, 4, 6 and 7). The
-// navigation half: one keyboard list over whatever the window was doing,
+// ⌘K opens, lists, goes — and captures (#302, #303; ADR 0027 decisions 1,
+// 2, 4, 6, 7 and 8). One keyboard list over whatever the window was doing,
 // spanning the Surfaces and Dashboards the renderer holds and the objects
-// the core answers with, and `↵` is one push of the route.
+// the core answers with, with the capture last in the same list. `↵` means
+// one of two things, and the verb is what says which.
 
 const RQ_PATH = "questions/Does slow-wave density predict recall gain (RQ).md";
 const Q_PATH = "questions/Is replay necessary for consolidation.md";
+
+const RQ_HASH = `#/research-question/${RQ_PATH.split("/")
+  .map(encodeURIComponent)
+  .join("/")}`;
 
 // Declaration order is recency, newest first: the fake sorts by it where
 // the core sorts by the index's modification time.
@@ -89,10 +95,16 @@ async function openCommand(answers: Record<string, unknown> = {}) {
   return screen.findByRole("dialog", { name: "Global command" });
 }
 
-const listOf = (dialog: HTMLElement) =>
-  within(dialog).findByRole("listbox", { name: "Destinations" });
+// Unnamed here: the list's own name is what it is before anything is
+// typed and what it is after, which is a thing to assert on rather than a
+// thing to find it by.
+const listOf = (dialog: HTMLElement) => within(dialog).findByRole("listbox");
 
-async function rowsOf(dialog: HTMLElement) {
+const nameOfList = async (dialog: HTMLElement) =>
+  (await listOf(dialog)).getAttribute("aria-label");
+
+/** Every row, the capture included — it is one list, and the capture is last. */
+async function optionsOf(dialog: HTMLElement) {
   const list = await listOf(dialog);
   return within(list).getAllByRole("option");
 }
@@ -103,46 +115,85 @@ const said = (rows: HTMLElement[]) => rows.map((row) => row.textContent);
 const row = (glyph: string, name: string, kind: string, current = false) =>
   `${glyph}${name}${kind}${current ? "current" : ""}`;
 
-/** The list once the core's half of it has arrived beside the renderer's. */
-async function settled(dialog: HTMLElement, rows: number) {
-  await vi.waitFor(async () => expect(await rowsOf(dialog)).toHaveLength(rows));
-  return rowsOf(dialog);
+/**
+ * The list once the core's half of it has arrived beside the renderer's.
+ * The count is destinations; the capture row is always there beside them,
+ * and comes back last.
+ */
+async function settled(dialog: HTMLElement, destinations: number) {
+  await vi.waitFor(async () =>
+    expect(await optionsOf(dialog)).toHaveLength(destinations + 1)
+  );
+  const options = await optionsOf(dialog);
+  return {
+    destinations: options.slice(0, -1),
+    capture: options[options.length - 1] as HTMLElement,
+    all: options,
+  };
 }
 
 const chosenIn = (rows: HTMLElement[]) =>
   rows.findIndex((r) => r.getAttribute("aria-selected") === "true");
 
 const queryBox = (dialog: HTMLElement) =>
-  within(dialog).getByRole("combobox", { name: "Go to something" });
+  within(dialog).getByRole("combobox", {
+    name: "Capture a question, or go to something",
+  });
 
 function type(dialog: HTMLElement, text: string) {
   fireEvent.change(queryBox(dialog), { target: { value: text } });
 }
 
+/** Returns false when the handler took the key, as `fireEvent` reports it. */
+const press = (dialog: HTMLElement, key: string) =>
+  fireEvent.keyDown(queryBox(dialog), { key });
+
 const verbOf = (dialog: HTMLElement) =>
   within(dialog).getByRole("status").textContent ?? "";
+
+/**
+ * What both web storages hold — where a visit history would have to land
+ * if one were kept — emptied first, so what comes back is this flow's own
+ * writing and not another test's.
+ */
+function storedAfterClearing(): () => string[] {
+  for (const store of [localStorage, sessionStorage]) store.clear();
+  return () =>
+    [localStorage, sessionStorage].flatMap((store) =>
+      Array.from(
+        { length: store.length },
+        (_, at) => `${store.key(at)}=${store.getItem(String(store.key(at)))}`
+      )
+    );
+}
+
+/**
+ * The whole list with nothing typed, opened from the Inbox: the Surfaces
+ * and Dashboards, then the objects newest first (#304). Two suites assert
+ * it — the one that opens the command, and the one that comes back to it —
+ * and they must be asserting the same list.
+ */
+const RECENT = [
+  row("▪", "Question Inbox", "surface", true),
+  row("▦", "Loose Ends", "dashboard"),
+  row("■", "Does slow-wave density predict recall gain?", "research question"),
+  row("◆", "Is replay necessary for consolidation?", "question"),
+  row("◆", "What counts as a reactivation event here?", "question"),
+];
 
 describe("⌘K opens one list over whatever the window was doing", () => {
   it("opens from the Inbox and lists the Surfaces, the Dashboards and the objects", async () => {
     const dialog = await openCommand();
-    expect(said(await settled(dialog, 5))).toEqual([
-      row("▪", "Question Inbox", "surface", true),
-      row("▦", "Loose Ends", "dashboard"),
-      row(
-        "■",
-        "Does slow-wave density predict recall gain?",
-        "research question"
-      ),
-      row("◆", "Is replay necessary for consolidation?", "question"),
-      row("◆", "What counts as a reactivation event here?", "question"),
-    ]);
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
   });
 
   it("opens from a Dashboard too, with the window's own Address marked current", async () => {
     window.location.hash = "#/loose-ends";
     const dialog = await openCommand();
-    const rows = await settled(dialog, 5);
-    expect(said(rows)[1]).toBe(row("▦", "Loose Ends", "dashboard", true));
+    const { destinations } = await settled(dialog, 5);
+    expect(said(destinations)[1]).toBe(
+      row("▦", "Loose Ends", "dashboard", true)
+    );
   });
 
   it("offers nothing the app cannot reach: a Surface with no Address is not a row", async () => {
@@ -158,6 +209,9 @@ describe("⌘K opens one list over whatever the window was doing", () => {
     await screen.findByRole("button", { name: "Open a vault" });
     pressGlobalChord();
     expect(screen.queryByRole("dialog")).toBeNull();
+    // Nor the other chord: neither is mounted before a vault is.
+    pressCaptureChord();
+    expect(screen.queryByRole("textbox", { name: "Question" })).toBeNull();
   });
 });
 
@@ -165,25 +219,27 @@ describe("typing narrows the list, and each row says why it is here", () => {
   it("marks the run that matched, spanning the punctuation a query typed across it does not have", async () => {
     const dialog = await openCommand();
     type(dialog, "slow wave density");
-    expect(said(await settled(dialog, 1))).toEqual([
+    const { destinations } = await settled(dialog, 1);
+    expect(said(destinations)).toEqual([
       row(
         "■",
         "Does slow-wave density predict recall gain?",
         "research question"
       ),
     ]);
-    const [only] = await rowsOf(dialog);
-    expect(only?.querySelector("mark")?.textContent).toBe("slow-wave density");
+    expect(destinations[0]?.querySelector("mark")?.textContent).toBe(
+      "slow-wave density"
+    );
   });
 
   it("puts an exact hit above everything, and a Surface above an object that merely contains the word", async () => {
     const dialog = await openCommand();
     type(dialog, "question inbox");
-    expect(said(await settled(dialog, 1))).toEqual([
+    expect(said((await settled(dialog, 1)).destinations)).toEqual([
       row("▪", "Question Inbox", "surface", true),
     ]);
     type(dialog, "loose");
-    expect(said(await settled(dialog, 1))).toEqual([
+    expect(said((await settled(dialog, 1)).destinations)).toEqual([
       row("▦", "Loose Ends", "dashboard"),
     ]);
   });
@@ -195,8 +251,10 @@ describe("typing narrows the list, and each row says why it is here", () => {
         total: 312,
       }),
     });
+    type(dialog, "slow wave");
+    await settled(dialog, 1);
     expect(
-      await within(dialog).findByText("3 of 314 — keep typing")
+      await within(dialog).findByText("1 of 312 — keep typing")
     ).toBeDefined();
   });
 
@@ -210,8 +268,9 @@ describe("typing narrows the list, and each row says why it is here", () => {
       "the index is not answering"
     );
     // The screens are still reachable and still listed — but counting them
-    // as the whole answer would say the vault holds two things.
-    expect(await rowsOf(dialog)).toHaveLength(2);
+    // as the whole answer would say the vault holds two things. The
+    // capture is there as always, and is not one of them.
+    expect((await settled(dialog, 2)).destinations).toHaveLength(2);
     expect(
       within(dialog).getByText("the Surfaces and Dashboards only")
     ).toBeDefined();
@@ -219,69 +278,132 @@ describe("typing narrows the list, and each row says why it is here", () => {
   });
 });
 
-describe("the choice, and where ↵ takes it", () => {
-  it("starts on the first row that is not where the window already is", async () => {
+describe("the side ↵ belongs to, and the verb that names it", () => {
+  it("starts on the capture, because nothing typed is nothing matched", async () => {
     const dialog = await openCommand();
-    const rows = await settled(dialog, 5);
-    expect(rows[0]?.getAttribute("aria-current")).toBe("page");
-    expect(chosenIn(rows)).toBe(1);
-    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+    const { destinations, capture } = await settled(dialog, 5);
+    expect(destinations[0]?.getAttribute("aria-current")).toBe("page");
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(verbOf(dialog)).toBe("↵Capturetype a question");
   });
 
-  it("moves with the arrows, onto the current Address included", async () => {
+  it("crosses to the destination on a prefix hit, and back to the capture on a weaker one", async () => {
+    const dialog = await openCommand();
+    // A prefix of the Dashboard's own name: strong enough to mean *go*.
+    type(dialog, "loose");
+    const strong = await settled(dialog, 1);
+    expect(chosenIn(strong.destinations)).toBe(0);
+    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+    // A word inside a Question's text: a match, but not one worth ↵.
+    type(dialog, "replay");
+    const weak = await settled(dialog, 1);
+    expect(chosenIn(weak.destinations)).toBe(-1);
+    expect(weak.capture.getAttribute("aria-selected")).toBe("true");
+    expect(verbOf(dialog)).toBe("↵Capturereplay");
+  });
+
+  it("does not let the Address the window is on lend its strength to a weaker row", async () => {
+    // *question inbox* is an exact hit on the Surface the window is
+    // already on, and only a word start inside the Question. The rung
+    // that decides the side is the best row ↵ could actually act on, so
+    // the exact hit the user cannot go to does not send ↵ to the other.
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering([
+        {
+          kind: "question",
+          path: "questions/Why does the Question Inbox sort newest first.md",
+          display: "Why does the Question Inbox sort newest first?",
+        },
+      ]),
+    });
+    type(dialog, "question inbox");
+    const { destinations, capture } = await settled(dialog, 2);
+    expect(said(destinations)).toEqual([
+      row("▪", "Question Inbox", "surface", true),
+      row("◆", "Why does the Question Inbox sort newest first?", "question"),
+    ]);
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(verbOf(dialog)).toBe("↵Capturequestion inbox");
+  });
+
+  it("stays on the capture when the only thing that matched is where the window already is", async () => {
+    const dialog = await openCommand();
+    type(dialog, "question inbox");
+    const { destinations, capture } = await settled(dialog, 1);
+    expect(said(destinations)).toEqual([
+      row("▪", "Question Inbox", "surface", true),
+    ]);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(verbOf(dialog)).toBe("↵Capturequestion inbox");
+  });
+
+  it("reads as ordinary when nothing goes by that name, not as a failure", async () => {
+    const dialog = await openCommand();
+    type(dialog, "do dendritic spikes gate this at all");
+    await vi.waitFor(() =>
+      expect(verbOf(dialog)).toBe(
+        "↵Capturedo dendritic spikes gate this at all"
+      )
+    );
+    const { destinations, capture } = await settled(dialog, 0);
+    expect(destinations).toHaveLength(0);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
+  it("names the alternative key beside the count, in one muted run", async () => {
+    const dialog = await openCommand();
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(within(dialog).getByText("⇥ writes it down instead")).toBeDefined();
+    press(dialog, "Tab");
+    expect(within(dialog).getByText("⇥ goes to the top match")).toBeDefined();
+  });
+
+  it("moves with the arrows across both sides, the current Address included", async () => {
     const dialog = await openCommand();
     await settled(dialog, 5);
-    const input = queryBox(dialog);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(chosenIn(await rowsOf(dialog))).toBe(2);
+    // Starts on the capture, the last row: up walks back into the list.
+    press(dialog, "ArrowUp");
     expect(verbOf(dialog)).toBe(
-      "↵Go toDoes slow-wave density predict recall gain?"
+      "↵Go toWhat counts as a reactivation event here?"
     );
-    fireEvent.keyDown(input, { key: "ArrowUp" });
-    fireEvent.keyDown(input, { key: "ArrowUp" });
-    expect(chosenIn(await rowsOf(dialog))).toBe(0);
+    press(dialog, "ArrowUp");
+    press(dialog, "ArrowUp");
+    press(dialog, "ArrowUp");
+    press(dialog, "ArrowUp");
+    expect(chosenIn((await settled(dialog, 5)).destinations)).toBe(0);
     expect(verbOf(dialog)).toBe("↵Go toQuestion Inbox");
+    press(dialog, "ArrowUp");
+    expect(chosenIn((await settled(dialog, 5)).destinations)).toBe(0);
   });
 
   it("never points past the list a new query returned", async () => {
     const dialog = await openCommand();
     await settled(dialog, 5);
-    const input = queryBox(dialog);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(chosenIn(await rowsOf(dialog))).toBe(4);
+    press(dialog, "ArrowUp");
+    press(dialog, "ArrowUp");
+    expect(chosenIn((await settled(dialog, 5)).destinations)).toBe(3);
     type(dialog, "loose");
-    expect(chosenIn(await settled(dialog, 1))).toBe(0);
+    const { destinations, capture } = await settled(dialog, 1);
+    expect(chosenIn(destinations)).toBe(0);
+    expect(capture.getAttribute("aria-selected")).toBe("false");
   });
+});
 
-  it("does not call the one row a stranger when it is where the window already is", async () => {
-    const dialog = await openCommand();
-    type(dialog, "question inbox");
-    const rows = await settled(dialog, 1);
-    expect(said(rows)).toEqual([row("▪", "Question Inbox", "surface", true)]);
-    expect(chosenIn(rows)).toBe(-1);
-    expect(verbOf(dialog)).toBe("↵Go toyou are already here");
-  });
-
-  it("says so when nothing goes by that name, rather than going quiet", async () => {
-    const dialog = await openCommand();
-    type(dialog, "dendritic spikes");
-    await vi.waitFor(() =>
-      expect(verbOf(dialog)).toBe("↵Go tonothing here goes by that name")
-    );
-    expect(within(dialog).getByText("no destination matches")).toBeDefined();
-  });
-
+describe("the choice, and where ↵ takes it", () => {
   it("goes with one push of the route, so back returns where the user was", async () => {
     window.location.hash = "#/loose-ends";
     const dialog = await openCommand();
-    type(dialog, "slow wave");
+    type(dialog, "does slow-wave");
     await settled(dialog, 1);
-    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
-    expect(window.location.hash).toBe(
-      `#/research-question/${RQ_PATH.split("/").map(encodeURIComponent).join("/")}`
+    expect(verbOf(dialog)).toBe(
+      "↵Go toDoes slow-wave density predict recall gain?"
     );
+    press(dialog, "Enter");
+    expect(window.location.hash).toBe(RQ_HASH);
     expect(screen.queryByRole("dialog")).toBeNull();
 
     window.history.back();
@@ -301,7 +423,7 @@ describe("the choice, and where ↵ takes it", () => {
     });
     type(dialog, "is replay");
     await settled(dialog, 1);
-    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
+    press(dialog, "Enter");
 
     await vi.waitFor(() =>
       expect(document.activeElement).toBe(
@@ -313,7 +435,7 @@ describe("the choice, and where ↵ takes it", () => {
     ).toEqual(["true"]);
   });
 
-  it("keeps the keyboard inside the overlay, so esc is never out of reach", async () => {
+  it("⇥ swaps sides and never focus, so esc is never out of reach", async () => {
     renderApp(base);
     const away = await screen.findByRole("link", { name: "Loose Ends" });
     away.focus();
@@ -321,14 +443,29 @@ describe("the choice, and where ↵ takes it", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Global command",
     });
-    // One tab stop: ⇥ walking out would leave the key handler behind the
-    // scrim, and the command would have no way left to dismiss it. jsdom
-    // never moves focus on Tab, so what is asserted is the key being
-    // taken — the only thing standing between the two.
-    const taken = !fireEvent.keyDown(queryBox(dialog), { key: "Tab" });
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+
+    // Taking ⇥ costs nothing, because the input is the overlay's only tab
+    // stop — and ⇥ walking out would leave the key handler behind the
+    // scrim with no way left to dismiss the command (#317). jsdom never
+    // moves focus on Tab, so what is asserted is the key being taken.
+    expect(
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      )
+    ).toEqual([queryBox(dialog)]);
+    const taken = !press(dialog, "Tab");
     expect(taken).toBe(true);
     expect(document.activeElement).toBe(queryBox(dialog));
-    fireEvent.keyDown(queryBox(dialog), { key: "Escape" });
+    expect(verbOf(dialog)).toBe("↵Captureloose");
+
+    press(dialog, "Tab");
+    expect(verbOf(dialog)).toBe("↵Go toLoose Ends");
+    press(dialog, "Escape");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(away);
   });
@@ -352,7 +489,7 @@ describe("the choice, and where ↵ takes it", () => {
     });
     type(dialog, "loose");
     await settled(dialog, 1);
-    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
+    press(dialog, "Enter");
     expect(window.location.hash).toBe("#/loose-ends");
     expect(screen.queryByRole("dialog")).toBeNull();
     // Loose Ends takes no keyboard of its own, so the restore stands.
@@ -368,9 +505,95 @@ describe("the choice, and where ↵ takes it", () => {
       name: "Global command",
     });
     expect(document.activeElement).toBe(queryBox(dialog));
-    fireEvent.keyDown(queryBox(dialog), { key: "Escape" });
+    press(dialog, "Escape");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(away);
+  });
+});
+
+describe("before a character is typed, the list is what changed most recently", () => {
+  // #304; ADR 0027 decision 6. The most common thing after ⌘K is going
+  // back to what was just being done, so an empty query is worth more than
+  // the first fifty files of the vault in name order.
+
+  it("says the rows are the recent set rather than counting them as matches", async () => {
+    const dialog = await openCommand();
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
+    expect(
+      await within(dialog).findByText("recent · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("still says how long a cut recent set is, inside naming it rather than instead of it", async () => {
+    // A cut list says its length whichever list it is, and a bare "5 of
+    // 314" here would be a count of what a query nobody typed had found.
+    const dialog = await openCommand({
+      "globalCommand.destinations": (): Destinations => ({
+        rows: OBJECTS,
+        total: 312,
+      }),
+    });
+    await settled(dialog, 5);
+    expect(
+      await within(dialog).findByText("recent · 5 of 314 · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("calls the list what it is, so it is not announced as matches for nothing", async () => {
+    // The count line says which list this is, and it is read by whoever can
+    // see it; the list's own name is what says it to whoever cannot.
+    const dialog = await openCommand();
+    await settled(dialog, 5);
+    expect(await nameOfList(dialog)).toBe("Recent and capture");
+
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(await nameOfList(dialog)).toBe("Destinations and capture");
+  });
+
+  it("counts matches while there is a query, and returns to the recent set when it is cleared", async () => {
+    const dialog = await openCommand();
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(await within(dialog).findByText("1 matching")).toBeDefined();
+
+    type(dialog, "");
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
+    expect(
+      await within(dialog).findByText("recent · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("remembers nothing between openings: recent is what changed on disk, not where the user has been", async () => {
+    const stored = storedAfterClearing();
+    const dialog = await openCommand();
+    await settled(dialog, 5);
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
+    expect(window.location.hash).toBe("#/loose-ends");
+
+    pressGlobalChord();
+    const reopened = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    // Nothing the last opening was typing, and the same order as before:
+    // the Dashboard just visited has not risen to the top, because a visit
+    // is not recorded anywhere (ADR 0021 refused the store).
+    expect((queryBox(reopened) as HTMLInputElement).value).toBe("");
+    const { destinations, capture } = await settled(reopened, 5);
+    expect(said(destinations)).toEqual([
+      row("▪", "Question Inbox", "surface"),
+      row("▦", "Loose Ends", "dashboard", true),
+      ...RECENT.slice(2),
+    ]);
+    // The Dashboard just left is marked as where the window is, and ↵ is
+    // on the capture, where nothing typed leaves it.
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    // The order alone cannot say a history was not written — one could be
+    // written and not yet read — so what was stored is asserted on too.
+    expect(stored()).toEqual([]);
   });
 });
 
@@ -397,14 +620,14 @@ describe("the ordering across the renderer's half and the core's", () => {
     // The Question is a prefix hit and the Surface only a word start, so
     // the small fixed set does not win on being small.
     type(dialog, "inbox");
-    expect(said(await settled(dialog, 2))).toEqual([
+    expect(said((await settled(dialog, 2)).destinations)).toEqual([
       row("◆", "Inbox triage: what belongs here?", "question"),
       row("▪", "Question Inbox", "surface", true),
     ]);
     // Both are prefix hits, and now the Dashboard leads: Kind is what a
     // tie is broken by, never what beats a better answer.
     type(dialog, "loose");
-    expect(said(await settled(dialog, 2))).toEqual([
+    expect(said((await settled(dialog, 2)).destinations)).toEqual([
       row("▦", "Loose Ends", "dashboard"),
       row("■", "Loose threads in the replay account?", "research question"),
     ]);
@@ -415,46 +638,44 @@ describe("the ordering across the renderer's half and the core's", () => {
       "globalCommand.destinations": answering(COLLIDING),
     });
     type(dialog, "loose threads in the replay account");
-    const rows = await settled(dialog, 1);
-    expect(said(rows)).toEqual([
+    const { destinations } = await settled(dialog, 1);
+    expect(said(destinations)).toEqual([
       row("■", "Loose threads in the replay account?", "research question"),
     ]);
-    expect(chosenIn(rows)).toBe(0);
+    expect(chosenIn(destinations)).toBe(0);
     expect(verbOf(dialog)).toBe("↵Go toLoose threads in the replay account?");
   });
 });
 
-describe("the command opens over a page as it does over a list", () => {
-  const page: ResearchQuestionPage = {
-    readable: true,
-    path: RQ_PATH,
-    hash: "abc",
-    frontmatter: {
-      question: "Does slow-wave density predict recall gain?",
-      status: "open",
-      promoted: "2026-09-20T10:00:00+02:00",
-      context: "reading",
-      from: "[[Rasch & Born 2013]]",
-      tags: [],
-    },
-    sections: {
-      workingAnswer: { present: true, text: "Probably both." },
-      supporting: { present: true, lines: [] },
-      opposing: { present: true, lines: [] },
-      related: { present: true, text: "", lines: [] },
-      openThreads: { present: true, text: "", threads: [] },
-      positionHistory: { present: true, text: "", entries: [] },
-    },
-    problems: [],
-  };
+const page: ResearchQuestionPage = {
+  readable: true,
+  path: RQ_PATH,
+  hash: "abc",
+  frontmatter: {
+    question: "Does slow-wave density predict recall gain?",
+    status: "open",
+    promoted: "2026-09-20T10:00:00+02:00",
+    context: "reading",
+    from: "[[Rasch & Born 2013]]",
+    tags: [],
+  },
+  sections: {
+    workingAnswer: { present: true, text: "Probably both." },
+    supporting: { present: true, lines: [] },
+    opposing: { present: true, lines: [] },
+    related: { present: true, text: "", lines: [] },
+    openThreads: { present: true, text: "", threads: [] },
+    positionHistory: { present: true, text: "", entries: [] },
+  },
+  problems: [],
+};
 
+describe("the command opens over a page as it does over a list", () => {
   it("opens from a Research Question's page, with that page marked current", async () => {
-    window.location.hash = `#/research-question/${RQ_PATH.split("/")
-      .map(encodeURIComponent)
-      .join("/")}`;
+    window.location.hash = RQ_HASH;
     const dialog = await openCommand({ "researchQuestions.page": page });
-    const rows = await settled(dialog, 5);
-    expect(said(rows)[2]).toBe(
+    const { destinations, capture } = await settled(dialog, 5);
+    expect(said(destinations)[2]).toBe(
       row(
         "■",
         "Does slow-wave density predict recall gain?",
@@ -463,20 +684,241 @@ describe("the command opens over a page as it does over a list", () => {
       )
     );
     // Still not the default choice: ↵ is never a no-op by accident.
-    expect(chosenIn(rows)).toBe(0);
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+  });
+});
+
+describe("the capture row", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 19, 7, 4, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("is last in the list, under every destination, and carries the Kind glyph and the Provenance", async () => {
+    const dialog = await openCommand();
+    const { all, capture } = await settled(dialog, 5);
+    expect(all[all.length - 1]).toBe(capture);
+    expect(capture.textContent).toContain("Unattached · 19 Sep 2026, 07:04");
+    // The mark ships with a word, never alone (BRAND.md law 6).
+    expect(
+      within(capture).getByRole("img", { name: "question" })
+    ).toBeDefined();
+  });
+
+  it("invites rather than sitting blank before a character is typed", async () => {
+    const dialog = await openCommand();
+    const { capture } = await settled(dialog, 5);
+    expect(capture.textContent).toBe(
+      "◆Write a question — it costs nothing and keeps where you wereUnattached · 19 Sep 2026, 07:04"
+    );
+  });
+
+  it("goes bare when it is the only row, and keeps its text when destinations are there", async () => {
+    const dialog = await openCommand();
+    type(dialog, "do dendritic spikes gate this at all");
+    const alone = await settled(dialog, 0);
+    expect(alone.capture.textContent).toBe("◆Unattached · 19 Sep 2026, 07:04");
+    type(dialog, "loose");
+    const beside = await settled(dialog, 1);
+    expect(beside.capture.textContent).toBe(
+      "◆looseUnattached · 19 Sep 2026, 07:04"
+    );
+  });
+
+  it("says what the Provenance will be from a Research Question's page", async () => {
+    window.location.hash = RQ_HASH;
+    const dialog = await openCommand({ "researchQuestions.page": page });
+    const { capture } = await settled(dialog, 5);
+    expect(capture.textContent).toContain(
+      "Pursuing · Does slow-wave density predict recall gain (RQ)"
+    );
+  });
+});
+
+describe("what ↵ writes", () => {
+  const captured = (text: string, rest: Record<string, unknown> = {}) => ({
+    id: "k7m2p9q4wx",
+    path: `${vault.path}/questions/${text}.md`,
+    question: text,
+    status: "open",
+    captured: "2026-09-19T07:04:00+05:30",
+    context: "other",
+    ...rest,
+  });
+
+  it("captures Unattached from the Inbox and hands the keyboard to the row it landed as", async () => {
+    const text = "Does this hold for sparse inputs?";
+    const capture = vi.fn((input: unknown) =>
+      captured((input as { text: string }).text)
+    );
+    const dialog = await openCommand({
+      "questions.capture": capture,
+      "questions.list": {
+        ...empty,
+        questions: [question(text, "2026-09-19T07:04:00+05:30")],
+      },
+    });
+    type(dialog, text);
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(capture).toHaveBeenCalledExactlyOnceWith({
+      text,
+      provenance: { context: "other" },
+    });
+    // The Question landed as a row, so the row's list takes the keyboard
+    // (ADR 0010), exactly as it does after ⌘'.
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("listbox", { name: "Questions" })
+      )
+    );
+  });
+
+  it("is the same call the Capture line makes from the same place, chord for chord", async () => {
+    window.location.hash = RQ_HASH;
+    const calls: unknown[] = [];
+    const capture = vi.fn((input: unknown) => {
+      calls.push(input);
+      return captured("Does the effect survive a nap?", {
+        context: "pursuing",
+        from: "[[Does slow-wave density predict recall gain (RQ)]]",
+      });
+    });
+    const dialog = await openCommand({
+      "researchQuestions.page": page,
+      "questions.capture": capture,
+    });
+    type(dialog, "Does the effect survive a nap?");
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    pressCaptureChord();
+    const line = screen.getByRole("textbox", { name: "Question" });
+    fireEvent.change(line, {
+      target: { value: "Does the effect survive a nap?" },
+    });
+    fireEvent.keyDown(line, { key: "Enter" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Question" })).toBeNull()
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({
+      text: "Does the effect survive a nap?",
+      provenance: { context: "pursuing", researchQuestion: RQ_PATH },
+    });
+    expect(calls[0]).toEqual(calls[1]);
+  });
+
+  it("leaves the keyboard where it was when the Question did not land on this surface", async () => {
+    window.location.hash = RQ_HASH;
+    const capture = vi.fn(() =>
+      captured("Does the effect survive a nap?", { context: "pursuing" })
+    );
+    renderApp({
+      ...base,
+      "researchQuestions.page": page,
+      "questions.capture": capture,
+    });
+    // A page is not where a Question lands as a row, so nothing on it
+    // takes the keyboard and it goes back where it came from (ADR 0010).
+    const away = await screen.findByRole("link", { name: "Question Inbox" });
+    away.focus();
+    pressGlobalChord();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    type(dialog, "Does the effect survive a nap?");
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(capture).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(away);
+  });
+
+  it("writes a Question that already exists anyway, with no check and no warning", async () => {
+    const text = "Is replay necessary for consolidation?";
+    const capture = vi.fn((input: unknown) =>
+      captured((input as { text: string }).text)
+    );
+    const dialog = await openCommand({ "questions.capture": capture });
+    type(dialog, text);
+    // The exact hit is on the destination side, so ↵ would go there: the
+    // one signal the design gives, and ⇥ overrules it.
+    const hit = await settled(dialog, 1);
+    expect(chosenIn(hit.destinations)).toBe(0);
+    press(dialog, "Tab");
+    press(dialog, "Enter");
+
+    await vi.waitFor(() =>
+      expect(capture).toHaveBeenCalledExactlyOnceWith({
+        text,
+        provenance: { context: "other" },
+      })
+    );
+    // Written, not jumped to: the window is where it started.
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
+  it("captures nothing on an empty query, and no duplicate on a second ↵ mid-write", async () => {
+    const capture = vi.fn(() => captured("Does this hold?"));
+    const dialog = await openCommand({ "questions.capture": capture });
+    await settled(dialog, 5);
+    press(dialog, "Enter");
+    expect(capture).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+
+    type(dialog, "   ");
+    press(dialog, "Enter");
+    expect(capture).not.toHaveBeenCalled();
+
+    type(dialog, "Does this hold?");
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+    press(dialog, "Enter");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(capture).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the overlay open and says why when the write fails", async () => {
+    const dialog = await openCommand({
+      "questions.capture": () => {
+        throw new Error(
+          "Couldn't link the Question from the page: Related questions is missing"
+        );
+      },
+    });
+    type(dialog, "Does the effect survive a nap?");
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+
+    const message = await within(dialog).findByRole("alert");
+    expect(message.textContent).toContain("Related questions is missing");
+    expect(
+      within(dialog).getByRole<HTMLInputElement>("combobox", {
+        name: "Capture a question, or go to something",
+      }).value
+    ).toBe("Does the effect survive a nap?");
   });
 });
 
 /**
  * The row the keyboard is on stays inside the list's window (#320). The
- * overlay gives the list 300px — about nine rows — and the core answers with
- * up to fifty, so the choice walks out of sight long before it runs out of
- * rows. jsdom lays nothing out, so what a test can see is the call the
- * browser does the scrolling from: which row it was made on, and the `block`
- * that decides how far the list moves.
+ * overlay gives the list 300px — about nine rows — and an empty query now
+ * answers with up to fifty recent destinations (#304), with the capture
+ * below all of them. jsdom lays nothing out, so what a test can see is the
+ * call the browser does the scrolling from: which row it was made on, and
+ * the `block` that decides how far the list moves.
  */
 describe("the row the keyboard is on stays in view", () => {
-  // Twelve objects and the two screens: fourteen rows in room for nine.
+  // Twelve destinations and the two screens: fourteen rows in room for nine,
+  // and the capture a fifteenth below them.
   const MANY: Destination[] = Array.from({ length: 12 }, (_, i) => ({
     kind: "question",
     path: `questions/Is the ${i}th night the one that matters.md`,
@@ -486,42 +928,43 @@ describe("the row the keyboard is on stays in view", () => {
   const many = () =>
     openCommand({ "globalCommand.destinations": answering(MANY) });
 
-  it("follows the choice down past the bottom of the window", async () => {
+  it("follows the choice up out of the capture and through the destinations", async () => {
     const dialog = await many();
-    const rows = await settled(dialog, 14);
+    const { destinations } = await settled(dialog, 14);
     const scrolled = scrollsInto();
-    // From the default choice — row 1, the first that is not where the
-    // window already is — to row 10, five rows below the fold.
-    for (let i = 0; i < 9; i++)
-      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    // An empty query is weaker than WORTH_GOING_TO, so the default choice is
+    // the capture — the last row of all. Walking up from it crosses the fold
+    // almost at once.
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
 
-    expect(chosenIn(await rowsOf(dialog))).toBe(10);
-    expect(scrolled.at(-1)?.row).toBe(rows[10]);
+    expect(chosenIn(destinations)).toBe(2);
+    expect(scrolled.at(-1)?.row).toBe(destinations[2]);
   });
 
-  it("follows it back up past the top", async () => {
+  it("follows it back down to the capture, which every destination stands above", async () => {
     const dialog = await many();
-    const rows = await settled(dialog, 14);
-    for (let i = 0; i < 9; i++)
-      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    const { capture } = await settled(dialog, 14);
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
     const scrolled = scrollsInto();
-    for (let i = 0; i < 10; i++)
-      fireEvent.keyDown(queryBox(dialog), { key: "ArrowUp" });
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowDown");
 
-    expect(chosenIn(await rowsOf(dialog))).toBe(0);
-    expect(scrolled.at(-1)?.row).toBe(rows[0]);
+    // The one row a search can never return is also the one fifty
+    // destinations can bury.
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    expect(scrolled.at(-1)?.row).toBe(capture);
   });
 
   it("moves the list by as little as it can, so the rows already read stay put", async () => {
     // Watched from before the command opens, because the open makes a call
-    // of its own: the default choice is already visible, and `nearest` is
-    // the whole of why that costs no scroll and the overlay does not jolt.
-    // How far the list then moves is the browser's, and no test here can
-    // see it — jsdom lays nothing out (ADR 0030).
+    // of its own: the default choice is the capture, below every destination
+    // the recent set answered with, and `nearest` is the whole of why an
+    // already-visible row costs no scroll. How far the list then moves is
+    // the browser's, and no test here can see it — jsdom lays nothing out
+    // (ADR 0030).
     const scrolled = scrollsInto();
     const dialog = await many();
     await settled(dialog, 14);
-    fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    press(dialog, "ArrowUp");
 
     expect(scrolled.length).toBeGreaterThan(1);
     expect(new Set(scrolled.map(({ block }) => block))).toEqual(
@@ -532,12 +975,16 @@ describe("the row the keyboard is on stays in view", () => {
   it("brings the row a narrowed list re-chose into view", async () => {
     const dialog = await many();
     await settled(dialog, 14);
-    for (let i = 0; i < 9; i++)
-      fireEvent.keyDown(queryBox(dialog), { key: "ArrowDown" });
+    for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
     const scrolled = scrollsInto();
-    type(dialog, "11th night");
+    // Typed from the name's own first word, so the one survivor is a prefix
+    // hit: weaker than that and the default would be the capture, which is
+    // a different row and a different test.
+    type(dialog, "is the 11th");
 
-    const rows = await settled(dialog, 1);
-    await vi.waitFor(() => expect(scrolled.at(-1)?.row).toBe(rows[0]));
+    // The choice lands on it, and the list that had been walked to row 2 of
+    // fourteen has to come back up to show it.
+    const { destinations } = await settled(dialog, 1);
+    await vi.waitFor(() => expect(scrolled.at(-1)?.row).toBe(destinations[0]));
   });
 });
