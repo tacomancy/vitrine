@@ -23,8 +23,15 @@ import {
 
 export type Vault = { name: string; path: string };
 
-/** Whether changes made outside the app are reaching the index; false is *Not watching* (`CONTEXT.md`). */
-export type Watching = { ok: true } | { ok: false; reason: string };
+/**
+ * Whether changes made outside the app are reaching the index; false is
+ * *Not watching* (`CONTEXT.md`). `since` is when the live watch came up —
+ * at open, or at the reopen after a failure — which is what Settings'
+ * *Outside changes* row states (#376): a watch that has been seeing changes
+ * since this morning is a fact the researcher can check against their day.
+ */
+export type Watching =
+  { ok: true; since: string } | { ok: false; reason: string };
 
 /**
  * What `vault.status()` answers (`docs/architecture.md` § Index). `current`
@@ -61,6 +68,8 @@ export type VaultService = {
   status: () => Promise<VaultStatus | null>;
   /** Reopen a watcher that is down for good, then sweep; resolves once both have been tried. */
   rewatch: () => Promise<void>;
+  /** Show the open vault's folder in Finder, through the host; nothing when none is open. */
+  reveal: () => Promise<void>;
   /**
    * The window came to the front: today is a day at this vault (#243).
    * Nothing when no vault is open — a day is a day at a *vault*.
@@ -318,7 +327,7 @@ export function createVaultService({
         return;
       }
       o.watcher = watcher;
-      o.watching = { ok: true };
+      o.watching = { ok: true, since: now().toISOString() };
     } catch (cause) {
       o.watching = { ok: false, reason: errorMessageWithoutPath(cause) };
     }
@@ -357,7 +366,8 @@ export function createVaultService({
       days,
       queue,
       watcher: null,
-      watching: { ok: true },
+      // Never read: `startWatcher` below settles it before `o` is current.
+      watching: { ok: true, since: now().toISOString() },
       reopening: false,
       generation: ++generation,
     };
@@ -467,6 +477,10 @@ export function createVaultService({
         return;
       }
       await watchAndSweep(opened, false);
+    },
+    reveal: async () => {
+      await restored;
+      if (opened !== null) host.reveal(opened.vault.path);
     },
     focused: async () => {
       await restored;

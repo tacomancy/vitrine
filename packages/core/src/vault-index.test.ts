@@ -168,7 +168,7 @@ describe("vault.open and the index", () => {
     await c.indexed();
     expect(await statusOf(c)).toEqual({
       indexing: null,
-      watching: { ok: true },
+      watching: { ok: true, since: expect.any(String) as string },
       current: { ok: true },
     });
   });
@@ -203,7 +203,7 @@ describe("vault.open and the index", () => {
     expect((await listOf(c)).questions).toHaveLength(2);
     expect(await statusOf(c)).toEqual({
       indexing: null,
-      watching: { ok: true },
+      watching: { ok: true, since: expect.any(String) as string },
       current: { ok: true },
     });
   });

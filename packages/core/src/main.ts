@@ -10,6 +10,10 @@ export type CoreReadyMessage = { type: "ready"; port: number; token: string };
 export type CoreMessage =
   | CoreReadyMessage
   | { type: "pickFolder"; id: number }
+  // Show this folder in Finder. Nothing is waited for: Finder opening is
+  // the whole of the answer, and a window with nothing to report back has
+  // no reply to match.
+  | { type: "reveal"; path: string }
   // The answer to `close`: the vault is closed and whatever the queue owed
   // has been spliced, or could not be (#276). Sent either way — the shell
   // waits for it, and a core that cannot close must not be what stops the
@@ -59,6 +63,7 @@ function hostOver(port: ParentPort): {
           pending.set(id, resolve);
           port.postMessage({ type: "pickFolder", id });
         }),
+      reveal: (path) => port.postMessage({ type: "reveal", path }),
     },
     picked: ({ id, path }) => {
       pending.get(id)?.(path);
