@@ -47,12 +47,14 @@ export const FSEVENTS_LATENCY_MS = 50;
 /**
  * The shortest settle window honoured. At or under `FSEVENTS_LATENCY_MS`, the
  * first of two back-to-back changes settles and closes its Batch before the
- * second is heard, so a pair of renames pairs as two Batches — or, under
- * enough load, a rename's own halves could. Twice the latency leaves the
- * first change's own delivery lag the other half. Production's `SETTLE_MS`
- * is far above it; this is the floor under a test's injected window.
+ * second is heard: two renames land as two Batches, and a rename whose halves
+ * straddle a callback lands as a removal and an addition. The window must
+ * cover the latency *plus* whatever the first change spends being stat-ted and
+ * waiting on a busy event loop; twice the latency gives that another 50 ms.
+ * Production's `SETTLE_MS` is far above it — this is a floor under the windows
+ * tests inject, most of which ask for 40 ms and now get this.
  */
-export const MIN_SETTLE_MS = 2 * FSEVENTS_LATENCY_MS;
+const MIN_SETTLE_MS = 2 * FSEVENTS_LATENCY_MS;
 
 /** The one folder whose symlink is followed, so an iCloud or Dropbox PDF folder is watched. */
 const PDF_FOLDER = "sources/pdf";
@@ -136,7 +138,7 @@ export async function pdfFolderOutside(root: string): Promise<string | null> {
 export async function watchVault(
   root: string,
   {
-    settleMs: asked,
+    settleMs: requestedSettleMs,
     onSettled,
     onError,
     onBatchFailed,
@@ -144,7 +146,7 @@ export async function watchVault(
     probeTimeoutMs = PROBE_TIMEOUT_MS,
   }: WatcherOptions
 ): Promise<Watcher> {
-  const settleMs = Math.max(asked, MIN_SETTLE_MS);
+  const settleMs = Math.max(requestedSettleMs, MIN_SETTLE_MS);
   const pending = new Map<string, { stat: StatKey; dueAt: number }>();
   /** Settled and waiting for the batch to close: path → when it settled. */
   const settled = new Map<string, number>();

@@ -509,6 +509,21 @@ describe("two changes a moment apart are one Batch however FSEvents splits them"
     });
     stream.close();
   });
+
+  it("a rename whose new name is delivered one FSEvents latency after its old one still pairs, at the same injected window", async () => {
+    const { vault, stream } = await watching(
+      { "notes/A.md": "a\n" },
+      { settleMs: 40, watch: deferring(["notes/C.md"]) }
+    );
+    await rename(join(vault, "notes", "A.md"), join(vault, "notes", "C.md"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [{ from: "notes/A.md", to: "notes/C.md" }],
+    });
+    stream.close();
+  });
 });
 
 describe("the two watches and the sweep", () => {
