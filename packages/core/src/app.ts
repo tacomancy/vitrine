@@ -29,7 +29,7 @@ export type AppOptions = {
   /** The clock and id source; tests pin them so a written file is predictable. */
   now?: () => Date;
   newId?: () => string;
-  /** The watcher's settle window in ms; tests shorten it as they pin `now`. */
+  /** The watcher's settle window in ms; tests shorten it as they pin `now`, to no less than 100 ms (`MIN_SETTLE_MS`, `vault-watcher.ts`). */
   settleMs?: number;
   /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
   coalesceMs?: number;
