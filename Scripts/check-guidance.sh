@@ -75,6 +75,30 @@ if [ -d docs/adr ]; then
     expected=$((expected+1))
   done
 fi
+# 5. A spec is published as ready-for-implementation, never ready-for-agent.
+#    ready-for-agent marks a ticket an agent can pick up; a spec is the parent
+#    of several, and labelling it the same way reads as one grabbable job.
+#    Upstream's to-spec applies ready-for-agent, so a re-vendor would silently
+#    restore it -- this is what catches that (docs/agents/triage-labels.md).
+spec_skill="$skills_dir/to-spec/SKILL.md"
+if [ -f "$spec_skill" ]; then
+  grep -q 'Apply the `ready-for-implementation` label' "$spec_skill" \
+    || bad "$spec_skill does not tell a spec to take ready-for-implementation"
+  if grep -qE 'Apply the `ready-for-agent`' "$spec_skill"; then
+    bad "$spec_skill tells a spec to take ready-for-agent, which is for its tickets"
+  fi
+fi
+
+# 6. to-spec and to-tickets link what they publish into the sub-issue tree
+#    that closes itself from the bottom up (#329). Upstream says nothing about
+#    it, so a re-vendor would publish issues nothing ever closes.
+for name in to-spec to-tickets; do
+  skill="$skills_dir/$name/SKILL.md"
+  [ -f "$skill" ] || continue
+  grep -q '§ Specs, tickets, and beats' "$skill" \
+    || bad "$skill does not link what it publishes into the sub-issue tree (docs/agents/issue-tracker.md § Specs, tickets, and beats)"
+done
+
 for f in CONTEXT.md docs/architecture.md CLAUDE.md CONTRIBUTING.md; do
   [ -e "$f" ] || bad "missing living doc: $f"
 done
