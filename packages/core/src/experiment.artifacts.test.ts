@@ -312,6 +312,7 @@ describe("experiments.page — the Artifacts", () => {
         path: `${FOLDER}/funnel.png`,
         size: PLOT.length,
         image: true,
+        rows: false,
       },
       {
         kind: "stored",
@@ -320,6 +321,7 @@ describe("experiments.page — the Artifacts", () => {
         path: `${FOLDER}/pooled-summary.csv`,
         size: Buffer.byteLength("set,k,d\nall,41,0.44\n"),
         image: false,
+        rows: true,
       },
       // Named in the line and not in the vault: shown, with nothing to size.
       {
@@ -329,6 +331,7 @@ describe("experiments.page — the Artifacts", () => {
         path: null,
         size: null,
         image: false,
+        rows: true,
       },
       // Never dropped: what the user wrote is shown as written.
       { kind: "asWritten", text: "a line the page cannot read yet" },
@@ -351,6 +354,7 @@ describe("experiments.page — the Artifacts", () => {
         path: null,
         size: null,
         image: true,
+        rows: false,
       },
     ]);
   });

@@ -3,6 +3,7 @@ import type {
   ArtifactAs,
   ArtifactLine,
   ExperimentSections,
+  InFolderArtifact,
   LinkedArtifact,
   StoredArtifact,
 } from "core";
@@ -11,7 +12,7 @@ import styles from "./Experiment.module.css";
 import { Outline, Section } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
 import { useTRPC } from "./trpc";
-import { TypedLine } from "./TypedLine";
+import { TypedLine, type TypedLinePurpose } from "./TypedLine";
 
 /**
  * An Experiment's Artifacts (spec #362 stories 28, 32–35, 37–38; prompt 5;
@@ -26,6 +27,11 @@ import { TypedLine } from "./TypedLine";
  * above it, a URL always linked (ADR 0035 decision 4) — and the caption is
  * asked for next, with the proposal said beside it and the other choice one
  * button away (story 31). Only then is anything copied or linked.
+ *
+ * A file already in the run's folder with no line — a plot a script wrote
+ * there, or one whose line was removed — is drawn after the lines as *in
+ * the folder, not on the page* (ADR 0035 decision 3). *show it here* asks
+ * for the same caption and appends the line, copying nothing (#368).
  */
 export function Artifacts({
   path,
@@ -42,7 +48,12 @@ export function Artifacts({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [said, setSaid] = useState<string | null>(null);
+  // The in-folder file waiting for its caption, by its name in the folder.
+  const [showing, setShowing] = useState<string | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  // The *show it here* that opened the caption line, to hand the keyboard
+  // back to when it closes without the file leaving the list.
+  const showRef = useRef<HTMLButtonElement | null>(null);
 
   const done = () => {
     onAdding(null);
@@ -50,10 +61,12 @@ export function Artifacts({
   };
   const pick = useMutation(trpc.experiments.pickArtifact.mutationOptions());
   const add = useMutation(trpc.experiments.addArtifact.mutationOptions());
-  // One chooser, and one copy, at a time: a second ↵ while the copy is on
-  // its way would store the file again as `plot (2).png`. A ref rather than
-  // `isPending`, because the second ↵ can arrive before the render that
-  // would have told this handler the first was pending.
+  const show = useMutation(trpc.experiments.showArtifact.mutationOptions());
+  // One chooser, one copy, one *show it here* at a time: a second ↵ while
+  // the copy is on its way would store the file again as `plot (2).png`, and
+  // one while a line is on its way would be refused as already on the page.
+  // A ref rather than `isPending`, because the second ↵ can arrive before
+  // the render that would have told this handler the first was pending.
   const busy = useRef(false);
   const release = () => {
     busy.current = false;
@@ -104,6 +117,32 @@ export function Artifacts({
       }
     );
   };
+  const showHere = (file: string, text: string) => {
+    if (busy.current) return;
+    busy.current = true;
+    show.mutate(
+      { path, file, caption: text },
+      {
+        onSuccess: (result) => {
+          setSaid(
+            result.written ? null : `could not show it: ${result.detail}`
+          );
+          setShowing(null);
+          addRef.current?.focus();
+          void queryClient.invalidateQueries(
+            trpc.experiments.page.queryFilter({ path })
+          );
+        },
+        // The caption is kept to try again, as a refused copy's is.
+        onError: (error) => setSaid(`could not show it: ${error.message}`),
+        onSettled: release,
+      }
+    );
+  };
+  const stopShowing = () => {
+    setShowing(null);
+    showRef.current?.focus();
+  };
 
   return (
     <Section
@@ -118,7 +157,7 @@ export function Artifacts({
       {adding !== null && (
         // Keyed by the file, so a second drop starts with an empty caption
         // and a fresh proposal rather than lending it the first file's.
-        <CaptionLine
+        <AddingLine
           key={adding}
           source={adding}
           onSubmit={(as, text) => addAs(adding, as, text)}
@@ -134,19 +173,55 @@ export function Artifacts({
           {said}
         </p>
       )}
-      {section.items.length === 0 ? (
-        adding === null && (
-          <Outline>
-            Nothing yet. Plots, screenshots and data snippets are the record of
-            the run: add one, or drop a file on the page, and it is copied in
-            beside the run.
-          </Outline>
-        )
-      ) : (
-        <ul className={styles.artifacts}>
-          {section.items.map((item, i) => (
-            <li key={i}>
-              <ArtifactCard item={item} />
+      {section.items.length === 0 && section.inFolder.length === 0
+        ? adding === null && (
+            <Outline>
+              Nothing yet. Plots, screenshots and data snippets are the record
+              of the run: add one, or drop a file on the page, and it is copied
+              in beside the run.
+            </Outline>
+          )
+        : section.items.length > 0 && (
+            <ul className={styles.artifacts}>
+              {section.items.map((item, i) => (
+                <li key={i}>
+                  <ArtifactCard pagePath={path} item={item} />
+                </li>
+              ))}
+            </ul>
+          )}
+      {section.inFolder.length > 0 && (
+        <ul
+          className={styles.artifacts}
+          aria-label="In the folder, not on the page"
+        >
+          {section.inFolder.map((item) => (
+            <li key={item.path} className={styles.inFolder}>
+              <ArtifactCard
+                pagePath={path}
+                item={item}
+                action={
+                  <button
+                    type="button"
+                    className={rq.edit}
+                    onClick={(event) => {
+                      showRef.current = event.currentTarget;
+                      setSaid(null);
+                      setShowing(item.file);
+                    }}
+                  >
+                    show it here
+                  </button>
+                }
+              />
+              {showing === item.file && (
+                <CaptionLine
+                  purpose="shown"
+                  source={item.file}
+                  onSubmit={(text) => showHere(item.file, text)}
+                  onDiscard={stopShowing}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -162,7 +237,7 @@ export function Artifacts({
  * — the line is re-made for its new purpose, so it takes the keyboard back.
  * A URL has no bytes to copy, so it is only ever linked.
  */
-function CaptionLine({
+function AddingLine({
   source,
   onSubmit,
   onDiscard,
@@ -232,6 +307,33 @@ function CaptionLine({
   );
 }
 
+/** *show it here*'s caption line, with the file it is for named above it: the file is already in the folder, so nothing is proposed. */
+function CaptionLine({
+  purpose,
+  source,
+  onSubmit,
+  onDiscard,
+}: {
+  purpose: Extract<TypedLinePurpose, "caption" | "shown">;
+  source: string;
+  onSubmit: (text: string) => void;
+  onDiscard: () => void;
+}) {
+  const [caption, setCaption] = useState("");
+  return (
+    <div className={styles.adding}>
+      <span className={styles.addingName}>{fileOf(source)}</span>
+      <TypedLine
+        purpose={purpose}
+        value={caption}
+        onChange={setCaption}
+        onSubmit={onSubmit}
+        onDiscard={onDiscard}
+      />
+    </div>
+  );
+}
+
 /** The name a path on disk ends in — all the caption line needs to say which file it is for. */
 const fileOf = (source: string) => source.replace(/^.*[/\\]/, "");
 
@@ -246,24 +348,78 @@ function warningFor(url: boolean): string {
     : "Outside the vault. If this file moves or is cleaned up, the vault will not notice and this page will point at nothing.";
 }
 
-function ArtifactCard({ item }: { item: ArtifactLine }) {
+function ArtifactCard({
+  pagePath,
+  item,
+  action,
+}: {
+  pagePath: string;
+  item: ArtifactLine | InFolderArtifact;
+  action?: React.ReactNode;
+}) {
   if (item.kind === "asWritten") {
     return <p className={styles.asWritten}>{item.text}</p>;
   }
   if (item.kind === "linked") return <LinkedCard item={item} />;
+  return <FileCard pagePath={pagePath} item={item} action={action} />;
+}
+
+/** A card for a file: its head, then the file drawn as an image or as its rows. */
+function FileCard({
+  pagePath,
+  item,
+  action,
+}: {
+  pagePath: string;
+  item: StoredArtifact | InFolderArtifact;
+  action: React.ReactNode;
+}) {
+  const trpc = useTRPC();
+  // A line whose file the folder does not hold has nothing to draw or read.
+  const preview = useQuery(
+    trpc.experiments.artifactPreview.queryOptions(
+      { path: pagePath, file: item.file },
+      { enabled: item.path !== null && item.rows }
+    )
+  );
+  const caption = item.kind === "stored" ? item.caption : "";
+  const first =
+    preview.data?.more === true
+      ? ` · first ${preview.data.lines.length} rows`
+      : "";
   return (
-    <figure className={styles.artifact} data-kind="stored">
+    <figure className={styles.artifact} data-kind={item.kind}>
       <div className={styles.artifactHead}>
         <span className={styles.artifactName}>{item.file}</span>
-        <span className={styles.caption}>{sizeLine(item)}</span>
+        <span className={styles.caption}>
+          {sizeLine(item)}
+          {first}
+        </span>
+        {action}
       </div>
-      {item.image && item.path !== null && (
-        <ArtifactImage path={item.path} alt={item.caption || item.file} />
+      {item.path !== null && item.image && (
+        <ArtifactImage path={item.path} alt={caption || item.file} />
       )}
-      {item.caption !== "" && (
-        <figcaption className={styles.artifactCaption}>
-          {item.caption}
-        </figcaption>
+      {item.path !== null && item.rows && (
+        <section
+          className={styles.rows}
+          aria-label={`${item.file}, first rows`}
+        >
+          {preview.error !== null ? (
+            <p className={styles.caption}>
+              could not read its rows: {preview.error.message}
+            </p>
+          ) : (
+            <ol className={styles.rowLines}>
+              {preview.data?.lines.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+      {caption !== "" && (
+        <figcaption className={styles.artifactCaption}>{caption}</figcaption>
       )}
     </figure>
   );
@@ -301,8 +457,15 @@ function LinkedCard({ item }: { item: LinkedArtifact }) {
   );
 }
 
-/** `412 KB · in vault`; a line whose file the folder does not hold says so rather than drawing a gap. */
-function sizeLine(item: StoredArtifact): string {
+/**
+ * `412 KB · in vault`; a line whose file the folder does not hold says so
+ * rather than drawing a gap, and a file no line names says where it is.
+ */
+function sizeLine(item: StoredArtifact | InFolderArtifact): string {
+  if (item.kind === "inFolder") {
+    const where = "in the folder, not on the page";
+    return item.size === null ? where : `${formatSize(item.size)} · ${where}`;
+  }
   if (item.size === null) return "not in the folder";
   return `${formatSize(item.size)} · in vault`;
 }

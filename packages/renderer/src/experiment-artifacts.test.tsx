@@ -38,7 +38,7 @@ const pageWith = (items: ArtifactLine[]): Readable => ({
     purpose: { present: true, text: "See whether it survives." },
     design: { present: true, text: "" },
     whereItRan: { present: true, text: "", lines: [] },
-    artifacts: { present: true, text: "", items },
+    artifacts: { present: true, text: "", items, inFolder: [] },
     observations: { present: true, text: "" },
     positionHistory: { present: true, text: "", entries: [] },
   },
@@ -54,6 +54,7 @@ const funnel: ArtifactLine = {
   path: `${FOLDER}/funnel-all-41.png`,
   size: 412_000,
   image: true,
+  rows: false,
 };
 
 const summary: ArtifactLine = {
@@ -63,6 +64,7 @@ const summary: ArtifactLine = {
   path: `${FOLDER}/pooled-summary.csv`,
   size: 2_000,
   image: false,
+  rows: true,
 };
 
 const written = (): WriteResult & { file: string } => ({
@@ -84,6 +86,7 @@ const answers = {
   "looseEnds.rows": { groups: [], problems: [] },
   // Under 25 MB unless a test says otherwise: proposed as stored.
   "experiments.inspectArtifact": { size: 2048, proposed: "stored" },
+  "experiments.artifactPreview": { lines: ["set,k,d"], more: true },
 };
 
 let fetched: { url: string; init: RequestInit | undefined }[];

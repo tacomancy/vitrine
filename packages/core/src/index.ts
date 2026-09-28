@@ -78,6 +78,8 @@ export type {
 export type {
   ArtifactAs,
   ArtifactLine,
+  ArtifactPreview,
+  InFolderArtifact,
   LinkedArtifact,
   StoredArtifact,
 } from "./artifact.js";
