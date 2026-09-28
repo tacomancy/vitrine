@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import styles from "./TypedLine.module.css";
 
-/** What the line is for: an answer in place, or the claim of a Hypothesis. */
-export type TypedLinePurpose = "answer" | "hypothesis";
+/** What the line is for: an answer in place, the claim of a Hypothesis, or the name of a new Experiment. */
+export type TypedLinePurpose = "answer" | "hypothesis" | "experiment";
 
 const LINES: Record<
   TypedLinePurpose,
@@ -17,6 +17,11 @@ const LINES: Record<
     form: "Promote to Hypothesis",
     input: "Claim",
     hint: "↵ promote to hypothesis · esc discards",
+  },
+  experiment: {
+    form: "New experiment",
+    input: "Name",
+    hint: "↵ make it · esc clears",
   },
 };
 

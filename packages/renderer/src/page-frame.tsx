@@ -29,13 +29,17 @@ type Read =
  *   stops being readable *under* the reader says so where they stand.
  */
 export function usePageFrame(
-  surface: "research-question" | "hypothesis",
+  surface: "research-question" | "hypothesis" | "experiment",
   path: string,
   data: Read | undefined
 ) {
   const sectionRef = useRef<HTMLElement>(null);
+  // A field inside the page that took the keyboard as it mounted — a new
+  // Experiment's Purpose — keeps it; the page takes it otherwise.
   useEffect(() => {
-    sectionRef.current?.focus();
+    if (!sectionRef.current?.contains(document.activeElement)) {
+      sectionRef.current?.focus();
+    }
   }, []);
 
   const [removed, setRemoved] = useState<string | null>(null);

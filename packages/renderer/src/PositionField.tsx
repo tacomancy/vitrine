@@ -1,5 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   usePageProcedures,
   type Base,
@@ -27,6 +33,9 @@ export function PositionField({
   labelledBy,
   empty,
   className,
+  withWhy = true,
+  autoFocus = false,
+  onDone,
 }: {
   position: EditedPosition;
   path: string;
@@ -38,10 +47,31 @@ export function PositionField({
   empty: ReactNode;
   /** The field's own face, where it differs from a Working answer's — the claim's display size. */
   className?: string | undefined;
+  /**
+   * Whether a save can carry a why: false for an Edited section that is
+   * not a Position — an Experiment's purpose — whose save records no
+   * Revision for a why to explain, so ⌥↵ is neither offered nor taken.
+   */
+  withWhy?: boolean;
+  /** Takes the keyboard as it mounts: the field a page's arrival is for. */
+  autoFocus?: boolean;
+  /**
+   * The field has nothing left to hold — a blur with no change, a save
+   * that landed with no typing past it, or esc — for a caller that draws
+   * the text some other way when it is not being edited. Never called on a
+   * refusal or a conflict: the typing stays in the field until answered.
+   */
+  onDone?: () => void;
 }) {
   const procedures = usePageProcedures();
   // Null while the field shows the file's text; the typing otherwise.
   const [draft, setDraft] = useState<string | null>(null);
+  // The typing as of now, for the save's reply to tell whether any went
+  // on past what it saved.
+  const typing = useRef<string | null>(null);
+  useEffect(() => {
+    typing.current = draft;
+  }, [draft]);
   const [refusal, setRefusal] = useState<string | null>(null);
   // Up while the *changed on disk* line is: autosave is suspended until
   // one of its two actions is chosen (#215).
@@ -78,6 +108,7 @@ export function PositionField({
       // re-read page only when it holds what was typed. Typing that
       // stayed is now a change to what this save put on disk.
       setDraft((current) => (current === saved ? null : current));
+      if (typing.current === null || typing.current === saved) onDone?.();
       setBase((current) =>
         current === null || current.hash === basedOn
           ? { hash: result.hash, text: saved.trim() }
@@ -112,10 +143,11 @@ export function PositionField({
     );
   };
   const commit = (explain = false) => {
-    if (draft === null || inFlight.current || conflict) return;
-    if (draft.trim() === text) {
+    if (inFlight.current || conflict) return;
+    if (draft === null || draft.trim() === text) {
       setDraft(null);
       setBase(null);
+      onDone?.();
       return;
     }
     send(draft, base ?? { hash, text }, explain);
@@ -125,7 +157,7 @@ export function PositionField({
     if (event.key === "Enter" && event.metaKey) {
       event.preventDefault();
       commit();
-    } else if (event.key === "Enter" && event.altKey) {
+    } else if (event.key === "Enter" && event.altKey && withWhy) {
       event.preventDefault();
       // Nothing to save is nothing to explain: the line waits for a
       // Revision rather than opening over the last one, which already
@@ -135,6 +167,7 @@ export function PositionField({
       event.preventDefault();
       setDraft(null);
       setBase(null);
+      onDone?.();
     }
   };
   const type = (typed: string) => {
@@ -173,6 +206,7 @@ export function PositionField({
             : `${styles.field} ${className}`
         }
         aria-labelledby={labelledBy}
+        autoFocus={autoFocus}
         value={shown}
         rows={shown === "" ? 2 : undefined}
         onChange={(event) => type(event.target.value)}
@@ -186,7 +220,7 @@ export function PositionField({
       {focused && (
         <p className={styles.keys}>
           <span>⌘↵ save</span>
-          <span>⌥↵ save with a note on what changed</span>
+          {withWhy && <span>⌥↵ save with a note on what changed</span>}
           <span>esc reverts</span>
         </p>
       )}

@@ -1,4 +1,4 @@
-import { INBOX, LOOSE_ENDS, SETTINGS, type Route } from "./router";
+import { EXPERIMENTS, INBOX, LOOSE_ENDS, SETTINGS, type Route } from "./router";
 
 /**
  * The product's own map: the eight Surfaces the brief names, in
@@ -13,7 +13,10 @@ export type Entry = {
   name: string;
   /** Where it goes, for the ones that have somewhere to go. */
   to?: Route;
-  /** Lit without a destination of its own: a page needs a path. */
+  /**
+   * Lit somewhere besides its destination — or, without one, anywhere at
+   * all: a page needs a path, so a Kind's pages light the entry for it.
+   */
   lit?: (at: Route) => boolean;
   /**
    * For a built surface whose contents are files of one Kind: that Kind,
@@ -40,7 +43,14 @@ export const SURFACES: readonly Entry[] = [
     lit: (at) => at.surface === "hypothesis",
     holds: { kind: "hypothesis", hint: "from a research question" },
   },
-  { name: "Experiment view" },
+  {
+    name: "Experiment view",
+    // The surface is where a run is made; every Experiment's page is part
+    // of it too (spec #362 story 80).
+    to: EXPERIMENTS,
+    lit: (at) => at.surface === "experiment",
+    holds: { kind: "experiment", hint: "designed here, run elsewhere" },
+  },
   { name: "Scout Queue" },
   { name: "Vault" },
 ];

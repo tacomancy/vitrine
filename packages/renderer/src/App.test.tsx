@@ -99,6 +99,7 @@ describe("the window with a vault open", () => {
       // The gear on the vault's name, first in the rail (prototype 13).
       ["⚙", "#/settings"],
       ["Question Inbox", "#/inbox"],
+      ["Experiment view", "#/experiments"],
       ["Loose Ends", "#/loose-ends"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
