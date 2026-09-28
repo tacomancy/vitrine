@@ -1,0 +1,36 @@
+# When an issue closes, close its parent if that was the last open sub-issue,
+# and keep climbing: ticket → spec → beat (#329). GitHub shows sub-issues but
+# never closes a parent itself. The walk is Scripts/close-finished-parents.mjs.
+#
+# Runs are serialised so two tickets closing together close their spec once.
+# `queue: max` matters: the default keeps one pending run per group and
+# cancels the older, which would silently drop the walk of whichever ticket
+# closed first — a spec left open with nothing saying why.
+name: Close finished parents
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: close-finished-parents
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Close parents whose sub-issues are all closed
+        run: node Scripts/close-finished-parents.mjs "${{ github.event.issue.number }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}

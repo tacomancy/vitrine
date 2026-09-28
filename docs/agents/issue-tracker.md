@@ -33,6 +33,21 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
+## Specs, tickets, and beats
+
+The development loop's issues form a tree, held in GitHub's native **sub-issues**, and it closes itself from the bottom up.
+
+- **Beat** — a `beat`-labelled roadmap issue. Not a sub-issue of the map (#131): beats are chained to each other by blocked-by edges instead.
+- **Spec** — a sub-issue of its beat, linked when `to-spec` publishes it.
+- **Ticket** — a sub-issue of its spec, linked when `to-tickets` publishes it. Blocking between tickets stays GitHub's native issue dependencies, as below.
+- **Link a sub-issue**: `gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>`, where `<child-db-id>` is `gh api repos/<owner>/<repo>/issues/<child> --jq .id` — the database id, not the `#number`.
+
+**Closing is automatic, upward only.** `.github/workflows/close-finished-parents.yml` runs `Scripts/close-finished-parents.mjs` on every issue close. When a parent's sub-issues are all closed and at least one closed as completed, it closes the parent as completed with a comment naming them, then does the same one level up — so the last ticket merging closes the spec, and the spec closing closes the beat, in one run. A parent whose sub-issues were all closed as not planned or duplicate stays open: the work was scoped away, and that is a person's call (#329).
+
+**The closing ticket owns the beat's record.** `to-tickets` makes the last ticket the end-to-end demo, blocked on every other ticket, and its body says so. Before its PR merges, it posts the beat's `Shipped:` comment — spec, tickets, PRs, what now runs, anything that diverged — and opens the public-site issue when `CLAUDE.md` § The public site asks for one. The automatic close then carries nothing a person needed to write.
+
+**A PR closes only its own ticket.** Never `Closes #<spec>` or `Closes #<beat>`: that closes a parent whose children are still open, which is the one thing the tree is there to prevent.
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.

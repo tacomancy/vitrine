@@ -43,8 +43,8 @@ Never silently violate these:
 Skill names below are the vendored ones in `.agents/skills/` (CI fails if one stops resolving, or stops being invocable by the agent — ADR 0022). Run in this order, per tracer-bullet slice:
 
 1. **`grill-with-docs`** — pressure-test the slice's plan, one question at a time, before code exists. It writes new terms to `CONTEXT.md` and decisions to `docs/adr/` as they are resolved. `grill-me` is the same interview without the doc writes; use it for questions that aren't about this codebase yet (the stack choice, for instance). Detour through `prototype` on a `prototype/<name>` branch when a question needs a runnable answer.
-2. **`to-spec`** — turn the interview into a spec and publish it as a GitHub issue labelled **ready-for-implementation**, never ready-for-agent (§ Triage labels). No implementation starts without a spec issue.
-3. **`to-tickets`** — break the spec into end-to-end, demoable vertical slices (not schema/API/UI layers), each a GitHub issue blocked on its predecessors.
+2. **`to-spec`** — turn the interview into a spec and publish it as a GitHub issue labelled **ready-for-implementation**, never ready-for-agent (§ Triage labels), linked as a sub-issue of its beat. No implementation starts without a spec issue.
+3. **`to-tickets`** — break the spec into end-to-end, demoable vertical slices (not schema/API/UI layers), each a GitHub issue blocked on its predecessors and linked as a sub-issue of the spec, which closes itself — and then its beat — when the last one does (`docs/agents/issue-tracker.md` § Specs, tickets, and beats).
 4. **`implement`** per ticket, on its own branch — drives **`tdd`** (red-green-refactor, test written before the code that satisfies it) and closes by running **`code-review`**.
 5. **`diagnosing-bugs`** — as needed: reproduce → minimize → hypothesize → instrument → fix → regression-test.
 6. **`code-review`** — before merge, checked against the brief section implemented and the code standard below. Step 4 runs it; run it again if the branch changed since.
