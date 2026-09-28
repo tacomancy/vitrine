@@ -166,6 +166,32 @@ describe("attach evidence, from a Criterion", () => {
     );
   });
 
+  it("checks the chosen run's linked Artifacts beside the note, as the page's door does (TEST-13)", async () => {
+    open({
+      // Answered for the chosen run only, so the row proves which was checked.
+      "experiments.checkArtifacts": (input: { path: string }) =>
+        input.path !== RUN
+          ? { checks: [] }
+          : {
+              checks: [
+                {
+                  file: "step-4000.ckpt",
+                  target: "/Volumes/Scratch/step-4000.ckpt",
+                  machine: "Laptop",
+                  outcome: "elsewhere",
+                },
+              ],
+            },
+    });
+    const { find, picker } = await openAttach();
+    await within(picker).findByRole("option", { name: /sweep-7/ });
+    fireEvent.keyDown(find, { key: "Enter" });
+    const form = await noteFor("sweep-7");
+    expect(
+      await within(form).findByText("on another machine — linked on Laptop")
+    ).toBeTruthy();
+  });
+
   it("offers *new experiment named …* only for a name nothing has", async () => {
     open();
     const { find, picker } = await openAttach();

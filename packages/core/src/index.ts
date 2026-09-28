@@ -82,6 +82,7 @@ export type {
 } from "./research-question.js";
 export type {
   ArtifactAs,
+  ArtifactCheck,
   ArtifactLine,
   ArtifactPreview,
   InFolderArtifact,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   addArtifact,
   artifactPreview,
+  checkArtifacts,
   inspectArtifact,
   showStoredArtifact,
 } from "./artifact.js";
@@ -698,6 +699,22 @@ export const router = t.router({
             EXPERIMENT_PAGE,
             input.path,
             input.file
+          )
+        )
+      ),
+    // TEST-13 (#370; ADR 0035 decisions 6–7): each linked Artifact read
+    // back as here and unchanged, on another machine, changed or gone, or a
+    // URL not checked here — shown beside the attach, and never a reason
+    // to refuse it. Asked when the note opens, before the line is written.
+    checkArtifacts: t.procedure
+      .input(pathInput)
+      .query(async ({ ctx, input }) =>
+        refusing(
+          checkArtifacts(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
+            ctx.machine
           )
         )
       ),
