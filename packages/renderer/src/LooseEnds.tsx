@@ -32,7 +32,14 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
  * than vanishing out from under the click.
  */
 
-/** Each group's glyph and the line beside it, from prompt 9's punch-list reading. */
+/**
+ * Each group's glyph and the line beside it, from prompt 9's punch-list
+ * reading. Prototype 9's *promoted, then quiet* stopped being true of its
+ * group when runs joined it (#374): an Experiment is never promoted, and a
+ * run whose linked file is gone has not gone quiet. The note is what a
+ * Research Question with no source, an inconclusive Hypothesis, a run with
+ * nothing written about it, and a run missing its file have in common.
+ */
 const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
   "Broken plumbing": { glyph: "!", note: "these worsen while ignored" },
   "Unfinished reading": { glyph: "◇", note: "acquired but not yet read" },
@@ -40,7 +47,7 @@ const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
     glyph: "·",
     note: "in the vault, wired to nothing",
   },
-  "Stalled questions": { glyph: "◆", note: "promoted, then quiet" },
+  "Stalled questions": { glyph: "◆", note: "begun, then left hanging" },
 };
 
 /**

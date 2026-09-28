@@ -708,6 +708,23 @@ describe("the Experiment rows", () => {
       falsifying,
     }) as const;
 
+  // An Experiment is never promoted (spec #362 story 9), so the group's
+  // note cannot say so once runs share the group with Questions.
+  it("heads the group they share with Questions with a note true of a run too", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [{ group: "Stalled questions", rows: [quiet(), gone()] }],
+      },
+    });
+    const view = await dashboard();
+    const group = await within(view).findByRole("region", {
+      name: "Stalled questions",
+    });
+    expect(group.textContent).toContain("begun, then left hanging");
+    expect(group.textContent).not.toContain("promoted");
+  });
+
   it("names a quiet run as a link, how long it has been quiet in open days, and that nothing is written about its Artifacts", async () => {
     open({
       "looseEnds.rows": {
