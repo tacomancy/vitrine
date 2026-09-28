@@ -381,8 +381,12 @@ The same work surfacing from several Scouts, merged into one Proposal that keeps
 Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal.
 
 **Source health**:
-Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout. *Broken* means the most recent run did not succeed; a run that succeeded and found nothing — or found the page unchanged and never called the model — is a quiet field, and the two must never look alike.
-_Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old)
+Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout, and said in one sentence per error kind that every surface renders verbatim (ADR 0032). *Broken* means the most recent run did not succeed, and takes the *wrong* Voice. A Scout that has not looked — never run, Paused, or Blocked on credentials — takes *not yet*, and a Quiet field takes *claim*. Fields arriving systematically empty is not a health state: the items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed.
+_Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old, never for a partial Extraction)
+
+**Quiet field**:
+A Scout that ran, parsed cleanly and found nothing — the state a broken Scout must never be mistakable for (`CLAUDE.md` § Invariants). Said as a Claim rather than shown as a zero, warranted by three facts: when it last ran, that the run parsed cleanly, and what this source usually yields (ADR 0032). The third is what tells a source that is genuinely quiet from a reliably productive one gone unusually quiet, so no threshold judges it.
+_Avoid_: Empty run, no results, zero new, silent (a Scout that has not looked is *not yet*, not quiet)
 
 **Mute**:
 A rule (author, venue, keyword) that moves Proposals to a muted view rather than discarding them.
@@ -404,6 +408,14 @@ One of the eight screens the brief names: Home, Question Inbox, Reader, Research
 
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
+
+**Voice**:
+Which of three things the first slot of a short surface or row is doing, and the app has exactly three (ADR 0032). *Claim*: it looked and there is nothing — a full sentence carrying a Warrant. *Not yet*: it has not looked — a fragment with no Warrant, and optionally the reason it has not, which is never a fault. *Wrong*: it tried and could not — the same fragment with the warning glyph and a reason, which always is. Learned on one surface and read the same on every surface after it, so a list that is empty can never be mistaken for one that failed.
+_Avoid_: State, tone, empty state, zero state
+
+**Warrant**:
+What a Claim rests on, shown in the slot where a row otherwise carries its Provenance. Only the *claim* Voice has one: the other two assert nothing about the world, so they have nothing to prove (ADR 0032). A row asserting that nothing is there with an empty Warrant is unfinished, which is what makes the distinction survive a careless render.
+_Avoid_: Evidence (that is a Hypothesis's), proof, justification (that is an Override's), caveat
 
 **Settings**:
 The screen that says how this vault is arranged: where the vault is, where the PDFs are, and what the app talks to. Every line on it is a fact with a referent outside the app, checkable against the world; it holds no preference — no value whose only effect is on the app's own behaviour — so there are no themes, no sync toggle, no account, and no home for a default that belongs to the object it governs. Not one of the eight Surfaces and not a Dashboard: those are the work and readings of it, this is the arrangement they sit in. Has an Address (`#/settings`) and opens with ⌘,; unreachable from First run (ADR 0025).

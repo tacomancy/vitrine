@@ -405,13 +405,15 @@ triage        proposal_id, action (accept | reject | defer | promote), at
 
 Health per Scout is a query: last `ok` run, last run with `new > 0`, and the newest run's `outcome`/`error_kind`; *broken* = newest run `failed`. Accept rate (beat 9) is `accept` over `accept + reject` in `triage`, Review-lane rows only, bucketed by `at`.
 
+**What that query renders** (ADR 0032). The same result yields a Voice and, for a Quiet field, a Warrant, so no surface composes its own. *Wrong* when the newest run `failed`, carrying **one sentence per `error_kind`**, written in the core and rendered verbatim by Home, Loose Ends and Scout Activity — the surfaces choose their actions and whether to show it, never the words. *Not yet* when the Scout has no runs, is `paused`, or is blocked on credentials, carrying the reason it has not looked and no Warrant. *Claim* otherwise, and when the last run with `new > 0` is older than the last `ok` run it is a Quiet field, whose three Warrant fragments are: the newest run's `finished`; that its `outcome` is `ok`; and the Scout's own rate of finding, `count(runs with new > 0)` over the window those runs span, phrased as *usually ~N a week* — `no baseline yet` until there are enough `ok` runs to divide, never an omitted fragment. Nothing here is stored: a Voice is as re-derivable as the health it reads, for the reason decision 10 gives. Accept rate is unavailable — stated as why, not as a number — while ≥ 50 % of the Scout's proposals in the window are missing `authors` or `venue`, since ranking reads those; that is a fact about the measure and never a health state.
+
 **Queue reads.** Review: `state = pending`, grouped by Scout, newest `first_seen` first, one card in hand and the rest listed. Deferred rows return to `pending` when a run for that Scout finishes `ok`. Skim: `lane = skim`, lines older than **30 days** behind a *show older* line, nothing deleted. A Proposal with several Appearances shows each Scout on the card.
 
 **Triage keys** (ADR 0016's update of 2026-09-26, #255) — `A` accept · `O` open · `P` pass, the grammar every machine proposal in the app shares, plus the Queue's own `R` reject and `D` defer. Only `A`, `R`, and `D` write a `triage` row; *open* and *pass* record nothing, so a Proposal the user looked at and left is indistinguishable from one never reached, which is what *pass without deciding* means. Beat 8's inferred-link review uses the same keys, `D` absent.
 
 **Accept.** `createFile` of `sources/<citekey>.md` per § Vault layout — `citekey` minted from `authors`/`published` by the existing rule, `kind: source-stub`, `title`, `authors`, `year`, `doi` and `url` when present, `origin_scout`, `origin_question` (every Assigned Question), `origin_retroactive`, `appearances` (every Appearance's url); body: the abstract as `> ` quoted lines, written once. The row records `stub_path`; a stub whose file is later gone is a Loose end, not a re-accept.
 
-**Loose Ends rows this beat adds** — *Broken plumbing*: a Scout whose newest run failed (error kind shown; *run now* · *pause* · *open*). *Unfinished reading*: `kind: source-stub` with no `pdf:`, oldest first, resolving through ADR 0013's *attach to a stub*. **Owed to Home (beat 12):** Review depth (pending Review rows), broken Scouts.
+**Loose Ends rows this beat adds** — *Broken plumbing*: a Scout whose newest run failed (error kind shown; *run now* · *pause* · *open*). *Unfinished reading*: `kind: source-stub` with no `pdf:`, oldest first, resolving through ADR 0013's *attach to a stub*. **Owed to Home (beat 12):** Review depth (pending Review rows), broken Scouts, and the one claim Home makes about the Scouts — *N watching, these are not* — named and never counted (ADR 0032 decision 8).
 
 ## BYOK and watched sources
 
@@ -435,7 +437,7 @@ The shape ADR 0017 decided, in enough detail to write against. Numbers are start
 
 **`scout_runs` gains** `model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, unverified`; `error_kind` gains `credentials | model | extraction`.
 
-**Loose Ends rows this beat adds** — *Broken plumbing*: *blocked on credentials* (→ *open Settings*); *structure change detected* — an `extraction` run on a Scout with a prior `ok` run that found items (→ *open the page* · *run now* · *pause*). The failed-Scout row shows the new kinds. **Owed to Home:** *blocked on credentials* joins the broken-Scouts count.
+**Loose Ends rows this beat adds** — *Broken plumbing*: *blocked on credentials* (→ *open Settings*); *structure change detected* — an `extraction` run on a Scout with a prior `ok` run that found items (→ *open the page* · *run now* · *pause*). The failed-Scout row shows the new kinds. **Owed to Home:** a Scout blocked on credentials is one that is not looking, so it is named in Home's coverage claim beside a paused one — never added to the broken count, which counts failures (ADR 0032 decision 8; ADR 0025 decision 3's *named, never counted*).
 
 ## Lexicon
 
