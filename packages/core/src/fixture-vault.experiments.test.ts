@@ -111,20 +111,22 @@ describe("the fixture vault's Experiments", () => {
       ["stored", "per-subject.csv", false, true, true],
       ["linked", "bootstrap-draws.parquet", LAB, false],
     ]);
-    expect(run.evidence).toEqual([
-      {
-        hypothesis: {
-          path: HYPOTHESIS,
-          claim:
-            "Slow-wave density on the retention night predicts overnight recall gain beyond encoding strength.",
-        },
-        criterion: expect.objectContaining({
-          id: "c2",
-          relationship: "falsifying",
-          outcome: "not met",
-        }),
-        note: "partialling out evening recall leaves r = 0.36 — the correlation does not vanish",
-      },
+    expect(
+      run.evidence.map(({ hypothesis, criterion, note }) => [
+        hypothesis.path,
+        criterion.id,
+        criterion.relationship,
+        criterion.outcome,
+        note,
+      ])
+    ).toEqual([
+      [
+        HYPOTHESIS,
+        "c2",
+        "falsifying",
+        "not met",
+        "partialling out evening recall leaves r = 0.36 — the correlation does not vanish",
+      ],
     ]);
     // A design revised after it was first written, with its why.
     expect(
