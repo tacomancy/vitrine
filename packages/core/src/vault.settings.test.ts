@@ -12,14 +12,10 @@ import {
 } from "./test-core.js";
 import type { VaultStatus } from "./vault.js";
 
-// The reads and the one action Settings' *Where the vault is* needs beyond
-// `vault.current` — since when changes made outside have been seen, a way to
-// show the folder in Finder that the core cannot do itself (#376), and
-// *Open a different folder…* (#377). The original header follows.
-//
-// The two reads Settings' *Where the vault is* needs beyond `vault.current`
-// (#376; spec #363): since when changes made outside have been seen, and a
-// way to show the folder in Finder that the core cannot do itself.
+// What Settings' *Where the vault is* needs beyond `vault.current` (spec
+// #363): since when changes made outside have been seen, a way to show the
+// folder in Finder that the core cannot do itself (#376), and *Open a
+// different folder…* (#377).
 
 afterEach(closeCores);
 
@@ -163,6 +159,23 @@ describe("Open a different folder…", () => {
     expect(event.vault).toEqual({ name: basename(second), path: second });
   });
 
+  // Choosing the folder already open is looking, not switching (story 17):
+  // the window keeps its place.
+  it("says nothing when the folder chosen is the vault already open", async () => {
+    const first = await tmp("first");
+    const c = await core({ settleMs: 40, host: choosing(first, first) });
+    await c.mutate("vault.pick");
+    await c.indexed();
+    const stream = await c.events();
+
+    const again = await c.mutate<Vault>("vault.pick");
+    expect(again.result?.data.path).toBe(first);
+    await expect(
+      stream.next("vaultSwitched", { timeoutMs: 150 })
+    ).rejects.toThrow(/^waited 150ms on the event stream for vaultSwitched/);
+    stream.close();
+  });
+
   it("a cancelled chooser switches nothing and says nothing", async () => {
     const first = await tmp("first");
     const c = await core({ settleMs: 40, host: choosing(first, null) });
@@ -174,7 +187,7 @@ describe("Open a different folder…", () => {
     expect(cancelled.result?.data).toBeNull();
     await expect(
       stream.next("vaultSwitched", { timeoutMs: 150 })
-    ).rejects.toThrow(/nothing arrived/);
+    ).rejects.toThrow(/^waited 150ms on the event stream for vaultSwitched/);
     stream.close();
     const current = await c.query<Vault>("vault.current");
     expect(current.result?.data.path).toBe(first);

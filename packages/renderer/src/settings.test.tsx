@@ -350,6 +350,25 @@ describe("Open a different folder…", () => {
     expect(window.location.hash).toBe("#/inbox");
   });
 
+  // The stream replays nothing, so a switch made while it was down reaches
+  // the window only as the reconnect's re-read of `vault.current`. That
+  // must reset the window as the event would have, not merely refetch.
+  it("resets when the switch is only learned on reconnect", async () => {
+    window.location.hash = "#/loose-ends";
+    const { stream, at } = switchable();
+    await screen.findByRole("navigation", { name: "Surfaces" });
+    at.vault = other;
+    act(() => stream.reconnect());
+    // Asked afresh: the rail is redrawn for the new vault, not updated.
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("navigation", { name: "Surfaces" }).textContent
+      ).toContain(other.path)
+    );
+    await screen.findByRole("region", { name: "Question Inbox" });
+    expect(window.location.hash).toBe("#/inbox");
+  });
+
   it("a cancelled chooser leaves everything as it was", async () => {
     window.location.hash = "#/settings";
     const pick = vi.fn(() => null);

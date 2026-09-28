@@ -433,12 +433,15 @@ export function createVaultService({
       throw cause;
     }
     const vault = { name: basename(absolute), path: absolute };
+    const was = opened?.vault.path ?? null;
     await install(vault, resources);
     // Raised here, where every open passes — First run's, Settings' and the
     // File menu's alike — so the window resets one way whichever asked
-    // (#377). Not by the restore at launch, which no window is watching,
-    // and not for an open a later one overtook: that vault is not on screen.
-    if (opened?.vault === vault) onSwitched?.(vault);
+    // (#377). Not by the restore at launch, which no window is watching;
+    // not for an open a later one overtook, whose vault is not on screen;
+    // and not for the folder already open, which is reopened but not a
+    // different vault, so the window keeps its place.
+    if (opened?.vault === vault && was !== absolute) onSwitched?.(vault);
     return vault;
   }
 

@@ -19,7 +19,7 @@ import { useTRPC } from "./trpc";
 export function App() {
   const trpc = useTRPC();
   const vault = useQuery(trpc.vault.current.queryOptions());
-  const listeners = useCoreEvents();
+  const listeners = useCoreEvents(vault.data?.path ?? null);
 
   // Nothing is drawn until the core has answered: a First run that flashes
   // before a remembered vault appears would say something untrue.
