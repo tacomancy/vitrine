@@ -94,8 +94,13 @@ async function openCommand(answers: Record<string, unknown> = {}) {
   return screen.findByRole("dialog", { name: "Global command" });
 }
 
-const listOf = (dialog: HTMLElement) =>
-  within(dialog).findByRole("listbox", { name: "Destinations and capture" });
+// Unnamed here: the list's own name is what it is before anything is
+// typed and what it is after, which is a thing to assert on rather than a
+// thing to find it by.
+const listOf = (dialog: HTMLElement) => within(dialog).findByRole("listbox");
+
+const nameOfList = async (dialog: HTMLElement) =>
+  (await listOf(dialog)).getAttribute("aria-label");
 
 /** Every row, the capture included — it is one list, and the capture is last. */
 async function optionsOf(dialog: HTMLElement) {
@@ -145,20 +150,40 @@ const press = (dialog: HTMLElement, key: string) =>
 const verbOf = (dialog: HTMLElement) =>
   within(dialog).getByRole("status").textContent ?? "";
 
+/**
+ * What both web storages hold — where a visit history would have to land
+ * if one were kept — emptied first, so what comes back is this flow's own
+ * writing and not another test's.
+ */
+function storedAfterClearing(): () => string[] {
+  for (const store of [localStorage, sessionStorage]) store.clear();
+  return () =>
+    [localStorage, sessionStorage].flatMap((store) =>
+      Array.from(
+        { length: store.length },
+        (_, at) => `${store.key(at)}=${store.getItem(String(store.key(at)))}`
+      )
+    );
+}
+
+/**
+ * The whole list with nothing typed, opened from the Inbox: the Surfaces
+ * and Dashboards, then the objects newest first (#304). Two suites assert
+ * it — the one that opens the command, and the one that comes back to it —
+ * and they must be asserting the same list.
+ */
+const RECENT = [
+  row("▪", "Question Inbox", "surface", true),
+  row("▦", "Loose Ends", "dashboard"),
+  row("■", "Does slow-wave density predict recall gain?", "research question"),
+  row("◆", "Is replay necessary for consolidation?", "question"),
+  row("◆", "What counts as a reactivation event here?", "question"),
+];
+
 describe("⌘K opens one list over whatever the window was doing", () => {
   it("opens from the Inbox and lists the Surfaces, the Dashboards and the objects", async () => {
     const dialog = await openCommand();
-    expect(said((await settled(dialog, 5)).destinations)).toEqual([
-      row("▪", "Question Inbox", "surface", true),
-      row("▦", "Loose Ends", "dashboard"),
-      row(
-        "■",
-        "Does slow-wave density predict recall gain?",
-        "research question"
-      ),
-      row("◆", "Is replay necessary for consolidation?", "question"),
-      row("◆", "What counts as a reactivation event here?", "question"),
-    ]);
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
   });
 
   it("opens from a Dashboard too, with the window's own Address marked current", async () => {
@@ -225,8 +250,10 @@ describe("typing narrows the list, and each row says why it is here", () => {
         total: 312,
       }),
     });
+    type(dialog, "slow wave");
+    await settled(dialog, 1);
     expect(
-      await within(dialog).findByText("3 of 314 — keep typing")
+      await within(dialog).findByText("1 of 312 — keep typing")
     ).toBeDefined();
   });
 
@@ -480,6 +507,92 @@ describe("the choice, and where ↵ takes it", () => {
     press(dialog, "Escape");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(away);
+  });
+});
+
+describe("before a character is typed, the list is what changed most recently", () => {
+  // #304; ADR 0027 decision 6. The most common thing after ⌘K is going
+  // back to what was just being done, so an empty query is worth more than
+  // the first fifty files of the vault in name order.
+
+  it("says the rows are the recent set rather than counting them as matches", async () => {
+    const dialog = await openCommand();
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
+    expect(
+      await within(dialog).findByText("recent · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("still says how long a cut recent set is, inside naming it rather than instead of it", async () => {
+    // A cut list says its length whichever list it is, and a bare "5 of
+    // 314" here would be a count of what a query nobody typed had found.
+    const dialog = await openCommand({
+      "globalCommand.destinations": (): Destinations => ({
+        rows: OBJECTS,
+        total: 312,
+      }),
+    });
+    await settled(dialog, 5);
+    expect(
+      await within(dialog).findByText("recent · 5 of 314 · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("calls the list what it is, so it is not announced as matches for nothing", async () => {
+    // The count line says which list this is, and it is read by whoever can
+    // see it; the list's own name is what says it to whoever cannot.
+    const dialog = await openCommand();
+    await settled(dialog, 5);
+    expect(await nameOfList(dialog)).toBe("Recent and capture");
+
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(await nameOfList(dialog)).toBe("Destinations and capture");
+  });
+
+  it("counts matches while there is a query, and returns to the recent set when it is cleared", async () => {
+    const dialog = await openCommand();
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    expect(await within(dialog).findByText("1 matching")).toBeDefined();
+
+    type(dialog, "");
+    expect(said((await settled(dialog, 5)).destinations)).toEqual(RECENT);
+    expect(
+      await within(dialog).findByText("recent · type to narrow")
+    ).toBeDefined();
+  });
+
+  it("remembers nothing between openings: recent is what changed on disk, not where the user has been", async () => {
+    const stored = storedAfterClearing();
+    const dialog = await openCommand();
+    await settled(dialog, 5);
+    type(dialog, "loose");
+    await settled(dialog, 1);
+    fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
+    expect(window.location.hash).toBe("#/loose-ends");
+
+    pressGlobalChord();
+    const reopened = await screen.findByRole("dialog", {
+      name: "Global command",
+    });
+    // Nothing the last opening was typing, and the same order as before:
+    // the Dashboard just visited has not risen to the top, because a visit
+    // is not recorded anywhere (ADR 0021 refused the store).
+    expect((queryBox(reopened) as HTMLInputElement).value).toBe("");
+    const { destinations, capture } = await settled(reopened, 5);
+    expect(said(destinations)).toEqual([
+      row("▪", "Question Inbox", "surface"),
+      row("▦", "Loose Ends", "dashboard", true),
+      ...RECENT.slice(2),
+    ]);
+    // The Dashboard just left is marked as where the window is, and ↵ is
+    // on the capture, where nothing typed leaves it.
+    expect(chosenIn(destinations)).toBe(-1);
+    expect(capture.getAttribute("aria-selected")).toBe("true");
+    // The order alone cannot say a history was not written — one could be
+    // written and not yet read — so what was stored is asserted on too.
+    expect(stored()).toEqual([]);
   });
 });
 

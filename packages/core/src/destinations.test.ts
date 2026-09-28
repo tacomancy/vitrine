@@ -37,19 +37,31 @@ const shown = (d: Destinations) => d.rows.map((r) => `${r.kind} ${r.display}`);
 /**
  * A vault of Questions whose file names, mtimes and frontmatter are all
  * given: `[name, text]` pairs written oldest first, one minute apart, so
- * recency is a fact of the folder and not of how fast the loop ran.
+ * recency is a fact of the folder and not of how fast the loop ran. A file
+ * can also declare its own timestamp — a Question's `captured`, a Research
+ * Question's `promoted` — which is what lets a test run the two against
+ * each other.
  */
 async function vaultOf(
-  files: Array<{ name: string; kind?: string; text?: string }>
+  files: Array<{
+    name: string;
+    kind?: string;
+    text?: string;
+    stamp?: string;
+  }>
 ): Promise<string> {
   const vault = await tmp("destinations");
   const start = Date.parse("2026-09-01T09:00:00Z");
-  for (const [n, { name, kind = "question", text }] of files.entries()) {
+  for (const [
+    n,
+    { name, kind = "question", text, stamp = "2026-09-01T09:00:00Z" },
+  ] of files.entries()) {
     const path = join(vault, `${name}.md`);
     await mkdir(join(path, ".."), { recursive: true });
     const front = [`kind: ${kind}`];
     if (text !== undefined) front.push(`question: ${JSON.stringify(text)}`);
-    if (kind === "question") front.push("captured: 2026-09-01T09:00:00Z");
+    if (kind === "question") front.push(`captured: ${stamp}`);
+    if (kind === "research-question") front.push(`promoted: ${stamp}`);
     await writeFile(path, `---\n${front.join("\n")}\n---\n`);
     const when = new Date(start + n * 60_000);
     await utimes(path, when, when);
@@ -169,6 +181,34 @@ describe("globalCommand.destinations", () => {
       "research-question A research question",
       "question Newest question",
       "question Oldest question",
+    ]);
+  });
+
+  it("means by recent what changed on disk, not what a file says about itself", async () => {
+    // Recency is the index's modification time for every Kind alike, and
+    // deliberately not the timestamp the file declares: `captured` answers
+    // *when I wondered it* and is the Inbox's sort, `promoted` *when I took
+    // it up* (ADR 0027 decision 6). The files are written oldest first and
+    // the declared timestamps run the other way, so a list sorted on
+    // either one of them — or on the names, which sort against both — is a
+    // different list from this.
+    const long = "2026-01-02T09:00:00Z";
+    const lately = "2026-09-26T09:00:00Z";
+    const rq = "research-question";
+    const c = await opened(
+      await vaultOf([
+        { name: "q-late", text: "Wondered lately", stamp: lately },
+        { name: "rq-late", kind: rq, text: "Taken up lately", stamp: lately },
+        { name: "rq-long", kind: rq, text: "Taken up long ago", stamp: long },
+        { name: "q-long", text: "Wondered long ago", stamp: long },
+      ])
+    );
+
+    expect(shown(await c.destinations(""))).toEqual([
+      "research-question Taken up long ago",
+      "research-question Taken up lately",
+      "question Wondered long ago",
+      "question Wondered lately",
     ]);
   });
 

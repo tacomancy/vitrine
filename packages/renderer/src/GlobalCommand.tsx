@@ -330,7 +330,11 @@ function Command({
   // things (§ Invariants, no silent failures).
   const count = listing.isError
     ? "the Surfaces and Dashboards only"
-    : countLine(rows.length, (listing.data?.total ?? 0) + screens.length);
+    : countLine(
+        wanted,
+        rows.length,
+        (listing.data?.total ?? 0) + screens.length
+      );
   // Where ⇥ would take ↵, or nothing when there is no other side.
   const alternative = onCapture
     ? rows.length === 0
@@ -384,11 +388,16 @@ function Command({
             {capture.error.message}
           </p>
         )}
+        {/* The list's name is the count line's sentence, said to whoever
+            cannot see it: before anything is typed these rows are the
+            recent set and not matches for anything (#304). */}
         <ul
           id="global-command-list"
           className={styles.list}
           role="listbox"
-          aria-label="Destinations and capture"
+          aria-label={
+            wanted === "" ? "Recent and capture" : "Destinations and capture"
+          }
         >
           {rows.map((row, index) => (
             <li
@@ -534,12 +543,26 @@ function Verb({ act }: { act: Act }) {
   );
 }
 
-/** Never a silent cut: a list longer than one ask says how long it is. */
-function countLine(shown: number, total: number): string {
+/**
+ * What the list is, in the terms of what was typed. Never a silent cut: a
+ * list longer than one ask says how long it is, whichever list it is (ADR
+ * 0027 decision 6).
+ *
+ * Before anything is typed there is nothing to have matched — every object
+ * is in the list and the order is recency — so the line names the set
+ * instead of counting it, and a cut one says the length it was cut from
+ * *inside* that naming rather than in place of it. The prototype's line
+ * dropped the length here; the ADR says a cut list carries it, and the ADR
+ * is what a prototype does not overrule.
+ */
+function countLine(wanted: string, shown: number, total: number): string {
+  const cut = total > shown;
+  if (wanted === "")
+    return cut
+      ? `recent · ${shown} of ${total} · type to narrow`
+      : "recent · type to narrow";
   if (total === 0) return "no destination matches";
-  return total > shown
-    ? `${shown} of ${total} — keep typing`
-    : `${total} matching`;
+  return cut ? `${shown} of ${total} — keep typing` : `${total} matching`;
 }
 
 /**
