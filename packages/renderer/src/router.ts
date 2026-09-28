@@ -13,7 +13,8 @@ export type Route =
   | { surface: "inbox"; question?: string; unresolved?: Unresolved }
   | { surface: "research-question"; path: string }
   | { surface: "hypothesis"; path: string }
-  | { surface: "loose-ends" };
+  | { surface: "loose-ends" }
+  | { surface: "settings" };
 
 /**
  * An Address the window arrived on and could not reach, and what came back
@@ -27,6 +28,7 @@ export type Unresolved = { address: string; reason: string };
 
 export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
+export const SETTINGS: Route = { surface: "settings" };
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -57,6 +59,8 @@ export function hashOf(route: Route): string {
         : QUESTION + encodePath(route.question);
     case "loose-ends":
       return "#/loose-ends";
+    case "settings":
+      return "#/settings";
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
@@ -94,6 +98,7 @@ function pathUnder(hash: string, prefix: string): string | null {
  */
 function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
+  if (hash === "#/settings") return SETTINGS;
   const question = pathUnder(hash, QUESTION);
   if (question !== null) return { surface: "inbox", question };
   const page = pathUnder(hash, RESEARCH_QUESTION);
