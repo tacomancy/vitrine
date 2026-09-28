@@ -346,3 +346,38 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/*
+ * A linked Artifact (#369; prototype 05's warning card): the warning tone
+ * the brand gives what must be seen — amber, never red — on a soft surface
+ * with its rule at the left, as the Hypothesis page's after-evidence mark
+ * (ADR 0023). It sits in the same list as the stored cards, distinct
+ * without being separated (story 38).
+ */
+.linked {
+  border-left: 2px solid var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.linkedMark {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+}
+
+/* Where it is, to find it again (story 39): a path is data, in the data voice. */
+.target {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The brief's warning, at reading size so it is read rather than skimmed. */
+.warning {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg);
+}

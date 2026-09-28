@@ -81,9 +81,11 @@ export type {
   WriteBack,
 } from "./research-question.js";
 export type {
+  ArtifactAs,
   ArtifactLine,
   ArtifactPreview,
   InFolderArtifact,
+  LinkedArtifact,
   StoredArtifact,
 } from "./artifact.js";
 export type { Revision } from "./position-history.js";

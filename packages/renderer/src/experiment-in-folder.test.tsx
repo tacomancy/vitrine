@@ -58,7 +58,7 @@ const loss: InFolderArtifact = {
   kind: "inFolder",
   file: "loss.png",
   path: `${FOLDER}/loss.png`,
-  size: 88 * 1024,
+  size: 88_000,
   image: true,
   rows: false,
 };
@@ -68,7 +68,7 @@ const summary: ArtifactLine = {
   file: "pooled-summary.csv",
   caption: "The pooled rows.",
   path: `${FOLDER}/pooled-summary.csv`,
-  size: 2 * 1024,
+  size: 2_000,
   image: false,
   rows: true,
 };

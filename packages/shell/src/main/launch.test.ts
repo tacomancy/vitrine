@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVersion, coreEntry, stateFolder } from "./launch.js";
+import { buildVersion, coreEntry, machineName, stateFolder } from "./launch.js";
 
 describe("coreEntry", () => {
   it("is the staged core under resourcesPath when packaged", () => {
@@ -83,5 +83,28 @@ describe("buildVersion", () => {
     expect(buildVersion({ described: "beat-2b\n", status: "\n" })).toBe(
       "beat-2b"
     );
+  });
+});
+
+describe("machineName", () => {
+  it("is the Mac's computer name as scutil prints it, trimmed", () => {
+    expect(
+      machineName({
+        computerName: () => "Studio Mac\n",
+        hostname: "studio-mac.local",
+      })
+    ).toBe("Studio Mac");
+  });
+
+  it("is the host name when the computer name cannot be read or is blank", () => {
+    const failing = () => {
+      throw new Error("scutil: not found");
+    };
+    expect(
+      machineName({ computerName: failing, hostname: "studio-mac.local" })
+    ).toBe("studio-mac.local");
+    expect(
+      machineName({ computerName: () => "  \n", hostname: "studio-mac.local" })
+    ).toBe("studio-mac.local");
   });
 });

@@ -1,4 +1,5 @@
 import type { watch as fsWatch } from "node:fs";
+import { hostname } from "node:os";
 import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -29,6 +30,12 @@ export type AppOptions = {
   /** The clock and id source; tests pin them so a written file is predictable. */
   now?: () => Date;
   newId?: () => string;
+  /**
+   * The computer name a linked Artifact records as where it was linked from
+   * (ADR 0035 decision 5). The shell supplies the Mac's; tests pass any
+   * string. Absent — a core started by hand — the host name stands in.
+   */
+  machine?: string;
   /** The watcher's settle window in ms; tests shorten it as they pin `now`, to no less than 100 ms (`MIN_SETTLE_MS`, `vault-watcher.ts`). */
   settleMs?: number;
   /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
@@ -71,6 +78,7 @@ export function createApp({
   appSupportDir,
   now,
   newId,
+  machine,
   settleMs,
   coalesceMs,
   stalledOpenDays,
@@ -123,6 +131,7 @@ export function createApp({
     questions: createQuestionService({ vault, now, newId }),
     events,
     now: now ?? (() => new Date()),
+    machine: machine ?? hostname(),
     coalesceMs: historyWindowMs,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,
     newId: newId ?? randomId,

@@ -4,10 +4,11 @@ import styles from "./TypedLine.module.css";
 /**
  * What the line is for: an answer in place, the claim of a Hypothesis, the
  * name of a new Experiment, or an Artifact's caption — for a file copied in,
- * or for one already in the folder, which *show it here* never copies.
+ * or for one already in the folder, which *show it here* never copies — or
+ * a linked Artifact's description.
  */
 export type TypedLinePurpose =
-  "answer" | "hypothesis" | "experiment" | "caption" | "shown";
+  "answer" | "hypothesis" | "experiment" | "caption" | "shown" | "description";
 
 const LINES: Record<
   TypedLinePurpose,
@@ -37,6 +38,11 @@ const LINES: Record<
     form: "Show it here",
     input: "Caption",
     hint: "↵ show it here · esc discards",
+  },
+  description: {
+    form: "Link an Artifact",
+    input: "Description",
+    hint: "↵ link it · esc discards",
   },
 };
 

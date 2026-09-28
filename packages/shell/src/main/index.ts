@@ -15,11 +15,13 @@ import {
   utilityProcess,
   type UtilityProcess,
 } from "electron";
+import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { pickFile, pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { closeCore, type CorePort } from "./close.js";
-import { coreEntry, stateFolder } from "./launch.js";
+import { coreEntry, machineName, stateFolder } from "./launch.js";
 import { allowNavigation } from "./navigation.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
@@ -72,6 +74,13 @@ function spawnCore(): Promise<Session> {
         ...process.env,
         VITRINE_STATIC_DIR: RENDERER_DIR,
         VITRINE_APP_SUPPORT_DIR: appSupportDir,
+        VITRINE_MACHINE: machineName({
+          computerName: () =>
+            execFileSync("scutil", ["--get", "ComputerName"], {
+              encoding: "utf8",
+            }),
+          hostname: hostname(),
+        }),
       },
     });
     coreProcess = core;
