@@ -49,7 +49,7 @@ const page = (
     purpose: { present: true, text: "See whether one lab carries it." },
     design: { present: true, text: over.design ?? "Drop each lab in turn." },
     whereItRan: { present: true, text: "", lines: [] },
-    artifacts: { present: true, text: "", items: [] },
+    artifacts: { present: true, text: "", items: [], inFolder: [] },
     observations: { present: true, text: over.observations ?? "" },
     positionHistory: { present: true, text: "…", entries: over.entries ?? [] },
   },

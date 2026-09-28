@@ -1,6 +1,10 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { addStoredArtifact } from "./artifact.js";
+import {
+  addStoredArtifact,
+  artifactPreview,
+  showStoredArtifact,
+} from "./artifact.js";
 import type { Events } from "./events.js";
 import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
@@ -615,6 +619,39 @@ export const router = t.router({
             EXPERIMENT_PAGE,
             input.path,
             input
+          )
+        )
+      ),
+    // *show it here* (ADR 0035 decision 3): the line for a file already in
+    // the run's folder, and nothing copied. No procedure removes a line,
+    // or deletes, moves or copies out an Artifact (decision 2).
+    showArtifact: t.procedure
+      .input(
+        pathInput.extend({
+          file: z.string().min(1),
+          caption: z.string().trim().min(1, "An Artifact needs a caption."),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          showStoredArtifact(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
+            input
+          )
+        )
+      ),
+    // A CSV, TSV or text Artifact's first rows, `file` as its line names it.
+    artifactPreview: t.procedure
+      .input(pathInput.extend({ file: z.string().min(1) }))
+      .query(async ({ ctx, input }) =>
+        refusing(
+          artifactPreview(
+            await requirePage(ctx),
+            EXPERIMENT_PAGE,
+            input.path,
+            input.file
           )
         )
       ),
