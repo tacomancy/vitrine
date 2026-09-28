@@ -82,18 +82,22 @@ const sameView = (a: View, b: View) =>
  * turns a colour with age. The prototype's per-view counts are dropped for
  * that reason — *52 not yet interpreted* is a tally of undone work.
  *
- * `O`, `E` and `D` act on the chosen run: its page with the keyboard in
- * Observations, *attach as evidence* (#367's list), and `status:
- * abandoned`. The line that makes a run by name stays at the list's head.
+ * `O`, `E`, `Q` and `D` act on the chosen run: its page with the keyboard
+ * in Observations, *attach as evidence* (#367's list), the Capture line
+ * with the run as its Provenance (#373), and `status: abandoned`. The line
+ * that makes a run by name stays at the list's head.
  */
 export function Experiments({
   onMade,
   onObserve,
+  onCapture,
 }: {
   /** Where the made run's page opens — the window's, since it moves the Address. */
   onMade: (path: string) => void;
   /** `O`: the run's page, with the keyboard in Observations. */
   onObserve: (path: string) => void;
+  /** `Q`: the window's Capture line, on this run — the window's, since it holds the one line. */
+  onCapture: (path: string) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -169,6 +173,7 @@ export function Experiments({
   const act: Act = {
     observe: (row: ListedExperiment) => onObserve(row.path),
     attach: (row: ListedExperiment) => setAttaching(row.path),
+    capture: (row: ListedExperiment) => onCapture(row.path),
     abandon: (row: ListedExperiment) => {
       // Already abandoned: nothing to do, as the pane offers nothing.
       if (abandon.isPending || row.status === "abandoned") return;
@@ -182,16 +187,21 @@ export function Experiments({
   };
 
   // j/k and the arrows move the choice; ↵ takes the first row when nothing
-  // is chosen; O, E and D act on the chosen run, in either case, since the
+  // is chosen; O, E, Q and D act on the chosen run, in either case, since the
   // prototype draws them capitalised and the Question Inbox's keys are not.
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
     if (rows.length === 0) return;
     const index = rows.findIndex((row) => row.path === selected);
     let next: number | null = null;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    const action = ({ o: act.observe, e: act.attach, d: act.abandon } as const)[
-      key as "o" | "e" | "d"
-    ];
+    const action = (
+      {
+        o: act.observe,
+        e: act.attach,
+        q: act.capture,
+        d: act.abandon,
+      } as const
+    )[key as "o" | "e" | "q" | "d"];
     if (action !== undefined) {
       if (selectedRow === null) return;
       event.preventDefault();
@@ -358,6 +368,7 @@ export function Experiments({
           <span>j/k move</span>
           <span>O observations</span>
           <span>E attach</span>
+          <span>Q capture</span>
           <span>D abandon</span>
           {unreadable.length > 0 && (
             <details className={styles.unreadableDetails}>
@@ -394,9 +405,9 @@ export function Experiments({
   );
 }
 
-/** What `O`, `E` and `D` do, from the keyboard or the detail pane. */
+/** What `O`, `E`, `Q` and `D` do, from the keyboard or the detail pane. */
 type Act = Record<
-  "observe" | "attach" | "abandon",
+  "observe" | "attach" | "capture" | "abandon",
   (row: ListedExperiment) => void
 >;
 
@@ -449,7 +460,7 @@ function NewExperiment({ onMade }: { onMade: (path: string) => void }) {
 
 /**
  * The chosen run beside the list (story 62): its purpose, its first
- * Artifact, *where it ran*, and the three things to do with it — or
+ * Artifact, *where it ran*, and the four things to do with it — or
  * nothing, and leaving it where it is, which is as good an answer.
  */
 function RunDetail({
@@ -495,6 +506,10 @@ function RunDetail({
             <button type="button" onClick={() => act.attach(row)}>
               Attach to a criterion
               <kbd aria-hidden>E</kbd>
+            </button>
+            <button type="button" onClick={() => act.capture(row)}>
+              Capture a question from it
+              <kbd aria-hidden>Q</kbd>
             </button>
             {row.status !== "abandoned" && (
               <button type="button" onClick={() => act.abandon(row)}>

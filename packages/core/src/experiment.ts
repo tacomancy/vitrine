@@ -27,6 +27,7 @@ import {
   type SavedAnswer,
 } from "./page-write.js";
 import type { Revision } from "./position-history.js";
+import { questionsNaming, type RelatedQuestion } from "./questions-naming.js";
 import { asString, quoted } from "./question-kind.js";
 import { serialised } from "./serialise.js";
 import {
@@ -151,6 +152,12 @@ export type ExperimentPage =
       cameFrom: CameFrom | null;
       /** Every Criterion this run is Evidence for; empty is a run that bears on no claim, which is not a fault (HOLD-6). */
       evidence: EvidenceFor[];
+      /**
+       * The Questions whose `from:` names this run, newest first — the ones
+       * captured from it (#373). Read by backlink: a capture writes
+       * nothing onto the run (spec #362 story 71).
+       */
+      questions: RelatedQuestion[];
       problems: ShapeProblem[];
     }
   | { readable: false; path: string; reason: string };
@@ -314,6 +321,7 @@ export async function readExperimentPage(
     },
     cameFrom: cameFromOf(index, relativePath, frontmatter.from),
     evidence: await evidenceFor(index, vaultPath, relativePath),
+    questions: questionsNaming(index, relativePath),
     problems,
   };
 }
