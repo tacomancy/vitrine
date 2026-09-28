@@ -170,3 +170,94 @@ textarea.claim {
   letter-spacing: var(--tracking-display);
   border-left-color: var(--color-accent);
 }
+
+/*
+ * A criterion's controls (#334): its Outcome and its Relationship as rows
+ * of small mono options, and the verbs in the label's voice at the end —
+ * quiet until wanted, like *edit* beside a section's label.
+ */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1.8;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+/* The native radio stays for the keyboard; the label is what is drawn. */
+.option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.option:hover {
+  color: var(--color-fg);
+}
+
+.option:has(input:checked) {
+  color: var(--color-fg);
+  background: var(--color-bg-sunken);
+}
+
+.option:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.verbs {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* A criterion is a heading in the file: one line, in the serif it reads in. */
+.criterionField {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border: 0;
+  border-left: 2px solid var(--color-line);
+  background: transparent;
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  color: var(--color-fg);
+}
+
+.criterionField:focus-visible {
+  outline: none;
+  border-left-color: var(--color-accent);
+}
+
+.addCriterion {
+  align-self: flex-start;
+}
+
+.newCriterion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}

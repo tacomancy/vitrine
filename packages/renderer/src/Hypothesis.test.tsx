@@ -173,15 +173,16 @@ describe("the freshly promoted page", () => {
     expect(within(page).queryByRole("listbox")).toBeNull();
     expect(within(page).queryByRole("radio")).toBeNull();
     // The only buttons on the page are the history's own — its filter and
-    // its trail — which read the history, never set a state; the claim and
-    // design notes are text fields, which are not a state either.
+    // its trail — which read the history, never set a state, and *+
+    // criterion*, which writes a criterion the state is computed from; the
+    // claim and design notes are text fields, which are not a state either.
     const history = within(page).getByRole("region", {
       name: "Position history",
     });
     const outside = within(page)
       .queryAllByRole("button")
       .filter((b) => !history.contains(b));
-    expect(outside).toEqual([]);
+    expect(outside.map((b) => b.textContent)).toEqual(["+ criterion"]);
   });
 });
 

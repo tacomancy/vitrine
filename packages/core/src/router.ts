@@ -4,10 +4,14 @@ import type { Events } from "./events.js";
 import { destinations } from "./destinations.js";
 import { dismiss, undismiss } from "./dismissals.js";
 import {
+  addCriterion,
+  deleteCriterion,
+  editCriterion,
   FIELDS,
   PAGE as HYPOTHESIS_PAGE,
   readHypothesisPage,
   saveHypothesisPosition,
+  setCriterionField,
   type EditedField,
 } from "./hypothesis.js";
 import { explainRevision } from "./page-write.js";
@@ -103,6 +107,9 @@ const stubInput = z.object({
   year: z.string().trim().default(""),
   url: z.string().trim().default(""),
 });
+
+/** A criterion's Relationship: one of three, chosen, never defaulted (ADR 0031 decision 4). */
+const relationshipInput = z.enum(["confirming", "falsifying", "diagnostic"]);
 
 /** *Answer in place*: the one line the user typed, never empty. */
 const answerInput = z.object({
@@ -259,6 +266,80 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(
           saveHypothesisPosition(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    // Criteria written from the page (#334): each one write carrying its
+    // criterion Revision, and a `· state` entry when the Derived state moves.
+    // A Relationship is required when a criterion is written — no default
+    // (TEST-1) — so the enum has none either.
+    addCriterion: t.procedure
+      .input(
+        pathInput.extend({
+          text: z.string(),
+          relationship: relationshipInput,
+          basedOn: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          addCriterion(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    setCriterionField: t.procedure
+      .input(
+        pathInput.extend({ id: z.string().min(1), basedOn: z.string() }).and(
+          z.discriminatedUnion("field", [
+            z.object({
+              field: z.literal("outcome"),
+              value: z.enum(["met", "not met", "inconclusive"]),
+            }),
+            z.object({
+              field: z.literal("relationship"),
+              value: relationshipInput,
+            }),
+          ])
+        )
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          setCriterionField(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    editCriterion: t.procedure
+      .input(
+        pathInput.extend({
+          id: z.string().min(1),
+          text: z.string(),
+          basedOn: z.string(),
+          was: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          editCriterion(await requirePage(ctx), input.path, {
+            ...input,
+            at: ctx.now(),
+            coalesceMs: ctx.coalesceMs,
+          })
+        )
+      ),
+    deleteCriterion: t.procedure
+      .input(pathInput.extend({ id: z.string().min(1), basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          deleteCriterion(await requirePage(ctx), input.path, {
             ...input,
             at: ctx.now(),
             coalesceMs: ctx.coalesceMs,

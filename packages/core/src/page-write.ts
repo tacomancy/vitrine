@@ -350,7 +350,7 @@ export async function savePosition(
  * head (`coalesce`), so on a page with more than one Position a save to
  * one field after a save to another opens a new entry.
  */
-function historyOperations(
+export function historyOperations(
   content: string,
   outline: Pick<Outline, "headings" | "listItems">,
   save: Save,

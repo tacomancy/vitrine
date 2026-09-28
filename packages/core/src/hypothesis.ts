@@ -1,7 +1,12 @@
-import type { Heading } from "markdown";
+import type { Heading, Outline } from "markdown";
 import { VaultError } from "./errors.js";
 import {
+  changedUnderneath,
+  historyOperations,
+  notExactlyOne,
   savePosition,
+  unchanged,
+  writeOwn,
   type PageContext,
   type PageKind,
   type SavedAnswer,
@@ -14,13 +19,22 @@ import {
   revisionsOf,
   section,
   type LinkLine,
+  type PageFile,
 } from "./page-file.js";
-import { topLevelItems, type Revision } from "./position-history.js";
-import type {
-  Criterion,
-  Outcome,
-  Relationship,
-  ShapeProblem,
+import {
+  formatRevision,
+  onOneLine,
+  topLevelItems,
+  type Revision,
+} from "./position-history.js";
+import {
+  nextCriterionId,
+  type Criterion,
+  type Operation,
+  type Outcome,
+  type Relationship,
+  type ShapeProblem,
+  type WriteResult,
 } from "./vault-files.js";
 import type { Position, ReadableOutline, VaultIndex } from "./vault-index.js";
 
@@ -433,28 +447,56 @@ export function hypothesisPositions(
   if (notes !== undefined) {
     positions.push({ field: "design notes", text: bodyText(content, notes) });
   }
-  const within = section(outline, "Criteria").heading;
-  if (within === undefined) return positions;
   // Keyed by the label as it stands, which the history names: a
   // Relationship changed in Obsidian therefore reads to the index's diff as
   // one field gone and another come, which is no change at all to the
   // generic rule — the watcher's Hypothesis consequences (#336) pair them
   // by the id's number, which never moves (ADR 0031 decision 3).
+  for (const { criterion, text } of criterionBlocks(
+    outline,
+    criteria,
+    content
+  )) {
+    positions.push({ field: criterionField(criterion), text });
+  }
+  return positions;
+}
+
+/** One criterion where the file holds it: its `###` and its Position — the whole block, heading to the next heading. */
+type CriterionBlock = { criterion: Criterion; heading: Heading; text: string };
+
+/**
+ * The criteria reader's list, each matched to its `###` under `## Criteria`
+ * in file order — so an id written twice yields two blocks rather than the
+ * first one twice, and a write naming that id can see it is not one.
+ */
+function criterionBlocks(
+  outline: Pick<Outline, "headings">,
+  criteria: readonly Criterion[],
+  content: string
+): CriterionBlock[] {
+  const within = section(outline, "Criteria").heading;
+  if (within === undefined) return [];
+  const taken = new Set<Heading>();
+  const blocks: CriterionBlock[] = [];
   for (const criterion of criteria) {
     const heading = outline.headings.find(
       (h) =>
         h.level === 3 &&
         h.blockId === criterion.id &&
+        !taken.has(h) &&
         h.range.start >= within.body.start &&
         h.range.end <= within.body.end
     );
     if (heading === undefined) continue;
-    positions.push({
-      field: criterionField(criterion),
+    taken.add(heading);
+    blocks.push({
+      criterion,
+      heading,
       text: content.slice(heading.range.start, heading.body.end).trim(),
     });
   }
-  return positions;
+  return blocks;
 }
 
 /**
@@ -487,5 +529,302 @@ export async function saveHypothesisPosition(
   return savePosition(ctx, path, PAGE, {
     ...input,
     section: FIELDS[input.field],
+  });
+}
+
+/** What every criterion write carries besides its own input: the page's view of the file, and the clock. */
+type CriterionWriteInput = { basedOn: string; at: Date; coalesceMs: number };
+
+/**
+ * What a criterion write changes, as its plan decides it against the file
+ * as read: the operations on `## Criteria`, the Revision they record — the
+ * field names the criterion by its label *as it stood*, which is what an
+ * entry records (ADR 0031 decision 3) — and the criteria as they will
+ * read afterwards, so the Derived state can be compared before and after
+ * without re-reading the file the write has not yet made.
+ */
+type CriterionChange = {
+  operations: Operation[];
+  field: string;
+  from: string;
+  after: Criterion[];
+};
+
+/**
+ * One criterion write through the page's own-write queue (`writeOwn`), so
+ * it meets a Revision parked by an Obsidian edit in one write as a claim
+ * save does. Load-bearing (`CLAUDE.md` § Code standard, derived Hypothesis
+ * state): every change to a criterion is a Revision (ADR 0031 decision 4),
+ * and when the Derived state before and after the change differ, the same
+ * operation list records a `· state` entry — `from:` the state it left —
+ * because the state is never stored and *when the rule began returning a
+ * different answer* is a fact no later recomputation can recover (decision
+ * 6). It is stamped with the criterion Revision's own timestamp and sits
+ * directly above it: that pairing is what attributes the move to the
+ * criterion that caused it (spec #327 story 45), and sitting above means a
+ * later edit to the same criterion cannot coalesce past the move and
+ * re-stamp the entry out of its pair.
+ */
+async function writeCriterion(
+  ctx: PageContext,
+  path: string,
+  { basedOn, at, coalesceMs }: CriterionWriteInput,
+  plan: (
+    read: PageFile,
+    blocks: CriterionBlock[]
+  ) => CriterionChange | WriteResult
+): Promise<SavedAnswer> {
+  const recorded: { at: string | null } = { at: null };
+  const result = await writeOwn(ctx, path, PAGE, (read, waiting) => {
+    const change = plan(
+      read,
+      criterionBlocks(read.outline, read.criteria, read.content)
+    );
+    if ("written" in change) return change;
+    const history = historyOperations(
+      read.content,
+      read.outline,
+      { field: change.field, from: change.from, at },
+      // A parked Obsidian edit closes the window, as it does for a claim
+      // save (`savePosition` says why).
+      waiting.length > 0 ? 0 : coalesceMs
+    );
+    recorded.at = history.at;
+    const before = derive(read.criteria).state;
+    const after = derive(change.after).state;
+    const moved: Operation[] =
+      before === after
+        ? []
+        : [
+            {
+              op: "prependEntry",
+              section: "Position history",
+              entry: formatRevision({
+                at: history.at,
+                field: "state",
+                why: null,
+                from: before,
+              }),
+            },
+          ];
+    return {
+      operations: [...change.operations, ...history.operations, ...moved],
+      basedOn,
+    };
+  });
+  return result.written
+    ? { ...result, revision: recorded.at }
+    : { ...result, revision: null };
+}
+
+/**
+ * The one block a write names by its id, or the refusal: an id the file no
+ * longer carries, or carries twice, where which was meant would be a guess
+ * written to disk.
+ */
+function theOne(
+  blocks: CriterionBlock[],
+  id: string
+): CriterionBlock | WriteResult {
+  const found = blocks.filter((b) => b.criterion.id === id);
+  const [only] = found;
+  if (found.length !== 1 || only === undefined) {
+    return notExactlyOne(found.length, {
+      none: `no criterion carries ^${id}`,
+      several: `${found.length} criteria carry ^${id}`,
+    });
+  }
+  return only;
+}
+
+/** A criterion's text as it is written: one line, since it is a heading, and never empty. */
+function criterionText(typed: string): string {
+  const text = onOneLine(typed);
+  if (text === "") {
+    throw new VaultError(
+      "refused",
+      "The criterion is empty; write what would show the claim true or false."
+    );
+  }
+  return text;
+}
+
+/**
+ * `## Criteria` with one criterion's block rewritten or removed, every
+ * other byte of it — the other criteria, a line of prose above them —
+ * spliced back as it was. The operation set has no "edit one block"
+ * (ADR 0008 decision 2), so rewording and deleting replace the section
+ * whole, naming the criterion by its id rather than its place.
+ */
+function criteriaWith(
+  read: PageFile,
+  range: { start: number; end: number },
+  replacement: string
+): Operation {
+  const within = section(read.outline, "Criteria").heading!;
+  const { content } = read;
+  return {
+    op: "replaceSection",
+    name: "Criteria",
+    body: (
+      content.slice(within.body.start, range.start) +
+      replacement +
+      content.slice(range.end, within.body.end)
+    ).trim(),
+  };
+}
+
+/**
+ * A criterion added from the page (spec #327 story 21, TEST-1): the heading,
+ * then its Relationship — required, with no default, because choosing what
+ * the criterion means for the claim is part of writing it. Appended to
+ * `## Criteria`; the page's falsifying band is layout, not file order. The
+ * id is one past the highest the file or its history has ever named
+ * (`nextCriterionId`), and its first Revision's `from:` is empty: there was
+ * no criterion before.
+ */
+export async function addCriterion(
+  ctx: PageContext,
+  path: string,
+  input: CriterionWriteInput & { text: string; relationship: Relationship }
+): Promise<SavedAnswer & { id: string | null }> {
+  const text = criterionText(input.text);
+  const added: { id: string | null } = { id: null };
+  const result = await writeCriterion(ctx, path, input, (read) => {
+    const id = nextCriterionId(read.outline, read.content);
+    added.id = id;
+    const criterion: Criterion = {
+      id,
+      text,
+      relationship: input.relationship,
+      outcome: null,
+    };
+    return {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { section: "Criteria" },
+          line: `### ${text} ^${id}\n\nrelationship:: ${input.relationship}`,
+        },
+      ],
+      field: criterionField(criterion),
+      from: "",
+      after: [...read.criteria, criterion],
+    };
+  });
+  return { ...result, id: result.written ? added.id : null };
+}
+
+/**
+ * An Outcome recorded, or a Relationship changed, on one criterion (spec
+ * #327 stories 26, 30): `setInlineField`, which replaces the value alone —
+ * or adds the line, which is how a first Outcome is written. Changing the
+ * Relationship moves the label's letter and never its number. A value the
+ * criterion already holds is not a change and records nothing.
+ */
+export async function setCriterionField(
+  ctx: PageContext,
+  path: string,
+  input: CriterionWriteInput & { id: string } & (
+      | { field: "outcome"; value: Outcome }
+      | { field: "relationship"; value: Relationship }
+    )
+): Promise<SavedAnswer> {
+  return writeCriterion(ctx, path, input, (read, blocks) => {
+    const block = theOne(blocks, input.id);
+    if ("written" in block) return block;
+    const { criterion } = block;
+    if (criterion[input.field] === input.value) return unchanged(read);
+    const changed: Criterion = { ...criterion, [input.field]: input.value };
+    return {
+      operations: [
+        input.field === "outcome"
+          ? {
+              op: "setInlineField",
+              blockId: input.id,
+              field: "outcome",
+              value: input.value,
+            }
+          : {
+              op: "setInlineField",
+              blockId: input.id,
+              field: "relationship",
+              value: input.value,
+            },
+      ],
+      field: criterionField(criterion),
+      from: block.text,
+      after: read.criteria.map((c) => (c === criterion ? changed : c)),
+    };
+  });
+}
+
+/**
+ * A criterion reworded on the page (spec #327 story 29): its heading line
+ * rewritten with the same id, the rest of `## Criteria` as it was. The page
+ * sends the text it was editing (`was`), because the section is replaced
+ * whole and a criterion reworded in Obsidian since the page read it would
+ * otherwise be overwritten with nothing said (`changedUnderneath`).
+ */
+export async function editCriterion(
+  ctx: PageContext,
+  path: string,
+  input: CriterionWriteInput & { id: string; text: string; was: string }
+): Promise<SavedAnswer> {
+  const text = criterionText(input.text);
+  return writeCriterion(ctx, path, input, (read, blocks) => {
+    const block = theOne(blocks, input.id);
+    if ("written" in block) return block;
+    const { criterion, heading } = block;
+    if (criterion.text === text) return unchanged(read);
+    const conflict = changedUnderneath(criterion.text, input.was);
+    if (conflict !== null) return conflict;
+    return {
+      operations: [
+        criteriaWith(read, heading.range, `### ${text} ^${criterion.id}`),
+      ],
+      field: criterionField(criterion),
+      from: block.text,
+      after: read.criteria.map((c) => (c === criterion ? { ...c, text } : c)),
+    };
+  });
+}
+
+/**
+ * A criterion deleted (spec #327 story 31) — only while nothing tests it.
+ * Before Evidence exists a criterion is a draft; once a run is named under
+ * it, taking it out of the rule is making it diagnostic, which keeps it on
+ * the page where a reader will see it (ADR 0031 decision 5). Its number is
+ * never reused: the Revision this write records names it, and
+ * `nextCriterionId` reads the history.
+ */
+export async function deleteCriterion(
+  ctx: PageContext,
+  path: string,
+  input: CriterionWriteInput & { id: string }
+): Promise<SavedAnswer> {
+  return writeCriterion(ctx, path, input, (read, blocks) => {
+    const block = theOne(blocks, input.id);
+    if ("written" in block) return block;
+    const { criterion, heading } = block;
+    if (topLevelItems(read.outline, heading).length > 0) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: `${nameOf(criterion)} has evidence under it; a tested criterion leaves the rule by becoming diagnostic, not by being deleted`,
+      };
+    }
+    return {
+      operations: [
+        criteriaWith(
+          read,
+          { start: heading.range.start, end: heading.body.end },
+          ""
+        ),
+      ],
+      field: criterionField(criterion),
+      from: block.text,
+      after: read.criteria.filter((c) => c !== criterion),
+    };
   });
 }

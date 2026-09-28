@@ -434,6 +434,38 @@ export function nextBlockId(
   return `${prefix}${highest + 1}`;
 }
 
+/**
+ * The next criterion id for a Hypothesis: one past the highest `^c<n>` in
+ * the file *or* named by a `criterion <label>` entry in its
+ * `## Position history` — `criterion C5`, `criterion ^c5`, with or without
+ * a suffix after it. Load-bearing (ADR 0031 decision 3): a label is the id's
+ * number, and the history is the only record of a criterion that has been
+ * deleted, so `nextBlockId` alone would hand a deleted criterion's number to
+ * the next one and every old entry naming it would read as the newcomer.
+ * The section is read as text rather than parsed as entries, so a line
+ * someone typed by hand in the entry grammar still reserves its number:
+ * a number skipped costs nothing, one reused misattributes the record.
+ */
+export function nextCriterionId(
+  outline: Pick<Outline, "blockIds" | "headings">,
+  content: string
+): string {
+  const inFile = Number(nextBlockId(outline, "c").slice(1)) - 1;
+  // Every copy of the section, should the file carry it twice: the second
+  // is not the app's to write, but the numbers it names were still used.
+  const histories = outline.headings.filter(
+    (h) => h.level === 2 && h.text === "Position history"
+  );
+  const named = /^- \S+ · criterion (?:[CFD]|\^c)(\d+)\b/gm;
+  let highest = inFile;
+  for (const { body } of histories) {
+    for (const match of content.slice(body.start, body.end).matchAll(named)) {
+      highest = Math.max(highest, Number(match[1]));
+    }
+  }
+  return `c${highest + 1}`;
+}
+
 // ---------------------------------------------------------------------------
 // The write side (ADR 0008 decisions 2–3; `docs/architecture.md` § Markdown).
 

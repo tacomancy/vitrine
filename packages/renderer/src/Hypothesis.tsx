@@ -1,18 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import type {
-  CriterionRead,
-  Derivation,
-  HypothesisFrontmatter,
-  Revision,
-} from "core";
+import type { Derivation, HypothesisFrontmatter, Revision } from "core";
 import { formatAge } from "./age";
 import styles from "./Hypothesis.module.css";
+import { Criteria } from "./HypothesisCriteria";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
 import { PositionHistory } from "./PositionHistory";
 import {
   describeProblem,
-  Lines,
   Outline,
   provenanceLine,
   Section,
@@ -96,7 +91,11 @@ export function Hypothesis({ path }: { path: string }) {
           </Section>
           <State derivation={readable.derivation} />
           <Section name="Criteria" present={readable.sections.criteria.present}>
-            <Criteria criteria={readable.sections.criteria.criteria} />
+            <Criteria
+              path={readable.path}
+              hash={readable.hash}
+              criteria={readable.sections.criteria.criteria}
+            />
           </Section>
           <Section
             name="Design notes"
@@ -125,6 +124,9 @@ export function Hypothesis({ path }: { path: string }) {
               current={{
                 claim: readable.sections.claim.text,
                 "design notes": readable.sections.designNotes.text,
+                // A `· state` entry's `from:` is the state it left (#334),
+                // so what it moved to, for the newest, is the state now.
+                state: readable.derivation.state,
               }}
               // A why onto any entry, months later (spec #327 story 54): the
               // page's own hash, because no save of the page's stands
@@ -301,97 +303,4 @@ function censusWords(census: Derivation["census"]): string {
     `${inWords(census.inconclusive)} inconclusive`,
     `${inWords(census.awaiting)} awaiting evidence`,
   ].join(" · ");
-}
-
-/**
- * The criteria as read. Falsifying ones get their own band above the rest
- * (story 24): they can settle the page on their own, so they carry more
- * weight. That is layout, not file order — the file keeps them where they
- * were written.
- */
-function Criteria({ criteria }: { criteria: CriterionRead[] }) {
-  if (criteria.length === 0) {
-    return (
-      <Outline>
-        No criteria yet. Write what would confirm the claim and what would kill
-        it before any run — that record is the point of the page.
-      </Outline>
-    );
-  }
-  const falsifying = criteria.filter((c) => c.relationship === "falsifying");
-  const rest = criteria.filter((c) => c.relationship !== "falsifying");
-  return (
-    <div className={styles.criteria}>
-      {falsifying.length > 0 && (
-        <div
-          role="group"
-          aria-label="Falsifying criteria"
-          className={styles.band}
-        >
-          <p className={styles.bandNote}>
-            if met, any one of these decides the page alone
-          </p>
-          {falsifying.map((c) => (
-            <Card key={c.id} criterion={c} />
-          ))}
-        </div>
-      )}
-      {rest.length > 0 && (
-        <div role="group" aria-label="Other criteria" className={styles.rest}>
-          {rest.map((c) => (
-            <Card key={c.id} criterion={c} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * One criterion: its Relationship and label, its chips, its text, and the
- * Evidence under it. *Awaiting evidence* is the absence of an Outcome (ADR
- * 0031 decision 2) and is drawn as its own chip, so *not yet tested* never
- * looks like *tested and inconclusive* (TEST-4). An Outcome with nothing
- * under it says no run is named, rather than showing an Outcome nobody can
- * trace.
- */
-function Card({ criterion }: { criterion: CriterionRead }) {
-  const { relationship, label, outcome, outcomeUnreadable, evidence } =
-    criterion;
-  const chips: Array<{ text: string; tone: "outcome" | "quiet" }> = [];
-  if (outcomeUnreadable !== null) {
-    chips.push({
-      text: `outcome unreadable: ${outcomeUnreadable}`,
-      tone: "quiet",
-    });
-  } else if (outcome === null) {
-    chips.push({ text: "awaiting evidence", tone: "quiet" });
-  } else {
-    chips.push({ text: outcome, tone: "outcome" });
-    if (evidence.length === 0)
-      chips.push({ text: "no run named", tone: "quiet" });
-  }
-  if (relationship === null) {
-    chips.push({ text: "does not count yet", tone: "quiet" });
-  }
-  return (
-    <article className={styles.card}>
-      <div className={styles.cardHead}>
-        <span className={styles.relationship}>
-          {relationship === null
-            ? "no relationship"
-            : `${relationship} · ${label}`}
-        </span>
-        <span className={styles.chips}>
-          {chips.map(({ text, tone }) => (
-            <span key={text} className={styles.chip} data-tone={tone}>
-              {text}
-            </span>
-          ))}
-        </span>
-      </div>
-      <p className={styles.criterionText}>{criterion.text}</p>
-      {evidence.length > 0 && <Lines lines={evidence} empty="" />}
-    </article>
-  );
 }
