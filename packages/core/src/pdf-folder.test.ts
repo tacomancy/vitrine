@@ -2,7 +2,7 @@ import { mkdir, realpath, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Host } from "./host.js";
-import type { PdfFolder } from "./pdf-folder.js";
+import { knownLocation, type PdfFolder } from "./pdf-folder.js";
 import { router } from "./router.js";
 import { closeCores, core, tmp } from "./test-core.js";
 
@@ -140,6 +140,17 @@ describe("a link out of the vault", () => {
     });
     const folder = await pdfFolder(c);
     expect(folder.exists && folder.resolves?.known).toBe("Dropbox");
+  });
+});
+
+describe("~/Dropbox, the older Dropbox root", () => {
+  it("is named Dropbox under the home folder, and nowhere else", () => {
+    expect(knownLocation("/Users/r/Dropbox/Papers", "/Users/r")).toBe(
+      "Dropbox › Papers"
+    );
+    expect(knownLocation("/Volumes/Archive/Dropbox/Papers", "/Users/r")).toBe(
+      null
+    );
   });
 });
 

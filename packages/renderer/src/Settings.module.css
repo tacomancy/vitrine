@@ -146,11 +146,6 @@
   color: var(--color-fg-muted);
 }
 
-/* Warm colour only with a glyph and a label; never red (prototype 12). */
-.warning {
-  color: var(--color-warning);
-}
-
 /* What the section is for, said once beneath its rows. */
 .paragraph {
   margin: 0;

@@ -114,6 +114,11 @@ function WhereThePdfsAre({
   // rows that could make it say *not yet* rather than a count the watcher
   // is about to overtake.
   const pending = query.isPending || read === "reading";
+  const state: Read = query.isError
+    ? "failed"
+    : pending || folder === undefined
+      ? "pending"
+      : folder;
 
   return (
     <section className={styles.section} aria-labelledby="settings-pdfs">
@@ -154,21 +159,12 @@ function WhereThePdfsAre({
           <>
             <div className={styles.row}>
               <dt className={styles.label}>Resolves to</dt>
-              <dd className={styles.value}>
-                {query.isError
-                  ? "not known"
-                  : pending || folder === undefined
-                    ? "not yet"
-                    : resolvesTo(folder)}
-              </dd>
+              <dd className={styles.value}>{resolvesTo(state)}</dd>
             </div>
             <div className={styles.row}>
               <dt className={styles.label}>Holds</dt>
               <dd className={styles.value}>
-                <Holds
-                  folder={query.isError ? null : pending ? undefined : folder}
-                  read={read}
-                />
+                <Holds state={state} read={read} />
               </dd>
             </div>
             {!pending && folder?.exists === true && folder.lastArrived && (
@@ -195,7 +191,13 @@ function WhereThePdfsAre({
   );
 }
 
-function resolvesTo(folder: Extract<PdfFolder, { exists: true }>): string {
+/** The PDF folder as far as the section has it: not yet answered, a read that failed, or the facts. */
+type Read = "pending" | "failed" | PdfFolder;
+
+function resolvesTo(state: Read): string {
+  if (state === "pending") return "not yet";
+  if (state === "failed" || !state.exists) return "not known";
+  const folder = state;
   if (folder.resolves === null) return "not known";
   if (folder.link === null) return "itself — a plain folder in the vault";
   return folder.resolves.known ?? folder.resolves.path;
@@ -204,21 +206,16 @@ function resolvesTo(folder: Extract<PdfFolder, { exists: true }>): string {
 /**
  * The *Holds* row. A count is what is in a folder, not work left (spec #363
  * story 38), so it is stated plainly. An empty folder is the one line here
- * that asserts *nothing is there*, so it is a claim and carries its Warrant,
- * in the Voice ADR 0032 gives every first slot. `folder` undefined is not
- * yet read; null is a read that failed.
+ * that asserts *nothing is there*, so it is a claim with its Warrant (ADR
+ * 0032), and only a vault read in full and watched can warrant it. Anything
+ * short of that is a plain fragment: *not watching* is sounded in the footer
+ * channel, and a glyph here would be a second alarm (story 11).
  */
-function Holds({
-  folder,
-  read,
-}: {
-  folder: PdfFolder | null | undefined;
-  read: VaultRead;
-}) {
-  if (folder === null) return <>not known</>;
-  if (folder === undefined) return <>not yet</>;
-  if (!folder.exists || folder.holds === null) return <>not known</>;
-  const { count, bytes } = folder.holds;
+function Holds({ state, read }: { state: Read; read: VaultRead }) {
+  if (state === "pending") return <>not yet</>;
+  if (state === "failed" || !state.exists || state.holds === null)
+    return <>not known</>;
+  const { count, bytes } = state.holds;
   if (count > 0)
     return (
       <>
@@ -233,16 +230,7 @@ function Holds({
         <span className={styles.warrant}>read in full · watching</span>
       </>
     );
-  return (
-    <>
-      {voice === "wrong" && (
-        <span className={styles.warning} aria-hidden="true">
-          ‖{" "}
-        </span>
-      )}
-      {voice === "wrong" ? "not known" : "not yet"}
-    </>
-  );
+  return <>{voice === "wrong" ? "not known" : "not yet"}</>;
 }
 
 /** Decimal units, as Finder counts them, to three figures: `1.84 GB`. */

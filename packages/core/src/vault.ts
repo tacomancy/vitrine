@@ -2,6 +2,7 @@ import type { watch as fsWatch } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
+import { PDF_FOLDER } from "./pdf-folder.js";
 import { renameDismissals } from "./dismissals.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
@@ -488,7 +489,7 @@ export function createVaultService({
       // one, which is the arrangement the researcher would change in Finder.
       host.reveal(
         folder === "pdfs"
-          ? join(opened.vault.path, "sources", "pdf")
+          ? join(opened.vault.path, PDF_FOLDER)
           : opened.vault.path
       );
     },

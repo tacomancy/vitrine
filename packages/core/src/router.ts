@@ -69,9 +69,7 @@ const t = initTRPC.context<Context>().create({
 
 const pathInput = z.object({ path: z.string() });
 
-const revealInput = z
-  .object({ folder: z.enum(["vault", "pdfs"]).default("vault") })
-  .default({ folder: "vault" });
+const revealInput = z.object({ folder: z.enum(["vault", "pdfs"]) });
 
 const listInput = z
   .object({ order: z.enum(["newest", "oldest"]).default("newest") })

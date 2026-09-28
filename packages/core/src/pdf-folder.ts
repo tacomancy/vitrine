@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, sep } from "node:path";
 
 /** Where the PDFs sit in a vault (`docs/architecture.md` § Vault layout). */
-const PDF_FOLDER = "sources/pdf";
+export const PDF_FOLDER = "sources/pdf";
 
 /**
  * Settings' *Where the PDFs are* (#378; `docs/architecture.md` § Settings):
@@ -64,7 +64,7 @@ export async function readPdfFolder(vaultPath: string): Promise<PdfFolder> {
   return {
     exists: true,
     link,
-    resolves: { path, known: knownLocation(path) },
+    resolves: { path, known: knownLocation(path, homedir()) },
     holds: {
       count: pdfs.length,
       bytes: pdfs.reduce((total, pdf) => total + pdf.size, 0),
@@ -108,26 +108,24 @@ async function pdfsUnder(folder: string): Promise<Pdf[]> {
 /**
  * The sync roots a PDF folder is linked into in practice (ADR 0003), named
  * as Finder names them so the researcher can match them against the other
- * machine. Recognised by the shape of the path under a home folder, not by
- * asking the service, which the app never talks to.
+ * machine. Recognised by the shape of the path, not by asking the service,
+ * which the app never talks to: the two `Library` roots by their own
+ * distinctive segments wherever they sit, `~/Dropbox` only under `home`,
+ * since a folder called Dropbox anywhere else is just a folder.
  */
-const KNOWN_ROOTS: Array<{ name: string; root: RegExp }> = [
-  {
-    name: "iCloud Drive",
-    root: /\/Library\/Mobile Documents\/com~apple~CloudDocs(?=\/|$)/,
-  },
-  {
-    name: "Dropbox",
-    root: /\/Library\/CloudStorage\/Dropbox(?:-[^/]+)?(?=\/|$)/,
-  },
-  {
-    name: "Dropbox",
-    root: new RegExp(`^${escape(homedir())}/Dropbox(?=/|$)`),
-  },
-];
-
-export function knownLocation(path: string): string | null {
-  for (const { name, root } of KNOWN_ROOTS) {
+export function knownLocation(path: string, home: string): string | null {
+  const roots: Array<{ name: string; root: RegExp }> = [
+    {
+      name: "iCloud Drive",
+      root: /\/Library\/Mobile Documents\/com~apple~CloudDocs(?=\/|$)/,
+    },
+    {
+      name: "Dropbox",
+      root: /\/Library\/CloudStorage\/Dropbox(?:-[^/]+)?(?=\/|$)/,
+    },
+    { name: "Dropbox", root: new RegExp(`^${escape(home)}/Dropbox(?=/|$)`) },
+  ];
+  for (const { name, root } of roots) {
     const match = root.exec(path);
     if (match === null) continue;
     const rest = path

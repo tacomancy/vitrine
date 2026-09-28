@@ -274,6 +274,23 @@ describe("Settings: where the PDFs are", () => {
     expect(section.textContent).not.toContain("Nothing has arrived yet.");
   });
 
+  // Story 11: *Not watching* is sounded in the footer and nowhere else. An
+  // empty folder cannot be claimed empty without a watch to warrant it, so
+  // it is not known — stated plainly, with no glyph and no warm colour.
+  it("does not claim an empty folder while not watching, and raises no second alarm", async () => {
+    window.location.hash = "#/settings";
+    renderApp(
+      answers({
+        indexing: null,
+        watching: { ok: false, reason: "EMFILE: too many open files" },
+        current: { ok: false, reason: "not watching: EMFILE" },
+      })
+    );
+    const section = await pdfSection();
+    await vi.waitFor(() => expect(row(section, "Holds")).toBe("not known"));
+    expect(section.textContent).not.toContain("‖");
+  });
+
   it("gives a vault with no sources/pdf its own true sentence, not a fault", async () => {
     window.location.hash = "#/settings";
     renderApp(answers(watched, { exists: false } satisfies PdfFolder));
