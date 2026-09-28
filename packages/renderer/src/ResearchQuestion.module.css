@@ -90,6 +90,15 @@
   text-transform: none;
 }
 
+/* The claim a promotion to Hypothesis asks for (#332): the Inbox's typed
+   line (`TypedLine`), on the kicker's own row and out from under its caps. */
+.claimLine {
+  flex-basis: 100%;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 /* The question in the serif at display size: it reads as text, not a field. */
 .question {
   margin: 0;

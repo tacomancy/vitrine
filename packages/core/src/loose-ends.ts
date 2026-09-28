@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import { dismissed, readDismissals } from "./dismissals.js";
 import { errorMessage } from "./errors.js";
+import { resolvesTo } from "./link-text.js";
 import { writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -178,6 +179,32 @@ function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {
   return [...byPath.values()];
 }
 
+/**
+ * The pages some Hypothesis names as `promoted_from` (#332; spec #327
+ * story 9). A Research Question sharpened into a test has moved on to the
+ * testing half, not gone quiet: the row asks "did you drop this?", and the
+ * Hypothesis is the answer. Where the link lands is the index's to say, as
+ * it is for every `promoted_from` — one that lands nowhere excuses nothing.
+ */
+function sharpenedIntoHypotheses(index: VaultIndex): Set<string> {
+  const named = new Set<string>();
+  for (const row of index.select<{ path: string; value: string }>(
+    `SELECT f.path, fm.value FROM files f JOIN frontmatter fm USING (path)
+     WHERE f.kind = 'hypothesis'`
+  )) {
+    // The index wrote this JSON; a frontmatter that is not a map is null.
+    const from = (JSON.parse(row.value) as Record<string, unknown> | null)?.[
+      "promoted_from"
+    ];
+    const resolvedPath =
+      typeof from === "string"
+        ? resolvesTo(index, row.path, from.trim())
+        : null;
+    if (resolvedPath !== null) named.add(resolvedPath);
+  }
+  return named;
+}
+
 /** The two headings a source line can sit under; a link under either is a source. */
 const SIDE_HEADINGS = ["Supporting sources", "Opposing sources"];
 
@@ -199,6 +226,7 @@ function stalledResearchQuestions(
       )
       .map((row) => row.path)
   );
+  const sharpened = sharpenedIntoHypotheses(index);
   const rows: StalledResearchQuestion[] = [];
   const problems: string[] = [];
   for (const row of index.select<{
@@ -210,7 +238,7 @@ function stalledResearchQuestions(
      WHERE f.kind = ? ORDER BY f.path`,
     KIND
   )) {
-    if (fed.has(row.path)) continue;
+    if (fed.has(row.path) || sharpened.has(row.path)) continue;
     // The page's own reader, not a second reading of the same keys: a
     // status this dashboard accepted and the page refused would be two
     // answers about one file. A file it refuses cannot be judged stalled

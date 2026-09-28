@@ -29,6 +29,8 @@ import { localDate, localDateTime } from "./rows";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { linkLabel } from "./wikilink";
+import { pushRoute } from "./router";
+import { TypedLine } from "./TypedLine";
 import { useVaultStatusLines } from "./VaultStatusLines";
 import { WhyLine } from "./WhyLine";
 
@@ -348,6 +350,7 @@ function Resolving({
   const queryClient = useQueryClient();
   const resolving = usePageWrite("resolve");
   const reopening = usePageWrite("reopen");
+  const sharpening = usePageWrite("promote to hypothesis");
   // The write-back moves the Question's status, which the Inbox's row reads.
   const rereadRow = () =>
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -377,7 +380,28 @@ function Resolving({
       onError: reopening.fail,
     })
   );
-  const busy = resolve.isPending || reopen.isPending;
+  // Sharpen into a Hypothesis (#332): the page stays open with its new
+  // related line, and the window moves to the Hypothesis, which takes the
+  // keyboard (ADR 0010) — the same landing as `h` in the Inbox.
+  const promote = useMutation(
+    trpc.researchQuestions.promoteToHypothesis.mutationOptions({
+      onSuccess: ({ path: landed }) => {
+        void queryClient.invalidateQueries(
+          trpc.researchQuestions.page.pathFilter()
+        );
+        pushRoute({ surface: "hypothesis", path: landed });
+      },
+      onError: sharpening.fail,
+    })
+  );
+  // The claim being typed, or null while the line is closed. A page that
+  // stops being open while the line is up — resolved in another window —
+  // closes it, since the core would refuse it.
+  const [claim, setClaim] = useState<string | null>(null);
+  if (status !== "open" && claim !== null) setClaim(null);
+  const promoteRef = useRef<HTMLButtonElement>(null);
+
+  const busy = resolve.isPending || reopen.isPending || promote.isPending;
   const ask = (next: "answered" | "abandoned") => {
     reopening.clear();
     resolve.mutate({ path, status: next });
@@ -403,6 +427,18 @@ function Resolving({
             >
               abandon
             </button>
+            <button
+              ref={promoteRef}
+              type="button"
+              className={styles.action}
+              disabled={busy}
+              onClick={() => {
+                sharpening.clear();
+                setClaim("");
+              }}
+            >
+              promote to hypothesis
+            </button>
           </>
         ) : (
           <button
@@ -418,10 +454,29 @@ function Resolving({
           </button>
         )}
       </span>
+      {claim !== null && (
+        <TypedLine
+          purpose="hypothesis"
+          className={styles.claimLine}
+          value={claim}
+          onChange={setClaim}
+          onSubmit={(text) => {
+            if (promote.isPending) return;
+            sharpening.clear();
+            promote.mutate({ path, claim: text });
+          }}
+          onDiscard={() => {
+            setClaim(null);
+            sharpening.clear();
+            promoteRef.current?.focus();
+          }}
+        />
+      )}
       {/* Under the kicker rather than in a dialog: a write that did not
           happen is said where it was asked for. */}
       <Refusal refusal={resolving.refusal} className={styles.inKicker} />
       <Refusal refusal={reopening.refusal} className={styles.inKicker} />
+      <Refusal refusal={sharpening.refusal} className={styles.inKicker} />
     </>
   );
 }

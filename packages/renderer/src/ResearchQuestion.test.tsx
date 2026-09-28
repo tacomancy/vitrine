@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import type {
+  HypothesisPage,
   ResearchQuestionPage,
   ResearchQuestionSections,
   Revision,
@@ -1521,5 +1522,159 @@ describe("resolving, abandoning, and reopening", () => {
       "could not resolve: changedAndUnreapplyable — the file is no longer there"
     );
     expect(within(view).getByRole("img", { name: "open" })).toBeDefined();
+  });
+});
+
+// Sharpening into a Hypothesis (#332; spec #327 stories 7, 8, 10): the
+// route the brief calls expected, from the page, beside *resolve*. The same
+// one typed line as `h` in the Inbox asks for the claim; ↵ lands on the new
+// Hypothesis with the keyboard there, esc writes nothing, and a refusal is
+// a line on the page with the typing kept.
+
+const CLAIM = "Slow-wave density during the nap predicts next-day recall gain.";
+const HYPOTHESIS_PATH =
+  "hypotheses/Slow-wave density during the nap predicts next-day recall gain..md";
+
+const hypothesis: HypothesisPage = {
+  readable: true,
+  path: HYPOTHESIS_PATH,
+  hash: "abc",
+  frontmatter: {
+    promotedFrom: "[[Does slow-wave density predict recall gain (RQ)]]",
+    promoted: "2026-09-28T10:00:00Z",
+    captured: "2026-08-14T09:12:00Z",
+    context: "reading",
+    tags: [],
+  },
+  sections: {
+    claim: { present: true, text: CLAIM },
+    criteria: { present: true, criteria: [] },
+    designNotes: { present: true, text: "" },
+    positionHistory: {
+      present: true,
+      text: "",
+      entries: [
+        { at: "2026-09-28T10:00:00Z", field: "claim", why: null, from: "" },
+      ],
+    },
+  },
+  derivation: {
+    state: "inconclusive",
+    effective: "inconclusive",
+    override: null,
+    clause: "noCriteria",
+    named: [],
+    unlanded: [],
+    census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
+  },
+  overridable: false,
+  problems: [],
+};
+
+describe("sharpening into a Hypothesis", () => {
+  const claimInput = (view: HTMLElement) =>
+    within(view).getByRole("textbox", { name: "Claim" });
+
+  async function opening(
+    promote: (input: unknown) => unknown = () => ({ path: HYPOTHESIS_PATH })
+  ) {
+    open(() => fresh, {
+      "researchQuestions.promoteToHypothesis": promote,
+      "hypotheses.page": hypothesis,
+    });
+    const view = await region();
+    const button = await within(view).findByRole("button", {
+      name: "promote to hypothesis",
+    });
+    return { view, button };
+  }
+
+  it("sits beside resolve and abandon; it opens one typed line, and ↵ lands on the new Hypothesis with the keyboard there", async () => {
+    const promote = vi.fn(() => ({ path: HYPOTHESIS_PATH }));
+    const { view, button } = await opening(promote);
+    expect(
+      within(view)
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+    ).toEqual(expect.arrayContaining(["resolve", "abandon"]));
+
+    fireEvent.click(button);
+    const input = claimInput(view);
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: CLAIM } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    const landed = await screen.findByRole("region", {
+      name: "Hypothesis view",
+    });
+    expect(promote).toHaveBeenCalledExactlyOnceWith({
+      path: PATH,
+      claim: CLAIM,
+    });
+    expect(window.location.hash).toBe(
+      "#/hypothesis/hypotheses/Slow-wave%20density%20during%20the%20nap%20predicts%20next-day%20recall%20gain..md"
+    );
+    await waitFor(() => expect(document.activeElement).toBe(landed));
+    expect(
+      screen.queryByRole("region", { name: "Research Question view" })
+    ).toBeNull();
+  });
+
+  it("esc writes nothing: the line closes and the control has the keyboard back", async () => {
+    const promote = vi.fn(() => ({ path: HYPOTHESIS_PATH }));
+    const { view, button } = await opening(promote);
+
+    fireEvent.click(button);
+    fireEvent.change(claimInput(view), { target: { value: CLAIM } });
+    fireEvent.keyDown(claimInput(view), { key: "Escape" });
+
+    expect(promote).not.toHaveBeenCalled();
+    expect(within(view).queryByRole("textbox", { name: "Claim" })).toBeNull();
+    expect(document.activeElement).toBe(button);
+
+    // Reopening the line starts empty: esc discarded the typing.
+    fireEvent.click(button);
+    expect((claimInput(view) as HTMLInputElement).value).toBe("");
+  });
+
+  it("an empty line refuses rather than writes, and stays open for a claim", async () => {
+    const promote = vi.fn(() => ({ path: HYPOTHESIS_PATH }));
+    const { view, button } = await opening(promote);
+
+    fireEvent.click(button);
+    fireEvent.change(claimInput(view), { target: { value: "   " } });
+    fireEvent.keyDown(claimInput(view), { key: "Enter" });
+
+    expect(promote).not.toHaveBeenCalled();
+    expect(claimInput(view)).toBeDefined();
+  });
+
+  it("a refused promotion is a line on the page, the typing kept, the page still open", async () => {
+    const { view, button } = await opening(() => {
+      throw new Error(
+        "Couldn't write questions/Does slow-wave density predict recall gain (RQ).md: EACCES"
+      );
+    });
+
+    fireEvent.click(button);
+    fireEvent.change(claimInput(view), { target: { value: CLAIM } });
+    fireEvent.keyDown(claimInput(view), { key: "Enter" });
+
+    const line = await within(view).findByRole("status");
+    expect(line.textContent).toBe(
+      "could not promote to hypothesis: Couldn't write questions/Does slow-wave density predict recall gain (RQ).md: EACCES"
+    );
+    expect((claimInput(view) as HTMLInputElement).value).toBe(CLAIM);
+    expect(within(view).getByRole("img", { name: "open" })).toBeDefined();
+    expect(window.location.hash).toMatch(/^#\/research-question\//);
+  });
+
+  it("is offered on an open page only", async () => {
+    open(() => ANSWERED);
+    const view = await region();
+    await within(view).findByRole("button", { name: "reopen" });
+    expect(
+      within(view).queryByRole("button", { name: "promote to hypothesis" })
+    ).toBeNull();
   });
 });
