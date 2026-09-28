@@ -141,7 +141,7 @@ describe("making an Experiment on its surface", () => {
     const name = within(surface).getByRole("textbox", { name: "Name" });
     fireEvent.change(name, { target: { value: "sweep-7" } });
     fireEvent.keyDown(name, { key: "Enter" });
-    expect((await within(surface).findByRole("status")).textContent).toContain(
+    expect((await within(surface).findByRole("alert")).textContent).toContain(
       "already in the vault"
     );
     expect((name as HTMLInputElement).value).toBe("sweep-7");

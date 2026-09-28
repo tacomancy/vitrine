@@ -377,6 +377,64 @@ describe("the Experiment Inbox", () => {
     });
   });
 
+  it("D does nothing to a run already abandoned, as the pane offers nothing", async () => {
+    const asked: unknown[] = [];
+    open(listing([listed("gone", { status: "abandoned" })]), {
+      "experiments.setStatus": (input: unknown) => {
+        asked.push(input);
+        return written();
+      },
+    });
+    const box = await list();
+    fireEvent.keyDown(box, { key: "j" });
+    fireEvent.keyDown(box, { key: "d" });
+    const detail = screen.getByRole("complementary", { name: "This run" });
+    expect(
+      within(detail).queryByRole("button", { name: "Abandon" })
+    ).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(asked).toEqual([]);
+  });
+
+  it("says a refused D on its row, as a refusal of the key just pressed", async () => {
+    open(listing([SWEEP]), {
+      "experiments.setStatus": () => {
+        throw new Error("the file changed underneath");
+      },
+    });
+    const box = await list();
+    fireEvent.keyDown(box, { key: "j" });
+    fireEvent.keyDown(box, { key: "d" });
+    const row = within(box).getAllByRole("option")[0]!;
+    expect((await within(row).findByRole("alert")).textContent).toBe(
+      "could not abandon it: the file changed underneath"
+    );
+  });
+
+  it("lets go of a project no run names any more", async () => {
+    const asked: { project?: string }[] = [];
+    let projects = ["eeg-pipeline"];
+    const { stream } = open((input) => {
+      asked.push(input as { project?: string });
+      return listing([SWEEP], { projects });
+    });
+    const region = await surface();
+    await list();
+    const facets = within(region).getByRole("navigation", { name: "Views" });
+    fireEvent.click(
+      within(facets).getByRole("button", { name: "eeg-pipeline" })
+    );
+    await waitFor(() => expect(asked.at(-1)?.project).toBe("eeg-pipeline"));
+    projects = [];
+    stream.push({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [],
+    });
+    await waitFor(() => expect(asked.at(-1)?.project).toBeUndefined());
+  });
+
   it("offers O, E and D in the detail pane too", async () => {
     open(listing([SWEEP]));
     const box = await list();

@@ -111,7 +111,7 @@ export function Experiments({
   } | null>(null);
   if (refusal !== null && refusal.path !== selected) setRefusal(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const status = useVaultStatusLines();
+  const vaultStatus = useVaultStatusLines();
 
   const listing = useQuery({
     ...trpc.experiments.inbox.queryOptions({
@@ -127,6 +127,16 @@ export function Experiments({
   const runs = listing.data?.runs ?? 0;
   const projects = listing.data?.projects ?? [];
   const unreadable = listing.data?.unreadable ?? [];
+  // A project whose last `repo:` line went away takes its facet with it;
+  // the narrowing goes too, or the list would stay filtered to nothing
+  // with no control left to lift it.
+  if (
+    project !== undefined &&
+    listing.data !== undefined &&
+    !projects.includes(project)
+  ) {
+    setProject(undefined);
+  }
   const selectedRow = rows.find((row) => row.path === selected) ?? null;
   const selectedRowId =
     selectedRow === null ? undefined : rowId(rows.indexOf(selectedRow));
@@ -156,11 +166,12 @@ export function Experiments({
     })
   );
 
-  const act = {
+  const act: Act = {
     observe: (row: ListedExperiment) => onObserve(row.path),
     attach: (row: ListedExperiment) => setAttaching(row.path),
     abandon: (row: ListedExperiment) => {
-      if (abandon.isPending) return;
+      // Already abandoned: nothing to do, as the pane offers nothing.
+      if (abandon.isPending || row.status === "abandoned") return;
       setRefusal(null);
       abandon.mutate({
         path: row.path,
@@ -177,21 +188,17 @@ export function Experiments({
     if (rows.length === 0) return;
     const index = rows.findIndex((row) => row.path === selected);
     let next: number | null = null;
-    switch (event.key) {
-      case "o":
-      case "O":
-      case "e":
-      case "E":
-      case "d":
-      case "D": {
-        if (selectedRow === null) return;
-        event.preventDefault();
-        const key = event.key.toLowerCase();
-        if (key === "o") act.observe(selectedRow);
-        else if (key === "e") act.attach(selectedRow);
-        else act.abandon(selectedRow);
-        return;
-      }
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    const action = ({ o: act.observe, e: act.attach, d: act.abandon } as const)[
+      key as "o" | "e" | "d"
+    ];
+    if (action !== undefined) {
+      if (selectedRow === null) return;
+      event.preventDefault();
+      action(selectedRow);
+      return;
+    }
+    switch (key) {
       case "j":
       case "ArrowDown":
         next = Math.min(index + 1, rows.length - 1);
@@ -299,7 +306,7 @@ export function Experiments({
                   voice={voiceOf({
                     incomplete: failed || unreadable.length > 0,
                     answered: listing.data !== undefined,
-                    read: status.read,
+                    read: vaultStatus.read,
                   })}
                   claim={claimOf(view, runs, project)}
                 >
@@ -338,7 +345,7 @@ export function Experiments({
                     {formatAge(row.when, now)}
                   </span>
                   {refusal?.path === row.path && (
-                    <p className={styles.refusal} role="status">
+                    <p className={styles.refusal} role="alert">
                       {refusal.message}
                     </p>
                   )}
@@ -355,8 +362,7 @@ export function Experiments({
           {unreadable.length > 0 && (
             <details className={styles.unreadableDetails}>
               <summary>
-                {unreadable.length} {unreadable.length === 1 ? "run" : "runs"}{" "}
-                could not be read
+                {unreadable.length === 1 ? "a run" : "runs"} could not be read
               </summary>
               <ul className={styles.unreadable}>
                 {unreadable.map((file) => (
@@ -368,7 +374,7 @@ export function Experiments({
               </ul>
             </details>
           )}
-          {status.lines}
+          {vaultStatus.lines}
           {failed && (
             <WarningLine label="not read">{listing.error.message}</WarningLine>
           )}
@@ -387,6 +393,12 @@ export function Experiments({
     </>
   );
 }
+
+/** What `O`, `E` and `D` do, from the keyboard or the detail pane. */
+type Act = Record<
+  "observe" | "attach" | "abandon",
+  (row: ListedExperiment) => void
+>;
 
 // For aria-activedescendant; a path is unique but not id-safe, its index is.
 const rowId = (index: number) => `experiment-row-${index}`;
@@ -427,7 +439,7 @@ function NewExperiment({ onMade }: { onMade: (path: string) => void }) {
         one your code and W&amp;B know it by
       </p>
       {refusal !== null && (
-        <p role="status" className={styles.makeRefusal}>
+        <p role="alert" className={styles.makeRefusal}>
           {refusal}
         </p>
       )}
@@ -446,10 +458,7 @@ function RunDetail({
   now,
 }: {
   row: ListedExperiment | null;
-  act: Record<
-    "observe" | "attach" | "abandon",
-    (row: ListedExperiment) => void
-  >;
+  act: Act;
   now: Date;
 }) {
   return (
