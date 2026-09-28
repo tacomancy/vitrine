@@ -508,7 +508,11 @@ export async function checkArtifacts(
       .map(async (line): Promise<ArtifactCheck> => {
         const { file, target } = line;
         const checked = { file, target, machine: line.machine };
-        if (line.url) return { ...checked, outcome: "notChecked" };
+        // By the target, not only the line's shape: a URL hand-written with
+        // a size and Fingerprint is still not a file to open.
+        if (line.url || URL_TARGET.test(target)) {
+          return { ...checked, outcome: "notChecked" };
+        }
         if (line.machine !== here) return { ...checked, outcome: "elsewhere" };
         return {
           ...checked,
@@ -529,6 +533,9 @@ async function fingerprintMatches(
   try {
     return (await fingerprintOf(target)).fingerprint === recorded;
   } catch {
+    // Gone, unreadable or a folder: each is *changed or gone* to the
+    // reader of the Evidence, and the check is a report, never a refusal
+    // (ADR 0035 decision 6) — so it answers rather than throws.
     return false;
   }
 }

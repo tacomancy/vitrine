@@ -167,21 +167,21 @@ describe("attach evidence, from a Criterion", () => {
   });
 
   it("checks the chosen run's linked Artifacts beside the note, as the page's door does (TEST-13)", async () => {
-    const checked: unknown[] = [];
     open({
-      "experiments.checkArtifacts": (input: unknown) => {
-        checked.push(input);
-        return {
-          checks: [
-            {
-              file: "step-4000.ckpt",
-              target: "/Volumes/Scratch/step-4000.ckpt",
-              machine: "Laptop",
-              outcome: "elsewhere",
+      // Answered for the chosen run only, so the row proves which was checked.
+      "experiments.checkArtifacts": (input: { path: string }) =>
+        input.path !== RUN
+          ? { checks: [] }
+          : {
+              checks: [
+                {
+                  file: "step-4000.ckpt",
+                  target: "/Volumes/Scratch/step-4000.ckpt",
+                  machine: "Laptop",
+                  outcome: "elsewhere",
+                },
+              ],
             },
-          ],
-        };
-      },
     });
     const { find, picker } = await openAttach();
     await within(picker).findByRole("option", { name: /sweep-7/ });
@@ -190,7 +190,6 @@ describe("attach evidence, from a Criterion", () => {
     expect(
       await within(form).findByText("on another machine — linked on Laptop")
     ).toBeTruthy();
-    expect(checked).toEqual([{ path: RUN }]);
   });
 
   it("offers *new experiment named …* only for a name nothing has", async () => {

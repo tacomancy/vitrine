@@ -390,12 +390,11 @@ describe("the check beside the attach", () => {
   }
 
   it("says what each linked Artifact is, checked now, before anything is written", async () => {
-    const asked: unknown[] = [];
+    // Answered for this run only, so the rows on screen prove which run
+    // was checked.
     open(() => complete, {
-      "experiments.checkArtifacts": (input: unknown) => {
-        asked.push(input);
-        return checks;
-      },
+      "experiments.checkArtifacts": (input: { path: string }) =>
+        input.path === PATH ? checks : { checks: [] },
     });
     const form = await noteFor();
     const list = await within(form).findByRole("list", {
@@ -411,7 +410,28 @@ describe("the check beside the attach", () => {
       "sweep.tarchanged or gone since it was linked",
       "model.ckpta URL — not checked here",
     ]);
-    expect(asked).toEqual([{ path: PATH }]);
+  });
+
+  it("never shows a check from an earlier opening while this one is out", async () => {
+    let answered = 0;
+    open(() => complete, {
+      "experiments.checkArtifacts": () =>
+        answered++ === 0 ? checks : new Promise(() => undefined),
+    });
+    let form = await noteFor();
+    await within(form).findByRole("list", {
+      name: "Linked artifacts, checked now",
+    });
+    fireEvent.keyDown(within(form).getByRole("textbox"), { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /Evidence for/ })).toBeNull()
+    );
+
+    form = await noteFor();
+    expect(
+      await within(form).findByText("checking the linked artifacts…")
+    ).toBeTruthy();
+    expect(within(form).queryByRole("list")).toBeNull();
   });
 
   it("attaches whatever the check says", async () => {

@@ -207,6 +207,27 @@ describe("experiments.checkArtifacts", () => {
     expect(fetched).not.toHaveBeenCalled();
   });
 
+  it("does not check a URL whose line was hand-written with a size and Fingerprint", async () => {
+    const vault = await vaultWith({});
+    await mkdir(join(vault, "experiments/prereg-exclusions"), {
+      recursive: true,
+    });
+    const url = "https://example.org/results.tar";
+    await writeFile(
+      join(vault, PATH),
+      page.replace(
+        "## Artifacts\n",
+        `## Artifacts\n\n- results.tar — ${url} · 2.4 GB · 2026-09-14 · ${STUDIO} · 2400000000:1789000000000:0123456789ab — results\n`
+      )
+    );
+    const c = await opened(vault, { machine: STUDIO });
+
+    expect((await checked(c))[0]).toMatchObject({
+      target: url,
+      outcome: "notChecked",
+    });
+  });
+
   it("checks only linked lines, in the page's order", async () => {
     const { vault, c } = await studio();
     await writeFile(

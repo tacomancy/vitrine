@@ -428,14 +428,19 @@ function verdict({ outcome, machine }: ArtifactCheck): string {
 function ArtifactChecks({ experiment }: { experiment: string }) {
   const trpc = useTRPC();
   const check = useQuery(
-    trpc.experiments.checkArtifacts.queryOptions({ path: experiment })
+    // Nothing kept once the note closes: a result from an earlier opening
+    // would be drawn at once as *checked now* while this one is out.
+    trpc.experiments.checkArtifacts.queryOptions(
+      { path: experiment },
+      { gcTime: 0 }
+    )
   );
   if (check.isPending) {
-    return <p className={styles.checking}>checking the linked artifacts…</p>;
+    return <p className={styles.checkStatus}>checking the linked artifacts…</p>;
   }
   if (check.isError) {
     return (
-      <p className={styles.checking}>
+      <p className={styles.checkStatus}>
         could not check the linked artifacts: {check.error.message}
       </p>
     );
