@@ -71,3 +71,34 @@
   border-radius: 1px;
   background: var(--color-line-strong);
 }
+
+/* The foot of the map, below everything the map is for. Separated by the
+   space above it rather than by a rule: a hairline inside one surface
+   would be permitted (ADR 0023 decision 3), but quiet is the whole point
+   of this line. */
+.chords {
+  margin-top: auto;
+  padding: var(--space-4) var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 2xs — the size this pane already gives its section labels — and not the
+   xs of the Inbox's key line: both fit the 238px column, so the tie goes
+   to the pane the line lives in rather than to the other footer. */
+.chord {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-ui);
+  color: var(--color-fg-muted);
+}
+
+/* Drawn as a key by weight alone: the raised fill this app draws keys with
+   is what marks the current entry a few rows above, and the footer must
+   not answer it. */
+.key {
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+}
