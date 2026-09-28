@@ -550,9 +550,11 @@ function QuietExperiment({
 /**
  * A claim as a clause inside the falsifying line. A claim is written as its
  * own sentence, so it usually ends in a full stop, and the line carries on
- * past it with a comma.
+ * past it with a comma — "strength., with" otherwise. Only a lone full stop
+ * goes: a question mark or an ellipsis still reads before a comma, and says
+ * something the claim meant.
  */
-const inSentence = (claim: string) => claim.trimEnd().replace(/[.!?…]+$/, "");
+const asClause = (claim: string) => claim.trimEnd().replace(/(?<!\.)\.$/, "");
 
 /**
  * *Linked Artifacts gone from where they were linked* (spec #362 stories
@@ -610,8 +612,8 @@ function MissingFiles({
                 href={hashOf({ surface: "hypothesis", path: f.path })}
               >
                 {f.criterion === null
-                  ? inSentence(f.claim)
-                  : `${f.criterion} · ${inSentence(f.claim)}`}
+                  ? asClause(f.claim)
+                  : `${f.criterion} · ${asClause(f.claim)}`}
               </a>
             </span>
           ))}
