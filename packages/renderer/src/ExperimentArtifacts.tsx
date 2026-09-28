@@ -254,7 +254,7 @@ function CaptionLine({
 /** The name a path on disk ends in — all the caption line needs to say which file it is for. */
 const fileOf = (source: string) => source.replace(/^.*[/\\]/, "");
 
-function ArtifactCard({
+export function ArtifactCard({
   pagePath,
   item,
   action,

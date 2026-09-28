@@ -19,10 +19,15 @@ export type {
   CriteriaToAttach,
   CriterionToAttach,
   EvidenceFor,
+  ExperimentFacet,
   ExperimentFrontmatter,
+  ExperimentListing,
   ExperimentPage,
   ExperimentSections,
+  ExperimentSort,
   ExperimentStatus,
+  ListedExperiment,
+  RunReading,
   WhereItRanLine,
 } from "./experiment.js";
 export type {

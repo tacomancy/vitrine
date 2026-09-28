@@ -349,23 +349,27 @@ const byClaim = (a: ReadHypothesis, b: ReadHypothesis) =>
   a.sections.claim.text.localeCompare(b.sections.claim.text);
 
 /**
- * The Criteria this run is Evidence for, read back from the Hypotheses —
- * the only place an attachment is written (§ Vault layout (Experiment)).
- * The Index says which Hypotheses link here, so only those are read; the
- * page read then keeps the links that are Evidence lines under a
- * criterion, so a mention in the claim or design notes is not an
+ * The Evidence lines naming a run, read back from the Hypotheses — the
+ * only place an attachment is written (§ Vault layout (Experiment)). The
+ * Index says which Hypotheses link to the runs asked about, so only those
+ * are read; the page read then keeps the links that are Evidence lines
+ * under a criterion, so a mention in the claim or design notes is not an
  * attachment. A line written in Obsidian is found the same way, once the
- * watcher has told the Index.
+ * watcher has told the Index. One reader for the page's rail and the
+ * Inbox's *attached*, so the two can never disagree about a run.
  */
-async function evidenceFor(
+async function evidenceLines(
   index: VaultIndex,
   vaultPath: string,
-  path: string
-): Promise<EvidenceFor[]> {
+  runs: string[]
+): Promise<(EvidenceFor & { run: string })[]> {
+  if (runs.length === 0) return [];
+  const wanted = new Set(runs);
   const linking = index.select<{ path: string }>(
-    `SELECT DISTINCT path FROM links WHERE resolved_path = ?
+    `SELECT DISTINCT path FROM links
+     WHERE resolved_path IN (${runs.map(() => "?").join(", ")})
      AND path IN (SELECT path FROM files WHERE kind = ?)`,
-    path,
+    ...runs,
     HYPOTHESIS
   );
   const pages = (
@@ -375,14 +379,34 @@ async function evidenceFor(
   ).filter((page): page is ReadHypothesis => page.readable);
   return pages.sort(byClaim).flatMap((page) =>
     falsifyingFirst(page.sections.criteria.criteria).flatMap((criterion) =>
-      criterion.evidence
-        .filter((line) => line.link?.resolvedPath === path)
-        .map((line) => ({
-          hypothesis: { path: page.path, claim: page.sections.claim.text },
-          criterion: toAttach(criterion),
-          note: line.note,
-        }))
+      criterion.evidence.flatMap((line) => {
+        const run = line.link?.resolvedPath;
+        return run == null || !wanted.has(run)
+          ? []
+          : [
+              {
+                run,
+                hypothesis: {
+                  path: page.path,
+                  claim: page.sections.claim.text,
+                },
+                criterion: toAttach(criterion),
+                note: line.note,
+              },
+            ];
+      })
     )
+  );
+}
+
+/** The Criteria this run is Evidence for, in the order the attach list shows them. */
+async function evidenceFor(
+  index: VaultIndex,
+  vaultPath: string,
+  path: string
+): Promise<EvidenceFor[]> {
+  return (await evidenceLines(index, vaultPath, [path])).map(
+    ({ hypothesis, criterion, note }) => ({ hypothesis, criterion, note })
   );
 }
 
@@ -627,4 +651,213 @@ export async function setExperimentStatus(
       basedOn,
     };
   });
+}
+
+/**
+ * The Experiment surface's views (#372; spec #362 stories 56–61). `inbox`
+ * is the Experiment Inbox — complete, and either unread or unattached —
+ * and its two halves are the other two; `status` covers every run, or the
+ * runs of one status.
+ */
+export const FACETS = [
+  "inbox",
+  "not-yet-interpreted",
+  "read-unattached",
+  "status",
+] as const;
+export type ExperimentFacet = (typeof FACETS)[number];
+
+export const SORTS = ["newest", "oldest", "most-artifacts", "shuffle"] as const;
+export type ExperimentSort = (typeof SORTS)[number];
+
+/**
+ * What a row says of a run's reading: *attached* once it is Evidence for
+ * a Criterion and written up, *read* once written up, *not yet read*
+ * before that — attached or not, since an attachment is no reading of the
+ * run's own.
+ */
+export type RunReading = "attached" | "read" | "not yet read";
+
+/** One run as a row and the detail pane show it. */
+export type ListedExperiment = {
+  path: string;
+  /** SHA-256 of the bytes read: what `D`'s status write is `basedOn`. */
+  hash: string;
+  name: string;
+  status: ExperimentStatus | null;
+  statusUnreadable: string | null;
+  purpose: string;
+  /** `created:`, or the file's modification time for a run written without one. */
+  when: string;
+  artifacts: number;
+  /** What the detail pane draws; null for a run with none. */
+  firstArtifact: ArtifactLine | null;
+  whereItRan: WhereItRanLine[];
+  /** The `repo:` line's value, which the project facet narrows by. */
+  project: string | null;
+  reading: RunReading;
+};
+
+export type ExperimentListing = {
+  /** How many runs the vault holds, whatever the view shows: the one number in the chrome. */
+  runs: number;
+  /** Every project a run names, sorted; empty drops the facet. */
+  projects: string[];
+  experiments: ListedExperiment[];
+  /** A run that could not be read is named, never quietly missing from a view. */
+  unreadable: { path: string; reason: string }[];
+};
+
+const inView = (
+  run: ListedExperiment,
+  attached: boolean,
+  facet: ExperimentFacet,
+  status: ExperimentStatus | undefined
+): boolean => {
+  const complete = run.status === "complete";
+  const observed = run.reading !== "not yet read";
+  switch (facet) {
+    case "inbox":
+      return complete && (!observed || !attached);
+    case "not-yet-interpreted":
+      return complete && !observed;
+    case "read-unattached":
+      return complete && observed && !attached;
+    case "status":
+      return status === undefined || run.status === status;
+  }
+};
+
+// FNV-1a over the seed and the path: an order that looks arbitrary and is
+// the same on every read with the same seed, so a re-read after a write
+// does not reshuffle the list out from under the selection.
+function shuffleKey(seed: number, path: string): number {
+  let hash = 0x811c9dc5 ^ seed;
+  for (let i = 0; i < path.length; i += 1) {
+    hash ^= path.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * The Experiment Inbox and the surface's other views (#372). Derived on
+ * every read and never stored: a run is in the Inbox because of what its
+ * file and the Hypotheses say about it, so nothing can clear it but
+ * writing it up and attaching it, or abandoning it (spec #362 story 66).
+ * Which runs exist, and which Hypotheses name one, are the Index's; each
+ * run's page is read for what its row shows.
+ */
+export async function listExperiments(
+  index: VaultIndex,
+  vaultPath: string,
+  {
+    facet,
+    status,
+    project,
+    sort,
+    seed = 0,
+  }: {
+    facet: ExperimentFacet;
+    status?: ExperimentStatus | undefined;
+    project?: string | undefined;
+    sort: ExperimentSort;
+    seed?: number | undefined;
+  }
+): Promise<ExperimentListing> {
+  const files = index.select<{ path: string; mtime: number | null }>(
+    "SELECT path, mtime FROM files WHERE kind = ? ORDER BY path",
+    KIND
+  );
+  const attached = new Set(
+    (
+      await evidenceLines(
+        index,
+        vaultPath,
+        files.map((f) => f.path)
+      )
+    ).map((line) => line.run)
+  );
+  const unreadable: ExperimentListing["unreadable"] = [];
+  const runs = (
+    await Promise.all(
+      files.map(async ({ path, mtime }): Promise<ListedExperiment | null> => {
+        const read = await readPageFile(vaultPath, path, [KIND], PAGE.noun);
+        if (!read.readable) {
+          unreadable.push({ path: read.path, reason: read.reason });
+          return null;
+        }
+        const { content, outline } = read;
+        const body = (name: (typeof SECTIONS)[number]) =>
+          bodyText(content, section(outline, name).heading);
+        const stem = path.replace(/^.*\//, "").replace(/\.md$/, "");
+        const fm = readExperiment(
+          (outline.frontmatter?.value ?? {}) as Record<string, unknown>,
+          stem
+        );
+        const whereItRan = whereItRanLines(body("Where it ran"));
+        const artifacts = await artifactLines(
+          vaultPath,
+          path,
+          body("Artifacts")
+        );
+        const observed = body("Observations").trim() !== "";
+        return {
+          path,
+          hash: read.hash,
+          name: fm.name,
+          status: fm.status,
+          statusUnreadable: fm.statusUnreadable,
+          purpose: body("Purpose").trim(),
+          when: fm.created ?? new Date(mtime ?? 0).toISOString(),
+          artifacts: artifacts.length,
+          firstArtifact: artifacts[0] ?? null,
+          whereItRan,
+          project:
+            whereItRan.find(
+              (line) =>
+                line.label?.toLowerCase() === "repo" && line.value !== ""
+            )?.value ?? null,
+          reading: !observed
+            ? "not yet read"
+            : attached.has(path)
+              ? "attached"
+              : "read",
+        };
+      })
+    )
+  ).filter((run): run is ListedExperiment => run !== null);
+
+  const time = (run: ListedExperiment) => Date.parse(run.when) || 0;
+  // Ties fall back to the path, so no two reads order the same runs differently.
+  const byPath = (a: ListedExperiment, b: ListedExperiment) =>
+    a.path.localeCompare(b.path);
+  const order: Record<
+    ExperimentSort,
+    (a: ListedExperiment, b: ListedExperiment) => number
+  > = {
+    newest: (a, b) => time(b) - time(a) || byPath(a, b),
+    oldest: (a, b) => time(a) - time(b) || byPath(a, b),
+    "most-artifacts": (a, b) =>
+      b.artifacts - a.artifacts || time(b) - time(a) || byPath(a, b),
+    shuffle: (a, b) =>
+      shuffleKey(seed, a.path) - shuffleKey(seed, b.path) || byPath(a, b),
+  };
+
+  return {
+    runs: files.length,
+    projects: [
+      ...new Set(
+        runs.flatMap((run) => (run.project === null ? [] : [run.project]))
+      ),
+    ].sort((a, b) => a.localeCompare(b)),
+    experiments: runs
+      .filter(
+        (run) =>
+          inView(run, attached.has(run.path), facet, status) &&
+          (project === undefined || run.project === project)
+      )
+      .sort(order[sort]),
+    unreadable: unreadable.sort((a, b) => a.path.localeCompare(b.path)),
+  };
 }
