@@ -595,6 +595,16 @@ function createIndex(
       candidates = filesByName.all(link.ltarget, link.ltarget) as Candidate[];
     }
     if (candidates.length === 0) return landed(null, "unresolved");
+    // Two files by one bare name, one of them beside the linking file: that
+    // one, as Obsidian answers (L2c–d, ADR 0036). An Experiment embeds its
+    // stored `![[plot.png]]` by bare name, and every run has a plot.png.
+    // Only the linking file's own folder counts — Obsidian also ranks its
+    // subfolders and any sibling whose name it prefixes, which is a guess.
+    if (candidates.length > 1) {
+      const own = posix.dirname(link.path);
+      const beside = candidates.filter((c) => posix.dirname(c.path) === own);
+      if (beside.length === 1) candidates = beside;
+    }
     // Two files by one bare name: nothing, never the first indexed (L2a,
     // by design); Loose Ends offers the path-qualified rewrite. The files
     // themselves come back with the verdict — a surface that says only

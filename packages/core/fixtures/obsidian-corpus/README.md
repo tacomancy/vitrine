@@ -74,6 +74,8 @@ Obsidian version: 1.13.7 (installer 1.8.10), macOS, 2026-09-21. Rows were answer
 | L1l | links-all-forms.md | `[[Sleep and consolidation\|shown]]` — resolves? | `resolves` / `unresolved` | resolves |
 | L2a | links-same-name.md        | `[[Klinzing 2019]]` opens which file?                        | `a/` / `b/` / `asks`       | a/ — equal depth; Obsidian picks the first it indexed (alphabetical) |
 | L2b | links-same-name.md        | does Obsidian rewrite the link to include a folder on click? | `yes` / `no`               | no |
+| L2c | b/links-same-folder.md    | `[[Klinzing 2019]]` and `![[Klinzing 2019]]` from inside `b/` — which file? | `a/` / `b/`       | b/ — the embed renders *In folder b*, though alphabetical order puts `a/` first; the link renders resolved (1.13.7, 2026-09-28) |
+| L2d | run-a/run-a.md, run-b/run-b.md | `![[plot.png]]` with a `plot.png` in each folder — which image does each draw? | `own` / `run-a` / `run-b` | own — red from `run-a/`, blue from `run-b/`, the stored-Artifact shape (ADR 0035) repeated across two runs. These fixtures and `b/links-same-folder.md` were written outside Obsidian, so they are the exception to this file's opening line. Obsidian only opened them, and changed no byte |
 | L3  | links-case.md             | `[[sleep AND consolidation]]`                                | `resolves` / `unresolved`  | resolves |
 | L4a | links-heading-fragment.md | `[[…#heading]]` (lowercase)                                  | `resolves` / `unresolved`  | resolves |
 | L4b | links-heading-fragment.md | `[[…# Heading ]]` (stray spaces)                             | `resolves` / `unresolved`  | resolves |

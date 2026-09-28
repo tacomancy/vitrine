@@ -14,7 +14,8 @@ import type { TagTree, TagNode } from "./vault-tags.js";
 // Link resolution across the vault (#191; `docs/architecture.md` § Markdown,
 // link grammar; § Index, Refresh): a derived column on the index, read
 // through `vault.outline`. The corpus README's Links and Block ids rows are
-// the oracle; the divergence (ambiguous resolves to nothing) is by design.
+// the oracle; the divergence (ambiguous resolves to nothing unless one
+// candidate is beside the linking file, ADR 0036) is by design.
 
 afterEach(closeCores);
 
@@ -76,6 +77,24 @@ describe("README rows: links, resolved", () => {
     const c = await opened(await fixtureCopy("obsidian-corpus"));
     expect(await resolutions(c, "links-same-name.md")).toEqual([
       ["Klinzing 2019", "ambiguous", null],
+    ]);
+  });
+
+  it("L2c — the same bare name, linked and embedded from inside b/, reaches b/'s file: the linking file's own folder decides", async () => {
+    const c = await opened(await fixtureCopy("obsidian-corpus"));
+    expect(await resolutions(c, "b/links-same-folder.md")).toEqual([
+      ["Klinzing 2019", ...resolved("b/Klinzing 2019.md")],
+      ["Klinzing 2019", ...resolved("b/Klinzing 2019.md")],
+    ]);
+  });
+
+  it("L2d — two runs each embedding ![[plot.png]] each reach their own", async () => {
+    const c = await opened(await fixtureCopy("obsidian-corpus"));
+    expect(await resolutions(c, "run-a/run-a.md")).toEqual([
+      ["plot.png", ...resolved("run-a/plot.png")],
+    ]);
+    expect(await resolutions(c, "run-b/run-b.md")).toEqual([
+      ["plot.png", ...resolved("run-b/plot.png")],
     ]);
   });
 
@@ -165,6 +184,25 @@ describe("resolution rules the corpus leaves open", () => {
     ]);
   });
 
+  it("only the linking file's own folder breaks a tie — not a subfolder of it, nor a sibling folder whose name it prefixes (Obsidian's rule reaches both)", async () => {
+    const vault = await tmp("own-folder");
+    for (const dir of ["run", "run/figs", "run 2", "other"])
+      await mkdir(join(vault, dir), { recursive: true });
+    await writeFile(join(vault, "run/figs/loss.png"), "png");
+    await writeFile(join(vault, "run 2/curve.png"), "png");
+    await writeFile(join(vault, "other/loss.png"), "png");
+    await writeFile(join(vault, "other/curve.png"), "png");
+    await writeFile(
+      join(vault, "run/run.md"),
+      "![[loss.png]] ![[curve.png]]\n"
+    );
+    const c = await opened(vault);
+    expect(await resolutions(c, "run/run.md")).toEqual([
+      ["loss.png", "ambiguous", null],
+      ["curve.png", "ambiguous", null],
+    ]);
+  });
+
   it("an embed of a .png and a link to a .pdf resolve; a link to a dot-entry does not", async () => {
     const vault = await tmp("non-markdown");
     await mkdir(join(vault, "sources", "pdf"), { recursive: true });
@@ -192,20 +230,23 @@ describe("resolution follows the vault without re-outlining the linking file", (
     const vault = await fixtureCopy("obsidian-corpus");
     // The linking file carries a Kind so a `positionsOf` stand-in logs every
     // time it is outlined — the proof that a rename elsewhere never re-reads it.
+    // In a folder of its own, so the twin below is not outranked by a
+    // same-folder candidate and the name really is caught between two.
+    await mkdir(join(vault, "elsewhere"));
     await writeFile(
-      join(vault, "Linker.md"),
+      join(vault, "elsewhere", "Linker.md"),
       "---\nkind: linker\n---\n[[Sleep and consolidation]]\n"
     );
     const outlined: string[] = [];
     const c = await opened(vault, {
       positionsOf: { linker: (outline) => (outlined.push(outline.path), []) },
     });
-    const before = await readable(c, "Linker.md");
+    const before = await readable(c, "elsewhere/Linker.md");
     expect(before.outline.links[0]).toMatchObject({
       resolution: "resolved",
       resolvedPath: "Sleep and consolidation.md",
     });
-    expect(outlined).toEqual(["Linker.md"]);
+    expect(outlined).toEqual(["elsewhere/Linker.md"]);
 
     const events = await c.events();
     await mkdir(join(vault, "twin"));
@@ -214,23 +255,57 @@ describe("resolution follows the vault without re-outlining the linking file", (
       "twin\n"
     );
     await events.next("vaultChanged");
-    const during = await readable(c, "Linker.md");
+    const during = await readable(c, "elsewhere/Linker.md");
     expect(during.outline.links[0]).toMatchObject({
       resolution: "ambiguous",
       resolvedPath: null,
     });
     expect(during.hash).toBe(before.hash);
-    expect(outlined).toEqual(["Linker.md"]);
+    expect(outlined).toEqual(["elsewhere/Linker.md"]);
 
     await rm(join(vault, "twin", "Sleep and consolidation.md"));
     await events.next("vaultChanged");
-    const after = await readable(c, "Linker.md");
+    const after = await readable(c, "elsewhere/Linker.md");
     expect(after.outline.links[0]).toMatchObject({
       resolution: "resolved",
       resolvedPath: "Sleep and consolidation.md",
     });
     expect(after.hash).toBe(before.hash);
-    expect(outlined).toEqual(["Linker.md"]);
+    expect(outlined).toEqual(["elsewhere/Linker.md"]);
+    events.close();
+  });
+
+  it("a link that lands in its own folder stays resolved when a same-named file appears elsewhere", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    const c = await opened(vault);
+    const events = await c.events();
+    await mkdir(join(vault, "run-c"));
+    await writeFile(join(vault, "run-c", "plot.png"), "png");
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "run-b/run-b.md")).toEqual([
+      ["plot.png", ...resolved("run-b/plot.png")],
+    ]);
+    events.close();
+  });
+
+  it("a note moved into a run's folder reaches that run's plot.png, and is ambiguous again once moved out", async () => {
+    const vault = await fixtureCopy("obsidian-corpus");
+    await writeFile(join(vault, "Loose.md"), "![[plot.png]]\n");
+    const c = await opened(vault);
+    expect(await resolutions(c, "Loose.md")).toEqual([
+      ["plot.png", "ambiguous", null],
+    ]);
+    const events = await c.events();
+    await rename(join(vault, "Loose.md"), join(vault, "run-a", "Loose.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "run-a/Loose.md")).toEqual([
+      ["plot.png", ...resolved("run-a/plot.png")],
+    ]);
+    await rename(join(vault, "run-a", "Loose.md"), join(vault, "Loose.md"));
+    await events.next("vaultChanged");
+    expect(await resolutions(c, "Loose.md")).toEqual([
+      ["plot.png", "ambiguous", null],
+    ]);
     events.close();
   });
 
