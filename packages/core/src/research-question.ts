@@ -689,7 +689,7 @@ export type ResolveResult = { page: WriteResult; question: WriteBack };
 // The write-back does not care what the Question's Status is: the page is
 // the authority for a pursuit that ended, and a page resolved twice across
 // a reopen must still be able to say so.
-const ANY_STATUS: readonly QuestionStatus[] = [
+export const ANY_STATUS: readonly QuestionStatus[] = [
   "open",
   "promoted",
   "answered",

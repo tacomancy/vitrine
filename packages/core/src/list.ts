@@ -31,14 +31,19 @@ export function listQuestions(
 ): Listing {
   const absolute = (path: string) => join(vaultPath, path);
 
-  // Assembled key by key: `readQuestion` is the only writer of `fields`
-  // rows for a Question, so every key here is one of `ListedQuestion`'s and
-  // every value has already passed its vocabulary.
-  const fields = new Map<string, QuestionFields>();
+  // Assembled key by key: `readQuestion` and `answeredWith` are the only
+  // writers of `fields` rows for a Question, so every key here is one of
+  // `ListedQuestion`'s and every value has already passed its vocabulary.
+  const fields = new Map<
+    string,
+    QuestionFields & Pick<ListedQuestion, "answeredWith">
+  >();
   for (const row of index.select<{ path: string; key: string; value: string }>(
     "SELECT path, key, value FROM fields WHERE path IN (SELECT path FROM files WHERE kind = 'question') ORDER BY path"
   )) {
-    const q = fields.get(row.path) ?? ({} as QuestionFields);
+    const q =
+      fields.get(row.path) ??
+      ({} as QuestionFields & Pick<ListedQuestion, "answeredWith">);
     (q as Record<string, unknown>)[row.key] = JSON.parse(row.value) as unknown;
     fields.set(row.path, q);
   }

@@ -57,6 +57,7 @@ const page = (criteria: CriterionRead[] = [criterion()]): Readable => ({
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: criteria.length },
   },
   overridable: false,
+  loop: { status: "none", closable: false, result: "inconclusive" },
   problems: [],
 });
 

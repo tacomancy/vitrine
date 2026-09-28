@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
+import { RESULT_TAIL, type LoopResult } from "./hypothesis-rule.js";
 import {
   analyseFile,
   locate,
@@ -17,6 +18,11 @@ export type QuestionStatus = "open" | "promoted" | "answered" | "abandoned";
  */
 export type ListedQuestion = Omit<QuestionFields, "promotedTo"> & {
   path: string;
+  /**
+   * The result of the newest Hypothesis loop closed onto this Question
+   * (`answeredWith`), so an answered row can say *answered — falsified*.
+   */
+  answeredWith?: LoopResult;
   /**
    * On a promoted Question: the `promoted_to` link as written, and the
    * page it resolves to (vault-relative) — null when the index finds no
@@ -108,6 +114,32 @@ export function readQuestion(
   const promotedTo = asString(fm["promoted_to"]);
   if (promotedTo !== undefined) q.promotedTo = promotedTo;
   return q;
+}
+
+/**
+ * The result the newest `Answered by [[hypothesis]] — <result>, <date>`
+ * line in the lead carries, or null (#338; ADR 0031 decision 8). Indexed
+ * beside the frontmatter keys so the Inbox can say what a closed loop
+ * answered without reading a file (ADR 0014 decision 3). The newest is the
+ * last: a close only ever appends, and never rewrites a line it wrote.
+ */
+export function answeredWith(
+  content: string,
+  outline: Pick<FileOutline, "headings" | "frontmatter">
+): LoopResult | null {
+  const start = outline.frontmatter?.range.end ?? 0;
+  const end =
+    outline.headings.find((h) => h.level === 2)?.range.start ?? content.length;
+  // The outline's offsets are into the text without a BOM.
+  const text = content.replace(/^\uFEFF/, "");
+  let newest: LoopResult | null = null;
+  for (const line of text.slice(start, end).split(/\r?\n/)) {
+    const link = /^Answered by \[\[[^\]]+\]\]/.exec(line);
+    if (link === null) continue;
+    const tail = RESULT_TAIL.exec(line.slice(link[0].length));
+    if (tail !== null) newest = tail[1] as LoopResult;
+  }
+  return newest;
 }
 
 /** A Question read from disk for a write: what every triage action needs of it. */

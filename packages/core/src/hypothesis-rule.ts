@@ -381,3 +381,47 @@ export function criteriaEntries(
   }
   return entries;
 }
+
+/**
+ * The words a Write-back line carries (§ Vault layout (Hypothesis); ADR
+ * 0031 decision 8). *supported (override)* is its own word so the
+ * partiality of an Override travels into the question it answers (spec
+ * #327 story 68) rather than reading there as a result the criteria
+ * reached.
+ */
+export type LoopResult =
+  "supported" | "supported (override)" | "falsified" | "inconclusive";
+
+/** The word closing the loop now would write. */
+export const resultOf = (d: Derivation): LoopResult =>
+  d.override !== null ? "supported (override)" : d.effective;
+
+/**
+ * Why the loop cannot be closed on this derivation, or null when it can
+ * (ADR 0031 decision 8). One function for the page's offer and the core's
+ * refusal, as `overrideRefusal` is. *Inconclusive* closes only once every
+ * criterion carries an Outcome — a diagnostic one too, since the census
+ * counts it — because *tested and undecided* is an answer and *not yet
+ * tested* is not. With no criteria at all nothing has been tested.
+ */
+export function closeRefusal(d: Derivation): string | null {
+  if (d.effective !== "inconclusive") return null;
+  const { met, notMet, inconclusive, awaiting } = d.census;
+  if (met + notMet + inconclusive + awaiting === 0) {
+    return "No criteria are written: not yet tested is not an answer.";
+  }
+  if (awaiting > 0) {
+    return "A criterion still awaits evidence: not yet tested is not an answer.";
+  }
+  return null;
+}
+
+/**
+ * What follows the Hypothesis's link on a Write-back line: ` — falsified,
+ * 2026-09-30`. The grammar every reader of the line shares — the page's
+ * loop status and the Inbox's row — so a line the close wrote is always
+ * one they find, and a *sharpened into a hypothesis* line naming the same
+ * page never is.
+ */
+export const RESULT_TAIL =
+  /^ — (supported \(override\)|supported|falsified|inconclusive), (\d{4}-\d{2}-\d{2})$/;

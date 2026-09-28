@@ -594,7 +594,13 @@ const rowId = (index: number) => `question-row-${index}`;
  */
 function StatusWord({ question }: { question: ListedQuestion }) {
   if (question.status === "open") return null;
-  const { label } = STATUS[question.status];
+  // A Question a Hypothesis's closed loop answered says what the answer was
+  // (#338): *answered — falsified* reads as a result, *answered* alone as
+  // though it were answered in place.
+  const label =
+    question.answeredWith === undefined
+      ? STATUS[question.status].label
+      : `${STATUS[question.status].label} \u2014 ${question.answeredWith}`;
   const page = question.promotedTo?.path ?? null;
   return (
     <>

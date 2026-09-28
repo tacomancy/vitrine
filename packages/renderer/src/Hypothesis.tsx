@@ -3,6 +3,7 @@ import type {
   CriterionRead,
   Derivation,
   HypothesisFrontmatter,
+  Loop,
   Revision,
 } from "core";
 import { useState } from "react";
@@ -10,6 +11,7 @@ import { formatAge } from "./age";
 import styles from "./Hypothesis.module.css";
 import { hypothesisFilters } from "./history";
 import { Criteria } from "./HypothesisCriteria";
+import { LoopLine } from "./HypothesisLoop";
 import { OverrideForm } from "./HypothesisOverride";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PositionField } from "./PositionField";
@@ -100,6 +102,7 @@ export function Hypothesis({ path }: { path: string }) {
           <State
             derivation={readable.derivation}
             overridable={readable.overridable}
+            loop={readable.loop}
             criteria={readable.sections.criteria.criteria}
             path={readable.path}
             hash={readable.hash}
@@ -249,16 +252,21 @@ function baseLine(fm: HypothesisFrontmatter): string {
  * the criteria said and what was decided instead (story 59). The Override
  * is reached from the line under the rule, offered only when the core says
  * one can be made, never as a control beside the state.
+ *
+ * Below it, the loop (#338): the result written back to where the
+ * Hypothesis came from, or why it cannot be (`HypothesisLoop.tsx`).
  */
 function State({
   derivation,
   overridable,
+  loop,
   criteria,
   path,
   hash,
 }: {
   derivation: Derivation;
   overridable: boolean;
+  loop: Loop;
   criteria: CriterionRead[];
   path: string;
   hash: string;
@@ -327,6 +335,7 @@ function State({
           onClose={() => setOverriding(false)}
         />
       )}
+      <LoopLine loop={loop} path={path} hash={hash} />
     </section>
   );
 }

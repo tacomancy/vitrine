@@ -92,6 +92,7 @@ const page = (
   },
   derivation: inconclusive,
   overridable: true,
+  loop: { status: "none", closable: false, result: "inconclusive" },
   problems: [],
   ...over,
 });

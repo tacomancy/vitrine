@@ -8,6 +8,7 @@ import {
   deleteCriterion,
   editCriterion,
   FIELDS,
+  closeLoop,
   overrideState,
   PAGE as HYPOTHESIS_PAGE,
   readHypothesisPage,
@@ -367,6 +368,20 @@ export const router = t.router({
         refusing(
           overrideState(await requirePage(ctx), input.path, {
             ...input,
+            at: ctx.now(),
+          })
+        )
+      ),
+    // Close the loop (#338): the result written one hop up, to the Question
+    // or Research Question the page was promoted from, and nothing written
+    // to the Hypothesis. Refused, with the reason, when the state is not
+    // closable or there is no one parent to write to.
+    closeLoop: t.procedure
+      .input(pathInput.extend({ basedOn: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          closeLoop(await requirePage(ctx), input.path, {
+            basedOn: input.basedOn,
             at: ctx.now(),
           })
         )

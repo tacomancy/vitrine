@@ -77,6 +77,15 @@ const page: HypothesisPage = {
     census: { met: 0, notMet: 0, inconclusive: 0, awaiting: 0 },
   },
   overridable: false,
+  loop: {
+    status: "open",
+    parent: {
+      path: "questions/Does slow-wave density predict recall gain.md",
+      kind: "question",
+    },
+    closable: false,
+    result: "inconclusive",
+  },
   problems: [],
 };
 
@@ -202,6 +211,20 @@ describe("promote to Hypothesis", () => {
     const [row] = await rows();
     expect(within(row!).getByRole("img", { name: "promoted" })).toBeDefined();
     const link = within(row!).getByRole("link", { name: "promoted" });
+    expect(link.getAttribute("href")).toBe(
+      "#/hypothesis/hypotheses/Reward-based%20triage%20predates%202010..md"
+    );
+  });
+
+  it("a row answered by closing a Hypothesis's loop reads answered with the result, linking to the Hypothesis", async () => {
+    renderInbox([
+      { ...promoted, status: "answered", answeredWith: "supported (override)" },
+    ]);
+    const [row] = await rows();
+    expect(within(row!).getByRole("img", { name: "answered" })).toBeDefined();
+    const link = within(row!).getByRole("link", {
+      name: "answered — supported (override)",
+    });
     expect(link.getAttribute("href")).toBe(
       "#/hypothesis/hypotheses/Reward-based%20triage%20predates%202010..md"
     );

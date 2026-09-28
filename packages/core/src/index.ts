@@ -20,8 +20,15 @@ export type {
   HypothesisFrontmatter,
   HypothesisPage,
   HypothesisSections,
+  Loop,
+  LoopParent,
 } from "./hypothesis.js";
-export type { Clause, Derivation, DerivedState } from "./hypothesis-rule.js";
+export type {
+  Clause,
+  Derivation,
+  DerivedState,
+  LoopResult,
+} from "./hypothesis-rule.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {
