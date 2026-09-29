@@ -8,6 +8,7 @@ import type {
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
+  UnreadablePdf,
 } from "core";
 import { formatAge } from "./age";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -258,6 +259,8 @@ function Row(props: {
   switch (props.row.kind) {
     case "no-source":
       return <NoSourcePdf row={props.row} resolution={props.resolution} />;
+    case "unreadable-pdf":
+      return <UnreadablePdfRow row={props.row} resolution={props.resolution} />;
     case "stalled-research-question":
       return <Stalled {...props} row={props.row} />;
     case "stalled-hypothesis":
@@ -633,8 +636,8 @@ function MissingFiles({
  * neither ingested nor indexed until it is resolved. *Attach to a stub* is
  * the picker narrowed to stubs and one write in the core; the row then
  * stays, saying what happened, until the dashboard is next read. Nothing
- * here renames or moves the file, and *create a Source* is the PDF
- * engine's ticket.
+ * here renames or moves the file. *Create a Source* is one write in the
+ * core, from the PDF's own title and authors (#418).
  */
 function NoSourcePdf({
   row,
@@ -653,19 +656,36 @@ function NoSourcePdf({
       onError: (error) => setRefusal(error.message),
     })
   );
+  // *Create a Source* answers either way: a Source, or the reason the file
+  // would not read — which the next read of the dashboard shows as a row.
+  const [made, setMade] = useState<
+    { citekey: string } | { reason: string } | null
+  >(null);
+  const create = useMutation(
+    trpc.sources.createFromFile.mutationOptions({
+      onSuccess: (reply) =>
+        setMade(reply.readable ? { citekey: reply.citekey } : reply),
+      onError: (error) => setRefusal(error.message),
+    })
+  );
   const stubName = attachedTo?.replace(/^.*\//, "").replace(/\.md$/, "");
+  const done = attachedTo !== null || made !== null;
   return (
     <RowShell
       meta="PDF · no Source"
       title={row.title}
       why={
-        attachedTo === null
-          ? "No Source names this file, so it is neither read nor indexed."
-          : `Attached to ${stubName} — it is a Source now, and the file keeps the name it has.`
+        made !== null
+          ? "citekey" in made
+            ? `Created ${made.citekey} from the file's own metadata — it is a Source now, and the file keeps the name it has.`
+            : `This PDF could not be read because ${made.reason}. It shows under Broken plumbing when the dashboard is next read.`
+          : attachedTo === null
+            ? "No Source names this file, so it is neither read nor indexed."
+            : `Attached to ${stubName} — it is a Source now, and the file keeps the name it has.`
       }
       resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
       actions={
-        attachedTo === null && (
+        !done && (
           <>
             <button
               type="button"
@@ -676,6 +696,16 @@ function NoSourcePdf({
               }}
             >
               attach to a stub
+            </button>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => {
+                setRefusal(undefined);
+                create.mutate({ pdf: row.path });
+              }}
+            >
+              create a Source
             </button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
@@ -694,5 +724,64 @@ function NoSourcePdf({
         />
       )}
     </RowShell>
+  );
+}
+
+/**
+ * *A PDF the engine could not read* (#418; spec #416 stories 65–67): the
+ * reason is the core's own words and carries no path. *Try again* runs the
+ * engine once, when asked — a file that stopped the reader is never retried
+ * on its own — and says what came of it; the row itself goes, or stays with
+ * its new reason, when the dashboard is next read.
+ */
+function UnreadablePdfRow({
+  row,
+  resolution,
+}: {
+  row: UnreadablePdf;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const [answer, setAnswer] = useState<{
+    readable: boolean;
+    reason?: string;
+  } | null>(null);
+  const retry = useMutation(
+    trpc.sources.tryAgain.mutationOptions({
+      onSuccess: setAnswer,
+      onError: (error) => setRefusal(error.message),
+    })
+  );
+  const reason = answer?.reason ?? row.reason;
+  return (
+    <RowShell
+      meta="PDF · unreadable"
+      title={row.title}
+      why={
+        answer?.readable === true
+          ? "It reads now. It is a PDF no Source names again when the dashboard is next read, and can be attached or made a Source then."
+          : `This PDF could not be read because ${reason}.`
+      }
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        <>
+          {answer?.readable !== true && (
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={retry.isPending}
+              onClick={() => {
+                setRefusal(undefined);
+                retry.mutate({ pdf: row.path });
+              }}
+            >
+              try again
+            </button>
+          )}
+          <Deliberate onDismiss={resolution.onDismiss} />
+        </>
+      }
+    />
   );
 }

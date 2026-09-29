@@ -6,6 +6,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
 import { createEvents } from "./events.js";
+import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
 import { STALLED_OPEN_DAYS } from "./loose-ends.js";
 import { createQuestionService, randomId } from "./questions.js";
@@ -52,6 +53,8 @@ export type AppOptions = {
    * stream (#188) and the test harness hang off.
    */
   index?: IndexOptions;
+  /** A stand-in for the PDF engine's worker; tests use one that traps (#418). */
+  pdfWorker?: URL;
 };
 
 export type App = {
@@ -85,6 +88,7 @@ export function createApp({
   watch,
   probeTimeoutMs,
   index,
+  pdfWorker,
 }: AppOptions): App {
   const app = new Hono();
   const events = createEvents();
@@ -126,7 +130,14 @@ export function createApp({
       },
     },
   });
+  // The worker starts with the first PDF it is asked to read, not with the
+  // core, so a vault of no PDFs never pays for a WebAssembly heap.
+  const pdfs = {
+    engine: createPdfEngine(pdfWorker ? { workerUrl: pdfWorker } : {}),
+    unreadable: new Map(),
+  };
   const context: Context = {
+    pdfs,
     vault,
     questions: createQuestionService({ vault, now, newId }),
     events,
@@ -170,7 +181,10 @@ export function createApp({
 
   return {
     app,
-    close: () => vault.close(),
+    close: async () => {
+      await vault.close();
+      await pdfs.engine.close();
+    },
     release: () => vault.release(),
     focused: () => vault.focused(),
   };

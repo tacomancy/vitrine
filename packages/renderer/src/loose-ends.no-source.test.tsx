@@ -8,7 +8,7 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // The no-Source row (#417; spec #416 stories 4, 5, 69): a PDF nothing names,
 // under Unfinished reading, resolved by attaching it to a stub — narrowed
-// to stubs — or marked deliberate. Create-a-Source arrives with the engine.
+// to stubs — or marked deliberate. Create-a-Source is #418's.
 
 const ROW = {
   kind: "no-source" as const,
@@ -66,7 +66,7 @@ describe("the no-Source row", () => {
     expect(within(group).getByText("1 item")).toBeDefined();
   });
 
-  it("offers attach to a stub and mark deliberate, and no create yet", async () => {
+  it("offers attach to a stub, create a Source and mark deliberate", async () => {
     open();
     const item = await row();
     expect(
@@ -76,8 +76,44 @@ describe("the no-Source row", () => {
       within(item).getByRole("button", { name: "mark deliberate" })
     ).toBeDefined();
     expect(
-      within(item).queryByRole("button", { name: /create a source/i })
+      within(item).getByRole("button", { name: "create a Source" })
+    ).toBeDefined();
+  });
+
+  it("creates a Source from the PDF and says which citekey it made", async () => {
+    const create = vi.fn<(input: unknown) => unknown>(() => ({
+      readable: true,
+      path: "sources/rasch.md",
+      citekey: "rasch",
+      id: "s1",
+    }));
+    open({ "sources.createFromFile": create });
+    const item = await row();
+    fireEvent.click(
+      within(item).getByRole("button", { name: "create a Source" })
+    );
+    await within(item).findByText(/created rasch/i);
+    expect(create).toHaveBeenCalledWith({ pdf: "sources/pdf/Rasch 2013.pdf" });
+    expect(
+      within(item).queryByRole("button", { name: "create a Source" })
     ).toBeNull();
+  });
+
+  it("names the reason when the file would not read, and no path", async () => {
+    open({
+      "sources.createFromFile": () => ({
+        readable: false,
+        reason: "it is protected by a password",
+      }),
+    });
+    const item = await row();
+    fireEvent.click(
+      within(item).getByRole("button", { name: "create a Source" })
+    );
+    await within(item).findByText(
+      /could not be read because it is protected by a password/
+    );
+    expect(item.textContent).not.toMatch(/\/Users|sources\/pdf/);
   });
 
   it("opens a picker narrowed to stubs, and attaches the PDF to the one chosen", async () => {

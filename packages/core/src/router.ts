@@ -46,7 +46,13 @@ import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
-import { attachPdf, createSourceStub } from "./sources.js";
+import {
+  attachPdf,
+  createSourceFromPdf,
+  createSourceStub,
+  retryUnreadable,
+  type PdfReads,
+} from "./sources.js";
 import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
@@ -84,6 +90,8 @@ export type Context = {
   stalledOpenDays: number;
   /** The id source for an object the router makes itself (an Experiment); pinned by tests. */
   newId: () => string;
+  /** The PDF engine and what it could not read (#418). */
+  pdfs: PdfReads;
   /** The shell's choosers: *+ artifact*'s file chooser is asked for here (ADR 0035). */
   host: Host;
 };
@@ -340,6 +348,27 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(attachPdf(vault.path, index, input, ctx.newId));
+      }),
+    // *Create a Source* on a no-Source row (#418): title and authors from
+    // the PDF's own metadata. A file the engine cannot read is an answer,
+    // not an error: `readable: false` and the reason.
+    createFromFile: t.procedure
+      .input(z.object({ pdf: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          createSourceFromPdf(vault.path, index, input, {
+            reads: ctx.pdfs,
+            newId: ctx.newId,
+          })
+        );
+      }),
+    // *Try again* on a *PDF unreadable* row: the engine runs once, now.
+    tryAgain: t.procedure
+      .input(z.object({ pdf: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(retryUnreadable(vault.path, index, input, ctx.pdfs));
       }),
   }),
   hypotheses: t.router({
@@ -896,6 +925,7 @@ export const router = t.router({
         days,
         stalledOpenDays: ctx.stalledOpenDays,
         machine: ctx.machine,
+        unreadable: ctx.pdfs.unreadable,
       });
     }),
     // Permanent, and judged per row kind: the same object can be loose in

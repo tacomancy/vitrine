@@ -34,6 +34,14 @@ module.exports = {
       to: { dependencyTypes: ["core"] },
     },
     {
+      name: "pdfium-only-in-the-engine",
+      comment:
+        "PDFium's bindings are touched by the engine's worker alone; everything else asks packages/core/src/pdf-engine.ts (ADR 0007 decision 3, spec #416).",
+      severity: "error",
+      from: { pathNot: "^packages/core/src/pdf-engine\\.worker\\.ts$" },
+      to: { path: "(^|/)@embedpdf/pdfium(/|$)" },
+    },
+    {
       name: "no-circular",
       comment: "No dependency cycles between modules.",
       severity: "error",
