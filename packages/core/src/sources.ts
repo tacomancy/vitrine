@@ -1,7 +1,9 @@
+import { posix } from "node:path";
 import { stringify } from "yaml";
 import { VaultError } from "./errors.js";
+import { PDF_FOLDER } from "./pdf-folder.js";
 import { serialised } from "./serialise.js";
-import { createFile } from "./vault-files.js";
+import { createFile, readOutline, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -219,4 +221,191 @@ async function makeStub(
       );
     }
   }
+}
+
+/** The two Kinds that carry a `pdf:`; a stub may name a file before it is read. */
+const PAPERS = ["source", "source-stub"];
+
+/** What a `pdf:` key names, as the vault path the picker and this compare by. */
+const namedPath = (pdf: string) =>
+  posix.join(PDF_FOLDER, pdf.trim()).toLowerCase();
+
+/** The `pdf:` value of every paper, by the paper's path. */
+function pdfKeys(index: VaultIndex): Array<{ path: string; pdf: string }> {
+  const named: Array<{ path: string; pdf: string }> = [];
+  for (const row of index.select<{ path: string; value: string }>(
+    `SELECT f.path, fm.value FROM files f JOIN frontmatter fm USING (path)
+      WHERE f.kind IN (${PAPERS.map(() => "?").join(", ")})`,
+    ...PAPERS
+  )) {
+    const pdf = (JSON.parse(row.value) as Record<string, unknown> | null)?.[
+      "pdf"
+    ];
+    if (typeof pdf === "string" && pdf.trim() !== "") {
+      named.push({ path: row.path, pdf });
+    }
+  }
+  return named;
+}
+
+/**
+ * The PDFs under `sources/pdf/` that no Source or stub names (spec #416
+ * story 4), by vault path. Read off the index alone.
+ *
+ * An evicted PDF — a sync client keeping it online-only — has no hash, and
+ * is left out: nothing about it is opened, hashed or acted on until its
+ * bytes are on disk (ADR 0013 decision 6), and the next sweep sees it again.
+ */
+export function unnamedPdfs(index: VaultIndex): string[] {
+  const named = new Set(pdfKeys(index).map(({ pdf }) => namedPath(pdf)));
+  return index
+    .select<{ path: string; lpath: string }>(
+      `SELECT path, lpath FROM files
+        WHERE markdown = 0 AND hash IS NOT NULL
+          AND lpath LIKE ? AND lpath LIKE '%.pdf'
+        ORDER BY path`,
+      `${PDF_FOLDER}/%`
+    )
+    .filter((row) => !named.has(row.lpath))
+    .map((row) => row.path);
+}
+
+// Attaching reads a stub and writes it back, and a rename followed writes a
+// Source's `pdf:` too; both run one at a time so neither plans against a
+// file the other is about to change.
+const attaching = serialised();
+
+/** What attaching did: the stub, now a Source, and the `id:` it was minted. */
+export type Attached = { path: string; id: string };
+
+/**
+ * *Attach to a stub* (spec #416; "Attaching a PDF makes a Source", amending
+ * ADR 0006 decision 7): one write that sets `pdf:` to the file's own name,
+ * flips `kind` from source stub to source, and mints `id:` — a stub
+ * deliberately has none, and the sidecar needs a key that survives a rename.
+ * Links name the citekey, so none of them changes.
+ *
+ * The PDF is never opened, renamed, moved or copied: its name is whatever
+ * it is called, relative to the folder.
+ */
+export function attachPdf(
+  vaultPath: string,
+  index: VaultIndex,
+  { pdf, stub }: { pdf: string; stub: string },
+  newId: () => string
+): Promise<Attached> {
+  return attaching(async () => {
+    const folder = `${PDF_FOLDER}/`;
+    const held = index.select<{ path: string; hash: string | null }>(
+      "SELECT path, hash FROM files WHERE markdown = 0 AND lpath = ?",
+      pdf.toLowerCase()
+    )[0];
+    if (!pdf.toLowerCase().startsWith(folder) || !/\.pdf$/i.test(pdf)) {
+      throw new VaultError(
+        "refused",
+        `${pdf} is not a PDF in the PDF folder, so there is nothing to attach.`
+      );
+    }
+    if (held === undefined) {
+      throw new VaultError("refused", `There is no PDF at ${pdf}.`);
+    }
+    if (held.hash === null) {
+      throw new VaultError(
+        "refused",
+        `${held.path} is not on this Mac yet; attach it once it has downloaded.`
+      );
+    }
+    const wanted = held.path.toLowerCase();
+    const owner = pdfKeys(index).find((key) => namedPath(key.pdf) === wanted);
+    if (owner !== undefined) {
+      throw new VaultError(
+        "refused",
+        `${owner.path} already names ${held.path}.`
+      );
+    }
+    const found = await readOutline(vaultPath, stub);
+    const keys = found.readable
+      ? (found.outline.frontmatter?.value as Record<string, unknown> | null)
+      : null;
+    if (!found.readable || keys?.["kind"] !== "source-stub") {
+      throw new VaultError("refused", `${stub} is not a source stub.`);
+    }
+    const id = typeof keys["id"] === "string" ? keys["id"] : newId();
+    const result = await write(vaultPath, found.path, {
+      basedOn: found.hash,
+      operations: [
+        {
+          op: "setFrontmatter",
+          keys: {
+            kind: "source",
+            pdf: held.path.slice(folder.length),
+            id,
+          },
+        },
+      ],
+    });
+    if (!result.written) {
+      throw new VaultError(
+        "refused",
+        `Couldn't attach to ${found.path}: ${result.detail}`
+      );
+    }
+    await index.own(found.path, result.content);
+    return { path: found.path, id };
+  });
+}
+
+/**
+ * A PDF the user renamed in Finder keeps its Source (spec #416 story 12):
+ * the watcher pairs the rename by content, and each paper naming the old
+ * file is rewritten to name the new one. A file moved out of the PDF folder
+ * is not followed — it has left the folder the Source's `pdf:` is read in.
+ * One paper failing to take its rewrite is reported, and the rest still go.
+ */
+export function followPdfRenames(
+  vaultPath: string,
+  index: VaultIndex,
+  pairs: ReadonlyArray<{ from: string; to: string }>
+): Promise<void> {
+  const folder = `${PDF_FOLDER}/`;
+  const moves = pairs.filter(
+    ({ from, to }) =>
+      from.toLowerCase().startsWith(folder) &&
+      to.toLowerCase().startsWith(folder)
+  );
+  if (moves.length === 0) return Promise.resolve();
+  return attaching(async () => {
+    const failures: string[] = [];
+    for (const { path, pdf } of pdfKeys(index)) {
+      const move = moves.find(
+        ({ from }) => namedPath(pdf) === from.toLowerCase()
+      );
+      if (move === undefined) continue;
+      try {
+        const found = await readOutline(vaultPath, path);
+        if (!found.readable) throw new Error(found.reason);
+        const result = await write(vaultPath, path, {
+          basedOn: found.hash,
+          operations: [
+            {
+              op: "setFrontmatter",
+              keys: { pdf: move.to.slice(folder.length) },
+            },
+          ],
+        });
+        if (!result.written) throw new Error(result.detail);
+        await index.own(path, result.content);
+      } catch (cause) {
+        failures.push(
+          `${path}: ${cause instanceof Error ? cause.message : String(cause)}`
+        );
+      }
+    }
+    if (failures.length > 0) {
+      throw new VaultError(
+        "writeFailed",
+        `A renamed PDF could not be followed — ${failures.join("; ")}`
+      );
+    }
+  });
 }

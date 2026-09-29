@@ -46,7 +46,7 @@ import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
-import { createSourceStub } from "./sources.js";
+import { attachPdf, createSourceStub } from "./sources.js";
 import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
@@ -332,6 +332,14 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
         return refusing(createSourceStub(vault.path, index, input));
+      }),
+    // *Attach to a stub* on a no-Source row (#417): the one write that makes
+    // a stub a Source once it has its file.
+    attachToStub: t.procedure
+      .input(z.object({ pdf: z.string().min(1), stub: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(attachPdf(vault.path, index, input, ctx.newId));
       }),
   }),
   hypotheses: t.router({

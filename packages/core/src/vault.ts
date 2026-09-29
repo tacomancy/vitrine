@@ -11,6 +11,7 @@ import {
   type PdfFolder,
 } from "./pdf-folder.js";
 import { renameDismissals } from "./dismissals.js";
+import { followPdfRenames } from "./sources.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
 import { localDay, openDays, type OpenDays } from "./open-days.js";
@@ -275,8 +276,30 @@ export function createVaultService({
         );
       },
     });
+    // A Source's `pdf:` follows its file when the user renames it (spec
+    // #416 story 12). The rewrite reads the index for who names the old
+    // file, so it waits for the index to be current: a rename paired in the
+    // sweep's first chunk arrives before the Source that names it is read,
+    // and acting then would follow nothing and forget it had to.
+    const heldRenames: Array<{ from: string; to: string }> = [];
+    const followHeld = async () => {
+      if (ready === null || !ready.status().current.ok) return;
+      const pairs = heldRenames.splice(0);
+      try {
+        await followPdfRenames(absolute, ready, pairs);
+      } catch (cause) {
+        // No surface for it; the Source keeps naming a file that is gone,
+        // which the PDF row and a picker with no PDF already show.
+        console.error(`vitrine-core: ${errorMessage(cause)}`);
+      }
+    };
+    let ready: VaultIndex | null = null;
     const opening = openIndex(absolute, {
       ...indexOptions,
+      onStatus: async () => {
+        await indexOptions?.onStatus?.();
+        await followHeld();
+      },
       onPositionChanged: pending.record,
       // A rename re-keys the file's dismissals before the event leaves
       // (§ Watcher and Ingest, Renames). Here rather than in `app.ts` or
@@ -293,12 +316,14 @@ export function createVaultService({
             `vitrine-core: a dismissal could not follow a rename: ${errorMessage(cause)}`
           );
         }
+        heldRenames.push(...event.renamed);
         await indexOptions?.onChanged?.(event);
       },
     });
     let index: VaultIndex;
     try {
       index = await opening;
+      ready = index;
     } catch (cause) {
       pending.close();
       queue.close();

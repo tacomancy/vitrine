@@ -10,8 +10,10 @@ import {
 } from "./experiment.js";
 import { KIND as HYPOTHESIS, readHypothesisPage } from "./hypothesis.js";
 import { resolvesTo } from "./link-text.js";
+import { PDF_FOLDER } from "./pdf-folder.js";
 import { localDay, writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
+import { unnamedPdfs } from "./sources.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -142,7 +144,23 @@ export type MissingArtifacts = {
   falsifying: Array<{ path: string; claim: string; criterion: string | null }>;
 };
 
+/**
+ * A PDF in the PDF folder that no Source's `pdf:` names (#417; spec #416
+ * stories 4–6): neither ingested nor indexed until it is resolved. Keyed by
+ * its path — a file with no `id:` — which a rename carries across
+ * (`renameDismissals`).
+ */
+export type NoSource = {
+  kind: "no-source";
+  subject: string;
+  /** Vault-relative: the PDF itself. */
+  path: string;
+  /** The file's name inside the PDF folder — the row reads as the file it is. */
+  title: string;
+};
+
 export type LooseEndRow =
+  | NoSource
   | StalledResearchQuestion
   | StalledHypothesis
   | AmbiguousLinks
@@ -207,7 +225,7 @@ export async function looseEnds(
   );
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": experiments.missingUnderFalsification,
-    "Unfinished reading": [],
+    "Unfinished reading": noSourceRows(index),
     "Disconnected material": ambiguousLinks(index),
     "Stalled questions": [
       ...questions.rows,
@@ -233,6 +251,15 @@ export async function looseEnds(
       ...experiments.problems,
     ],
   };
+}
+
+function noSourceRows(index: VaultIndex): NoSource[] {
+  return unnamedPdfs(index).map((path) => ({
+    kind: "no-source",
+    subject: path,
+    path,
+    title: path.slice(PDF_FOLDER.length + 1),
+  }));
 }
 
 function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {
