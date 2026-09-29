@@ -93,6 +93,9 @@ export function overlap(a: number[][], b: number[][]): number {
   return union > 0 ? inter / union : 0;
 }
 
+/** Two overlaps closer than this are one number as far as a tie is concerned: float noise from the same boxes, not a real winner. */
+const TIE_EPSILON = 1e-9;
+
 /** An identity Vitrine already knows, as its sidecar entry holds it. */
 export type Known = {
   id: string;
@@ -236,7 +239,7 @@ function bestByOverlap(
       score: overlap(known.quads, present[index]!.quads),
     }))
     .sort((a, b) => b.score - a.score);
-  if (scored.length > 1 && scored[0]!.score - scored[1]!.score < 1e-9) {
+  if (scored.length > 1 && scored[0]!.score - scored[1]!.score < TIE_EPSILON) {
     return null;
   }
   return scored[0]!.index;

@@ -76,6 +76,7 @@ export type Sidecar = {
   /** The per-Source `^h` counter: never reused, not even after removal. */
   next_block: number;
   annotations: SidecarAnnotation[];
+  /** Read by *relink* (the Unmatched row, #421). */
   held?: HeldAnnotation[];
   /**
    * Set while an Ingest has written the counter and its new annotations but

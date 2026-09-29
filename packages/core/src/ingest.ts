@@ -216,7 +216,10 @@ export function createIngest({
   ): Promise<Map<string, LinkAnswer>> {
     const answers = new Map<string, LinkAnswer>();
     const targets = identities.filter(
-      (a) => a.block !== undefined && !a.removed_at && !a.gone_at
+      (a) =>
+        a.block !== undefined &&
+        a.removed_at === undefined &&
+        a.gone_at === undefined
     );
     if (targets.length === 0) return answers;
     await index.refresh([]);
@@ -369,6 +372,8 @@ export function createIngest({
         };
       }
       const found = incoming[outcome.present]!;
+      // Found again, so it is no longer a decision waiting: the two marks that
+      // said it was are dropped (`void` only tells lint they are unused).
       const { unmatched_since, document_changed_at, ...rest } = entry;
       void unmatched_since;
       void document_changed_at;
