@@ -138,6 +138,13 @@ _Avoid_: Missing (that is a file that is gone), placeholder, offline
 A second PDF the sync service created because the Mac and the iPad both wrote the same file — recognised by a document fingerprint matching an existing Source. Never a Source of its own; a Loose end resolved as *use this copy* or *discard*.
 _Avoid_: Duplicate, new Source
 
+**Unreadable PDF**:
+A PDF the engine could not read — encrypted, damaged, or one it stopped on. Its Source is never ingested quietly: it is a Loose end naming the reason, resolved as *try again* (once, by the user — a file the engine trapped on is never retried automatically) or marked deliberate. Not an Unreadable Question file (ADR 0009), and not an Evicted PDF, which is unreadable-not-changed.
+_Avoid_: Corrupt PDF, failed Ingest
+
+**Document-changed group**:
+The Unmatched annotations one replaced PDF left behind, held together under a single row headed by the event (*the document changed*) rather than as separate decisions. Resolved as a batch — *drop the links* or *treat as new* for all of them — or one row at a time, where *relink* also lives, since relinking needs a target per annotation.
+
 **Unmatched annotation**:
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.
 
@@ -146,7 +153,7 @@ An Annotation that nothing linked to and that could not be found on Ingest. Coun
 _Avoid_: Deleted (the app did not delete it), lost
 
 **Tombstone**:
-What an Annotation becomes when the user resolves it as *gone*: its identity and quoted text stay so every link to it still resolves, marked as gone. The user's notes are theirs to edit; the app never rewrites a link on their behalf.
+What an Annotation becomes when the user resolves it as *gone*: its identity and quoted text stay so every link to it still resolves, marked as gone. The user's notes are theirs to edit; the app never rewrites a link on their behalf. *Treat as new* ends in the same state: the old identity is tombstoned and the annotation it might have been keeps or gets a fresh identity of its own, so an Unmatched annotation has one terminal state besides *relink*.
 _Avoid_: Deleted annotation, dangling link
 
 **`Q:` convention**:
