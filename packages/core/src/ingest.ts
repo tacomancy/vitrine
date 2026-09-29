@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
+import { VaultError } from "./errors.js";
 import {
   matchAnnotations,
   type LinkAnswer,
@@ -21,6 +22,13 @@ import {
   type PdfEngine,
 } from "./pdf-engine.js";
 import { namedPath, pdfKeys, type UnreadablePdfs } from "./sources.js";
+import {
+  candidate,
+  inboundLinks,
+  relink,
+  tombstone,
+  unmatchedEntry,
+} from "./unmatched.js";
 import { serialised } from "./serialise.js";
 import { readOutline, sha256, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -60,6 +68,9 @@ export type IngestRun = {
   /** The Sources whose whole document was replaced: one event each (story 43). */
   changed: string[];
 };
+
+/** What a resolution changed: the sidecar to keep, and whether it introduced annotations that may owe a Question. */
+type Resolved<T> = { sidecar: Sidecar; introduced?: boolean; result: T };
 
 /** What one Source's Ingest took in. */
 type Ingested = IngestSummary & { changed: boolean };
@@ -143,7 +154,14 @@ const byReading = (
 function item(a: SidecarAnnotation): string {
   // The marker goes before the id, which keeps the id last on the line: a
   // block id that is not at the end of its paragraph is prose to Obsidian.
-  const marker = a.unmatched_since === undefined ? "" : " (unmatched)";
+  // A Tombstone stays in the note forever, so a link written months ago
+  // still lands somewhere (story 51).
+  const marker =
+    a.gone_at !== undefined
+      ? " (gone)"
+      : a.unmatched_since === undefined
+        ? ""
+        : " (unmatched)";
   const line = `- p.${a.page + 1} · "${a.quote}"${marker} ^${a.block}`;
   if (a.note.trim() === "") return line;
   // A note of several paragraphs keeps them, each indented under the item.
@@ -282,36 +300,73 @@ export function createIngest({
     if (targets.length === 0) return answers;
     await index.refresh([]);
     const current = isCurrent();
-    const stem = basename(source, ".md");
     for (const a of targets) {
       if (!current) {
         answers.set(a.id, "unknown");
         continue;
       }
-      const linked =
-        index.select(
-          `SELECT 1 FROM links
-            WHERE block = ? AND path <> ? AND (resolved_path = ? OR ltarget = ?)
-            LIMIT 1`,
-          a.block!,
-          source,
-          source,
-          stem.toLowerCase()
-        ).length > 0 ||
-        index.select(
-          `SELECT 1 FROM fields a
-            WHERE a.key = 'annotation' AND a.value = ?
-              AND EXISTS (SELECT 1 FROM fields f
-                           WHERE f.path = a.path AND f.key = 'from'
-                             AND lower(f.value) LIKE ?)
-            LIMIT 1`,
-          JSON.stringify(a.block),
-          `%${stem.toLowerCase()}%`
-        ).length > 0;
+      const linked = inboundLinks(index, source, a.block!).length > 0;
       answers.set(a.id, linked ? "linked" : "unlinked");
     }
     return answers;
   }
+
+  /** `## Annotations` rewritten from the sidecar's entries. */
+  async function writeNote(
+    source: string,
+    annotations: SidecarAnnotation[]
+  ): Promise<void> {
+    const found = await readOutline(vaultPath, source);
+    if (!found.readable) throw new Error(found.reason);
+    const written = await write(vaultPath, found.path, {
+      basedOn: found.hash,
+      operations: [
+        {
+          op: "replaceSection",
+          name: "Annotations",
+          body: annotationsBody(annotations),
+        },
+      ],
+    });
+    if (!written.written) throw new Error(written.detail);
+    await index.own(found.path, written.content);
+  }
+
+  /**
+   * A resolution of Unmatched annotations: the sidecar changed, the note
+   * rewritten to match, then any Question a newly introduced `Q:` owes.
+   * Behind the same queue as a run, so a resolution and an Ingest cannot
+   * hand out one block number twice or overwrite each other's sidecar.
+   * The note goes first: a refused note leaves the sidecar as it was, so
+   * the row is still there to try again.
+   */
+  const resolving = <T>(
+    source: string,
+    change: (
+      sidecar: Sidecar,
+      stamped: string
+    ) => Resolved<T> | Promise<Resolved<T>>
+  ): Promise<T> =>
+    serially(async () => {
+      const [file] = index.select<{ id: string | null }>(
+        "SELECT id FROM files WHERE path = ? AND kind = 'source'",
+        source
+      );
+      const sidecar = file?.id ? await readSidecar(vaultPath, file.id) : null;
+      if (!file?.id || sidecar === null) {
+        throw new VaultError(
+          "refused",
+          "That Source has no annotations recorded."
+        );
+      }
+      const changed = await change(sidecar, now().toISOString());
+      await writeNote(source, changed.sidecar.annotations);
+      await writeSidecar(vaultPath, file.id, changed.sidecar);
+      if (changed.introduced) {
+        await spawnQuestions(source, file.id, changed.sidecar);
+      }
+      return changed.result;
+    });
 
   async function ingestOne(source: {
     source: string;
@@ -500,20 +555,7 @@ export function createIngest({
     // link name a different passage.
     await writeSidecar(vaultPath, id, after);
     if (after.annotations.some((a) => a.block !== undefined)) {
-      const found = await readOutline(vaultPath, source.source);
-      if (!found.readable) throw new Error(found.reason);
-      const written = await write(vaultPath, found.path, {
-        basedOn: found.hash,
-        operations: [
-          {
-            op: "replaceSection",
-            name: "Annotations",
-            body: annotationsBody(after.annotations),
-          },
-        ],
-      });
-      if (!written.written) throw new Error(written.detail);
-      await index.own(found.path, written.content);
+      await writeNote(source.source, after.annotations);
     }
     const finished: Sidecar = { ...after };
     delete finished.pending;
@@ -539,7 +581,61 @@ export function createIngest({
     };
   }
 
+  const tombstoned = (source: string, ids: readonly string[]) =>
+    resolving(source, (sidecar, stamped) => {
+      const done = tombstone(sidecar, ids, stamped, {
+        newId,
+        hasBlock: (kind) => HAS_BLOCK.has(kind),
+      });
+      return { ...done, result: undefined };
+    });
+
   return {
+    /**
+     * *Relink* (stories 47–48): the Unmatched identity takes one of the
+     * annotations now in the file, and its links follow. A candidate that
+     * already has a fresh identity must be one nothing links to — it is
+     * retired, and a link to its block would rot — which only a current
+     * index can show.
+     */
+    relink: (source: string, annotation: string, ref: string) =>
+      resolving(source, async (sidecar, stamped) => {
+        const entry = unmatchedEntry(sidecar, annotation);
+        const chosen = candidate(sidecar, entry, ref);
+        if (ref.startsWith("entry:")) {
+          await index.refresh([]);
+          if (!isCurrent()) {
+            throw new VaultError(
+              "refused",
+              "The vault is still being read, so it cannot yet be shown that nothing links to that annotation. Try again in a moment."
+            );
+          }
+          const block = sidecar.annotations.find(
+            (a) => `entry:${a.id}` === ref
+          )?.block;
+          if (
+            block !== undefined &&
+            inboundLinks(index, source, block).length
+          ) {
+            throw new VaultError(
+              "refused",
+              `Something already links to that annotation (p.${chosen.page + 1}), so it cannot be folded into this one.`
+            );
+          }
+        }
+        return {
+          sidecar: relink(sidecar, annotation, ref, stamped),
+          result: undefined,
+        };
+      }),
+    /**
+     * *Drop the links* and *treat as new* (stories 49–51, 54): the same
+     * Tombstone, because one terminal state means one thing. Two entry
+     * points so a caller says what it meant; they cannot differ in effect.
+     * Batch acts pass every id, and all resolve or none does.
+     */
+    dropLinks: tombstoned,
+    treatAsNew: tombstoned,
     /**
      * Ingest the named PDFs, or — with no names — every Source's, which is
      * what the open-time sweep asks: a PDF attached, or changed while the

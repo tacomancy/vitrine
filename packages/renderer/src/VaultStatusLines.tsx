@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ingestLine, useIngestSummary } from "./ingest-line";
+import {
+  ingestLine,
+  openUnmatchedPanel,
+  useIngestSummary,
+} from "./ingest-line";
 import { useTRPC } from "./trpc";
 import styles from "./VaultStatusLines.module.css";
 
@@ -84,7 +88,19 @@ export function useVaultStatusLines(): {
         )}
         {ingest !== null && (
           <span className={styles.line} role="status">
-            {ingestLine(ingest)}
+            {/* The panel opens only when something could not be re-matched;
+                a clean line is text and has nothing to open. */}
+            {ingest.unmatched > 0 ? (
+              <button
+                type="button"
+                className={styles.retry}
+                onClick={openUnmatchedPanel}
+              >
+                {ingestLine(ingest)}
+              </button>
+            ) : (
+              ingestLine(ingest)
+            )}
           </span>
         )}
         {pdfFault !== null && (

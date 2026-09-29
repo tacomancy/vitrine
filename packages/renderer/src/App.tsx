@@ -16,6 +16,7 @@ import { pushRoute, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
+import { UnmatchedPanel } from "./UnmatchedPanel";
 import { useTRPC } from "./trpc";
 
 export function App() {
@@ -169,6 +170,7 @@ function Workspace({ vault }: { vault: Vault }) {
           />
         )}
       </div>
+      <UnmatchedPanel />
       <CaptureLine
         ref={captureLine}
         provenance={provenance}
