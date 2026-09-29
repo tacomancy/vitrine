@@ -356,6 +356,7 @@ export function createVaultService({
               unreadable: pdfs.unreadable,
               newId,
               now,
+              isCurrent: () => currentOf(index),
             });
     } catch (cause) {
       pending.close();
@@ -363,6 +364,16 @@ export function createVaultService({
       return refusingToOpen(cause);
     }
     return { index, ingest, pending, days, arrival, queue };
+  }
+
+  /**
+   * Whether `index` may be trusted to say a thing is not there: its own
+   * currency, and — once it is the vault on screen — the watcher's, which is
+   * what `status()` reports as `current` too.
+   */
+  function currentOf(index: VaultIndex): boolean {
+    if (!index.status().current.ok) return false;
+    return opened?.index !== index || (opened.watching.ok && !opened.reopening);
   }
 
   /**

@@ -15,8 +15,8 @@ afterEach(closeCores);
 // Ingest of a returning PDF (#419; spec #416 stories 13–24, 58): an annotated
 // PDF that changes on disk is read when it settles, every markup and note
 // becomes one block in its Source, and the run says what landed in one line.
-// Matching is not here — every annotation is new — so these tests state only
-// what a first return looks like.
+// These state what a first return looks like; re-matching is
+// `ingest.rematch.test.ts`.
 
 const pdf = (name: string) => readFile(join(fixtures, "pdf", name));
 const SOURCE = `---
@@ -152,11 +152,12 @@ Notes I typed.
     await returned(await pdf("annotated.pdf"));
     expect((await sidecar()).next_block).toBe(5);
     await returned(await pdf("annotated-again.pdf"));
-    // Matching is a later ticket: what is new is new, and takes the next number.
+    // Nothing in the new file is any of the four: they are removed, their
+    // blocks leave the note, and what is new takes the next number.
     const text = await source();
     expect(text).toContain('"Another line follows here for a highlight" ^h5');
     expect((await sidecar()).next_block).toBe(6);
-    expect(text.match(/\^h\d+/g)).toEqual(["^h1", "^h2", "^h3", "^h4", "^h5"]);
+    expect(text.match(/\^h\d+/g)).toEqual(["^h5"]);
   });
 
   it("writes nothing to the PDF", async () => {
@@ -269,7 +270,11 @@ describe("an Ingest that could not finish", () => {
     } finally {
       await chmod(join(vault, "sources"), 0o755);
     }
-    expect((await sidecar()).pending).toEqual({ kept: 0 });
+    expect((await sidecar()).pending).toEqual({
+      kept: 0,
+      removed: 0,
+      unmatched: 0,
+    });
     await c.close();
     const again = await core({ settleMs: 40 });
     await again.mutate("vault.open", { path: vault });

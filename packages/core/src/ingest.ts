@@ -1,11 +1,18 @@
 import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import {
+  matchAnnotations,
+  type LinkAnswer,
+  type Present,
+} from "./annotation-matcher.js";
 import {
   readSidecar,
   writeSidecar,
+  type HeldAnnotation,
   type Sidecar,
   type SidecarAnnotation,
 } from "./annotation-sidecar.js";
+import { pageWords, sameDocument } from "./document-fingerprint.js";
 import { errorMessage } from "./errors.js";
 import {
   PdfUnreadable,
@@ -30,11 +37,12 @@ import type { VaultIndex } from "./vault-index.js";
  * evicted file, a sync client's placeholder, and its arrival is not a
  * change (story 23).
  *
- * Matching is not here: this ticket makes every annotation new, so a file
- * ingested twice with different bytes adds its annotations twice. Re-matching
- * (the next ticket) is what recognises one it has seen — and it is
- * load-bearing, so it is written once, against this record, and not
- * approximated here.
+ * A file returning is matched against what the sidecar already knows
+ * (`annotation-matcher.ts`), so an annotation Preview re-saved keeps its
+ * identity and its block, and only what nothing in the file could be matched
+ * to is new. What this file adds to that pure answer is the part that needs
+ * the vault: what links to an identity, whether the index is current enough
+ * to say nothing does, and the sidecar and the note the answer is written to.
  */
 
 /** The four counts a run's footer line is made of (`N new · N questions · N removed · N could not be re-matched`). */
@@ -45,7 +53,16 @@ export type IngestSummary = {
   unmatched: number;
 };
 
-export type IngestRun = { summary: IngestSummary; sources: string[] };
+export type IngestRun = {
+  summary: IngestSummary;
+  /** The Sources a run changed something in. */
+  sources: string[];
+  /** The Sources whose whole document was replaced: one event each (story 43). */
+  changed: string[];
+};
+
+/** What one Source's Ingest took in. */
+type Ingested = IngestSummary & { changed: boolean };
 
 export type IngestOptions = {
   vaultPath: string;
@@ -55,6 +72,12 @@ export type IngestOptions = {
   unreadable: UnreadablePdfs;
   newId: () => string;
   now: () => Date;
+  /**
+   * Whether the index may be trusted to say nothing links to something
+   * (ADR 0014 decision 11): the index's own currency and the watcher's,
+   * which only the vault service can see.
+   */
+  isCurrent: () => boolean;
 };
 
 /** A Source's block ids are `h` and a number; only markup and notes are link targets. */
@@ -97,7 +120,10 @@ const byReading = (
 
 /** One item of `## Annotations`; the shape is § Vault layout's, blank line and all. */
 function item(a: SidecarAnnotation): string {
-  const line = `- p.${a.page + 1} · "${a.quote}" ^${a.block}`;
+  // The marker goes before the id, which keeps the id last on the line: a
+  // block id that is not at the end of its paragraph is prose to Obsidian.
+  const marker = a.unmatched_since === undefined ? "" : " (unmatched)";
+  const line = `- p.${a.page + 1} · "${a.quote}"${marker} ^${a.block}`;
   if (a.note.trim() === "") return line;
   // A note of several paragraphs keeps them, each indented under the item.
   const note = a.note
@@ -108,10 +134,11 @@ function item(a: SidecarAnnotation): string {
   return `${line}\n\n${note}`;
 }
 
-/** The section's body: every annotation that has a block, in page order. */
+/** The section's body: every annotation that has a block and is not removed, in page order. */
 export function annotationsBody(annotations: SidecarAnnotation[]): string {
+  // A removed annotation's block leaves; its number stays in the sidecar.
   return annotations
-    .filter((a) => a.block !== undefined)
+    .filter((a) => a.block !== undefined && a.removed_at === undefined)
     .sort(byReading)
     .map(item)
     .join("\n\n");
@@ -124,6 +151,7 @@ export function createIngest({
   unreadable,
   newId,
   now,
+  isCurrent,
 }: IngestOptions) {
   // One run at a time. Two runs over the same Source would each plan its
   // blocks from the counter they read, and hand out the same `^h<n>` twice —
@@ -173,11 +201,62 @@ export function createIngest({
     return id;
   }
 
+  /**
+   * What points at each identity that could be pointed at: a link to
+   * `[[citekey#^h<n>]]`, or a Question or Research Question whose
+   * `annotation:` names the block and whose `from:` names this Source. Read
+   * from the index, which is disposable (ADR 0006), so *unlinked* is only
+   * ever concluded from one shown to be current: refreshed first, so any
+   * batch already applied is seen, then checked against the watcher too.
+   * Anything short of that is `unknown`, which the matcher never removes.
+   */
+  async function linksOf(
+    source: string,
+    identities: SidecarAnnotation[]
+  ): Promise<Map<string, LinkAnswer>> {
+    const answers = new Map<string, LinkAnswer>();
+    const targets = identities.filter(
+      (a) => a.block !== undefined && !a.removed_at && !a.gone_at
+    );
+    if (targets.length === 0) return answers;
+    await index.refresh([]);
+    const current = isCurrent();
+    const stem = basename(source, ".md");
+    for (const a of targets) {
+      if (!current) {
+        answers.set(a.id, "unknown");
+        continue;
+      }
+      const linked =
+        index.select(
+          `SELECT 1 FROM links
+            WHERE block = ? AND path <> ? AND (resolved_path = ? OR ltarget = ?)
+            LIMIT 1`,
+          a.block!,
+          source,
+          source,
+          stem.toLowerCase()
+        ).length > 0 ||
+        index.select(
+          `SELECT 1 FROM fields a
+            WHERE a.key = 'annotation' AND a.value = ?
+              AND EXISTS (SELECT 1 FROM fields f
+                           WHERE f.path = a.path AND f.key = 'from'
+                             AND lower(f.value) LIKE ?)
+            LIMIT 1`,
+          JSON.stringify(a.block),
+          `%${stem.toLowerCase()}%`
+        ).length > 0;
+      answers.set(a.id, linked ? "linked" : "unlinked");
+    }
+    return answers;
+  }
+
   async function ingestOne(source: {
     source: string;
     id: string | null;
     pdf: string;
-  }): Promise<number | null> {
+  }): Promise<Ingested | null> {
     const [file] = index.select<{ hash: string | null }>(
       "SELECT hash FROM files WHERE markdown = 0 AND path = ?",
       source.pdf
@@ -221,39 +300,111 @@ export function createIngest({
     const id = source.id ?? (await mintId(source.source));
     const stamped = now().toISOString();
     // An earlier run that died between the counter and the note left its
-    // annotations in the sidecar; they are this file's, read again below, so
-    // they are dropped — but the counter stays where it got to, since their
-    // blocks may already be in the note.
+    // new annotations in the sidecar; they are this file's, read again below,
+    // so they are dropped — but the counter stays where it got to, since
+    // their blocks may already be in the note.
+    const owed = before?.pending ?? { kept: 0, removed: 0, unmatched: 0 };
     const kept = before?.pending
       ? before.annotations.slice(0, before.pending.kept)
       : (before?.annotations ?? []);
     const taken = new Set(kept.map((a) => a.id));
     let next = before?.next_block ?? 1;
-    const fresh: SidecarAnnotation[] = read.annotations
-      .map((a: PdfAnnotation) => ({
-        nm: a.nm,
-        entry: {
-          kind: a.kind,
-          page: a.page,
-          // A kind with no quads is identified by where it sits.
-          quads: a.quads.length > 0 ? a.quads : [rectToQuad(a.rect)],
-          quote: a.quote,
-          note: a.note,
-          color: a.color,
-          last_matched: stamped,
-        },
-      }))
-      .sort((a, b) => byReading(a.entry, b.entry))
-      .map(({ nm, entry }) => {
+
+    const incoming = read.annotations.map((a: PdfAnnotation) => ({
+      kind: a.kind,
+      page: a.page,
+      // A kind with no quads is identified by where it sits.
+      quads: a.quads.length > 0 ? a.quads : [rectToQuad(a.rect)],
+      quote: a.quote,
+      note: a.note,
+      color: a.color,
+      nm: a.nm,
+    }));
+    const fingerprint = {
+      id: read.fileId,
+      pages: read.pages,
+      page_words: read.pageText.map(pageWords),
+    };
+    // A changed fingerprint runs the same tiers — they already look across
+    // the whole document — and raises one event, so that a re-exported paper
+    // is a decision made once and not fifty (story 43). Never raised by a
+    // save alone: the fingerprint is built to survive one (story 44).
+    const changed =
+      before !== null &&
+      !sameDocument(before.document_fingerprint, fingerprint);
+
+    const answers = await linksOf(source.source, kept);
+    const matching = matchAnnotations({
+      known: kept.map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        page: a.page,
+        quads: a.quads,
+        quote: a.quote,
+        linkable: a.block !== undefined,
+        retired: a.removed_at !== undefined || a.gone_at !== undefined,
+      })),
+      present: incoming satisfies Present[],
+      links: (k) => answers.get(k.id) ?? "unknown",
+    });
+
+    const tally = { removed: 0, unmatched: 0 };
+    const entries = kept.map((entry, i): SidecarAnnotation => {
+      const outcome = matching.outcomes[i]!;
+      if (outcome.status === "skipped") return entry;
+      if (outcome.status === "removed") {
+        tally.removed++;
+        return { ...entry, removed_at: stamped };
+      }
+      if (outcome.status === "unmatched") {
+        // Counted once, when it first could not be re-matched: the same row
+        // is not news on the next Preview save, and the footer would
+        // otherwise repeat it until it was resolved.
+        if (entry.unmatched_since !== undefined) return entry;
+        tally.unmatched++;
+        return {
+          ...entry,
+          unmatched_since: stamped,
+          ...(changed ? { document_changed_at: stamped } : {}),
+        };
+      }
+      const found = incoming[outcome.present]!;
+      const { unmatched_since, document_changed_at, ...rest } = entry;
+      void unmatched_since;
+      void document_changed_at;
+      return {
+        ...rest,
+        page: found.page,
+        quads: found.quads,
+        quote: found.quote,
+        note: found.note,
+        color: found.color,
+        matched_by: outcome.by,
+        last_matched: stamped,
+        ...(outcome.by === "geometry" && outcome.quoteChanged
+          ? { previous_quote: entry.quote, changed_at: stamped }
+          : {}),
+      };
+    });
+
+    const fresh: SidecarAnnotation[] = matching.fresh
+      .map((p) => incoming[p]!)
+      .sort(byReading)
+      .map(({ nm, ...entry }) => {
         // An /NM is the id a Reader write left in the file; it is kept
         // unless something already holds it (a copy pasted within the file).
         let id = nm !== undefined && !taken.has(nm) ? nm : newId();
         for (let n = 2; taken.has(id); n++) id = `${id}-${n}`;
         taken.add(id);
+        const created = { ...entry, last_matched: stamped };
         return HAS_BLOCK.has(entry.kind)
-          ? { id, block: `h${next++}`, ...entry }
-          : { id, ...entry };
+          ? { id, block: `h${next++}`, ...created }
+          : { id, ...created };
       });
+    const held: HeldAnnotation[] = matching.held.map((p) => {
+      const { kind, page, quads, quote, note, color } = incoming[p]!;
+      return { kind, page, quads, quote, note, color };
+    });
 
     const after: Sidecar = {
       pdf: source.pdf.slice("sources/pdf/".length),
@@ -261,10 +412,17 @@ export function createIngest({
       // file is ingested while its blocks are missing is a gap that no later
       // event would notice.
       file: before?.file ?? { size: 0, mtime: 0, hash: "" },
-      document_fingerprint: { id: read.fileId, pages: read.pages },
+      // The old fingerprint too: a run that dies here and is retried must
+      // still find the document changed, or the event is lost with it.
+      document_fingerprint: before?.document_fingerprint ?? fingerprint,
       next_block: next,
-      annotations: [...kept, ...fresh],
-      pending: { kept: kept.length },
+      annotations: [...entries, ...fresh],
+      held,
+      pending: {
+        kept: entries.length,
+        removed: owed.removed + tally.removed,
+        unmatched: owed.unmatched + tally.unmatched,
+      },
     };
     // The counter first, and on its own: the note's blocks are numbered from
     // it, and a block number reused after a failed write would let an old
@@ -290,13 +448,20 @@ export function createIngest({
     delete finished.pending;
     await writeSidecar(vaultPath, id, {
       ...finished,
+      document_fingerprint: fingerprint,
       file: {
         size: stats.size,
         mtime: stats.mtimeMs,
         hash: sha256(bytes),
       },
     });
-    return fresh.length;
+    return {
+      new: fresh.length,
+      questions: 0,
+      removed: owed.removed + tally.removed,
+      unmatched: owed.unmatched + tally.unmatched,
+      changed,
+    };
   }
 
   return {
@@ -316,12 +481,18 @@ export function createIngest({
           unmatched: 0,
         };
         const sources: string[] = [];
+        const changed: string[] = [];
         for (const source of candidates(paths && new Set(paths))) {
           try {
-            const added = await ingestOne(source);
-            if (added === null) continue;
-            summary.new += added;
-            if (added > 0) sources.push(source.source);
+            const took = await ingestOne(source);
+            if (took === null) continue;
+            summary.new += took.new;
+            summary.removed += took.removed;
+            summary.unmatched += took.unmatched;
+            if (took.new + took.removed + took.unmatched > 0) {
+              sources.push(source.source);
+            }
+            if (took.changed) changed.push(source.source);
           } catch (cause) {
             // The run goes on: one Source that cannot take its blocks is not
             // the reason the rest go unread. Its sidecar still says the file
@@ -329,7 +500,9 @@ export function createIngest({
             console.error(`vitrine-core: ingest: ${errorMessage(cause)}`);
           }
         }
-        return sources.length === 0 ? null : { summary, sources };
+        return sources.length === 0 && changed.length === 0
+          ? null
+          : { summary, sources, changed };
       }),
   };
 }

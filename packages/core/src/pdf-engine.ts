@@ -71,6 +71,8 @@ export type PdfAnnotations = {
   /** Trailer /ID[0] as hex; empty when the file has none. */
   fileId: string;
   annotations: PdfAnnotation[];
+  /** Each page's characters in reading order; the document fingerprint is made from these. */
+  pageText: string[];
 };
 
 export type PdfEngine = {

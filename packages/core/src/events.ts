@@ -21,7 +21,10 @@ export type CoreEvent =
       runId: string;
       summary: IngestSummary;
       sources: string[];
-    };
+    }
+  // A Source's whole PDF was replaced (#420): one event however many of its
+  // annotations could not be re-matched, which are grouped under it.
+  | { type: "documentChanged"; source: string };
 
 export type Events = {
   emit: (event: CoreEvent) => void;
