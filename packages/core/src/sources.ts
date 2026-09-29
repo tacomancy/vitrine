@@ -493,7 +493,9 @@ export function createSourceFromPdf(
         index,
         {
           title: read.title ?? basename(held.path).replace(/\.pdf$/i, ""),
-          authors,
+          // As the file wrote it: `;` separates people (`authorList`), and
+          // anything else stays one author rather than a guessed split.
+          authors: read.author ?? "",
           year: "",
           url: "",
         },
