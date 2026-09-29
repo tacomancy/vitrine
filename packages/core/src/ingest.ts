@@ -264,7 +264,8 @@ export function createIngest({
       if (!written.written) throw new Error(written.detail);
       await index.own(found.path, written.content);
     }
-    const { pending: _done, ...finished } = after;
+    const finished: Sidecar = { ...after };
+    delete finished.pending;
     await writeSidecar(vaultPath, source.id, {
       ...finished,
       file: {
