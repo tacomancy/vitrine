@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { watch as fsWatch } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -11,7 +12,8 @@ import {
   type PdfFolder,
 } from "./pdf-folder.js";
 import { renameDismissals } from "./dismissals.js";
-import { followPdfRenames } from "./sources.js";
+import { createIngest, type Ingest, type IngestRun } from "./ingest.js";
+import { followPdfRenames, isPdfInFolder, type PdfReads } from "./sources.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
 import { localDay, openDays, type OpenDays } from "./open-days.js";
@@ -76,6 +78,12 @@ export type VaultServiceOptions = {
   onSwitched?: ((vault: Vault) => void) | undefined;
   /** The PDF folder was checked, and this is its fault or null: `pdfFolder` (#379). */
   onPdfFolder?: ((fault: PdfFault | null) => void) | undefined;
+  /** The engine Ingest reads PDFs with, and the record of what it could not read (#419). */
+  pdfs?: PdfReads | undefined;
+  /** Mints a sidecar id for an annotation the file did not name. */
+  newId?: (() => string) | undefined;
+  /** An Ingest run landed something: `ingestLanded` (#419). */
+  onIngest?: ((run: IngestRun) => void) | undefined;
 };
 
 export type VaultService = {
@@ -163,6 +171,8 @@ const LAST_VAULT_FILE = "last-vault.json";
 export type Opened = {
   vault: Vault;
   index: VaultIndex;
+  /** Reads a returning PDF into its Source; null when the core has no engine (#419). */
+  ingest: Ingest | null;
   /** The Revisions Obsidian edits to this vault still owe their files (#217). */
   pending: PendingRevisions;
   /** The local dates this vault was open in the app (#243). */
@@ -196,6 +206,9 @@ export function createVaultService({
   coalesceMs,
   onSwitched,
   onPdfFolder,
+  pdfs,
+  newId = () => randomUUID(),
+  onIngest,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -229,6 +242,7 @@ export function createVaultService({
 
   type Resources = {
     index: VaultIndex;
+    ingest: Ingest | null;
     pending: PendingRevisions;
     days: OpenDays;
     arrival: LastArrival;
@@ -294,6 +308,7 @@ export function createVaultService({
       }
     };
     let ready: VaultIndex | null = null;
+    let ingest: Ingest | null = null;
     const opening = openIndex(absolute, {
       ...indexOptions,
       onStatus: async () => {
@@ -317,6 +332,11 @@ export function createVaultService({
           );
         }
         heldRenames.push(...event.renamed);
+        // A PDF whose bytes changed is read when it settles (#419). Not
+        // awaited: Ingest writes Source notes through this same index, which
+        // would wait on the chunk that is waiting on this listener.
+        const changedPdfs = event.changed.filter(isPdfInFolder);
+        if (changedPdfs.length > 0) void runIngest(ingest, changedPdfs);
         await indexOptions?.onChanged?.(event);
       },
     });
@@ -324,12 +344,40 @@ export function createVaultService({
     try {
       index = await opening;
       ready = index;
+      ingest =
+        pdfs === undefined
+          ? null
+          : createIngest({
+              vaultPath: absolute,
+              index,
+              engine: pdfs.engine,
+              unreadable: pdfs.unreadable,
+              newId,
+              now,
+            });
     } catch (cause) {
       pending.close();
       queue.close();
       return refusingToOpen(cause);
     }
-    return { index, pending, days, arrival, queue };
+    return { index, ingest, pending, days, arrival, queue };
+  }
+
+  /**
+   * Ingest the named PDFs, or every Source's when none are named, and say
+   * what landed. Never rejects: a failed run is the core's log, and the
+   * files it did not take are found again by the next change or open.
+   */
+  async function runIngest(
+    ingest: Ingest | null,
+    paths: readonly string[] | null
+  ): Promise<void> {
+    try {
+      const landed = await ingest?.run(paths);
+      if (landed) onIngest?.(landed);
+    } catch (cause) {
+      console.error(`vitrine-core: ingest failed: ${errorMessage(cause)}`);
+    }
   }
 
   // Bumped by every install and by close, so an install still waiting on
@@ -435,7 +483,7 @@ export function createVaultService({
     // status reason rather than rejecting. Started before the status is
     // raised, so a reader woken by the event never sees the watcher back
     // and the index current with the catch-up still to come.
-    void o.index.sweep();
+    void o.index.sweep().then(() => runIngest(o.ingest, null));
     void checkPdfFolder(o);
     await raiseStatus();
   }
@@ -519,10 +567,11 @@ export function createVaultService({
    * watcher per vault, and the old vault answers until the new one can.
    */
   async function install(vault: Vault, resources: Resources): Promise<void> {
-    const { index, pending, days, arrival, queue } = resources;
+    const { index, ingest, pending, days, arrival, queue } = resources;
     const o: Opened = {
       vault,
       index,
+      ingest,
       pending,
       days,
       arrival,
@@ -553,7 +602,9 @@ export function createVaultService({
     // The sweep's own first status event is the open's: nothing is raised
     // here, so the first `vaultStatus` after an open still means "the walk
     // is done", which is what the watch-then-sweep test writes on.
-    void index.sweep();
+    // Then every Source's PDF is compared to its sidecar: one attached, or
+    // one that changed while the app was closed, is not an event to wait for.
+    void index.sweep().then(() => runIngest(ingest, null));
     void checkPdfFolder(o);
   }
 

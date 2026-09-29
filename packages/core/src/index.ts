@@ -47,6 +47,7 @@ export type {
   DerivedState,
   LoopResult,
 } from "./hypothesis-rule.js";
+export type { IngestSummary } from "./ingest.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {

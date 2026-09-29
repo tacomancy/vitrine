@@ -235,18 +235,20 @@ const PAPERS = ["source", "source-stub"];
 const FOLDER_PREFIX = `${PDF_FOLDER}/`;
 
 /** A PDF under `sources/pdf/`, however the case of its path is written. */
-const isPdfInFolder = (path: string) =>
+export const isPdfInFolder = (path: string) =>
   path.toLowerCase().startsWith(FOLDER_PREFIX) && /\.pdf$/i.test(path);
 
 /** A PDF's path as a `pdf:` writes it: its own name, relative to the folder. */
 const nameInFolder = (path: string) => path.slice(FOLDER_PREFIX.length);
 
 /** What a `pdf:` key names, as the vault path the picker and this compare by. */
-const namedPath = (pdf: string) =>
+export const namedPath = (pdf: string) =>
   posix.join(PDF_FOLDER, pdf.trim()).toLowerCase();
 
 /** The `pdf:` value of every paper, by the paper's path. */
-function pdfKeys(index: VaultIndex): Array<{ path: string; pdf: string }> {
+export function pdfKeys(
+  index: VaultIndex
+): Array<{ path: string; pdf: string }> {
   const named: Array<{ path: string; pdf: string }> = [];
   for (const row of index.select<{ path: string; value: string }>(
     `SELECT f.path, fm.value FROM files f JOIN frontmatter fm USING (path)

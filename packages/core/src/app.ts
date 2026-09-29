@@ -95,6 +95,12 @@ export function createApp({
   // The stream is fed before whatever the caller hung on the same seam
   // (the test harness), so a test's listener runs after the renderer's.
   const historyWindowMs = coalesceMs ?? COALESCE_MS;
+  // The worker starts with the first PDF it is asked to read, not with the
+  // core, so a vault of no PDFs never pays for a WebAssembly heap.
+  const pdfs = {
+    engine: createPdfEngine(pdfWorker ? { workerUrl: pdfWorker } : {}),
+    unreadable: new Map(),
+  };
   const vault = createVaultService({
     host,
     appSupportDir,
@@ -108,6 +114,15 @@ export function createApp({
     onSwitched: (switched) =>
       events.emit({ type: "vaultSwitched", vault: switched }),
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
+    pdfs,
+    newId: newId ?? randomId,
+    onIngest: (run) =>
+      events.emit({
+        type: "ingestLanded",
+        runId: (newId ?? randomId)(),
+        summary: run.summary,
+        sources: run.sources,
+      }),
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's
@@ -130,12 +145,6 @@ export function createApp({
       },
     },
   });
-  // The worker starts with the first PDF it is asked to read, not with the
-  // core, so a vault of no PDFs never pays for a WebAssembly heap.
-  const pdfs = {
-    engine: createPdfEngine(pdfWorker ? { workerUrl: pdfWorker } : {}),
-    unreadable: new Map(),
-  };
   const context: Context = {
     pdfs,
     vault,

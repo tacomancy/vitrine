@@ -7,7 +7,11 @@ import { createRequire } from "node:module";
 import { parentPort } from "node:worker_threads";
 import { init } from "@embedpdf/pdfium";
 
-type Job = { id: number; bytes: Uint8Array };
+type Job = {
+  id: number;
+  job: "metadata" | "annotations";
+  bytes: Uint8Array;
+};
 
 // FPDF_ERR_* from fpdfview.h; the ones a reader can be told apart by.
 const FORMAT = 3;
@@ -46,7 +50,13 @@ function metaText(
   }
 }
 
-async function read(bytes: Uint8Array) {
+type Module = Awaited<typeof loading>;
+
+/** Open the file, run `work` on the document, and always let go of both. */
+async function withDocument<T>(
+  bytes: Uint8Array,
+  work: (m: Module, doc: number) => T
+): Promise<T | { unreadable: string }> {
   const m = await loading;
   const ptr = m.pdfium.wasmExports.malloc(bytes.length);
   heap(m).set(bytes, ptr);
@@ -65,18 +75,283 @@ async function read(bytes: Uint8Array) {
     };
   }
   try {
-    return {
-      title: metaText(m, doc, "Title"),
-      author: metaText(m, doc, "Author"),
-    };
+    return work(m, doc);
   } finally {
     m.FPDF_CloseDocument(doc);
     m.pdfium.wasmExports.free(ptr);
   }
 }
 
-parentPort?.on("message", ({ id, bytes }: Job) => {
-  read(bytes).then(
+const readMetadata = (bytes: Uint8Array) =>
+  withDocument(bytes, (m, doc) => ({
+    title: metaText(m, doc, "Title"),
+    author: metaText(m, doc, "Author"),
+  }));
+
+// FPDF_ANNOT_* subtype numbers, mapped onto the kinds Ingest keeps.
+const KINDS: Record<number, string> = {
+  1: "text",
+  3: "freetext",
+  4: "shape",
+  5: "shape",
+  6: "shape",
+  7: "shape",
+  8: "shape",
+  9: "highlight",
+  10: "underline",
+  11: "squiggly",
+  12: "strikeout",
+  13: "stamp",
+  15: "ink",
+};
+const MARKUP = new Set(["highlight", "underline", "strikeout", "squiggly"]);
+
+/** Scratch memory in the module's heap, freed together. */
+function scratch(m: Module) {
+  const ptrs: number[] = [];
+  const view = m.pdfium as unknown as {
+    HEAPF32: Float32Array;
+    HEAPF64: Float64Array;
+    HEAPU32: Uint32Array;
+  };
+  return {
+    alloc: (n: number) => {
+      const p = m.pdfium.wasmExports.malloc(n);
+      ptrs.push(p);
+      return p;
+    },
+    f32: (p: number, n: number) =>
+      Array.from(view.HEAPF32.subarray(p / 4, p / 4 + n)),
+    f64: (p: number) => view.HEAPF64[p / 8]!,
+    u32: (p: number) => view.HEAPU32[p / 4]!,
+    free: () => {
+      for (const p of ptrs.splice(0)) m.pdfium.wasmExports.free(p);
+    },
+  };
+}
+
+/** An annotation's string key as UTF-16LE, or undefined when the key is not there. */
+function annotString(
+  m: Module,
+  annot: number,
+  key: string
+): string | undefined {
+  const length = m.FPDFAnnot_GetStringValue(annot, key, 0, 0);
+  if (length <= 2) return undefined;
+  const ptr = m.pdfium.wasmExports.malloc(length);
+  try {
+    m.FPDFAnnot_GetStringValue(annot, key, ptr, length);
+    return Buffer.from(heap(m).subarray(ptr, ptr + length - 2)).toString(
+      "utf16le"
+    );
+  } finally {
+    m.pdfium.wasmExports.free(ptr);
+  }
+}
+
+type Glyph = {
+  ch: string;
+  generated: boolean;
+  hyphen: boolean;
+  box: { left: number; right: number; bottom: number; top: number };
+};
+
+/**
+ * Every character on the page with its box in PDF user space. Generated
+ * characters (the spaces and line breaks PDFium inserts) are kept, flagged:
+ * they have no real box, but they are what separates words and lines when a
+ * quote is joined.
+ */
+function glyphs(m: Module, page: number): Glyph[] {
+  const text = m.FPDFText_LoadPage(page);
+  const mem = scratch(m);
+  try {
+    const n = m.FPDFText_CountChars(text);
+    const [l, r, b, t] = [
+      mem.alloc(8),
+      mem.alloc(8),
+      mem.alloc(8),
+      mem.alloc(8),
+    ];
+    const out: Glyph[] = [];
+    for (let i = 0; i < n; i++) {
+      m.FPDFText_GetCharBox(text, i, l, r, b, t);
+      out.push({
+        ch: String.fromCodePoint(m.FPDFText_GetUnicode(text, i)),
+        generated: m.FPDFText_IsGenerated(text, i) === 1,
+        // PDFium joins a hyphenated line break itself: the hyphen glyph is
+        // kept, flagged, and no line break follows it.
+        hyphen: m.FPDFText_IsHyphen(text, i) === 1,
+        box: {
+          left: mem.f64(l),
+          right: mem.f64(r),
+          bottom: mem.f64(b),
+          top: mem.f64(t),
+        },
+      });
+    }
+    return out;
+  } finally {
+    mem.free();
+    m.FPDFText_ClosePage(text);
+  }
+}
+
+type Rect = Glyph["box"];
+
+const quadRect = (q: number[]): Rect => ({
+  left: Math.min(q[0]!, q[2]!, q[4]!, q[6]!),
+  right: Math.max(q[0]!, q[2]!, q[4]!, q[6]!),
+  bottom: Math.min(q[1]!, q[3]!, q[5]!, q[7]!),
+  top: Math.max(q[1]!, q[3]!, q[5]!, q[7]!),
+});
+
+function overlapFraction(box: Rect, rect: Rect): number {
+  const w = Math.min(box.right, rect.right) - Math.max(box.left, rect.left);
+  const h = Math.min(box.top, rect.top) - Math.max(box.bottom, rect.bottom);
+  if (w <= 0 || h <= 0) return 0;
+  const area = (box.right - box.left) * (box.top - box.bottom);
+  return area > 0 ? (w * h) / area : 0;
+}
+
+/**
+ * The quote under some quads: a glyph is under a quad when at least half of
+ * its tight box lies inside it (§ Annotation identity, *Quote derivation*).
+ * Half rather than the glyph's centre, because Preview's quads hug the text
+ * and a drag that ends mid-glyph would otherwise lose its first and last
+ * letters. Covered glyphs are joined in the page's reading order; a hyphen
+ * at a line end is dropped so `down-` / `stream` reads `downstream`.
+ */
+function quoteUnder(chars: Glyph[], quads: number[][]): string {
+  const rects = quads.map(quadRect);
+  let quote = "";
+  let previous = -1;
+  chars.forEach((c, i) => {
+    if (c.generated) return;
+    if (c.ch.trim() === "" && !c.hyphen) return;
+    if (!rects.some((rect) => overlapFraction(c.box, rect) >= 0.5)) return;
+    if (previous >= 0 && i > previous + 1) {
+      const between = chars.slice(previous + 1, i);
+      const hyphenated =
+        between.some((b) => b.hyphen) || chars[previous]!.hyphen;
+      if (!hyphenated) quote += " ";
+    }
+    previous = i;
+    if (!c.hyphen) quote += c.ch;
+  });
+  return quote.replace(/\s+/g, " ").trim();
+}
+
+function readAnnotation(
+  m: Module,
+  annot: number,
+  page: number,
+  chars: () => Glyph[]
+) {
+  const kind = KINDS[m.FPDFAnnot_GetSubtype(annot)];
+  if (kind === undefined) return null;
+  const mem = scratch(m);
+  try {
+    const rect = mem.alloc(16);
+    m.FPDFAnnot_GetRect(annot, rect);
+    // FS_RECTF is { left, top, right, bottom }.
+    const [left, top, right, bottom] = mem.f32(rect, 4) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    const [r, g, b, a] = [
+      mem.alloc(4),
+      mem.alloc(4),
+      mem.alloc(4),
+      mem.alloc(4),
+    ];
+    // Stock GetColor refuses once an /AP exists, which every annotation
+    // Vitrine writes has; the fork's reads /C regardless (§ Decided, ADR 0007).
+    const color = m.FPDFAnnot_GetColor(annot, 0, r, g, b, a)
+      ? [mem.u32(r), mem.u32(g), mem.u32(b)]
+      : m.EPDFAnnot_GetColor(annot, 0, r, g, b)
+        ? [mem.u32(r), mem.u32(g), mem.u32(b)]
+        : null;
+    const quads: number[][] = [];
+    if (MARKUP.has(kind)) {
+      const count = m.FPDFAnnot_CountAttachmentPoints(annot);
+      const q = mem.alloc(32);
+      for (let i = 0; i < count; i++) {
+        m.FPDFAnnot_GetAttachmentPoints(annot, i, q);
+        quads.push(mem.f32(q, 8));
+      }
+    }
+    const contents = annotString(m, annot, "Contents") ?? "";
+    const nm = annotString(m, annot, "NM");
+    const isText = kind === "text" || kind === "freetext";
+    return {
+      kind,
+      page,
+      quads,
+      quote: MARKUP.has(kind)
+        ? quoteUnder(chars(), quads)
+        : isText
+          ? contents.trim()
+          : "",
+      note: MARKUP.has(kind) ? contents : "",
+      color,
+      ...(nm === undefined || nm === "" ? {} : { nm }),
+      rect: [left, bottom, right, top],
+    };
+  } finally {
+    mem.free();
+  }
+}
+
+const readAnnotations = (bytes: Uint8Array) =>
+  withDocument(bytes, (m, doc) => {
+    const pages = m.FPDF_GetPageCount(doc);
+    const mem = scratch(m);
+    let fileId = "";
+    try {
+      const length = m.FPDF_GetFileIdentifier(doc, 0, 0, 0);
+      if (length > 0) {
+        const ptr = mem.alloc(length);
+        m.FPDF_GetFileIdentifier(doc, 0, ptr, length);
+        fileId = Buffer.from(heap(m).subarray(ptr, ptr + length)).toString(
+          "hex"
+        );
+      }
+    } finally {
+      mem.free();
+    }
+    const annotations = [];
+    for (let index = 0; index < pages; index++) {
+      const page = m.FPDF_LoadPage(doc, index);
+      if (!page) continue;
+      let cached: Glyph[] | null = null;
+      try {
+        const count = m.FPDFPage_GetAnnotCount(page);
+        for (let i = 0; i < count; i++) {
+          const annot = m.FPDFPage_GetAnnot(page, i);
+          try {
+            const read = readAnnotation(
+              m,
+              annot,
+              index,
+              () => (cached ??= glyphs(m, page))
+            );
+            if (read !== null) annotations.push(read);
+          } finally {
+            m.FPDFPage_CloseAnnot(annot);
+          }
+        }
+      } finally {
+        m.FPDF_ClosePage(page);
+      }
+    }
+    return { pages, fileId, annotations };
+  });
+
+parentPort?.on("message", ({ id, job, bytes }: Job) => {
+  (job === "annotations" ? readAnnotations(bytes) : readMetadata(bytes)).then(
     (result) => parentPort?.postMessage({ id, result }),
     () =>
       parentPort?.postMessage({
