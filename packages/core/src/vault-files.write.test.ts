@@ -357,6 +357,31 @@ describe("refusals: nothing touches the disk", () => {
     expect(await bytes(join(vault, "e.md"))).toBe("---\n---\n");
   });
 
+  it("verificationFailed when a source stub becomes anything but a source — only attaching a PDF may change that kind (ADR 0037)", async () => {
+    const vault = await vaultWith({ "s.md": "---\nkind: source-stub\n---\n" });
+    const result = refused(
+      await write(vault, "s.md", {
+        operations: [setFrontmatter({ kind: "hypothesis" })],
+        basedOn: await basedOn(vault, "s.md"),
+      })
+    );
+    expect(result.reason).toBe("verificationFailed");
+    expect(await bytes(join(vault, "s.md"))).toBe(
+      "---\nkind: source-stub\n---\n"
+    );
+  });
+
+  it("verificationFailed when a source (not a stub) is asked to change kind, even to source-stub", async () => {
+    const vault = await vaultWith({ "s.md": "---\nkind: source\n---\n" });
+    const result = refused(
+      await write(vault, "s.md", {
+        operations: [setFrontmatter({ kind: "source-stub" })],
+        basedOn: await basedOn(vault, "s.md"),
+      })
+    );
+    expect(result.reason).toBe("verificationFailed");
+  });
+
   it("noFrontmatter on a file that has none — only createFile makes frontmatter (ADR 0006 decision 11)", async () => {
     const { vault, original } = await copyOf("shape-no-frontmatter.md");
     const result = refused(

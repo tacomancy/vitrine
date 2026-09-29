@@ -1,4 +1,11 @@
-import { open, readdir, readFile, rename, stat } from "node:fs/promises";
+import {
+  open,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
@@ -327,5 +334,42 @@ describe("a PDF renamed in Finder", () => {
       { timeout: 4000 }
     );
     expect((await rows()).groups).toEqual([]);
+  });
+});
+
+describe("a rename paired before the Source is read", () => {
+  // The sweep's first chunk can pair a rename (the PDF moved while the app
+  // was closed) before the Source that names it has been indexed; acting
+  // then would follow nothing and forget it had to.
+  it("still rewrites pdf: once the opening sweep is done", async () => {
+    const vault = await vaultWith({ "sources/pdf/old.pdf": PDF });
+    const first = await core({ settleMs: 40 });
+    await first.mutate("vault.open", { path: vault });
+    await first.indexed();
+    await first.close();
+    // While the app is closed: the PDF is renamed, and a Source that named
+    // it by its old name arrives (a sync client delivering both).
+    await rename(
+      join(vault, "sources/pdf/old.pdf"),
+      join(vault, "sources/pdf/new.pdf")
+    );
+    await writeFile(
+      join(vault, "sources/rasch2013.md"),
+      "---\nkind: source\ncitekey: rasch2013\npdf: old.pdf\nid: s1\n---\n"
+    );
+
+    // A chunk of one file puts the rename in the first chunk and the Source
+    // in the second, so acting on the first chunk's status would find no
+    // paper naming the old file.
+    const c = await core({ settleMs: 40, chunkSize: 1 });
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
+    await vi.waitFor(
+      async () =>
+        expect(
+          await readFile(join(vault, "sources/rasch2013.md"), "utf8")
+        ).toContain("pdf: new.pdf\n"),
+      { timeout: 4000 }
+    );
   });
 });

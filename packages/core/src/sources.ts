@@ -226,6 +226,15 @@ async function makeStub(
 /** The two Kinds that carry a `pdf:`; a stub may name a file before it is read. */
 const PAPERS = ["source", "source-stub"];
 
+const FOLDER_PREFIX = `${PDF_FOLDER}/`;
+
+/** A PDF under `sources/pdf/`, however the case of its path is written. */
+const isPdfInFolder = (path: string) =>
+  path.toLowerCase().startsWith(FOLDER_PREFIX) && /\.pdf$/i.test(path);
+
+/** A PDF's path as a `pdf:` writes it: its own name, relative to the folder. */
+const nameInFolder = (path: string) => path.slice(FOLDER_PREFIX.length);
+
 /** What a `pdf:` key names, as the vault path the picker and this compare by. */
 const namedPath = (pdf: string) =>
   posix.join(PDF_FOLDER, pdf.trim()).toLowerCase();
@@ -295,17 +304,16 @@ export function attachPdf(
   newId: () => string
 ): Promise<Attached> {
   return attaching(async () => {
-    const folder = `${PDF_FOLDER}/`;
-    const held = index.select<{ path: string; hash: string | null }>(
-      "SELECT path, hash FROM files WHERE markdown = 0 AND lpath = ?",
-      pdf.toLowerCase()
-    )[0];
-    if (!pdf.toLowerCase().startsWith(folder) || !/\.pdf$/i.test(pdf)) {
+    if (!isPdfInFolder(pdf)) {
       throw new VaultError(
         "refused",
         `${pdf} is not a PDF in the PDF folder, so there is nothing to attach.`
       );
     }
+    const held = index.select<{ path: string; hash: string | null }>(
+      "SELECT path, hash FROM files WHERE markdown = 0 AND lpath = ?",
+      pdf.toLowerCase()
+    )[0];
     if (held === undefined) {
       throw new VaultError("refused", `There is no PDF at ${pdf}.`);
     }
@@ -338,7 +346,7 @@ export function attachPdf(
           op: "setFrontmatter",
           keys: {
             kind: "source",
-            pdf: held.path.slice(folder.length),
+            pdf: nameInFolder(held.path),
             id,
           },
         },
@@ -367,11 +375,8 @@ export function followPdfRenames(
   index: VaultIndex,
   pairs: ReadonlyArray<{ from: string; to: string }>
 ): Promise<void> {
-  const folder = `${PDF_FOLDER}/`;
   const moves = pairs.filter(
-    ({ from, to }) =>
-      from.toLowerCase().startsWith(folder) &&
-      to.toLowerCase().startsWith(folder)
+    ({ from, to }) => isPdfInFolder(from) && isPdfInFolder(to)
   );
   if (moves.length === 0) return Promise.resolve();
   return attaching(async () => {
@@ -389,7 +394,7 @@ export function followPdfRenames(
           operations: [
             {
               op: "setFrontmatter",
-              keys: { pdf: move.to.slice(folder.length) },
+              keys: { pdf: nameInFolder(move.to) },
             },
           ],
         });
