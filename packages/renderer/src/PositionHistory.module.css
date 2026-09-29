@@ -79,6 +79,7 @@
 }
 
 .field {
+  margin: 0;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
@@ -89,6 +90,21 @@
   flex-direction: column;
   gap: var(--space-2);
   max-width: 72ch;
+}
+
+/*
+ * In a rail (the Experiment page's): prototype 05's narrow date column,
+ * day and month over the year when there is one, beside text that keeps
+ * the rest of the rail's width. The field's name leads the text instead
+ * (`PositionHistory`), since none fits the column.
+ */
+.rail .entry {
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.rail .column {
+  text-align: left;
 }
 
 /* What the answer became, in the serif: the entry's own sentence. */
@@ -109,6 +125,23 @@
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   color: var(--color-fg);
+}
+
+/* And prototype 05's rail type: in the rail an entry is set in the sans at
+   the rail's size rather than the page's serif — a revision set at page
+   size beside a 300px rail is what left it a few words a line. The
+   revision is secondary, as the prototype draws it; the why, which the
+   prototype's rail has no counterpart for, keeps its colour and its
+   accent rule, since it is what the entry is for. */
+.rail .position,
+.rail .why {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+}
+
+.rail .position {
+  color: var(--color-fg-secondary);
 }
 
 .link {
@@ -148,6 +181,17 @@
 .trail:focus-visible {
   color: var(--color-fg);
   outline: none;
+}
+
+/* The prototype's rail sets a quiet run's line in the sans, muted. */
+.rail .trail {
+  font-family: var(--font-sans);
+  color: var(--color-fg-muted);
+}
+
+.rail .trail:hover,
+.rail .trail:focus-visible {
+  color: var(--color-fg);
 }
 
 .rule {

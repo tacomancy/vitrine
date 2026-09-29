@@ -466,13 +466,20 @@ describe("a rename is one event, and the row follows it", () => {
 
 /**
  * The real `fs.watch`, except that an event naming one of `held` reaches the
- * listener `FSEVENTS_LATENCY_MS` late — what FSEvents does to the second of
- * two changes a millisecond apart whenever `fseventsd` is busy: the first goes
- * out at once, the second waits out the stream's latency in the next callback.
- * Deterministic here where, on a real machine, it depends on what else is
- * writing to disk.
+ * listener `lateMs` after the last event not held — by default what FSEvents
+ * does to the second of two changes a millisecond apart whenever `fseventsd`
+ * is busy: the first goes out at once, the second waits out the stream's
+ * latency in the next callback. Deterministic here where, on a real machine,
+ * it depends on what else is writing to disk.
+ *
+ * Timed from the unheld event, not from the held one's own arrival: a loaded
+ * `fseventsd` has often split the pair already, and adding the latency on top
+ * of that delivered the second change two latencies late — the floor as it
+ * then stood, so the pair split (the flake on #400's CI run). A held event
+ * with no unheld one before it goes out at once.
  */
-function deferring(held: string[]) {
+function deferring(held: string[], lateMs = FSEVENTS_LATENCY_MS) {
+  let lastUnheldAt = 0;
   const watch: typeof fsWatch = ((
     folder: string,
     options: { recursive: boolean },
@@ -480,8 +487,10 @@ function deferring(held: string[]) {
   ) =>
     fsWatch(folder, options, (kind, filename) => {
       if (filename !== null && held.includes(filename)) {
-        setTimeout(() => listener(kind, filename), FSEVENTS_LATENCY_MS);
+        const wait = lastUnheldAt + lateMs - Date.now();
+        setTimeout(() => listener(kind, filename), Math.max(0, wait));
       } else {
+        lastUnheldAt = Date.now();
         listener(kind, filename);
       }
     })) as typeof fsWatch;
@@ -496,6 +505,28 @@ describe("two changes a moment apart are one Batch however FSEvents splits them"
     const { vault, stream } = await watching(
       { "notes/A.md": "a\n", "notes/B.md": "b\n" },
       { settleMs: 40, watch: deferring(["notes/B.md", "notes/D.md"]) }
+    );
+    await rename(join(vault, "notes", "A.md"), join(vault, "notes", "C.md"));
+    await rename(join(vault, "notes", "B.md"), join(vault, "notes", "D.md"));
+    expect(await stream.next("vaultChanged")).toEqual({
+      type: "vaultChanged",
+      changed: [],
+      removed: [],
+      renamed: [
+        { from: "notes/A.md", to: "notes/C.md" },
+        { from: "notes/B.md", to: "notes/D.md" },
+      ],
+    });
+    stream.close();
+  });
+
+  it("a second rename heard 120 ms after the first — the latency, then a stalled event loop — still shares its vaultChanged", async () => {
+    // What a loaded runner was measured doing (#400): the second rename held
+    // one latency, then ~70 ms more while the event loop stalled — heard
+    // 123 ms after the first, just behind the first's settle.
+    const { vault, stream } = await watching(
+      { "notes/A.md": "a\n", "notes/B.md": "b\n" },
+      { settleMs: 40, watch: deferring(["notes/B.md", "notes/D.md"], 120) }
     );
     await rename(join(vault, "notes", "A.md"), join(vault, "notes", "C.md"));
     await rename(join(vault, "notes", "B.md"), join(vault, "notes", "D.md"));

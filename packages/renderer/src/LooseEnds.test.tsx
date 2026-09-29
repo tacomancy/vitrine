@@ -708,6 +708,23 @@ describe("the Experiment rows", () => {
       falsifying,
     }) as const;
 
+  // An Experiment is never promoted (spec #362 story 9), so the group's
+  // note cannot say so once runs share the group with Questions.
+  it("heads the group they share with Questions with a note true of a run too", async () => {
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [{ group: "Stalled questions", rows: [quiet(), gone()] }],
+      },
+    });
+    const view = await dashboard();
+    const group = await within(view).findByRole("region", {
+      name: "Stalled questions",
+    });
+    expect(group.textContent).toContain("begun, with a piece still missing");
+    expect(group.textContent).not.toContain("promoted");
+  });
+
   it("names a quiet run as a link, how long it has been quiet in open days, and that nothing is written about its Artifacts", async () => {
     open({
       "looseEnds.rows": {
@@ -784,8 +801,51 @@ describe("the Experiment rows", () => {
     const row = group.querySelector("[data-loud]");
     expect(row).not.toBeNull();
     expect(row!.textContent).toMatch(/a falsification rests on it/i);
-    expect(row!.textContent).toContain(`F1 · ${claim}`);
+    expect(row!.textContent).toContain(
+      "F1 · Preregistered reanalysis will shrink the pooled effect"
+    );
   });
+
+  it.each([
+    [
+      "F2",
+      "Spindle density predicts strength.",
+      "Evidence for F2 · Spindle density predicts strength, with its Outcome recorded.",
+    ],
+    [
+      null,
+      "Spindle density predicts strength.",
+      "Evidence for Spindle density predicts strength, with its Outcome recorded.",
+    ],
+    [
+      "F2",
+      "Does density predict strength?",
+      "Evidence for F2 · Does density predict strength?, with its Outcome recorded.",
+    ],
+    [
+      "F2",
+      "Density predicts strength...",
+      "Evidence for F2 · Density predicts strength..., with its Outcome recorded.",
+    ],
+  ] as const)(
+    "ends the claim %s %j where the falsifying line carries on, so a full stop is never doubled",
+    async (criterion, claim, line) => {
+      open({
+        "looseEnds.rows": {
+          problems: [],
+          groups: [
+            {
+              group: "Broken plumbing",
+              rows: [gone([{ path: "hypotheses/H.md", claim, criterion }])],
+            },
+          ],
+        },
+      });
+      const view = await dashboard();
+      await within(view).findByRole("link", { name: "prereg-exclusions" });
+      expect(view.textContent).toContain(line);
+    }
+  );
 
   it.each([
     ["stalled-experiment", quiet(), /2 Artifacts and no observations/],

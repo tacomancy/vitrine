@@ -142,6 +142,73 @@ describe("Design and Observations, edited as Positions", () => {
 });
 
 describe("the history trail", () => {
+  // Prototype 05's rail: a narrow date column, day and month, beside text
+  // that keeps the rail's width — an 18ch column left a Design revision a
+  // word or two a line (#375). The field an entry is of leads its text,
+  // since no field's name fits the column.
+  it("dates each entry by day and month in a narrow column, the year only when it is not this one, and names the field above the text", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 9, 0, 0));
+    try {
+      open(() =>
+        page({
+          entries: [
+            revision(
+              "2026-09-29T10:00:00+02:00",
+              "design",
+              "Two labs share a site."
+            ),
+            revision(
+              "2025-12-30T10:00:00+01:00",
+              "observations",
+              "The pilot said so."
+            ),
+          ],
+        })
+      );
+      const history = await within(await region()).findByRole("region", {
+        name: "Position history",
+      });
+      await within(history).findByText("Two labs share a site.");
+      const entries = history.querySelectorAll("ol > li");
+      expect(entries).toHaveLength(2);
+      const [recent, older] = [...entries];
+      expect(recent!.firstElementChild!.textContent).toBe("29 Sep");
+      expect(older!.firstElementChild!.textContent).toBe("30 Dec 2025");
+      expect(recent!.lastElementChild!.firstElementChild!.textContent).toBe(
+        "design"
+      );
+      expect(history.querySelector("ol")!.textContent).not.toContain(
+        "September"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("dates a quiet run in the rail by its newest revision alone, as prototype 05 does", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 30, 9, 0, 0));
+    try {
+      open(() =>
+        page({
+          entries: [
+            revision("2026-09-22T10:00:00+02:00", "design"),
+            revision("2026-09-10T10:00:00+02:00", "design"),
+          ],
+        })
+      );
+      const history = await within(await region()).findByRole("region", {
+        name: "Position history",
+      });
+      await within(history).findByRole("button", { name: /quiet/ });
+      const [run] = [...history.querySelectorAll("ol > li")];
+      expect(run!.firstElementChild!.textContent).toBe("22 Sep");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("leads with explained revisions and collapses the quiet ones into dates", async () => {
     open(() =>
       page({

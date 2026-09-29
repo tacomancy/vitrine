@@ -33,11 +33,16 @@ describe("picker.candidates", () => {
     const c = await opened(await fixtureCopy("obsidian-vault"));
     expect(shown(await c.candidates({ query: "" }))).toEqual([
       "source born2010",
+      "experiment closed-loop-boost",
       "question Does slow-wave density predict recall gain",
       "research-question Is the overnight benefit consolidation or encoding (RQ)",
       "source-stub klinzing2019",
+      "experiment overnight-vs-wake",
       "source rasch2013",
       "note Sleep and consolidation",
+      "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond",
+      "experiment spindle-replay-rerun",
+      "experiment sw-density-recall",
     ]);
   });
 
@@ -46,6 +51,8 @@ describe("picker.candidates", () => {
 
     expect(shown(await c.candidates({ query: "RECALL" }))).toEqual([
       "question Does slow-wave density predict recall gain",
+      "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond",
+      "experiment sw-density-recall",
     ]);
     expect(shown(await c.candidates({ query: "2019" }))).toEqual([
       "source-stub klinzing2019",
@@ -129,10 +136,15 @@ describe("picker.candidates", () => {
         })
       )
     ).toEqual([
+      "experiment closed-loop-boost",
       "question Does slow-wave density predict recall gain",
       "research-question Is the overnight benefit consolidation or encoding (RQ)",
       "source-stub klinzing2019",
+      "experiment overnight-vs-wake",
       "note Sleep and consolidation",
+      "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond",
+      "experiment spindle-replay-rerun",
+      "experiment sw-density-recall",
     ]);
   });
 

@@ -76,6 +76,11 @@ describe("globalCommand.destinations", () => {
     // can lead to a dead end (ADR 0027 decision 4).
     expect(shown(await c.destinations(""))).toEqual([
       "research-question Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?",
+      "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond encoding strength.",
+      "experiment sw-density-recall",
+      "experiment closed-loop-boost",
+      "experiment spindle-replay-rerun",
+      "experiment overnight-vs-wake",
       "question Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?",
     ]);
   });
@@ -83,6 +88,12 @@ describe("globalCommand.destinations", () => {
   it("carries the Kind and the vault-relative path beside the Display name", async () => {
     const c = await opened(await fixtureCopy("obsidian-vault"));
     expect((await c.destinations("slow-wave")).rows).toEqual([
+      {
+        kind: "hypothesis",
+        path: "hypotheses/Slow-wave density on the retention night predicts overnight recall gain beyond.md",
+        display:
+          "Slow-wave density on the retention night predicts overnight recall gain beyond encoding strength.",
+      },
       {
         kind: "question",
         path: "reading/Does slow-wave density predict recall gain.md",
@@ -123,6 +134,7 @@ describe("globalCommand.destinations", () => {
     const c = await opened(await fixtureCopy("obsidian-vault"));
     for (const typed of ["slow-wave", "slow wave", "wave density"]) {
       expect(shown(await c.destinations(typed))).toEqual([
+        "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond encoding strength.",
         "question Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?",
       ]);
     }

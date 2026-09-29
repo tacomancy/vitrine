@@ -32,7 +32,15 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
  * than vanishing out from under the click.
  */
 
-/** Each group's glyph and the line beside it, from prompt 9's punch-list reading. */
+/**
+ * Each group's glyph and the line beside it, from prompt 9's punch-list
+ * reading. A note has to be true of every row its group can hold.
+ * Prototype 9's *promoted, then quiet* stopped being so when runs joined
+ * Stalled questions (#374): an Experiment is never promoted, and a run
+ * whose linked file went missing need not be quiet — an unmounted volume
+ * does it to a run in hand. What every row there shares is work begun
+ * that lacks something it needs.
+ */
 const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
   "Broken plumbing": { glyph: "!", note: "these worsen while ignored" },
   "Unfinished reading": { glyph: "◇", note: "acquired but not yet read" },
@@ -40,7 +48,10 @@ const GROUPS: Record<LooseEndGroupName, { glyph: string; note: string }> = {
     glyph: "·",
     note: "in the vault, wired to nothing",
   },
-  "Stalled questions": { glyph: "◆", note: "promoted, then quiet" },
+  "Stalled questions": {
+    glyph: "◆",
+    note: "begun, with a piece still missing",
+  },
 };
 
 /**
@@ -537,6 +548,15 @@ function QuietExperiment({
 }
 
 /**
+ * A claim as a clause inside the falsifying line. A claim is written as its
+ * own sentence, so it usually ends in a full stop, and the line carries on
+ * past it with a comma — "strength., with" otherwise. Only a lone full stop
+ * goes: a question mark or an ellipsis still reads before a comma, and says
+ * something the claim meant.
+ */
+const asClause = (claim: string) => claim.trimEnd().replace(/(?<!\.)\.$/, "");
+
+/**
  * *Linked Artifacts gone from where they were linked* (spec #362 stories
  * 75–77; REP-6): only this machine's links, as the core checked them. One
  * row per run, listing each file, since a dismissal cannot be finer.
@@ -591,7 +611,9 @@ function MissingFiles({
                 className={styles.evidenceLink}
                 href={hashOf({ surface: "hypothesis", path: f.path })}
               >
-                {f.criterion === null ? f.claim : `${f.criterion} · ${f.claim}`}
+                {f.criterion === null
+                  ? asClause(f.claim)
+                  : `${f.criterion} · ${asClause(f.claim)}`}
               </a>
             </span>
           ))}

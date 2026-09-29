@@ -36,7 +36,7 @@ export type AppOptions = {
    * string. Absent — a core started by hand — the host name stands in.
    */
   machine?: string;
-  /** The watcher's settle window in ms; tests shorten it as they pin `now`, to no less than 100 ms (`MIN_SETTLE_MS`, `vault-watcher.ts`). */
+  /** The watcher's settle window in ms; tests shorten it as they pin `now`, to no less than 200 ms (`MIN_SETTLE_MS`, `vault-watcher.ts`). */
   settleMs?: number;
   /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
   coalesceMs?: number;
