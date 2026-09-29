@@ -124,13 +124,25 @@ export function createApp({
         annotation: q.annotation,
         quote: q.quote,
       }),
-    onIngest: (run) =>
-      events.emit({
-        type: "ingestLanded",
-        runId: (newId ?? randomId)(),
-        summary: run.summary,
-        sources: run.sources,
-      }),
+    onIngest: (run) => {
+      const { summary } = run;
+      // A clean run says nothing (story 16): a run that only re-found what it
+      // knew, or only raised the document-changed event, is not a footer line.
+      if (
+        summary.new + summary.questions + summary.removed + summary.unmatched >
+        0
+      ) {
+        events.emit({
+          type: "ingestLanded",
+          runId: (newId ?? randomId)(),
+          summary,
+          sources: run.sources,
+        });
+      }
+      for (const source of run.changed) {
+        events.emit({ type: "documentChanged", source });
+      }
+    },
     index: {
       ...index,
       // The Kinds with a Position (§ Index): the Research Question's

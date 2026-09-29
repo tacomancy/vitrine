@@ -31,7 +31,7 @@ const PAGES = [
   ],
 ];
 
-function body() {
+function body(PAGES) {
   const objects = [];
   const add = (text) => objects.push(text) && objects.length;
   const catalog = add("");
@@ -65,7 +65,42 @@ function body() {
 }
 
 const dir = mkdtempSync(join(tmpdir(), "vitrine-annotated-"));
-writeFileSync(join(here, "synthetic-body.pdf"), body());
+
+// The other documents the re-matching fixtures need. Each is `synthetic-body`
+// changed in exactly one way: a line inserted above the first (every word on
+// it already on the page, so the fingerprint is unmoved — reflow, not a new
+// document), the two pages in the other order (a re-export), all-new text (a
+// replaced document), and four identical lines (twin highlights).
+const BODIES = {
+  "synthetic-body.pdf": PAGES,
+  "synthetic-shifted.pdf": [
+    ["Second night of slow wave sleep.", ...PAGES[0]],
+    PAGES[1],
+  ],
+  "synthetic-swapped.pdf": [PAGES[1], PAGES[0]],
+  "synthetic-other.pdf": [
+    [
+      "Granite quarries supplied the harbour walls throughout winter.",
+      "Masons dressed every block beside the northern slipway",
+      "before merchants shipped cargo toward distant markets.",
+    ],
+    [
+      "Tidal charts recorded unusual currents near the lighthouse.",
+      "Keepers logged storms alongside routine repairs.",
+    ],
+  ],
+  "synthetic-twins.pdf": [
+    [
+      "Twin sentence here.",
+      "Twin sentence here.",
+      "Twin sentence here.",
+      "Twin sentence here.",
+    ],
+  ],
+};
+for (const [name, pages] of Object.entries(BODIES)) {
+  writeFileSync(join(here, name), body(pages));
+}
 
 // What each output is given, as JSON the Swift below reads: a highlight is a
 // phrase to find and an optional note; a note is a point; ink is a stroke.
@@ -130,6 +165,103 @@ const specs = {
   ],
 };
 
+// What a re-save and the ordinary edits to an annotated file look like once
+// PDFKit has written them (spec #416 story 34–39). Each starts from another
+// output rather than from a body: a Preview edit is made to a file that is
+// already annotated. `remove` and `nudge` find the highlight covering a phrase.
+const PARTICIPANTS = {
+  kind: "highlight",
+  contents: "Check this against the control group",
+};
+const derived = {
+  "resaved.pdf": { base: "annotated.pdf", ops: [] },
+  "annotated-nudged.pdf": {
+    base: "annotated.pdf",
+    ops: [{ kind: "nudge", covering: "Participants who", dx: 1.5, dy: -2 }],
+  },
+  "annotated-extended.pdf": {
+    base: "annotated.pdf",
+    ops: [
+      { kind: "remove", covering: "Participants who" },
+      {
+        ...PARTICIPANTS,
+        phrase: "Participants who heard the odor cue recalled more",
+      },
+    ],
+  },
+  "annotated-trimmed.pdf": {
+    base: "annotated.pdf",
+    ops: [
+      { kind: "remove", covering: "Participants who" },
+      { ...PARTICIPANTS, phrase: "Participants who heard the" },
+    ],
+  },
+  // Two trims measured against the 0.4 threshold: half the highlight keeps
+  // 0.5 of its box, a single word 0.35 — one is the same highlight, the
+  // other is not, and each is what stops the threshold moving unnoticed.
+  "annotated-halved.pdf": {
+    base: "annotated.pdf",
+    ops: [
+      { kind: "remove", covering: "Participants who" },
+      { ...PARTICIPANTS, phrase: "Participants who" },
+    ],
+  },
+  "annotated-sliver.pdf": {
+    base: "annotated.pdf",
+    ops: [
+      { kind: "remove", covering: "Participants who" },
+      { ...PARTICIPANTS, phrase: "Participants" },
+    ],
+  },
+  "annotated-fewer.pdf": {
+    base: "annotated.pdf",
+    ops: [{ kind: "remove", covering: "difference was reliable" }],
+  },
+  "twins.pdf": {
+    base: "synthetic-twins.pdf",
+    ops: [
+      { kind: "highlight", phrase: "Twin sentence here.", occurrence: 0 },
+      { kind: "highlight", phrase: "Twin sentence here.", occurrence: 1 },
+    ],
+  },
+  "twins-resaved.pdf": { base: "twins.pdf", ops: [] },
+  "twins-moved.pdf": {
+    base: "synthetic-twins.pdf",
+    ops: [
+      { kind: "highlight", phrase: "Twin sentence here.", occurrence: 2 },
+      { kind: "highlight", phrase: "Twin sentence here.", occurrence: 3 },
+    ],
+  },
+  "annotated-shifted.pdf": {
+    base: "synthetic-shifted.pdf",
+    ops: [
+      { ...PARTICIPANTS, phrase: "Participants who heard the odor cue" },
+      {
+        kind: "highlight",
+        phrase: "difference was reliable across the down-",
+        also: "stream analyses",
+      },
+      { kind: "highlight", phrase: "different sentence about memory" },
+    ],
+  },
+  "annotated-swapped.pdf": {
+    base: "synthetic-swapped.pdf",
+    ops: [
+      { ...PARTICIPANTS, phrase: "Participants who heard the odor cue" },
+      { kind: "highlight", phrase: "different sentence about memory" },
+    ],
+  },
+  "replaced.pdf": {
+    base: "synthetic-other.pdf",
+    ops: [
+      // On lines that share no box with anything the file it replaces had
+      // marked: a replacement is not the place to test the geometry tier.
+      { kind: "highlight", phrase: "Granite quarries supplied" },
+      { kind: "highlight", phrase: "Keepers logged storms" },
+    ],
+  },
+};
+
 const swift = join(dir, "annotate.swift");
 writeFileSync(
   swift,
@@ -151,8 +283,19 @@ func lineRects(_ selection: PDFSelection) -> [(PDFPage, CGRect)] {
 
 for spec in specs {
   switch spec["kind"] as! String {
+  case "remove":
+    guard let found = doc.findString(spec["covering"] as! String, withOptions: .literal).first, let page = found.pages.first else { fputs("not found\\n", stderr); exit(1) }
+    let at = found.bounds(for: page)
+    for existing in page.annotations where existing.bounds.intersects(at) && existing.type == "Highlight" { page.removeAnnotation(existing) }
+  case "nudge":
+    guard let found = doc.findString(spec["covering"] as! String, withOptions: .literal).first, let page = found.pages.first else { fputs("not found\\n", stderr); exit(1) }
+    let at = found.bounds(for: page)
+    for existing in page.annotations where existing.bounds.intersects(at) && existing.type == "Highlight" {
+      existing.bounds = existing.bounds.offsetBy(dx: spec["dx"] as! Double, dy: spec["dy"] as! Double)
+    }
   case "highlight":
-    guard let found = doc.findString(spec["phrase"] as! String, withOptions: .literal).first else { fputs("not found\\n", stderr); exit(1) }
+    let hits = doc.findString(spec["phrase"] as! String, withOptions: .literal)
+    guard let found = hits.count > (spec["occurrence"] as? Int ?? 0) ? hits[spec["occurrence"] as? Int ?? 0] : nil else { fputs("not found\\n", stderr); exit(1) }
     var lines = lineRects(found)
     if let also = spec["also"] as? String, let more = doc.findString(also, withOptions: .literal).first {
       lines += lineRects(more)
@@ -196,13 +339,15 @@ doc.write(to: URL(fileURLWithPath: a[2]))
 `
 );
 
-for (const [name, spec] of Object.entries(specs)) {
+const run = (base, name, spec) => {
   const json = join(dir, `${name}.json`);
   writeFileSync(json, JSON.stringify(spec));
-  execFileSync("swift", [
-    swift,
-    join(here, "synthetic-body.pdf"),
-    join(here, name),
-    json,
-  ]);
+  execFileSync("swift", [swift, join(here, base), join(here, name), json]);
+};
+for (const [name, spec] of Object.entries(specs)) {
+  run("synthetic-body.pdf", name, spec);
+}
+// In order: `twins-resaved` starts from `twins`.
+for (const [name, { base, ops }] of Object.entries(derived)) {
+  run(base, name, ops);
 }
