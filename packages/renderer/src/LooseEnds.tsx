@@ -4,6 +4,7 @@ import type {
   LooseEndGroupName,
   LooseEndRow,
   MissingArtifacts,
+  NoSource,
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
@@ -13,6 +14,7 @@ import { FirstSlot, voiceOf } from "./FirstSlot";
 import { useState, type ReactNode } from "react";
 import { addressOf, KIND, markOf } from "./kinds";
 import styles from "./LooseEnds.module.css";
+import { Picker } from "./Picker";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
@@ -254,6 +256,8 @@ function Row(props: {
   resolution: Resolution;
 }) {
   switch (props.row.kind) {
+    case "no-source":
+      return <NoSourcePdf row={props.row} resolution={props.resolution} />;
     case "stalled-research-question":
       return <Stalled {...props} row={props.row} />;
     case "stalled-hypothesis":
@@ -619,6 +623,75 @@ function MissingFiles({
           ))}
           , with its Outcome recorded.
         </p>
+      )}
+    </RowShell>
+  );
+}
+
+/**
+ * *A PDF in the folder that nothing names* (#417; spec #416 stories 4, 5):
+ * neither ingested nor indexed until it is resolved. *Attach to a stub* is
+ * the picker narrowed to stubs and one write in the core; the row then
+ * stays, saying what happened, until the dashboard is next read. Nothing
+ * here renames or moves the file, and *create a Source* is the PDF
+ * engine's ticket.
+ */
+function NoSourcePdf({
+  row,
+  resolution,
+}: {
+  row: NoSource;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const [picking, setPicking] = useState(false);
+  const [attachedTo, setAttachedTo] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const attach = useMutation(
+    trpc.sources.attachToStub.mutationOptions({
+      onSuccess: (_reply, { stub }) => setAttachedTo(stub),
+      onError: (error) => setRefusal(error.message),
+    })
+  );
+  const stubName = attachedTo?.replace(/^.*\//, "").replace(/\.md$/, "");
+  return (
+    <RowShell
+      meta="PDF · no Source"
+      title={row.title}
+      why={
+        attachedTo === null
+          ? "No Source names this file, so it is neither read nor indexed."
+          : `Attached to ${stubName} — it is a Source now, and the file keeps the name it has.`
+      }
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        attachedTo === null && (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => {
+                setRefusal(undefined);
+                setPicking(true);
+              }}
+            >
+              attach to a stub
+            </button>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
+      }
+    >
+      {picking && (
+        <Picker
+          label="Attach to a stub"
+          kinds={["source-stub"]}
+          onChoose={(chosen) => {
+            setPicking(false);
+            attach.mutate({ pdf: row.path, stub: chosen.path });
+          }}
+          onClose={() => setPicking(false)}
+        />
       )}
     </RowShell>
   );

@@ -998,7 +998,7 @@ function apply(
 /**
  * What a splice must not have done, checked by re-parsing the result before
  * it reaches disk (ADR 0008 decision 3): the frontmatter still parses,
- * `kind` is unchanged, every `##` section an operation targeted is there
+ * `kind` is unchanged (bar a stub becoming a Source, ADR 0037), every `##` section an operation targeted is there
  * exactly once (or as many times as before, when the file already had a
  * duplicate — that is reported on the read, not refused here, ADR 0008
  * decision 10), every block id an operation depends on is still there, and
@@ -1012,7 +1012,16 @@ function verify(
 ): string | null {
   if (!before.readable) return `the file is unreadable: ${before.reason}`;
   if (!after.readable) return `the result is unreadable: ${after.reason}`;
-  if (after.kind !== before.kind) {
+  // A splice that changed `kind` by accident is an off-by-one in a fence.
+  // The one change that is wanted is attaching a PDF to a source stub, which
+  // names the new `kind` itself (ADR 0037); no other change is allowed.
+  const asked =
+    before.kind === "source-stub" &&
+    after.kind === "source" &&
+    operations.some(
+      (op) => op.op === "setFrontmatter" && op.keys?.["kind"] === "source"
+    );
+  if (after.kind !== before.kind && !asked) {
     return `kind would change from ${JSON.stringify(before.kind)} to ${JSON.stringify(after.kind)}`;
   }
   const sectionCount = (r: typeof after, name: string) =>
