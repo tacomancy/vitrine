@@ -155,7 +155,9 @@ annotations[]
   matched_by              object | text | text-moved | geometry — how the last Ingest found it
   last_matched
   removed_at              set when an unlinked identity failed every tier; the entry stays so the block is never reused
-  unmatched_since         set when a linked identity failed every tier; cleared by relink / drop / treat-as-new
+  unmatched_since         set when a linked identity failed every tier, or when two identities contested one annotation; cleared by relink / drop / treat-as-new, or by a later Ingest finding it again. Counted in the summary once, when it is first set
+  document_changed_at     set beside `unmatched_since` by the Ingest that found the document replaced: what groups those identities under its one event
+held[]                    annotations now in the file that an ambiguity made undecidable, raw, replaced by every Ingest; offered by *relink*, never counted as new
   gone_at                 set by *drop the links*: the Tombstone. The entry is skipped by every later Ingest, its block stays `(gone)`, and its links keep resolving
 ```
 
@@ -187,6 +189,8 @@ annotations[]
 5. **Unmatched** if the identity has inbound links (a backlink to `[[citekey#^h<n>]]` in `index.sqlite`, or a Question whose `annotation:` names it); **removed** otherwise. Because `index.sqlite` is disposable (ADR 0006), *removed* is concluded only against an index known to be current for this vault (`current()`, § Index) — Ingest refreshes it before this tier runs — and an identity whose links cannot be established is Unmatched, never removed. The cheap failure is a decision; the expensive one is silent link rot (`design-brief.md` § Annotation storage).
 
 At any of tiers 2–4, several candidates are broken by quad overlap — the highest wins, comparing quads across pages as if on one page at tier 3 — and an unbroken tie is Unmatched. Each candidate can be claimed once; two identities claiming one candidate are both Unmatched, linked or not: ambiguity is a decision, so this is the one way an unlinked identity reaches the panel. The contested candidate is held with them — it is not counted as new — so resolving the row can relink it. Tombstones (`gone_at`) take no part in matching. Annotations left unclaimed are **new**: a fresh id and block, and a Question if the note begins `Q:`. A changed `document_fingerprint` runs the same tiers document-wide and groups every resulting Unmatched row under one event with batch resolutions.
+
+The matcher is `annotation-matcher.ts`, a pure function of the sidecar's identities, the annotations now present and a link answer per identity (`linked`, `unlinked`, or `unknown` when the index is not current — never removed). Ingest supplies the answers: a link to `[[citekey#^h<n>]]` or a Question or Research Question whose `annotation:` names the block and whose `from:` names the Source, read after `index.refresh([])` and only while the vault's index and watcher are both current. An identity with no block (ink, a shape) is never linked to, so it is *removed* and never Unmatched — and when two of them contest an annotation the contest ends the same way, with the annotation new, since no row could show it. The tiers and the document fingerprint run identically on a replaced document: the geometry tier still matches a highlight that overlaps one the old file had, whatever the text now says, and records the old quote as `previous_quote`. The event is `documentChanged`, one per Source per Ingest, raised beside — never instead of — the footer line.
 
 **Ingest summary line:** `N new · N questions · N removed · N could not be re-matched` — the panel opens only when the last is non-zero (brief § Ingest review).
 

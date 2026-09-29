@@ -1,6 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
+import type { Fingerprint } from "./document-fingerprint.js";
+import type { MatchedBy } from "./annotation-matcher.js";
 import type { AnnotationKind } from "./pdf-engine.js";
 
 /**
@@ -27,24 +29,65 @@ export type SidecarAnnotation = {
   note: string;
   color: number[] | null;
   last_matched: string;
+  /** How the last Ingest found it; absent on the run that first saw it. */
+  matched_by?: MatchedBy;
+  /**
+   * The quote before a geometry match found a different one under this
+   * identity, and when. One level only, enough for the panel to say what it
+   * was; a quote is not a Position and is not kept in more than that.
+   */
+  previous_quote?: string;
+  changed_at?: string;
+  /**
+   * Set when an identity failed every tier and nothing links to it (or,
+   * with ink, nothing could). The entry stays so its block number is never
+   * reused; its block leaves the note.
+   */
+  removed_at?: string;
+  /**
+   * Set when an identity something links to — or that the index could not
+   * be shown to be unlinked — failed every tier, or two of them contested
+   * one annotation. Cleared when a later Ingest finds it again.
+   */
+  unmatched_since?: string;
+  /** Set on an Unmatched identity by a run that found the whole document replaced: what groups it under that one event. */
+  document_changed_at?: string;
+  /** The Tombstone (*drop the links*): skipped by every Ingest, its links keep resolving. */
+  gone_at?: string;
 };
+
+/**
+ * An annotation in the file that no identity could be shown to own, held
+ * with the Unmatched identities that contested it so *relink* can offer it.
+ * Raw values, replaced by every Ingest: a held annotation is found again
+ * from the file, never trusted from here.
+ */
+export type HeldAnnotation = Pick<
+  SidecarAnnotation,
+  "kind" | "page" | "quads" | "quote" | "note" | "color"
+>;
 
 export type Sidecar = {
   /** The PDF's file name under `sources/pdf/`, as the Source's `pdf:` wrote it. */
   pdf: string;
   /** The PDF as last ingested; a stat and hash equal to it is no change. */
   file: { size: number; mtime: number; hash: string };
-  document_fingerprint: { id: string; pages: number };
+  document_fingerprint: Fingerprint;
   /** The per-Source `^h` counter: never reused, not even after removal. */
   next_block: number;
   annotations: SidecarAnnotation[];
+  /** Read by *relink* (the Unmatched row, #421). */
+  held?: HeldAnnotation[];
   /**
    * Set while an Ingest has written the counter and its new annotations but
    * not yet the note's blocks: how many annotations were there before it. A
    * run that finds it knows the last one did not finish, and starts from
-   * those instead of adding the same annotations a second time.
+   * those instead of adding the same annotations a second time. It carries
+   * what the run already recorded on the entries it kept — removals and new
+   * Unmatched — because the retry will find them recorded and not count them
+   * again, and the summary would lose them.
    */
-  pending?: { kept: number };
+  pending?: { kept: number; removed: number; unmatched: number };
 };
 
 const FOLDER = ".vitrine/annotations";

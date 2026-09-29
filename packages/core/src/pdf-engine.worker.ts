@@ -325,9 +325,13 @@ const readAnnotations = (bytes: Uint8Array) =>
       mem.free();
     }
     const annotations = [];
+    const pageText: string[] = [];
     for (let index = 0; index < pages; index++) {
       const page = m.FPDF_LoadPage(doc, index);
-      if (!page) continue;
+      if (!page) {
+        pageText.push("");
+        continue;
+      }
       let cached: Glyph[] | null = null;
       try {
         const count = m.FPDFPage_GetAnnotCount(page);
@@ -345,11 +349,20 @@ const readAnnotations = (bytes: Uint8Array) =>
             m.FPDFPage_CloseAnnot(annot);
           }
         }
+        // The document fingerprint's input, read on every page whether or not
+        // it holds an annotation: a page nothing was drawn on can still be
+        // the one that shows the document was replaced.
+        pageText.push(
+          (cached ??= glyphs(m, page))
+            .filter((c) => !c.generated && !c.hyphen)
+            .map((c) => c.ch)
+            .join("")
+        );
       } finally {
         m.FPDF_ClosePage(page);
       }
     }
-    return { pages, fileId, annotations };
+    return { pages, fileId, annotations, pageText };
   });
 
 parentPort?.on("message", ({ id, job, bytes }: Job) => {

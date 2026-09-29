@@ -1,7 +1,7 @@
 import { watch as fsWatch, type FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Host } from "./host.js";
 import {
   closeCores,
@@ -136,6 +136,14 @@ describe("Open a different folder…", () => {
     const c = await core({ settleMs: 40, host: choosing(first, second) });
     expect((await c.mutate<Vault>("vault.pick")).error).toBeUndefined();
     await c.indexed();
+    // The fixture's Source has a PDF and no `id:`, so the open's own Ingest
+    // mints one (#419) — the vault's doing, not the switch's, and a snapshot
+    // taken before it lands would see it as the switch's.
+    await vi.waitFor(async () => {
+      expect(
+        await readFile(join(first, "sources/rasch2013.md"), "utf8")
+      ).toMatch(/^id: /m);
+    });
     const firstBefore = await files(first);
     const secondBefore = await files(second);
 
