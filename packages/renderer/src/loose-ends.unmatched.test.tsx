@@ -143,9 +143,9 @@ describe("an Unmatched annotation row", () => {
     });
     const [row] = await list();
     expect(
-      within(row!).getByRole("button", {
-        name: "relink",
-      }).disabled
+      within(row!)
+        .getByRole("button", { name: "relink" })
+        .hasAttribute("disabled")
     ).toBe(true);
     expect(within(row!).getByText(/could not be told apart/)).toBeDefined();
   });
