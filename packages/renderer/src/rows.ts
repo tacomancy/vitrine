@@ -51,7 +51,10 @@ export const STATUS: Record<QuestionStatus, { glyph: string; label: string }> =
 export function provenanceOf(question: ListedQuestion): string {
   if (question.from === undefined) return "Unattached";
   const { from, page } = question;
-  return page === undefined ? from : `${from} · p.${page}`;
+  const where = page === undefined ? from : `${from} · p.${page}`;
+  // A `Q:` read back from a PDF was not captured in the app, so a glance at
+  // the Inbox is where the convention is seen to have worked (story 32).
+  return question.context === "ingest" ? `${where} · ingest` : where;
 }
 
 /** Month names, for the date forms below; index 0 is January. */

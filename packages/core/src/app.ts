@@ -116,6 +116,14 @@ export function createApp({
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
     pdfs,
     newId: newId ?? randomId,
+    spawnQuestion: (q) =>
+      context.questions.capture(q.text, {
+        context: "ingest",
+        source: q.source,
+        page: q.page,
+        annotation: q.annotation,
+        quote: q.quote,
+      }),
     onIngest: (run) =>
       events.emit({
         type: "ingestLanded",

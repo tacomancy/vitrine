@@ -94,6 +94,37 @@ const specs = {
     { kind: "stamp", page: 1, x: 300, y: 400 },
     { kind: "highlight", phrase: "different sentence about memory" },
   ],
+  // The `Q:` convention (#422): a note that spawns, in either case and after
+  // leading spaces, one that is only the prefix, and a near miss.
+  "annotated-questions.pdf": [
+    {
+      kind: "highlight",
+      phrase: "Participants who heard the odor cue",
+      contents: "Q: Does the cue work without sleep?",
+    },
+    {
+      kind: "highlight",
+      phrase: "Sleep spindles were counted",
+      contents: "  q:Are spindles the mechanism",
+    },
+    {
+      kind: "highlight",
+      phrase: "different sentence about memory",
+      contents: "Q:",
+    },
+    {
+      kind: "highlight",
+      phrase: "Another line follows here",
+      contents: "Q ; a near miss",
+    },
+    {
+      kind: "note",
+      page: 0,
+      x: 420,
+      y: 600,
+      contents: "Q: Who ran the control?",
+    },
+  ],
   "annotated-again.pdf": [
     { kind: "highlight", phrase: "Another line follows here for a highlight" },
   ],

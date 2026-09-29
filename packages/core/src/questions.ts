@@ -41,7 +41,16 @@ export type Provenance =
   | { context: "other" }
   | { context: "pursuing"; page: string }
   | { context: "resolving"; hypothesis: string }
-  | { context: "observing"; experiment: string };
+  | { context: "observing"; experiment: string }
+  // A `Q:` note read back by Ingest (#422): the Source's path, the 1-based
+  // page, the annotation's block id, and the passage it marks.
+  | {
+      context: "ingest";
+      source: string;
+      page: number;
+      annotation: string;
+      quote: string;
+    };
 
 /** The page a capture was made on, and the Kinds its context allows there. */
 function pageOf(
@@ -68,6 +77,8 @@ function pageOf(
         kinds: ["experiment"],
         noun: "an Experiment",
       };
+    case "ingest":
+      return { path: provenance.source, kinds: ["source"], noun: "a Source" };
   }
 }
 
@@ -79,6 +90,11 @@ export type Question = {
   captured: string;
   /** The wikilink to what was open at capture; absent when Unattached. */
   from?: string;
+  /** Sources only: the 1-based page and the annotation's block id. */
+  page?: number;
+  annotation?: string;
+  /** The passage the annotation marks; written as the body, not a key. */
+  quote?: string;
   context: Provenance["context"];
 };
 
@@ -146,8 +162,14 @@ function questionFile(q: Question): string {
     `captured: ${q.captured}`,
     // A wikilink opens with `[[`, a flow sequence to YAML: always quoted.
     ...(q.from === undefined ? [] : [`from: ${yamlString(q.from)}`]),
+    ...(q.page === undefined ? [] : [`page: ${q.page}`]),
+    ...(q.annotation === undefined ? [] : [`annotation: ${q.annotation}`]),
     `context: ${q.context}`,
     "---",
+    // The passage is provenance too, but Provenance is four flat keys
+    // (docs/architecture.md § Vault layout); it rides in the body, where the
+    // file stays a legible record of what was being read.
+    ...(q.quote ? [`> ${q.quote.replace(/\s*\n\s*/g, " ")}`] : []),
     "",
   ].join("\n");
 }
@@ -355,6 +377,13 @@ export function createQuestionService({
       captured: localIso(now()),
       ...(onPage === null ? {} : { from: wikilinkTo(onPage.path) }),
       context: provenance.context,
+      ...(provenance.context === "ingest"
+        ? {
+            page: provenance.page,
+            annotation: provenance.annotation,
+            quote: provenance.quote,
+          }
+        : {}),
     });
     const opened = await vault.opened();
     const relativePath = (path: string) =>

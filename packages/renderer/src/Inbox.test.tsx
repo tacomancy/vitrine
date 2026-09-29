@@ -101,6 +101,22 @@ describe("the Inbox list", () => {
     const [row] = await rows();
     expect(row?.textContent).toContain("[[olafsdottir2018]] · p.11");
     expect(row?.textContent).not.toContain("Unattached");
+    expect(row?.textContent).not.toContain("ingest");
+  });
+
+  it("shows a Question ingested from a PDF with its origin", async () => {
+    renderInbox({
+      questions: [
+        q("Does the cue work without sleep?", "2026-09-01T12:00:00Z", {
+          context: "ingest",
+          from: "[[rasch2013]]",
+          page: 1,
+          annotation: "h2",
+        }),
+      ],
+    });
+    const [row] = await rows();
+    expect(row?.textContent).toContain("[[rasch2013]] · p.1 · ingest");
   });
 });
 
