@@ -82,8 +82,12 @@ export function Reader({
                 This Source names a PDF that is not in the vault.
               </p>
             ) : evicted ? (
+              // Said either way: a bring-down that came back empty or failed
+              // must not read as one still going.
               <p className={styles.line} role="status">
-                Bringing the PDF down from your sync folder…
+                {bring.isError || bring.data?.brought === false
+                  ? "The PDF is not on this Mac yet: your sync folder has not delivered it."
+                  : "Bringing the PDF down from your sync folder…"}
               </p>
             ) : (
               <Paper
@@ -193,6 +197,11 @@ function Paper({
   const session = window.vitrine as Window["vitrine"] | undefined;
   return (
     <>
+      {remember.isError && (
+        <p className={styles.line} role="status">
+          Where you stopped could not be saved.
+        </p>
+      )}
       {arrivedOn !== null &&
         !source.annotations.some((a) => a.block === arrivedOn) && (
           <p className={styles.line} role="status">

@@ -53,7 +53,9 @@ const WIDTH = 760;
  * Only the kinds the app draws itself are held back from the bitmap:
  * text markup and sticky notes. Ink, shapes, stamps and free text stay
  * exactly as the PDF has them (stories 76–77), so the pencil is never
- * redrawn by anything of ours. PDF.js has no per-subtype switch, but it
+ * redrawn by anything of ours. (Free text is a sidecar block too, so the
+ * overlay outlines it for identity's sake, but its words are the bitmap's.)
+ * The set mirrors the core's `DRAWN` minus free text. PDF.js has no per-subtype switch, but it
  * brackets each annotation's operations with `beginAnnotation` /
  * `endAnnotation` and lets a render skip operations by index — so the
  * operations of those subtypes are skipped and the rest run.
@@ -114,7 +116,7 @@ export function PdfDocument({
   onMove,
   onFailed,
 }: PdfDocumentProps) {
-  const [doc, setDoc] = useState<PDFDocumentProps | null>(null);
+  const [doc, setDoc] = useState<LoadedDoc | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [first, setFirst] = useState<PageGeometry | null>(null);
 
@@ -215,7 +217,7 @@ export function PdfDocument({
   );
 }
 
-type PDFDocumentProps = {
+type LoadedDoc = {
   pdf: PDFDocumentProxy;
   lib: typeof import("pdfjs-dist");
 };
@@ -234,7 +236,7 @@ function Page({
   overlay,
 }: {
   number: number;
-  doc: PDFDocumentProps;
+  doc: LoadedDoc;
   guess: PageGeometry;
   overlay: PdfDocumentProps["overlay"];
 }) {
@@ -242,6 +244,7 @@ function Page({
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [geometry, setGeometry] = useState<PageGeometry>({ ...guess, number });
 
   // A page is drawn when it is near the viewport and not before: a paper of
@@ -289,7 +292,7 @@ function Page({
         operationsFilter: (i) => !skip.has(i),
       });
       cancel = () => task.cancel();
-      await task.promise.catch(() => undefined);
+      await task.promise;
       if (dead || !text.current) return;
       text.current.replaceChildren();
       text.current.style.setProperty("--scale-factor", String(scale));
@@ -299,7 +302,15 @@ function Page({
         container: text.current,
         viewport,
       }).render();
-    })().catch(() => undefined);
+    })().catch((cause: unknown) => {
+      // A cancelled render is the page leaving, not a failure; anything else
+      // would leave a blank sheet that looks like a blank page.
+      if (
+        (cause as { name?: string })?.name !== "RenderingCancelledException"
+      ) {
+        if (!dead) setFailed(true);
+      }
+    });
     return () => {
       dead = true;
       cancel?.();
@@ -317,6 +328,11 @@ function Page({
       {/* Under the text layer, so a selection is never taken by an overlay. */}
       {overlay(geometry)}
       <div ref={text} className={`textLayer ${styles.text}`} />
+      {failed && (
+        <p className={styles.failed} role="status">
+          This page could not be drawn.
+        </p>
+      )}
     </div>
   );
 }

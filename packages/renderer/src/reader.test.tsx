@@ -284,6 +284,16 @@ describe("an evicted PDF", () => {
   });
 });
 
+describe("an evicted PDF the sync folder has not delivered", () => {
+  it("says so instead of saying it is still coming", async () => {
+    await open(source({ evicted: true }), `#/source/${PATH}`, {
+      "sources.bringDown": { brought: false },
+    });
+    expect(await screen.findByText(/has not delivered it/)).toBeDefined();
+    expect(screen.queryByText(/Bringing the PDF down/)).toBeNull();
+  });
+});
+
 describe("a Source's own link", () => {
   it.each([
     "https://example.org/rasch",

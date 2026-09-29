@@ -10,7 +10,7 @@
  * plainly not one and says, when activated, which scheme it had.
  *
  * `OUTBOUND` is the shell's `EXTERNAL_SCHEMES`, restated because the
- * renderer cannot import the Electron package; `link-rule.test.tsx` pins the
+ * renderer cannot import the Electron package; `link-rule.test.ts` pins the
  * two together so neither can drift.
  */
 export const OUTBOUND: ReadonlySet<string> = new Set([
