@@ -29,7 +29,7 @@ type Read =
  *   stops being readable *under* the reader says so where they stand.
  */
 export function usePageFrame(
-  surface: "research-question" | "hypothesis" | "experiment",
+  surface: "research-question" | "hypothesis" | "experiment" | "source",
   path: string,
   data: Read | undefined
 ) {

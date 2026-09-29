@@ -161,13 +161,14 @@ export function pressGlobalChord() {
  */
 export function scrollsInto(): { row: Element; block: string | undefined }[] {
   const asked: { row: Element; block: string | undefined }[] = [];
-  vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(
-    function (this: Element, options?: boolean | ScrollIntoViewOptions) {
-      asked.push({
-        row: this,
-        block: typeof options === "object" ? options.block : undefined,
-      });
-    }
-  );
+  vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+    this: Element,
+    options?: boolean | ScrollIntoViewOptions
+  ) {
+    asked.push({
+      row: this,
+      block: typeof options === "object" ? options.block : undefined,
+    });
+  });
   return asked;
 }

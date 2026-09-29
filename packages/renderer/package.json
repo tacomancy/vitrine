@@ -17,6 +17,7 @@
     "@trpc/tanstack-react-query": "11.19.0",
     "eventsource": "^5.1.1",
     "markdown": "workspace:*",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

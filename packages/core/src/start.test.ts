@@ -71,7 +71,7 @@ describe("startCore", () => {
     // `blob:` for images and nothing else: an Artifact is drawn from an
     // object URL, since an `<img>` cannot carry the bearer header (#366).
     expect(res.headers.get("content-security-policy")).toBe(
-      "default-src 'self'; img-src 'self' data: blob:"
+      "default-src 'self'; img-src 'self' data: blob:; worker-src 'self'"
     );
   });
 });

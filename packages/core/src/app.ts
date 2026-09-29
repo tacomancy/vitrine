@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
+import { pdfBytes } from "./reader.js";
 import { createEvents } from "./events.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
@@ -205,6 +206,34 @@ export function createApp({
     }
     const served =
       opened === null ? null : await artifactBytes(opened.vault.path, path);
+    return served ?? c.notFound();
+  });
+
+  // A Source's PDF, for PDF.js to draw (#424): behind the bearer header,
+  // which PDF.js sends as `httpHeaders`, and with byte ranges so a very
+  // large paper is read in pieces. CORS exposes the range headers to the
+  // dev server's origin; in the packaged app the page is same-origin.
+  app.use(
+    "/pdf/*",
+    cors({
+      exposeHeaders: ["Accept-Ranges", "Content-Range", "Content-Length"],
+    })
+  );
+  app.use("/pdf/*", bearerAuth({ token }));
+  app.get("/pdf/*", async (c) => {
+    const opened = await vault.opened();
+    let path: string;
+    try {
+      path = decodeURIComponent(
+        new URL(c.req.url).pathname.slice("/pdf/".length)
+      );
+    } catch {
+      return c.notFound();
+    }
+    const served =
+      opened === null
+        ? null
+        : await pdfBytes(opened.vault.path, path, c.req.header("range"));
     return served ?? c.notFound();
   });
 

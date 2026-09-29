@@ -31,7 +31,7 @@ export const markOf = (kind: string): Mark | undefined => byKind[kind];
 
 /**
  * Where a file of this Kind opens, or null for a Kind with nowhere to open
- * yet — a Note, a Source, a Source stub, and a `kind:` the app does not know,
+ * yet — a Note, a Source stub, and a `kind:` the app does not know,
  * each named rather than linked until its surface exists (spec #206 story 56;
  * the Vault editor is beat 11). The Kind is a bare string because that is how
  * the index carries it: one the app does not know is stored verbatim, and
@@ -53,6 +53,10 @@ export function routeOf(
       return { surface: "hypothesis", path };
     case "experiment":
       return { surface: "experiment", path };
+    // A stub is the other side of this line: `source-stub` has no Reader,
+    // and so no Address (spec #416 story 73).
+    case "source":
+      return { surface: "source", path };
     default:
       return null;
   }
