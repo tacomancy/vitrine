@@ -9,6 +9,7 @@ import {
 import { errorMessage } from "./errors.js";
 import {
   PdfUnreadable,
+  type AnnotationKind,
   type PdfAnnotation,
   type PdfEngine,
 } from "./pdf-engine.js";
@@ -57,7 +58,7 @@ export type IngestOptions = {
 };
 
 /** A Source's block ids are `h` and a number; only markup and notes are link targets. */
-const HAS_BLOCK = new Set([
+const HAS_BLOCK: ReadonlySet<AnnotationKind> = new Set([
   "highlight",
   "underline",
   "strikeout",
@@ -191,9 +192,20 @@ export function createIngest({
       return null;
     }
     unreadable.delete(source.pdf);
+    // The index still describes an older file than the one just read: the
+    // change that made it newer is an event on its way, and reading now would
+    // record a hash the index will not agree with — and ingest it twice.
+    if (sha256(bytes) !== file.hash) return null;
 
     const stamped = now().toISOString();
-    const taken = new Set(before?.annotations.map((a) => a.id));
+    // An earlier run that died between the counter and the note left its
+    // annotations in the sidecar; they are this file's, read again below, so
+    // they are dropped — but the counter stays where it got to, since their
+    // blocks may already be in the note.
+    const kept = before?.pending
+      ? before.annotations.slice(0, before.pending.kept)
+      : (before?.annotations ?? []);
+    const taken = new Set(kept.map((a) => a.id));
     let next = before?.next_block ?? 1;
     const fresh: SidecarAnnotation[] = read.annotations
       .map((a: PdfAnnotation) => ({
@@ -229,7 +241,8 @@ export function createIngest({
       file: before?.file ?? { size: 0, mtime: 0, hash: "" },
       document_fingerprint: { id: read.fileId, pages: read.pages },
       next_block: next,
-      annotations: [...(before?.annotations ?? []), ...fresh],
+      annotations: [...kept, ...fresh],
+      pending: { kept: kept.length },
     };
     // The counter first, and on its own: the note's blocks are numbered from
     // it, and a block number reused after a failed write would let an old
@@ -251,8 +264,9 @@ export function createIngest({
       if (!written.written) throw new Error(written.detail);
       await index.own(found.path, written.content);
     }
+    const { pending: _done, ...finished } = after;
     await writeSidecar(vaultPath, source.id, {
-      ...after,
+      ...finished,
       file: {
         size: stats.size,
         mtime: stats.mtimeMs,

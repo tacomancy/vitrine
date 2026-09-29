@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { parentPort } from "node:worker_threads";
 import { init } from "@embedpdf/pdfium";
+// Type-only, so nothing sibling has to resolve at runtime.
+import type { AnnotationKind } from "./pdf-engine.ts";
 
 type Job = {
   id: number;
@@ -89,7 +91,7 @@ const readMetadata = (bytes: Uint8Array) =>
   }));
 
 // FPDF_ANNOT_* subtype numbers, mapped onto the kinds Ingest keeps.
-const KINDS: Record<number, string> = {
+const KINDS: Record<number, AnnotationKind> = {
   1: "text",
   3: "freetext",
   4: "shape",

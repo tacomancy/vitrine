@@ -38,6 +38,13 @@ export type Sidecar = {
   /** The per-Source `^h` counter: never reused, not even after removal. */
   next_block: number;
   annotations: SidecarAnnotation[];
+  /**
+   * Set while an Ingest has written the counter and its new annotations but
+   * not yet the note's blocks: how many annotations were there before it. A
+   * run that finds it knows the last one did not finish, and starts from
+   * those instead of adding the same annotations a second time.
+   */
+  pending?: { kept: number };
 };
 
 const FOLDER = ".vitrine/annotations";

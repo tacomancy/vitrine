@@ -1,4 +1,11 @@
-import { mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
@@ -27,6 +34,7 @@ type Sidecar = {
   file: { size: number; mtime: number; hash: string };
   next_block: number;
   annotations: Array<Record<string, unknown>>;
+  pending?: { kept: number };
 };
 
 async function opened(extra: Record<string, string> = {}) {
@@ -174,6 +182,34 @@ Notes I typed.
     await expect(
       events.next("ingestLanded", { timeoutMs: 400 })
     ).rejects.toThrow();
+  });
+});
+
+describe("an Ingest that could not finish", () => {
+  it("is taken up again without adding the same annotations twice", async () => {
+    const { c, vault, events, source, sidecar } = await opened();
+    // A folder that refuses the note's rename: the counter lands, the blocks cannot.
+    await chmod(join(vault, "sources"), 0o555);
+    try {
+      await writeFile(
+        join(vault, "sources/pdf/rasch2013.pdf"),
+        await pdf("annotated.pdf")
+      );
+      await expect(
+        events.next("ingestLanded", { timeoutMs: 800 })
+      ).rejects.toThrow();
+    } finally {
+      await chmod(join(vault, "sources"), 0o755);
+    }
+    expect((await sidecar()).pending).toEqual({ kept: 0 });
+    await c.close();
+    const again = await core({ settleMs: 40 });
+    await again.mutate("vault.open", { path: vault });
+    await again.indexed();
+    await (await again.events()).next("ingestLanded");
+    const blocks = (await source()).match(/\^h\d+/g);
+    expect(blocks).toHaveLength(4);
+    expect((await sidecar()).annotations).toHaveLength(6);
   });
 });
 

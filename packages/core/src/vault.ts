@@ -308,6 +308,8 @@ export function createVaultService({
       }
     };
     let ready: VaultIndex | null = null;
+    // Set once the index is open; a change the index reports before then is
+    // skipped here and found by the open-time pass over every Source.
     let ingest: Ingest | null = null;
     const opening = openIndex(absolute, {
       ...indexOptions,
