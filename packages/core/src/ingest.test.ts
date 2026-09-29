@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { questionText } from "./ingest.js";
 import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
 
 afterEach(closeCores);
@@ -376,5 +377,134 @@ describe("a PDF that cannot be read", () => {
     expect(
       await readFile(join(vault, "sources/other.md"), "utf8")
     ).not.toContain("Annotations");
+  });
+});
+
+// The `Q:` convention (#422; spec #416 stories 25–33, ADR 0013 decision 8): a
+// markup's or note's current note beginning `Q:` spawns one Question, once.
+
+type Listed = {
+  question: string;
+  from?: string;
+  page?: number;
+  annotation?: string;
+  context: string;
+  captured: string;
+};
+
+describe("a note that begins Q:", () => {
+  const listed = async (c: Awaited<ReturnType<typeof opened>>["c"]) =>
+    (await c.query<{ questions: Listed[] }>("questions.list")).result!.data
+      .questions;
+
+  it("becomes one Question with the Source, page and block, and the summary counts it", async () => {
+    const { returned, c, vault } = await opened();
+    const summary = await returned(await pdf("annotated-questions.pdf"));
+    expect(summary).toMatchObject({ new: 5, questions: 3 });
+    await c.indexed();
+    const questions = await listed(c);
+    expect(
+      questions
+        .map((q) => [q.question, q.context, q.from, q.page, q.annotation])
+        .sort()
+    ).toEqual([
+      ["Are spindles the mechanism", "ingest", "[[rasch2013]]", 1, "h1"],
+      ["Does the cue work without sleep?", "ingest", "[[rasch2013]]", 1, "h2"],
+      ["Who ran the control?", "ingest", "[[rasch2013]]", 1, "h3"],
+    ]);
+    const file = await readFile(
+      join(vault, "questions", (await readdir(join(vault, "questions")))[0]!),
+      "utf8"
+    );
+    expect(file).toMatch(/^> .+$/m);
+  });
+
+  it("carries the quoted passage in the Question's body", async () => {
+    const { returned, vault } = await opened();
+    await returned(await pdf("annotated-questions.pdf"));
+    const bodies = await Promise.all(
+      (await readdir(join(vault, "questions"))).map((f) =>
+        readFile(join(vault, "questions", f), "utf8")
+      )
+    );
+    expect(
+      bodies.some((b) => b.includes("> Participants who heard the odor cue"))
+    ).toBe(true);
+  });
+
+  it("does not spawn for Q: alone or for Q ; a near miss", async () => {
+    const { returned, c } = await opened();
+    await returned(await pdf("annotated-questions.pdf"));
+    await c.indexed();
+    const texts = (await listed(c)).map((q) => q.question);
+    expect(texts).toHaveLength(3);
+    expect(texts.join("|")).not.toMatch(/near miss/);
+  });
+
+  it("never makes a second when the same PDF returns, and records the Question in the sidecar", async () => {
+    const { returned, c, sidecar, vault } = await opened();
+    await returned(await pdf("annotated-questions.pdf"));
+    const first = await sidecar();
+    expect(
+      first.annotations.filter((a) => typeof a["question"] === "string")
+    ).toHaveLength(3);
+    // The same bytes rewritten, as a sync client does: no change, no Question.
+    await writeFile(
+      join(vault, "sources/pdf/rasch2013.pdf"),
+      await pdf("annotated-questions.pdf")
+    );
+    await c.indexed();
+    expect(await listed(c)).toHaveLength(3);
+  });
+
+  it("is spawned on the Ingest where a Preview pass added the prefix to an old highlight", async () => {
+    const { returned, c } = await opened();
+    // Same highlight, no `Q:`; then the same one, matched by its text, with it.
+    await returned(await pdf("annotated.pdf"));
+    await c.indexed();
+    expect(await listed(c)).toHaveLength(0);
+    const summary = await returned(await pdf("annotated-questions.pdf"));
+    await c.indexed();
+    expect(summary.questions).toBeGreaterThanOrEqual(1);
+    expect(
+      (await listed(c)).filter(
+        (q) => q.question === "Does the cue work without sleep?"
+      )
+    ).toHaveLength(1);
+  });
+
+  it("makes no second Question when the PDF comes back changed, and leaves it alone when the prefix goes", async () => {
+    const { returned, c } = await opened();
+    await returned(await pdf("annotated-questions.pdf"));
+    await c.indexed();
+    const spawned = (await listed(c)).length;
+    // The prefix removed from the highlight's note, matched by its text.
+    await returned(await pdf("annotated.pdf"));
+    // And restored: the identity already spawned, so it does not again.
+    await returned(await pdf("annotated-questions.pdf"));
+    await c.indexed();
+    const cue = (await listed(c)).filter(
+      (q) => q.question === "Does the cue work without sleep?"
+    );
+    expect(cue).toHaveLength(1);
+    expect((await listed(c)).length).toBeGreaterThanOrEqual(spawned);
+  });
+});
+
+describe("the Q: prefix", () => {
+  it.each([
+    ["Q: why", "why"],
+    ["q: why", "why"],
+    [" Q: why", "why"],
+    ["\tq:why  ", "why"],
+    ["Q:x", "x"],
+    ["Q:", null],
+    ["Q:   ", null],
+    ["Q ;", null],
+    ["Q ; why", null],
+    ["why Q: not at the start", null],
+    ["", null],
+  ])("reads %j as %j", (note, expected) => {
+    expect(questionText(note)).toBe(expected);
   });
 });

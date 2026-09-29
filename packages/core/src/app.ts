@@ -116,11 +116,22 @@ export function createApp({
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
     pdfs,
     newId: newId ?? randomId,
+    spawnQuestion: (q) =>
+      context.questions.capture(q.text, {
+        context: "ingest",
+        source: q.source,
+        page: q.page,
+        annotation: q.annotation,
+        quote: q.quote,
+      }),
     onIngest: (run) => {
       const { summary } = run;
       // A clean run says nothing (story 16): a run that only re-found what it
       // knew, or only raised the document-changed event, is not a footer line.
-      if (summary.new + summary.removed + summary.unmatched > 0) {
+      if (
+        summary.new + summary.questions + summary.removed + summary.unmatched >
+        0
+      ) {
         events.emit({
           type: "ingestLanded",
           runId: (newId ?? randomId)(),

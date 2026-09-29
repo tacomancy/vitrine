@@ -27,6 +27,8 @@ export type SidecarAnnotation = {
   quads: number[][];
   quote: string;
   note: string;
+  /** The Question this annotation's `Q:` note spawned, once; never a second (ADR 0013 d.8). */
+  question?: string;
   color: number[] | null;
   last_matched: string;
   /** How the last Ingest found it; absent on the run that first saw it. */

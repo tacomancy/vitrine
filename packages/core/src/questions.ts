@@ -43,9 +43,23 @@ export type Provenance =
   | { context: "resolving"; hypothesis: string }
   | { context: "observing"; experiment: string };
 
+/**
+ * A `Q:` note read back by Ingest (#422): the Source's path, the 1-based
+ * page, the annotation's block id, and the passage it marks. Kept apart from
+ * `Provenance` because only Ingest makes one — the router's input and the
+ * window's chords never carry it.
+ */
+export type IngestProvenance = {
+  context: "ingest";
+  source: string;
+  page: number;
+  annotation: string;
+  quote: string;
+};
+
 /** The page a capture was made on, and the Kinds its context allows there. */
 function pageOf(
-  provenance: Provenance
+  provenance: Provenance | IngestProvenance
 ): { path: string; kinds: readonly string[]; noun: string } | null {
   switch (provenance.context) {
     case "other":
@@ -68,6 +82,8 @@ function pageOf(
         kinds: ["experiment"],
         noun: "an Experiment",
       };
+    case "ingest":
+      return { path: provenance.source, kinds: ["source"], noun: "a Source" };
   }
 }
 
@@ -79,14 +95,22 @@ export type Question = {
   captured: string;
   /** The wikilink to what was open at capture; absent when Unattached. */
   from?: string;
-  context: Provenance["context"];
+  /** Sources only: the 1-based page and the annotation's block id. */
+  page?: number;
+  annotation?: string;
+  /** The passage the annotation marks; written as the body, not a key. */
+  quote?: string;
+  context: (Provenance | IngestProvenance)["context"];
 };
 
 /** Where a triage write landed: the Question's path, vault-relative. */
 export type Triage = { path: string };
 
 export type QuestionService = {
-  capture: (text: string, provenance: Provenance) => Promise<Question>;
+  capture: (
+    text: string,
+    provenance: Provenance | IngestProvenance
+  ) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
   /** Promote to Hypothesis (#331): the page written whole from the typed claim, then the Question marked. */
@@ -146,8 +170,14 @@ function questionFile(q: Question): string {
     `captured: ${q.captured}`,
     // A wikilink opens with `[[`, a flow sequence to YAML: always quoted.
     ...(q.from === undefined ? [] : [`from: ${yamlString(q.from)}`]),
+    ...(q.page === undefined ? [] : [`page: ${q.page}`]),
+    ...(q.annotation === undefined ? [] : [`annotation: ${q.annotation}`]),
     `context: ${q.context}`,
     "---",
+    // The passage is provenance too, but Provenance is four flat keys
+    // (docs/architecture.md § Vault layout); it rides in the body, where the
+    // file stays a legible record of what was being read.
+    ...(q.quote ? [`> ${q.quote.replace(/\s*\n\s*/g, " ")}`] : []),
     "",
   ].join("\n");
 }
@@ -320,7 +350,7 @@ export function createQuestionService({
 
   async function capture(
     text: string,
-    provenance: Provenance
+    provenance: Provenance | IngestProvenance
   ): Promise<Question> {
     const current = await vault.current();
     if (current === null) {
@@ -355,6 +385,13 @@ export function createQuestionService({
       captured: localIso(now()),
       ...(onPage === null ? {} : { from: wikilinkTo(onPage.path) }),
       context: provenance.context,
+      ...(provenance.context === "ingest"
+        ? {
+            page: provenance.page,
+            annotation: provenance.annotation,
+            quote: provenance.quote,
+          }
+        : {}),
     });
     const opened = await vault.opened();
     const relativePath = (path: string) =>

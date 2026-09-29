@@ -12,7 +12,12 @@ import {
   type PdfFolder,
 } from "./pdf-folder.js";
 import { renameDismissals } from "./dismissals.js";
-import { createIngest, type Ingest, type IngestRun } from "./ingest.js";
+import {
+  createIngest,
+  type Ingest,
+  type IngestRun,
+  type SpawnQuestion,
+} from "./ingest.js";
 import { followPdfRenames, isPdfInFolder, type PdfReads } from "./sources.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
@@ -82,6 +87,8 @@ export type VaultServiceOptions = {
   pdfs?: PdfReads | undefined;
   /** Mints a sidecar id for an annotation the file did not name. */
   newId?: (() => string) | undefined;
+  /** Makes the Question a `Q:` note spawns, through the capture path (#422). */
+  spawnQuestion?: SpawnQuestion | undefined;
   /** An Ingest run landed something: `ingestLanded` (#419). */
   onIngest?: ((run: IngestRun) => void) | undefined;
 };
@@ -208,6 +215,7 @@ export function createVaultService({
   onPdfFolder,
   pdfs,
   newId = () => randomUUID(),
+  spawnQuestion,
   onIngest,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
@@ -347,7 +355,7 @@ export function createVaultService({
       index = await opening;
       ready = index;
       ingest =
-        pdfs === undefined
+        pdfs === undefined || spawnQuestion === undefined
           ? null
           : createIngest({
               vaultPath: absolute,
@@ -356,6 +364,14 @@ export function createVaultService({
               unreadable: pdfs.unreadable,
               newId,
               now,
+              // Bound to this vault: a switch mid-run must not file a
+              // Question into the vault that is open by then.
+              spawnQuestion: (question) => {
+                if (opened?.vault.path !== absolute) {
+                  throw new Error("the vault was switched during the run");
+                }
+                return spawnQuestion(question);
+              },
               isCurrent: () => currentOf(index),
             });
     } catch (cause) {

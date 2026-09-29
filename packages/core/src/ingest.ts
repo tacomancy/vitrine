@@ -64,6 +64,26 @@ export type IngestRun = {
 /** What one Source's Ingest took in. */
 type Ingested = IngestSummary & { changed: boolean };
 
+/** What Ingest asks the Question service for: one spawned from a `Q:` note. */
+export type SpawnQuestion = (question: {
+  text: string;
+  source: string;
+  page: number;
+  annotation: string;
+  quote: string;
+}) => Promise<{ id: string }>;
+
+/**
+ * The text of a `Q:` note (CONTEXT.md *`Q:` convention*): the prefix is
+ * case-insensitive after leading whitespace, the rest is trimmed, and an
+ * empty rest is no Question. Nothing near-miss is guessed at (story 33).
+ */
+export function questionText(note: string): string | null {
+  const match = /^\s*q:([\s\S]*)$/i.exec(note);
+  const text = match?.[1]?.trim();
+  return text ? text : null;
+}
+
 export type IngestOptions = {
   vaultPath: string;
   index: VaultIndex;
@@ -72,6 +92,7 @@ export type IngestOptions = {
   unreadable: UnreadablePdfs;
   newId: () => string;
   now: () => Date;
+  spawnQuestion: SpawnQuestion;
   /**
    * Whether the index may be trusted to say nothing links to something
    * (ADR 0014 decision 11): the index's own currency and the watcher's,
@@ -151,6 +172,7 @@ export function createIngest({
   unreadable,
   newId,
   now,
+  spawnQuestion,
   isCurrent,
 }: IngestOptions) {
   // One run at a time. Two runs over the same Source would each plan its
@@ -199,6 +221,42 @@ export function createIngest({
     if (!written.written) throw new Error(written.detail);
     await index.own(found.path, written.content);
     return id;
+  }
+
+  /**
+   * Every annotation whose current note is a `Q:` and that has spawned no
+   * Question yet spawns one, and the sidecar remembers it (ADR 0013 d.8).
+   * The id is written after each spawn rather than once at the end: a run
+   * that dies between two leaves the first one spawned-and-recorded, and the
+   * next Ingest — which evaluates every note again — makes only the rest.
+   */
+  async function spawnQuestions(
+    source: string,
+    id: string,
+    sidecar: Sidecar
+  ): Promise<number> {
+    let spawned = 0;
+    for (const a of sidecar.annotations) {
+      // A removed or dropped identity is not a live annotation to ask of.
+      if (a.block === undefined || a.question !== undefined) continue;
+      if (a.removed_at !== undefined || a.gone_at !== undefined) continue;
+      // A sticky note's words are its quote (`note` is /Contents on the
+      // markup kinds only), and it marks no passage.
+      const isNote = a.kind === "text" || a.kind === "freetext";
+      const text = questionText(isNote ? a.quote : a.note);
+      if (text === null) continue;
+      const made = await spawnQuestion({
+        text,
+        source,
+        page: a.page + 1,
+        annotation: a.block,
+        quote: isNote ? "" : a.quote,
+      });
+      a.question = made.id;
+      await writeSidecar(vaultPath, id, sidecar);
+      spawned++;
+    }
+    return spawned;
   }
 
   /**
@@ -269,7 +327,15 @@ export function createIngest({
     // No `id:` means no sidecar has ever been keyed to this Source.
     const before =
       source.id === null ? null : await readSidecar(vaultPath, source.id);
-    if (before?.file.hash === file.hash) return null;
+    if (before?.file.hash === file.hash) {
+      // Nothing to read, but a note may still owe a Question: a run that
+      // died between recording the file and spawning it must not lose it
+      // for good, since no later event would come for an unchanged file.
+      const questions = await spawnQuestions(source.source, source.id!, before);
+      return questions === 0
+        ? null
+        : { new: 0, questions, removed: 0, unmatched: 0, changed: false };
+    }
     if (unreadable.get(source.pdf)?.hash === file.hash) return null;
 
     let bytes: Buffer;
@@ -451,7 +517,7 @@ export function createIngest({
     }
     const finished: Sidecar = { ...after };
     delete finished.pending;
-    await writeSidecar(vaultPath, id, {
+    const ingested: Sidecar = {
       ...finished,
       document_fingerprint: fingerprint,
       file: {
@@ -459,10 +525,14 @@ export function createIngest({
         mtime: stats.mtimeMs,
         hash: sha256(bytes),
       },
-    });
+    };
+    await writeSidecar(vaultPath, id, ingested);
+    // After the file is recorded, so a failing spawn is retried from the
+    // early branch above and never re-reads the PDF.
+    const questions = await spawnQuestions(source.source, id, ingested);
     return {
       new: fresh.length,
-      questions: 0,
+      questions,
       removed: owed.removed + tally.removed,
       unmatched: owed.unmatched + tally.unmatched,
       changed,
@@ -492,6 +562,7 @@ export function createIngest({
             const took = await ingestOne(source);
             if (took === null) continue;
             summary.new += took.new;
+            summary.questions += took.questions;
             summary.removed += took.removed;
             summary.unmatched += took.unmatched;
             if (took.new + took.removed + took.unmatched > 0) {
@@ -505,7 +576,9 @@ export function createIngest({
             console.error(`vitrine-core: ingest: ${errorMessage(cause)}`);
           }
         }
-        return sources.length === 0 && changed.length === 0
+        return sources.length === 0 &&
+          changed.length === 0 &&
+          summary.questions === 0
           ? null
           : { summary, sources, changed };
       }),
