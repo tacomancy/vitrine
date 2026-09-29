@@ -26,8 +26,6 @@ export function provenanceChip(provenance: Provenance, at: Date): string {
 
 function where(provenance: Provenance): string {
   if (provenance.context === "other") return "Unattached";
-  // Only Ingest makes one; no chord does, so this chip is never on screen.
-  if (provenance.context === "ingest") return "Ingest";
   const [word, path] =
     provenance.context === "pursuing"
       ? ["Pursuing", provenance.page]

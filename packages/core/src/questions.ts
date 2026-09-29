@@ -41,20 +41,25 @@ export type Provenance =
   | { context: "other" }
   | { context: "pursuing"; page: string }
   | { context: "resolving"; hypothesis: string }
-  | { context: "observing"; experiment: string }
-  // A `Q:` note read back by Ingest (#422): the Source's path, the 1-based
-  // page, the annotation's block id, and the passage it marks.
-  | {
-      context: "ingest";
-      source: string;
-      page: number;
-      annotation: string;
-      quote: string;
-    };
+  | { context: "observing"; experiment: string };
+
+/**
+ * A `Q:` note read back by Ingest (#422): the Source's path, the 1-based
+ * page, the annotation's block id, and the passage it marks. Kept apart from
+ * `Provenance` because only Ingest makes one — the router's input and the
+ * window's chords never carry it.
+ */
+export type IngestProvenance = {
+  context: "ingest";
+  source: string;
+  page: number;
+  annotation: string;
+  quote: string;
+};
 
 /** The page a capture was made on, and the Kinds its context allows there. */
 function pageOf(
-  provenance: Provenance
+  provenance: Provenance | IngestProvenance
 ): { path: string; kinds: readonly string[]; noun: string } | null {
   switch (provenance.context) {
     case "other":
@@ -95,14 +100,17 @@ export type Question = {
   annotation?: string;
   /** The passage the annotation marks; written as the body, not a key. */
   quote?: string;
-  context: Provenance["context"];
+  context: (Provenance | IngestProvenance)["context"];
 };
 
 /** Where a triage write landed: the Question's path, vault-relative. */
 export type Triage = { path: string };
 
 export type QuestionService = {
-  capture: (text: string, provenance: Provenance) => Promise<Question>;
+  capture: (
+    text: string,
+    provenance: Provenance | IngestProvenance
+  ) => Promise<Question>;
   /** Promote to Research Question (#210): the page written whole, then the Question marked. */
   promote: (path: string) => Promise<Promotion>;
   /** Promote to Hypothesis (#331): the page written whole from the typed claim, then the Question marked. */
@@ -342,7 +350,7 @@ export function createQuestionService({
 
   async function capture(
     text: string,
-    provenance: Provenance
+    provenance: Provenance | IngestProvenance
   ): Promise<Question> {
     const current = await vault.current();
     if (current === null) {
