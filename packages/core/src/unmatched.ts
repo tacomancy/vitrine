@@ -81,7 +81,11 @@ export type DocumentChanged = {
 
 export type UnmatchedRow = UnmatchedAnnotation | DocumentChanged;
 
-/** A block id is `h` and a number; the same paragraph may hold others' text. */
+/**
+ * A row is an identity that something could link to (it has a block), that
+ * failed every tier, and that no one has resolved: removed and tombstoned
+ * entries are decided, so they are never a row again.
+ */
 const isUnmatched = (a: SidecarAnnotation) =>
   a.unmatched_since !== undefined &&
   a.removed_at === undefined &&
@@ -150,6 +154,8 @@ export function candidatesFor(
   sidecar: Sidecar,
   entry: SidecarAnnotation
 ): Pool[] {
+  if (entry.unmatched_since === undefined) return [];
+  const since = entry.unmatched_since;
   const pool: Pool[] = [
     ...(sidecar.held ?? []).map((h, i) => ({ ref: `held:${i}`, ...h })),
     ...sidecar.annotations
@@ -162,8 +168,10 @@ export function candidatesFor(
           a.unmatched_since === undefined &&
           a.matched_by === undefined &&
           a.question === undefined &&
-          entry.unmatched_since !== undefined &&
-          a.last_matched >= entry.unmatched_since
+          // Both stamps come from the run's one `stamped`, so the run that
+          // found this identity missing ties with the entries it created
+          // (hence >=); a later run's entries sort after it.
+          a.last_matched >= since
       )
       .map((a) => ({ ref: `entry:${a.id}`, ...a })),
   ].filter((c) => sameKindFamily(c.kind, entry.kind));
