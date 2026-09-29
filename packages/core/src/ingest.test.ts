@@ -185,6 +185,74 @@ Notes I typed.
   });
 });
 
+describe("a Source with a PDF and no id", () => {
+  const BARE = `---
+kind: source
+citekey: rasch2013
+title: Odor cues during slow-wave sleep
+pdf: rasch2013.pdf
+---
+Notes I typed.
+`;
+
+  it("is given an id on its first return, changing that one key and nothing else", async () => {
+    const vault = await vaultWith({
+      "sources/rasch2013.md": BARE,
+      "sources/pdf/rasch2013.pdf": "",
+    });
+    await writeFile(
+      join(vault, "sources/pdf/rasch2013.pdf"),
+      await pdf("synthetic-body.pdf")
+    );
+    const c = await core({ settleMs: 40, newId: () => "src-minted-9" });
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
+    const events = await c.events();
+    await writeFile(
+      join(vault, "sources/pdf/rasch2013.pdf"),
+      await pdf("annotated.pdf")
+    );
+    await events.next("ingestLanded");
+    const text = await readFile(join(vault, "sources/rasch2013.md"), "utf8");
+    expect(text.replace("id: src-minted-9\n", "")).toBe(
+      BARE + "\n## Annotations\n" + text.split("## Annotations\n")[1]
+    );
+    expect(text).toContain("id: src-minted-9\n");
+    const stored = JSON.parse(
+      await readFile(
+        join(vault, ".vitrine/annotations/src-minted-9.json"),
+        "utf8"
+      )
+    ) as Sidecar;
+    expect(stored.annotations).toHaveLength(6);
+  });
+
+  it("keeps the id it minted when the next PDF returns", async () => {
+    const vault = await vaultWith({
+      "sources/rasch2013.md": BARE,
+      "sources/pdf/rasch2013.pdf": "",
+    });
+    await writeFile(
+      join(vault, "sources/pdf/rasch2013.pdf"),
+      await pdf("synthetic-body.pdf")
+    );
+    let n = 0;
+    const c = await core({ settleMs: 40, newId: () => `minted-${++n}` });
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
+    const events = await c.events();
+    for (const name of ["annotated.pdf", "annotated-again.pdf"]) {
+      await writeFile(
+        join(vault, "sources/pdf/rasch2013.pdf"),
+        await pdf(name)
+      );
+      await events.next("ingestLanded");
+    }
+    const text = await readFile(join(vault, "sources/rasch2013.md"), "utf8");
+    expect(text.match(/^id: /gm)).toHaveLength(1);
+  });
+});
+
 describe("an Ingest that could not finish", () => {
   it("is taken up again without adding the same annotations twice", async () => {
     const { c, vault, events, source, sidecar } = await opened();

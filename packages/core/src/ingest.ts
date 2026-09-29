@@ -133,30 +133,49 @@ export function createIngest({
 
   /** Every Source with a PDF and an `id:` — the key its sidecar lives under. */
   function candidates(only: ReadonlySet<string> | null) {
-    const found: Array<{ source: string; id: string; pdf: string }> = [];
+    const found: Array<{ source: string; id: string | null; pdf: string }> = [];
     for (const key of pdfKeys(index)) {
       const [row] = index.select<{ kind: string | null; id: string | null }>(
         "SELECT kind, id FROM files WHERE path = ?",
         key.path
       );
-      // A stub has no PDF to read, and a Source with no `id:` has no key for
-      // its sidecar; minting one is the attach write's, and no Ingest writes
-      // frontmatter.
-      if (row?.kind !== "source" || !row.id) continue;
+      // A stub has no PDF to read. A Source with no `id:` is kept: it has a
+      // PDF and no key yet, and its first Ingest mints one (`mintId`).
+      if (row?.kind !== "source") continue;
       const [file] = index.select<{ path: string }>(
         "SELECT path FROM files WHERE markdown = 0 AND lpath = ?",
         namedPath(key.pdf)
       );
       if (file === undefined) continue;
       if (only !== null && !only.has(file.path)) continue;
-      found.push({ source: key.path, id: row.id, pdf: file.path });
+      found.push({ source: key.path, id: row.id || null, pdf: file.path });
     }
     return found;
   }
 
+  /**
+   * The `id:` a Source with a PDF lacks (a hand-written note, or one from
+   * before attaching minted it): the sidecar's key, written by the same
+   * splice attaching uses (ADR 0037, update for #419). Minted only here,
+   * with the file in hand and about to be read, and before anything is
+   * recorded — a failed write leaves no sidecar, so a retry starts clean.
+   */
+  async function mintId(path: string): Promise<string> {
+    const found = await readOutline(vaultPath, path);
+    if (!found.readable) throw new Error(found.reason);
+    const id = newId();
+    const written = await write(vaultPath, found.path, {
+      basedOn: found.hash,
+      operations: [{ op: "setFrontmatter", keys: { id } }],
+    });
+    if (!written.written) throw new Error(written.detail);
+    await index.own(found.path, written.content);
+    return id;
+  }
+
   async function ingestOne(source: {
     source: string;
-    id: string;
+    id: string | null;
     pdf: string;
   }): Promise<number | null> {
     const [file] = index.select<{ hash: string | null }>(
@@ -165,7 +184,9 @@ export function createIngest({
     );
     // No hash is an evicted file: unreadable-not-changed (story 23).
     if (file?.hash == null) return null;
-    const before = await readSidecar(vaultPath, source.id);
+    // No `id:` means no sidecar has ever been keyed to this Source.
+    const before =
+      source.id === null ? null : await readSidecar(vaultPath, source.id);
     if (before?.file.hash === file.hash) return null;
     if (unreadable.get(source.pdf)?.hash === file.hash) return null;
 
@@ -197,6 +218,7 @@ export function createIngest({
     // record a hash the index will not agree with — and ingest it twice.
     if (sha256(bytes) !== file.hash) return null;
 
+    const id = source.id ?? (await mintId(source.source));
     const stamped = now().toISOString();
     // An earlier run that died between the counter and the note left its
     // annotations in the sidecar; they are this file's, read again below, so
@@ -247,7 +269,7 @@ export function createIngest({
     // The counter first, and on its own: the note's blocks are numbered from
     // it, and a block number reused after a failed write would let an old
     // link name a different passage.
-    await writeSidecar(vaultPath, source.id, after);
+    await writeSidecar(vaultPath, id, after);
     if (after.annotations.some((a) => a.block !== undefined)) {
       const found = await readOutline(vaultPath, source.source);
       if (!found.readable) throw new Error(found.reason);
@@ -266,7 +288,7 @@ export function createIngest({
     }
     const finished: Sidecar = { ...after };
     delete finished.pending;
-    await writeSidecar(vaultPath, source.id, {
+    await writeSidecar(vaultPath, id, {
       ...finished,
       file: {
         size: stats.size,
