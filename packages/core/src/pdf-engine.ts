@@ -26,16 +26,67 @@ export class PdfUnreadable extends Error {
   }
 }
 
+/**
+ * What a file holds that Ingest keeps (`docs/architecture.md` § Annotation
+ * identity): `text` covers a sticky note and free text, `stamp` is what
+ * iPadOS Markup saves a pencil stroke as (ADR 0007 decision 5), and `shape`
+ * is Square, Circle, Line, Polygon and PolyLine. Every other subtype — a
+ * link, a popup, a form widget — is not an annotation of the researcher's.
+ */
+export type AnnotationKind =
+  | "highlight"
+  | "underline"
+  | "strikeout"
+  | "squiggly"
+  | "text"
+  | "freetext"
+  | "ink"
+  | "stamp"
+  | "shape";
+
+/** One annotation exactly as the file has it: raw values, nothing normalised. */
+export type PdfAnnotation = {
+  kind: AnnotationKind;
+  /** 0-based. */
+  page: number;
+  /** 8 numbers each, PDF user space, as written. */
+  quads: number[][];
+  /**
+   * The characters under the quads; for `text` and `freetext` the /Contents.
+   * Empty on ink, stamp, shape, and where the quads cover no text.
+   */
+  quote: string;
+  /** /Contents on the markup kinds; empty elsewhere. */
+  note: string;
+  /** /C as 0–255 components, or null when the file has none. */
+  color: number[] | null;
+  /** /NM, when the file has one. */
+  nm?: string;
+  /** /Rect as `[left, bottom, right, top]`. */
+  rect: number[];
+};
+
+export type PdfAnnotations = {
+  pages: number;
+  /** Trailer /ID[0] as hex; empty when the file has none. */
+  fileId: string;
+  annotations: PdfAnnotation[];
+};
+
 export type PdfEngine = {
   /** Read a PDF's title and author from its bytes; rejects `PdfUnreadable`. */
   metadata: (bytes: Uint8Array) => Promise<PdfMetadata>;
+  /** Read every annotation of the researcher's, in page order; rejects `PdfUnreadable`. */
+  annotations: (bytes: Uint8Array) => Promise<PdfAnnotations>;
   /** Stop the worker; a later job starts another. */
   close: () => Promise<void>;
 };
 
+type Job = "metadata" | "annotations";
+
 type Reply = {
   id: number;
-  result: PdfMetadata | { unreadable: string };
+  result: PdfMetadata | PdfAnnotations | { unreadable: string };
 };
 
 /**
@@ -72,8 +123,8 @@ export function createPdfEngine({
   // One job at a time: the worker holds one WebAssembly heap, and an answer
   // must be matched to the job that asked without a table of them.
   let queue: Promise<unknown> = Promise.resolve();
-  const run = (bytes: Uint8Array) =>
-    new Promise<PdfMetadata>((resolve, reject) => {
+  const run = <T>(job: Job, bytes: Uint8Array) =>
+    new Promise<T>((resolve, reject) => {
       queue = queue
         .catch(() => undefined)
         .then(
@@ -88,18 +139,19 @@ export function createPdfEngine({
                 if ("unreadable" in reply.result) {
                   reject(new PdfUnreadable(reply.result.unreadable));
                 } else {
-                  resolve(reply.result);
+                  resolve(reply.result as T);
                 }
               };
               worker ??= start();
               // A copy: transferring would detach the caller's buffer.
-              worker.postMessage({ id, bytes: Uint8Array.from(bytes) });
+              worker.postMessage({ id, job, bytes: Uint8Array.from(bytes) });
             })
         );
     });
 
   return {
-    metadata: run,
+    metadata: (bytes) => run<PdfMetadata>("metadata", bytes),
+    annotations: (bytes) => run<PdfAnnotations>("annotations", bytes),
     close: async () => {
       const going = worker;
       worker = null;

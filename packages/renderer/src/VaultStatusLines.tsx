@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ingestLine, useIngestSummary } from "./ingest-line";
 import { useTRPC } from "./trpc";
 import styles from "./VaultStatusLines.module.css";
 
@@ -34,6 +35,7 @@ export function useVaultStatusLines(): {
   // `pdfFolder`, which `events.ts` answers.
   const pdfFault = useQuery(trpc.vault.pdfFault.queryOptions()).data ?? null;
   const checkAgain = useMutation(trpc.vault.checkAgain.mutationOptions());
+  const ingest = useIngestSummary();
   const indexing = status.data?.indexing ?? null;
   const watching = status.data?.watching ?? { ok: true };
   const read: VaultRead = status.isError
@@ -46,7 +48,11 @@ export function useVaultStatusLines(): {
   return {
     read,
     hasLines:
-      status.isError || indexing !== null || !watching.ok || pdfFault !== null,
+      status.isError ||
+      indexing !== null ||
+      !watching.ok ||
+      pdfFault !== null ||
+      ingest !== null,
     lines: (
       <>
         {/* Without the status the app cannot say the vault was read, so a
@@ -75,6 +81,11 @@ export function useVaultStatusLines(): {
               retry
             </button>
           </WarningLine>
+        )}
+        {ingest !== null && (
+          <span className={styles.line} role="status">
+            {ingestLine(ingest)}
+          </span>
         )}
         {pdfFault !== null && (
           <WarningLine label="papers not arriving">

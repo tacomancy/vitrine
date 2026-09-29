@@ -1,3 +1,4 @@
+import type { IngestSummary } from "./ingest.js";
 import type { PdfFault } from "./pdf-folder.js";
 import type { VaultChanged } from "./vault-index.js";
 import type { Vault } from "./vault.js";
@@ -12,7 +13,15 @@ export type CoreEvent =
   | { type: "vaultStatus" }
   | { type: "vaultSwitched"; vault: Vault }
   // The PDF folder was checked (#379): its fault, or null once it resolves.
-  | { type: "pdfFolder"; fault: PdfFault | null };
+  | { type: "pdfFolder"; fault: PdfFault | null }
+  // An Ingest run took something in (#419): the footer's one line, and the
+  // Sources it wrote to. Never raised for a run that took nothing.
+  | {
+      type: "ingestLanded";
+      runId: string;
+      summary: IngestSummary;
+      sources: string[];
+    };
 
 export type Events = {
   emit: (event: CoreEvent) => void;

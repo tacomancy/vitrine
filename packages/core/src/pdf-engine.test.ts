@@ -59,6 +59,68 @@ describe("reading metadata", () => {
   });
 });
 
+describe("reading annotations", () => {
+  it("reads each markup and note with its quote from the file's own characters", async () => {
+    const read = await engine().annotations(await fixture("annotated.pdf"));
+    expect(read.pages).toBe(2);
+    const marks = read.annotations.filter((a) => a.kind !== "ink");
+    expect(marks.map((a) => [a.kind, a.page, a.quote, a.note]).sort()).toEqual(
+      [
+        [
+          "highlight",
+          0,
+          "Participants who heard the odor cue",
+          "Check this against the control group",
+        ],
+        [
+          "highlight",
+          0,
+          "difference was reliable across the downstream analyses",
+          "",
+        ],
+        ["highlight", 1, "different sentence about memory", ""],
+        // A sticky note's text is its own quote; it has no passage.
+        ["text", 0, "Ask Ana about this", ""],
+        ["stamp", 1, "", ""],
+      ].sort()
+    );
+  });
+
+  it("keeps the quads as the file wrote them, one per line of a highlight", async () => {
+    const read = await engine().annotations(await fixture("annotated.pdf"));
+    const across = read.annotations.find((a) =>
+      a.quote.startsWith("difference was")
+    )!;
+    expect(across.quads).toHaveLength(2);
+    expect(across.quads.every((q) => q.length === 8)).toBe(true);
+  });
+
+  it("names ink and a stamp by kind and gives neither a quote", async () => {
+    const read = await engine().annotations(await fixture("annotated.pdf"));
+    const kinds = read.annotations.map((a) => a.kind).sort();
+    expect(kinds).toContain("ink");
+    expect(kinds).toContain("stamp");
+    for (const a of read.annotations.filter((x) =>
+      ["ink", "stamp"].includes(x.kind)
+    )) {
+      expect(a.quote).toBe("");
+    }
+  });
+
+  it("answers an unannotated file with none", async () => {
+    const read = await engine().annotations(
+      await fixture("synthetic-body.pdf")
+    );
+    expect(read).toMatchObject({ pages: 2, annotations: [] });
+  });
+
+  it("names a file it cannot read as it does for metadata", async () => {
+    expect(
+      await failure(engine().annotations(Buffer.from("just some words")))
+    ).toBe("it is damaged, or is not a PDF");
+  });
+});
+
 describe("a file it cannot read", () => {
   it("names a password-protected one without a path", async () => {
     const reason = await failure(

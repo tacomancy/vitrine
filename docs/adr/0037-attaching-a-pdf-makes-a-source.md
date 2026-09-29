@@ -25,3 +25,7 @@ A PDF the user drops into `sources/pdf/` that no Source's `pdf:` names shows in 
 - `docs/architecture.md` § Vault layout no longer says `<citekey>.pdf`, and ADR 0006 decision 7 points here.
 - *Create a Source* (from a PDF's metadata) arrives with the PDF engine and mints `id:` the same way.
 - A rename the app misses (a crash between the pairing and the rewrite) leaves the Source naming a file that is gone. The *PDF missing* row is where that shows; it is a later ticket's.
+
+## Update (2026-09-29, #419)
+
+Decision 1 made attaching the place `id:` is minted, and *Considered options* rejected minting at the first sidecar write because the flip to `source` and the key would then be two writes. A `kind: source` note that already names a `pdf:` but has no `id:` — written by hand, or before attach minted one — is a different case: there is no flip to pair with, and the file is in hand. Ingest therefore mints the `id:` on that Source's first return, with the same `setFrontmatter` splice, before it records anything, so a failed write leaves no sidecar and a retry starts clean. This is the one frontmatter write an Ingest makes. A stub is unaffected: it has no PDF and no sidecar, and stays keyless until a PDF is attached.

@@ -8,6 +8,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { announceIngest, clearIngest } from "./ingest-line";
 import { INBOX, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 
@@ -40,6 +41,7 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
   // rather than pushed: the switch is not a place to go back to.
   const switchWindow = useCallback(() => {
     void queryClient.resetQueries();
+    clearIngest();
     replaceRoute(INBOX);
   }, [queryClient]);
   useSubscription(
@@ -79,6 +81,11 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           // arriving* and Settings' rows re-read what it found.
           void queryClient.invalidateQueries(trpc.vault.pdfFault.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.pdfFolder.pathFilter());
+        } else if (event.type === "ingestLanded") {
+          // The run's one line (#419). The blocks it wrote reached the index
+          // and raised their own `vaultChanged`, which is what re-reads a
+          // Source; nothing here patches a list.
+          announceIngest(event.summary);
         } else if (event.type === "vaultSwitched") {
           // Another vault is open (#377), whichever way it was asked for —
           // Settings, First run, or File ▸ Open Vault…, which the shell
