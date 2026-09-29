@@ -487,7 +487,6 @@ export function createSourceFromPdf(
         });
         return { readable: false, reason: read.reason };
       }
-      const authors = (read.author ?? "").replace(/\s+and\s+/g, ";");
       const id = newId();
       const stub = await makeStub(
         vaultPath,
