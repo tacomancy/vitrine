@@ -67,6 +67,19 @@ const clean = {
 };
 
 describe("package boundaries", () => {
+  it("pdfium-only-in-the-engine: the engine's worker may import the bindings, nothing else may", async () => {
+    const base = workspace({
+      ...clean,
+      "packages/core/src/pdf-engine.worker.ts":
+        'import { init } from "@embedpdf/pdfium";\nexport const w = init;\n',
+      "packages/core/src/sources.ts":
+        'import { init } from "@embedpdf/pdfium";\nexport const s = init;\n',
+    });
+    expect(await violations(base)).toEqual([
+      "pdfium-only-in-the-engine: packages/core/src/sources.ts → @embedpdf/pdfium",
+    ]);
+  });
+
   it("pass on the clean shape", async () => {
     expect(await violations(workspace(clean))).toEqual([]);
   });

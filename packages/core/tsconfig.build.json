@@ -7,5 +7,9 @@
     "declaration": false
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/test-core.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/test-core.ts",
+    "src/pdf-engine.trap.worker.ts"
+  ]
 }

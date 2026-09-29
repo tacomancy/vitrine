@@ -65,6 +65,7 @@ export type {
   StalledExperiment,
   MissingArtifacts,
   NoSource,
+  UnreadablePdf,
   StalledResearchQuestion,
 } from "./loose-ends.js";
 export type { Candidate, CandidateKind, Candidates } from "./picker.js";

@@ -1,7 +1,9 @@
-import { posix } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, join, posix } from "node:path";
 import { stringify } from "yaml";
 import { VaultError } from "./errors.js";
 import { PDF_FOLDER } from "./pdf-folder.js";
+import { PdfUnreadable, type PdfEngine } from "./pdf-engine.js";
 import { serialised } from "./serialise.js";
 import { createFile, readOutline, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -134,11 +136,13 @@ const plain = (value: string) => stringify(value, { lineWidth: 0 }).trim();
  */
 function stubFile(
   citekey: string,
-  { title, authors, year, url }: StubFields
+  { title, authors, year, url }: StubFields,
+  held?: { id: string; pdf: string }
 ): string {
   const lines = [
     "---",
-    "kind: source-stub",
+    held === undefined ? "kind: source-stub" : "kind: source",
+    ...(held === undefined ? [] : [`id: ${held.id}`]),
     `citekey: ${citekey}`,
     `title: ${plain(title)}`,
   ];
@@ -153,6 +157,7 @@ function stubFile(
     lines.push(`year: ${/^\d+$/.test(year) ? year : plain(year)}`);
   }
   if (url !== "") lines.push(`url: ${plain(url)}`);
+  if (held !== undefined) lines.push(`pdf: ${plain(held.pdf)}`);
   lines.push("---", "");
   return lines.join("\n");
 }
@@ -197,7 +202,8 @@ export function createSourceStub(
 async function makeStub(
   vaultPath: string,
   index: VaultIndex,
-  fields: StubFields
+  fields: StubFields,
+  held?: { id: string; pdf: string }
 ): Promise<Stub> {
   const base = citekeyFor(fields);
   for (let n = 0; ; n++) {
@@ -206,7 +212,7 @@ async function makeStub(
     const created = await createFile(
       vaultPath,
       path,
-      stubFile(citekey, fields)
+      stubFile(citekey, fields, held)
     );
     if (created.written) {
       await index.own(path, created.content);
@@ -284,6 +290,45 @@ export function unnamedPdfs(index: VaultIndex): string[] {
 // file the other is about to change.
 const attaching = serialised();
 
+/**
+ * The PDF a resolution acts on: in the folder, indexed, its bytes on this
+ * Mac, and named by no paper. The refusals are the ones *attach* and
+ * *create a Source* share, so neither can act on a file the other would not.
+ */
+function heldPdf(
+  index: VaultIndex,
+  pdf: string
+): { path: string; hash: string } {
+  if (!isPdfInFolder(pdf)) {
+    throw new VaultError(
+      "refused",
+      `${pdf} is not a PDF in the PDF folder, so there is nothing to attach.`
+    );
+  }
+  const held = index.select<{ path: string; hash: string | null }>(
+    "SELECT path, hash FROM files WHERE markdown = 0 AND lpath = ?",
+    pdf.toLowerCase()
+  )[0];
+  if (held === undefined) {
+    throw new VaultError("refused", `There is no PDF at ${pdf}.`);
+  }
+  if (held.hash === null) {
+    throw new VaultError(
+      "refused",
+      `${held.path} is not on this Mac yet; attach it once it has downloaded.`
+    );
+  }
+  const wanted = held.path.toLowerCase();
+  const owner = pdfKeys(index).find((key) => namedPath(key.pdf) === wanted);
+  if (owner !== undefined) {
+    throw new VaultError(
+      "refused",
+      `${owner.path} already names ${held.path}.`
+    );
+  }
+  return { path: held.path, hash: held.hash };
+}
+
 /** What attaching did: the stub, now a Source, and the `id:` it was minted. */
 export type Attached = { path: string; id: string };
 
@@ -304,33 +349,7 @@ export function attachPdf(
   newId: () => string
 ): Promise<Attached> {
   return attaching(async () => {
-    if (!isPdfInFolder(pdf)) {
-      throw new VaultError(
-        "refused",
-        `${pdf} is not a PDF in the PDF folder, so there is nothing to attach.`
-      );
-    }
-    const held = index.select<{ path: string; hash: string | null }>(
-      "SELECT path, hash FROM files WHERE markdown = 0 AND lpath = ?",
-      pdf.toLowerCase()
-    )[0];
-    if (held === undefined) {
-      throw new VaultError("refused", `There is no PDF at ${pdf}.`);
-    }
-    if (held.hash === null) {
-      throw new VaultError(
-        "refused",
-        `${held.path} is not on this Mac yet; attach it once it has downloaded.`
-      );
-    }
-    const wanted = held.path.toLowerCase();
-    const owner = pdfKeys(index).find((key) => namedPath(key.pdf) === wanted);
-    if (owner !== undefined) {
-      throw new VaultError(
-        "refused",
-        `${owner.path} already names ${held.path}.`
-      );
-    }
+    const held = heldPdf(index, pdf);
     const found = await readOutline(vaultPath, stub);
     const keys = found.readable
       ? (found.outline.frontmatter?.value as Record<string, unknown> | null)
@@ -413,4 +432,117 @@ export function followPdfRenames(
       );
     }
   });
+}
+
+/**
+ * What the engine could not read, by the PDF's vault path (#418; spec #416
+ * stories 65–67): held in memory, because nothing else has asked the engine
+ * to open a PDF yet. `hash` is the bytes the failure was about — a file
+ * replaced since is a different file and no longer this row.
+ */
+export type UnreadablePdfs = Map<string, { hash: string; reason: string }>;
+
+/** The engine and the record of what it could not read; one per core. */
+export type PdfReads = { engine: PdfEngine; unreadable: UnreadablePdfs };
+
+/** What *create a Source* did: the new paper, or why the file would not read. */
+export type Created =
+  | { readable: true; path: string; citekey: string; id: string }
+  | { readable: false; reason: string };
+
+/**
+ * *Create a Source* on a no-Source row (spec #416 stories 6–9; "Creating a
+ * Source from a PDF"): title and authors from the file's own metadata, the
+ * file name standing in for a missing title and every other field absent
+ * rather than guessed, and the citekey from the rule a hand-made stub gets.
+ * The file is written as a Source at once — `pdf:` and a minted `id:` —
+ * rather than as a stub to attach, because the PDF is the reason for it.
+ *
+ * A file the engine cannot read is not a refusal but an answer: it goes on
+ * the unreadable record, becomes the *PDF unreadable* row, and is not
+ * offered to the engine again until *try again* (`retryUnreadable`).
+ */
+export function createSourceFromPdf(
+  vaultPath: string,
+  index: VaultIndex,
+  { pdf }: { pdf: string },
+  { reads, newId }: { reads: PdfReads; newId: () => string }
+): Promise<Created> {
+  // Both queues: this writes a new Source (`serially`, for the citekey) and
+  // names a PDF (`attaching`, so an attach cannot claim the same file).
+  return attaching(() =>
+    serially(async () => {
+      const held = heldPdf(index, pdf);
+      if (reads.unreadable.get(held.path)?.hash === held.hash) {
+        throw new VaultError(
+          "refused",
+          `${held.path} could not be read; use try again on its row.`
+        );
+      }
+      const read = await readMetadata(vaultPath, held.path, reads.engine);
+      if ("reason" in read) {
+        reads.unreadable.set(held.path, {
+          hash: held.hash,
+          reason: read.reason,
+        });
+        return { readable: false, reason: read.reason };
+      }
+      const authors = (read.author ?? "").replace(/\s+and\s+/g, ";");
+      const id = newId();
+      const stub = await makeStub(
+        vaultPath,
+        index,
+        {
+          title: read.title ?? basename(held.path).replace(/\.pdf$/i, ""),
+          authors,
+          year: "",
+          url: "",
+        },
+        { id, pdf: nameInFolder(held.path) }
+      );
+      return { readable: true, ...stub, id };
+    })
+  );
+}
+
+/**
+ * *Try again* on a *PDF unreadable* row: the engine is asked once, now, and
+ * the answer replaces the record. Never called but by the researcher — a
+ * file that stopped the reader is not retried in a loop (story 66). A file
+ * that reads this time is simply a no-Source row again.
+ */
+export function retryUnreadable(
+  vaultPath: string,
+  index: VaultIndex,
+  { pdf }: { pdf: string },
+  reads: PdfReads
+): Promise<{ readable: boolean; reason?: string }> {
+  return attaching(async () => {
+    const held = heldPdf(index, pdf);
+    if (!reads.unreadable.has(held.path)) {
+      throw new VaultError("refused", `${held.path} is not marked unreadable.`);
+    }
+    const read = await readMetadata(vaultPath, held.path, reads.engine);
+    if ("reason" in read) {
+      reads.unreadable.set(held.path, { hash: held.hash, reason: read.reason });
+      return { readable: false, reason: read.reason };
+    }
+    reads.unreadable.delete(held.path);
+    return { readable: true };
+  });
+}
+
+async function readMetadata(
+  vaultPath: string,
+  path: string,
+  engine: PdfEngine
+) {
+  try {
+    return await engine.metadata(await readFile(join(vaultPath, path)));
+  } catch (cause) {
+    if (cause instanceof PdfUnreadable) return { reason: cause.reason };
+    // A file that cannot even be read from disk is unreadable too, in words
+    // that carry no path (ADR 0028).
+    return { reason: "the file could not be read from the disk" };
+  }
 }

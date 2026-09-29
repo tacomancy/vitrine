@@ -13,7 +13,7 @@ import { resolvesTo } from "./link-text.js";
 import { PDF_FOLDER } from "./pdf-folder.js";
 import { localDay, writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
-import { unnamedPdfs } from "./sources.js";
+import { unnamedPdfs, type UnreadablePdfs } from "./sources.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -159,7 +159,23 @@ export type NoSource = {
   title: string;
 };
 
+/**
+ * A PDF the engine could not read (#418; spec #416 stories 65–67): encrypted,
+ * damaged, or one it stopped on. It replaces the file's no-Source row, since
+ * it cannot be resolved until it reads. `reason` finishes "could not be read
+ * because …" and never carries a path (ADR 0028).
+ */
+export type UnreadablePdf = {
+  kind: "unreadable-pdf";
+  subject: string;
+  /** Vault-relative: the PDF itself. */
+  path: string;
+  title: string;
+  reason: string;
+};
+
 export type LooseEndRow =
+  | UnreadablePdf
   | NoSource
   | StalledResearchQuestion
   | StalledHypothesis
@@ -201,12 +217,14 @@ export type LooseEndsOptions = {
   stalledOpenDays: number;
   /** This machine's name, as a linked Artifact records it: only its own links are checked. */
   machine: string;
+  /** What the engine has failed to read; a file since replaced is no longer on it. */
+  unreadable: UnreadablePdfs;
 };
 
 export async function looseEnds(
   index: VaultIndex,
   vaultPath: string,
-  { days, stalledOpenDays, machine }: LooseEndsOptions
+  { days, stalledOpenDays, machine, unreadable }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
   const questions = stalledResearchQuestions(index, days, stalledOpenDays);
@@ -223,9 +241,12 @@ export async function looseEnds(
     stalledOpenDays,
     machine
   );
+  const broken = unreadableRows(index, unreadable);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
-    "Broken plumbing": experiments.missingUnderFalsification,
-    "Unfinished reading": noSourceRows(index),
+    "Broken plumbing": [...broken, ...experiments.missingUnderFalsification],
+    "Unfinished reading": noSourceRows(index).filter(
+      (row) => !broken.some((b) => b.path === row.path)
+    ),
     "Disconnected material": ambiguousLinks(index),
     "Stalled questions": [
       ...questions.rows,
@@ -251,6 +272,29 @@ export async function looseEnds(
       ...experiments.problems,
     ],
   };
+}
+
+function unreadableRows(
+  index: VaultIndex,
+  unreadable: UnreadablePdfs
+): UnreadablePdf[] {
+  const rows: UnreadablePdf[] = [];
+  for (const path of unnamedPdfs(index)) {
+    const failed = unreadable.get(path);
+    const now = index.select<{ hash: string | null }>(
+      "SELECT hash FROM files WHERE path = ?",
+      path
+    )[0];
+    if (failed === undefined || failed.hash !== now?.hash) continue;
+    rows.push({
+      kind: "unreadable-pdf",
+      subject: path,
+      path,
+      title: path.slice(PDF_FOLDER.length + 1),
+      reason: failed.reason,
+    });
+  }
+  return rows;
 }
 
 function noSourceRows(index: VaultIndex): NoSource[] {

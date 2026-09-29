@@ -135,6 +135,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
       : {}),
     ...(opts.watch ? { watch: opts.watch } : {}),
     probeTimeoutMs: opts.probeTimeoutMs ?? HARNESS_PROBE_TIMEOUT_MS,
+    ...(opts.pdfWorker ? { pdfWorker: opts.pdfWorker } : {}),
     index: {
       chunkSize: opts.chunkSize,
       positionsOf: opts.positionsOf,
