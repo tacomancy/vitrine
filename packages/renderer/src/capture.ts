@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import type { Provenance, Question } from "core";
+import type { PageSelection } from "./pdf-document";
 import { useRef } from "react";
 import { formatDateTime } from "./time";
 import { useTRPC } from "./trpc";
@@ -16,9 +17,9 @@ import { useTRPC } from "./trpc";
 /**
  * The chip a capture shows before a character is typed:
  * `Unattached · <when>`, `Pursuing · <the page's file name> · <when>`,
- * `Resolving · <the Hypothesis's file name> · <when>` for a follow-up, or
+ * `Resolving · <the Hypothesis's file name> · <when>` for a follow-up,
  * `Observing · <the run's name> · <when>` — an Experiment's file is named
- * by the run.
+ * by the run — or `Reading · <the Source's file name> · p.<n> · <when>`.
  */
 export function provenanceChip(provenance: Provenance, at: Date): string {
   return `${where(provenance)} · ${formatDateTime(at)}`;
@@ -31,9 +32,14 @@ function where(provenance: Provenance): string {
       ? ["Pursuing", provenance.page]
       : provenance.context === "resolving"
         ? ["Resolving", provenance.hypothesis]
-        : ["Observing", provenance.experiment];
+        : provenance.context === "reading"
+          ? ["Reading", provenance.source]
+          : ["Observing", provenance.experiment];
   const stem = path.split("/").pop() ?? "";
-  return `${word} · ${stem.replace(/\.md$/, "")}`;
+  const named = `${word} · ${stem.replace(/\.md$/, "")}`;
+  return provenance.context === "reading"
+    ? `${named} · p.${provenance.page}`
+    : named;
 }
 
 export type Capture = {
@@ -41,7 +47,9 @@ export type Capture = {
   write: (
     text: string,
     provenance: Provenance,
-    onWritten: (question: Question) => void
+    onWritten: (question: Question) => void,
+    /** The Reader's selection: makes the Question a `Q:` highlight too (#427). */
+    selection?: PageSelection | null
   ) => void;
   /** Why the last attempt did not land, in the words the core sent, or null. */
   error: { message: string } | null;
@@ -60,26 +68,44 @@ export type Capture = {
 export function useCapture(): Capture {
   const trpc = useTRPC();
   const capture = useMutation(trpc.questions.capture.mutationOptions());
+  // From a selection the core writes the highlight and the Question as one
+  // act (#427), so it is a different procedure, not a second call.
+  const fromSelection = useMutation(trpc.sources.question.mutationOptions());
   const writing = useRef(false);
+  const settled = () => {
+    writing.current = false;
+  };
   return {
-    write: (text, provenance, onWritten) => {
+    write: (text, provenance, onWritten, selection) => {
       const trimmed = text.trim();
       if (trimmed === "" || writing.current) return;
       writing.current = true;
+      if (selection && provenance.context === "reading") {
+        fromSelection.mutate(
+          {
+            path: provenance.source,
+            page: selection.page,
+            rects: selection.rects as [number, number, number, number][],
+            text: trimmed,
+          },
+          { onSuccess: (made) => onWritten(made.question), onSettled: settled }
+        );
+        return;
+      }
       capture.mutate(
         { text: trimmed, provenance },
-        {
-          onSuccess: onWritten,
-          onSettled: () => {
-            writing.current = false;
-          },
-        }
+        { onSuccess: onWritten, onSettled: settled }
       );
     },
-    error: capture.isError ? capture.error : null,
+    error: fromSelection.isError
+      ? fromSelection.error
+      : capture.isError
+        ? capture.error
+        : null,
     reset: () => {
       writing.current = false;
       capture.reset();
+      fromSelection.reset();
     },
   };
 }

@@ -15,7 +15,19 @@ import {
   promoteResearchQuestionToHypothesis,
 } from "./hypothesis.js";
 import { promoteQuestion, type Promotion } from "./research-question.js";
+import type {
+  IngestProvenance,
+  Provenance,
+  Question,
+} from "./question-types.js";
 import { serialised } from "./serialise.js";
+
+export type {
+  IngestProvenance,
+  Provenance,
+  Question,
+  ReadingProvenance,
+} from "./question-types.js";
 import { localIso } from "./time.js";
 import { readOutline, write, type Operation } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -28,34 +40,6 @@ import type { VaultService } from "./vault.js";
  */
 const QUESTIONS_FOLDER = "questions";
 const META_FOLDER = ".vitrine";
-
-/**
- * Where a Question came from (CONTEXT.md *Provenance*): Unattached;
- * captured on a Research Question's or a Hypothesis's page — `page` is that
- * page's vault-relative path, and the Question is a sub-question of it; or
- * the follow-up a Hypothesis's result raised (#339, CAP-5); or wondered
- * while observing a run — `experiment` is the Experiment's path (#373,
- * CAP-6).
- */
-export type Provenance =
-  | { context: "other" }
-  | { context: "pursuing"; page: string }
-  | { context: "resolving"; hypothesis: string }
-  | { context: "observing"; experiment: string };
-
-/**
- * A `Q:` note read back by Ingest (#422): the Source's path, the 1-based
- * page, the annotation's block id, and the passage it marks. Kept apart from
- * `Provenance` because only Ingest makes one — the router's input and the
- * window's chords never carry it.
- */
-export type IngestProvenance = {
-  context: "ingest";
-  source: string;
-  page: number;
-  annotation: string;
-  quote: string;
-};
 
 /** The page a capture was made on, and the Kinds its context allows there. */
 function pageOf(
@@ -83,25 +67,10 @@ function pageOf(
         noun: "an Experiment",
       };
     case "ingest":
+    case "reading":
       return { path: provenance.source, kinds: ["source"], noun: "a Source" };
   }
 }
-
-export type Question = {
-  id: string;
-  path: string;
-  question: string;
-  status: "open";
-  captured: string;
-  /** The wikilink to what was open at capture; absent when Unattached. */
-  from?: string;
-  /** Sources only: the 1-based page and the annotation's block id. */
-  page?: number;
-  annotation?: string;
-  /** The passage the annotation marks; written as the body, not a key. */
-  quote?: string;
-  context: (Provenance | IngestProvenance)["context"];
-};
 
 /** Where a triage write landed: the Question's path, vault-relative. */
 export type Triage = { path: string };
@@ -385,11 +354,15 @@ export function createQuestionService({
       captured: localIso(now()),
       ...(onPage === null ? {} : { from: wikilinkTo(onPage.path) }),
       context: provenance.context,
-      ...(provenance.context === "ingest"
+      ...(provenance.context === "ingest" || provenance.context === "reading"
         ? {
             page: provenance.page,
-            annotation: provenance.annotation,
-            quote: provenance.quote,
+            ...(provenance.annotation === undefined
+              ? {}
+              : { annotation: provenance.annotation }),
+            ...(provenance.quote === undefined
+              ? {}
+              : { quote: provenance.quote }),
           }
         : {}),
     });

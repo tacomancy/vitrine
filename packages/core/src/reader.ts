@@ -4,7 +4,13 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { readSidecar, type ReadingPosition } from "./annotation-sidecar.js";
 import { VaultError } from "./errors.js";
-import type { HighlightIntent, Highlighted, Ingest } from "./ingest.js";
+import type {
+  HighlightIntent,
+  Highlighted,
+  Ingest,
+  QuestionIntent,
+  Questioned,
+} from "./ingest.js";
 import { questionText } from "./ingest.js";
 import { readPageFile } from "./page-file.js";
 import type { AnnotationKind } from "./pdf-engine.js";
@@ -329,6 +335,25 @@ export async function makeHighlight(
     throw new VaultError("refused", "This vault cannot read PDFs yet.");
   }
   return ingest.highlight(path, intent);
+}
+
+/**
+ * Make a Question from a selection (#427; spec #416 stories 97–100): the
+ * highlight that carries `Q: <text>` and the Question, written by one Ingest
+ * pass so the sidecar's once-only flag is set before anything can read the
+ * note back.
+ */
+export async function makeQuestion(
+  vaultPath: string,
+  ingest: Ingest | null,
+  path: string,
+  intent: QuestionIntent
+): Promise<Questioned> {
+  await sourceOf(vaultPath, path);
+  if (ingest === null) {
+    throw new VaultError("refused", "This vault cannot read PDFs yet.");
+  }
+  return ingest.question(path, intent);
 }
 
 /**

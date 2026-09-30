@@ -17,6 +17,7 @@ import {
 import { pageWords, sameDocument } from "./document-fingerprint.js";
 import { errorMessage } from "./errors.js";
 import { writeAtomically } from "./atomic-write.js";
+import type { Question } from "./question-types.js";
 import { HIGHLIGHT_RGB, type HighlightColour } from "./highlight-colour.js";
 import {
   PdfUnreadable,
@@ -85,7 +86,9 @@ export type SpawnQuestion = (question: {
   page: number;
   annotation: string;
   quote: string;
-}) => Promise<{ id: string }>;
+  /** `reading` when the Reader made the highlight that carries the note (#427). */
+  context?: "reading";
+}) => Promise<Question>;
 
 /**
  * The text of a `Q:` note (CONTEXT.md *`Q:` convention*): the prefix is
@@ -128,6 +131,13 @@ export type HighlightIntent = {
 };
 
 export type Highlighted = { id: string; block: string; quote: string };
+
+/** What the Reader sends to make a Question from a selection (#427): a highlight's where, and the question's words. */
+export type QuestionIntent = Omit<HighlightIntent, "colour" | "note"> & {
+  text: string;
+};
+
+export type Questioned = Highlighted & { question: Question };
 
 /** A Source's block ids are `h` and a number; only markup and notes are link targets. */
 const HAS_BLOCK: ReadonlySet<AnnotationKind> = new Set([
@@ -259,6 +269,12 @@ export function createIngest({
     return id;
   }
 
+  // Set by `highlightOne` while it records a highlight that *is* a Question
+  // (#427): the spawn below is then the Reader's, made in the same pass that
+  // writes the sidecar, so the once-only flag exists before any later Ingest
+  // can read the `Q:` back and spawn a second.
+  let making: { nm: string; made?: Question } | null = null;
+
   /**
    * Every annotation whose current note is a `Q:` and that has spawned no
    * Question yet spawns one, and the sidecar remembers it (ADR 0013 d.8).
@@ -287,7 +303,9 @@ export function createIngest({
         page: a.page + 1,
         annotation: a.block,
         quote: isNote ? "" : a.quote,
+        ...(making?.nm === a.id ? { context: "reading" as const } : {}),
       });
+      if (making?.nm === a.id) making.made = made;
       a.question = made.id;
       await writeSidecar(vaultPath, id, sidecar);
       spawned++;
@@ -613,8 +631,9 @@ export function createIngest({
    */
   async function highlightOne(
     source: string,
-    intent: HighlightIntent
-  ): Promise<Highlighted> {
+    intent: HighlightIntent,
+    asking = false
+  ): Promise<Highlighted & { question?: Question }> {
     const found = candidates(null).find((c) => c.source === source);
     if (found === undefined) {
       throw new VaultError("refused", "That Source has no PDF in the vault.");
@@ -670,7 +689,14 @@ export function createIngest({
     const after = candidates(new Set([found.pdf])).find(
       (c) => c.source === source
     );
-    await ingestOne(after ?? found);
+    let question: Question | undefined;
+    making = asking ? { nm } : null;
+    try {
+      await ingestOne(after ?? found);
+    } finally {
+      ({ made: question } = making ?? {});
+      making = null;
+    }
     const sidecar = after?.id ? await readSidecar(vaultPath, after.id) : null;
     const entry = sidecar?.annotations.find((a) => a.id === nm);
     if (entry?.block === undefined) {
@@ -679,7 +705,18 @@ export function createIngest({
         "The highlight was written into the PDF, but could not be recorded yet."
       );
     }
-    return { id: entry.id, block: entry.block, quote: entry.quote };
+    if (asking && question === undefined) {
+      throw new VaultError(
+        "refused",
+        "The highlight was written into the PDF, but its Question could not be recorded yet."
+      );
+    }
+    return {
+      id: entry.id,
+      block: entry.block,
+      quote: entry.quote,
+      ...(question === undefined ? {} : { question }),
+    };
   }
 
   const tombstoned = (source: string, ids: readonly string[]) =>
@@ -734,8 +771,25 @@ export function createIngest({
      * 12). On Ingest's queue because it rewrites the PDF and the sidecar: a
      * run beside it would read the file half-way through the swap.
      */
-    highlight: (source: string, intent: HighlightIntent) =>
-      serially(() => highlightOne(source, intent)),
+    highlight: (
+      source: string,
+      intent: HighlightIntent
+    ): Promise<Highlighted> => serially(() => highlightOne(source, intent)),
+    /**
+     * Make a Question from a selection (#427; ADR 0038): the highlight whose
+     * note is `Q: <text>`, and the Question, together. The same queue as a
+     * highlight, for the same reason.
+     */
+    question: (source: string, intent: QuestionIntent) =>
+      serially(async (): Promise<Questioned> => {
+        const { text, ...where } = intent;
+        const made = await highlightOne(
+          source,
+          { ...where, colour: "yellow", note: `Q: ${text}` },
+          true
+        );
+        return { ...made, question: made.question! };
+      }),
     /**
      * *Drop the links* and *treat as new* (stories 49–51, 54): the same
      * Tombstone, because one terminal state means one thing. Two entry
