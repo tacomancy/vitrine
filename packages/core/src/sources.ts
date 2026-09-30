@@ -344,14 +344,17 @@ export type Attached = { path: string; id: string };
  * deliberately has none, and the sidecar needs a key that survives a rename.
  * Links name the citekey, so none of them changes.
  *
- * The PDF is never opened, renamed, moved or copied: its name is whatever
- * it is called, relative to the folder.
+ * The PDF is never renamed, moved or copied: its name is whatever it is
+ * called, relative to the folder. It is read once the stub has become a
+ * Source: the file was hashed while no Source named it, so no later change
+ * event would ever ask for its first Ingest (the beat's demo run, #429).
  */
 export function attachPdf(
   vaultPath: string,
   index: VaultIndex,
   { pdf, stub }: { pdf: string; stub: string },
-  newId: () => string
+  newId: () => string,
+  ingest: (paths: readonly string[]) => Promise<void>
 ): Promise<Attached> {
   return attaching(async () => {
     const held = heldPdf(index, pdf);
@@ -383,6 +386,7 @@ export function attachPdf(
       );
     }
     await index.own(found.path, result.content);
+    await ingest([held.path]);
     return { path: found.path, id };
   });
 }
@@ -476,7 +480,15 @@ export function createSourceFromPdf(
   vaultPath: string,
   index: VaultIndex,
   { pdf }: { pdf: string },
-  { reads, newId }: { reads: PdfReads; newId: () => string }
+  {
+    reads,
+    newId,
+    ingest,
+  }: {
+    reads: PdfReads;
+    newId: () => string;
+    ingest: (paths: readonly string[]) => Promise<void>;
+  }
 ): Promise<Created> {
   // Both queues: this writes a new Source (`serially`, for the citekey) and
   // names a PDF (`attaching`, so an attach cannot claim the same file).
@@ -511,6 +523,8 @@ export function createSourceFromPdf(
         },
         { id, pdf: nameInFolder(held.path) }
       );
+      // Read now, for the reason `attachPdf` gives.
+      await ingest([held.path]);
       return { readable: true, ...stub, id };
     })
   );

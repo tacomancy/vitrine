@@ -103,6 +103,17 @@ describe("sources.createFromFile", () => {
     await c.indexed();
   });
 
+  it("reads the file at once, so an annotated paper's blocks are in its new Source", async () => {
+    const { vault, create, c } = await withFolder({
+      "paper.pdf": "annotated-questions.pdf",
+    });
+    const events = await c.events();
+    const made = (await create("paper.pdf")).result!.data;
+    if (!made.readable) throw new Error("expected a Source");
+    expect((await events.next("ingestLanded")).summary.new).toBeGreaterThan(0);
+    expect(await readFile(join(vault, made.path), "utf8")).toMatch(/\^h1/);
+  });
+
   it("falls back to the file name for a missing title and leaves out authors it does not have", async () => {
     const { vault, create } = await withFolder({
       "Whatever it was called.pdf": "synthetic-no-info.pdf",

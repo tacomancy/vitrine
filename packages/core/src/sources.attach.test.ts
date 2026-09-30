@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
 import type { Candidates } from "./picker.js";
-import { closeCores, core, vaultWith } from "./test-core.js";
+import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
 import type { OutlineResponse } from "./vault-files.js";
 
 afterEach(closeCores);
@@ -162,6 +162,35 @@ id: src-minted-1
 ---
 `);
     await c.indexed();
+  });
+
+  it("reads the file at once: an annotated PDF's blocks land in the Source and the run says so", async () => {
+    // Found by the beat's demo run (#429): a PDF no Source named had been
+    // hashed already, so no later change event ever asked for its first read.
+    const vault = await vaultWith({
+      "sources/rasch2013.md": STUB,
+      "sources/pdf/mystery.pdf": "",
+    });
+    await writeFile(
+      join(vault, "sources/pdf/mystery.pdf"),
+      await readFile(join(fixtures, "pdf", "annotated-questions.pdf"))
+    );
+    const c = await core({ settleMs: 40, newId: () => "src-minted-1" });
+    expect(
+      (await c.mutate("vault.open", { path: vault })).error
+    ).toBeUndefined();
+    await c.indexed();
+    const events = await c.events();
+    const attached = await c.mutate("sources.attachToStub", {
+      pdf: "sources/pdf/mystery.pdf",
+      stub: "sources/rasch2013.md",
+    });
+    expect(attached.error).toBeUndefined();
+    const landed = await events.next("ingestLanded");
+    expect(landed.summary.new).toBeGreaterThan(0);
+    expect(await readFile(join(vault, "sources/rasch2013.md"), "utf8")).toMatch(
+      /\^h1/
+    );
   });
 
   it("keeps a Research Question that cites the stub resolving it, and the row goes", async () => {
