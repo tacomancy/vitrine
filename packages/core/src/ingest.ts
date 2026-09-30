@@ -829,12 +829,13 @@ export function createIngest({
         links: inboundLinks(index, source, entry.block!),
       };
     }
-    await rewritten(found.pdf, (bytes) =>
-      engine.amend(bytes, amendRequest(entry, { remove: true }))
-    );
-    // Retired before the file is read back, or that read would find the
-    // identity gone from the file and ask about it — the question this act
-    // exists to spare the researcher.
+    // Retired *before* the file changes, and undone if the file will not.
+    // The other order has a crash window between the two writes that leaves
+    // the annotation gone from the PDF with nothing recording why — a linked
+    // one would come back at the next Ingest as the Unmatched question this
+    // act exists to spare. This order's window fails the other way: the
+    // record says gone, the file still holds it, and the next Ingest finds a
+    // highlight it reads as new. That costs a duplicate, never a rotted link.
     const stamped = now().toISOString();
     const annotations = sidecar.annotations.map((a) =>
       a.id !== entry.id
@@ -845,6 +846,15 @@ export function createIngest({
     );
     await writeNote(source, annotations);
     await writeSidecar(vaultPath, id, { ...sidecar, annotations });
+    try {
+      await rewritten(found.pdf, (bytes) =>
+        engine.amend(bytes, amendRequest(entry, { remove: true }))
+      );
+    } catch (cause) {
+      await writeSidecar(vaultPath, id, sidecar);
+      await writeNote(source, sidecar.annotations);
+      throw cause;
+    }
     await ingestOne(found);
     if (!linked) {
       announce?.({

@@ -163,6 +163,39 @@ describe("recolouring and re-noting", () => {
   });
 });
 
+describe("re-noting a Q: note", () => {
+  const questions = async (c: {
+    query: <T>(p: string) => Promise<{ result?: { data: T } }>;
+  }) =>
+    (await c.query<{ questions: unknown[] }>("questions.list")).result!.data
+      .questions;
+
+  it("spawns a Question once when a note becomes Q:, and not again when it is edited or emptied", async () => {
+    const t = await opened();
+    const made = (await t.highlight([LINE_TWO], "just a note")).result!.data;
+    expect(await questions(t.c)).toHaveLength(0);
+
+    await t.edit("amend", made.id, { note: "Q: why does it fade?" });
+    expect(await questions(t.c)).toHaveLength(1);
+
+    // The Question is the researcher's now: editing the note does not
+    // rewrite it or make a second (story 31).
+    await t.edit("amend", made.id, { note: "Q: a different wording" });
+    await t.edit("amend", made.id, { note: "" });
+    expect(await questions(t.c)).toHaveLength(1);
+    const sidecar = await readSidecar(t.vault, "src-1");
+    expect(sidecar!.annotations[0]!.question).toBeDefined();
+  });
+
+  it("spawns no second Question for a highlight made with Q: and then re-coloured", async () => {
+    const t = await opened();
+    const made = (await t.highlight([LINE_TWO], "Q: first?")).result!.data;
+    expect(await questions(t.c)).toHaveLength(1);
+    await t.edit("amend", made.id, { colour: "blue" });
+    expect(await questions(t.c)).toHaveLength(1);
+  });
+});
+
 describe("removing an annotation", () => {
   it("asks first when things point at it, naming them, and writes nothing", async () => {
     const t = await opened(LINK);
@@ -275,6 +308,22 @@ describe("removing an annotation", () => {
     const sidecar = await readSidecar(t.vault, "src-1");
     expect(sidecar!.annotations[0]!.removed_at).toBeUndefined();
     expect(sidecar!.annotations[0]!.gone_at).toBeUndefined();
+    expect(await t.note()).toContain("^h1");
+  });
+
+  it("leaves a linked annotation's block live, not (gone), when the write fails", async () => {
+    const t = await opened(LINK);
+    const made = (await t.highlight([LINE_TWO])).result!.data;
+    await chmod(join(t.vault, "sources/pdf"), 0o555);
+    try {
+      expect((await t.remove(made.id, true)).error).toBeDefined();
+    } finally {
+      await chmod(join(t.vault, "sources/pdf"), 0o755);
+    }
+    expect(await t.note()).not.toContain("(gone)");
+    const sidecar = await readSidecar(t.vault, "src-1");
+    expect(sidecar!.annotations[0]!.gone_at).toBeUndefined();
+    expect(await t.marks()).toHaveLength(1);
   });
 
   it("does not come back as a question when the PDF returns", async () => {
