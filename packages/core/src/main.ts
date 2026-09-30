@@ -104,11 +104,14 @@ const staticDir = process.env["VITRINE_STATIC_DIR"];
 const appSupportDir = process.env["VITRINE_APP_SUPPORT_DIR"];
 // The Mac's computer name, which only the shell asks the system for.
 const machine = process.env["VITRINE_MACHINE"];
+// The account's full name, for a highlight's author; only the shell can ask.
+const author = process.env["VITRINE_AUTHOR"];
 const shell = parentPort ? hostOver(parentPort) : null;
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(appSupportDir === undefined ? {} : { appSupportDir }),
   ...(machine === undefined || machine === "" ? {} : { machine }),
+  ...(author === undefined || author === "" ? {} : { author }),
   ...(shell ? { host: shell.host } : {}),
 });
 
