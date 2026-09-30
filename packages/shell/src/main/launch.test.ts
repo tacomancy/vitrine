@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildVersion, coreEntry, machineName, stateFolder } from "./launch.js";
+import {
+  authorName,
+  buildVersion,
+  coreEntry,
+  machineName,
+  stateFolder,
+} from "./launch.js";
 
 describe("coreEntry", () => {
   it("is the staged core under resourcesPath when packaged", () => {
@@ -106,5 +112,24 @@ describe("machineName", () => {
     expect(
       machineName({ computerName: () => "  \n", hostname: "studio-mac.local" })
     ).toBe("studio-mac.local");
+  });
+});
+
+describe("authorName", () => {
+  it("is the account's full name as `id -F` prints it, trimmed", () => {
+    expect(authorName({ fullName: () => "Sarah Lehman\n" })).toBe(
+      "Sarah Lehman"
+    );
+  });
+
+  it("is undefined when the name cannot be read or is blank, so the core keeps its default", () => {
+    expect(
+      authorName({
+        fullName: () => {
+          throw new Error("id: not found");
+        },
+      })
+    ).toBeUndefined();
+    expect(authorName({ fullName: () => " \n" })).toBeUndefined();
   });
 });
