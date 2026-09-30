@@ -73,6 +73,7 @@ import {
   tickThread,
   type PageContext,
 } from "./research-question.js";
+import { bringDown, readSourcePage, setReadingPosition } from "./reader.js";
 import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
@@ -373,6 +374,36 @@ export const router = t.router({
           createSourceFromPdf(vault.path, index, input, {
             reads: ctx.pdfs,
             newId: ctx.newId,
+          })
+        );
+      }),
+    // The Reader (#424): a Source's fields, its PDF's address and the
+    // annotations the overlay draws, read off the note and the sidecar.
+    page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(readSourcePage(vault.path, index, input.path));
+    }),
+    // Opening an evicted PDF brings it down and then ingests it (story 24).
+    bringDown: t.procedure.input(pathInput).mutation(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(
+        bringDown(vault.path, index, ctx.vault.ingest, input.path)
+      );
+    }),
+    // Where the reader stopped, remembered per Source (story 75).
+    readingPosition: t.procedure
+      .input(
+        pathInput.extend({
+          page: z.number().int().min(1),
+          offset: z.number().min(0).max(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, ingest } = await requireVault(ctx);
+        return refusing(
+          setReadingPosition(vault.path, ingest, input.path, {
+            page: input.page,
+            offset: input.offset,
           })
         );
       }),

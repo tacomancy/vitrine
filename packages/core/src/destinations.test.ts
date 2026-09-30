@@ -72,8 +72,8 @@ async function vaultOf(
 describe("globalCommand.destinations", () => {
   it("names a Question by its text and a Research Question by its title", async () => {
     const c = await opened(await fixtureCopy("obsidian-vault"));
-    // The Note, the two Sources and the stub have no Address, so no row
-    // can lead to a dead end (ADR 0027 decision 4).
+    // The Note and the stub have no Address, so no row can lead to a dead
+    // end (ADR 0027 decision 4); the two Sources have the Reader's (#424).
     expect(shown(await c.destinations(""))).toEqual([
       "research-question Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?",
       "hypothesis Slow-wave density on the retention night predicts overnight recall gain beyond encoding strength.",
@@ -81,6 +81,8 @@ describe("globalCommand.destinations", () => {
       "experiment closed-loop-boost",
       "experiment spindle-replay-rerun",
       "experiment overnight-vs-wake",
+      "source About sleep's role in memory",
+      "source Sleep to remember",
       "question Does slow-wave density predict recall gain, or is it a proxy for encoding strength at learning?",
     ]);
   });

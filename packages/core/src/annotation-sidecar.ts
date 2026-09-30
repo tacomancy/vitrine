@@ -69,6 +69,8 @@ export type HeldAnnotation = Pick<
   "kind" | "page" | "quads" | "quote" | "note" | "color"
 >;
 
+export type ReadingPosition = { page: number; offset: number };
+
 export type Sidecar = {
   /** The PDF's file name under `sources/pdf/`, as the Source's `pdf:` wrote it. */
   pdf: string;
@@ -80,6 +82,12 @@ export type Sidecar = {
   annotations: SidecarAnnotation[];
   /** Read by *relink* (the Unmatched row, #421). */
   held?: HeldAnnotation[];
+  /**
+   * Where the reader stopped (#424): a 1-based page and how far down it, 0
+   * to 1. Lives here, in the Source's own file, so it follows the Source
+   * and needs no store of its own; written only through Ingest's queue.
+   */
+  reading_position?: ReadingPosition;
   /**
    * Set while an Ingest has written the counter and its new annotations but
    * not yet the note's blocks: how many annotations were there before it. A

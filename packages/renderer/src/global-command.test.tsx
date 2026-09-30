@@ -695,6 +695,28 @@ describe("a Hypothesis is one command away", () => {
   });
 });
 
+describe("a Source is one command away (#424)", () => {
+  // A Source has a Reader; a stub has none, and the core does not offer it,
+  // so the command cannot lead to a paper with nothing to open.
+  const S_PATH = "sources/rasch2013.md";
+  const WITH_SOURCE: Destination[] = [
+    { kind: "source", path: S_PATH, display: "Odor cues during sleep" },
+    { kind: "question", path: Q_PATH, display: "Odor, or sleep?" },
+  ];
+
+  it("is a row with its glyph and Kind, and lands on the Reader", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": answering(WITH_SOURCE),
+    });
+    type(dialog, "odor cues");
+    expect(said((await settled(dialog, 1)).destinations)).toEqual([
+      row("●", "Odor cues during sleep", "source"),
+    ]);
+    press(dialog, "Enter");
+    expect(window.location.hash).toBe(`#/source/${S_PATH}`);
+  });
+});
+
 const page: ResearchQuestionPage = {
   readable: true,
   path: RQ_PATH,
