@@ -383,7 +383,9 @@ export const router = t.router({
       .input(z.object({ pdf: z.string().min(1), stub: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
-        return refusing(attachPdf(vault.path, index, input, ctx.newId));
+        return refusing(
+          attachPdf(vault.path, index, input, ctx.newId, ctx.vault.ingest)
+        );
       }),
     // *Create a Source* on a no-Source row (#418): title and authors from
     // the PDF's own metadata. A file the engine cannot read is an answer,
@@ -396,6 +398,7 @@ export const router = t.router({
           createSourceFromPdf(vault.path, index, input, {
             reads: ctx.pdfs,
             newId: ctx.newId,
+            ingest: ctx.vault.ingest,
           })
         );
       }),
