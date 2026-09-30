@@ -311,3 +311,87 @@ describe("an evicted PDF", () => {
     expect((await events.next("ingestLanded")).summary.new).toBe(6);
   });
 });
+
+describe("sources.connections", () => {
+  const RQ = `---
+kind: research-question
+id: rq-1
+question: Does odor cueing help?
+---
+Cites [[rasch2013#^h2]] on the control group.
+`;
+  const NOTE = `Thinking about [[rasch2013#^h1]] and the whole paper [[rasch2013]].
+`;
+  const ASKED = `---
+kind: question
+id: q-1
+question: Why the control group?
+status: open
+captured: 2026-09-01T10:00:00
+from: "[[rasch2013]]"
+page: 2
+annotation: h3
+context: ingest
+---
+`;
+  const CLOSED = `---
+kind: question
+id: q-2
+question: Old one
+status: abandoned
+captured: 2026-09-02T10:00:00
+from: "[[rasch2013b]]"
+context: ingest
+---
+`;
+
+  async function connections(files: Record<string, string>) {
+    const { c } = await opened(files);
+    await c.indexed();
+    const reply = await c.query<
+      Array<{
+        path: string;
+        kind: string | null;
+        block: string | null;
+        page: number | null;
+        open: boolean;
+      }>
+    >("sources.connections", { path: "sources/rasch2013.md" });
+    expect(reply.error).toBeUndefined();
+    return reply.result!.data;
+  }
+
+  it("lists what links to the Source and its blocks, and Questions whose provenance names it, by page then recency", async () => {
+    const found = await connections({
+      "questions/rq.md": RQ,
+      "notes/idea.md": NOTE,
+      "questions/asked.md": ASKED,
+      "questions/closed.md": CLOSED,
+    });
+    // The fixture's h1–h3 all sit on page 1, so they tie on page and are
+    // newest-first within it: only the tie's members are asserted, and that
+    // the paper-wide link follows every paged one.
+    expect(
+      found
+        .slice(0, 3)
+        .map((f) => [f.path, f.kind, f.block, f.page, f.open])
+        .sort()
+    ).toEqual([
+      ["notes/idea.md", null, "h1", 1, false],
+      ["questions/asked.md", "question", "h3", 1, true],
+      ["questions/rq.md", "research-question", "h2", 1, false],
+    ]);
+    expect(found).toHaveLength(4);
+    expect(found[3]).toMatchObject({ block: null, page: null });
+  });
+
+  it("lists a Question whose provenance names the Source even when no note links it", async () => {
+    const found = await connections({ "questions/asked.md": ASKED });
+    expect(found.map((f) => f.path)).toEqual(["questions/asked.md"]);
+  });
+
+  it("does not list the Source's own note, and does not mistake rasch2013b for it", async () => {
+    const found = await connections({ "questions/closed.md": CLOSED });
+    expect(found).toEqual([]);
+  });
+});

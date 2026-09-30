@@ -127,5 +127,5 @@ export type {
   WriteResult,
 } from "./vault-files.js";
 export { startCore } from "./start.js";
-export type { ReaderAnnotation, SourcePage } from "./reader.js";
+export type { Connection, ReaderAnnotation, SourcePage } from "./reader.js";
 export type { ReadingPosition } from "./annotation-sidecar.js";
