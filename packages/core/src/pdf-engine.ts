@@ -102,6 +102,25 @@ export type HighlightResult =
   | { written: true; bytes: Uint8Array; quote: string; quads: number[][] }
   | { written: false; reason: string };
 
+/**
+ * A change to one annotation already in the file (#428). Found by `/NM` when
+ * the file carries one, else by its quads on that page — the same two things
+ * the sidecar holds for it. Extent is never changed: that is remove and
+ * redraw.
+ */
+export type AmendRequest = {
+  /** 0-based. */
+  page: number;
+  nm: string;
+  quads: number[][];
+  /** ISO time for `/M`. */
+  at: string;
+  change: { colour?: number[]; note?: string } | { remove: true };
+};
+
+export type AmendResult =
+  { written: true; bytes: Uint8Array } | { written: false; reason: string };
+
 export type PdfEngine = {
   /** Read a PDF's title and author from its bytes; rejects `PdfUnreadable`. */
   metadata: (bytes: Uint8Array) => Promise<PdfMetadata>;
@@ -117,16 +136,26 @@ export type PdfEngine = {
     bytes: Uint8Array,
     request: HighlightRequest
   ) => Promise<HighlightResult>;
+  /**
+   * The file with one annotation recoloured, re-noted or removed, as a full
+   * rewrite; the input bytes are never touched. Refused, in plain words,
+   * when the annotation is not in the file. Rejects `PdfUnreadable`.
+   */
+  amend: (bytes: Uint8Array, request: AmendRequest) => Promise<AmendResult>;
   /** Stop the worker; a later job starts another. */
   close: () => Promise<void>;
 };
 
-type Job = "metadata" | "annotations" | "highlight";
+type Job = "metadata" | "annotations" | "highlight" | "amend";
 
 type Reply = {
   id: number;
   result:
-    PdfMetadata | PdfAnnotations | HighlightResult | { unreadable: string };
+    | PdfMetadata
+    | PdfAnnotations
+    | HighlightResult
+    | AmendResult
+    | { unreadable: string };
 };
 
 /**
@@ -199,6 +228,7 @@ export function createPdfEngine({
     annotations: (bytes) => run<PdfAnnotations>("annotations", bytes),
     highlight: (bytes, request) =>
       run<HighlightResult>("highlight", bytes, request),
+    amend: (bytes, request) => run<AmendResult>("amend", bytes, request),
     close: async () => {
       const going = worker;
       worker = null;

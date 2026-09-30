@@ -383,6 +383,9 @@ export function createVaultService({
               },
               isCurrent: () => currentOf(index),
               author,
+              announce: (run) => {
+                if (opened?.vault.path === absolute) onIngest?.(run);
+              },
             });
     } catch (cause) {
       pending.close();

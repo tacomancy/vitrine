@@ -4,7 +4,13 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { readSidecar, type ReadingPosition } from "./annotation-sidecar.js";
 import { VaultError } from "./errors.js";
-import type { HighlightIntent, Highlighted, Ingest } from "./ingest.js";
+import type {
+  AmendIntent,
+  HighlightIntent,
+  Highlighted,
+  Ingest,
+  Removal,
+} from "./ingest.js";
 import { questionText } from "./ingest.js";
 import { readPageFile } from "./page-file.js";
 import type { AnnotationKind } from "./pdf-engine.js";
@@ -329,6 +335,36 @@ export async function makeHighlight(
     throw new VaultError("refused", "This vault cannot read PDFs yet.");
   }
   return ingest.highlight(path, intent);
+}
+
+/** Recolour or re-note an annotation (#428; spec #416 stories 104–105). */
+export async function amendAnnotation(
+  vaultPath: string,
+  ingest: Ingest | null,
+  path: string,
+  annotation: string,
+  intent: AmendIntent
+): Promise<void> {
+  await sourceOf(vaultPath, path);
+  if (ingest === null) {
+    throw new VaultError("refused", "This vault cannot read PDFs yet.");
+  }
+  return ingest.amend(path, annotation, intent);
+}
+
+/** Remove an annotation, asking first when anything points at it (#428; stories 106–108). */
+export async function removeAnnotation(
+  vaultPath: string,
+  ingest: Ingest | null,
+  path: string,
+  annotation: string,
+  confirmed: boolean
+): Promise<Removal> {
+  await sourceOf(vaultPath, path);
+  if (ingest === null) {
+    throw new VaultError("refused", "This vault cannot read PDFs yet.");
+  }
+  return ingest.remove(path, annotation, confirmed);
 }
 
 /**

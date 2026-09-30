@@ -28,6 +28,7 @@ import { namedPath, pdfKeys, type UnreadablePdfs } from "./sources.js";
 import {
   candidate,
   inboundLinks,
+  type InboundLink,
   relink,
   tombstone,
   unmatchedEntry,
@@ -115,6 +116,11 @@ export type IngestOptions = {
   isCurrent: () => boolean;
   /** Who a highlight the Reader writes is by: `/T`, which Preview shows on every note. */
   author: string;
+  /**
+   * Says what a Reader removal counted (`ingestLanded`): a removal is not an
+   * Ingest run, but the footer's `removed` count is where it is reported.
+   */
+  announce?: (run: IngestRun) => void;
 };
 
 /** What the Reader sends to make a highlight (#426): where and what, never PDF bytes. */
@@ -129,6 +135,18 @@ export type HighlightIntent = {
 
 export type Highlighted = { id: string; block: string; quote: string };
 
+/** What the Reader can change about an annotation it did not draw the extent of (#428). */
+export type AmendIntent = { colour?: HighlightColour; note?: string };
+
+/**
+ * What removing an annotation came to. `confirm` writes nothing: something
+ * points at it (or nothing could be shown not to), and the researcher is
+ * told what before deciding. `gone` is the Tombstone, `removed` the count.
+ */
+export type Removal =
+  | { outcome: "confirm"; links: InboundLink[] }
+  | { outcome: "gone" | "removed"; block: string };
+
 /** A Source's block ids are `h` and a number; only markup and notes are link targets. */
 const HAS_BLOCK: ReadonlySet<AnnotationKind> = new Set([
   "highlight",
@@ -137,6 +155,13 @@ const HAS_BLOCK: ReadonlySet<AnnotationKind> = new Set([
   "squiggly",
   "text",
   "freetext",
+]);
+
+const MARKUP: ReadonlySet<AnnotationKind> = new Set([
+  "highlight",
+  "underline",
+  "strikeout",
+  "squiggly",
 ]);
 
 const rectToQuad = ([left, bottom, right, top]: number[]) => [
@@ -210,6 +235,7 @@ export function createIngest({
   spawnQuestion,
   isCurrent,
   author,
+  announce,
 }: IngestOptions) {
   // One run at a time. Two runs over the same Source would each plan its
   // blocks from the counter they read, and hand out the same `^h<n>` twice —
@@ -622,22 +648,9 @@ export function createIngest({
     // Brought up to date first, so the annotations already in the file have
     // their identities before ours joins them.
     await ingestOne(found);
-    const [held] = index.select<{ hash: string | null }>(
-      "SELECT hash FROM files WHERE markdown = 0 AND path = ?",
-      found.pdf
-    );
-    if (held?.hash == null) {
-      throw new VaultError(
-        "refused",
-        "The PDF is not on this Mac yet: your sync folder has not delivered it."
-      );
-    }
-    const absolute = join(vaultPath, found.pdf);
-    const bytes = await readFile(absolute);
     const nm = newId();
-    let made;
-    try {
-      made = await engine.highlight(bytes, {
+    await rewritten(found.pdf, (bytes) =>
+      engine.highlight(bytes, {
         page: intent.page - 1,
         rects: intent.rects,
         color: HIGHLIGHT_RGB[intent.colour],
@@ -645,27 +658,8 @@ export function createIngest({
         nm,
         author,
         at: now().toISOString(),
-      });
-    } catch (cause) {
-      if (!(cause instanceof PdfUnreadable)) throw cause;
-      throw new VaultError(
-        "refused",
-        `This PDF could not be read because ${cause.reason}.`
-      );
-    }
-    if (!made.written) throw new VaultError("refused", made.reason);
-    // Another device's save that landed while the engine worked is not ours
-    // to overwrite: the sync service would keep both as a conflict copy, but
-    // only if we do not rename over the newer bytes first.
-    if (sha256(await readFile(absolute)) !== sha256(bytes)) {
-      throw new VaultError(
-        "refused",
-        "The PDF changed while the highlight was being made, so nothing was written. Try again."
-      );
-    }
-    // Temp file, then rename: a write that fails leaves the original as it was.
-    await writeAtomically(absolute, made.bytes);
-    await index.refresh([found.pdf]);
+      })
+    );
     // A Source that had no `id:` has one now.
     const after = candidates(new Set([found.pdf])).find(
       (c) => c.source === source
@@ -680,6 +674,186 @@ export function createIngest({
       );
     }
     return { id: entry.id, block: entry.block, quote: entry.quote };
+  }
+
+  /**
+   * Every write the Reader makes to a PDF goes through here (ADR 0007
+   * decision 12): read the bytes the index holds a hash for, let the engine
+   * produce the new ones, refuse if the file moved meanwhile, then swap it
+   * in by temp file and rename so a failure leaves the original as it was.
+   */
+  async function rewritten(
+    pdf: string,
+    make: (
+      bytes: Buffer
+    ) => Promise<
+      { written: true; bytes: Uint8Array } | { written: false; reason: string }
+    >
+  ): Promise<void> {
+    const [held] = index.select<{ hash: string | null }>(
+      "SELECT hash FROM files WHERE markdown = 0 AND path = ?",
+      pdf
+    );
+    if (held?.hash == null) {
+      throw new VaultError(
+        "refused",
+        "The PDF is not on this Mac yet: your sync folder has not delivered it."
+      );
+    }
+    const absolute = join(vaultPath, pdf);
+    const bytes = await readFile(absolute);
+    let made;
+    try {
+      made = await make(bytes);
+    } catch (cause) {
+      if (!(cause instanceof PdfUnreadable)) throw cause;
+      throw new VaultError(
+        "refused",
+        `This PDF could not be read because ${cause.reason}.`
+      );
+    }
+    if (!made.written) throw new VaultError("refused", made.reason);
+    // Another device's save that landed while the engine worked is not ours
+    // to overwrite: the sync service would keep both as a conflict copy, but
+    // only if we do not rename over the newer bytes first.
+    if (sha256(await readFile(absolute)) !== sha256(bytes)) {
+      throw new VaultError(
+        "refused",
+        "The PDF changed while that was being done, so nothing was written. Try again."
+      );
+    }
+    // Temp file, then rename: a write that fails leaves the original as it was.
+    await writeAtomically(absolute, made.bytes);
+    await index.refresh([pdf]);
+  }
+
+  /**
+   * The annotation a Reader edit names, once the Source is brought up to
+   * date: live (it has a block and nothing has retired or lost it) and of a
+   * kind the Reader can change. A row waiting for a decision is refused —
+   * there is no telling where in the file it is.
+   */
+  async function liveEntry(
+    source: string,
+    annotation: string,
+    kinds: ReadonlySet<AnnotationKind>
+  ) {
+    const found = candidates(null).find((c) => c.source === source);
+    if (found === undefined) {
+      throw new VaultError("refused", "That Source has no PDF in the vault.");
+    }
+    await ingestOne(found);
+    const id = candidates(new Set([found.pdf])).find(
+      (c) => c.source === source
+    )?.id;
+    const sidecar = id ? await readSidecar(vaultPath, id) : null;
+    const entry = sidecar?.annotations.find((a) => a.id === annotation);
+    if (
+      id == null ||
+      sidecar === null ||
+      entry === undefined ||
+      entry.block === undefined ||
+      entry.removed_at !== undefined ||
+      entry.gone_at !== undefined ||
+      entry.unmatched_since !== undefined ||
+      !kinds.has(entry.kind)
+    ) {
+      throw new VaultError(
+        "refused",
+        "That annotation is no longer one this can be changed on — the file has changed since it was shown."
+      );
+    }
+    return { found, id, sidecar, entry };
+  }
+
+  const amendRequest = (
+    entry: SidecarAnnotation,
+    change: Parameters<PdfEngine["amend"]>[1]["change"]
+  ) => ({
+    page: entry.page,
+    nm: entry.id,
+    quads: entry.quads,
+    at: now().toISOString(),
+    change,
+  });
+
+  /**
+   * Recolour or re-note an annotation (stories 104–105). Written like a
+   * highlight and then read back by `ingestOne`: it is matched on the
+   * object-identity tier, so its identity and block are kept by the same
+   * code that keeps them across a Preview save.
+   */
+  async function amendOne(
+    source: string,
+    annotation: string,
+    intent: AmendIntent
+  ): Promise<void> {
+    const { found, entry } = await liveEntry(source, annotation, MARKUP);
+    await rewritten(found.pdf, (bytes) =>
+      engine.amend(
+        bytes,
+        amendRequest(entry, {
+          ...(intent.colour === undefined
+            ? {}
+            : { colour: HIGHLIGHT_RGB[intent.colour] }),
+          ...(intent.note === undefined ? {} : { note: intent.note }),
+        })
+      )
+    );
+    await ingestOne(found);
+  }
+
+  /**
+   * Remove an annotation the researcher made (stories 106–108). Linked — or
+   * not shown to be unlinked, which is the same to a link that would rot —
+   * it asks first, then is tombstoned directly, so that their own deletion
+   * never returns as an Unmatched row at the next Ingest. Unlinked, it is
+   * simply removed and counted. The link oracle is `linksOf`, the very gate
+   * Ingest uses, so the two cannot disagree about what "unlinked" means.
+   */
+  async function removeOne(
+    source: string,
+    annotation: string,
+    confirmed: boolean
+  ): Promise<Removal> {
+    const { found, id, sidecar, entry } = await liveEntry(
+      source,
+      annotation,
+      HAS_BLOCK
+    );
+    const answer = (await linksOf(source, [entry])).get(entry.id);
+    const linked = answer !== "unlinked";
+    if (linked && !confirmed) {
+      return {
+        outcome: "confirm",
+        links: inboundLinks(index, source, entry.block!),
+      };
+    }
+    await rewritten(found.pdf, (bytes) =>
+      engine.amend(bytes, amendRequest(entry, { remove: true }))
+    );
+    // Retired before the file is read back, or that read would find the
+    // identity gone from the file and ask about it — the question this act
+    // exists to spare the researcher.
+    const stamped = now().toISOString();
+    const annotations = sidecar.annotations.map((a) =>
+      a.id !== entry.id
+        ? a
+        : linked
+          ? { ...a, gone_at: stamped }
+          : { ...a, removed_at: stamped }
+    );
+    await writeNote(source, annotations);
+    await writeSidecar(vaultPath, id, { ...sidecar, annotations });
+    await ingestOne(found);
+    if (!linked) {
+      announce?.({
+        summary: { new: 0, questions: 0, removed: 1, unmatched: 0 },
+        sources: [source],
+        changed: [],
+      });
+    }
+    return { outcome: linked ? "gone" : "removed", block: entry.block! };
   }
 
   const tombstoned = (source: string, ids: readonly string[]) =>
@@ -742,6 +916,14 @@ export function createIngest({
      * points so a caller says what it meant; they cannot differ in effect.
      * Batch acts pass every id, and all resolve or none does.
      */
+    /**
+     * Recolour, re-note and remove an annotation from the Reader (#428), on
+     * Ingest's queue for the reason `highlight` is.
+     */
+    amend: (source: string, annotation: string, intent: AmendIntent) =>
+      serially(() => amendOne(source, annotation, intent)),
+    remove: (source: string, annotation: string, confirmed: boolean) =>
+      serially(() => removeOne(source, annotation, confirmed)),
     dropLinks: tombstoned,
     treatAsNew: tombstoned,
     /**
