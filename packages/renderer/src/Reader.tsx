@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReaderAnnotation, SourcePage } from "core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { ConnectionsPanel, ticksOf, type Tick } from "./Connections";
 import { classifyLink, refusal } from "./link-rule";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { PdfDocument } from "./pdf-document";
@@ -60,6 +61,26 @@ export function Reader({
     bring.mutate({ path });
   }, [evicted, bring, path]);
 
+  // What points at this paper: the gutter's ticks and the panel's rows are
+  // the one answer, so the two cannot disagree (stories 80–86).
+  const connections = useQuery({
+    ...trpc.sources.connections.queryOptions({ path }),
+    enabled: data !== null,
+  });
+  const [panel, setPanel] = useState(false);
+  // A renderer key handler, not a native shortcut: the chord is the app's.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey && event.key === ";") {
+        event.preventDefault();
+        setPanel((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  const ticks = ticksOf(connections.data ?? []);
+
   return (
     <section
       ref={sectionRef}
@@ -95,10 +116,19 @@ export function Reader({
                 source={data}
                 pdf={data.pdf}
                 arrival={arrival}
+                ticks={ticks}
               />
             )}
           </div>
-          <Margin annotations={data.annotations} arrival={arrival} />
+          {panel ? (
+            <ConnectionsPanel
+              connections={connections.data}
+              error={connections.isError ? connections.error.message : null}
+              onClose={() => setPanel(false)}
+            />
+          ) : (
+            <Margin annotations={data.annotations} arrival={arrival} />
+          )}
         </div>
       )}
     </section>
@@ -157,11 +187,13 @@ function Paper({
   source,
   pdf,
   arrival,
+  ticks,
 }: {
   path: string;
   source: Readable;
   pdf: string;
   arrival: Arrival | undefined;
+  ticks: Tick[];
 }) {
   const trpc = useTRPC();
   const remember = useMutation(trpc.sources.readingPosition.mutationOptions());
@@ -222,6 +254,7 @@ function Paper({
             page={geometry}
             annotations={source.annotations}
             arrivedOn={arrivedOn}
+            ticks={ticks}
           />
         )}
       />

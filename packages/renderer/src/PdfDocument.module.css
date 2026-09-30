@@ -8,7 +8,8 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-5);
-  padding: var(--space-5) var(--space-4) var(--space-9);
+  /* Room beside the page for the gutter, on both sides so the page stays centred. */
+  padding: var(--space-5) var(--space-6) var(--space-9);
 }
 
 .page {

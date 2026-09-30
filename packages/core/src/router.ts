@@ -73,7 +73,12 @@ import {
   tickThread,
   type PageContext,
 } from "./research-question.js";
-import { bringDown, readSourcePage, setReadingPosition } from "./reader.js";
+import {
+  bringDown,
+  readConnections,
+  readSourcePage,
+  setReadingPosition,
+} from "./reader.js";
 import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
 import { tagTree } from "./vault-tags.js";
@@ -382,6 +387,11 @@ export const router = t.router({
     page: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
       const { vault, index } = await requireVault(ctx);
       return refusing(readSourcePage(vault.path, index, input.path));
+    }),
+    // What points at this paper and its highlights (#425).
+    connections: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return refusing(readConnections(vault.path, index, input.path));
     }),
     // Opening an evicted PDF brings it down and then ingests it (story 24).
     bringDown: t.procedure.input(pathInput).mutation(async ({ ctx, input }) => {
