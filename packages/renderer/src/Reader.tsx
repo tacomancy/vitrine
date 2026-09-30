@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReaderAnnotation, SourcePage } from "core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnnotationControls } from "./AnnotationControls";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { ConnectionsPanel, ticksOf, type Tick } from "./Connections";
 import { classifyLink, refusal } from "./link-rule";
@@ -129,7 +130,11 @@ export function Reader({
               onClose={() => setPanel(false)}
             />
           ) : (
-            <Margin annotations={data.annotations} arrival={arrival} />
+            <Margin
+              path={path}
+              annotations={data.annotations}
+              arrival={arrival}
+            />
           )}
         </div>
       )}
@@ -295,9 +300,11 @@ function Paper({
  * text this app did not write is not an address (story 89).
  */
 function Margin({
+  path,
   annotations,
   arrival,
 }: {
+  path: string;
   annotations: ReaderAnnotation[];
   arrival: Arrival | undefined;
 }) {
@@ -321,6 +328,7 @@ function Margin({
             </span>
             {a.quote !== "" && <q className={styles.quote}>{a.quote}</q>}
             {a.note !== "" && <span className={styles.noteText}>{a.note}</span>}
+            <AnnotationControls path={path} annotation={a} />
           </li>
         ))}
       </ul>

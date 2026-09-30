@@ -78,8 +78,10 @@ import {
   type PageContext,
 } from "./research-question.js";
 import {
+  amendAnnotation,
   bringDown,
   makeHighlight,
+  removeAnnotation,
   makeQuestion,
   readConnections,
   readSourcePage,
@@ -467,6 +469,47 @@ export const router = t.router({
         const { vault, ingest } = await requireVault(ctx);
         const { path, ...intent } = input;
         return refusing(makeQuestion(vault.path, ingest, path, intent));
+      }),
+    // Recolour and re-note an annotation (#428). Extent is not changeable:
+    // the Reader's one way to resize is remove and redraw.
+    amend: t.procedure
+      .input(
+        pathInput.extend({
+          annotation: z.string().min(1),
+          colour: z.enum(HIGHLIGHT_COLOURS).optional(),
+          note: z.string().max(10_000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, ingest } = await requireVault(ctx);
+        const { path, annotation, colour, note } = input;
+        await refusing(
+          amendAnnotation(vault.path, ingest, path, annotation, {
+            ...(colour === undefined ? {} : { colour }),
+            ...(note === undefined ? {} : { note }),
+          })
+        );
+      }),
+    // Remove an annotation; a linked one answers `confirm` until asked again
+    // with `confirmed` (#428).
+    removeAnnotation: t.procedure
+      .input(
+        pathInput.extend({
+          annotation: z.string().min(1),
+          confirmed: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, ingest } = await requireVault(ctx);
+        return refusing(
+          removeAnnotation(
+            vault.path,
+            ingest,
+            input.path,
+            input.annotation,
+            input.confirmed
+          )
+        );
       }),
     // *Locate* and *detach* on a *PDF missing* row (#423).
     locate: t.procedure

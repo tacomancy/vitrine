@@ -645,6 +645,187 @@ describe("highlighting a selection", () => {
   });
 });
 
+// Recolour, re-note and remove (#428; stories 104–109): each annotation in
+// the margin can be changed by its colour and note, and removed — asking
+// first, naming what points at it, when anything does. The renderer sends
+// intents and the core decides; extent has no control because resizing is
+// remove and redraw.
+describe("changing an annotation you made", () => {
+  const item = async (block: string) => {
+    await screen.findByTestId("paper");
+    const list = screen.getByRole("complementary", { name: "Annotations" });
+    return within(list)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes(`quote of ${block}`))!;
+  };
+
+  it("recolours from the five colours, sending only the annotation and the colour", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": (input: unknown) => {
+        sent.push(input);
+        return undefined;
+      },
+    });
+    const h2 = await item("h2");
+    const group = within(h2).getByRole("group", { name: "Recolour" });
+    // The current colour is the one pressed.
+    expect(
+      within(group).getByRole("button", { name: "blue" }).ariaPressed
+    ).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: "purple" }));
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { path: PATH, annotation: "id-h2", colour: "purple" },
+      ])
+    );
+  });
+
+  it("edits the note and saves it, cancelling leaves it alone", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": (input: unknown) => {
+        sent.push(input);
+        return undefined;
+      },
+    });
+    const h1 = await item("h1");
+    fireEvent.click(within(h1).getByRole("button", { name: "Edit note" }));
+    const box = within(h1).getByLabelText("Margin note");
+    expect((box as HTMLTextAreaElement).value).toBe(
+      "Check this against the control group"
+    );
+    fireEvent.change(box, { target: { value: "  now doubtful  " } });
+    fireEvent.click(within(h1).getByRole("button", { name: "Cancel" }));
+    expect(sent).toEqual([]);
+    fireEvent.click(within(h1).getByRole("button", { name: "Edit note" }));
+    fireEvent.change(within(h1).getByLabelText("Margin note"), {
+      target: { value: "  now doubtful  " },
+    });
+    fireEvent.click(within(h1).getByRole("button", { name: "Save note" }));
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { path: PATH, annotation: "id-h1", note: "now doubtful" },
+      ])
+    );
+  });
+
+  it("says the core's words when a change is refused", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": () => {
+        throw new Error("The PDF changed while that was being done.");
+      },
+    });
+    const h2 = await item("h2");
+    fireEvent.click(within(h2).getByRole("button", { name: "green" }));
+    expect((await within(h2).findByRole("status")).textContent).toBe(
+      "The PDF changed while that was being done."
+    );
+  });
+
+  it("offers no control on a note or a shape — only markup can be recoloured or re-noted", async () => {
+    await open(
+      source({
+        annotations: [annotation("h1", 0, { kind: "text", quads: [] })],
+      })
+    );
+    const h1 = await item("h1");
+    expect(within(h1).queryByRole("group", { name: "Recolour" })).toBeNull();
+    expect(within(h1).queryByRole("button", { name: "Edit note" })).toBeNull();
+    // It can still be removed.
+    expect(within(h1).getByRole("button", { name: "Remove" })).toBeTruthy();
+  });
+});
+
+describe("removing an annotation", () => {
+  const item = async (block: string) => {
+    await screen.findByTestId("paper");
+    return within(screen.getByRole("complementary", { name: "Annotations" }))
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes(`quote of ${block}`))!;
+  };
+
+  it("removes an unlinked annotation at once, without asking", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.removeAnnotation": (input: unknown) => {
+        sent.push(input);
+        return { outcome: "removed", block: "h2" };
+      },
+    });
+    fireEvent.click(
+      within(await item("h2")).getByRole("button", { name: "Remove" })
+    );
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { path: PATH, annotation: "id-h2", confirmed: false },
+      ])
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("asks first when things point at it, naming them, and only removes once confirmed", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.removeAnnotation": (input: { confirmed: boolean }) => {
+        sent.push(input);
+        return input.confirmed
+          ? { outcome: "gone", block: "h1" }
+          : {
+              outcome: "confirm",
+              links: [
+                { path: "notes/plan.md", title: "Plan", kind: null },
+                { path: "questions/why.md", title: "Why?", kind: "question" },
+              ],
+            };
+      },
+    });
+    fireEvent.click(
+      within(await item("h1")).getByRole("button", { name: "Remove" })
+    );
+    const ask = await screen.findByRole("alertdialog");
+    expect(within(ask).getByText("Plan")).toBeTruthy();
+    expect(within(ask).getByText("Why?")).toBeTruthy();
+    // Said plainly what removing does to the links.
+    expect(ask.textContent).toMatch(/\(gone\)/);
+    expect(sent).toHaveLength(1);
+
+    fireEvent.click(within(ask).getByRole("button", { name: "Keep it" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(sent).toHaveLength(1);
+
+    fireEvent.click(
+      within(await item("h1")).getByRole("button", { name: "Remove" })
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove it",
+      })
+    );
+    await waitFor(() =>
+      expect(sent.at(-1)).toEqual({
+        path: PATH,
+        annotation: "id-h1",
+        confirmed: true,
+      })
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("says the core's words when a removal is refused", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.removeAnnotation": () => {
+        throw new Error("The PDF is not on this Mac yet.");
+      },
+    });
+    const h2 = await item("h2");
+    fireEvent.click(within(h2).getByRole("button", { name: "Remove" }));
+    expect((await within(h2).findByRole("status")).textContent).toBe(
+      "The PDF is not on this Mac yet."
+    );
+  });
+});
+
 // A Question from the page (#427; spec #416 stories 97–103): ⌘' with a
 // selection sends the selection's intent and the typed words, and the core
 // makes the `Q:` highlight and the Question; with none it captures on the

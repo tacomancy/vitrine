@@ -9,13 +9,15 @@ import { init } from "@embedpdf/pdfium";
 // Type-only, so nothing sibling has to resolve at runtime.
 import type {
   AnnotationKind,
+  AmendRequest,
+  AmendResult,
   HighlightRequest,
   HighlightResult,
 } from "./pdf-engine.ts";
 
 type Job = {
   id: number;
-  job: "metadata" | "annotations" | "highlight";
+  job: "metadata" | "annotations" | "highlight" | "amend";
   args?: unknown;
   bytes: Uint8Array;
 };
@@ -566,12 +568,106 @@ const writeHighlight = (bytes: Uint8Array, request: HighlightRequest) =>
     }
   });
 
+const sameQuads = (a: number[][], b: number[][]) =>
+  a.length === b.length &&
+  a.every((q, i) => q.every((v, j) => Math.abs(v - b[i]![j]!) < 0.01));
+
+const NOT_FOUND: AmendResult = {
+  written: false,
+  reason:
+    "That annotation is not in the PDF any longer, so it cannot be changed.",
+};
+
+/**
+ * Recolour, re-note or remove one existing annotation (#428). The object is
+ * found the way Ingest's fastest tier finds it — its `/NM`, else its quads —
+ * and a miss is refused rather than guessed at: editing the wrong highlight
+ * is worse than editing none.
+ */
+const amendAnnotation = (bytes: Uint8Array, request: AmendRequest) =>
+  withDocument(bytes, (m, doc): AmendResult => {
+    const page = m.FPDF_LoadPage(doc, request.page);
+    if (!page) return NOT_FOUND;
+    const mem = scratch(m);
+    try {
+      const count = m.FPDFPage_GetAnnotCount(page);
+      let found = -1;
+      for (let i = 0; i < count && found < 0; i++) {
+        const annot = m.FPDFPage_GetAnnot(page, i);
+        try {
+          const kind = KINDS[m.FPDFAnnot_GetSubtype(annot)];
+          if (kind === undefined) continue;
+          if (annotString(m, annot, "NM") === request.nm) {
+            found = i;
+            continue;
+          }
+          if (!MARKUP.has(kind)) continue;
+          const quads: number[][] = [];
+          const q = mem.alloc(32);
+          for (let n = 0; n < m.FPDFAnnot_CountAttachmentPoints(annot); n++) {
+            m.FPDFAnnot_GetAttachmentPoints(annot, n, q);
+            quads.push(mem.f32(q, 8));
+          }
+          if (sameQuads(quads, request.quads)) found = i;
+        } finally {
+          m.FPDFPage_CloseAnnot(annot);
+        }
+      }
+      if (found < 0) return NOT_FOUND;
+      if ("remove" in request.change) {
+        if (!m.FPDFPage_RemoveAnnot(page, found)) {
+          throw new Error("PDFium could not remove the annotation");
+        }
+        return { written: true, bytes: saveRewritten(m, doc) };
+      }
+      const { colour, note } = request.change;
+      const annot = m.FPDFPage_GetAnnot(page, found);
+      try {
+        const wide = (value: string) => {
+          const text = Buffer.from(`${value}\0`, "utf16le");
+          const ptr = mem.alloc(text.length);
+          heap(m).set(text, ptr);
+          return ptr;
+        };
+        if (colour !== undefined) {
+          const [r, g, b] = colour as [number, number, number];
+          // Stock SetColor refuses once an /AP exists, as GetColor does; the
+          // fork's writes /C regardless, and the appearance is redrawn below.
+          if (!m.EPDFAnnot_SetColor(annot, 0, r, g, b)) {
+            throw new Error("PDFium refused the colour");
+          }
+        }
+        for (const [key, value] of [
+          ...(note === undefined ? [] : [["Contents", note] as const]),
+          ["M", pdfDate(new Date(request.at))] as const,
+        ]) {
+          if (!m.FPDFAnnot_SetStringValue(annot, key, wide(value))) {
+            throw new Error(`PDFium refused /${key}`);
+          }
+        }
+        // The appearance is what other viewers draw, so it is made again
+        // from the new colour rather than left showing the old one.
+        if (!m.EPDFAnnot_GenerateAppearance(annot)) {
+          throw new Error("PDFium could not draw the highlight");
+        }
+      } finally {
+        m.FPDFPage_CloseAnnot(annot);
+      }
+      return { written: true, bytes: saveRewritten(m, doc) };
+    } finally {
+      mem.free();
+      m.FPDF_ClosePage(page);
+    }
+  });
+
 parentPort?.on("message", ({ id, job, args, bytes }: Job) => {
   (job === "annotations"
     ? readAnnotations(bytes)
     : job === "highlight"
       ? writeHighlight(bytes, args as HighlightRequest)
-      : readMetadata(bytes)
+      : job === "amend"
+        ? amendAnnotation(bytes, args as AmendRequest)
+        : readMetadata(bytes)
   ).then(
     (result) => parentPort?.postMessage({ id, result }),
     () =>
