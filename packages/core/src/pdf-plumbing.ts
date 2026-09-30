@@ -71,18 +71,19 @@ export type PdfPlumbingRow = ConflictCopy | PdfMissing | UnlinkedAnnotations;
 
 type SourceFacts = {
   path: string;
-  id: string;
+  /** Null for a Source with a PDF and no `id:` yet; its first Ingest mints one. */
+  id: string | null;
   title: string;
   /** `pdf:` as written; null when none is named (a detached Source). */
   pdf: string | null;
   /** The PDF the index holds for it, or null when it holds none. */
   file: { path: string; hash: string | null } | null;
-  sidecar: Sidecar;
+  /** Null for a Source never ingested: it has a PDF to lose and no annotations. */
+  sidecar: Sidecar | null;
 };
 
 /**
- * Every Source with a sidecar: the ones there is something to compare a PDF
- * to. A sidecar that cannot be read is named, never skipped — a row that
+ * Every Source with an `id:`. Those with a sidecar are what a PDF is compared to; one without is still a Source whose PDF can go missing. A sidecar that cannot be read is named, never skipped — a row that
  * belongs here would otherwise be missing without a word.
  */
 async function sourcesWithSidecars(
@@ -94,22 +95,21 @@ async function sourcesWithSidecars(
   const problems: string[] = [];
   for (const row of index.select<{
     path: string;
-    id: string;
+    id: string | null;
     display: string;
   }>(
     `SELECT path, id, display FROM files
-      WHERE kind = 'source' AND id IS NOT NULL AND id <> '' ORDER BY path`
+      WHERE kind = 'source' ORDER BY path`
   )) {
     let sidecar: Sidecar | null;
     try {
-      sidecar = await readSidecar(vaultPath, row.id);
+      sidecar = row.id ? await readSidecar(vaultPath, row.id) : null;
     } catch (cause) {
       problems.push(
         `${row.path}: its annotations could not be read: ${errorMessage(cause)}`
       );
       continue;
     }
-    if (sidecar === null) continue;
     const pdf = named.get(row.path) ?? null;
     const [file] =
       pdf === null
@@ -155,13 +155,15 @@ async function copyOf(
   sources: SourceFacts[],
   copy: { path: string; hash: string }
 ): Promise<SourceFacts | null> {
-  const candidates = sources.filter((s) => s.file !== null);
+  const candidates = sources.filter(
+    (s) => s.file !== null && s.sidecar !== null
+  );
   if (candidates.length === 0) return null;
   const found = await fingerprintOf(reads, vaultPath, copy.path, copy.hash);
   if (found === null) return null;
   return (
     candidates.find((s) =>
-      sameDocument(s.sidecar.document_fingerprint, found)
+      sameDocument(s.sidecar!.document_fingerprint, found)
     ) ?? null
   );
 }
@@ -196,7 +198,7 @@ export async function pdfPlumbingRows(
     if (s.pdf !== null && s.file === null) {
       rows.push({
         kind: "pdf-missing",
-        subject: s.id,
+        subject: s.id ?? s.path,
         path: s.path,
         title: s.title,
         file: s.pdf.split("/").pop() ?? s.pdf,
@@ -209,7 +211,7 @@ export async function pdfPlumbingRows(
     // Only annotations that can be linked to count: ink has no block, and a
     // removed or dropped identity is decided. A Source that has any and
     // none is linked is a paper read and never used.
-    const linkable = s.sidecar.annotations.filter(
+    const linkable = (s.sidecar?.annotations ?? []).filter(
       (a) =>
         a.block !== undefined &&
         a.removed_at === undefined &&
@@ -221,7 +223,7 @@ export async function pdfPlumbingRows(
     ) {
       rows.push({
         kind: "unlinked-annotations",
-        subject: s.id,
+        subject: s.id ?? s.path,
         path: s.path,
         title: s.title,
         annotations: linkable.length,
@@ -276,10 +278,10 @@ export async function useCopy(
   const canonical = found.source.file!.path;
   try {
     await rename(join(vaultPath, found.copy), join(vaultPath, canonical));
-  } catch (cause) {
+  } catch {
     throw new VaultError(
       "writeFailed",
-      `Couldn't replace ${canonical} with the copy: ${errorMessage(cause)}`
+      "The copy could not replace the PDF, so nothing was changed. Check that the PDF folder can be written to."
     );
   }
   await index.refresh([found.copy, canonical]);
@@ -297,10 +299,10 @@ export async function discardCopy(
   const found = await conflictOf(index, vaultPath, reads, copy);
   try {
     await host.trash(join(vaultPath, found.copy));
-  } catch (cause) {
+  } catch {
     throw new VaultError(
       "writeFailed",
-      `Couldn't move the copy to the Trash: ${errorMessage(cause)}`
+      "The copy could not be moved to the Trash, so it is still in the PDF folder."
     );
   }
   await index.refresh([found.copy]);

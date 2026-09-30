@@ -255,20 +255,20 @@ export async function looseEnds(
   );
   const broken = unreadableRows(index, reads.unreadable);
   const plumbing = await pdfPlumbingRows(index, vaultPath, reads);
-  const of = <K extends PdfPlumbingRow["kind"]>(kind: K) =>
+  const plumbingOfKind = <K extends PdfPlumbingRow["kind"]>(kind: K) =>
     plumbing.rows.filter(
       (row): row is Extract<PdfPlumbingRow, { kind: K }> => row.kind === kind
     );
   // A conflict copy is the row for its file: the no-Source row the same
   // PDF would be is not drawn beside it.
-  const copies = of("conflict-copy");
+  const copies = plumbingOfKind("conflict-copy");
   const unmatched = await unmatchedRows(index, vaultPath);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [
       ...unmatched.rows,
       ...broken,
       ...copies,
-      ...of("pdf-missing"),
+      ...plumbingOfKind("pdf-missing"),
       ...experiments.missingUnderFalsification,
     ],
     "Unfinished reading": noSourceRows(index).filter(
@@ -277,7 +277,7 @@ export async function looseEnds(
         !copies.some((c) => c.path === row.path)
     ),
     "Disconnected material": [
-      ...of("unlinked-annotations"),
+      ...plumbingOfKind("unlinked-annotations"),
       ...ambiguousLinks(index),
     ],
     "Stalled questions": [

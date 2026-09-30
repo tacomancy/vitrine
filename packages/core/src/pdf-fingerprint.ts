@@ -44,4 +44,4 @@ export async function fingerprintOf(
 }
 
 const isMissing = (cause: unknown) =>
-  (cause as NodeJS.ErrnoException).code === "ENOENT";
+  (cause as NodeJS.ErrnoException | null)?.code === "ENOENT";

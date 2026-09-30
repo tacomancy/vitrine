@@ -571,10 +571,13 @@ async function missingOf(vaultPath: string, index: VaultIndex, source: string) {
     "SELECT id FROM files WHERE path = ? AND kind = 'source'",
     source
   );
-  const held = index.select<{ path: string }>(
-    "SELECT path FROM files WHERE markdown = 0 AND lpath = ?",
-    named === undefined ? "" : namedPath(named.pdf)
-  );
+  const held =
+    named === undefined
+      ? []
+      : index.select<{ path: string }>(
+          "SELECT path FROM files WHERE markdown = 0 AND lpath = ?",
+          namedPath(named.pdf)
+        );
   if (named === undefined || held.length > 0) {
     throw new VaultError(
       "refused",

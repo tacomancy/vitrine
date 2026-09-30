@@ -306,6 +306,28 @@ describe("a PDF that is gone", () => {
     expect(await t.note()).toContain("pdf: rasch2013.pdf");
   });
 
+  it("is a row even for a Source that was never ingested, and detach still works", async () => {
+    const vault = await vaultWith({
+      "sources/rasch2013.md": SOURCE,
+      "sources/pdf/stranger.pdf": "%PDF-1.4 unrelated\n",
+    });
+    const c = await core({ settleMs: 40 });
+    await c.mutate("vault.open", { path: vault });
+    await c.indexed();
+    const reply = await c.query<LooseEnds>("looseEnds.rows");
+    const rows = reply.result!.data.groups.flatMap((g) => g.rows);
+    expect(rows.map((r) => r.kind)).toContain("pdf-missing");
+    const locate = await c.mutate("sources.locate", {
+      source: "sources/rasch2013.md",
+      pdf: "sources/pdf/stranger.pdf",
+    });
+    expect(locate.error?.message).toMatch(/Nothing has been recorded/);
+    const detach = await c.mutate("sources.detach", {
+      source: "sources/rasch2013.md",
+    });
+    expect(detach.error).toBeUndefined();
+  });
+
   it("can be marked deliberate", async () => {
     const t = await missing();
     await t.c.mutate("looseEnds.dismiss", {
