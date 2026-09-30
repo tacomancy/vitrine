@@ -15,6 +15,9 @@ export type CoreMessage =
   // the whole of the answer, and a window with nothing to report back has
   // no reply to match.
   | { type: "reveal"; path: string }
+  // Move a file to the Trash; answered with `trashed`, since a Trash that
+  // failed must be said, not assumed.
+  | { type: "trash"; id: number; path: string }
   // The answer to `close`: the vault is closed and whatever the queue owed
   // has been spliced, or could not be (#276). Sent either way — the shell
   // waits for it, and a core that cannot close must not be what stops the
@@ -24,6 +27,7 @@ export type CoreMessage =
 export type ShellMessage =
   | { type: "pickedFolder"; id: number; path: string | null }
   | { type: "pickedFile"; id: number; path: string | null }
+  | { type: "trashed"; id: number; error: string | null }
   // The window came to the front: today is a day at the open vault (#243).
   // The shell is the only one who can see this; the core never infers it
   // from a request, since the renderer re-queries on its own.
@@ -55,6 +59,7 @@ const parentPort = (process as unknown as { parentPort?: ParentPort })
 function hostOver(port: ParentPort): {
   host: Host;
   picked: (message: { id: number; path: string | null }) => void;
+  trashed: (message: { id: number; error: string | null }) => void;
 } {
   let nextId = 1;
   const pending = new Map<number, (path: string | null) => void>();
@@ -64,11 +69,27 @@ function hostOver(port: ParentPort): {
       pending.set(id, resolve);
       port.postMessage({ type, id });
     });
+  const trashing = new Map<
+    number,
+    { resolve: () => void; reject: (cause: Error) => void }
+  >();
   return {
     host: {
       pickFolder: () => ask("pickFolder"),
       pickFile: () => ask("pickFile"),
       reveal: (path) => port.postMessage({ type: "reveal", path }),
+      trash: (path) =>
+        new Promise<void>((resolve, reject) => {
+          const id = nextId++;
+          trashing.set(id, { resolve, reject });
+          port.postMessage({ type: "trash", id, path });
+        }),
+    },
+    trashed: ({ id, error }) => {
+      const waiting = trashing.get(id);
+      trashing.delete(id);
+      if (error === null) waiting?.resolve();
+      else waiting?.reject(new Error(error));
     },
     picked: ({ id, path }) => {
       pending.get(id)?.(path);
@@ -130,6 +151,9 @@ if (parentPort && shell) {
       case "pickedFolder":
       case "pickedFile":
         shell.picked(data);
+        break;
+      case "trashed":
+        shell.trashed(data);
         break;
       case "focused":
         // A day that cannot be recorded is a day the vault was open and

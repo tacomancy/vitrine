@@ -30,6 +30,7 @@ const NO_HOST: Host = {
   pickFolder: () => Promise.resolve(null),
   pickFile: () => Promise.resolve(null),
   reveal: () => {},
+  trash: () => Promise.resolve(),
 };
 
 // `blob:` because an Artifact is drawn from an object URL: an `<img>` cannot

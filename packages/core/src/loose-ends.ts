@@ -13,7 +13,14 @@ import { resolvesTo } from "./link-text.js";
 import { PDF_FOLDER } from "./pdf-folder.js";
 import { localDay, writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
-import { unnamedPdfs, type UnreadablePdfs } from "./sources.js";
+import {
+  pdfPlumbingRows,
+  type ConflictCopy,
+  type PdfMissing,
+  type PdfPlumbingRow,
+  type UnlinkedAnnotations,
+} from "./pdf-plumbing.js";
+import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
 import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -177,6 +184,9 @@ export type UnreadablePdf = {
 
 export type LooseEndRow =
   | UnmatchedRow
+  | ConflictCopy
+  | PdfMissing
+  | UnlinkedAnnotations
   | UnreadablePdf
   | NoSource
   | StalledResearchQuestion
@@ -219,14 +229,14 @@ export type LooseEndsOptions = {
   stalledOpenDays: number;
   /** This machine's name, as a linked Artifact records it: only its own links are checked. */
   machine: string;
-  /** What the engine has failed to read; a file since replaced is no longer on it. */
-  unreadable: UnreadablePdfs;
+  /** What the engine has failed to read, and read: the PDF rows are judged by it. */
+  reads: PdfReads;
 };
 
 export async function looseEnds(
   index: VaultIndex,
   vaultPath: string,
-  { days, stalledOpenDays, machine, unreadable }: LooseEndsOptions
+  { days, stalledOpenDays, machine, reads }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
   const questions = stalledResearchQuestions(index, days, stalledOpenDays);
@@ -243,18 +253,33 @@ export async function looseEnds(
     stalledOpenDays,
     machine
   );
-  const broken = unreadableRows(index, unreadable);
+  const broken = unreadableRows(index, reads.unreadable);
+  const plumbing = await pdfPlumbingRows(index, vaultPath, reads);
+  const plumbingOfKind = <K extends PdfPlumbingRow["kind"]>(kind: K) =>
+    plumbing.rows.filter(
+      (row): row is Extract<PdfPlumbingRow, { kind: K }> => row.kind === kind
+    );
+  // A conflict copy is the row for its file: the no-Source row the same
+  // PDF would be is not drawn beside it.
+  const copies = plumbingOfKind("conflict-copy");
   const unmatched = await unmatchedRows(index, vaultPath);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [
       ...unmatched.rows,
       ...broken,
+      ...copies,
+      ...plumbingOfKind("pdf-missing"),
       ...experiments.missingUnderFalsification,
     ],
     "Unfinished reading": noSourceRows(index).filter(
-      (row) => !broken.some((b) => b.path === row.path)
+      (row) =>
+        !broken.some((b) => b.path === row.path) &&
+        !copies.some((c) => c.path === row.path)
     ),
-    "Disconnected material": ambiguousLinks(index),
+    "Disconnected material": [
+      ...plumbingOfKind("unlinked-annotations"),
+      ...ambiguousLinks(index),
+    ],
     "Stalled questions": [
       ...questions.rows,
       ...hypotheses.rows,
@@ -278,6 +303,7 @@ export async function looseEnds(
       ...hypotheses.problems,
       ...experiments.problems,
       ...unmatched.problems,
+      ...plumbing.problems,
     ],
   };
 }
