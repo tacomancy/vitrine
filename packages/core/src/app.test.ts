@@ -11,6 +11,7 @@ const options = {
     pickFolder: () => Promise.resolve(null),
     pickFile: () => Promise.resolve(null),
     reveal: () => {},
+    trash: () => Promise.resolve(),
   },
   appSupportDir: await mkdtemp(join(tmpdir(), "vitrine-support-")),
 };

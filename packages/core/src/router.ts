@@ -44,10 +44,13 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
+import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
 import {
   attachPdf,
+  detachPdf,
+  locatePdf,
   createSourceFromPdf,
   createSourceStub,
   retryUnreadable,
@@ -405,6 +408,40 @@ export const router = t.router({
             page: input.page,
             offset: input.offset,
           })
+        );
+      }),
+    // *Locate* and *detach* on a *PDF missing* row (#423).
+    locate: t.procedure
+      .input(z.object({ source: z.string().min(1), pdf: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          locatePdf(vault.path, index, ctx.pdfs, ctx.vault.ingest, input)
+        );
+      }),
+    detach: t.procedure
+      .input(z.object({ source: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(detachPdf(vault.path, index, input));
+      }),
+    // *Use this copy* and *discard* on a *conflict copy* row (#423): one
+    // procedure, since the file is the same and the answer is the choice.
+    // Named for the conflict, not the copy, because the folder's promise is
+    // that nothing in the router copies into it (`pdf-folder.test.ts`).
+    resolveConflict: t.procedure
+      .input(
+        z.object({
+          copy: z.string().min(1),
+          resolution: z.enum(["use", "discard"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          input.resolution === "use"
+            ? useCopy(vault.path, index, ctx.pdfs, ctx.vault.ingest, input)
+            : discardCopy(vault.path, index, ctx.pdfs, ctx.host, input)
         );
       }),
     // *Try again* on a *PDF unreadable* row: the engine runs once, now.
@@ -969,7 +1006,7 @@ export const router = t.router({
         days,
         stalledOpenDays: ctx.stalledOpenDays,
         machine: ctx.machine,
-        unreadable: ctx.pdfs.unreadable,
+        reads: ctx.pdfs,
       });
     }),
     // Permanent, and judged per row kind: the same object can be loose in

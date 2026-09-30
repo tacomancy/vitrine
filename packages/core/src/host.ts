@@ -14,4 +14,9 @@ export type Host = {
   pickFile: () => Promise<string | null>;
   /** Show a folder in Finder. Nothing comes back: Finder is its own answer. */
   reveal: (path: string) => void;
+  /**
+   * Move one file to the Trash — never a delete (ADR 0013 decision 7).
+   * Rejects when it could not be, so a caller says so rather than assuming.
+   */
+  trash: (path: string) => Promise<void>;
 };

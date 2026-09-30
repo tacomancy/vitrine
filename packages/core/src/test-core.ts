@@ -33,6 +33,7 @@ export function fakeHost(
     pickFolder: () => Promise.resolve(picked),
     pickFile: () => Promise.resolve(pickedFile),
     reveal: () => {},
+    trash: () => Promise.resolve(),
   };
 }
 

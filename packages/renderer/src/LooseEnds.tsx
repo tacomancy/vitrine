@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AmbiguousLinks,
+  ConflictCopy,
   DocumentChanged,
   LooseEndGroupName,
   LooseEndRow,
   MissingArtifacts,
   NoSource,
+  PdfMissing,
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
+  UnlinkedAnnotations,
   UnmatchedAnnotation,
   UnreadablePdf,
 } from "core";
@@ -273,6 +276,12 @@ function Row(props: {
       return <Unmatched row={props.row} resolution={props.resolution} />;
     case "document-changed":
       return <ChangedDocument row={props.row} resolution={props.resolution} />;
+    case "conflict-copy":
+      return <ConflictCopyRow row={props.row} resolution={props.resolution} />;
+    case "pdf-missing":
+      return <PdfMissingRow row={props.row} resolution={props.resolution} />;
+    case "unlinked-annotations":
+      return <UnlinkedSource row={props.row} resolution={props.resolution} />;
     case "no-source":
       return <NoSourcePdf row={props.row} resolution={props.resolution} />;
     case "unreadable-pdf":
@@ -797,6 +806,218 @@ function UnreadablePdfRow({
           )}
           <Deliberate onDismiss={resolution.onDismiss} />
         </>
+      }
+    />
+  );
+}
+
+/**
+ * *A second copy of a Source's PDF* (#423; spec #416 stories 59–61): what a
+ * sync service makes when two machines wrote one file. It is never a Source
+ * of its own — the row names the Source it is a copy for and asks which
+ * bytes are canonical. *Use this copy* replaces the canonical file, and the
+ * next Ingest re-matches every identity through the tiers; *discard* sends
+ * the copy to the Trash.
+ */
+function ConflictCopyRow({
+  row,
+  resolution,
+}: {
+  row: ConflictCopy;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const resolve = useMutation(
+    trpc.sources.resolveConflict.mutationOptions({
+      onMutate: () => setRefusal(undefined),
+      onError: (error) => setRefusal(error.message),
+      onSuccess: (_reply, { resolution: chosen }) =>
+        setOutcome(
+          chosen === "use"
+            ? "The copy is the PDF now. Every annotation is being matched against it again, and whatever it cannot find comes back here."
+            : "The copy is in the Trash, and the PDF is as it was."
+        ),
+    })
+  );
+  const address = addressOf("source", row.source) ?? undefined;
+  return (
+    <RowShell
+      meta="PDF · conflict copy"
+      title={row.title}
+      why={
+        outcome ??
+        `The same paper as ${row.sourceTitle}, written twice — a sync service keeps both when two machines save one file. Neither is used until you choose.`
+      }
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        outcome === null && (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={resolve.isPending}
+              onClick={() =>
+                resolve.mutate({ copy: row.path, resolution: "use" })
+              }
+            >
+              use this copy
+            </button>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={resolve.isPending}
+              onClick={() =>
+                resolve.mutate({ copy: row.path, resolution: "discard" })
+              }
+            >
+              discard
+            </button>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
+      }
+    >
+      {outcome === null && address !== undefined && (
+        <p className={styles.why}>
+          Its Source:{" "}
+          <a className={styles.evidenceLink} href={address}>
+            {row.sourceTitle}
+          </a>
+        </p>
+      )}
+    </RowShell>
+  );
+}
+
+/**
+ * *A Source whose PDF is gone* (#423; spec #416 stories 62–64). *Locate*
+ * offers the PDFs no Source names, and the core accepts one only if it is
+ * the same document, saying so in plain words when it is not. *Detach*
+ * clears `pdf:` and leaves the annotations frozen and every link resolving.
+ */
+function PdfMissingRow({
+  row,
+  resolution,
+}: {
+  row: PdfMissing;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const settle = (said: string) => ({
+    onMutate: () => setRefusal(undefined),
+    onError: (error: { message: string }) => setRefusal(error.message),
+    onSuccess: () => setOutcome(said),
+  });
+  const locate = useMutation(
+    trpc.sources.locate.mutationOptions(
+      settle("Located — the Source names that file again.")
+    )
+  );
+  const detach = useMutation(
+    trpc.sources.detach.mutationOptions(
+      settle(
+        "Detached — the annotations stay as they were, and every link to them still resolves."
+      )
+    )
+  );
+  const busy = locate.isPending || detach.isPending;
+  const address = addressOf("source", row.path) ?? undefined;
+  return (
+    <RowShell
+      meta="Source · PDF missing"
+      title={row.title}
+      {...(address === undefined ? {} : { href: address })}
+      why={
+        outcome ??
+        `${row.file} is not in the PDF folder any more, so nothing new is read from it. Its annotations are kept as they were.`
+      }
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        outcome === null && (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={busy || row.candidates.length === 0}
+              aria-expanded={choosing}
+              onClick={() => setChoosing(!choosing)}
+            >
+              locate
+            </button>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={busy}
+              onClick={() => detach.mutate({ source: row.path })}
+            >
+              detach
+            </button>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
+      }
+    >
+      {outcome === null && choosing && (
+        <ul className={styles.matches} aria-label="locate as">
+          {row.candidates.map((c) => (
+            <li key={c.path} className={styles.match}>
+              <button
+                type="button"
+                className={styles.action}
+                disabled={busy}
+                onClick={() => locate.mutate({ source: row.path, pdf: c.path })}
+              >
+                {c.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </RowShell>
+  );
+}
+
+/**
+ * *A paper read and never used* (#423; spec #416 story 68): a Source with
+ * annotations and no note or Question linking to any of them. Findable, not
+ * urgent — the group says *wired to nothing* — so it offers the Reader,
+ * where a link is made, and *mark deliberate*.
+ */
+function UnlinkedSource({
+  row,
+  resolution,
+}: {
+  row: UnlinkedAnnotations;
+  resolution: Resolution;
+}) {
+  const address = addressOf("source", row.path) ?? undefined;
+  return (
+    <RowShell
+      meta="Source · annotated, unlinked"
+      title={row.title}
+      {...(address === undefined ? {} : { href: address })}
+      resolution={resolution}
+      why={
+        row.annotations === 1
+          ? "One annotation, and nothing links to it."
+          : `${row.annotations} annotations, and nothing links to any of them.`
+      }
+      actions={
+        address === undefined ? (
+          <Deliberate onDismiss={resolution.onDismiss} />
+        ) : (
+          <>
+            <a className={styles.primary} href={address}>
+              open in the Reader
+            </a>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
       }
     />
   );

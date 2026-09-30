@@ -125,10 +125,13 @@ describe("an Unmatched annotation in Loose Ends", () => {
     ]);
   });
 
-  it("is not there, and no group is, when nothing is Unmatched", async () => {
+  it("is not there when nothing is Unmatched — only the paper nothing links to", async () => {
     const t = await opened();
     await t.returned("annotated.pdf");
-    expect((await t.rows()).groups).toEqual([]);
+    expect((await t.rows()).groups.map((g) => g.group)).toEqual([
+      "Disconnected material",
+    ]);
+    expect(await t.unmatched()).toEqual([]);
     expect(JSON.stringify(await t.rows())).not.toContain("total");
   });
 

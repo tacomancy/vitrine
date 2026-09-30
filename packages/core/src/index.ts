@@ -76,6 +76,11 @@ export type {
   UnmatchedAnnotation,
   UnmatchedRow,
 } from "./unmatched.js";
+export type {
+  ConflictCopy,
+  PdfMissing,
+  UnlinkedAnnotations,
+} from "./pdf-plumbing.js";
 export type { Candidate, CandidateKind, Candidates } from "./picker.js";
 export type { Provenance, Question, Triage } from "./questions.js";
 export type { Stub, StubFields } from "./sources.js";

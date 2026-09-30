@@ -28,6 +28,7 @@ function revealingHost(): Host & { revealed: string[] } {
     revealed,
     pickFolder: () => Promise.resolve(null),
     pickFile: () => Promise.resolve(null),
+    trash: () => Promise.resolve(),
     reveal: (path) => {
       revealed.push(path);
     },
@@ -121,6 +122,7 @@ describe("Open a different folder…", () => {
     return {
       pickFolder: () => Promise.resolve(folders.shift() ?? null),
       pickFile: () => Promise.resolve(null),
+      trash: () => Promise.resolve(),
       reveal: () => {},
     };
   }

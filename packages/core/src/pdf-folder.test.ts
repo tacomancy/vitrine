@@ -171,6 +171,7 @@ describe("Reveal in Finder, for the PDF folder", () => {
       {
         pickFolder: () => Promise.resolve(null),
         pickFile: () => Promise.resolve(null),
+        trash: () => Promise.resolve(),
         reveal: (path) => {
           revealed.push(path);
         },

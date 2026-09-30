@@ -103,6 +103,17 @@ function spawnCore(): Promise<Session> {
         case "reveal":
           shell.showItemInFolder(message.path);
           break;
+        case "trash":
+          void shell.trashItem(message.path).then(
+            () => reply({ type: "trashed", id: message.id, error: null }),
+            (cause: unknown) =>
+              reply({
+                type: "trashed",
+                id: message.id,
+                error: cause instanceof Error ? cause.message : String(cause),
+              })
+          );
+          break;
       }
     });
     core.on("exit", (code) => {

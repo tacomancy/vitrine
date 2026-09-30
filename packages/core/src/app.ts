@@ -101,6 +101,7 @@ export function createApp({
   const pdfs = {
     engine: createPdfEngine(pdfWorker ? { workerUrl: pdfWorker } : {}),
     unreadable: new Map(),
+    fingerprints: new Map(),
   };
   const vault = createVaultService({
     host,

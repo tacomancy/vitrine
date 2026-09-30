@@ -3,7 +3,10 @@ import { basename, join, posix } from "node:path";
 import { stringify } from "yaml";
 import { VaultError } from "./errors.js";
 import { PDF_FOLDER } from "./pdf-folder.js";
+import { readSidecar } from "./annotation-sidecar.js";
+import { sameDocument } from "./document-fingerprint.js";
 import { PdfUnreadable, type PdfEngine } from "./pdf-engine.js";
+import { fingerprintOf, type Fingerprints } from "./pdf-fingerprint.js";
 import { serialised } from "./serialise.js";
 import { createFile, readOutline, write } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -445,7 +448,12 @@ export function followPdfRenames(
 export type UnreadablePdfs = Map<string, { hash: string; reason: string }>;
 
 /** The engine and the record of what it could not read; one per core. */
-export type PdfReads = { engine: PdfEngine; unreadable: UnreadablePdfs };
+export type PdfReads = {
+  engine: PdfEngine;
+  unreadable: UnreadablePdfs;
+  /** What unnamed PDFs' fingerprints were, by content hash (`pdf-fingerprint.ts`). */
+  fingerprints: Fingerprints;
+};
 
 /** What *create a Source* did: the new paper, or why the file would not read. */
 export type Created =
@@ -548,4 +556,111 @@ async function readMetadata(
     // that carry no path (ADR 0028).
     return { reason: "the file could not be read from the disk" };
   }
+}
+
+/**
+ * The Source a *PDF missing* resolution acts on, its note read and its
+ * `pdf:` still naming a file the index does not hold. Anything else is a row
+ * that has since been resolved elsewhere — the researcher put the file back,
+ * or detached it in Obsidian — and acting on it now would write to a Source
+ * that no longer needs it.
+ */
+async function missingOf(vaultPath: string, index: VaultIndex, source: string) {
+  const named = pdfKeys(index).find((k) => k.path === source);
+  const [row] = index.select<{ id: string | null }>(
+    "SELECT id FROM files WHERE path = ? AND kind = 'source'",
+    source
+  );
+  const held = index.select<{ path: string }>(
+    "SELECT path FROM files WHERE markdown = 0 AND lpath = ?",
+    named === undefined ? "" : namedPath(named.pdf)
+  );
+  if (named === undefined || held.length > 0) {
+    throw new VaultError(
+      "refused",
+      "That Source's PDF is not missing any longer."
+    );
+  }
+  const found = await readOutline(vaultPath, source);
+  if (!found.readable) throw new VaultError("refused", found.reason);
+  return { found, id: row?.id ?? null };
+}
+
+const NOT_THE_SAME =
+  "That file is not the same document as this Source's PDF, so it was not attached. Choose the copy of the paper that was lost, or detach the PDF.";
+
+/**
+ * *Locate* on a *PDF missing* row (story 63): the Source's `pdf:` names the
+ * file chosen, but only if it is the same document — the fingerprint the
+ * sidecar recorded at the last Ingest decides, never the name. A wrong file
+ * attached here would have the next Ingest re-match every identity against
+ * a different paper and tombstone what it could not find. The next Ingest
+ * still runs its tiers; this only refuses what could not be the document.
+ */
+export function locatePdf(
+  vaultPath: string,
+  index: VaultIndex,
+  reads: PdfReads,
+  ingest: (paths: readonly string[]) => Promise<void>,
+  { source, pdf }: { source: string; pdf: string }
+): Promise<void> {
+  return attaching(async () => {
+    const { found, id } = await missingOf(vaultPath, index, source);
+    const held = heldPdf(index, pdf);
+    const sidecar = id === null ? null : await readSidecar(vaultPath, id);
+    // Nothing recorded to compare with is not a match: better to say so than
+    // to attach on the strength of a name.
+    if (sidecar === null) {
+      throw new VaultError(
+        "refused",
+        "Nothing has been recorded about this Source's PDF, so a file cannot be checked against it. Detach the PDF, or name the file in the note."
+      );
+    }
+    const now = await fingerprintOf(reads, vaultPath, held.path, held.hash);
+    if (now === null || !sameDocument(sidecar.document_fingerprint, now)) {
+      throw new VaultError("refused", NOT_THE_SAME);
+    }
+    const written = await write(vaultPath, found.path, {
+      basedOn: found.hash,
+      operations: [
+        { op: "setFrontmatter", keys: { pdf: nameInFolder(held.path) } },
+      ],
+    });
+    if (!written.written) {
+      throw new VaultError(
+        "refused",
+        `Couldn't update ${found.path}: ${written.detail}`
+      );
+    }
+    await index.own(found.path, written.content);
+    await ingest([held.path]);
+  });
+}
+
+/**
+ * *Detach* (story 64): `pdf:` is cleared and nothing else moves. The blocks
+ * in `## Annotations` and the sidecar stay as they were, so every
+ * `[[citekey#^h<n>]]` keeps resolving — the annotations are frozen, not
+ * lost. Cleared by writing an empty value: frontmatter writes never remove
+ * a key (ADR 0008 decision 3), and `pdfKeys` reads an empty one as none.
+ */
+export function detachPdf(
+  vaultPath: string,
+  index: VaultIndex,
+  { source }: { source: string }
+): Promise<void> {
+  return attaching(async () => {
+    const { found } = await missingOf(vaultPath, index, source);
+    const written = await write(vaultPath, found.path, {
+      basedOn: found.hash,
+      operations: [{ op: "setFrontmatter", keys: { pdf: "" } }],
+    });
+    if (!written.written) {
+      throw new VaultError(
+        "refused",
+        `Couldn't detach the PDF from ${found.path}: ${written.detail}`
+      );
+    }
+    await index.own(found.path, written.content);
+  });
 }
