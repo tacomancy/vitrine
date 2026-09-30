@@ -21,7 +21,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { pickFile, pickFolder, type ShowOpenDialog } from "./chooser.js";
 import { closeCore, type CorePort } from "./close.js";
-import { coreEntry, machineName, stateFolder } from "./launch.js";
+import { authorName, coreEntry, machineName, stateFolder } from "./launch.js";
 import { routeLink, type LinkRoute } from "./navigation.js";
 
 type Session = Pick<CoreReadyMessage, "port" | "token">;
@@ -67,6 +67,9 @@ function spawnCore(): Promise<Session> {
     isPackaged: app.isPackaged,
     appData: app.getPath("appData"),
   });
+  const author = authorName({
+    fullName: () => execFileSync("id", ["-F"], { encoding: "utf8" }),
+  });
   return new Promise((resolve) => {
     const core: UtilityProcess = utilityProcess.fork(CORE_ENTRY, [], {
       serviceName: "vitrine-core",
@@ -74,6 +77,7 @@ function spawnCore(): Promise<Session> {
         ...process.env,
         VITRINE_STATIC_DIR: RENDERER_DIR,
         VITRINE_APP_SUPPORT_DIR: appSupportDir,
+        ...(author === undefined ? {} : { VITRINE_AUTHOR: author }),
         VITRINE_MACHINE: machineName({
           computerName: () =>
             execFileSync("scutil", ["--get", "ComputerName"], {

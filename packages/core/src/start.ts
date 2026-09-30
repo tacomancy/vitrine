@@ -15,6 +15,8 @@ export type StartOptions = {
   appSupportDir?: string;
   /** The computer name a linked Artifact records (ADR 0035 decision 5); the shell supplies the Mac's. */
   machine?: string;
+  /** The name a highlight's `/T` carries (#441); the shell supplies the account's full name. */
+  author?: string;
 };
 
 // Where macOS expects an app's own files (docs/architecture.md § Vault layout).
@@ -63,6 +65,7 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     host: options.host ?? NO_HOST,
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
     ...(options.machine === undefined ? {} : { machine: options.machine }),
+    ...(options.author === undefined ? {} : { author: options.author }),
   });
   // The last-resort teardown for an exit nothing else caught: an `exit`
   // handler cannot await, so it drops the handles and splices nothing.
