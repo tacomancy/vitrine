@@ -75,7 +75,13 @@ export function ConnectionsPanel({
   const chosenId = rows.length === 0 ? undefined : `${CONNECTION_ID}${at}`;
   useChosenInView(chosenId);
   // The keyboard lands on the list, so `j` moves from the first row.
-  useEffect(() => listRef.current?.focus(), [rows.length]);
+  useEffect(() => listRef.current?.focus(), []);
+
+  // A choice made is a message answered: the last click's words do not outlive it.
+  function choose(i: number) {
+    setChosen(i);
+    setSaid(null);
+  }
 
   function open(c: Connection) {
     const route = routeOf(c.kind, c.path);
@@ -94,12 +100,12 @@ export function ConnectionsPanel({
       case "ArrowDown":
       case "j":
         event.preventDefault();
-        setChosen(Math.min(at + 1, rows.length - 1));
+        choose(Math.min(at + 1, rows.length - 1));
         return;
       case "ArrowUp":
       case "k":
         event.preventDefault();
-        setChosen(Math.max(at - 1, 0));
+        choose(Math.max(at - 1, 0));
         return;
       case "Enter": {
         event.preventDefault();
@@ -151,7 +157,7 @@ export function ConnectionsPanel({
               aria-selected={i === at}
               className={styles.connection}
               onClick={() => {
-                setChosen(i);
+                choose(i);
                 open(c);
               }}
             >

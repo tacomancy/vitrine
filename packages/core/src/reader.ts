@@ -240,16 +240,6 @@ export async function readConnections(
   const isOpen = (row: Row) =>
     row.kind === "question" &&
     (statusOf.get(row.path) === undefined || statusOf.get(row.path) === "open");
-  for (const link of index.select<Row & { block: string | null }>(
-    `SELECT DISTINCT l.path, f.kind, f.display AS name, f.mtime, l.block
-       FROM links l JOIN files f ON f.path = l.path
-      WHERE l.path <> ? AND (l.resolved_path = ? OR l.ltarget = ?)`,
-    path,
-    path,
-    stem.toLowerCase()
-  )) {
-    add(link, link.block, { open: isOpen(link) });
-  }
   for (const q of index.select<
     Row & { from: string; annotation: string | null; page: string | null }
   >(
@@ -268,6 +258,21 @@ export async function readConnections(
       ...(q.page === null ? {} : { page: Number(q.page) }),
       open: isOpen(q),
     });
+  }
+  // After the Questions: one that names the Source in `from:` is already
+  // a row, so a link to the same file (which has no block of its own) is
+  // not a second one.
+  const named = new Set([...found.values()].map((f) => f.path));
+  for (const link of index.select<Row & { block: string | null }>(
+    `SELECT DISTINCT l.path, f.kind, f.display AS name, f.mtime, l.block
+       FROM links l JOIN files f ON f.path = l.path
+      WHERE l.path <> ? AND (l.resolved_path = ? OR l.ltarget = ?)`,
+    path,
+    path,
+    stem.toLowerCase()
+  )) {
+    if (link.block === null && named.has(link.path)) continue;
+    add(link, link.block, { open: isOpen(link) });
   }
   return [...found.values()]
     .sort(

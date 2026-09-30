@@ -390,6 +390,17 @@ context: ingest
     expect(found.map((f) => f.path)).toEqual(["questions/asked.md"]);
   });
 
+  it("lists a Question once when a note-style link and its provenance both name the Source", async () => {
+    const found = await connections({
+      "questions/asked.md": ASKED.replace("---\n", "---\n").concat(
+        "Back to [[rasch2013]].\n"
+      ),
+    });
+    expect(found.map((f) => [f.path, f.block])).toEqual([
+      ["questions/asked.md", "h3"],
+    ]);
+  });
+
   it("does not list the Source's own note, and does not mistake rasch2013b for it", async () => {
     const found = await connections({ "questions/closed.md": CLOSED });
     expect(found).toEqual([]);

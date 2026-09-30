@@ -86,7 +86,7 @@ function Gutter({
     <div className={styles.gutter}>
       {annotations.flatMap((a) => {
         const connection = wanted.get(a.block);
-        // The top of the first quad: PDF y runs up, the page's top is y0 + height.
+        // The top of the highest quad: PDF y runs up, the page's top is y0 + height.
         const top = Math.max(
           ...a.quads.flatMap((q) => [q[1]!, q[3]!, q[5]!, q[7]!])
         );
