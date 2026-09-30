@@ -1,7 +1,9 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createPdfEngine } from "./pdf-engine.js";
+import { fixtures, vaultWith } from "./test-core.js";
 import { startCore, type RunningCore } from "./start.js";
 
 let running: RunningCore | undefined;
@@ -73,5 +75,73 @@ describe("startCore", () => {
     expect(res.headers.get("content-security-policy")).toBe(
       "default-src 'self'; img-src 'self' data: blob:; worker-src 'self'"
     );
+  });
+
+  // The shell's `VITRINE_AUTHOR` reaches the core as this option (#441). The
+  // test goes through the real listener and a real highlight, so a dropped
+  // hop between `startCore` and `Ingest.highlight` shows as the wrong `/T`.
+  it("writes a highlight's /T from the author it was started with", async () => {
+    const pdf = "sources/pdf/rasch2013.pdf";
+    const vault = await vaultWith({
+      "sources/rasch2013.md": `---
+kind: source
+id: src-1
+citekey: rasch2013
+title: Odor cues during slow-wave sleep
+pdf: rasch2013.pdf
+---
+`,
+      [pdf]: "",
+    });
+    await writeFile(
+      join(vault, pdf),
+      await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
+    );
+    running = await startCore({ ...(await support()), author: "Sarah Lehman" });
+    const call = async (
+      path: string,
+      body: unknown
+    ): Promise<{ error?: unknown }> => {
+      const res = await fetch(
+        `http://127.0.0.1:${running!.port}/trpc/${path}`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${running!.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+      return (await res.json()) as { error?: unknown };
+    };
+    expect((await call("vault.open", { path: vault })).error).toBeUndefined();
+
+    const highlight = () =>
+      call("sources.highlight", {
+        path: "sources/rasch2013.md",
+        page: 1,
+        rects: [[60, 678, 560, 696]],
+        colour: "green",
+        note: "",
+      });
+    // The index builds after the open answers, and a highlight sent before
+    // the Source is indexed is refused, so retry until it is not.
+    let reply = await highlight();
+    for (let n = 0; reply.error && n < 50; n++) {
+      await new Promise((r) => setTimeout(r, 100));
+      reply = await highlight();
+    }
+    expect(reply.error).toBeUndefined();
+
+    const engine = createPdfEngine();
+    try {
+      const read = await engine.annotations(
+        new Uint8Array(await readFile(join(vault, pdf)))
+      );
+      expect(read.annotations[0]?.author).toBe("Sarah Lehman");
+    } finally {
+      await engine.close();
+    }
   });
 });
