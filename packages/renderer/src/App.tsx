@@ -12,6 +12,7 @@ import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { Reader } from "./Reader";
+import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
 import { pushRoute, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
@@ -90,9 +91,16 @@ function Workspace({ vault }: { vault: Vault }) {
     void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
     // So does an Experiment's list of the Questions captured from it (#373).
     void queryClient.invalidateQueries(trpc.experiments.page.pathFilter());
+    // A Question made from a selection wrote a highlight into the paper and
+    // points at it (#427): the Reader's overlay and gutter are read again.
+    void queryClient.invalidateQueries(trpc.sources.page.pathFilter());
+    void queryClient.invalidateQueries(trpc.sources.connections.pathFilter());
+    if (question.annotation !== undefined) reading?.spend();
     setLanded(question);
   };
   const captureLine = useRef<CaptureLineHandle>(null);
+  // What the Reader has open, published by it (#427). Only ever a Source's.
+  const [reading, setReading] = useState<Reading | null>(null);
 
   // What a capture records as Provenance (CONTEXT.md), whichever chord
   // made it: pursuing the page at this address — a Research Question's or
@@ -100,96 +108,108 @@ function Workspace({ vault }: { vault: Vault }) {
   // otherwise Unattached. The address names a file, not a Kind; a capture
   // on a page of any other Kind is refused by the core, loudly, where it
   // was made. The follow-up a Hypothesis's result raises is `resolving`,
-  // and is the page's own line, not the chord's. The Reader will add
-  // *reading* here when it exists.
+  // and is the page's own line, not the chord's. Reading a Source is
+  // `reading`, with the page in view (#427).
   const provenance: Provenance =
     route.surface === "research-question" || route.surface === "hypothesis"
       ? { context: "pursuing", page: route.path }
       : route.surface === "experiment"
         ? { context: "observing", experiment: route.path }
-        : { context: "other" };
+        : route.surface === "source" && reading?.source === route.path
+          ? { context: "reading", source: route.path, page: reading.page }
+          : { context: "other" };
+  const selection = route.surface === "source" ? reading?.selection : null;
 
   return (
-    <div className={styles.window}>
-      <TitleBar title={vault.name} />
-      <div className={styles.panes}>
-        <Sidebar route={route} vault={vault} />
-        {route.surface === "inbox" && (
-          <Inbox
-            landed={landed}
-            arrivedOn={route.question ?? null}
-            unresolved={route.unresolved ?? null}
-            vaultPath={vault.path}
-          />
-        )}
-        {route.surface === "research-question" && (
-          <ResearchQuestion
-            key={route.path}
-            path={route.path}
-            attachOnArrival={attachOnArrival === route.path}
-            onArrival={() => setAttachOnArrival(null)}
-          />
-        )}
-        {route.surface === "source" && (
-          <Reader key={route.path} path={route.path} arrival={route.arrival} />
-        )}
-        {route.surface === "hypothesis" && (
-          <Hypothesis key={route.path} path={route.path} />
-        )}
-        {route.surface === "experiment" && (
-          <Experiment
-            key={route.path}
-            path={route.path}
-            writeOnArrival={
-              writeOnArrival?.path === route.path ? writeOnArrival.field : null
-            }
-            onArrival={() => setWriteOnArrival(null)}
-          />
-        )}
-        {route.surface === "experiments" && (
-          <Experiments
-            onMade={(path) => {
-              setWriteOnArrival({ path, field: "purpose" });
-              pushRoute({ surface: "experiment", path });
-            }}
-            onObserve={(path) => {
-              setWriteOnArrival({ path, field: "observations" });
-              pushRoute({ surface: "experiment", path });
-            }}
-            onCapture={(path) =>
-              captureLine.current?.open({
-                context: "observing",
-                experiment: path,
-              })
-            }
-          />
-        )}
-        {route.surface === "settings" && <Settings vault={vault} />}
-        {route.surface === "loose-ends" && (
-          <LooseEnds
-            onAttach={(path) => {
-              setAttachOnArrival(path);
-              pushRoute({ surface: "research-question", path });
-            }}
-          />
-        )}
-      </div>
-      <UnmatchedPanel />
-      <CaptureLine
-        ref={captureLine}
-        provenance={provenance}
-        onCaptured={onCaptured}
-      />
-      {/* Both chords are mounted here and nowhere else, so neither is
+    <PublishReading value={setReading}>
+      <div className={styles.window}>
+        <TitleBar title={vault.name} />
+        <div className={styles.panes}>
+          <Sidebar route={route} vault={vault} />
+          {route.surface === "inbox" && (
+            <Inbox
+              landed={landed}
+              arrivedOn={route.question ?? null}
+              unresolved={route.unresolved ?? null}
+              vaultPath={vault.path}
+            />
+          )}
+          {route.surface === "research-question" && (
+            <ResearchQuestion
+              key={route.path}
+              path={route.path}
+              attachOnArrival={attachOnArrival === route.path}
+              onArrival={() => setAttachOnArrival(null)}
+            />
+          )}
+          {route.surface === "source" && (
+            <Reader
+              key={route.path}
+              path={route.path}
+              arrival={route.arrival}
+            />
+          )}
+          {route.surface === "hypothesis" && (
+            <Hypothesis key={route.path} path={route.path} />
+          )}
+          {route.surface === "experiment" && (
+            <Experiment
+              key={route.path}
+              path={route.path}
+              writeOnArrival={
+                writeOnArrival?.path === route.path
+                  ? writeOnArrival.field
+                  : null
+              }
+              onArrival={() => setWriteOnArrival(null)}
+            />
+          )}
+          {route.surface === "experiments" && (
+            <Experiments
+              onMade={(path) => {
+                setWriteOnArrival({ path, field: "purpose" });
+                pushRoute({ surface: "experiment", path });
+              }}
+              onObserve={(path) => {
+                setWriteOnArrival({ path, field: "observations" });
+                pushRoute({ surface: "experiment", path });
+              }}
+              onCapture={(path) =>
+                captureLine.current?.open({
+                  context: "observing",
+                  experiment: path,
+                })
+              }
+            />
+          )}
+          {route.surface === "settings" && <Settings vault={vault} />}
+          {route.surface === "loose-ends" && (
+            <LooseEnds
+              onAttach={(path) => {
+                setAttachOnArrival(path);
+                pushRoute({ surface: "research-question", path });
+              }}
+            />
+          )}
+        </div>
+        <UnmatchedPanel />
+        <CaptureLine
+          ref={captureLine}
+          provenance={provenance}
+          selection={selection ?? null}
+          onCaptured={onCaptured}
+        />
+        {/* Both chords are mounted here and nowhere else, so neither is
           live before a vault is open, and both are handed the same
           Provenance and the same landing (ADR 0027 decision 1). ⌘, is
           here for the same reason: First run has one action. */}
-      <SettingsChord />
-      <GlobalCommand
-        route={route}
-        provenance={provenance}
-        onCaptured={onCaptured}
-      />
-    </div>
+        <SettingsChord />
+        <GlobalCommand
+          route={route}
+          provenance={provenance}
+          onCaptured={onCaptured}
+        />
+      </div>
+    </PublishReading>
   );
 }

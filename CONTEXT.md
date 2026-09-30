@@ -161,7 +161,7 @@ What an Annotation becomes when the user resolves it as *gone*: its identity and
 _Avoid_: Deleted annotation, dangling link
 
 **`Q:` convention**:
-An Annotation whose note begins with `Q:` becomes a Question on Ingest, with page and quoted passage as provenance.
+An Annotation whose note begins with `Q:` becomes a Question on Ingest, with page and quoted passage as provenance. The Reader writes the same convention when it makes a Question from a selection, and records the Question in the same act so Ingest never makes a second (ADR 0038).
 
 ### Questions
 
@@ -170,7 +170,7 @@ A lightweight capture that always carries Provenance. Has a Status. The app's pr
 _Avoid_: Idea, task, todo, item
 
 **Provenance**:
-What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading*, *writing*, *ingest*, *resolving* (the follow-up captured as a Hypothesis's loop is closed), *pursuing* (captured on a Research Question's or a Hypothesis's page — the new Question is a sub-question of it), *observing* (captured from an Experiment's observations — `from` is the Experiment, and nothing is written onto its page; the page shows it by backlink), or *other*.
+What the user was reading or doing when a Question was captured, the page or timestamp, and the date. Recorded automatically at capture, never reconstructed later. Its context is one of *reading* (the Source and the page in view, and — when made from a selection — the highlight that carries `Q:`; with no selection, no annotation and nothing written into the PDF), *writing*, *ingest*, *resolving* (the follow-up captured as a Hypothesis's loop is closed), *pursuing* (captured on a Research Question's or a Hypothesis's page — the new Question is a sub-question of it), *observing* (captured from an Experiment's observations — `from` is the Experiment, and nothing is written onto its page; the page shows it by backlink), or *other*.
 _Avoid_: Source (that word is taken), origin (used for Proposals)
 
 **Unattached**:

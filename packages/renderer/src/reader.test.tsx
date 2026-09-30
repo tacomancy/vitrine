@@ -8,7 +8,14 @@ import {
 } from "@testing-library/react";
 import type { ReaderAnnotation, SourcePage } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, renderApp, scrollsInto, vault } from "./fake-core";
+import {
+  empty,
+  pressCaptureChord,
+  pressGlobalChord,
+  renderApp,
+  scrollsInto,
+  vault,
+} from "./fake-core";
 import { addressOf } from "./kinds";
 import type { PdfDocumentProps } from "./pdf-document";
 
@@ -816,5 +823,158 @@ describe("removing an annotation", () => {
     expect((await within(h2).findByRole("status")).textContent).toBe(
       "The PDF is not on this Mac yet."
     );
+  });
+});
+
+// A Question from the page (#427; spec #416 stories 97–103): ⌘' with a
+// selection sends the selection's intent and the typed words, and the core
+// makes the `Q:` highlight and the Question; with none it captures on the
+// Source and the page in view and sends no geometry.
+describe("⌘' in the Reader", () => {
+  const selection = { page: 2, rects: [[72, 600, 272, 612]] };
+  const made = (text: string) => ({
+    id: "q000000010",
+    path: `questions/${text}.md`,
+    question: text,
+    status: "open",
+    captured: "2026-09-30T10:00:00+05:30",
+    from: "[[rasch2013]]",
+    context: "reading",
+  });
+  const write = (text: string) => {
+    const input = screen.getByRole("textbox", { name: "Question" });
+    fireEvent.change(input, { target: { value: text } });
+    fireEvent.keyDown(input, { key: "Enter" });
+  };
+
+  it("with a selection, sends only the intent and the question, and the provenance needs no typing", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.question": (input: { text: string }) => {
+        sent.push(input);
+        return {
+          id: "nm-2",
+          block: "h4",
+          quote: "q",
+          // What the core's Question carries when it was made from a highlight.
+          question: { ...made(input.text), page: 2, annotation: "h4" },
+        };
+      },
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+
+    pressCaptureChord();
+    const line = screen.getByRole("form", { name: "Capture" });
+    expect(line.textContent).toContain("Reading · rasch2013 · p.2");
+    write("Why only slow-wave sleep?");
+
+    await waitFor(() =>
+      expect(sent).toEqual([
+        {
+          path: PATH,
+          page: 2,
+          rects: [[72, 600, 272, 612]],
+          text: "Why only slow-wave sleep?",
+        },
+      ])
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("form", { name: "Capture" })).toBeNull()
+    );
+    // The highlight is in the PDF now: the selection's bar is spent.
+    expect(screen.queryByRole("form", { name: /highlight/i })).toBeNull();
+  });
+
+  it("with no selection, captures on the Source and the page in view, and sends no geometry", async () => {
+    const capture = vi.fn(({ text }: { text: string }) => made(text));
+    const question = vi.fn();
+    await open(
+      source({ position: { page: 3, offset: 0.1 } }),
+      `#/source/${PATH}`,
+      {
+        "questions.capture": capture,
+        "sources.question": question,
+      }
+    );
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onMove({ page: 2, offset: 0.4 }));
+
+    pressCaptureChord();
+    expect(screen.getByRole("form", { name: "Capture" }).textContent).toContain(
+      "Reading · rasch2013 · p.2"
+    );
+    write("What would falsify this?");
+
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith({
+        text: "What would falsify this?",
+        provenance: { context: "reading", source: PATH, page: 2 },
+      })
+    );
+    expect(question).not.toHaveBeenCalled();
+  });
+
+  it("starts on the page the paper opened on, before the reader has moved", async () => {
+    const capture = vi.fn(({ text }: { text: string }) => made(text));
+    await open(
+      source({ position: { page: 3, offset: 0 } }),
+      `#/source/${PATH}`,
+      {
+        "questions.capture": capture,
+      }
+    );
+    await screen.findByTestId("paper");
+    // The Reader publishes what it has open once it has mounted.
+    await act(async () => {});
+    pressCaptureChord();
+    write("Where does this lead?");
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith({
+        text: "Where does this lead?",
+        provenance: { context: "reading", source: PATH, page: 3 },
+      })
+    );
+  });
+
+  it("says the core's words when the selection is refused, and keeps the line", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.question": () => {
+        throw new Error("There is no text under that selection.");
+      },
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+    pressCaptureChord();
+    write("Is this a scan?");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "There is no text under that selection."
+    );
+    expect(screen.getByRole("form", { name: "Capture" })).toBeTruthy();
+  });
+
+  it("does not carry a selection from one paper to the next", async () => {
+    const capture = vi.fn(({ text }: { text: string }) => made(text));
+    const question = vi.fn();
+    await open(source(), `#/source/${PATH}`, {
+      "questions.capture": capture,
+      "sources.question": question,
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+    act(() => opened.props!.onSelect(null));
+    pressCaptureChord();
+    write("After letting go");
+    await waitFor(() => expect(capture).toHaveBeenCalled());
+    expect(question).not.toHaveBeenCalled();
+  });
+
+  it("leaves the global command working from the Reader", async () => {
+    await open(source());
+    await screen.findByTestId("paper");
+    pressGlobalChord();
+    expect(
+      await screen.findByRole("dialog", { name: "Global command" })
+    ).toBeTruthy();
   });
 });
