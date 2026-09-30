@@ -14,6 +14,7 @@ import { PDF_FOLDER } from "./pdf-folder.js";
 import { localDay, writtenDay, type OpenDays } from "./open-days.js";
 import { KIND, readResearchQuestion } from "./research-question.js";
 import { unnamedPdfs, type UnreadablePdfs } from "./sources.js";
+import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -175,6 +176,7 @@ export type UnreadablePdf = {
 };
 
 export type LooseEndRow =
+  | UnmatchedRow
   | UnreadablePdf
   | NoSource
   | StalledResearchQuestion
@@ -242,8 +244,13 @@ export async function looseEnds(
     machine
   );
   const broken = unreadableRows(index, unreadable);
+  const unmatched = await unmatchedRows(index, vaultPath);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
-    "Broken plumbing": [...broken, ...experiments.missingUnderFalsification],
+    "Broken plumbing": [
+      ...unmatched.rows,
+      ...broken,
+      ...experiments.missingUnderFalsification,
+    ],
     "Unfinished reading": noSourceRows(index).filter(
       (row) => !broken.some((b) => b.path === row.path)
     ),
@@ -270,6 +277,7 @@ export async function looseEnds(
       ...questions.problems,
       ...hypotheses.problems,
       ...experiments.problems,
+      ...unmatched.problems,
     ],
   };
 }

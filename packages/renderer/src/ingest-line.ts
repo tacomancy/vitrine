@@ -35,7 +35,34 @@ export function announceIngest(summary: IngestSummary): void {
 /** Another vault is open; the last one's summary is not about it. */
 export function clearIngest(): void {
   clearTimeout(fade);
+  panel = false;
   set(null);
+}
+
+let panel = false;
+
+function setPanel(next: boolean) {
+  panel = next;
+  for (const listen of listeners) listen();
+}
+
+/**
+ * The Unmatched panel (story 58): opened from the footer summary and only
+ * when it has something to decide, so a clean run has no panel to open.
+ */
+export function openUnmatchedPanel(): void {
+  if (current !== null && current.unmatched > 0) setPanel(true);
+}
+export const closeUnmatchedPanel = (): void => setPanel(false);
+
+export function useUnmatchedPanelOpen(): boolean {
+  return useSyncExternalStore(
+    (listen) => {
+      listeners.add(listen);
+      return () => void listeners.delete(listen);
+    },
+    () => panel
+  );
 }
 
 export function useIngestSummary(): IngestSummary | null {
