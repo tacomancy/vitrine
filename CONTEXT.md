@@ -145,6 +145,10 @@ _Avoid_: Corrupt PDF, failed Ingest
 **Document-changed group**:
 The Unmatched annotations one replaced PDF left behind, held together under a single row headed by the event (*the document changed*) rather than as separate decisions. Resolved as a batch — *drop the links* or *treat as new* for all of them — or one row at a time, where *relink* also lives, since relinking needs a target per annotation.
 
+**Connection**:
+Something that points at a Source or one of its highlights: a page that links to it or to a block of it, or a Question whose provenance names it, whether or not any note links that Question. The Reader lists them in its Connections panel and marks each highlight that has one with a tick in the gutter. A Connection opens where it has an Address and is only named where it has none.
+_Avoid_: Backlink (a Connection is wider: it includes a Question that no link mentions)
+
 **Unmatched annotation**:
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.
 

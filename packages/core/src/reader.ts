@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -156,6 +157,135 @@ export async function readSourcePage(
     ),
     position: sidecar?.reading_position ?? null,
   };
+}
+
+/**
+ * One thing that points at this paper (spec #416 stories 83–86): a page
+ * that links to the Source or to one of its blocks, or a Question whose
+ * provenance names it. `block` is the annotation it points at, null when it
+ * points at the paper as a whole; `page` is that annotation's (1-based) or,
+ * for a Question with no block, the page it was asked on.
+ */
+export type Connection = {
+  path: string;
+  kind: string | null;
+  name: string;
+  block: string | null;
+  page: number | null;
+  /** An open Question: the one thing the gutter colours. */
+  open: boolean;
+};
+
+/** `[[stem]]`, `[[stem|alias]]`, `[[stem#…]]`: the Source's own name, not a longer one that starts with it. */
+const namesSource = (from: string, stem: string) =>
+  from.toLowerCase().startsWith(`[[${stem.toLowerCase()}`) &&
+  /^[|#\]]/.test(from.slice(stem.length + 2));
+
+/**
+ * What points at this paper and its highlights, from the index alone. Two
+ * sources agree here because neither is complete: a link is any page's
+ * `[[citekey#^h12]]`, but a Question captured from ingest or from the Reader
+ * names its Source in `from:` and its highlight in `annotation:` and need
+ * not be linked from anywhere (story 84). The Source's own note is left out —
+ * it holds the blocks, it does not point at them. By page, then newest
+ * first; what points at the paper as a whole has no page and follows.
+ */
+export async function readConnections(
+  vaultPath: string,
+  index: VaultIndex,
+  path: string
+): Promise<Connection[]> {
+  const { id } = await sourceOf(vaultPath, path);
+  const stem = basename(path, ".md");
+  const sidecar = id === null ? null : await readSidecar(vaultPath, id);
+  const pageOfBlock = new Map(
+    (sidecar?.annotations ?? []).flatMap((a) =>
+      a.block === undefined ? [] : [[a.block, a.page + 1] as const]
+    )
+  );
+  type Row = {
+    path: string;
+    kind: string | null;
+    name: string | null;
+    mtime: number | null;
+  };
+  const found = new Map<string, Connection & { mtime: number }>();
+  const add = (
+    row: Row,
+    block: string | null,
+    asked: { page?: number; open: boolean }
+  ) => {
+    const key = `${row.path}\0${block ?? ""}`;
+    if (found.has(key)) return;
+    found.set(key, {
+      path: row.path,
+      kind: row.kind,
+      name: row.name ?? basename(row.path, ".md"),
+      block,
+      page:
+        (block === null ? null : (pageOfBlock.get(block) ?? null)) ??
+        asked.page ??
+        null,
+      open: asked.open,
+      mtime: row.mtime ?? 0,
+    });
+  };
+  const statusOf = new Map(
+    index
+      .select<{ path: string; value: string }>(
+        "SELECT path, value FROM fields WHERE key = 'status'"
+      )
+      .map((r) => [r.path, JSON.parse(r.value) as unknown])
+  );
+  const isOpen = (row: Row) =>
+    row.kind === "question" &&
+    (statusOf.get(row.path) === undefined || statusOf.get(row.path) === "open");
+  for (const q of index.select<
+    Row & { from: string; annotation: string | null; page: string | null }
+  >(
+    `SELECT f.path, f.kind, f.display AS name, f.mtime,
+            json_extract(fr.value, '$') AS "from",
+            json_extract(an.value, '$') AS annotation,
+            pg.value AS page
+       FROM files f
+       JOIN fields fr ON fr.path = f.path AND fr.key = 'from'
+       LEFT JOIN fields an ON an.path = f.path AND an.key = 'annotation'
+       LEFT JOIN fields pg ON pg.path = f.path AND pg.key = 'page'
+      WHERE f.kind = 'question'`
+  )) {
+    if (!namesSource(q.from, stem)) continue;
+    add(q, q.annotation, {
+      ...(q.page === null ? {} : { page: Number(q.page) }),
+      open: isOpen(q),
+    });
+  }
+  // After the Questions: one that names the Source in `from:` is already
+  // a row, so a link to the same file (which has no block of its own) is
+  // not a second one.
+  const named = new Set([...found.values()].map((f) => f.path));
+  for (const link of index.select<Row & { block: string | null }>(
+    `SELECT DISTINCT l.path, f.kind, f.display AS name, f.mtime, l.block
+       FROM links l JOIN files f ON f.path = l.path
+      WHERE l.path <> ? AND (l.resolved_path = ? OR l.ltarget = ?)`,
+    path,
+    path,
+    stem.toLowerCase()
+  )) {
+    if (link.block === null && named.has(link.path)) continue;
+    add(link, link.block, { open: isOpen(link) });
+  }
+  return [...found.values()]
+    .sort(
+      (a, b) => (a.page ?? Infinity) - (b.page ?? Infinity) || b.mtime - a.mtime
+    )
+    .map(({ path, kind, name, block, page, open }) => ({
+      path,
+      kind,
+      name,
+      block,
+      page,
+      open,
+    }));
 }
 
 /** The Source's `id:` and PDF, or why it has neither: what a write about a Source needs to find its sidecar. */

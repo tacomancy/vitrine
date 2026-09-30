@@ -163,3 +163,55 @@
 .noteText {
   overflow-wrap: anywhere;
 }
+
+/*
+ * Beside the page, outside its box: the text never reflows for a tick and no
+ * badge sits on it. A tick is neutral; only an open Question's is amber
+ * (BRAND.md), and the glyph, not the colour, says who points.
+ */
+.gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: var(--space-5);
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--color-fg-muted);
+}
+
+.open {
+  color: var(--color-accent);
+}
+
+.glyphQuiet {
+  color: var(--color-fg-muted);
+}
+
+.connection {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.connection[aria-selected="true"] {
+  color: var(--color-fg);
+  background: var(--color-bg-raised);
+}
+
+.connectionName {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

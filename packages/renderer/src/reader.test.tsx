@@ -9,6 +9,7 @@ import {
 import type { ReaderAnnotation, SourcePage } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
+import { addressOf } from "./kinds";
 import type { PdfDocumentProps } from "./pdf-document";
 
 // The Reader (#424; spec #416 stories 70–79, 87–89). jsdom cannot draw a
@@ -103,6 +104,7 @@ const answers = (page: unknown, extra: Record<string, unknown> = {}) => ({
   },
   "looseEnds.rows": { groups: [], problems: [] },
   "sources.page": page,
+  "sources.connections": [],
   "sources.readingPosition": { written: true },
   "sources.bringDown": { brought: true },
   ...extra,
@@ -351,5 +353,209 @@ describe("notes and quotes", () => {
       document.querySelectorAll("a[href*='evil'], a[href^='file']")
     ).toHaveLength(0);
     expect(margin.querySelectorAll("a")).toHaveLength(0);
+  });
+});
+
+function connection(c: {
+  path: string;
+  kind: string | null;
+  name: string;
+  block: string | null;
+  page: number | null;
+  open?: boolean;
+}) {
+  return { open: false, ...c };
+}
+const RQ = connection({
+  path: "questions/Does odor help (RQ).md",
+  kind: "research-question",
+  name: "Does odor help?",
+  block: "h2",
+  page: 2,
+});
+const NOTE = connection({
+  path: "notes/idea.md",
+  kind: null,
+  name: "idea",
+  block: "h1",
+  page: 1,
+});
+const ASKED = connection({
+  path: "questions/why.md",
+  kind: "question",
+  name: "Why the control group?",
+  block: "h3",
+  page: 2,
+  open: true,
+});
+const WHOLE = connection({
+  path: "questions/wonder.md",
+  kind: "question",
+  name: "Wondering about this paper",
+  block: null,
+  page: null,
+  open: true,
+});
+const CONNECTIONS = [NOTE, RQ, ASKED, WHOLE];
+
+const ticks = () =>
+  [...document.querySelectorAll<HTMLElement>("[data-tick]")].map((t) => ({
+    block: t.dataset["tick"],
+    label: t.getAttribute("aria-label"),
+    glyph: t.textContent,
+    el: t,
+  }));
+
+describe("the gutter", () => {
+  it("draws one labelled tick per annotation something points at, and none for one nothing does", async () => {
+    await open(
+      source({
+        annotations: [
+          ...source().annotations,
+          annotation("h4", 2, { quote: "nothing points here" }),
+        ],
+      }),
+      `#/source/${PATH}`,
+      { "sources.connections": CONNECTIONS }
+    );
+    await screen.findByTestId("paper");
+    await waitFor(() => expect(ticks().length).toBeGreaterThan(0));
+    expect(ticks().map((t) => [t.block, t.glyph, t.label])).toEqual([
+      ["h1", "·", "a note points at this highlight"],
+      ["h2", "■", "a research question points at this highlight"],
+      ["h3", "◆", "a question points at this highlight"],
+    ]);
+  });
+
+  it("sits at the annotation's depth on its page, and reflows nothing", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.connections": [NOTE],
+    });
+    await waitFor(() => expect(ticks()).toHaveLength(1));
+    // The quad's top is 612 on a 792-point page: (792 − 612) / 792.
+    const top = parseFloat(ticks()[0]!.el.style.top);
+    expect(top).toBeCloseTo(22.7, 1);
+    // No badge on the text: the marks carry no count or glyph of a link.
+    expect(marks()[0]!.querySelector("text")).toBeNull();
+  });
+
+  it("takes amber only for an open Question", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.connections": [
+        { ...ASKED, block: "h1", open: false },
+        { ...ASKED, path: "questions/again.md", block: "h3", open: true },
+        RQ,
+      ],
+    });
+    await waitFor(() => expect(ticks()).toHaveLength(3));
+    expect(ticks().map((t) => [t.block, /open/.test(t.el.className)])).toEqual([
+      ["h1", false],
+      ["h2", false],
+      ["h3", true],
+    ]);
+  });
+
+  it("shows the strongest Kind when several point at one highlight", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.connections": [NOTE, { ...RQ, block: "h1" }],
+    });
+    await waitFor(() => expect(ticks()).toHaveLength(1));
+    expect(ticks()[0]!.glyph).toBe("■");
+  });
+});
+
+describe("Connections", () => {
+  const openPanel = async (connections: unknown[] = CONNECTIONS) => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.connections": connections,
+    });
+    const paper = await screen.findByTestId("paper");
+    await screen.findByRole("complementary", { name: "Annotations" });
+    fireEvent.keyDown(window, { key: ";", metaKey: true });
+    const list = await screen.findByRole("listbox", { name: "Connections" });
+    return { paper, list };
+  };
+  const options = () =>
+    within(screen.getByRole("listbox", { name: "Connections" })).getAllByRole(
+      "option"
+    );
+
+  it("replaces the margin on its chord without reflowing the page, and the chord puts the margin back", async () => {
+    const { paper } = await openPanel();
+    expect(
+      screen.queryByRole("complementary", { name: "Annotations" })
+    ).toBeNull();
+    // The same paper element, never remounted or resized by the swap.
+    expect(screen.getByTestId("paper")).toBe(paper);
+    fireEvent.keyDown(window, { key: ";", metaKey: true });
+    expect(
+      await screen.findByRole("complementary", { name: "Annotations" })
+    ).toBeDefined();
+    expect(screen.queryByRole("listbox", { name: "Connections" })).toBeNull();
+    expect(screen.getByTestId("paper")).toBe(paper);
+  });
+
+  it("lists every connection in the order the core gave, each with its Kind and page", async () => {
+    await openPanel();
+    expect(options().map((o) => o.textContent)).toEqual([
+      "·ideap.1",
+      "■Does odor help?p.2",
+      "◆Why the control group?p.2",
+      "◆Wondering about this paperwhole paper",
+    ]);
+    // A Question with no block is here though no tick marks it.
+    expect(ticks().some((t) => t.block === null)).toBe(false);
+  });
+
+  it("is a keyboard list that follows its choice and opens where there is an Address", async () => {
+    const asked = scrollsInto();
+    const { list } = await openPanel();
+    expect(document.activeElement).toBe(list);
+    const active = () => list.getAttribute("aria-activedescendant");
+    expect(active()).toBe(options()[0]!.id);
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    fireEvent.keyDown(list, { key: "j" });
+    expect(active()).toBe(options()[2]!.id);
+    expect(options()[2]!.getAttribute("aria-selected")).toBe("true");
+    expect(asked.map((a) => a.row.id)).toContain(options()[2]!.id);
+    fireEvent.keyDown(list, { key: "k" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(window.location.hash).toBe(addressOf(RQ.kind, RQ.path));
+  });
+
+  it("opens a connection that has an Address on a click", async () => {
+    await openPanel();
+    fireEvent.click(options()[3]!);
+    expect(window.location.hash).toBe(addressOf(WHOLE.kind, WHOLE.path));
+  });
+
+  it("names a connection that has none, and the click says so", async () => {
+    await openPanel();
+    fireEvent.click(options()[0]!);
+    expect(window.location.hash).toBe(`#/source/${PATH}`);
+    expect(await screen.findByRole("status")).toHaveProperty(
+      "textContent",
+      "idea has no page in Vitrine to open: it is the file notes/idea.md."
+    );
+  });
+
+  it("says what it is when nothing points at this paper, and never that it is loading", async () => {
+    await openPanel([]);
+    expect(screen.getByText("Nothing points at this paper yet.")).toBeDefined();
+  });
+
+  it("says the read failed rather than that nothing points here", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.connections": () => {
+        throw new Error("index is unreadable");
+      },
+    });
+    await screen.findByTestId("paper");
+    fireEvent.keyDown(window, { key: ";", metaKey: true });
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "index is unreadable"
+    );
+    expect(screen.queryByText(/Nothing points/)).toBeNull();
   });
 });

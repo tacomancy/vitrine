@@ -1,4 +1,5 @@
 import type { ReaderAnnotation } from "core";
+import { markOfConnection, type Tick } from "./Connections";
 import { useEffect, useRef } from "react";
 import { snapColour } from "./highlight-colour";
 import styles from "./Reader.module.css";
@@ -39,23 +40,75 @@ export function AnnotationOverlay({
   page,
   annotations,
   arrivedOn,
+  ticks,
 }: {
   page: PageGeometry;
   annotations: ReaderAnnotation[];
   arrivedOn: string | null;
+  ticks: Tick[];
 }) {
   const here = annotations.filter((a) => a.page === page.number - 1);
   return (
-    <svg
-      className={styles.overlay}
-      viewBox={`${page.x0} ${-(page.y0 + page.height)} ${page.width} ${page.height}`}
-      aria-label={`Annotations on page ${page.number}`}
-      role="group"
-    >
-      {here.map((a) => (
-        <Mark key={a.id} a={a} arrived={a.block === arrivedOn} />
-      ))}
-    </svg>
+    <>
+      <svg
+        className={styles.overlay}
+        viewBox={`${page.x0} ${-(page.y0 + page.height)} ${page.width} ${page.height}`}
+        aria-label={`Annotations on page ${page.number}`}
+        role="group"
+      >
+        {here.map((a) => (
+          <Mark key={a.id} a={a} arrived={a.block === arrivedOn} />
+        ))}
+      </svg>
+      <Gutter page={page} annotations={here} ticks={ticks} />
+    </>
+  );
+}
+
+/**
+ * One neutral tick beside the page for each highlight something points at,
+ * at that highlight's depth (spec #416 stories 80–82). It lives outside the
+ * page's box, so the text never reflows for it and nothing is drawn on the
+ * text; its glyph says who points and only an open Question's is amber.
+ * Nothing is drawn for a highlight nothing points at.
+ */
+function Gutter({
+  page,
+  annotations,
+  ticks,
+}: {
+  page: PageGeometry;
+  annotations: ReaderAnnotation[];
+  ticks: Tick[];
+}) {
+  const wanted = new Map(ticks.map((t) => [t.block, t.connection]));
+  return (
+    <div className={styles.gutter}>
+      {annotations.flatMap((a) => {
+        const connection = wanted.get(a.block);
+        // The top of the highest quad: PDF y runs up, the page's top is y0 + height.
+        const top = Math.max(
+          ...a.quads.flatMap((q) => [q[1]!, q[3]!, q[5]!, q[7]!])
+        );
+        if (connection === undefined || !Number.isFinite(top)) return [];
+        const mark = markOfConnection(connection);
+        const open = connection.kind === "question" && connection.open;
+        return (
+          <span
+            key={a.id}
+            data-tick={a.block}
+            role="img"
+            aria-label={`a ${mark.label} points at this highlight`}
+            className={open ? `${styles.tick} ${styles.open}` : styles.tick}
+            style={{
+              top: `${((page.y0 + page.height - top) / page.height) * 100}%`,
+            }}
+          >
+            {mark.glyph}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
