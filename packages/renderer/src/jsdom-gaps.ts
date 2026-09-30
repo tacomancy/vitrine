@@ -2,7 +2,7 @@
  * What jsdom leaves out, supplied for the suite and nowhere else.
  *
  * jsdom implements no layout and therefore no scrolling: `scrollIntoView` is
- * *absent* from its `HTMLElement.prototype` rather than a no-op on it, so a
+ * *absent* from its `Element.prototype` rather than a no-op on it, so a
  * call throws. Every keyboard list makes that call when its choice moves
  * (`chosen.ts`), which is most of what the surface suites do.
  *
@@ -13,6 +13,6 @@
  * a list followed its choice spies on this (`scrollsInto` in
  * `fake-core.tsx`), because there is no geometry under jsdom to measure.
  */
-HTMLElement.prototype.scrollIntoView = function scrollIntoView() {
+Element.prototype.scrollIntoView = function scrollIntoView() {
   // Nothing to scroll: jsdom gives every element a zero-sized box.
 };

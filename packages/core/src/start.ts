@@ -34,7 +34,14 @@ const NO_HOST: Host = {
 
 // `blob:` because an Artifact is drawn from an object URL: an `<img>` cannot
 // carry the bearer header, and the token never travels in a URL (#366).
-const CSP = "default-src 'self'; img-src 'self' data: blob:";
+//
+// `worker-src 'self'` is the page renderer's (#424): PDF.js parses on a
+// worker it loads from the bundle's own origin, so the policy needs no
+// `blob:` worker and no `unsafe-eval` — said outright rather than left to
+// `default-src`, so that narrowing the default one day cannot take the
+// Reader's worker with it unnoticed. The paper's bytes are a same-origin
+// fetch under the bearer header, which `default-src` already admits.
+const CSP = "default-src 'self'; img-src 'self' data: blob:; worker-src 'self'";
 
 export type RunningCore = {
   port: number;

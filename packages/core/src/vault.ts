@@ -129,6 +129,11 @@ export type VaultService = {
    */
   focused: () => Promise<void>;
   /**
+   * Ingest the named PDFs now and say what landed, as a change to one would
+   * (`ingestLanded`): for a PDF the window brought down itself (#424).
+   */
+  ingest: (paths: readonly string[]) => Promise<void>;
+  /**
    * Tear down the open vault's resources; the orderly path out. The next
    * `open` does the same. Resolves once every Revision an Obsidian edit
    * left pending has been spliced (#217) — a vault must not close owing
@@ -756,6 +761,10 @@ export function createVaultService({
           ? join(opened.vault.path, PDF_FOLDER)
           : opened.vault.path
       );
+    },
+    ingest: async (paths) => {
+      await restored;
+      await runIngest(opened?.ingest ?? null, paths);
     },
     focused: async () => {
       await restored;

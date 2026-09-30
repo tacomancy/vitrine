@@ -11,6 +11,7 @@ import { GlobalCommand } from "./GlobalCommand";
 import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
+import { Reader } from "./Reader";
 import { ResearchQuestion } from "./ResearchQuestion";
 import { pushRoute, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
@@ -127,6 +128,9 @@ function Workspace({ vault }: { vault: Vault }) {
             attachOnArrival={attachOnArrival === route.path}
             onArrival={() => setAttachOnArrival(null)}
           />
+        )}
+        {route.surface === "source" && (
+          <Reader key={route.path} path={route.path} arrival={route.arrival} />
         )}
         {route.surface === "hypothesis" && (
           <Hypothesis key={route.path} path={route.path} />

@@ -25,6 +25,9 @@ const ADDRESSABLE = [
   "research-question",
   "hypothesis",
   "experiment",
+  // A Source has a Reader (#424); a stub has none, so `source-stub` is not
+  // here and the command cannot lead to a paper with nothing to open.
+  "source",
   "question",
 ] as const;
 

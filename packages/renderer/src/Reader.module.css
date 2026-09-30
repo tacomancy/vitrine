@@ -1,0 +1,165 @@
+.reader {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.paper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-6) 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: var(--leading-snug);
+  color: var(--color-fg);
+}
+
+.byline {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* Plainly not a link: no underline, no accent, the arrow stays an arrow. */
+.notLink {
+  all: unset;
+  cursor: default;
+  color: var(--color-fg-muted);
+  font: inherit;
+}
+
+.notLink:focus-visible {
+  outline: 1px dotted var(--color-fg-muted);
+}
+
+.line {
+  margin: var(--space-2) var(--space-6) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* The overlay covers the page and takes no pointer, so a selection is the text layer's. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mark {
+  --mark: var(--color-series-3);
+}
+
+/* Five names, five series tokens in the order the tokens fix them. */
+.blue {
+  --mark: var(--color-series-1);
+}
+.green {
+  --mark: var(--color-series-2);
+}
+.yellow {
+  --mark: var(--color-series-3);
+}
+.pink {
+  --mark: var(--color-series-4);
+}
+.purple {
+  --mark: var(--color-series-5);
+}
+
+.fill {
+  fill: var(--mark);
+  fill-opacity: 0.32;
+  mix-blend-mode: multiply;
+}
+
+.stroke {
+  stroke: var(--mark);
+  stroke-width: 1.4;
+}
+
+.squiggly .stroke {
+  stroke-dasharray: 2 1.4;
+}
+
+/* A text box keeps its words in the bitmap; the overlay only outlines it. */
+.freetext .fill {
+  fill: none;
+  stroke: var(--mark);
+  stroke-dasharray: 2 2;
+}
+
+.arrived {
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+}
+
+.glyph {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--color-fg);
+}
+
+.margin {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-4);
+}
+
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.note[aria-current="location"] {
+  color: var(--color-fg);
+}
+
+.where {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.quote {
+  font-family: var(--font-serif);
+  quotes: none;
+  overflow-wrap: anywhere;
+}
+
+.noteText {
+  overflow-wrap: anywhere;
+}

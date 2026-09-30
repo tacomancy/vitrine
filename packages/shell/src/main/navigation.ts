@@ -28,7 +28,8 @@ export function allowNavigation(url: string, appUrl: string): boolean {
 // installed app registers) would let text in a note launch that app with
 // arguments of the note's choosing. `file:` is refused too: a local path is
 // the app's to reveal (`shell.showItemInFolder`), never to open.
-const EXTERNAL_SCHEMES = new Set(["https:", "http:", "mailto:"]);
+// Exported so the renderer's link rule is pinned to it by a test.
+export const EXTERNAL_SCHEMES = new Set(["https:", "http:", "mailto:"]);
 
 export type LinkRoute =
   | { to: "window" }

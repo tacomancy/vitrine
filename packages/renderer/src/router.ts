@@ -14,6 +14,7 @@ export type Route =
   | { surface: "research-question"; path: string }
   | { surface: "hypothesis"; path: string }
   | { surface: "experiment"; path: string }
+  | { surface: "source"; path: string; arrival?: Arrival }
   | { surface: "experiments" }
   | { surface: "loose-ends" }
   | { surface: "settings" };
@@ -26,6 +27,13 @@ export type Route =
  * is when it is nowhere in particular, and a dead Address that said nothing
  * would be indistinguishable from having asked for the Inbox.
  */
+/**
+ * Where a Source's Reader arrives (`?page=<n>` or `?block=h<n>`), read once
+ * on arrival and never rewritten as the user moves (#424; spec #416 "The
+ * Address"): the hash is where they came in, not a cursor.
+ */
+export type Arrival = { page: number } | { block: string };
+
 export type Unresolved = { address: string; reason: string };
 
 export const INBOX: Route = { surface: "inbox" };
@@ -45,6 +53,7 @@ const QUESTION = "#/question/";
 const RESEARCH_QUESTION = "#/research-question/";
 const HYPOTHESIS = "#/hypothesis/";
 const EXPERIMENT = "#/experiment/";
+const SOURCE = "#/source/";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -74,6 +83,16 @@ export function hashOf(route: Route): string {
       return HYPOTHESIS + encodePath(route.path);
     case "experiment":
       return EXPERIMENT + encodePath(route.path);
+    case "source":
+      return (
+        SOURCE +
+        encodePath(route.path) +
+        (route.arrival === undefined
+          ? ""
+          : "page" in route.arrival
+            ? `?page=${route.arrival.page}`
+            : `?block=${route.arrival.block}`)
+      );
   }
 }
 
@@ -100,6 +119,37 @@ function pathUnder(hash: string, prefix: string): string | null {
 }
 
 /**
+ * A Source's Address. A query this app did not write is not read as if it
+ * were no query: it lands on the Inbox naming itself, since a link that
+ * meant to arrive somewhere and arrived at the top would be a silent
+ * failure.
+ */
+function parseSource(hash: string): Route {
+  const at = hash.indexOf("?");
+  const base = at === -1 ? hash : hash.slice(0, at);
+  const path = pathUnder(base, SOURCE);
+  if (path === null) return INBOX;
+  if (at === -1) return { surface: "source", path };
+  const query = new URLSearchParams(hash.slice(at + 1));
+  const page = /^[1-9]\d*$/.exec(query.get("page") ?? "");
+  const block = /^h[1-9]\d*$/.exec(query.get("block") ?? "");
+  const one = query.size === 1;
+  if (one && page) {
+    return { surface: "source", path, arrival: { page: Number(page[0]) } };
+  }
+  if (one && block) {
+    return { surface: "source", path, arrival: { block: block[0] } };
+  }
+  return {
+    surface: "inbox",
+    unresolved: {
+      address: hash,
+      reason: "not an arrival a Source opens on (?page=<n> or ?block=h<n>)",
+    },
+  };
+}
+
+/**
  * The route a hash names; anything unrecognised is the Inbox. Two different
  * things arrive there and the second is owed a word: a hash nothing ever
  * wrote, and one that used to mean something (§ Invariants, no silent
@@ -117,6 +167,7 @@ function parseHash(hash: string): Route {
   if (hypothesis !== null) return { surface: "hypothesis", path: hypothesis };
   const experiment = pathUnder(hash, EXPERIMENT);
   if (experiment !== null) return { surface: "experiment", path: experiment };
+  if (hash.startsWith(SOURCE)) return parseSource(hash);
   if (hash.startsWith(RETIRED))
     return {
       surface: "inbox",

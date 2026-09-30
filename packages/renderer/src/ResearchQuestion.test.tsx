@@ -1137,7 +1137,8 @@ describe("links on the page", () => {
           line("Other (RQ)", "research-question", "questions/Other (RQ).md"),
           line("A capture", "question", "questions/A capture.md"),
           line("A note", null, "notes/A note.md"),
-          line("A paper", "source", "sources/rasch2013.md"),
+          line("A read paper", "source", "sources/rasch2013.md"),
+          line("A paper", "source-stub", "sources/born2010.md"),
           line("Nowhere", null, null),
         ],
       })
@@ -1149,11 +1150,14 @@ describe("links on the page", () => {
     expect(links.map((l) => l.textContent)).toEqual([
       "Other (RQ)",
       "A capture",
+      "A read paper",
     ]);
-    // A Question's Address is the Inbox on its row (#300, ADR 0026).
+    // A Question's Address is the Inbox on its row (#300, ADR 0026); a
+    // Source's is its Reader (#424), and a stub, having none, is text below.
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "#/research-question/questions/Other%20(RQ).md",
       "#/question/questions/A%20capture.md",
+      "#/source/sources/rasch2013.md",
     ]);
     // The rest are text: nothing to click, nothing that pretends to open.
     expect(related.textContent).toContain("A note");

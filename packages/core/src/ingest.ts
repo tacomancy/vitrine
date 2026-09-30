@@ -9,6 +9,7 @@ import {
   readSidecar,
   writeSidecar,
   type HeldAnnotation,
+  type ReadingPosition,
   type Sidecar,
   type SidecarAnnotation,
 } from "./annotation-sidecar.js";
@@ -489,6 +490,11 @@ export function createIngest({
       next_block: next,
       annotations: [...entries, ...fresh],
       held,
+      // Carried across: the sidecar is rebuilt here, and a reader's place is
+      // not something a PDF's return may forget.
+      ...(before?.reading_position
+        ? { reading_position: before.reading_position }
+        : {}),
       pending: {
         kept: entries.length,
         removed: owed.removed + tally.removed,
@@ -540,6 +546,27 @@ export function createIngest({
   }
 
   return {
+    /**
+     * Remember where the reader stopped in a Source (#424). On Ingest's own
+     * queue because both rewrite the whole sidecar: a scroll landing between
+     * an Ingest's read and its write would be overwritten by it, or would
+     * overwrite the annotations it added. False when the Source has no
+     * sidecar yet — there is nothing to attach a place to, and a sidecar is
+     * never made by anything but an Ingest.
+     */
+    readingPosition: (
+      id: string,
+      position: ReadingPosition
+    ): Promise<{ written: boolean }> =>
+      serially(async () => {
+        const sidecar = await readSidecar(vaultPath, id);
+        if (sidecar === null) return { written: false };
+        await writeSidecar(vaultPath, id, {
+          ...sidecar,
+          reading_position: position,
+        });
+        return { written: true };
+      }),
     /**
      * Ingest the named PDFs, or — with no names — every Source's, which is
      * what the open-time sweep asks: a PDF attached, or changed while the

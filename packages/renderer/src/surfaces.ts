@@ -29,7 +29,12 @@ export type Entry = {
 export const SURFACES: readonly Entry[] = [
   { name: "Home" },
   { name: "Question Inbox", to: INBOX },
-  { name: "Reader" },
+  {
+    name: "Reader",
+    // No list and no way in from the map: a paper is opened from where it
+    // is mentioned, and ⌘K reaches it. The entry lights while one is open.
+    lit: (at) => at.surface === "source",
+  },
   {
     name: "Research Question view",
     lit: (at) => at.surface === "research-question",
