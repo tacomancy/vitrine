@@ -80,6 +80,7 @@ import {
 import {
   bringDown,
   makeHighlight,
+  makeQuestion,
   readConnections,
   readSourcePage,
   setReadingPosition,
@@ -153,6 +154,15 @@ const captureInput = z.object({
         context: z.literal("observing"),
         /** The Experiment's vault-relative path. */
         experiment: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        context: z.literal("reading"),
+        /** The Source's vault-relative path. */
+        source: z.string().min(1),
+        /** The page in view, 1-based. */
+        page: z.number().int().min(1),
       })
       .strict(),
   ]),
@@ -440,6 +450,23 @@ export const router = t.router({
         const { vault, ingest } = await requireVault(ctx);
         const { path, ...intent } = input;
         return refusing(makeHighlight(vault.path, ingest, path, intent));
+      }),
+    // A Question from a selection: the `Q:` highlight and the Question, made
+    // together (#427; ADR 0038).
+    question: t.procedure
+      .input(
+        pathInput.extend({
+          page: z.number().int().min(1),
+          rects: z
+            .array(z.tuple([z.number(), z.number(), z.number(), z.number()]))
+            .min(1),
+          text: z.string().trim().min(1, "Question text is empty."),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, ingest } = await requireVault(ctx);
+        const { path, ...intent } = input;
+        return refusing(makeQuestion(vault.path, ingest, path, intent));
       }),
     // *Locate* and *detach* on a *PDF missing* row (#423).
     locate: t.procedure

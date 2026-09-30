@@ -124,7 +124,7 @@ export function createApp({
     newId: newId ?? randomId,
     spawnQuestion: (q) =>
       context.questions.capture(q.text, {
-        context: "ingest",
+        context: q.context ?? "ingest",
         source: q.source,
         page: q.page,
         annotation: q.annotation,

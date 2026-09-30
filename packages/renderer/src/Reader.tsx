@@ -9,6 +9,7 @@ import { HighlightBar } from "./HighlightBar";
 import { PdfDocument, type PageSelection } from "./pdf-document";
 import styles from "./Reader.module.css";
 import rq from "./ResearchQuestion.module.css";
+import { usePublishReading } from "./reading";
 import type { Arrival } from "./router";
 import { useTRPC } from "./trpc";
 
@@ -200,14 +201,6 @@ function Paper({
   const remember = useMutation(trpc.sources.readingPosition.mutationOptions());
   const [failed, setFailed] = useState<string | null>(null);
   const [selection, setSelection] = useState<PageSelection | null>(null);
-  const onMove = useCallback(
-    ({ page, offset }: { page: number; offset: number }) =>
-      remember.mutate({ path, page, offset }),
-    // `mutate` is stable; the mutation object is not, and would rebind the
-    // scroll listener on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [path]
-  );
 
   // Frozen at mount: an arrival wins over the remembered place, and neither
   // is chased once the reader has begun to move.
@@ -220,6 +213,30 @@ function Paper({
     return source.position ?? { page: 1, offset: 0 };
   });
   const arrivedOn = arrival && "block" in arrival ? arrival.block : null;
+
+  // The page in view, for the capture chord (#427): where the paper opened
+  // until the reader moves.
+  const [inView, setInView] = useState(opened.page);
+  const spend = useCallback(() => {
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+  }, []);
+  usePublishReading({
+    source: path,
+    page: selection?.page ?? inView,
+    selection,
+    spend,
+  });
+  const onMove = useCallback(
+    ({ page, offset }: { page: number; offset: number }) => {
+      setInView(page);
+      remember.mutate({ path, page, offset });
+    },
+    // `mutate` is stable; the mutation object is not, and would rebind the
+    // scroll listener on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [path]
+  );
 
   if (failed !== null) {
     return (

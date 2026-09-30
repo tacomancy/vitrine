@@ -9,6 +9,7 @@ import {
   type Ref,
 } from "react";
 import { provenanceChip, useCapture } from "./capture";
+import type { PageSelection } from "./pdf-document";
 import styles from "./CaptureLine.module.css";
 
 /** What a surface may ask of the Capture line: open it on a Provenance of its choosing. */
@@ -28,10 +29,13 @@ export type CaptureLineHandle = { open: (provenance: Provenance) => void };
  */
 export function CaptureLine({
   provenance,
+  selection = null,
   onCaptured,
   ref,
 }: {
   provenance: Provenance;
+  /** The Reader's selection at the chord: the Question becomes a `Q:` highlight too (#427). */
+  selection?: PageSelection | null;
   onCaptured: (question: Question) => void;
   ref?: Ref<CaptureLineHandle>;
 }) {
@@ -40,6 +44,7 @@ export function CaptureLine({
   const [opened, setOpened] = useState<{
     at: Date;
     provenance: Provenance;
+    selection: PageSelection | null;
   } | null>(null);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +64,7 @@ export function CaptureLine({
   };
 
   const open = useCallback(
-    (from: Provenance) => {
+    (from: Provenance, selected: PageSelection | null = null) => {
       if (opened === null) {
         restoreTo.current =
           document.activeElement instanceof HTMLElement
@@ -68,7 +73,7 @@ export function CaptureLine({
       }
       // Re-resolved on every open: the chip says when this capture is, not
       // when the first one was.
-      setOpened({ at: new Date(), provenance: from });
+      setOpened({ at: new Date(), provenance: from, selection: selected });
     },
     [opened]
   );
@@ -81,12 +86,12 @@ export function CaptureLine({
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.metaKey && event.key === "'") {
         event.preventDefault();
-        open(provenance);
+        open(provenance, selection);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, provenance]);
+  }, [open, provenance, selection]);
 
   useEffect(() => {
     if (opened !== null) inputRef.current?.focus();
@@ -98,10 +103,15 @@ export function CaptureLine({
   // disabled for the wait, because disabling it drops focus and a failed
   // write should leave the user exactly where they were, text and all.
   const submit = () =>
-    capture.write(text, opened.provenance, (question) => {
-      close();
-      onCaptured(question);
-    });
+    capture.write(
+      text,
+      opened.provenance,
+      (question) => {
+        close();
+        onCaptured(question);
+      },
+      opened.selection
+    );
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -127,6 +137,7 @@ export function CaptureLine({
         <span className={styles.label}>Capture</span>
         <span className={styles.chip}>
           {provenanceChip(opened.provenance, opened.at)}
+          {opened.selection !== null && " · highlighting the selection"}
         </span>
         <input
           ref={inputRef}
