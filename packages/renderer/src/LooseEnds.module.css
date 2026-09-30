@@ -226,6 +226,25 @@ a.rowTitle:focus-visible {
   color: var(--color-fg-muted);
 }
 
+/* The annotations a document-changed row holds: one per line, each with its
+   own resolutions beneath its quote — data, so mono like the other lists. */
+.unmatched {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.unmatchedItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 /*
  * A row that must never read as routine (#374): a linked file gone from
  * under a recorded falsification. A warning-toned rule and tag, as the

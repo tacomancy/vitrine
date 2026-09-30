@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AmbiguousLinks,
+  DocumentChanged,
   LooseEndGroupName,
   LooseEndRow,
   MissingArtifacts,
@@ -8,6 +9,7 @@ import type {
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
+  UnmatchedAnnotation,
   UnreadablePdf,
 } from "core";
 import { formatAge } from "./age";
@@ -90,9 +92,13 @@ type Resolution = {
   onUndo: () => void;
 };
 
-export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
+/**
+ * *Mark deliberate* and its undo for whichever surface draws the rows — the
+ * dashboard and the Unmatched panel both, so a resolution behaves the same
+ * wherever it is made (story 57).
+ */
+export function useResolutions() {
   const trpc = useTRPC();
-  const ends = useQuery(trpc.looseEnds.rows.queryOptions());
   // Which rows were resolved during this visit, and what a resolution was
   // refused for. Both are this visit's alone: the resolution is in the vault
   // from the click onward, so the row is gone on the dashboard's next read —
@@ -134,6 +140,22 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
         }),
     })
   );
+
+  return {
+    resolved,
+    resolutionOf: (row: Resolving): Resolution => ({
+      resolved: resolved.has(keyOf(row)),
+      refused: refused[keyOf(row)],
+      onDismiss: () => dismiss.mutate({ subject: row.subject, kind: row.kind }),
+      onUndo: () => undo.mutate({ subject: row.subject, kind: row.kind }),
+    }),
+  };
+}
+
+export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
+  const trpc = useTRPC();
+  const ends = useQuery(trpc.looseEnds.rows.queryOptions());
+  const { resolved, resolutionOf } = useResolutions();
 
   const status = useVaultStatusLines();
   const groups = ends.data?.groups ?? [];
@@ -205,17 +227,7 @@ export function LooseEnds({ onAttach }: { onAttach: (path: string) => void }) {
                     row={row}
                     now={now}
                     onAttach={() => onAttach(row.path)}
-                    resolution={{
-                      resolved: resolved.has(keyOf(row)),
-                      refused: refused[keyOf(row)],
-                      onDismiss: () =>
-                        dismiss.mutate({
-                          subject: row.subject,
-                          kind: row.kind,
-                        }),
-                      onUndo: () =>
-                        undo.mutate({ subject: row.subject, kind: row.kind }),
-                    }}
+                    resolution={resolutionOf(row)}
                   />
                 ))}
               </ul>
@@ -257,6 +269,10 @@ function Row(props: {
   resolution: Resolution;
 }) {
   switch (props.row.kind) {
+    case "unmatched-annotation":
+      return <Unmatched row={props.row} resolution={props.resolution} />;
+    case "document-changed":
+      return <ChangedDocument row={props.row} resolution={props.resolution} />;
     case "no-source":
       return <NoSourcePdf row={props.row} resolution={props.resolution} />;
     case "unreadable-pdf":
@@ -783,5 +799,330 @@ function UnreadablePdfRow({
         </>
       }
     />
+  );
+}
+
+/**
+ * The three resolutions of an Unmatched annotation (#421; spec #416 stories
+ * 47–55), shared by a row on its own and by a row inside a document-changed
+ * group. Each leaves the vault changed and no undo behind it, so a success
+ * re-reads the rows: the row is gone because it is resolved, not hidden.
+ * A refusal is the core's own words, a line on the row it was about.
+ */
+function useUnmatchedActs() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const settle = (said: string) => ({
+    onMutate: () => setRefusal(undefined),
+    onError: (error: { message: string }) => setRefusal(error.message),
+    onSuccess: () => {
+      setOutcome(said);
+      void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
+    },
+  });
+  return {
+    refusal,
+    outcome,
+    relink: useMutation(
+      trpc.unmatched.relink.mutationOptions(
+        settle("Relinked — its links follow it.")
+      )
+    ),
+    drop: useMutation(
+      trpc.unmatched.dropLinks.mutationOptions(
+        settle("Gone — every link to it still resolves, and reads (gone).")
+      )
+    ),
+    treat: useMutation(
+      trpc.unmatched.treatAsNew.mutationOptions(
+        settle(
+          "Treated as new — the old identity reads (gone), and no link was rewritten."
+        )
+      )
+    ),
+  };
+}
+type UnmatchedActs = ReturnType<typeof useUnmatchedActs>;
+
+/** What linked to an annotation, each named and opened where it has an Address. */
+function InboundLinks({ row }: { row: UnmatchedAnnotation }) {
+  return (
+    <>
+      {row.links.map((link, i) => {
+        const address = addressOf(link.kind, link.path);
+        return (
+          <span key={link.path}>
+            {i > 0 && ", "}
+            {address === null ? (
+              link.title
+            ) : (
+              <a className={styles.evidenceLink} href={address}>
+                {link.title}
+              </a>
+            )}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * *Relink*, *drop the links* and *treat as new* for one annotation. Relink
+ * names a candidate, ranked by page then overlap as the core sent them; the
+ * other two need no target. Never offered as a batch: a batch would have to
+ * invent a target (story 55).
+ */
+function UnmatchedChoices({
+  row,
+  acts,
+}: {
+  row: UnmatchedAnnotation;
+  acts: UnmatchedActs;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const busy =
+    acts.relink.isPending || acts.drop.isPending || acts.treat.isPending;
+  const one = { source: row.path, annotations: [row.annotation] };
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.primary}
+        disabled={busy || row.candidates.length === 0}
+        aria-expanded={choosing}
+        onClick={() => setChoosing(!choosing)}
+      >
+        relink
+      </button>
+      <button
+        type="button"
+        className={styles.primary}
+        disabled={busy}
+        onClick={() => acts.drop.mutate(one)}
+      >
+        drop the links
+      </button>
+      <button
+        type="button"
+        className={styles.primary}
+        disabled={busy}
+        onClick={() => acts.treat.mutate(one)}
+      >
+        treat as new
+      </button>
+      {choosing && (
+        <ul className={styles.matches} aria-label="relink to">
+          {row.candidates.map((c) => (
+            <li key={c.ref} className={styles.match}>
+              <button
+                type="button"
+                className={styles.action}
+                disabled={busy}
+                onClick={() =>
+                  acts.relink.mutate({
+                    source: row.path,
+                    annotation: row.annotation,
+                    candidate: c.ref,
+                  })
+                }
+              >
+                p.{c.page} · “{c.quote}”
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** Why an Unmatched annotation is here, in the words of what it was. */
+function whyUnmatched(row: UnmatchedAnnotation) {
+  return row.links.length === 0 ? (
+    "It could not be told apart from another, so it was not guessed at."
+  ) : (
+    <>
+      It could not be found in the file any more. Linked from{" "}
+      <InboundLinks row={row} />.
+    </>
+  );
+}
+
+/**
+ * *An annotation something links to that cannot be found* (stories 45–46):
+ * its quoted text as it was, the page, and what linked to it — so the
+ * researcher can judge whether it is the same one. Persists until resolved.
+ */
+function Unmatched({
+  row,
+  resolution,
+}: {
+  row: UnmatchedAnnotation;
+  resolution: Resolution;
+}) {
+  const acts = useUnmatchedActs();
+  return (
+    <RowShell
+      meta={`annotation · unmatched · p.${row.page} · ${row.title}`}
+      title={`“${row.quote}”`}
+      why={acts.outcome ?? whyUnmatched(row)}
+      resolution={{
+        ...resolution,
+        refused: resolution.refused ?? acts.refusal,
+      }}
+      actions={
+        acts.outcome === null && (
+          <>
+            <UnmatchedChoices row={row} acts={acts} />
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
+      }
+    />
+  );
+}
+
+/**
+ * The Unmatched annotations one replaced PDF left, as one row headed by the
+ * event (stories 53–55). Its batch acts ask once, in place, and apply to
+ * every annotation in the group or to none; *relink* stays on each
+ * annotation beneath it.
+ */
+function ChangedDocument({
+  row,
+  resolution,
+}: {
+  row: DocumentChanged;
+  resolution: Resolution;
+}) {
+  const acts = useUnmatchedActs();
+  const [asking, setAsking] = useState<"drop" | "treat" | null>(null);
+  const count = row.annotations.length;
+  const all = {
+    source: row.path,
+    annotations: row.annotations.map((a) => a.annotation),
+  };
+  const noun = count === 1 ? "annotation" : "annotations";
+  return (
+    <RowShell
+      meta={`document changed · ${count} could not be re-matched`}
+      title={row.title}
+      why={
+        acts.outcome ??
+        `The PDF was replaced, and ${count} ${noun} something links to could not be found in the new file.`
+      }
+      resolution={{
+        ...resolution,
+        refused: resolution.refused ?? acts.refusal,
+      }}
+      actions={
+        acts.outcome === null &&
+        (asking === null ? (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => setAsking("drop")}
+            >
+              drop the links
+            </button>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => setAsking("treat")}
+            >
+              treat as new
+            </button>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        ) : (
+          <>
+            <span className={styles.candidate}>
+              {asking === "drop"
+                ? `drop the links on all ${count}?`
+                : `treat all ${count} as new?`}
+            </span>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={acts.drop.isPending || acts.treat.isPending}
+              onClick={() =>
+                (asking === "drop" ? acts.drop : acts.treat).mutate(all)
+              }
+            >
+              yes, all {count}
+            </button>
+            <button
+              type="button"
+              className={styles.action}
+              onClick={() => setAsking(null)}
+            >
+              cancel
+            </button>
+          </>
+        ))
+      }
+    >
+      {acts.outcome === null && (
+        <ul className={styles.unmatched}>
+          {row.annotations.map((a) => (
+            <ChangedAnnotation key={a.annotation} row={a} />
+          ))}
+        </ul>
+      )}
+    </RowShell>
+  );
+}
+
+/** One annotation inside a document-changed group, with its own resolutions. */
+function ChangedAnnotation({ row }: { row: UnmatchedAnnotation }) {
+  const acts = useUnmatchedActs();
+  return (
+    <li className={styles.unmatchedItem}>
+      <span className={styles.target}>
+        p.{row.page} · “{row.quote}”
+      </span>
+      <span className={styles.candidate}>{whyUnmatched(row)}</span>
+      {acts.outcome === null ? (
+        <span className={styles.actions}>
+          <UnmatchedChoices row={row} acts={acts} />
+        </span>
+      ) : (
+        <span className={styles.candidate}>{acts.outcome}</span>
+      )}
+      {acts.refusal !== undefined && (
+        <span className={styles.refused} role="alert">
+          <span className={styles.problemGlyph} aria-hidden="true">
+            !
+          </span>{" "}
+          {acts.refusal}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The Unmatched rows and nothing else: what the panel draws, and the same
+ * component the dashboard draws them with (story 57) — one place a
+ * resolution lives, so it cannot drift between the two.
+ */
+export function UnmatchedRows({ rows }: { rows: LooseEndRow[] }) {
+  const { resolutionOf } = useResolutions();
+  return (
+    <ul className={styles.rows}>
+      {rows.map((row) => (
+        <Row
+          key={keyOf(row)}
+          row={row}
+          now={new Date()}
+          onAttach={() => undefined}
+          resolution={resolutionOf(row)}
+        />
+      ))}
+    </ul>
   );
 }

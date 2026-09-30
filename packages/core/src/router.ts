@@ -204,6 +204,19 @@ async function requirePage(ctx: Context): Promise<PageContext> {
   return { vaultPath: vault.path, index, pending };
 }
 
+const resolveInput = z.object({
+  source: z.string().min(1),
+  annotations: z.array(z.string().min(1)).min(1),
+});
+
+/** A core started without an engine has nothing to resolve. */
+function requireIngest<T>(ingest: T | null): T {
+  if (ingest === null) {
+    throw new VaultError("refused", "This core cannot read PDFs.");
+  }
+  return ingest;
+}
+
 /** Turn a VaultError into the BAD_REQUEST the formatter above unpacks. */
 async function refusing<T>(work: Promise<T>): Promise<T> {
   try {
@@ -982,6 +995,45 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) => {
         const { vault } = await requireVault(ctx);
         await refusing(undismiss(vault.path, input.subject, input.kind));
+      }),
+  }),
+  // The three resolutions of an Unmatched annotation (#421; spec #416
+  // stories 47–55). Behind Ingest's own queue; a batch names every
+  // annotation of a document-changed group and is one act.
+  unmatched: t.router({
+    relink: t.procedure
+      .input(
+        z.object({
+          source: z.string().min(1),
+          annotation: z.string().min(1),
+          candidate: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { ingest } = await requireVault(ctx);
+        return refusing(
+          requireIngest(ingest).relink(
+            input.source,
+            input.annotation,
+            input.candidate
+          )
+        );
+      }),
+    dropLinks: t.procedure
+      .input(resolveInput)
+      .mutation(async ({ ctx, input }) => {
+        const { ingest } = await requireVault(ctx);
+        return refusing(
+          requireIngest(ingest).dropLinks(input.source, input.annotations)
+        );
+      }),
+    treatAsNew: t.procedure
+      .input(resolveInput)
+      .mutation(async ({ ctx, input }) => {
+        const { ingest } = await requireVault(ctx);
+        return refusing(
+          requireIngest(ingest).treatAsNew(input.source, input.annotations)
+        );
       }),
   }),
   questions: t.router({

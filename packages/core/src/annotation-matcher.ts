@@ -169,6 +169,10 @@ type Tier = {
 
 const sameFamily = (k: Known, p: Present) => FAMILY[k.kind] === FAMILY[p.kind];
 
+/** Whether two kinds may stand for one another; *relink* offers only these. */
+export const sameKindFamily = (a: AnnotationKind, b: AnnotationKind) =>
+  FAMILY[a] === FAMILY[b];
+
 /**
  * A quote can only confirm identity when there is one: two highlights over
  * an image both quote "", and equal nothing is not equal text. Without this
