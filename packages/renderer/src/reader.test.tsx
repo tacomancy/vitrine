@@ -559,3 +559,81 @@ describe("Connections", () => {
     expect(screen.queryByText(/Nothing points/)).toBeNull();
   });
 });
+
+// Highlighting a selection (#426; stories 90–91, 94): the Reader offers the
+// five colours and a margin note over a selection, and sends an *intent* —
+// page, rectangles, colour, note — never quote text or PDF bytes.
+describe("highlighting a selection", () => {
+  const selection = { page: 2, rects: [[72, 600, 272, 612]] };
+
+  it("offers nothing until text is selected, then sends only the intent", async () => {
+    const sent: unknown[] = [];
+    await open(source(), `#/source/${PATH}`, {
+      "sources.highlight": (input: unknown) => {
+        sent.push(input);
+        return { id: "nm-1", block: "h4", quote: "what the core read" };
+      },
+    });
+    await screen.findByTestId("paper");
+    expect(screen.queryByRole("form", { name: /highlight/i })).toBeNull();
+
+    act(() => opened.props!.onSelect(selection));
+    const bar = await screen.findByRole("form", { name: /highlight/i });
+    const colours = within(bar)
+      .getAllByRole("button", { pressed: false })
+      .map((b) => b.getAttribute("aria-label"));
+    expect(colours).toEqual(expect.arrayContaining(["blue", "green", "pink"]));
+
+    fireEvent.click(within(bar).getByRole("button", { name: "green" }));
+    fireEvent.change(within(bar).getByLabelText("Margin note"), {
+      target: { value: "  check the control  " },
+    });
+    fireEvent.click(within(bar).getByRole("button", { name: "Highlight" }));
+
+    await waitFor(() =>
+      expect(sent).toEqual([
+        {
+          path: PATH,
+          page: 2,
+          rects: [[72, 600, 272, 612]],
+          colour: "green",
+          note: "check the control",
+        },
+      ])
+    );
+    // Done: the bar is gone and the page is read again for the new block.
+    await waitFor(() =>
+      expect(screen.queryByRole("form", { name: /highlight/i })).toBeNull()
+    );
+  });
+
+  it("says the core's own words when the selection is refused, and keeps the selection", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.highlight": () => {
+        throw new Error("There is no text under that selection.");
+      },
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+    const bar = await screen.findByRole("form", { name: /highlight/i });
+    fireEvent.click(within(bar).getByRole("button", { name: "Highlight" }));
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "There is no text under that selection."
+    );
+    expect(screen.getByRole("form", { name: /highlight/i })).toBeTruthy();
+  });
+
+  it("goes away when the selection is let go of, and on Escape", async () => {
+    await open(source());
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+    await screen.findByRole("form", { name: /highlight/i });
+    act(() => opened.props!.onSelect(null));
+    expect(screen.queryByRole("form", { name: /highlight/i })).toBeNull();
+    act(() => opened.props!.onSelect(selection));
+    fireEvent.keyDown(await screen.findByLabelText("Margin note"), {
+      key: "Escape",
+    });
+    expect(screen.queryByRole("form", { name: /highlight/i })).toBeNull();
+  });
+});

@@ -5,7 +5,8 @@ import { AnnotationOverlay } from "./AnnotationOverlay";
 import { ConnectionsPanel, ticksOf, type Tick } from "./Connections";
 import { classifyLink, refusal } from "./link-rule";
 import { FrameLines, usePageFrame } from "./page-frame";
-import { PdfDocument } from "./pdf-document";
+import { HighlightBar } from "./HighlightBar";
+import { PdfDocument, type PageSelection } from "./pdf-document";
 import styles from "./Reader.module.css";
 import rq from "./ResearchQuestion.module.css";
 import type { Arrival } from "./router";
@@ -198,6 +199,7 @@ function Paper({
   const trpc = useTRPC();
   const remember = useMutation(trpc.sources.readingPosition.mutationOptions());
   const [failed, setFailed] = useState<string | null>(null);
+  const [selection, setSelection] = useState<PageSelection | null>(null);
   const onMove = useCallback(
     ({ page, offset }: { page: number; offset: number }) =>
       remember.mutate({ path, page, offset }),
@@ -249,6 +251,7 @@ function Paper({
         start={opened}
         onMove={onMove}
         onFailed={setFailed}
+        onSelect={setSelection}
         overlay={(geometry) => (
           <AnnotationOverlay
             page={geometry}
@@ -258,6 +261,13 @@ function Paper({
           />
         )}
       />
+      {selection !== null && (
+        <HighlightBar
+          path={path}
+          selection={selection}
+          onDone={() => setSelection(null)}
+        />
+      )}
     </>
   );
 }

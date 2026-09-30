@@ -215,3 +215,82 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/*
+ * What offers a highlight: an overlay over the paper's foot, lifted by
+ * --shadow-3 rather than boxed (ADR 0023), so no hard edge sits on the page.
+ */
+.bar {
+  position: sticky;
+  bottom: var(--space-4);
+  align-self: center;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-top: calc(-1 * var(--space-4));
+  background: var(--color-bg-raised);
+  box-shadow: var(--shadow-3);
+  border-radius: var(--radius-md);
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.swatch {
+  all: unset;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--mark);
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
+.barNote {
+  flex: 1;
+  min-width: 200px;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  background: var(--color-bg-surface);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+}
+
+.barAction {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+  padding: var(--space-2) var(--space-3);
+}
+
+.barAction:hover,
+.barAction:focus-visible {
+  background: var(--color-bg-surface);
+}
+
+.barSaid {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

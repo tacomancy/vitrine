@@ -64,6 +64,10 @@ export type PdfAnnotation = {
   nm?: string;
   /** /Rect as `[left, bottom, right, top]`. */
   rect: number[];
+  /** /T, when the file has one: what Preview shows as the author. */
+  author?: string;
+  /** Whether the object carries a normal appearance stream (`/AP /N`). */
+  hasAppearance: boolean;
 };
 
 export type PdfAnnotations = {
@@ -75,20 +79,54 @@ export type PdfAnnotations = {
   pageText: string[];
 };
 
+/**
+ * What the Reader asked for, after the core has resolved it (#426). `rects`
+ * are `[left, bottom, right, top]` in PDF user space and only say *where*;
+ * which characters they cover, and so the quote, is the engine's to decide.
+ */
+export type HighlightRequest = {
+  /** 0-based. */
+  page: number;
+  rects: number[][];
+  /** 0–255 per channel. */
+  color: number[];
+  note: string;
+  /** Becomes `/NM`, and so the identity Ingest finds it by. */
+  nm: string;
+  author: string;
+  /** ISO time for `/CreationDate` and `/M`. */
+  at: string;
+};
+
+export type HighlightResult =
+  | { written: true; bytes: Uint8Array; quote: string; quads: number[][] }
+  | { written: false; reason: string };
+
 export type PdfEngine = {
   /** Read a PDF's title and author from its bytes; rejects `PdfUnreadable`. */
   metadata: (bytes: Uint8Array) => Promise<PdfMetadata>;
   /** Read every annotation of the researcher's, in page order; rejects `PdfUnreadable`. */
   annotations: (bytes: Uint8Array) => Promise<PdfAnnotations>;
+  /**
+   * The file with one highlight added, as a full rewrite; the input bytes
+   * are never touched. Refused, in words a person can read, when the
+   * selection covers no characters — an image or a scanned page (ADR 0007
+   * decision 6). Rejects `PdfUnreadable`.
+   */
+  highlight: (
+    bytes: Uint8Array,
+    request: HighlightRequest
+  ) => Promise<HighlightResult>;
   /** Stop the worker; a later job starts another. */
   close: () => Promise<void>;
 };
 
-type Job = "metadata" | "annotations";
+type Job = "metadata" | "annotations" | "highlight";
 
 type Reply = {
   id: number;
-  result: PdfMetadata | PdfAnnotations | { unreadable: string };
+  result:
+    PdfMetadata | PdfAnnotations | HighlightResult | { unreadable: string };
 };
 
 /**
@@ -125,7 +163,7 @@ export function createPdfEngine({
   // One job at a time: the worker holds one WebAssembly heap, and an answer
   // must be matched to the job that asked without a table of them.
   let queue: Promise<unknown> = Promise.resolve();
-  const run = <T>(job: Job, bytes: Uint8Array) =>
+  const run = <T>(job: Job, bytes: Uint8Array, args?: unknown) =>
     new Promise<T>((resolve, reject) => {
       queue = queue
         .catch(() => undefined)
@@ -146,7 +184,12 @@ export function createPdfEngine({
               };
               worker ??= start();
               // A copy: transferring would detach the caller's buffer.
-              worker.postMessage({ id, job, bytes: Uint8Array.from(bytes) });
+              worker.postMessage({
+                id,
+                job,
+                args,
+                bytes: Uint8Array.from(bytes),
+              });
             })
         );
     });
@@ -154,6 +197,8 @@ export function createPdfEngine({
   return {
     metadata: (bytes) => run<PdfMetadata>("metadata", bytes),
     annotations: (bytes) => run<PdfAnnotations>("annotations", bytes),
+    highlight: (bytes, request) =>
+      run<HighlightResult>("highlight", bytes, request),
     close: async () => {
       const going = worker;
       worker = null;

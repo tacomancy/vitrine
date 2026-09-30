@@ -10,7 +10,7 @@ import { pipeline } from "node:stream/promises";
  */
 export async function writeAtomically(
   path: string,
-  content: string
+  content: string | Uint8Array
 ): Promise<void> {
   const temp = join(dirname(path), `.${randomBytes(6).toString("hex")}.tmp`);
   await writeFile(temp, content, { flag: "wx" });

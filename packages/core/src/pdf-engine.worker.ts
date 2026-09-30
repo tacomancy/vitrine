@@ -7,11 +7,16 @@ import { createRequire } from "node:module";
 import { parentPort } from "node:worker_threads";
 import { init } from "@embedpdf/pdfium";
 // Type-only, so nothing sibling has to resolve at runtime.
-import type { AnnotationKind } from "./pdf-engine.ts";
+import type {
+  AnnotationKind,
+  HighlightRequest,
+  HighlightResult,
+} from "./pdf-engine.ts";
 
 type Job = {
   id: number;
-  job: "metadata" | "annotations";
+  job: "metadata" | "annotations" | "highlight";
+  args?: unknown;
   bytes: Uint8Array;
 };
 
@@ -156,6 +161,8 @@ type Glyph = {
   generated: boolean;
   hyphen: boolean;
   box: { left: number; right: number; bottom: number; top: number };
+  /** Full line height, the box every viewer's own highlighter fills; only read when a highlight is being written. */
+  loose: { left: number; right: number; bottom: number; top: number };
 };
 
 /**
@@ -164,7 +171,7 @@ type Glyph = {
  * they have no real box, but they are what separates words and lines when a
  * quote is joined.
  */
-function glyphs(m: Module, page: number): Glyph[] {
+function glyphs(m: Module, page: number, loose = false): Glyph[] {
   const text = m.FPDFText_LoadPage(page);
   const mem = scratch(m);
   try {
@@ -175,21 +182,36 @@ function glyphs(m: Module, page: number): Glyph[] {
       mem.alloc(8),
       mem.alloc(8),
     ];
+    const wide = loose ? mem.alloc(16) : 0;
     const out: Glyph[] = [];
     for (let i = 0; i < n; i++) {
       m.FPDFText_GetCharBox(text, i, l, r, b, t);
+      const box = {
+        left: mem.f64(l),
+        right: mem.f64(r),
+        bottom: mem.f64(b),
+        top: mem.f64(t),
+      };
+      let looseBox = box;
+      if (loose) {
+        m.FPDFText_GetLooseCharBox(text, i, wide);
+        // FS_RECTF is { left, top, right, bottom }.
+        const [ll, lt, lr, lb] = mem.f32(wide, 4) as [
+          number,
+          number,
+          number,
+          number,
+        ];
+        looseBox = { left: ll, right: lr, bottom: lb, top: lt };
+      }
       out.push({
         ch: String.fromCodePoint(m.FPDFText_GetUnicode(text, i)),
         generated: m.FPDFText_IsGenerated(text, i) === 1,
         // PDFium joins a hyphenated line break itself: the hyphen glyph is
         // kept, flagged, and no line break follows it.
         hyphen: m.FPDFText_IsHyphen(text, i) === 1,
-        box: {
-          left: mem.f64(l),
-          right: mem.f64(r),
-          bottom: mem.f64(b),
-          top: mem.f64(t),
-        },
+        box,
+        loose: looseBox,
       });
     }
     return out;
@@ -287,6 +309,7 @@ function readAnnotation(
     }
     const contents = annotString(m, annot, "Contents") ?? "";
     const nm = annotString(m, annot, "NM");
+    const author = annotString(m, annot, "T");
     const isText = kind === "text" || kind === "freetext";
     return {
       kind,
@@ -301,6 +324,8 @@ function readAnnotation(
       color,
       ...(nm === undefined || nm === "" ? {} : { nm }),
       rect: [left, bottom, right, top],
+      ...(author === undefined || author === "" ? {} : { author }),
+      hasAppearance: Boolean(m.EPDFAnnot_HasAppearanceStream(annot, 0)),
     };
   } finally {
     mem.free();
@@ -365,8 +390,189 @@ const readAnnotations = (bytes: Uint8Array) =>
     return { pages, fileId, annotations, pageText };
   });
 
-parentPort?.on("message", ({ id, job, bytes }: Job) => {
-  (job === "annotations" ? readAnnotations(bytes) : readMetadata(bytes)).then(
+const rectQuad = ({ left, right, bottom, top }: Rect) => [
+  left,
+  top,
+  right,
+  top,
+  left,
+  bottom,
+  right,
+  bottom,
+];
+
+/**
+ * The characters a selection covers, gathered into one rectangle per line of
+ * text and sized by the loose boxes (full line height), which is what a
+ * viewer's own highlighter fills. A glyph is covered by the same half-inside
+ * rule the quote is read back by, so the two cannot disagree.
+ */
+function snap(chars: Glyph[], rects: Rect[]): Rect[] {
+  const lines: Array<{ rect: Rect; last: number }> = [];
+  chars.forEach((c, i) => {
+    if (c.generated || (c.ch.trim() === "" && !c.hyphen)) return;
+    if (!rects.some((rect) => overlapFraction(c.box, rect) >= 0.5)) return;
+    const current = lines.at(-1);
+    const height = c.loose.top - c.loose.bottom;
+    const breaks =
+      current !== undefined &&
+      (chars
+        .slice(current.last + 1, i)
+        .some((b) => b.generated && /[\r\n]/.test(b.ch)) ||
+        Math.abs(c.loose.bottom - current.rect.bottom) > height * 0.5);
+    if (current === undefined || breaks) {
+      lines.push({ rect: { ...c.loose }, last: i });
+      return;
+    }
+    current.rect.left = Math.min(current.rect.left, c.loose.left);
+    current.rect.right = Math.max(current.rect.right, c.loose.right);
+    current.rect.bottom = Math.min(current.rect.bottom, c.loose.bottom);
+    current.rect.top = Math.max(current.rect.top, c.loose.top);
+    current.last = i;
+  });
+  return lines.map((l) => l.rect);
+}
+
+// D:YYYYMMDDHHmmSS+HH'mm' with the local offset, as PDF dates are written.
+function pdfDate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const offset = -d.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  return (
+    `D:${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+    `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}` +
+    `${sign}${p(Math.floor(Math.abs(offset) / 60))}'${p(Math.abs(offset) % 60)}'`
+  );
+}
+
+/** A full rewrite of the loaded document, PDFium's flag 2, never the incremental save (ADR 0007 decision 12). */
+function saveRewritten(m: Module, doc: number): Uint8Array {
+  const chunks: Buffer[] = [];
+  const pdfium = m.pdfium as unknown as {
+    HEAPU8: Uint8Array;
+    HEAP32: Int32Array;
+    addFunction: (fn: (...a: number[]) => number, sig: string) => number;
+    removeFunction: (ptr: number) => void;
+  };
+  const write = pdfium.addFunction((_self, data, size) => {
+    chunks.push(Buffer.from(pdfium.HEAPU8.subarray(data, data + size)));
+    return 1;
+  }, "iiii");
+  const mem = scratch(m);
+  try {
+    // struct FPDF_FILEWRITE { int version; WriteBlock fn; }
+    const target = mem.alloc(8);
+    pdfium.HEAP32[target / 4] = 1;
+    pdfium.HEAP32[target / 4 + 1] = write;
+    if (!m.FPDF_SaveAsCopy(doc, target, 2)) {
+      throw new Error("PDFium could not save the file");
+    }
+    return Buffer.concat(chunks);
+  } finally {
+    mem.free();
+    pdfium.removeFunction(write);
+  }
+}
+
+const writeHighlight = (bytes: Uint8Array, request: HighlightRequest) =>
+  withDocument(bytes, (m, doc): HighlightResult => {
+    const page = m.FPDF_LoadPage(doc, request.page);
+    if (!page) {
+      return { written: false, reason: "That page is not in this PDF." };
+    }
+    const mem = scratch(m);
+    try {
+      const chars = glyphs(m, page, true);
+      const rects = snap(
+        chars,
+        request.rects.map(([left, bottom, right, top]) => ({
+          left: left!,
+          bottom: bottom!,
+          right: right!,
+          top: top!,
+        }))
+      );
+      const quads = rects.map(rectQuad);
+      // From the quads about to be written, by the function Ingest reads them
+      // back with: the sidecar's quote and the next Ingest's cannot differ.
+      const quote = quoteUnder(chars, quads);
+      if (quote === "") {
+        return {
+          written: false,
+          reason:
+            "There is no text under that selection — it may be an image, or a scanned page — so it cannot be highlighted.",
+        };
+      }
+      const annot = m.FPDFPage_CreateAnnot(page, 9);
+      if (!annot) throw new Error("PDFium could not create the annotation");
+      try {
+        const wide = (value: string) => {
+          const text = Buffer.from(`${value}\0`, "utf16le");
+          const ptr = mem.alloc(text.length);
+          heap(m).set(text, ptr);
+          return ptr;
+        };
+        const floats = (values: number[]) => {
+          const ptr = mem.alloc(values.length * 4);
+          (m.pdfium as unknown as { HEAPF32: Float32Array }).HEAPF32.set(
+            values,
+            ptr / 4
+          );
+          return ptr;
+        };
+        for (const quad of quads) {
+          if (!m.FPDFAnnot_AppendAttachmentPoints(annot, floats(quad))) {
+            throw new Error("PDFium refused a quad");
+          }
+        }
+        const extent = rects.reduce((a, r) => ({
+          left: Math.min(a.left, r.left),
+          right: Math.max(a.right, r.right),
+          bottom: Math.min(a.bottom, r.bottom),
+          top: Math.max(a.top, r.top),
+        }));
+        // FS_RECTF is { left, top, right, bottom }.
+        m.FPDFAnnot_SetRect(
+          annot,
+          floats([extent.left, extent.top, extent.right, extent.bottom])
+        );
+        const [r, g, b] = request.color as [number, number, number];
+        m.FPDFAnnot_SetColor(annot, 0, r, g, b, 255);
+        const at = pdfDate(new Date(request.at));
+        // /T is the user, because Preview shows it on every note; /Contents
+        // is the note and nothing else, because every viewer shows it.
+        for (const [key, value] of [
+          ["NM", request.nm],
+          ["T", request.author],
+          ["Contents", request.note],
+          ["Subj", "Highlight"],
+          ["CreationDate", at],
+          ["M", at],
+        ] as const) {
+          if (!m.FPDFAnnot_SetStringValue(annot, key, wide(value))) {
+            throw new Error(`PDFium refused /${key}`);
+          }
+        }
+        if (!m.EPDFAnnot_GenerateAppearance(annot)) {
+          throw new Error("PDFium could not draw the highlight");
+        }
+      } finally {
+        m.FPDFPage_CloseAnnot(annot);
+      }
+      return { written: true, bytes: saveRewritten(m, doc), quote, quads };
+    } finally {
+      mem.free();
+      m.FPDF_ClosePage(page);
+    }
+  });
+
+parentPort?.on("message", ({ id, job, args, bytes }: Job) => {
+  (job === "annotations"
+    ? readAnnotations(bytes)
+    : job === "highlight"
+      ? writeHighlight(bytes, args as HighlightRequest)
+      : readMetadata(bytes)
+  ).then(
     (result) => parentPort?.postMessage({ id, result }),
     () =>
       parentPort?.postMessage({

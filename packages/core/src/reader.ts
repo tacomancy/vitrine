@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { readSidecar, type ReadingPosition } from "./annotation-sidecar.js";
 import { VaultError } from "./errors.js";
-import type { Ingest } from "./ingest.js";
+import type { HighlightIntent, Highlighted, Ingest } from "./ingest.js";
 import { questionText } from "./ingest.js";
 import { readPageFile } from "./page-file.js";
 import type { AnnotationKind } from "./pdf-engine.js";
@@ -311,6 +311,24 @@ export async function setReadingPosition(
   const { id } = await sourceOf(vaultPath, path);
   if (id === null || ingest === null) return { written: false };
   return ingest.readingPosition(id, position);
+}
+
+/**
+ * Highlight a passage and optionally give it a margin note (#426; spec #416
+ * stories 90–96). The intent says where; the core decides which characters
+ * that is, what the quote is, and what is written.
+ */
+export async function makeHighlight(
+  vaultPath: string,
+  ingest: Ingest | null,
+  path: string,
+  intent: HighlightIntent
+): Promise<Highlighted> {
+  await sourceOf(vaultPath, path);
+  if (ingest === null) {
+    throw new VaultError("refused", "This vault cannot read PDFs yet.");
+  }
+  return ingest.highlight(path, intent);
 }
 
 /**

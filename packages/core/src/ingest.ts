@@ -16,6 +16,8 @@ import {
 } from "./annotation-sidecar.js";
 import { pageWords, sameDocument } from "./document-fingerprint.js";
 import { errorMessage } from "./errors.js";
+import { writeAtomically } from "./atomic-write.js";
+import { HIGHLIGHT_RGB, type HighlightColour } from "./highlight-colour.js";
 import {
   PdfUnreadable,
   type AnnotationKind,
@@ -111,7 +113,21 @@ export type IngestOptions = {
    * which only the vault service can see.
    */
   isCurrent: () => boolean;
+  /** Who a highlight the Reader writes is by: `/T`, which Preview shows on every note. */
+  author: string;
 };
+
+/** What the Reader sends to make a highlight (#426): where and what, never PDF bytes. */
+export type HighlightIntent = {
+  /** 1-based. */
+  page: number;
+  /** `[left, bottom, right, top]` in PDF user space. */
+  rects: number[][];
+  colour: HighlightColour;
+  note: string;
+};
+
+export type Highlighted = { id: string; block: string; quote: string };
 
 /** A Source's block ids are `h` and a number; only markup and notes are link targets. */
 const HAS_BLOCK: ReadonlySet<AnnotationKind> = new Set([
@@ -193,6 +209,7 @@ export function createIngest({
   now,
   spawnQuestion,
   isCurrent,
+  author,
 }: IngestOptions) {
   // One run at a time. Two runs over the same Source would each plan its
   // blocks from the counter they read, and hand out the same `^h<n>` twice —
@@ -587,6 +604,75 @@ export function createIngest({
     };
   }
 
+  /**
+   * One highlight from the Reader, written into the PDF and then recorded by
+   * the same code that records every other annotation: the file is written,
+   * the index told, and `ingestOne` reads it back — so the identity, the
+   * block and the note are made by the path Preview's highlights take, and a
+   * Reader highlight cannot be one that Ingest would not have found.
+   */
+  async function highlightOne(
+    source: string,
+    intent: HighlightIntent
+  ): Promise<Highlighted> {
+    const found = candidates(null).find((c) => c.source === source);
+    if (found === undefined) {
+      throw new VaultError("refused", "That Source has no PDF in the vault.");
+    }
+    // Brought up to date first, so the annotations already in the file have
+    // their identities before ours joins them.
+    await ingestOne(found);
+    const [held] = index.select<{ hash: string | null }>(
+      "SELECT hash FROM files WHERE markdown = 0 AND path = ?",
+      found.pdf
+    );
+    if (held?.hash == null) {
+      throw new VaultError(
+        "refused",
+        "The PDF is not on this Mac yet: your sync folder has not delivered it."
+      );
+    }
+    const absolute = join(vaultPath, found.pdf);
+    const bytes = await readFile(absolute);
+    const nm = newId();
+    let made;
+    try {
+      made = await engine.highlight(bytes, {
+        page: intent.page - 1,
+        rects: intent.rects,
+        color: HIGHLIGHT_RGB[intent.colour],
+        note: intent.note,
+        nm,
+        author,
+        at: now().toISOString(),
+      });
+    } catch (cause) {
+      if (!(cause instanceof PdfUnreadable)) throw cause;
+      throw new VaultError(
+        "refused",
+        `This PDF could not be read because ${cause.reason}.`
+      );
+    }
+    if (!made.written) throw new VaultError("refused", made.reason);
+    // Temp file, then rename: a write that fails leaves the original as it was.
+    await writeAtomically(absolute, made.bytes);
+    await index.refresh([found.pdf]);
+    // A Source that had no `id:` has one now.
+    const after = candidates(new Set([found.pdf])).find(
+      (c) => c.source === source
+    );
+    await ingestOne(after ?? found);
+    const sidecar = after?.id ? await readSidecar(vaultPath, after.id) : null;
+    const entry = sidecar?.annotations.find((a) => a.id === nm);
+    if (entry?.block === undefined) {
+      throw new VaultError(
+        "refused",
+        "The highlight was written into the PDF, but could not be recorded yet."
+      );
+    }
+    return { id: entry.id, block: entry.block, quote: entry.quote };
+  }
+
   const tombstoned = (source: string, ids: readonly string[]) =>
     resolving(source, (sidecar, stamped) => {
       const done = tombstone(sidecar, ids, stamped, {
@@ -640,6 +726,13 @@ export function createIngest({
      * points so a caller says what it meant; they cannot differ in effect.
      * Batch acts pass every id, and all resolve or none does.
      */
+    /**
+     * Highlight a passage from the Reader (#426; ADR 0007 decisions 6 and
+     * 12). On Ingest's queue because it rewrites the PDF and the sidecar: a
+     * run beside it would read the file half-way through the swap.
+     */
+    highlight: (source: string, intent: HighlightIntent) =>
+      serially(() => highlightOne(source, intent)),
     dropLinks: tombstoned,
     treatAsNew: tombstoned,
     /**
