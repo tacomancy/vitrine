@@ -911,12 +911,6 @@ export function createIngest({
     highlight: (source: string, intent: HighlightIntent) =>
       serially(() => highlightOne(source, intent)),
     /**
-     * *Drop the links* and *treat as new* (stories 49–51, 54): the same
-     * Tombstone, because one terminal state means one thing. Two entry
-     * points so a caller says what it meant; they cannot differ in effect.
-     * Batch acts pass every id, and all resolve or none does.
-     */
-    /**
      * Recolour, re-note and remove an annotation from the Reader (#428), on
      * Ingest's queue for the reason `highlight` is.
      */
@@ -924,6 +918,12 @@ export function createIngest({
       serially(() => amendOne(source, annotation, intent)),
     remove: (source: string, annotation: string, confirmed: boolean) =>
       serially(() => removeOne(source, annotation, confirmed)),
+    /**
+     * *Drop the links* and *treat as new* (stories 49–51, 54): the same
+     * Tombstone, because one terminal state means one thing. Two entry
+     * points so a caller says what it meant; they cannot differ in effect.
+     * Batch acts pass every id, and all resolve or none does.
+     */
     dropLinks: tombstoned,
     treatAsNew: tombstoned,
     /**
