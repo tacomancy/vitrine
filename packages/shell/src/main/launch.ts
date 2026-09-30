@@ -77,3 +77,22 @@ export function machineName(options: {
   }
   return options.hostname;
 }
+
+/**
+ * The name a highlight's `/T` carries (#441), so Preview shows the person's
+ * name rather than the login's short name. Node cannot read the account's
+ * full name, so the shell asks `id -F`. Unreadable or blank is `undefined`,
+ * not a guess: the core then keeps its own default, and a highlight is never
+ * refused over a name.
+ */
+export function authorName(options: {
+  fullName: () => string;
+}): string | undefined {
+  try {
+    const name = options.fullName().trim();
+    if (name !== "") return name;
+  } catch {
+    // Falls through to the core's default.
+  }
+  return undefined;
+}
