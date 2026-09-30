@@ -269,6 +269,12 @@ export function createIngest({
     return id;
   }
 
+  // Set by `highlightOne` while it records a highlight that *is* a Question
+  // (#427): the spawn below is then the Reader's, made in the same pass that
+  // writes the sidecar, so the once-only flag exists before any later Ingest
+  // can read the `Q:` back and spawn a second.
+  let making: { nm: string; made?: Question } | null = null;
+
   /**
    * Every annotation whose current note is a `Q:` and that has spawned no
    * Question yet spawns one, and the sidecar remembers it (ADR 0013 d.8).
@@ -276,12 +282,6 @@ export function createIngest({
    * that dies between two leaves the first one spawned-and-recorded, and the
    * next Ingest — which evaluates every note again — makes only the rest.
    */
-  // Set by `highlightOne` while it records a highlight that *is* a Question
-  // (#427): the spawn below is then the Reader's, made in the same pass that
-  // writes the sidecar, so the once-only flag exists before any later Ingest
-  // can read the `Q:` back and spawn a second.
-  let making: { nm: string; made?: Question } | null = null;
-
   async function spawnQuestions(
     source: string,
     id: string,
