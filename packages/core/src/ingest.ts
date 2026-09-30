@@ -654,6 +654,15 @@ export function createIngest({
       );
     }
     if (!made.written) throw new VaultError("refused", made.reason);
+    // Another device's save that landed while the engine worked is not ours
+    // to overwrite: the sync service would keep both as a conflict copy, but
+    // only if we do not rename over the newer bytes first.
+    if (sha256(await readFile(absolute)) !== sha256(bytes)) {
+      throw new VaultError(
+        "refused",
+        "The PDF changed while the highlight was being made, so nothing was written. Try again."
+      );
+    }
     // Temp file, then rename: a write that fails leaves the original as it was.
     await writeAtomically(absolute, made.bytes);
     await index.refresh([found.pdf]);
@@ -721,18 +730,18 @@ export function createIngest({
         };
       }),
     /**
-     * *Drop the links* and *treat as new* (stories 49–51, 54): the same
-     * Tombstone, because one terminal state means one thing. Two entry
-     * points so a caller says what it meant; they cannot differ in effect.
-     * Batch acts pass every id, and all resolve or none does.
-     */
-    /**
      * Highlight a passage from the Reader (#426; ADR 0007 decisions 6 and
      * 12). On Ingest's queue because it rewrites the PDF and the sidecar: a
      * run beside it would read the file half-way through the swap.
      */
     highlight: (source: string, intent: HighlightIntent) =>
       serially(() => highlightOne(source, intent)),
+    /**
+     * *Drop the links* and *treat as new* (stories 49–51, 54): the same
+     * Tombstone, because one terminal state means one thing. Two entry
+     * points so a caller says what it meant; they cannot differ in effect.
+     * Batch acts pass every id, and all resolve or none does.
+     */
     dropLinks: tombstoned,
     treatAsNew: tombstoned,
     /**
