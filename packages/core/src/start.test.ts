@@ -1,4 +1,10 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -91,48 +97,47 @@ title: Odor cues during slow-wave sleep
 pdf: rasch2013.pdf
 ---
 `,
-      [pdf]: "",
     });
-    await writeFile(
-      join(vault, pdf),
-      await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
+    await mkdir(join(vault, "sources/pdf"), { recursive: true });
+    await copyFile(
+      join(fixtures, "pdf", "synthetic-body.pdf"),
+      join(vault, pdf)
     );
     running = await startCore({ ...(await support()), author: "Sarah Lehman" });
-    const call = async (
-      path: string,
-      body: unknown
-    ): Promise<{ error?: unknown }> => {
+    const call = async (path: string, body?: unknown) => {
       const res = await fetch(
         `http://127.0.0.1:${running!.port}/trpc/${path}`,
         {
-          method: "POST",
+          method: body === undefined ? "GET" : "POST",
           headers: {
             authorization: `Bearer ${running!.token}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify(body),
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         }
       );
-      return (await res.json()) as { error?: unknown };
+      return (await res.json()) as {
+        error?: { message: string };
+        result?: { data: { current: { ok: boolean } } };
+      };
     };
     expect((await call("vault.open", { path: vault })).error).toBeUndefined();
-
-    const highlight = () =>
-      call("sources.highlight", {
-        path: "sources/rasch2013.md",
-        page: 1,
-        rects: [[60, 678, 560, 696]],
-        colour: "green",
-        note: "",
-      });
     // The index builds after the open answers, and a highlight sent before
-    // the Source is indexed is refused, so retry until it is not.
-    let reply = await highlight();
-    for (let n = 0; reply.error && n < 50; n++) {
-      await new Promise((r) => setTimeout(r, 100));
-      reply = await highlight();
+    // the Source is indexed is refused. Waiting on the status, not retrying
+    // the highlight, keeps a real refusal visible instead of retried away.
+    for (let n = 0; n < 100; n++) {
+      if ((await call("vault.status")).result?.data.current.ok) break;
+      await new Promise((r) => setTimeout(r, 50));
     }
-    expect(reply.error).toBeUndefined();
+
+    const reply = await call("sources.highlight", {
+      path: "sources/rasch2013.md",
+      page: 1,
+      rects: [[60, 678, 560, 696]],
+      colour: "green",
+      note: "",
+    });
+    expect(reply.error?.message).toBeUndefined();
 
     const engine = createPdfEngine();
     try {
