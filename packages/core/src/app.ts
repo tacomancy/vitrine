@@ -56,6 +56,8 @@ export type AppOptions = {
   index?: IndexOptions;
   /** A stand-in for the PDF engine's worker; tests use one that traps (#418). */
   pdfWorker?: URL;
+  /** Who a highlight made in the Reader is by (`/T`); the login's name when absent. */
+  author?: string;
 };
 
 export type App = {
@@ -90,6 +92,7 @@ export function createApp({
   probeTimeoutMs,
   index,
   pdfWorker,
+  author,
 }: AppOptions): App {
   const app = new Hono();
   const events = createEvents();
@@ -117,6 +120,7 @@ export function createApp({
       events.emit({ type: "vaultSwitched", vault: switched }),
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
     pdfs,
+    ...(author === undefined ? {} : { author }),
     newId: newId ?? randomId,
     spawnQuestion: (q) =>
       context.questions.capture(q.text, {

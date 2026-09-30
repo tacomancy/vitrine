@@ -128,6 +128,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
     appSupportDir,
     ...(opts.now ? { now: opts.now } : {}),
     ...(opts.newId ? { newId: opts.newId } : {}),
+    ...(opts.author ? { author: opts.author } : {}),
     machine: opts.machine ?? "this-mac",
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),

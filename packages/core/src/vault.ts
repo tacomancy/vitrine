@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { watch as fsWatch } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { lastArrival, type LastArrival } from "./last-arrival.js";
 import {
@@ -89,6 +90,8 @@ export type VaultServiceOptions = {
   newId?: (() => string) | undefined;
   /** Makes the Question a `Q:` note spawns, through the capture path (#422). */
   spawnQuestion?: SpawnQuestion | undefined;
+  /** Who a Reader highlight is by (`/T`). */
+  author?: string | undefined;
   /** An Ingest run landed something: `ingestLanded` (#419). */
   onIngest?: ((run: IngestRun) => void) | undefined;
 };
@@ -221,6 +224,7 @@ export function createVaultService({
   pdfs,
   newId = () => randomUUID(),
   spawnQuestion,
+  author = userInfo().username,
   onIngest,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
@@ -378,6 +382,7 @@ export function createVaultService({
                 return spawnQuestion(question);
               },
               isCurrent: () => currentOf(index),
+              author,
             });
     } catch (cause) {
       pending.close();

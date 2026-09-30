@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { HIGHLIGHT_COLOURS } from "./highlight-colour.js";
 import {
   addArtifact,
   artifactPreview,
@@ -78,6 +79,7 @@ import {
 } from "./research-question.js";
 import {
   bringDown,
+  makeHighlight,
   readConnections,
   readSourcePage,
   setReadingPosition,
@@ -419,6 +421,25 @@ export const router = t.router({
             offset: input.offset,
           })
         );
+      }),
+    // A highlight from the Reader, with an optional margin note (#426). The
+    // renderer sends where and what colour; the quote comes back from the
+    // core's own characters, never from the selection.
+    highlight: t.procedure
+      .input(
+        pathInput.extend({
+          page: z.number().int().min(1),
+          rects: z
+            .array(z.tuple([z.number(), z.number(), z.number(), z.number()]))
+            .min(1),
+          colour: z.enum(HIGHLIGHT_COLOURS),
+          note: z.string().max(10_000).default(""),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { vault, ingest } = await requireVault(ctx);
+        const { path, ...intent } = input;
+        return refusing(makeHighlight(vault.path, ingest, path, intent));
       }),
     // *Locate* and *detach* on a *PDF missing* row (#423).
     locate: t.procedure

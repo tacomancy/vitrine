@@ -140,4 +140,5 @@ export type {
 } from "./vault-files.js";
 export { startCore } from "./start.js";
 export type { Connection, ReaderAnnotation, SourcePage } from "./reader.js";
+export type { Highlighted } from "./ingest.js";
 export type { ReadingPosition } from "./annotation-sidecar.js";

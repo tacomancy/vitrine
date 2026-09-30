@@ -31,6 +31,14 @@ export type PageGeometry = {
   height: number;
 };
 
+/**
+ * What the reader has selected, as an *intent's* geometry: a 1-based page
+ * and `[left, bottom, right, top]` rectangles in PDF user space, one per
+ * line the drag covers. Where, and nothing more — which characters that is
+ * belongs to the core (ADR 0007 decision 6).
+ */
+export type PageSelection = { page: number; rects: number[][] };
+
 export type PdfDocumentProps = {
   /** The core's `/pdf/<path>` for this paper. */
   url: string;
@@ -44,6 +52,8 @@ export type PdfDocumentProps = {
   onMove: (at: { page: number; offset: number }) => void;
   /** The document could not be opened, in words that carry no path. */
   onFailed: (reason: string) => void;
+  /** The reader selected text, or let go of the selection (null). */
+  onSelect: (selection: PageSelection | null) => void;
 };
 
 /** Page width in CSS pixels: the calm measure the Reader reads at, not the window's. */
@@ -115,6 +125,7 @@ export function PdfDocument({
   overlay,
   onMove,
   onFailed,
+  onSelect,
 }: PdfDocumentProps) {
   const [doc, setDoc] = useState<LoadedDoc | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -200,8 +211,18 @@ export function PdfDocument({
     };
   }, [doc, onMove]);
 
+  // Read when the drag or the keys are done, not on every selection change:
+  // the bar that offers a highlight should not flicker while the reader drags.
+  const selected = () => onSelect(selectionOf(scroller.current));
+
   return (
-    <div className={styles.scroller} ref={scroller} data-testid="pdf-scroller">
+    <div
+      className={styles.scroller}
+      ref={scroller}
+      data-testid="pdf-scroller"
+      onMouseUp={selected}
+      onKeyUp={selected}
+    >
       {doc !== null &&
         first !== null &&
         Array.from({ length: doc.pdf.numPages }, (_, i) => (
@@ -215,6 +236,50 @@ export function PdfDocument({
         ))}
     </div>
   );
+}
+
+/**
+ * The current selection as page-space rectangles, on the page it starts in.
+ * A selection running on to the next page is taken as far as its first: one
+ * highlight is one page's, and the reader can make another.
+ */
+function selectionOf(root: HTMLElement | null): PageSelection | null {
+  const selection = window.getSelection();
+  if (root === null || selection === null || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  const start =
+    range.startContainer instanceof Element
+      ? range.startContainer
+      : range.startContainer.parentElement;
+  const wrapper = start?.closest<HTMLElement>("[data-page]");
+  if (!wrapper || !root.contains(wrapper)) return null;
+  const at = wrapper.getBoundingClientRect();
+  const view = wrapper.dataset;
+  const width = Number(view["pdfWidth"]);
+  const height = Number(view["pdfHeight"]);
+  const x0 = Number(view["pdfX0"]);
+  const y0 = Number(view["pdfY0"]);
+  if (!(at.width > 0 && at.height > 0 && width > 0 && height > 0)) return null;
+  const rects = [...range.getClientRects()]
+    // A rect wholly outside this page belongs to the next one.
+    .filter(
+      (r) =>
+        r.width > 0 &&
+        r.height > 0 &&
+        r.bottom > at.top &&
+        r.top < at.bottom &&
+        r.right > at.left &&
+        r.left < at.right
+    )
+    .map((r) => [
+      x0 + ((r.left - at.left) / at.width) * width,
+      y0 + height - ((r.bottom - at.top) / at.height) * height,
+      x0 + ((r.right - at.left) / at.width) * width,
+      y0 + height - ((r.top - at.top) / at.height) * height,
+    ]);
+  return rects.length === 0
+    ? null
+    : { page: Number(wrapper.dataset["page"]), rects };
 }
 
 type LoadedDoc = {
@@ -322,6 +387,10 @@ function Page({
       ref={wrapper}
       className={styles.page}
       data-page={number}
+      data-pdf-x0={geometry.x0}
+      data-pdf-y0={geometry.y0}
+      data-pdf-width={geometry.width}
+      data-pdf-height={geometry.height}
       style={{ aspectRatio: `${geometry.width} / ${geometry.height}` }}
     >
       <canvas ref={canvas} className={styles.canvas} />
