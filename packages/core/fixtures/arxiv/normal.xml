@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <link href="http://arxiv.org/api/query?search_query=QUERY&amp;id_list=&amp;start=0&amp;max_results=100" rel="self" type="application/atom+xml"/>
+  <title type="html">ArXiv Query: search_query=QUERY&amp;id_list=&amp;start=0&amp;max_results=100</title>
+  <id>http://arxiv.org/api/Qm1f0pL9k3x8dT2Yz1vN5oJw4Zs</id>
+  <updated>2026-09-30T00:00:00-04:00</updated>
+  <opensearch:totalResults>2</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <opensearch:itemsPerPage>100</opensearch:itemsPerPage>
+  <entry>
+    <id>http://arxiv.org/abs/2609.01234v1</id>
+    <updated>2026-09-28T17:59:59Z</updated>
+    <published>2026-09-28T17:59:59Z</published>
+    <title>Probing the Overnight Benefit:
+  Consolidation or Encoding?</title>
+    <summary>  We ask whether the overnight benefit is attributable to
+consolidation &amp; not to encoding strength. Tagged #sleep and [[linked]] here;
+see also ![[embedded]] and a #2 that is no tag.
+</summary>
+    <author>
+      <name>Anna Müller</name>
+    </author>
+    <author>
+      <name>Jan Born</name>
+    </author>
+    <arxiv:doi>10.1000/xyz123</arxiv:doi>
+    <link href="http://arxiv.org/abs/2609.01234v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2609.01234v1" rel="related" type="application/pdf"/>
+    <arxiv:journal_ref>Journal of Sleep Research 12 (2026) 1-9</arxiv:journal_ref>
+    <arxiv:primary_category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.05678v1</id>
+    <updated>2026-09-29T10:00:00Z</updated>
+    <published>2026-09-29T10:00:00Z</published>
+    <title>Slow Oscillations Reconsidered</title>
+    <summary>A short abstract.</summary>
+    <author>
+      <name>Ana van der Meer</name>
+    </author>
+    <link href="http://arxiv.org/abs/2609.05678v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2609.05678v1" rel="related" type="application/pdf"/>
+    <arxiv:primary_category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+</feed>

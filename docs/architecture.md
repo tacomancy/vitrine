@@ -118,7 +118,7 @@ The first line is the timestamp and the field; `why:` (optional, one line, links
 ```
 vault.json                  { id, schema, created } — one schema number for this whole layout
 scouts/<id>.yaml            id, name, source {kind, api | url}, filter {query, tags}, assigned: [question ids],
-                            cadence, cap, lane, paused, created. Runtime never lives here. Read as found (ADR 0009's
+                            cadence, cap, lane, paused, created, search_back_to (optional: the first run's window opens there and its finds are Retroactive). Runtime never lives here. Read as found (ADR 0009's
                             rule): a file that does not parse is listed by name as unreadable, never skipped.
 annotations/<source-id>.json  the annotation identity index — § Annotation identity
 lexicon.json                per-Tag Seeds and Excluded Terms — the only Lexicon state that cannot be rebuilt (ADR 0018);
@@ -424,6 +424,8 @@ proposals     id, source_key (unique; ADR 0017), doi, title, authors (JSON), pub
 appearances   proposal_id, run_id, scout_id, seen_at, url
 triage        proposal_id, action (accept | reject | defer | promote | undo), at, batch (run id; set only by reject-this-run)
 ```
+
+`scout_runs.truncated` holds how many more matched than the ceiling let through (0 for a run that was not cut), so *stopped at 500 — N more matched* reads it directly; `window_to` is stamped when the run starts and a failed run's is simply never read. A Proposal's `source_key` is `arxiv:<id>` (version stripped); *held* matches it, or its `doi`, against each Source's and stub's `doi` and arXiv-normalised `url` (`https://arxiv.org/abs|pdf/<id>[v<n>][.pdf]`, and a `10.48550/arXiv.<id>` DOI). Appearances are unique per `(proposal, scout, url)`, so a version found again adds nothing and a `v2` adds one.
 
 Health per Scout is a query: last `ok` run, last run with `new > 0`, and the newest run's `outcome`/`error_kind`; *broken* = newest run `failed`. Accept rate (beat 9) is `accept` over `accept + reject` in `triage`, bucketed by `at`, counting only Proposals the Scout placed in Review — a Proposal with a `promote` row is excluded, since it was moved by hand (ADR 0039 d.4) — and net of `undo` rows, each of which cancels the reject or defer before it (d.6). `batch` is recorded so beat 9 can exclude batched retroactive rejects without a migration (d.5). The queue is at schema version 4.
 

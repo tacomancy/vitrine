@@ -8,6 +8,7 @@ import {
   inspectArtifact,
   showStoredArtifact,
 } from "./artifact.js";
+import type { ArxivClient } from "./arxiv.js";
 import type { Events } from "./events.js";
 import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
@@ -45,6 +46,13 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
+import { readScouts } from "./scout-file.js";
+import {
+  acceptProposal,
+  readQueue,
+  runScout,
+  type ScoutDeps,
+} from "./scouts.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
@@ -97,6 +105,8 @@ export type Context = {
   events: Events;
   /** The clock a Revision is stamped by, and ADR 0006 decision 5's window; both pinned by tests. */
   now: () => Date;
+  /** The one arXiv client every Scout shares (ADR 0016 decision 3). */
+  arxiv: ArxivClient;
   /** This machine's computer name, which a linked Artifact records (ADR 0035 decision 5); tests pass any string. */
   machine: string;
   coalesceMs: number;
@@ -218,6 +228,19 @@ async function requireVault(ctx: Context) {
   const opened = await ctx.vault.opened();
   if (opened === null) throw noVault();
   return opened;
+}
+
+/** What a Scout's run, read or accept needs of the open vault. */
+async function scoutDeps(ctx: Context): Promise<ScoutDeps> {
+  const { vault, index, queue } = await requireVault(ctx);
+  return {
+    vaultPath: vault.path,
+    index,
+    queue,
+    arxiv: ctx.arxiv,
+    events: ctx.events,
+    now: ctx.now,
+  };
 }
 
 /** What a page write needs of the open vault (`research-question.ts`). */
@@ -367,6 +390,27 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return destinations(index, { query: input.query });
       }),
+  }),
+  // The Scout Queue (beat 6, #448): a Scout is a file read as found, a run
+  // turns what arXiv holds into Proposals, and accept is the one write.
+  scouts: t.router({
+    list: t.procedure.query(async ({ ctx }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(readScouts(vault.path));
+    }),
+    runNow: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(runScout(await scoutDeps(ctx), input.scoutId))
+      ),
+    queue: t.procedure.query(async ({ ctx }) =>
+      refusing(readQueue(await scoutDeps(ctx)))
+    ),
+    accept: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(acceptProposal(await scoutDeps(ctx), input.proposalId))
+      ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
   // creates a paper until Scouts land, and the citekey rule that beat reuses.

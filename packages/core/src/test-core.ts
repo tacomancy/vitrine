@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
+import type { ArxivClock } from "./arxiv.js";
 import type { Host } from "./host.js";
 import { readOutline, type WriteResult } from "./vault-files.js";
 import type { CoreEvent } from "./events.js";
@@ -36,6 +37,34 @@ export function fakeHost(
     trash: () => Promise.resolve(),
   };
 }
+
+/**
+ * An arXiv clock that only moves when someone sleeps on it: the three-second
+ * gap is read off it and asserted, never waited for.
+ */
+export function virtualClock(): ArxivClock & { slept: number[] } {
+  let at = 1_000_000;
+  const slept: number[] = [];
+  return {
+    now: () => at,
+    sleep: (ms) => {
+      slept.push(ms);
+      at += ms;
+      return Promise.resolve();
+    },
+    slept,
+  };
+}
+
+/** The URL a `fetch` was asked for, whichever of its three forms it came in. */
+export const urlOf = (input: string | URL | Request): URL =>
+  new URL(
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url
+  );
 
 export async function tmp(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), `vitrine-${prefix}-`));
@@ -129,6 +158,7 @@ export async function core(opts: CoreOptions = {}): Promise<{
     ...(opts.now ? { now: opts.now } : {}),
     ...(opts.newId ? { newId: opts.newId } : {}),
     ...(opts.author ? { author: opts.author } : {}),
+    ...(opts.arxiv ? { arxiv: opts.arxiv } : {}),
     machine: opts.machine ?? "this-mac",
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),

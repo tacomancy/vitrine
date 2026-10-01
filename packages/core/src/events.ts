@@ -24,7 +24,10 @@ export type CoreEvent =
     }
   // A Source's whole PDF was replaced (#420): one event however many of its
   // annotations could not be re-matched, which are grouped under it.
-  | { type: "documentChanged"; source: string };
+  | { type: "documentChanged"; source: string }
+  // A Scout's run ended, however it ended (ADR 0016 decision 13): the run row
+  // carries the outcome, and what shows it re-reads on this.
+  | { type: "scoutFinished"; scoutId: string; runId: number };
 
 export type Events = {
   emit: (event: CoreEvent) => void;
