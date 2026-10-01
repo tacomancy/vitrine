@@ -343,7 +343,7 @@ The open Questions a Scout is run on behalf of. Stamped on every Proposal's Orig
 _Avoid_: Briefed on, matched (implies a score), linked (that is Related), watching (that is the source relation)
 
 **Due** (of a Scout):
-Its cadence has elapsed since its last completed run. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. *Run now* runs a Scout whether or not it is due.
+Its cadence has elapsed since its last completed run — one that finished without failing. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. A failed run does not complete: a network or HTTP failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt, since asking again sooner gets the same answer. *Run now*, or editing the Query, runs it whether or not it is due.
 _Avoid_: Scheduled, overdue, late
 
 **Query**:
@@ -399,21 +399,25 @@ _Avoid_: Backfill, historical, catch-up
 One run returning a Proposal — the Scout, the run, when, and the link. A Proposal keeps every Appearance; a revised preprint or a second Scout's find is a new Appearance on the same card, never a second card. The mechanism Corroboration is built on.
 _Avoid_: Duplicate, hit, occurrence
 
+**Held** (of a Proposal):
+A Proposal whose Source key is already a Source or Source stub in the vault — one the researcher made by hand, or one an earlier accept wrote before its record caught up. It is never a card: the run and the Scout's group count it, *already in your vault*, each linking to the file. Triage records nothing for it and Accept rate ignores it; nothing is written to the file it matches.
+_Avoid_: Duplicate, skipped, filtered
+
 **Lane**:
 Where a Proposal sits for attention: *Review* (a queue; accept/reject is meaningful) or *Skim* (a feed; scrolling past is the interaction, items age out). Set by the Scout as a prior, then promoted or demoted by ranking — or promoted by hand, since Lanes govern attention, not capability.
 
 **Triage** (of a Proposal):
-Acting on a Proposal from the Queue: *accept* (writes a Source stub), *reject* (kept, never proposed again, no longer shown), *defer* (returns with that Scout's next completed run), or *promote* (Skim to Review). *Next* moves on and records nothing. Every triage act is recorded with its time; Accept rate is read from that record.
+Acting on a Proposal from the Queue: *accept* (writes a Source stub), *reject* (kept, never proposed again, no longer shown), *defer* (returns with that Scout's next completed run), or *promote* (Skim to Review). *Pass* moves on and records nothing; the card goes to the bottom of the session's stack. Every triage act is recorded with its time; Accept rate is read from that record. *Reject* and *defer* can be undone while the card is still in the session's stack; *accept* cannot, because it wrote a file (ADR 0039).
 _Avoid_: Archive, dismiss, snooze (for defer), delete
 
 **Corroboration**:
 The same work surfacing from several Scouts, merged into one Proposal that keeps every appearance. A ranking signal; a merged card lands in the highest Lane any component reached.
 
 **Accept rate**:
-Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal.
+Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal. Only a Proposal the Scout itself placed in Review counts: one the researcher promoted from Skim by hand and then accepted writes a stub like any other, but says something about the researcher's choosing, not about the Scout's brief.
 
 **Source health**:
-Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout, and said in one sentence per error kind that every surface renders verbatim (ADR 0032). *Broken* means the most recent run did not succeed, and takes the *wrong* Voice. A Scout that has not looked — never run, Paused, or Blocked on credentials — takes *not yet*, and a Quiet field takes *claim*. Fields arriving systematically empty is not a health state: the items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed.
+Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), interrupted (the app closed before the run finished), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout, and said in one sentence per error kind that every surface renders verbatim (ADR 0032). *Broken* means the most recent run did not succeed, and takes the *wrong* Voice. A Scout that has not looked — never run, Paused, or Blocked on credentials — takes *not yet*, and a Quiet field takes *claim*. Fields arriving systematically empty is not a health state: the items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed.
 _Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old, never for a partial Extraction)
 
 **Quiet field**:
