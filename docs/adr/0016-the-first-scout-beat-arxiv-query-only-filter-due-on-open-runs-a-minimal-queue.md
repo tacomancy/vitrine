@@ -78,3 +78,19 @@ Decision 10 is amended in two places by **ADR 0032**, which settles how a Scout 
 **Two things decision 10's list did not name.** *Blocked on credentials* (ADR 0017, ADR 0025) and *paused* are not failures and not quiet fields — a Scout that has not looked cannot claim the field is quiet — so both take the *not yet* Voice, with the reason it has not looked. And fields arriving systematically empty is not a health state at all: those items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed (ADR 0032 decision 6). Prototype 10's `stale` labelling is withdrawn there; *stale* keeps `CONTEXT.md`'s narrow meaning.
 
 Beats 6 (#173), 7 (#174), 9 (#176) and 12 (#182) inherit all of it, and none of their spec grills reopens the Voice assignment or the Warrant's contents, on the terms decision 6 set for its own list.
+
+## Update (2026-10-01, #173)
+
+The spec grill for this beat closed seven cases the decisions above left open; **ADR 0039** records them, and none reopens a decision here.
+
+**Decision 3's *due* is made precise.** It reads the last *completed* run, and a failed run does not complete: a network, HTTP or interrupted failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt. *Run now*, or editing the Query, overrides it.
+
+**Decision 4's unparseable file has a place.** It is surfaced in the rail by name in the *wrong* voice, and as a *Broken plumbing* row (ADR 0039 decision 7).
+
+**Decision 6's keyboard list gains its undo.** Reject and defer are undoable for as long as the card is in the session's stack; accept is not (ADR 0039 decision 6). `P` pass puts the card at the bottom of the session's stack and records nothing. This also answers the part of the 2026-09-26 update that left undo to the beat that first ships one for a machine proposal; beat 8's inferred-link review inherits the same scope for its own *reject*.
+
+**Decision 8's log learns two things.** A Proposal the researcher promoted from Skim by hand is not evidence about the Scout, so it does not count toward Accept rate; and a *reject this run* row records the run it came from (ADR 0039 decisions 4 and 5).
+
+**Decision 9's accept has a guard.** A Proposal whose Source key the vault already holds is *held* rather than proposed, and the check is the accept function's own (ADR 0039 decision 1).
+
+**Decision 10's list of error kinds gains `interrupted`**, and decision 12's *Broken plumbing* row shows it with the others.
