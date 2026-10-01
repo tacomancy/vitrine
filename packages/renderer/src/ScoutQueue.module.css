@@ -1,0 +1,136 @@
+/*
+ * The Scout Queue's tracer (#448): the Scouts' own files, one card in hand,
+ * one key. A pane on the window's gutter, never a line between panes
+ * (ADR 0023 decision 1); the rail, the Lanes and the rest are later tickets'.
+ */
+.surface {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  overflow-y: auto;
+}
+
+.header {
+  min-height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.scouts {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-3);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.scout button {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.line {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.card {
+  margin: var(--space-3) var(--space-5) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  outline-offset: 2px;
+}
+
+.why {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.fields dt {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A field the source did not supply, said plainly: never a blank, never a guess. */
+.missing {
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.abstract {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  white-space: pre-line;
+}
+
+.actions {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.notLink {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}

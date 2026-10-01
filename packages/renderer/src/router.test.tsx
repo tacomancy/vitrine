@@ -39,7 +39,7 @@ describe("the window's location is the URL hash", () => {
   });
 
   it("treats a hash it does not know as the Inbox", async () => {
-    window.location.hash = "#/scouts";
+    window.location.hash = "#/nowhere";
     renderApp(answers);
     expect(
       await screen.findByRole("region", { name: "Question Inbox" })
@@ -134,7 +134,7 @@ describe("an Address takes its Kind's name", () => {
   });
 
   it("says nothing about a hash nobody ever wrote", async () => {
-    window.location.hash = "#/scouts";
+    window.location.hash = "#/nowhere";
     renderApp(answers);
     const inbox = await screen.findByRole("region", { name: "Question Inbox" });
     expect(window.location.hash).toBe("#/inbox");

@@ -11,6 +11,7 @@ import { GlobalCommand } from "./GlobalCommand";
 import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
+import { ScoutQueue } from "./ScoutQueue";
 import { Reader } from "./Reader";
 import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
@@ -182,6 +183,7 @@ function Workspace({ vault }: { vault: Vault }) {
               }
             />
           )}
+          {route.surface === "scouts" && <ScoutQueue />}
           {route.surface === "settings" && <Settings vault={vault} />}
           {route.surface === "loose-ends" && (
             <LooseEnds

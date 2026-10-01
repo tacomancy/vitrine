@@ -28,8 +28,9 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 1: pending Revisions (#217).
  * 2: open days (#243).
  * 3: the PDF folder's last arrival (#379).
+ * 4: Scout runs, Proposals, Appearances and the triage log (#448).
  */
-export const QUEUE_SCHEMA_VERSION = 3;
+export const QUEUE_SCHEMA_VERSION = 4;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -59,6 +60,61 @@ CREATE TABLE last_arrival (
 );
 `;
 
+// The Scout tables (ADR 0016, ADR 0039; `docs/architecture.md` § Scouts).
+// Nothing here is inferred later from the absence of a row: what the
+// researcher did, or what the machine could not do, is a row — which is why
+// `held` and `interrupted` are values and not flags, and why a triage act is
+// never edited or deleted. `truncated` holds how many more matched than the
+// ceiling let through, so 0 is a run that was not cut.
+const SCOUTS = `
+CREATE TABLE scout_runs (
+  id INTEGER PRIMARY KEY,
+  scout_id TEXT NOT NULL,
+  started TEXT NOT NULL,
+  finished TEXT,
+  outcome TEXT CHECK (outcome IN ('ok', 'failed')),
+  error_kind TEXT CHECK (error_kind IN ('network', 'http', 'rate_limited', 'parse', 'interrupted')),
+  error_message TEXT,
+  window_from TEXT NOT NULL,
+  window_to TEXT NOT NULL,
+  retroactive INTEGER NOT NULL DEFAULT 0,
+  fetched INTEGER NOT NULL DEFAULT 0,
+  new INTEGER NOT NULL DEFAULT 0,
+  held INTEGER NOT NULL DEFAULT 0,
+  truncated INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX scout_runs_scout ON scout_runs (scout_id);
+CREATE TABLE proposals (
+  id INTEGER PRIMARY KEY,
+  source_key TEXT NOT NULL UNIQUE,
+  doi TEXT,
+  title TEXT NOT NULL,
+  authors TEXT NOT NULL,
+  published TEXT NOT NULL,
+  venue TEXT,
+  abstract TEXT NOT NULL,
+  url TEXT NOT NULL,
+  lane TEXT NOT NULL CHECK (lane IN ('review', 'skim')),
+  state TEXT NOT NULL CHECK (state IN ('pending', 'deferred', 'accepted', 'rejected', 'held')),
+  first_seen TEXT NOT NULL,
+  stub_path TEXT
+);
+CREATE TABLE appearances (
+  proposal_id INTEGER NOT NULL REFERENCES proposals (id),
+  run_id INTEGER NOT NULL REFERENCES scout_runs (id),
+  scout_id TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  url TEXT NOT NULL,
+  UNIQUE (proposal_id, scout_id, url)
+);
+CREATE TABLE triage (
+  proposal_id INTEGER NOT NULL REFERENCES proposals (id),
+  action TEXT NOT NULL CHECK (action IN ('accept', 'reject', 'defer', 'promote', 'undo')),
+  at TEXT NOT NULL,
+  batch INTEGER REFERENCES scout_runs (id)
+);
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -69,6 +125,7 @@ const MIGRATIONS: readonly string[] = [
   PENDING_REVISIONS,
   OPEN_DAYS,
   LAST_ARRIVAL,
+  SCOUTS,
 ];
 
 export class QueueOpenError extends Error {}

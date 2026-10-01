@@ -100,6 +100,7 @@ describe("the window with a vault open", () => {
       ["⚙", "#/settings"],
       ["Question Inbox", "#/inbox"],
       ["Experiment view", "#/experiments"],
+      ["Scout Queue", "#/scouts"],
       ["Loose Ends", "#/loose-ends"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(

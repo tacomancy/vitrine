@@ -6,6 +6,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
 import { pdfBytes } from "./reader.js";
+import { createArxivClient, type ArxivOptions } from "./arxiv.js";
 import { createEvents } from "./events.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
@@ -58,6 +59,8 @@ export type AppOptions = {
   pdfWorker?: URL;
   /** Who a highlight made in the Reader is by (`/T`); the login's name when absent. */
   author?: string;
+  /** The arXiv client's `fetch`, clock and endpoint; tests and the demo's stand-in server replace them, nothing else does. */
+  arxiv?: Partial<ArxivOptions>;
 };
 
 export type App = {
@@ -93,6 +96,7 @@ export function createApp({
   index,
   pdfWorker,
   author,
+  arxiv,
 }: AppOptions): App {
   const app = new Hono();
   const events = createEvents();
@@ -177,6 +181,14 @@ export function createApp({
     questions: createQuestionService({ vault, now, newId }),
     events,
     now: now ?? (() => new Date()),
+    arxiv: createArxivClient({
+      fetch: arxiv?.fetch ?? fetch,
+      clock: arxiv?.clock ?? {
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      },
+      ...(arxiv?.endpoint === undefined ? {} : { endpoint: arxiv.endpoint }),
+    }),
     machine: machine ?? hostname(),
     coalesceMs: historyWindowMs,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,

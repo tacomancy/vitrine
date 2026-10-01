@@ -1,4 +1,11 @@
-import { EXPERIMENTS, INBOX, LOOSE_ENDS, SETTINGS, type Route } from "./router";
+import {
+  EXPERIMENTS,
+  INBOX,
+  LOOSE_ENDS,
+  SCOUTS,
+  SETTINGS,
+  type Route,
+} from "./router";
 
 /**
  * The product's own map: the eight Surfaces the brief names, in
@@ -56,7 +63,7 @@ export const SURFACES: readonly Entry[] = [
     lit: (at) => at.surface === "experiment",
     holds: { kind: "experiment", hint: "designed here, run elsewhere" },
   },
-  { name: "Scout Queue" },
+  { name: "Scout Queue", to: SCOUTS },
   { name: "Vault" },
 ];
 

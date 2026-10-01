@@ -341,12 +341,14 @@ describe("queue.sqlite", () => {
 
     const db = new DatabaseSync(file);
     try {
-      expect(QUEUE_SCHEMA_VERSION).toBe(3);
+      expect(QUEUE_SCHEMA_VERSION).toBe(4);
       expect(
         (db.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(3);
+      ).toBe(4);
       expect(db.prepare("SELECT * FROM last_arrival").all()).toEqual([]);
+      // The Scout tables arrive empty beside the rows the older database held.
+      expect(db.prepare("SELECT * FROM scout_runs").all()).toEqual([]);
       expect(db.prepare("SELECT day FROM open_days").all()).toContainEqual({
         day: "2026-09-20",
       });

@@ -208,15 +208,35 @@ async function makeStub(
   fields: StubFields,
   held?: { id: string; pdf: string }
 ): Promise<Stub> {
-  const base = citekeyFor(fields);
+  return writeUnderCitekey(vaultPath, index, citekeyFor(fields), (citekey) =>
+    stubFile(citekey, fields, held)
+  );
+}
+
+/**
+ * A Scout's accept writes the same kind of record as a hand stub and must
+ * take its citekey from the same free names, so it goes through the same
+ * queue: two that overlapped would pick one name (`createSourceStub`).
+ */
+export function claimStub(
+  vaultPath: string,
+  index: VaultIndex,
+  base: string,
+  render: (citekey: string) => string
+): Promise<Stub> {
+  return serially(() => writeUnderCitekey(vaultPath, index, base, render));
+}
+
+async function writeUnderCitekey(
+  vaultPath: string,
+  index: VaultIndex,
+  base: string,
+  render: (citekey: string) => string
+): Promise<Stub> {
   for (let n = 0; ; n++) {
     const citekey = base + suffix(n);
     const path = `${FOLDER}/${citekey}.md`;
-    const created = await createFile(
-      vaultPath,
-      path,
-      stubFile(citekey, fields, held)
-    );
+    const created = await createFile(vaultPath, path, render(citekey));
     if (created.written) {
       await index.own(path, created.content);
       return { path, citekey };
