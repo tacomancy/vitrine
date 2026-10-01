@@ -47,6 +47,8 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { readScouts } from "./scout-file.js";
+import { readHealth } from "./scout-health.js";
+import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
   readQueue,
@@ -405,6 +407,16 @@ export const router = t.router({
       ),
     queue: t.procedure.query(async ({ ctx }) =>
       refusing(readQueue(await scoutDeps(ctx)))
+    ),
+    // How each Scout is doing, in its Voice (ADR 0032): derived from the run
+    // rows on every read, so no surface keeps a copy that could disagree.
+    health: t.procedure.query(async ({ ctx }) =>
+      refusing(readHealth(await scoutDeps(ctx)))
+    ),
+    // The scheduled check by name: what the hourly timer and a vault open
+    // run, so a caller can ask for it at a moment of its choosing.
+    checkDue: t.procedure.mutation(async ({ ctx }) =>
+      refusing(checkDue(await scoutDeps(ctx)))
     ),
     accept: t.procedure
       .input(z.object({ proposalId: z.number().int() }))

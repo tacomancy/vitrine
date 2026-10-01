@@ -27,7 +27,7 @@ import {
   openPendingRevisions,
   type PendingRevisions,
 } from "./pending-revisions.js";
-import { openQueue, QueueOpenError } from "./queue.js";
+import { closeInterrupted, openQueue, QueueOpenError } from "./queue.js";
 import { splicePendingRevisions } from "./page-write.js";
 import {
   pdfFolderOutside,
@@ -94,6 +94,10 @@ export type VaultServiceOptions = {
   author?: string | undefined;
   /** An Ingest run landed something: `ingestLanded` (#419). */
   onIngest?: ((run: IngestRun) => void) | undefined;
+  /** A vault became the current one and is ready to be read: Scouts check what is due (#449). */
+  onOpened?: (() => void) | undefined;
+  /** A run left unfinished by a quit was closed as interrupted: `scoutFinished` is raised for it too (#449). */
+  onRunClosed?: ((run: { scoutId: string; runId: number }) => void) | undefined;
 };
 
 export type VaultService = {
@@ -226,6 +230,8 @@ export function createVaultService({
   spawnQuestion,
   author = userInfo().username,
   onIngest,
+  onOpened,
+  onRunClosed,
 }: VaultServiceOptions): VaultService {
   const lastVaultFile = join(appSupportDir, LAST_VAULT_FILE);
   let opened: Opened | null = null;
@@ -283,6 +289,9 @@ export function createVaultService({
     // One handle, two tables (`queue.ts`): the version and its migrations
     // belong to the database, not to whichever table opened it first.
     const queue = await openQueue(absolute).catch(refusingToOpen);
+    // Before anything can start a run: a row left unfinished by a quit or a
+    // crash is closed here, so the first check sees it as the failure it was.
+    for (const run of closeInterrupted(queue, now())) onRunClosed?.(run);
     const days = openDays(queue);
     const arrival = lastArrival(queue);
     const pending = openPendingRevisions(queue, {
@@ -648,6 +657,7 @@ export function createVaultService({
     // one that changed while the app was closed, is not an event to wait for.
     void index.sweep().then(() => runIngest(ingest, null));
     void checkPdfFolder(o);
+    onOpened?.();
   }
 
   // A remembered vault that has moved or gone is First run, not a fault, so

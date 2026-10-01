@@ -29,8 +29,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 2: open days (#243).
  * 3: the PDF folder's last arrival (#379).
  * 4: Scout runs, Proposals, Appearances and the triage log (#448).
+ * 5: the Query each run asked, so "edited since it last ran cleanly" and
+ *    "saving an edited Query overrides a wait" are read off rows (#449).
  */
-export const QUEUE_SCHEMA_VERSION = 4;
+export const QUEUE_SCHEMA_VERSION = 5;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -115,6 +117,13 @@ CREATE TABLE triage (
 );
 `;
 
+// A run's Query is a fact about the run, like its window: the Scout's file
+// holds only what the Query is now, and nothing in it says whether it was
+// edited since the last clean run. Null on a run from before this column.
+const SCOUT_RUN_QUERY = `
+ALTER TABLE scout_runs ADD COLUMN query TEXT;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -126,7 +135,28 @@ const MIGRATIONS: readonly string[] = [
   OPEN_DAYS,
   LAST_ARRIVAL,
   SCOUTS,
+  SCOUT_RUN_QUERY,
 ];
+
+/**
+ * A run with a start and no finish is a quit, a crash or a closed lid. Left
+ * alone it would be passed over by health, which reads the newest *finished*
+ * run, and a Scout whose last real run was long ago would read as quiet or as
+ * never run. It is closed as failed rather than deleted: a request that
+ * crashes the core every time would then leave no trace anywhere (ADR 0039
+ * decision 2). Runs on open, before the first check, and leaves `window_to` unread.
+ */
+export function closeInterrupted(
+  queue: DatabaseSync,
+  now: Date
+): Array<{ scoutId: string; runId: number }> {
+  const closed = queue
+    .prepare(
+      "UPDATE scout_runs SET finished = ?, outcome = 'failed', error_kind = 'interrupted', error_message = 'Vitrine closed before this check finished.' WHERE finished IS NULL RETURNING id, scout_id"
+    )
+    .all(now.toISOString()) as Array<{ id: number; scout_id: string }>;
+  return closed.map((r) => ({ scoutId: r.scout_id, runId: r.id }));
+}
 
 export class QueueOpenError extends Error {}
 

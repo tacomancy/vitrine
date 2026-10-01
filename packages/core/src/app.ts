@@ -8,6 +8,7 @@ import { artifactBytes } from "./artifact.js";
 import { pdfBytes } from "./reader.js";
 import { createArxivClient, type ArxivOptions } from "./arxiv.js";
 import { createEvents } from "./events.js";
+import { checkDue } from "./scout-schedule.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
 import { STALLED_OPEN_DAYS } from "./loose-ends.js";
@@ -22,6 +23,8 @@ import {
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
 import type { IndexOptions } from "./vault-index.js";
+
+const HOURLY_MS = 60 * 60 * 1000;
 
 export type AppOptions = {
   /** Session token minted at core start; every /trpc request must carry it. */
@@ -61,6 +64,14 @@ export type AppOptions = {
   author?: string;
   /** The arXiv client's `fetch`, clock and endpoint; tests and the demo's stand-in server replace them, nothing else does. */
   arxiv?: Partial<ArxivOptions>;
+  /**
+   * How often, in ms, Scouts that are due are run while a vault is open; the
+   * check also runs when one opens (ADR 0016 decision 3). Defaults to an
+   * hour. `null` turns scheduled runs off: a test that does not drive them
+   * must not find its Scouts already run, and one that does asks for the
+   * check by name (`scouts.checkDue`) or passes the interval it wants.
+   */
+  scoutCheckMs?: number | null;
 };
 
 export type App = {
@@ -97,6 +108,7 @@ export function createApp({
   pdfWorker,
   author,
   arxiv,
+  scoutCheckMs = HOURLY_MS,
 }: AppOptions): App {
   const app = new Hono();
   const events = createEvents();
@@ -123,6 +135,8 @@ export function createApp({
     onSwitched: (switched) =>
       events.emit({ type: "vaultSwitched", vault: switched }),
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
+    onRunClosed: (run) => events.emit({ type: "scoutFinished", ...run }),
+    onOpened: () => void checkScouts(),
     pdfs,
     ...(author === undefined ? {} : { author }),
     newId: newId ?? randomId,
@@ -175,6 +189,35 @@ export function createApp({
       },
     },
   });
+  // Fire-and-forget by design: a check is minutes of 3 s-gapped requests, and
+  // each run raises `scoutFinished` when it ends. A failure that is not
+  // arXiv's reaches the core's log; the run rows carry the rest.
+  async function checkScouts(): Promise<void> {
+    if (scoutCheckMs === null) return;
+    try {
+      const opened = await vault.opened();
+      if (opened === null) return;
+      await checkDue({
+        vaultPath: opened.vault.path,
+        index: opened.index,
+        queue: opened.queue,
+        arxiv: context.arxiv,
+        events,
+        now: context.now,
+      });
+    } catch (cause) {
+      console.error(
+        `vitrine-core: the Scout check failed: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+    }
+  }
+  const hourly =
+    scoutCheckMs === null
+      ? null
+      : setInterval(() => void checkScouts(), scoutCheckMs);
+  // The timer alone must never keep the process alive.
+  hourly?.unref();
+
   const context: Context = {
     pdfs,
     vault,
@@ -257,6 +300,7 @@ export function createApp({
   return {
     app,
     close: async () => {
+      clearInterval(hourly ?? undefined);
       await vault.close();
       await pdfs.engine.close();
     },

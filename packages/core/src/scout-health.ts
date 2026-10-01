@@ -1,0 +1,202 @@
+import type { DatabaseSync } from "node:sqlite";
+import { readScouts, type Scout, type UnreadableScout } from "./scout-file.js";
+
+/**
+ * How a Scout is doing, in one of ADR 0032's three voices, derived from its
+ * run rows and nothing else (`docs/architecture.md` § Scouts, *What that
+ * query renders*). It is written here once so that no surface composes its
+ * own words: Home, Loose Ends, the rail and the header render `sentence` and
+ * `fragments` verbatim and choose only their actions. Nothing here is
+ * stored — a Voice is as re-derivable as the health it reads (ADR 0016
+ * decision 10) — and no sentence names a path or anything about the machine
+ * (ADR 0028).
+ */
+export type RunErrorKind =
+  "network" | "http" | "rate_limited" | "parse" | "interrupted";
+
+export type Health =
+  /** `kind` is null for a Scout file that does not parse: no run exists to carry one (ADR 0039 decision 7). */
+  | { voice: "wrong"; kind: RunErrorKind | null; sentence: string }
+  | { voice: "not yet"; sentence: string }
+  | { voice: "claim"; warrant: Warrant | null };
+
+/** A Quiet field's evidence: the three fragments, in the order they are read. */
+export type Warrant = {
+  /** The newest run's `finished`. */
+  finished: string;
+  /** *newest run 2h ago · parsed cleanly · usually ~4 a week (6 runs)*, each ready to render. */
+  fragments: [string, string, string];
+};
+
+export const CADENCE_MS = {
+  daily: 24 * 3_600_000,
+  weekly: 7 * 24 * 3_600_000,
+  monthly: 30 * 24 * 3_600_000,
+} as const;
+
+/** Runs a rate needs before it is quoted; a lucky run must not set an expectation. */
+export const BASELINE_RUNS = 3;
+
+type RunRow = {
+  id: number;
+  started: string;
+  finished: string;
+  outcome: "ok" | "failed";
+  error_kind: RunErrorKind | null;
+  error_message: string | null;
+  window_from: string;
+  window_to: string;
+  retroactive: number;
+  new: number;
+  query: string | null;
+};
+
+/** Finished runs for a Scout, oldest first. An unfinished one has said nothing yet. */
+export function finishedRuns(queue: DatabaseSync, scoutId: string): RunRow[] {
+  return queue
+    .prepare(
+      "SELECT * FROM scout_runs WHERE scout_id = ? AND finished IS NOT NULL ORDER BY id"
+    )
+    .all(scoutId) as RunRow[];
+}
+
+export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
+  const runs = finishedRuns(queue, scout.id);
+  // Before `wrong`: a paused Scout is not looking, so a retired Scout does
+  // not keep nagging about a failure its researcher has already answered
+  // (Loose Ends offers *pause* as the way out of a broken one).
+  if (scout.paused) {
+    return {
+      voice: "not yet",
+      sentence: "Paused — it is not looking.",
+    };
+  }
+  const newest = runs.at(-1);
+  if (newest === undefined) {
+    return { voice: "not yet", sentence: "It has not run yet." };
+  }
+  const ok = runs.filter((r) => r.outcome === "ok");
+  if (newest.outcome === "failed") {
+    const kind = newest.error_kind ?? "network";
+    const lastClean = ok.at(-1);
+    // Only known when a clean run recorded the Query it asked: a run from
+    // before the column, or no clean run at all, claims no edit.
+    const edited = lastClean?.query != null && lastClean.query !== scout.query;
+    return {
+      voice: "wrong",
+      kind,
+      sentence: faultSentence(kind, newest.error_message, edited),
+    };
+  }
+  const lastFinding = [...ok].reverse().find((r) => r.new > 0);
+  const quiet = lastFinding === undefined || lastFinding.id < newest.id;
+  if (!quiet) return { voice: "claim", warrant: null };
+  return {
+    voice: "claim",
+    warrant: {
+      finished: newest.finished,
+      fragments: [
+        `newest run ${ago(now.getTime() - Date.parse(newest.finished))}`,
+        "parsed cleanly",
+        usualRate(ok),
+      ],
+    },
+  };
+}
+
+/** *wrong*, by the second route: a Scout file that does not parse, named by its file only. */
+export function unreadableHealth(file: UnreadableScout): Health {
+  return { voice: "wrong", kind: null, sentence: file.sentence };
+}
+
+/** One sentence per kind; the surfaces render it and never reword it. */
+export function faultSentence(
+  kind: RunErrorKind,
+  message: string | null,
+  queryEdited: boolean
+): string {
+  switch (kind) {
+    case "network":
+      return "arXiv could not be reached, so nothing was checked.";
+    case "http": {
+      const status = /HTTP (\d{3})/.exec(message ?? "")?.[1];
+      return `arXiv answered with an error${status === undefined ? "" : ` (HTTP ${status})`}, so nothing was checked.`;
+    }
+    case "rate_limited":
+      return "arXiv asked Vitrine to slow down (HTTP 429), so nothing was checked.";
+    case "parse":
+      return (
+        "arXiv's answer did not read as a search result: the query may be malformed, or arXiv changed what it returns." +
+        (queryEdited ? " Its query changed since it last ran cleanly." : "")
+      );
+    case "interrupted":
+      return "Vitrine closed before this check finished.";
+  }
+}
+
+function ago(ms: number): string {
+  const minutes = Math.floor(Math.max(ms, 0) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
+
+const WEEK_MS = 7 * 24 * 3_600_000;
+
+/**
+ * The Scout's own rate of finding: runs that found something, over the
+ * stretch the clean runs cover — never a bare count, which a lucky run would
+ * inflate. It names the runs it rests on, so a rate quoted from the minimum
+ * looks as thin as it is, and below `BASELINE_RUNS` it says it has none
+ * rather than leaving the fragment out.
+ *
+ * A first run that searched backward covers ninety days of papers in one
+ * run, which says nothing about how often the field produces them; the
+ * stretch starts where that run ended and the run itself is not counted.
+ */
+function usualRate(ok: RunRow[]): string {
+  if (ok.length < BASELINE_RUNS) return "no baseline yet";
+  const first = ok[0]!;
+  const backward = first.retroactive === 1;
+  const from = Date.parse(backward ? first.window_to : first.window_from);
+  const span = Date.parse(ok.at(-1)!.window_to) - from;
+  const counted = backward ? ok.slice(1) : ok;
+  const found = counted.filter((r) => r.new > 0).length;
+  const runs = `(${ok.length} runs)`;
+  if (span <= 0) return "no baseline yet";
+  if (found === 0) return `nothing found yet ${runs}`;
+  const perWeek = found / (span / WEEK_MS);
+  if (perWeek >= 1) return `usually ~${Math.round(perWeek)} a week ${runs}`;
+  const perMonth = found / (span / CADENCE_MS.monthly);
+  if (perMonth >= 1) return `usually ~${Math.round(perMonth)} a month ${runs}`;
+  const perQuarter = found / (span / (3 * CADENCE_MS.monthly));
+  return `usually ~${Math.max(1, Math.round(perQuarter))} a quarter ${runs}`;
+}
+
+export type FleetHealth = {
+  scouts: Array<{ id: string; health: Health }>;
+  /** Keyed by the file's name, which is all the rail may show of it. */
+  unreadable: Array<{ file: string; health: Health }>;
+};
+
+export async function readHealth(deps: {
+  vaultPath: string;
+  queue: DatabaseSync;
+  now: () => Date;
+}): Promise<FleetHealth> {
+  const { scouts, unreadable } = await readScouts(deps.vaultPath);
+  const now = deps.now();
+  return {
+    scouts: scouts.map((s) => ({
+      id: s.id,
+      health: healthOf(deps.queue, s, now),
+    })),
+    unreadable: unreadable.map((u) => ({
+      file: u.file,
+      health: unreadableHealth(u),
+    })),
+  };
+}
