@@ -55,6 +55,13 @@ import {
   runScout,
   type ScoutDeps,
 } from "./scouts.js";
+import {
+  deferProposal,
+  readGroups,
+  rejectProposal,
+  rejectRun,
+  undoTriage,
+} from "./triage.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
@@ -422,6 +429,46 @@ export const router = t.router({
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(async ({ ctx, input }) =>
         refusing(acceptProposal(await scoutDeps(ctx), input.proposalId))
+      ),
+    // What each Scout's group says beside the cards (#450).
+    groups: t.procedure.query(async ({ ctx }) =>
+      refusing(readGroups(await scoutDeps(ctx)))
+    ),
+    reject: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          Promise.resolve().then(async () =>
+            rejectProposal(await scoutDeps(ctx), input.proposalId)
+          )
+        )
+      ),
+    defer: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          Promise.resolve().then(async () =>
+            deferProposal(await scoutDeps(ctx), input.proposalId)
+          )
+        )
+      ),
+    undo: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          Promise.resolve().then(async () =>
+            undoTriage(await scoutDeps(ctx), input.proposalId)
+          )
+        )
+      ),
+    rejectRun: t.procedure
+      .input(z.object({ runId: z.number().int() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          Promise.resolve().then(async () => ({
+            rejected: rejectRun(await scoutDeps(ctx), input.runId),
+          }))
+        )
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that

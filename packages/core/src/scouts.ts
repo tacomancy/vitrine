@@ -8,6 +8,7 @@ import { readScouts, type Scout } from "./scout-file.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
+import { returnDeferred } from "./triage.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -94,6 +95,8 @@ export async function runScout(
     let arrived: { new: number; held: number };
     try {
       arrived = arrive(deps, scout, runId, found.items);
+      // A clean run is the moment a deferral ends (ADR 0016 decision 8).
+      returnDeferred(deps, scout.id);
       queue.exec("COMMIT");
     } catch (cause) {
       queue.exec("ROLLBACK");

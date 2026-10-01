@@ -43,6 +43,9 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
   "vault.current": vault,
   "scouts.list": scouts,
   "scouts.queue": queue,
+  "scouts.groups": [
+    { id: "sleep", runId: 3, runPending: queue.length, held: [] },
+  ],
   ...more,
 });
 
@@ -176,6 +179,243 @@ describe("the Scout Queue", () => {
     expect(
       screen.getByText("This file could not be read: line 2 is not valid YAML.")
     ).toBeDefined();
+  });
+
+  describe("Review, worked from the keyboard", () => {
+    const two = () => [card(), card({ id: 8, title: "Another" })];
+    const hand = () => screen.findByRole("article");
+
+    it("lists the rest of the stack under the card in hand, and the rail counts per Scout", async () => {
+      renderApp(
+        answers([
+          card(),
+          card({ id: 8, title: "Another" }),
+          card({
+            id: 9,
+            title: "Elsewhere",
+            scouts: [{ id: "other", name: "Other watch", assigned: [] }],
+          }),
+        ])
+      );
+
+      await hand();
+
+      const rest = screen.getByRole("list", { name: "Next in the stack" });
+      expect(
+        within(rest)
+          .getAllByRole("listitem")
+          .map((li) => li.textContent)
+      ).toEqual(["Another", "Elsewhere"]);
+      const rail = screen.getByRole("list", { name: "Scouts" });
+      expect(
+        within(rail).getByRole("button", { name: /Sleep and memory/ })
+          .textContent
+      ).toBe("Sleep and memory2");
+      expect(
+        within(rail).getByRole("button", { name: /All Scouts/ }).textContent
+      ).toBe("All Scouts3");
+    });
+
+    it("groups the stack by the Scout chosen on the rail", async () => {
+      renderApp(
+        answers(
+          [
+            card(),
+            card({
+              id: 9,
+              title: "Elsewhere",
+              scouts: [{ id: "other", name: "Other watch", assigned: [] }],
+            }),
+          ],
+          {
+            "scouts.list": {
+              scouts: [
+                { id: "sleep", name: "Sleep and memory" },
+                { id: "other", name: "Other watch" },
+              ],
+              unreadable: [],
+            },
+          }
+        )
+      );
+      await hand();
+
+      fireEvent.click(screen.getByRole("button", { name: /Other watch/ }));
+
+      expect(
+        (await screen.findByRole("article")).getAttribute("aria-label")
+      ).toBe("Elsewhere");
+    });
+
+    it("O opens the paper's page through the link rule and records nothing", async () => {
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      const writes = vi.fn();
+      renderApp(
+        answers([card({ url: "https://arxiv.org/abs/2609.05678" })], {
+          "scouts.accept": writes,
+          "scouts.reject": writes,
+          "scouts.defer": writes,
+        })
+      );
+
+      fireEvent.keyDown(await hand(), { key: "o" });
+
+      expect(open).toHaveBeenCalledWith(
+        "https://arxiv.org/abs/2609.05678",
+        "_blank",
+        "noopener,noreferrer"
+      );
+      expect(writes).not.toHaveBeenCalled();
+      open.mockRestore();
+    });
+
+    it("O on a file: URL opens nothing and says which scheme it had", async () => {
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      renderApp(answers([card({ url: "file:///etc/passwd" })]));
+
+      fireEvent.keyDown(await hand(), { key: "o" });
+
+      expect(open).not.toHaveBeenCalled();
+      expect(
+        await screen.findByText("Vitrine will not follow file: links.")
+      ).toBeDefined();
+      open.mockRestore();
+    });
+
+    it("P moves the card to the bottom and records nothing, and wraps on the last", async () => {
+      const writes = vi.fn();
+      renderApp(
+        answers(two(), {
+          "scouts.accept": writes,
+          "scouts.reject": writes,
+          "scouts.defer": writes,
+        })
+      );
+      let article = await hand();
+
+      fireEvent.keyDown(article, { key: "p" });
+      article = await screen.findByRole("article", { name: "Another" });
+      expect(screen.getByText("card 1 of 2")).toBeDefined();
+      fireEvent.keyDown(article, { key: "p" });
+
+      // Both have been passed; the first comes round again.
+      expect(
+        await screen.findByRole("article", {
+          name: "Slow Oscillations Reconsidered",
+        })
+      ).toBeDefined();
+      expect(screen.getByText(/passed through every card/)).toBeDefined();
+      expect(writes).not.toHaveBeenCalled();
+    });
+
+    it("R and D each ask the core for that one act", async () => {
+      let cards = two();
+      const gone = (input: unknown) => {
+        const { proposalId } = input as { proposalId: number };
+        cards = cards.filter((c) => c.id !== proposalId);
+        return null;
+      };
+      const reject = vi.fn(gone);
+      const defer = vi.fn(gone);
+      renderApp(
+        answers([], {
+          "scouts.queue": () => cards,
+          "scouts.reject": reject,
+          "scouts.defer": defer,
+        })
+      );
+      const article = await hand();
+
+      fireEvent.keyDown(article, { key: "r" });
+      await screen.findByText("Rejected “Slow Oscillations Reconsidered”.");
+      const next = await screen.findByRole("article", { name: "Another" });
+      fireEvent.keyDown(next, { key: "d" });
+
+      expect(
+        await screen.findByText("Deferred “Another” until the next run.")
+      ).toBeDefined();
+      expect(reject).toHaveBeenCalledWith({ proposalId: 7 });
+      expect(defer).toHaveBeenCalledWith({ proposalId: 8 });
+    });
+
+    it("offers undo for a reject, and none after an accept", async () => {
+      const undo = vi.fn(() => null);
+      renderApp(
+        answers(two(), {
+          "scouts.reject": null,
+          "scouts.accept": { path: "sources/x.md", held: false },
+          "scouts.undo": undo,
+        })
+      );
+      const article = await hand();
+      expect(screen.queryByRole("button", { name: /^Undo/ })).toBeNull();
+
+      fireEvent.keyDown(article, { key: "r" });
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Undo reject" })
+      );
+
+      expect(
+        await screen.findByText("Put “Slow Oscillations Reconsidered” back.")
+      ).toBeDefined();
+      expect(undo).toHaveBeenCalledWith({ proposalId: 7 });
+      expect(screen.queryByRole("button", { name: /^Undo/ })).toBeNull();
+
+      fireEvent.keyDown(await hand(), { key: "a" });
+      await screen.findByText("Accepted into sources/x.md");
+      expect(screen.queryByRole("button", { name: /^Undo/ })).toBeNull();
+    });
+
+    it("Reject this run clears the Scout's run in one act", async () => {
+      const rejectRun = vi.fn(() => ({ rejected: 2 }));
+      renderApp(answers(two(), { "scouts.rejectRun": rejectRun }));
+      await hand();
+
+      fireEvent.click(screen.getByRole("button", { name: /Sleep and memory/ }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Reject this run of Sleep and memory (2)",
+        })
+      );
+
+      expect(
+        await screen.findByText("Rejected 2 from this run.")
+      ).toBeDefined();
+      expect(rejectRun).toHaveBeenCalledWith({ runId: 3 });
+    });
+
+    it("counts what the vault already held, each linking to its file", async () => {
+      renderApp(
+        answers(two(), {
+          "scouts.groups": [
+            {
+              id: "sleep",
+              runId: 3,
+              runPending: 2,
+              held: [{ title: "Mine already", path: "sources/mine.md" }],
+            },
+          ],
+        })
+      );
+      await hand();
+
+      fireEvent.click(screen.getByRole("button", { name: /Sleep and memory/ }));
+
+      expect(await screen.findByText("1 already in your vault")).toBeDefined();
+      expect(
+        screen.getByRole("link", { name: "Mine already" }).getAttribute("href")
+      ).toBe("#/source/sources/mine.md");
+    });
+
+    it("keeps the card in hand on screen as the keyboard moves the stack", async () => {
+      const scroll = vi.fn();
+      window.HTMLElement.prototype.scrollIntoView = scroll;
+      renderApp(answers(two()));
+
+      await hand();
+
+      expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
+    });
   });
 
   describe("a link from third-party text goes through the one link rule", () => {
