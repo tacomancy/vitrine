@@ -82,7 +82,17 @@ export async function runScout(
   let summary: RunSummary;
   try {
     const found = await arxiv.search(scout.query, { from, to: now });
-    const arrived = arrive(deps, scout, runId, found.items);
+    // One transaction: a failure part-way must not leave Proposals behind
+    // that the next run, finding them known, would not count as new.
+    queue.exec("BEGIN");
+    let arrived: { new: number; held: number };
+    try {
+      arrived = arrive(deps, scout, runId, found.items);
+      queue.exec("COMMIT");
+    } catch (cause) {
+      queue.exec("ROLLBACK");
+      throw cause;
+    }
     queue
       .prepare(
         "UPDATE scout_runs SET finished = ?, outcome = 'ok', fetched = ?, new = ?, held = ?, truncated = ? WHERE id = ?"
