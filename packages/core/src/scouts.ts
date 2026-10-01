@@ -73,10 +73,16 @@ export async function runScout(
   const runId = Number(
     queue
       .prepare(
-        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query) VALUES (?, ?, ?, ?, ?, ?)"
       )
-      .run(scoutId, iso(now), iso(from), iso(now), retroactive ? 1 : 0)
-      .lastInsertRowid
+      .run(
+        scoutId,
+        iso(now),
+        iso(from),
+        iso(now),
+        retroactive ? 1 : 0,
+        scout.query
+      ).lastInsertRowid
   );
 
   let summary: RunSummary;

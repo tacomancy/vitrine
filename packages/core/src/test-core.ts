@@ -159,6 +159,8 @@ export async function core(opts: CoreOptions = {}): Promise<{
     ...(opts.newId ? { newId: opts.newId } : {}),
     ...(opts.author ? { author: opts.author } : {}),
     ...(opts.arxiv ? { arxiv: opts.arxiv } : {}),
+    // Off unless a test asks: the tracer's Scouts must not run on open.
+    scoutCheckMs: opts.scoutCheckMs ?? null,
     machine: opts.machine ?? "this-mac",
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),
