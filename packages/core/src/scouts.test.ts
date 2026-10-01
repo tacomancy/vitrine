@@ -9,6 +9,7 @@ import {
   type RunSummary,
 } from "./scouts.js";
 import type { Scout, UnreadableScout } from "./scout-file.js";
+import type { Group } from "./triage.js";
 import {
   closeCores,
   core,
@@ -116,6 +117,16 @@ async function opened(
       expect(r.error).toBeUndefined();
       return r.result!.data;
     },
+    groups: async () => {
+      const r = await c.query<Group[]>("scouts.groups");
+      expect(r.error).toBeUndefined();
+      return r.result!.data;
+    },
+    /** A triage act by name; the error, if the core refused it. */
+    act: async (
+      name: "reject" | "defer" | "undo" | "rejectRun",
+      input: { proposalId: number } | { runId: number }
+    ) => (await c.mutate(`scouts.${name}`, input)).error?.message,
     read: (path: string) => readFile(join(vault, path), "utf8"),
   };
 }
@@ -642,3 +653,173 @@ describe("held: work the vault already holds", () => {
 /** Have the index see what the test wrote beside the app, as the watcher would once settled. */
 const settled = (c: Awaited<ReturnType<typeof core>>) =>
   c.mutate("vault.checkAgain");
+
+describe("triage in Review", () => {
+  const log = (c: Awaited<ReturnType<typeof opened>>) =>
+    c.rows<{ proposal_id: number; action: string; batch: number | null }>(
+      "SELECT proposal_id, action, batch FROM triage ORDER BY rowid"
+    );
+
+  it("reject writes a row and the paper is never proposed again, even revised", async () => {
+    let feed = "normal";
+    const c = await opened(async () => reply(await atom(feed)));
+    await c.run();
+    const [, first] = await c.cards();
+
+    expect(await c.act("reject", { proposalId: first!.id })).toBeUndefined();
+    feed = "revised";
+    await c.run();
+
+    expect(log(c)).toEqual([
+      { proposal_id: first!.id, action: "reject", batch: null },
+    ]);
+    expect((await c.cards()).map((card) => card.id)).not.toContain(first!.id);
+    // The revised version is an Appearance on the rejected row, not a card.
+    expect(
+      c.rows("SELECT * FROM appearances WHERE proposal_id = " + first!.id)
+    ).toHaveLength(2);
+    expect(c.rows("SELECT * FROM proposals")).toHaveLength(2);
+  });
+
+  it("defer writes a row and the paper returns at its place when that Scout's next run is clean", async () => {
+    let status = 200;
+    const c = await opened(async () => reply(await atom("normal"), status));
+    await c.run();
+    const before = (await c.cards()).map((card) => card.id);
+    await c.act("defer", { proposalId: before[0]! });
+    expect((await c.cards()).map((card) => card.id)).toEqual([before[1]]);
+
+    // A failed run is not the next finished run.
+    status = 503;
+    await c.run();
+    expect((await c.cards()).map((card) => card.id)).toEqual([before[1]]);
+    status = 200;
+    await c.run();
+
+    expect((await c.cards()).map((card) => card.id)).toEqual(before);
+    expect(log(c)).toEqual([
+      { proposal_id: before[0], action: "defer", batch: null },
+    ]);
+  });
+
+  it("a deferral ends with the run of the Scout that placed the paper, not of another that also found it", async () => {
+    const c = await opened(serving("normal"), {
+      "a.yaml": scoutYaml({ name: "A" }),
+      "b.yaml": scoutYaml({ name: "B" }),
+    });
+    await c.run("a");
+    await c.run("b");
+    const [first] = await c.cards();
+    await c.act("defer", { proposalId: first!.id });
+
+    await c.run("b");
+    expect((await c.cards()).map((card) => card.id)).not.toContain(first!.id);
+    await c.run("a");
+
+    expect((await c.cards()).map((card) => card.id)).toContain(first!.id);
+  });
+
+  it("undo of a reject or a defer appends an undo row and puts the card back", async () => {
+    const c = await opened(serving("normal"));
+    await c.run();
+    const before = (await c.cards()).map((card) => card.id);
+    await c.act("reject", { proposalId: before[0]! });
+    await c.act("defer", { proposalId: before[1]! });
+
+    expect(await c.act("undo", { proposalId: before[0]! })).toBeUndefined();
+    expect(await c.act("undo", { proposalId: before[1]! })).toBeUndefined();
+
+    expect((await c.cards()).map((card) => card.id)).toEqual(before);
+    expect(log(c).map((row) => row.action)).toEqual([
+      "reject",
+      "defer",
+      "undo",
+      "undo",
+    ]);
+  });
+
+  it("has no undo for accept, and none for a decision already taken back", async () => {
+    const c = await opened(serving("normal"));
+    await c.run();
+    const [first, second] = await c.cards();
+    await c.accept(first!.id);
+    await c.act("reject", { proposalId: second!.id });
+    await c.act("undo", { proposalId: second!.id });
+
+    expect(await c.act("undo", { proposalId: first!.id })).toBe(
+      "There is nothing to undo for that card."
+    );
+    expect(await c.act("undo", { proposalId: second!.id })).toBe(
+      "There is nothing to undo for that card."
+    );
+    expect(log(c).map((row) => row.action)).toEqual([
+      "accept",
+      "reject",
+      "undo",
+    ]);
+  });
+
+  it("refuses to decide a card that is not in the stack", async () => {
+    const c = await opened(serving("normal"));
+    await c.run();
+    const [first] = await c.cards();
+    await c.accept(first!.id);
+
+    expect(await c.act("reject", { proposalId: first!.id })).toBe(
+      "That card is not in the stack."
+    );
+    expect(await c.act("defer", { proposalId: first!.id })).toBe(
+      "That card is not in the stack."
+    );
+    expect(log(c).map((row) => row.action)).toEqual(["accept"]);
+  });
+
+  it("reject this run writes one reject row per pending Proposal, each carrying the run id", async () => {
+    let feed = "normal";
+    const c = await opened(async () => reply(await atom(feed)));
+    const first = await c.run();
+    feed = "revised";
+    const second = await c.run();
+    const [kept] = await c.cards();
+    await c.act("defer", { proposalId: kept!.id });
+
+    // The second run's only paper was found again: it is the run's, and it
+    // is deferred, so only pending ones are the run's to reject.
+    expect(await c.act("rejectRun", { runId: first.runId })).toBeUndefined();
+
+    const rows = log(c);
+    expect(rows.filter((row) => row.action === "reject")).toHaveLength(1);
+    expect(rows.find((row) => row.action === "reject")?.batch).toBe(
+      first.runId
+    );
+    expect(second.runId).not.toBe(first.runId);
+    expect(await c.cards()).toEqual([]);
+  });
+
+  it("names, per Scout, its newest clean run, how much of it is pending, and the papers the vault already held", async () => {
+    const c = await opened(serving("normal"));
+    expect(await c.groups()).toEqual([
+      { id: "sleep", runId: null, runPending: 0, held: [] },
+    ]);
+    await writeFile(
+      join(c.vault, "sources/mine.md"),
+      "---\nkind: source-stub\ncitekey: mine\ntitle: Mine\nurl: https://arxiv.org/pdf/2609.01234v3.pdf\n---\n"
+    );
+    await settled(c.c);
+    const summary = await c.run();
+
+    expect(await c.groups()).toEqual([
+      {
+        id: "sleep",
+        runId: summary.runId,
+        runPending: 1,
+        held: [
+          {
+            title: "Probing the Overnight Benefit: Consolidation or Encoding?",
+            path: "sources/mine.md",
+          },
+        ],
+      },
+    ]);
+  });
+});

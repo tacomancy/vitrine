@@ -55,6 +55,13 @@ import {
   runScout,
   type ScoutDeps,
 } from "./scouts.js";
+import {
+  deferProposal,
+  readGroups,
+  rejectProposal,
+  rejectRun,
+  undoTriage,
+} from "./triage.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
@@ -245,6 +252,15 @@ async function scoutDeps(ctx: Context): Promise<ScoutDeps> {
   };
 }
 
+/**
+ * A triage act is synchronous, so a refusal it throws would escape as a throw
+ * and not a rejection; the async wrapper makes it one, and `refusing` can
+ * then turn it into the same BAD_REQUEST every other refusal is.
+ */
+function triaged<T>(ctx: Context, act: (deps: ScoutDeps) => T): Promise<T> {
+  return refusing((async () => act(await scoutDeps(ctx)))());
+}
+
 /** What a page write needs of the open vault (`research-question.ts`). */
 async function requirePage(ctx: Context): Promise<PageContext> {
   const { vault, index, pending } = await requireVault(ctx);
@@ -422,6 +438,30 @@ export const router = t.router({
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(async ({ ctx, input }) =>
         refusing(acceptProposal(await scoutDeps(ctx), input.proposalId))
+      ),
+    // What each Scout's group says beside the cards (#450).
+    groups: t.procedure.query(async ({ ctx }) =>
+      refusing(readGroups(await scoutDeps(ctx)))
+    ),
+    reject: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => rejectProposal(deps, input.proposalId))
+      ),
+    defer: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => deferProposal(deps, input.proposalId))
+      ),
+    undo: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => undoTriage(deps, input.proposalId))
+      ),
+    rejectRun: t.procedure
+      .input(z.object({ runId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => ({ rejected: rejectRun(deps, input.runId) }))
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that

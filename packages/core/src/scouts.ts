@@ -8,6 +8,7 @@ import { readScouts, type Scout } from "./scout-file.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
+import { inTransaction, returnDeferred } from "./triage.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -90,15 +91,12 @@ export async function runScout(
     const found = await arxiv.search(scout.query, { from, to: now });
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
-    queue.exec("BEGIN");
-    let arrived: { new: number; held: number };
-    try {
-      arrived = arrive(deps, scout, runId, found.items);
-      queue.exec("COMMIT");
-    } catch (cause) {
-      queue.exec("ROLLBACK");
-      throw cause;
-    }
+    const arrived = inTransaction(queue, () => {
+      const arrived = arrive(deps, scout, runId, found.items);
+      // A clean run is the moment a deferral ends (ADR 0016 decision 8).
+      returnDeferred(deps, scout.id);
+      return arrived;
+    });
     queue
       .prepare(
         "UPDATE scout_runs SET finished = ?, outcome = 'ok', fetched = ?, new = ?, held = ?, truncated = ? WHERE id = ?"
