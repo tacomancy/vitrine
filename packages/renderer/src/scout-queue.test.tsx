@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { Card } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderApp, vault } from "./fake-core";
@@ -384,6 +390,24 @@ describe("the Scout Queue", () => {
       expect(rejectRun).toHaveBeenCalledWith({ runId: 3 });
     });
 
+    it("counts what the vault already held across every Scout under All Scouts", async () => {
+      renderApp(
+        answers(two(), {
+          "scouts.groups": [
+            {
+              id: "sleep",
+              runId: 3,
+              runPending: 2,
+              held: [{ title: "Mine already", path: "sources/mine.md" }],
+            },
+          ],
+        })
+      );
+      await hand();
+
+      expect(await screen.findByText("1 already in your vault")).toBeDefined();
+    });
+
     it("counts what the vault already held, each linking to its file", async () => {
       renderApp(
         answers(two(), {
@@ -405,6 +429,63 @@ describe("the Scout Queue", () => {
       expect(
         screen.getByRole("link", { name: "Mine already" }).getAttribute("href")
       ).toBe("#/source/sources/mine.md");
+    });
+
+    it("keeps its keys after focus moves to the rail", async () => {
+      const reject = vi.fn(() => null);
+      renderApp(answers(two(), { "scouts.reject": reject }));
+      await hand();
+
+      const row = screen.getByRole("button", { name: /Sleep and memory/ });
+      row.focus();
+      fireEvent.keyDown(row, { key: "r" });
+
+      await screen.findByText("Rejected “Slow Oscillations Reconsidered”.");
+      expect(reject).toHaveBeenCalledWith({ proposalId: 7 });
+    });
+
+    it("undoes with ⌘Z even when no card is left in hand", async () => {
+      const undo = vi.fn(() => null);
+      let cards = [card()];
+      renderApp(
+        answers([], {
+          "scouts.queue": () => cards,
+          "scouts.reject": () => {
+            cards = [];
+            return null;
+          },
+          "scouts.undo": undo,
+        })
+      );
+      fireEvent.keyDown(await hand(), { key: "r" });
+      await screen.findByText("Rejected “Slow Oscillations Reconsidered”.");
+      await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+
+      fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+
+      await waitFor(() => expect(undo).toHaveBeenCalledWith({ proposalId: 7 }));
+    });
+
+    it("forgets what was passed when another group is chosen", async () => {
+      renderApp(
+        answers([card()], {
+          "scouts.list": {
+            scouts: [
+              { id: "sleep", name: "Sleep and memory" },
+              { id: "other", name: "Other watch" },
+            ],
+            unreadable: [],
+          },
+        })
+      );
+      fireEvent.keyDown(await hand(), { key: "p" });
+      expect(
+        await screen.findByText(/passed through every card/)
+      ).toBeDefined();
+
+      fireEvent.click(screen.getByRole("button", { name: /Other watch/ }));
+
+      expect(screen.queryByText(/passed through every card/)).toBeNull();
     });
 
     it("keeps the card in hand on screen as the keyboard moves the stack", async () => {

@@ -18,6 +18,19 @@ type ScoutDeps = {
   now: () => Date;
 };
 
+/** One transaction, rolled back whole if anything in it throws. */
+export function inTransaction<T>(queue: DatabaseSync, work: () => T): T {
+  queue.exec("BEGIN");
+  try {
+    const result = work();
+    queue.exec("COMMIT");
+    return result;
+  } catch (cause) {
+    queue.exec("ROLLBACK");
+    throw cause;
+  }
+}
+
 const stamp = (deps: ScoutDeps) => deps.now().toISOString();
 
 function stateOf(deps: ScoutDeps, proposalId: number): string {
@@ -57,19 +70,14 @@ function decide(
   if (stateOf(deps, proposalId) !== "pending") {
     throw new VaultError("refused", "That card is not in the stack.");
   }
-  queue.exec("BEGIN");
-  try {
+  inTransaction(queue, () => {
     queue
       .prepare("UPDATE proposals SET state = ? WHERE id = ?")
       .run(state, proposalId);
     queue
       .prepare("INSERT INTO triage (proposal_id, action, at) VALUES (?, ?, ?)")
       .run(proposalId, action, stamp(deps));
-    queue.exec("COMMIT");
-  } catch (cause) {
-    queue.exec("ROLLBACK");
-    throw cause;
-  }
+  });
 }
 
 /**
@@ -89,8 +97,7 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
       .all(runId) as Array<{ id: number }>
   ).map((row) => row.id);
   const at = stamp(deps);
-  queue.exec("BEGIN");
-  try {
+  inTransaction(queue, () => {
     for (const id of ids) {
       queue
         .prepare("UPDATE proposals SET state = 'rejected' WHERE id = ?")
@@ -101,11 +108,7 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
         )
         .run(id, at, runId);
     }
-    queue.exec("COMMIT");
-  } catch (cause) {
-    queue.exec("ROLLBACK");
-    throw cause;
-  }
+  });
   return ids.length;
 }
 
@@ -123,8 +126,7 @@ export function undoTriage(deps: ScoutDeps, proposalId: number): void {
   if (state !== "rejected" && state !== "deferred") {
     throw new VaultError("refused", "There is nothing to undo for that card.");
   }
-  queue.exec("BEGIN");
-  try {
+  inTransaction(queue, () => {
     queue
       .prepare("UPDATE proposals SET state = 'pending' WHERE id = ?")
       .run(proposalId);
@@ -133,25 +135,25 @@ export function undoTriage(deps: ScoutDeps, proposalId: number): void {
         "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'undo', ?)"
       )
       .run(proposalId, stamp(deps));
-    queue.exec("COMMIT");
-  } catch (cause) {
-    queue.exec("ROLLBACK");
-    throw cause;
-  }
+  });
 }
 
 /**
- * A deferral ends when a run for a Scout that found the paper finishes `ok`
- * (ADR 0016 decision 8). The row keeps its `first_seen`, so it comes back at
- * its original place in newest-first order and not at the top. Called inside
- * the run's own transaction.
+ * A deferral ends when a run for the Scout that placed the paper — the one
+ * whose Appearance came first — finishes `ok` (ADR 0016 decision 8). Another
+ * Scout that later finds the same paper does not end it: the researcher
+ * deferred it until *that* brief looked again, and two Scouts must not make
+ * a deferral shorter. The row keeps its `first_seen`, so it comes back at its
+ * original place in newest-first order. Called inside the run's own
+ * transaction.
  */
 export function returnDeferred(deps: ScoutDeps, scoutId: string): void {
   deps.queue
     .prepare(
       `UPDATE proposals SET state = 'pending'
         WHERE state = 'deferred'
-          AND id IN (SELECT proposal_id FROM appearances WHERE scout_id = ?)`
+          AND ? = (SELECT scout_id FROM appearances WHERE proposal_id = proposals.id
+                    ORDER BY run_id, rowid LIMIT 1)`
     )
     .run(scoutId);
 }

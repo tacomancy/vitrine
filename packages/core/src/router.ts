@@ -252,6 +252,15 @@ async function scoutDeps(ctx: Context): Promise<ScoutDeps> {
   };
 }
 
+/**
+ * A triage act is synchronous, so a refusal it throws would escape as a throw
+ * and not a rejection; the async wrapper makes it one, and `refusing` can
+ * then turn it into the same BAD_REQUEST every other refusal is.
+ */
+function triaged<T>(ctx: Context, act: (deps: ScoutDeps) => T): Promise<T> {
+  return refusing((async () => act(await scoutDeps(ctx)))());
+}
+
 /** What a page write needs of the open vault (`research-question.ts`). */
 async function requirePage(ctx: Context): Promise<PageContext> {
   const { vault, index, pending } = await requireVault(ctx);
@@ -436,39 +445,23 @@ export const router = t.router({
     ),
     reject: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
-      .mutation(async ({ ctx, input }) =>
-        refusing(
-          Promise.resolve().then(async () =>
-            rejectProposal(await scoutDeps(ctx), input.proposalId)
-          )
-        )
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => rejectProposal(deps, input.proposalId))
       ),
     defer: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
-      .mutation(async ({ ctx, input }) =>
-        refusing(
-          Promise.resolve().then(async () =>
-            deferProposal(await scoutDeps(ctx), input.proposalId)
-          )
-        )
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => deferProposal(deps, input.proposalId))
       ),
     undo: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
-      .mutation(async ({ ctx, input }) =>
-        refusing(
-          Promise.resolve().then(async () =>
-            undoTriage(await scoutDeps(ctx), input.proposalId)
-          )
-        )
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => undoTriage(deps, input.proposalId))
       ),
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))
-      .mutation(async ({ ctx, input }) =>
-        refusing(
-          Promise.resolve().then(async () => ({
-            rejected: rejectRun(await scoutDeps(ctx), input.runId),
-          }))
-        )
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => ({ rejected: rejectRun(deps, input.runId) }))
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that

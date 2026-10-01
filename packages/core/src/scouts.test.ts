@@ -702,6 +702,23 @@ describe("triage in Review", () => {
     ]);
   });
 
+  it("a deferral ends with the run of the Scout that placed the paper, not of another that also found it", async () => {
+    const c = await opened(serving("normal"), {
+      "a.yaml": scoutYaml({ name: "A" }),
+      "b.yaml": scoutYaml({ name: "B" }),
+    });
+    await c.run("a");
+    await c.run("b");
+    const [first] = await c.cards();
+    await c.act("defer", { proposalId: first!.id });
+
+    await c.run("b");
+    expect((await c.cards()).map((card) => card.id)).not.toContain(first!.id);
+    await c.run("a");
+
+    expect((await c.cards()).map((card) => card.id)).toContain(first!.id);
+  });
+
   it("undo of a reject or a defer appends an undo row and puts the card back", async () => {
     const c = await opened(serving("normal"));
     await c.run();

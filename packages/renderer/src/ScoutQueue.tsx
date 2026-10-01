@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Card } from "core";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
@@ -68,7 +68,7 @@ export function ScoutQueue() {
       onError: (error) => setSaid(error.message),
     })
   );
-  const decide = useMutation({
+  const reject = useMutation({
     ...trpc.scouts.reject.mutationOptions(),
     onError: (error) => setSaid(error.message),
   });
@@ -105,7 +105,19 @@ export function ScoutQueue() {
   const card = stack[0];
   const passedThrough =
     inGroup.length > 0 && inGroup.every((c) => passed.includes(c.id));
-  const group = groups.data?.find((g) => g.id === selected);
+  const group =
+    selected === null
+      ? {
+          held: [
+            ...new Map(
+              (groups.data ?? []).flatMap((g) => g.held).map((h) => [h.path, h])
+            ).values(),
+          ],
+          runId: null,
+          runPending: 0,
+        }
+      : groups.data?.find((g) => g.id === selected);
+  const runId = group?.runId ?? null;
   const groupName = scouts.data?.scouts.find((s) => s.id === selected)?.name;
 
   const railRows = [
@@ -124,7 +136,7 @@ export function ScoutQueue() {
   }
   function onDecide(
     kind: "rejected" | "deferred",
-    mutation: typeof decide,
+    mutation: typeof reject,
     id: number,
     title: string
   ) {
@@ -158,6 +170,26 @@ export function ScoutQueue() {
     );
   }
 
+  // ⌘Z lives here and not on the card: after the last card is rejected there
+  // is no card, and that is exactly when undo is wanted.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable]") !== null
+      ) {
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        onUndo();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
+
   return (
     <section className={styles.surface} aria-label="Scout Queue">
       <header className={styles.header}>
@@ -174,7 +206,12 @@ export function ScoutQueue() {
               id={`scout-rail-${row.id ?? "all"}`}
               className={styles.railRow}
               aria-current={row.id === selected ? "true" : undefined}
-              onClick={() => setSelected(row.id)}
+              onClick={() => {
+                // A pass is a session fact about one stack; another group's
+                // passes must not decide this one's order or its notice.
+                setSelected(row.id);
+                setPassed([]);
+              }}
             >
               <span>{row.name}</span>
               <span className={styles.count}>{countFor(row.id)}</span>
@@ -220,11 +257,11 @@ export function ScoutQueue() {
               </ul>
             </div>
           )}
-          {group.runId !== null && group.runPending > 0 && (
+          {runId !== null && group.runPending > 0 && (
             <button
               type="button"
               disabled={rejectRun.isPending}
-              onClick={() => rejectRun.mutate({ runId: group.runId! })}
+              onClick={() => rejectRun.mutate({ runId })}
             >
               Reject this run{groupName !== undefined && ` of ${groupName}`} (
               {group.runPending})
@@ -259,9 +296,8 @@ export function ScoutQueue() {
             if (!accept.isPending) accept.mutate({ proposalId: card.id });
           }}
           onPass={() => onPass(card.id)}
-          onReject={() => onDecide("rejected", decide, card.id, card.title)}
+          onReject={() => onDecide("rejected", reject, card.id, card.title)}
           onDefer={() => onDecide("deferred", defer, card.id, card.title)}
-          onUndo={onUndo}
         />
       )}
       {stack.length > 1 && (
@@ -284,28 +320,28 @@ function Proposal({
   onPass,
   onReject,
   onDefer,
-  onUndo,
 }: {
   card: Card;
   onAccept: () => void;
   onPass: () => void;
   onReject: () => void;
   onDefer: () => void;
-  onUndo: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => ref.current?.focus(), []);
   const [refused, setRefused] = useState<string | null>(null);
   const link = classifyLink(card.url);
 
-  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.altKey) return;
-    const key = event.key.toLowerCase();
-    if ((event.metaKey || event.ctrlKey) && key === "z") {
-      event.preventDefault();
-      onUndo();
+  function onKeyDown(event: globalThis.KeyboardEvent) {
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest("input, textarea, select, [contenteditable]") !== null
+    ) {
       return;
     }
+    if (event.altKey) return;
+    const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) return;
     const act = { a: onAccept, p: onPass, r: onReject, d: onDefer }[key];
     if (act !== undefined) {
@@ -320,6 +356,13 @@ function Proposal({
     }
   }
 
+  // Heard on the document, not only on the card: clicking the rail, *Undo* or
+  // *Reject this run* moves focus off the card, and a key that then did
+  // nothing would be a silent failure. A field being typed in keeps its keys.
+  useEffect(() => {
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
   return (
     <article
       ref={ref}
@@ -327,7 +370,6 @@ function Proposal({
       className={styles.card}
       aria-label={card.title}
       tabIndex={0}
-      onKeyDown={onKeyDown}
     >
       <p className={styles.why}>
         {card.scouts.map((scout) => scout.name).join(" · ")}
