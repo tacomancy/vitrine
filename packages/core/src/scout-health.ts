@@ -1,5 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
 import { readScouts, type Scout, type UnreadableScout } from "./scout-file.js";
+import { DISALLOWED } from "./page-fetch.js";
+import {
+  FEW_VERIFIED,
+  KEY_REJECTED,
+  LISTING_MISSED,
+  NO_KEY,
+  STRUCTURE_CHANGE,
+} from "./watched.js";
 
 /**
  * How a Scout is doing, in one of ADR 0032's three voices, derived from its
@@ -12,7 +20,14 @@ import { readScouts, type Scout, type UnreadableScout } from "./scout-file.js";
  * (ADR 0028).
  */
 export type RunErrorKind =
-  "network" | "http" | "rate_limited" | "parse" | "interrupted";
+  | "network"
+  | "http"
+  | "rate_limited"
+  | "parse"
+  | "interrupted"
+  | "credentials"
+  | "model"
+  | "extraction";
 
 export type Health =
   /** `kind` is null for a Scout file that does not parse: no run exists to carry one (ADR 0039 decision 7). */
@@ -78,6 +93,15 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   const ok = runs.filter((r) => r.outcome === "ok");
   if (newest.outcome === "failed") {
     const kind = newest.error_kind ?? "network";
+    // A key never stored is not a fault: the Scout has not been set up, so
+    // it says *not yet* with the reason, and a rejected key says *wrong*
+    // (ADR 0040 decision 1). Which one is the run's message, not its kind.
+    if (kind === "credentials" && newest.error_message === NO_KEY) {
+      return {
+        voice: "not yet",
+        sentence: faultSentence(kind, NO_KEY, false, scout.source.kind),
+      };
+    }
     const lastClean = ok.at(-1);
     // Only known when a clean run recorded the Query it asked: a run from
     // before the column, or no clean run at all, claims no edit.
@@ -85,7 +109,12 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     return {
       voice: "wrong",
       kind,
-      sentence: faultSentence(kind, newest.error_message, edited),
+      sentence: faultSentence(
+        kind,
+        newest.error_message,
+        edited,
+        scout.source.kind
+      ),
     };
   }
   const lastFinding = [...ok].reverse().find((r) => r.new > 0);
@@ -113,9 +142,34 @@ export function unreadableHealth(file: UnreadableScout): Health {
 export function faultSentence(
   kind: RunErrorKind,
   message: string | null,
-  queryEdited: boolean
+  queryEdited: boolean,
+  source: Scout["source"]["kind"] = "arxiv"
 ): string {
+  if (source === "watched" && (kind === "network" || kind === "http")) {
+    if (message === DISALLOWED) {
+      return "The site asks not to be read by robots (disallowed by robots.txt), so nothing was checked.";
+    }
+    return kind === "network"
+      ? "The page could not be reached, so nothing was checked."
+      : `The page answered with an error${/HTTP (\d{3})/.test(message ?? "") ? ` (${/HTTP \d{3}/.exec(message ?? "")![0]})` : ""} or was too large to read, so nothing was checked.`;
+  }
   switch (kind) {
+    case "credentials":
+      return message === NO_KEY
+        ? "No model key is stored, so this page has not been read yet."
+        : message === KEY_REJECTED
+          ? "The model provider refused the stored key, so nothing was checked."
+          : "The model key could not be used, so nothing was checked.";
+    case "model":
+      return `The model could not read this page${message === null ? "" : ` (${message})`}, so nothing was checked.`;
+    case "extraction":
+      return message === STRUCTURE_CHANGE
+        ? "The papers this page listed before are no longer on it: its structure changed."
+        : message === LISTING_MISSED
+          ? "The model returned nothing, but the papers seen last time are still on the page: the listing was missed."
+          : message === FEW_VERIFIED
+            ? "Fewer than half of what the model returned appears on the page, so nothing was proposed."
+            : "The model found no papers listed on this page.";
     case "network":
       return "arXiv could not be reached, so nothing was checked.";
     case "http": {

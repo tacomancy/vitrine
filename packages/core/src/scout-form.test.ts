@@ -127,6 +127,7 @@ describe("saving a Scout from the form", () => {
         paused: false,
         created: NOW.toISOString(),
         searchBackTo: "2026-07-02T00:00:00.000Z",
+        source: { kind: "arxiv" },
       },
     ]);
   });

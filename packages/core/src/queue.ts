@@ -31,8 +31,11 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 4: Scout runs, Proposals, Appearances and the triage log (#448).
  * 5: the Query each run asked, so "edited since it last ran cleanly" and
  *    "saving an edited Query overrides a wait" are read off rows (#449).
+ * 6: what a model-read run spent and saw — model, tokens, cost, the page's
+ *    hash and length, how many cards failed verification — and the error
+ *    kinds `credentials`, `model` and `extraction` (#464).
  */
-export const QUEUE_SCHEMA_VERSION = 5;
+export const QUEUE_SCHEMA_VERSION = 6;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -124,6 +127,45 @@ const SCOUT_RUN_QUERY = `
 ALTER TABLE scout_runs ADD COLUMN query TEXT;
 `;
 
+// A CHECK cannot be altered in SQLite, so widening `error_kind` rebuilds the
+// table, copying every row and keeping its id: Proposals' Appearances and the
+// triage log point at runs by id, and a run row is not re-derivable from the
+// vault. Run with foreign keys off (`openQueue`), as SQLite's own recipe says,
+// or dropping the old table would refuse while rows still refer to it.
+const SCOUT_RUN_MODEL = `
+CREATE TABLE scout_runs_new (
+  id INTEGER PRIMARY KEY,
+  scout_id TEXT NOT NULL,
+  started TEXT NOT NULL,
+  finished TEXT,
+  outcome TEXT CHECK (outcome IN ('ok', 'failed')),
+  error_kind TEXT CHECK (error_kind IN ('network', 'http', 'rate_limited', 'parse', 'interrupted', 'credentials', 'model', 'extraction')),
+  error_message TEXT,
+  window_from TEXT NOT NULL,
+  window_to TEXT NOT NULL,
+  retroactive INTEGER NOT NULL DEFAULT 0,
+  fetched INTEGER NOT NULL DEFAULT 0,
+  new INTEGER NOT NULL DEFAULT 0,
+  held INTEGER NOT NULL DEFAULT 0,
+  truncated INTEGER NOT NULL DEFAULT 0,
+  query TEXT,
+  model TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  cache_read_tokens INTEGER,
+  cost_usd REAL,
+  page_hash TEXT,
+  page_length INTEGER,
+  page_capped INTEGER NOT NULL DEFAULT 0,
+  unverified INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO scout_runs_new (id, scout_id, started, finished, outcome, error_kind, error_message, window_from, window_to, retroactive, fetched, new, held, truncated, query)
+  SELECT id, scout_id, started, finished, outcome, error_kind, error_message, window_from, window_to, retroactive, fetched, new, held, truncated, query FROM scout_runs;
+DROP TABLE scout_runs;
+ALTER TABLE scout_runs_new RENAME TO scout_runs;
+CREATE INDEX scout_runs_scout ON scout_runs (scout_id);
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -136,6 +178,7 @@ const MIGRATIONS: readonly string[] = [
   LAST_ARRIVAL,
   SCOUTS,
   SCOUT_RUN_QUERY,
+  SCOUT_RUN_MODEL,
 ];
 
 /**
@@ -198,6 +241,9 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
         `it carries schema version ${version}, and this build knows ${QUEUE_SCHEMA_VERSION}. Nothing was deleted; a newer Vitrine wrote it.`
       );
     }
+    // Off for the migrations only, and outside their transactions, where the
+    // pragma is a no-op: see `SCOUT_RUN_MODEL`.
+    db.exec("PRAGMA foreign_keys = OFF");
     // Each step in its own transaction: a migration that fails leaves the
     // database at the last version it reached rather than half-way into one.
     for (let v = version; v < QUEUE_SCHEMA_VERSION; v++) {
@@ -217,6 +263,7 @@ export async function openQueue(vaultPath: string): Promise<DatabaseSync> {
         throw cause;
       }
     }
+    db.exec("PRAGMA foreign_keys = ON");
   } catch (cause) {
     db.close();
     throw new QueueOpenError(

@@ -463,7 +463,7 @@ The shape ADR 0017 decided, in enough detail to write against. Numbers are start
 
 **First run.** No date window; "new" is an unseen `source_key`. The first run's Proposals carry `origin_retroactive`; the form hides *also search back to* for a Watched source.
 
-**`scout_runs` gains** `model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, unverified`; `error_kind` gains `credentials | model | extraction`.
+**`scout_runs` gains** `model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, unverified`; `error_kind` gains `credentials | model | extraction`. `page_capped` records that the reduction hit the token budget, apart from `truncated`, which stays the count the 500 ceiling cut (queue schema 6, #464). Widening `error_kind`'s CHECK rebuilds the table, so the migration runs with foreign keys off and is proven on a copy of a version-5 file.
 
 **Loose Ends rows this beat adds** — *Broken plumbing*: *blocked on credentials* (→ *open Settings*); *structure change detected* — an `extraction` run on a Scout with a prior `ok` run that found items (→ *open the page* · *run now* · *pause*). The failed-Scout row shows the new kinds. **Owed to Home:** a Scout blocked on credentials is one that is not looking, so it is named in Home's coverage claim beside a paused one — never added to the broken count, which counts failures (ADR 0032 decision 8; ADR 0025 decision 3's *named, never counted*).
 

@@ -44,7 +44,15 @@ export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
   // A run from before the Query was recorded cannot be told apart from an
   // edit, so it is not taken for one.
   if (newest.query !== null && newest.query !== scout.query) return true;
-  if (newest.error_kind === "rate_limited" || newest.error_kind === "parse") {
+  // No key is asked again by the key being set or *Run now*, never by the
+  // hour: nothing about the Scout has changed since it last said so.
+  if (newest.error_kind === "credentials") return false;
+  if (
+    newest.error_kind === "rate_limited" ||
+    newest.error_kind === "parse" ||
+    newest.error_kind === "model" ||
+    newest.error_kind === "extraction"
+  ) {
     return (
       elapsedSinceClean && now.getTime() - Date.parse(newest.started) >= cadence
     );

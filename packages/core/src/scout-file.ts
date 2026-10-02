@@ -14,6 +14,9 @@ export type Scout = {
   /** The file's own name, `.vitrine/scouts/<id>.yaml`: what a run row refers to. */
   id: string;
   name: string;
+  /** What it watches: arXiv through its API, or one web page (ADR 0017). */
+  source: { kind: "arxiv" } | { kind: "watched"; url: string };
+  /** The arXiv Query; for a Watched source, the address — what a run asked, so an edit to it overrides a wait. */
   query: string;
   cadence: "daily" | "weekly" | "monthly";
   /** Question ids (§ Vault layout: `assigned: [question ids]`). */
@@ -106,10 +109,27 @@ function readScout(id: string, text: string): Read {
     return { ok: false, problem: "it is not a map of keys" };
   }
   const file = doc as Record<string, unknown>;
-  const filter = file["filter"] as Record<string, unknown> | undefined;
-  const query = filter?.["query"];
-  if (typeof query !== "string" || query.trim() === "") {
-    return { ok: false, problem: "it has no filter.query" };
+  const declared = file["source"] as Record<string, unknown> | undefined;
+  const kind = declared?.["kind"] ?? "arxiv";
+  let source: Scout["source"];
+  let query: string;
+  if (kind === "watched") {
+    const url = declared?.["url"];
+    if (typeof url !== "string" || !/^https?:\/\/\S+$/i.test(url.trim())) {
+      return { ok: false, problem: "source.url is not a web address" };
+    }
+    query = url.trim();
+    source = { kind: "watched", url: query };
+  } else if (kind === "arxiv") {
+    const filter = file["filter"] as Record<string, unknown> | undefined;
+    const asked = filter?.["query"];
+    if (typeof asked !== "string" || asked.trim() === "") {
+      return { ok: false, problem: "it has no filter.query" };
+    }
+    query = asked;
+    source = { kind: "arxiv" };
+  } else {
+    return { ok: false, problem: "source.kind is not arxiv or watched" };
   }
   const cadence = file["cadence"];
   if (!CADENCES.includes(cadence as never)) {
@@ -141,6 +161,7 @@ function readScout(id: string, text: string): Read {
         typeof file["name"] === "string" && file["name"] !== ""
           ? file["name"]
           : id,
+      source,
       query: query.trim(),
       cadence: cadence as Scout["cadence"],
       assigned,
