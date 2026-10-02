@@ -66,6 +66,9 @@ export type {
   StalledExperiment,
   MissingArtifacts,
   NoSource,
+  FailedScout,
+  UnreadableScoutFile,
+  StubWithoutPdf,
   UnreadablePdf,
   StalledResearchQuestion,
 } from "./loose-ends.js";
