@@ -33,7 +33,12 @@ const card = (rest: Partial<Card> = {}): Card => ({
     {
       id: "sleep",
       name: "Sleep and memory",
-      assigned: [{ id: "rq1", name: "Is it consolidation?" }],
+      assigned: [
+        {
+          id: "rq1",
+          name: "Is it consolidation?",
+        },
+      ],
     },
   ],
   retroactive: false,
@@ -41,7 +46,9 @@ const card = (rest: Partial<Card> = {}): Card => ({
 });
 
 const scouts = {
-  scouts: [{ id: "sleep", name: "Sleep and memory" }],
+  scouts: [
+    { id: "sleep", name: "Sleep and memory", assigned: [], paused: false },
+  ],
   unreadable: [],
 };
 
@@ -236,8 +243,18 @@ describe("the Scout Queue", () => {
           {
             "scouts.list": {
               scouts: [
-                { id: "sleep", name: "Sleep and memory" },
-                { id: "other", name: "Other watch" },
+                {
+                  id: "sleep",
+                  name: "Sleep and memory",
+                  assigned: [],
+                  paused: false,
+                },
+                {
+                  id: "other",
+                  name: "Other watch",
+                  assigned: [],
+                  paused: false,
+                },
               ],
               unreadable: [],
             },
@@ -471,8 +488,13 @@ describe("the Scout Queue", () => {
         answers([card()], {
           "scouts.list": {
             scouts: [
-              { id: "sleep", name: "Sleep and memory" },
-              { id: "other", name: "Other watch" },
+              {
+                id: "sleep",
+                name: "Sleep and memory",
+                assigned: [],
+                paused: false,
+              },
+              { id: "other", name: "Other watch", assigned: [], paused: false },
             ],
             unreadable: [],
           },

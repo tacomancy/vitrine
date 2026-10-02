@@ -47,7 +47,8 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { readScouts } from "./scout-file.js";
-import { readHealth } from "./scout-health.js";
+import { readFleet, readHealth } from "./scout-health.js";
+import { saveScout, setPaused, tryQuery } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
@@ -434,6 +435,36 @@ export const router = t.router({
     checkDue: t.procedure.mutation(async ({ ctx }) =>
       refusing(checkDue(await scoutDeps(ctx)))
     ),
+    // Who is looking, for *Review cleared* (ADR 0032 decision 8).
+    fleet: t.procedure.query(async ({ ctx }) =>
+      refusing(readFleet(await scoutDeps(ctx)))
+    ),
+    // The form (#451): the file written, a Query edit run at once.
+    save: t.procedure
+      .input(
+        z.object({
+          id: z.string().min(1).optional(),
+          name: z.string(),
+          query: z.string(),
+          cadence: z.enum(["daily", "weekly", "monthly"]),
+          assigned: z.array(z.string()),
+          lane: z.enum(["review", "skim"]),
+          searchBackTo: z.string().datetime().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(saveScout(await scoutDeps(ctx), input))
+      ),
+    setPaused: t.procedure
+      .input(z.object({ scoutId: z.string().min(1), paused: z.boolean() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(setPaused(await scoutDeps(ctx), input.scoutId, input.paused))
+      ),
+    tryQuery: t.procedure
+      .input(z.object({ query: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
     accept: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(async ({ ctx, input }) =>

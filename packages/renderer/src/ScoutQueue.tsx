@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Card } from "core";
+import type { Card, Fleet, Health } from "core";
 import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
+import { ScoutForm, type QuestionChoice } from "./ScoutForm";
+import { VoiceLine } from "./ScoutVoice";
+import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 
 /**
@@ -12,8 +15,10 @@ import { useTRPC } from "./trpc";
  * rail of Scouts that groups the stack, one card in hand with the rest
  * listed beneath it in order, and the keys. Nothing here generates or
  * guesses: a field the source did not supply is said to be missing, and the
- * card says *assigned to* because nothing has scored a match. The form, Skim
- * and the rail's voices are later tickets'.
+ * card says *assigned to* because nothing has scored a match. The form
+ * (#451) opens in the centre pane in place of the stack, and every short
+ * place — a rail row, a Scout's header, an empty stack — speaks in one of
+ * ADR 0032's three voices. Skim is a later ticket's.
  */
 export function ScoutQueue() {
   const trpc = useTRPC();
@@ -21,6 +26,13 @@ export function ScoutQueue() {
   const scouts = useQuery(trpc.scouts.list.queryOptions());
   const queue = useQuery(trpc.scouts.queue.queryOptions());
   const groups = useQuery(trpc.scouts.groups.queryOptions());
+  const health = useQuery(trpc.scouts.health.queryOptions());
+  const fleet = useQuery(trpc.scouts.fleet.queryOptions());
+  const questionList = useQuery(
+    trpc.questions.list.queryOptions({ order: "newest" })
+  );
+  // The form, or null for the stack. `edit` is the Scout's id when reopened.
+  const [form, setForm] = useState<{ edit: string | null } | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // Cards passed this session, oldest pass first. A pass records nothing
@@ -52,6 +64,12 @@ export function ScoutQueue() {
         );
         void reread();
       },
+      onError: (error) => setSaid(error.message),
+    })
+  );
+  const pause = useMutation(
+    trpc.scouts.setPaused.mutationOptions({
+      onSuccess: () => void reread(),
       onError: (error) => setSaid(error.message),
     })
   );
@@ -128,6 +146,47 @@ export function ScoutQueue() {
     id === null
       ? everything.length
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
+  const healthOf = (id: string): Health | undefined =>
+    health.data?.scouts.find((h) => h.id === id)?.health;
+  const questions: QuestionChoice[] = (
+    questionList.data?.questions ?? []
+  ).flatMap((q) =>
+    q.id === undefined
+      ? []
+      : [{ id: q.id, question: q.question, status: q.status }]
+  );
+  const selectedScout = scouts.data?.scouts.find((s) => s.id === selected);
+  const editing =
+    form?.edit == null
+      ? undefined
+      : scouts.data?.scouts.find((s) => s.id === form.edit);
+  // What an empty stack says is a claim only when what it rests on has been
+  // read: while the reads are in flight, or failed, it says nothing at all.
+  const quiet: EmptyStackProps | null =
+    !queue.isSuccess || !scouts.isSuccess || inGroup.length > 0
+      ? null
+      : selected !== null
+        ? { kind: "scout", health: healthOf(selected) }
+        : scouts.data.scouts.length === 0 && scouts.data.unreadable.length === 0
+          ? { kind: "none" }
+          : fleet.data === undefined
+            ? null
+            : {
+                kind: "fleet",
+                fleet: fleet.data,
+                broken: [
+                  ...fleet.data.broken.map((b) => ({
+                    name: b.name,
+                    sentence:
+                      scouts.data.unreadable.find((u) => u.file === b.id)
+                        ?.sentence ??
+                      (() => {
+                        const h = healthOf(b.id);
+                        return h?.voice === "wrong" ? h.sentence : "";
+                      })(),
+                  })),
+                ],
+              };
   useChosenInView(`scout-rail-${selected ?? "all"}`);
   useChosenInView(card === undefined ? undefined : `scout-card-${card.id}`);
 
@@ -194,9 +253,12 @@ export function ScoutQueue() {
     <section className={styles.surface} aria-label="Scout Queue">
       <header className={styles.header}>
         <h1 className={styles.title}>Scout Queue</h1>
-        {card !== undefined && (
+        {card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
+        <button type="button" onClick={() => setForm({ edit: null })}>
+          + New Scout
+        </button>
       </header>
       <ul className={styles.scouts} aria-label="Scouts">
         {railRows.map((row) => (
@@ -225,6 +287,9 @@ export function ScoutQueue() {
                 Run now
               </button>
             )}
+            {/* On the row as well as in the header, so a broken Scout cannot
+                hide in a group nobody selects (spec #447 story 42). */}
+            {row.id !== null && <VoiceLine health={healthOf(row.id)} />}
           </li>
         ))}
         {/* A file that does not parse is a Scout the researcher made, not one
@@ -232,11 +297,65 @@ export function ScoutQueue() {
         {(scouts.data?.unreadable ?? []).map((file) => (
           <li key={file.file} className={styles.scout}>
             <span>{file.file}</span>
-            <span>{file.sentence}</span>
+            <VoiceLine
+              health={{ voice: "wrong", kind: null, sentence: file.sentence }}
+            />
           </li>
         ))}
       </ul>
-      {group !== undefined && (
+      {selectedScout !== undefined && form === null && (
+        <div className={styles.scoutHeader}>
+          <h2 className={styles.scoutName}>{selectedScout.name}</h2>
+          <VoiceLine health={healthOf(selectedScout.id)} />
+          {selectedScout.assigned.length > 0 && (
+            <ul className={styles.assigned} aria-label="Assigned Questions">
+              {selectedScout.assigned.map((id) => {
+                const q = questions.find((candidate) => candidate.id === id);
+                // A closed Question gets no nag: it is drawn with its glyph
+                // like any other and the Scout keeps running (story 23).
+                return (
+                  <li key={id}>
+                    {q !== undefined && <StatusGlyph status={q.status} />}{" "}
+                    {q?.question ?? id}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className={styles.actions}>
+            <button
+              type="button"
+              onClick={() => setForm({ edit: selectedScout.id })}
+            >
+              Edit
+            </button>{" "}
+            <button
+              type="button"
+              disabled={pause.isPending}
+              onClick={() =>
+                pause.mutate({
+                  scoutId: selectedScout.id,
+                  paused: !selectedScout.paused,
+                })
+              }
+            >
+              {selectedScout.paused ? "Resume" : "Pause"}
+            </button>
+          </p>
+        </div>
+      )}
+      {form !== null && (
+        <ScoutForm
+          key={form.edit ?? "new"}
+          {...(editing === undefined ? {} : { scout: editing })}
+          questions={questions}
+          onDone={(saved) => {
+            setForm(null);
+            if (saved !== null) setSelected(saved);
+          }}
+        />
+      )}
+      {form === null && group !== undefined && (
         <div className={styles.group}>
           {group.held.length > 0 && (
             <div>
@@ -282,13 +401,14 @@ export function ScoutQueue() {
           <kbd>⌘Z</kbd>
         </p>
       )}
-      {passedThrough && (
+      {form === null && quiet !== null && <EmptyStack {...quiet} />}
+      {form === null && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
           {selected === null ? "here" : "in this group"}; they come round again.
         </p>
       )}
-      {card !== undefined && (
+      {form === null && card !== undefined && (
         <Proposal
           key={card.id}
           card={card}
@@ -300,7 +420,7 @@ export function ScoutQueue() {
           onDefer={() => onDecide("deferred", defer, card.id, card.title)}
         />
       )}
-      {stack.length > 1 && (
+      {form === null && stack.length > 1 && (
         <ol className={styles.rest} aria-label="Next in the stack">
           {stack.slice(1).map((next) => (
             <li key={next.id} id={`scout-card-${next.id}`}>
@@ -424,3 +544,107 @@ function Field({ label, value }: { label: string; value: string | null }) {
     </>
   );
 }
+
+type EmptyStackProps =
+  | { kind: "none" }
+  | { kind: "scout"; health: Health | undefined }
+  | {
+      kind: "fleet";
+      fleet: Fleet;
+      broken: Array<{ name: string; sentence: string }>;
+    };
+
+/**
+ * An empty Review stack in ADR 0032's three voices. Nothing here claims more
+ * than the derivation did: no Scouts is *not yet*; one Scout claims only
+ * after a clean run (anything else is the voice its header already speaks);
+ * and *Review cleared* is the fleet's claim, warranted by who is looking and
+ * when they last did, and withheld outright while any Scout is broken —
+ * a clear stack must never read as a clear field when it is not.
+ */
+function EmptyStack(props: EmptyStackProps) {
+  if (props.kind === "none") {
+    return (
+      <p className={styles.line} data-voice="not yet">
+        no Scouts yet
+      </p>
+    );
+  }
+  if (props.kind === "scout") {
+    return props.health?.voice === "claim" ? (
+      <p className={styles.line}>Nothing pending.</p>
+    ) : null;
+  }
+  const { fleet, broken } = props;
+  if (broken.length > 0) {
+    return (
+      <ul className={styles.assigned} aria-label="Scouts that are broken">
+        {broken.map((b) => (
+          <li key={b.name}>
+            <VoiceLine
+              health={{
+                voice: "wrong",
+                kind: null,
+                sentence: `${b.name}: ${b.sentence}`,
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  const notLooking = fleet.notLooking.length > 0 && (
+    <> · not looking: {fleet.notLooking.map((n) => n.name).join(", ")}</>
+  );
+  if (fleet.watching === 0) {
+    return (
+      <p className={styles.line} data-voice="not yet">
+        no Scout is looking{notLooking}
+      </p>
+    );
+  }
+  return (
+    <div className={styles.line}>
+      <p>Review cleared.</p>
+      <p>
+        {fleet.watching} {fleet.watching === 1 ? "scout" : "scouts"} watching ·
+        all parsed cleanly
+        {fleet.newestRun !== null && ` · newest run ${ago(fleet.newestRun)}`}
+        {fleet.lastProposal !== null &&
+          ` · last new proposal ${day(fleet.lastProposal)}`}
+        {notLooking}
+      </p>
+    </div>
+  );
+}
+
+function ago(at: string): string {
+  const minutes = Math.floor(Math.max(Date.now() - Date.parse(at), 0) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
+
+// Fixed names, not a locale's: "Sep" is "Sept" in some, and the claim's text
+// is the same on every machine.
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+const day = (at: string) => {
+  const date = new Date(at);
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+};

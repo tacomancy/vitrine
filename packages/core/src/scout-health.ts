@@ -200,3 +200,58 @@ export async function readHealth(deps: {
     })),
   };
 }
+
+/**
+ * What the Queue's *Review cleared* rests on (ADR 0032 decision 8; spec #447
+ * story 78): how many Scouts are looking, which are not and which are broken
+ * — named, never counted into a total — and when the fleet last ran and last
+ * found something. The claim is the renderer's to word; whether it may be
+ * made at all is `broken` being empty, and that is decided here once.
+ */
+export type Fleet = {
+  watching: number;
+  /** Paused or not yet run: the ones that are not looking. */
+  notLooking: Array<{ id: string; name: string }>;
+  /** A failed newest run, or a file that does not parse; either withholds the claim. */
+  broken: Array<{ id: string; name: string }>;
+  newestRun: string | null;
+  lastProposal: string | null;
+};
+
+export async function readFleet(deps: {
+  vaultPath: string;
+  queue: DatabaseSync;
+  now: () => Date;
+}): Promise<Fleet> {
+  const { scouts, unreadable } = await readScouts(deps.vaultPath);
+  const now = deps.now();
+  const fleet: Fleet = {
+    watching: 0,
+    notLooking: [],
+    broken: [],
+    newestRun: null,
+    lastProposal: null,
+  };
+  for (const scout of scouts) {
+    const { voice } = healthOf(deps.queue, scout, now);
+    const entry = { id: scout.id, name: scout.name };
+    if (voice === "claim") fleet.watching++;
+    else if (voice === "wrong") fleet.broken.push(entry);
+    else fleet.notLooking.push(entry);
+  }
+  for (const file of unreadable) {
+    fleet.broken.push({ id: file.file, name: file.file });
+  }
+  const newest = deps.queue
+    .prepare("SELECT MAX(finished) AS at FROM scout_runs")
+    .get() as { at: string | null };
+  // A held paper never became a card, so it is not a Proposal that arrived.
+  const last = deps.queue
+    .prepare(
+      "SELECT MAX(first_seen) AS at FROM proposals WHERE state != 'held'"
+    )
+    .get() as { at: string | null };
+  fleet.newestRun = newest.at;
+  fleet.lastProposal = last.at;
+  return fleet;
+}
