@@ -56,3 +56,8 @@ What changes here, and nothing else:
 - Beat 7 no longer builds the panel from nothing: beat 4b ships Settings with its vault and PDF sections, and beat 7 adds Credentials to it (ADR 0025 decision 10).
 
 **What does not change.** Decisions 1, 2 and 4–11 stand as written. In particular decision 4 is untouched — the RPC stays `credentials.status | set | delete | test`, there is deliberately no `credentials.get`, and the panel still shows only *a key is stored*. *Blocked on credentials* remains a state apart from *broken*, and a locked Keychain or a denied ACL dialog remains a fault shown as one. Only where the panel is drawn has moved; what it may do has not.
+
+## Update (2026-10-02, #174)
+
+The spec grill for beat 7 settled three places this ADR could not all be true at once; **ADR 0040** records them. **Decision 3's *does not run* is made precise:** a due Watched Scout with no key records a failed `credentials` run, message *no key*, so *blocked on credentials* is a query over run rows like every other health fact; and storing a key runs the Scouts waiting on it. **Decision 5's *one fetch* becomes one page plus the feed it advertises**, with no model fallback when the feed fails. **Decision 9's first run** happens at the first due check or on *Run now*, never on save. Decisions 1, 2, 4, 6–8, 10 and 11 stand.
+
