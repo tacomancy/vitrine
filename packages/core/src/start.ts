@@ -17,6 +17,8 @@ export type StartOptions = {
   machine?: string;
   /** The name a highlight's `/T` carries (#441); the shell supplies the account's full name. */
   author?: string;
+  /** Where the arXiv client asks; only a demo's stand-in server sets it, so the default is the real API. */
+  arxiv?: { endpoint: string };
 };
 
 // Where macOS expects an app's own files (docs/architecture.md § Vault layout).
@@ -66,6 +68,7 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     appSupportDir: options.appSupportDir ?? DEFAULT_APP_SUPPORT_DIR,
     ...(options.machine === undefined ? {} : { machine: options.machine }),
     ...(options.author === undefined ? {} : { author: options.author }),
+    ...(options.arxiv === undefined ? {} : { arxiv: options.arxiv }),
   });
   // The last-resort teardown for an exit nothing else caught: an `exit`
   // handler cannot await, so it drops the handles and splices nothing.
