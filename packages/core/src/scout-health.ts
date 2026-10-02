@@ -200,3 +200,62 @@ export async function readHealth(deps: {
     })),
   };
 }
+
+/**
+ * What an empty lane may claim, from the fleet and nothing else (ADR 0032;
+ * `docs/architecture.md` § Scouts): one derivation for Review's *cleared* and
+ * Skim's quiet, so the two never speak in different voices. A claim needs
+ * every Scout readable and its last run clean; any broken Scout withholds it
+ * and is named instead. Scouts that are not looking (paused, not yet run) are
+ * named inside the claim, never counted.
+ */
+export type FleetClaim = {
+  /** `null` is no claim at all. */
+  claim: string | null;
+  /** Broken Scouts when the claim is withheld; the ones not looking when it stands. */
+  naming: string[];
+};
+
+export async function readFleetClaim(deps: {
+  vaultPath: string;
+  queue: DatabaseSync;
+  now: () => Date;
+}): Promise<FleetClaim> {
+  const { scouts, unreadable } = await readScouts(deps.vaultPath);
+  const now = deps.now();
+  const healths = scouts.map((s) => ({
+    name: s.name,
+    health: healthOf(deps.queue, s, now),
+  }));
+  const broken = [
+    ...healths.filter((h) => h.health.voice === "wrong").map((h) => h.name),
+    ...unreadable.map((u) => u.file),
+  ];
+  if (broken.length > 0) return { claim: null, naming: broken };
+  const watching = healths.filter((h) => h.health.voice === "claim");
+  const idle = healths
+    .filter((h) => h.health.voice === "not yet")
+    .map((h) => h.name);
+  if (watching.length === 0) return { claim: null, naming: idle };
+
+  const newest = deps.queue
+    .prepare("SELECT MAX(finished) AS at FROM scout_runs WHERE outcome = 'ok'")
+    .get() as { at: string | null };
+  const last = deps.queue
+    .prepare(
+      "SELECT MAX(first_seen) AS at FROM proposals WHERE state != 'held'"
+    )
+    .get() as { at: string | null };
+  const parts = [
+    `${watching.length} ${watching.length === 1 ? "scout" : "scouts"} watching`,
+    "all parsed cleanly",
+    newest.at === null
+      ? "no run yet"
+      : `newest run ${ago(now.getTime() - Date.parse(newest.at))}`,
+    last.at === null
+      ? "no proposal yet"
+      : `last new proposal ${new Date(last.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`,
+  ];
+  if (idle.length > 0) parts.push(`${idle.join(", ")} not looking`);
+  return { claim: parts.join(" · "), naming: idle };
+}
