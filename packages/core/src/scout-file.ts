@@ -1,6 +1,7 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse, YAMLParseError } from "yaml";
+import { parse, parseDocument, YAMLParseError } from "yaml";
+import { VaultError } from "./errors.js";
 
 /**
  * A Scout as its file says it (ADR 0016 decision 4; `docs/architecture.md`
@@ -54,6 +55,29 @@ export async function readScouts(
       });
   }
   return { scouts, unreadable };
+}
+
+/**
+ * *Pause* from Loose Ends (#453): the one edit the app makes to a Scout file,
+ * a key set in place. The document is edited rather than re-stringified so a
+ * hand-written file keeps its comments and order (ADR 0009). A file that does
+ * not parse is refused, not rewritten: the app would be guessing at its shape.
+ */
+export async function pauseScout(
+  vaultPath: string,
+  scoutId: string
+): Promise<void> {
+  const { scouts } = await readScouts(vaultPath);
+  if (!scouts.some((s) => s.id === scoutId)) {
+    throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
+  }
+  const folder = join(vaultPath, SCOUTS_FOLDER);
+  const file = (await readdir(folder)).find(
+    (n) => n.replace(/\.ya?ml$/i, "") === scoutId && /\.ya?ml$/i.test(n)
+  )!;
+  const doc = parseDocument(await readFile(join(folder, file), "utf8"));
+  doc.set("paused", true);
+  await writeFile(join(folder, file), doc.toString());
 }
 
 type Read = { ok: true; scout: Scout } | { ok: false; problem: string };

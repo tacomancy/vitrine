@@ -1,3 +1,4 @@
+import type { DatabaseSync } from "node:sqlite";
 import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { linkedHere, linksToUrl, type LinkedArtifact } from "./artifact.js";
@@ -21,6 +22,8 @@ import {
   type UnlinkedAnnotations,
 } from "./pdf-plumbing.js";
 import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
+import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
+import { healthOf, type RunErrorKind } from "./scout-health.js";
 import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -182,7 +185,49 @@ export type UnreadablePdf = {
   reason: string;
 };
 
+/**
+ * A Scout whose newest run failed (#453; spec #447 stories 82–89; ADR 0039
+ * decision 7). `sentence` is `healthOf`'s, never reworded here, so the rail
+ * and this row cannot disagree about the same fault.
+ */
+export type FailedScout = {
+  kind: "failed-scout";
+  /** The Scout's id — its file's name, what a run row refers to. */
+  subject: string;
+  /** Vault-relative: the Scout's file, which is what *open* shows. */
+  path: string;
+  /** The Scout's name. */
+  title: string;
+  errorKind: RunErrorKind;
+  sentence: string;
+};
+
+/** A Scout file that does not parse: named by its file, with the rail's sentence and no error kind (no run exists to carry one). */
+export type UnreadableScoutFile = {
+  kind: "unreadable-scout";
+  /** The file's name. */
+  subject: string;
+  path: string;
+  title: string;
+  sentence: string;
+};
+
+/**
+ * A Source stub with no `pdf:`: unfinished by definition, so a row at once
+ * with no quiet period. Keyed by its path, since a stub has no `id:` until
+ * a PDF is attached. No `accepted:` key is written to the stub for this.
+ */
+export type StubWithoutPdf = {
+  kind: "stub-without-pdf";
+  subject: string;
+  path: string;
+  title: string;
+};
+
 export type LooseEndRow =
+  | FailedScout
+  | UnreadableScoutFile
+  | StubWithoutPdf
   | UnmatchedRow
   | ConflictCopy
   | PdfMissing
@@ -231,12 +276,15 @@ export type LooseEndsOptions = {
   machine: string;
   /** What the engine has failed to read, and read: the PDF rows are judged by it. */
   reads: PdfReads;
+  /** The Scouts' run rows: a failed Scout is judged by the newest of them. */
+  queue: DatabaseSync;
+  now: Date;
 };
 
 export async function looseEnds(
   index: VaultIndex,
   vaultPath: string,
-  { days, stalledOpenDays, machine, reads }: LooseEndsOptions
+  { days, stalledOpenDays, machine, reads, queue, now }: LooseEndsOptions
 ): Promise<LooseEnds> {
   const { dismissals, problem } = await readDismissals(vaultPath);
   const questions = stalledResearchQuestions(index, days, stalledOpenDays);
@@ -263,6 +311,7 @@ export async function looseEnds(
   // PDF would be is not drawn beside it.
   const copies = plumbingOfKind("conflict-copy");
   const unmatched = await unmatchedRows(index, vaultPath);
+  const scouts = await scoutRows(vaultPath, queue, now);
   const byGroup: Record<LooseEndGroupName, LooseEndRow[]> = {
     "Broken plumbing": [
       ...unmatched.rows,
@@ -270,12 +319,16 @@ export async function looseEnds(
       ...copies,
       ...plumbingOfKind("pdf-missing"),
       ...experiments.missingUnderFalsification,
+      ...scouts,
     ],
-    "Unfinished reading": noSourceRows(index).filter(
-      (row) =>
-        !broken.some((b) => b.path === row.path) &&
-        !copies.some((c) => c.path === row.path)
-    ),
+    "Unfinished reading": [
+      ...noSourceRows(index).filter(
+        (row) =>
+          !broken.some((b) => b.path === row.path) &&
+          !copies.some((c) => c.path === row.path)
+      ),
+      ...stubRows(index),
+    ],
     "Disconnected material": [
       ...plumbingOfKind("unlinked-annotations"),
       ...ambiguousLinks(index),
@@ -338,6 +391,64 @@ function noSourceRows(index: VaultIndex): NoSource[] {
     path,
     title: path.slice(PDF_FOLDER.length + 1),
   }));
+}
+
+async function scoutRows(
+  vaultPath: string,
+  queue: DatabaseSync,
+  now: Date
+): Promise<Array<FailedScout | UnreadableScoutFile>> {
+  const { scouts, unreadable } = await readScouts(vaultPath);
+  const rows: Array<FailedScout | UnreadableScoutFile> = [];
+  for (const scout of scouts) {
+    const health = healthOf(queue, scout, now);
+    // `kind` is null only for an unreadable file, which has its own row.
+    if (health.voice !== "wrong" || health.kind === null) continue;
+    rows.push({
+      kind: "failed-scout",
+      subject: scout.id,
+      path: `${SCOUTS_FOLDER}/${scout.id}.yaml`,
+      title: scout.name,
+      errorKind: health.kind,
+      sentence: health.sentence,
+    });
+  }
+  for (const file of unreadable) {
+    rows.push({
+      kind: "unreadable-scout",
+      subject: file.file,
+      path: `${SCOUTS_FOLDER}/${file.file}`,
+      title: file.file,
+      // The rail renders this same string (`unreadableHealth`).
+      sentence: file.sentence,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Oldest file first: editing a stub moves it down, and an edit is attention,
+ * so the order needs no stored "last looked at".
+ */
+function stubRows(index: VaultIndex): StubWithoutPdf[] {
+  return index
+    .select<{ path: string; display: string }>(
+      `SELECT f.path, f.display FROM files f
+        WHERE f.kind = 'source-stub'
+          AND NOT EXISTS (
+            SELECT 1 FROM frontmatter fm
+             WHERE fm.path = f.path
+               AND json_type(fm.value, '$.pdf') = 'text'
+               AND json_extract(fm.value, '$.pdf') <> ''
+          )
+        ORDER BY f.mtime, f.path`
+    )
+    .map(({ path, display }) => ({
+      kind: "stub-without-pdf",
+      subject: path,
+      path,
+      title: display,
+    }));
 }
 
 function ambiguousLinks(index: VaultIndex): AmbiguousLinks[] {

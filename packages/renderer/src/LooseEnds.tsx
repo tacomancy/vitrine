@@ -3,6 +3,7 @@ import type {
   AmbiguousLinks,
   ConflictCopy,
   DocumentChanged,
+  FailedScout,
   LooseEndGroupName,
   LooseEndRow,
   MissingArtifacts,
@@ -11,9 +12,11 @@ import type {
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
+  StubWithoutPdf,
   UnlinkedAnnotations,
   UnmatchedAnnotation,
   UnreadablePdf,
+  UnreadableScoutFile,
 } from "core";
 import { formatAge } from "./age";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -21,7 +24,7 @@ import { useState, type ReactNode } from "react";
 import { addressOf, KIND, markOf } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { Picker } from "./Picker";
-import { hashOf } from "./router";
+import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -296,6 +299,12 @@ function Row(props: {
       return <QuietExperiment row={props.row} resolution={props.resolution} />;
     case "missing-artifact":
       return <MissingFiles row={props.row} resolution={props.resolution} />;
+    case "failed-scout":
+      return <BrokenScout row={props.row} resolution={props.resolution} />;
+    case "unreadable-scout":
+      return <UnreadableScout row={props.row} resolution={props.resolution} />;
+    case "stub-without-pdf":
+      return <BareStub row={props.row} resolution={props.resolution} />;
   }
 }
 
@@ -546,6 +555,176 @@ function OpenOrDeliberate({
       </a>
       <Deliberate onDismiss={onDismiss} />
     </>
+  );
+}
+
+/**
+ * *A Scout whose newest run failed* (#453; spec #447 stories 82–89). The
+ * sentence is the core's, the same string the rail renders; this row adds
+ * the error kind and the ways out, and words nothing of its own about the
+ * fault. There is no *mark deliberate*: a failure that is fine is a Scout
+ * the researcher *pauses*, and pausing is what makes the row go.
+ */
+function BrokenScout({
+  row,
+  resolution,
+}: {
+  row: FailedScout;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const settle = {
+    onMutate: () => setRefusal(undefined),
+    onError: (error: { message: string }) => setRefusal(error.message),
+    // The row is a query over the run rows, so what a run or a pause did
+    // is read back rather than assumed.
+    onSettled: () => {
+      void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
+      void queryClient.invalidateQueries(trpc.scouts.health.pathFilter());
+    },
+  };
+  const run = useMutation(trpc.scouts.runNow.mutationOptions(settle));
+  const pause = useMutation(trpc.scouts.pause.mutationOptions(settle));
+  return (
+    <RowShell
+      meta={`scout · ${row.errorKind.replace("_", " ")}`}
+      title={row.title}
+      href={hashOf(SCOUTS)}
+      why={row.sentence}
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        <>
+          <button
+            type="button"
+            className={styles.primary}
+            disabled={run.isPending}
+            onClick={() => run.mutate({ scoutId: row.subject })}
+          >
+            run now
+          </button>
+          <button
+            type="button"
+            className={styles.action}
+            disabled={pause.isPending}
+            onClick={() => pause.mutate({ scoutId: row.subject })}
+          >
+            pause
+          </button>
+          <a className={styles.action} href={hashOf(SCOUTS)}>
+            open
+          </a>
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * *A Scout file that does not parse* (ADR 0039 decision 7): named by its
+ * file, with the rail's sentence. Only *open* — the Vault editor that would
+ * fix the file is a later beat, and *mark deliberate* would hide a Scout the
+ * researcher believes is running.
+ */
+function UnreadableScout({
+  row,
+  resolution,
+}: {
+  row: UnreadableScoutFile;
+  resolution: Resolution;
+}) {
+  return (
+    <RowShell
+      meta="scout file · unreadable"
+      title={row.title}
+      href={hashOf(SCOUTS)}
+      why={row.sentence}
+      resolution={resolution}
+      actions={
+        <a className={styles.primary} href={hashOf(SCOUTS)}>
+          open
+        </a>
+      }
+    />
+  );
+}
+
+/**
+ * *A stub with no PDF* (#453; ADR 0013): a row at once, since a stub is
+ * unfinished by definition. *Attach to a stub* here is the other direction
+ * from the no-Source row's: the stub is fixed and the PDF is chosen, from the
+ * ones no Source names. *Mark deliberate* is for a stub kept as reference;
+ * nothing is written to the stub for it.
+ */
+function BareStub({
+  row,
+  resolution,
+}: {
+  row: StubWithoutPdf;
+  resolution: Resolution;
+}) {
+  const trpc = useTRPC();
+  const [choosing, setChoosing] = useState(false);
+  const [attached, setAttached] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | undefined>(undefined);
+  const waiting = useQuery({
+    ...trpc.sources.unnamedPdfs.queryOptions(),
+    enabled: choosing,
+  });
+  const attach = useMutation(
+    trpc.sources.attachToStub.mutationOptions({
+      onSuccess: (_reply, { pdf }) => setAttached(pdf),
+      onError: (error) => setRefusal(error.message),
+    })
+  );
+  return (
+    <RowShell
+      meta="source stub · no PDF"
+      title={row.title}
+      why={
+        attached === null
+          ? "Found, not yet acquired: there is no PDF to read or annotate."
+          : `Attached ${attached.replace(/^.*\//, "")} — it is a Source now, and the file keeps the name it has.`
+      }
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        attached === null && (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => {
+                setRefusal(undefined);
+                setChoosing(true);
+              }}
+            >
+              attach to a stub
+            </button>
+            <Deliberate onDismiss={resolution.onDismiss} />
+          </>
+        )
+      }
+    >
+      {choosing && attached === null && (
+        <ul aria-label="PDFs no Source names">
+          {(waiting.data ?? []).map((pdf) => (
+            <li key={pdf}>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => attach.mutate({ pdf, stub: row.path })}
+              >
+                {pdf.replace(/^.*\//, "")}
+              </button>
+            </li>
+          ))}
+          {waiting.data?.length === 0 && (
+            <li>No PDF in the folder is waiting for a Source.</li>
+          )}
+        </ul>
+      )}
+    </RowShell>
   );
 }
 

@@ -46,7 +46,7 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
-import { readScouts } from "./scout-file.js";
+import { pauseScout, readScouts } from "./scout-file.js";
 import { readHealth } from "./scout-health.js";
 import { checkDue } from "./scout-schedule.js";
 import {
@@ -72,6 +72,7 @@ import {
   createSourceFromPdf,
   createSourceStub,
   retryUnreadable,
+  unnamedPdfs,
   type PdfReads,
 } from "./sources.js";
 import type { QuestionService } from "./questions.js";
@@ -421,6 +422,14 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(runScout(await scoutDeps(ctx), input.scoutId))
       ),
+    // Loose Ends' way out of a broken Scout: it stops looking, and its row
+    // goes with the failure it was about (`healthOf` answers *paused*).
+    pause: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault } = await requireVault(ctx);
+        await refusing(pauseScout(vault.path, input.scoutId));
+      }),
     queue: t.procedure.query(async ({ ctx }) =>
       refusing(readQueue(await scoutDeps(ctx)))
     ),
@@ -473,6 +482,11 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return refusing(createSourceStub(vault.path, index, input));
       }),
+    // The PDFs no Source names yet: what a stub's *attach a PDF* chooses from.
+    unnamedPdfs: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return unnamedPdfs(index);
+    }),
     // *Attach to a stub* on a no-Source row (#417): the one write that makes
     // a stub a Source once it has its file.
     attachToStub: t.procedure
@@ -1201,8 +1215,10 @@ export const router = t.router({
   // writes.
   looseEnds: t.router({
     rows: t.procedure.query(async ({ ctx }) => {
-      const { vault, index, days } = await requireVault(ctx);
+      const { vault, index, days, queue } = await requireVault(ctx);
       return looseEnds(index, vault.path, {
+        queue,
+        now: ctx.now(),
         days,
         stalledOpenDays: ctx.stalledOpenDays,
         machine: ctx.machine,
