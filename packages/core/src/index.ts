@@ -146,4 +146,4 @@ export type { Accepted, Card, RunSummary } from "./scouts.js";
 export type { Group } from "./triage.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";
 export type { TriedQuery } from "./scout-form.js";
-export type { Fleet, Health, Warrant } from "./scout-health.js";
+export type { Health, Warrant } from "./scout-health.js";

@@ -49,12 +49,11 @@ const quiet = {
   },
 };
 
+// The core words the fleet's claim (`scouts.fleet`); the renderer only frames it.
 const fleet = (rest: Record<string, unknown> = {}) => ({
-  watching: 3,
-  notLooking: [],
-  broken: [],
-  newestRun: new Date(Date.now() - 2 * 3_600_000).toISOString(),
-  lastProposal: "2026-09-11T08:00:00.000Z",
+  claim:
+    "3 scouts watching · all parsed cleanly · newest run 2h ago · last new proposal 11 Sep",
+  naming: [],
   ...rest,
 });
 
@@ -433,64 +432,50 @@ describe("empty stacks, in the three voices", () => {
       answers({
         "scouts.list": { scouts: [], unreadable: [] },
         "scouts.health": { scouts: [], unreadable: [] },
-        "scouts.fleet": fleet({ watching: 0 }),
+        "scouts.fleet": fleet({ claim: null }),
       })
     );
 
-    expect(await screen.findByText("no Scouts yet")).toBeDefined();
+    expect(
+      await screen.findByText("No Scouts yet, so nothing is being watched.")
+    ).toBeDefined();
     expect(screen.queryByText(/Review cleared/)).toBeNull();
     expect(screen.queryByText(/Nothing pending/)).toBeNull();
   });
 
-  it("claims Review cleared with the fleet's warrant, naming a Scout that is not looking", async () => {
+  it("claims Review cleared with the fleet's warrant", async () => {
     renderApp(
       answers({
         "scouts.fleet": fleet({
-          notLooking: [{ id: "old", name: "Paused one" }],
+          claim:
+            "3 scouts watching · all parsed cleanly · newest run 2h ago · last new proposal 11 Sep · Paused one not looking",
         }),
       })
     );
 
-    expect(await screen.findByText("Review cleared.")).toBeDefined();
-    const warrant = screen.getByText(/3 scouts watching/);
-    expect(warrant.textContent).toMatch(
-      /^3 scouts watching · all parsed cleanly · newest run 2h ago · last new proposal 11 Sep · not looking: Paused one$/
-    );
+    expect(
+      await screen.findByText(
+        "Review cleared — 3 scouts watching · all parsed cleanly · newest run 2h ago · last new proposal 11 Sep · Paused one not looking."
+      )
+    ).toBeDefined();
   });
 
-  it("withholds Review cleared while any Scout is broken, and names it with its sentence", async () => {
+  it("withholds Review cleared while any Scout is broken, and names it", async () => {
     renderApp(
       answers({
-        "scouts.list": {
-          scouts: [scout()],
-          unreadable: [
-            {
-              file: "torn.yaml",
-              sentence: "This file could not be read: it is not a map of keys.",
-            },
-          ],
-        },
-        "scouts.health": {
-          scouts: [{ id: "sleep", health: wrong }],
-          unreadable: [],
-        },
         "scouts.fleet": fleet({
-          broken: [
-            { id: "sleep", name: "Sleep and memory" },
-            { id: "torn.yaml", name: "torn.yaml" },
-          ],
+          claim: null,
+          naming: ["Sleep and memory", "torn.yaml"],
         }),
       })
     );
 
-    const broken = await screen.findByRole("list", {
-      name: "Scouts that are broken",
-    });
-    expect(broken.textContent).toContain(wrong.sentence);
-    expect(broken.textContent).toContain(
-      "This file could not be read: it is not a map of keys."
-    );
-    expect(screen.queryByText("Review cleared.")).toBeNull();
+    expect(
+      await screen.findByText(
+        "Nothing here, and no claim that the field is quiet: Sleep and memory, torn.yaml need a look."
+      )
+    ).toBeDefined();
+    expect(screen.queryByText(/Review cleared/)).toBeNull();
   });
 
   it("lets a Scout claim nothing pending only after a clean run, and otherwise speaks in its own voice", async () => {
@@ -520,24 +505,6 @@ describe("empty stacks, in the three voices", () => {
     await screen.findByRole("button", { name: "Pause" });
     expect(screen.queryByText("Nothing pending.")).toBeNull();
     expect(screen.getAllByText(wrong.sentence).length).toBeGreaterThan(1);
-  });
-
-  it("says no Scout is looking, and names the ones that are not, rather than clearing", async () => {
-    renderApp(
-      answers({
-        "scouts.fleet": fleet({
-          watching: 0,
-          notLooking: [{ id: "sleep", name: "Sleep and memory" }],
-        }),
-      })
-    );
-
-    expect(
-      await screen.findByText(
-        /no Scout is looking · not looking: Sleep and memory/
-      )
-    ).toBeDefined();
-    expect(screen.queryByText("Review cleared.")).toBeNull();
   });
 
   it("says nothing at all while the evidence has not been read", async () => {

@@ -47,17 +47,20 @@ import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { readScouts } from "./scout-file.js";
-import { readFleet, readHealth } from "./scout-health.js";
+import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryQuery } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
   readQueue,
+  readSkim,
   runScout,
   type ScoutDeps,
 } from "./scouts.js";
 import {
+  acceptCounts,
   deferProposal,
+  promoteProposal,
   readGroups,
   rejectProposal,
   rejectRun,
@@ -425,6 +428,23 @@ export const router = t.router({
     queue: t.procedure.query(async ({ ctx }) =>
       refusing(readQueue(await scoutDeps(ctx)))
     ),
+    // Skim: the quiet lane, split at 30 days; *to Review* is the one act on it.
+    skim: t.procedure.query(async ({ ctx }) =>
+      refusing(readSkim(await scoutDeps(ctx)))
+    ),
+    promote: t.procedure
+      .input(z.object({ proposalId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => promoteProposal(deps, input.proposalId))
+      ),
+    // Accept and reject counts as the Accept rate will read them (beat 9).
+    acceptCounts: t.procedure.query(async ({ ctx }) =>
+      acceptCounts((await scoutDeps(ctx)).queue)
+    ),
+    // What an empty Review or Skim may claim, from the whole fleet.
+    fleet: t.procedure.query(async ({ ctx }) =>
+      refusing(readFleetClaim(await scoutDeps(ctx)))
+    ),
     // How each Scout is doing, in its Voice (ADR 0032): derived from the run
     // rows on every read, so no surface keeps a copy that could disagree.
     health: t.procedure.query(async ({ ctx }) =>
@@ -434,10 +454,6 @@ export const router = t.router({
     // run, so a caller can ask for it at a moment of its choosing.
     checkDue: t.procedure.mutation(async ({ ctx }) =>
       refusing(checkDue(await scoutDeps(ctx)))
-    ),
-    // Who is looking, for *Review cleared* (ADR 0032 decision 8).
-    fleet: t.procedure.query(async ({ ctx }) =>
-      refusing(readFleet(await scoutDeps(ctx)))
     ),
     // The form (#451): the file written, a Query edit run at once.
     save: t.procedure

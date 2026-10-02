@@ -285,16 +285,50 @@ type ProposalRow = {
   stub_path: string | null;
 };
 
-/** Pending Proposals, newest first seen first: the stack, one card in hand and the rest behind it. */
-export async function readQueue(deps: ScoutDeps): Promise<Card[]> {
+/** Review's pending Proposals, newest first seen first: the stack, one card in hand and the rest behind it. */
+export function readQueue(deps: ScoutDeps): Promise<Card[]> {
+  return readCards(deps, "review");
+}
+
+/** Skim lines older than this sit behind *show older*; nothing is deleted (ADR 0016 decision 6). */
+const SKIM_DAYS = 30;
+
+/**
+ * Skim: `lane = skim`, newest first, split at 30 days. A promoted line has
+ * left for Review (its lane is rewritten), and an accepted one is a stub, so
+ * what remains is only what the researcher has not touched.
+ */
+export async function readSkim(
+  deps: ScoutDeps
+): Promise<{ recent: Card[]; older: Card[] }> {
+  const lines = await readCards(deps, "skim");
+  const cutoff = deps.now().getTime() - SKIM_DAYS * 86_400_000;
+  const stamps = new Map(
+    (
+      deps.queue
+        .prepare("SELECT id, first_seen FROM proposals WHERE lane = 'skim'")
+        .all() as Array<{ id: number; first_seen: string }>
+    ).map((row) => [row.id, Date.parse(row.first_seen)])
+  );
+  const isOlder = (line: Card) => (stamps.get(line.id) ?? 0) < cutoff;
+  return {
+    recent: lines.filter((line) => !isOlder(line)),
+    older: lines.filter(isOlder),
+  };
+}
+
+async function readCards(
+  deps: ScoutDeps,
+  lane: "review" | "skim"
+): Promise<Card[]> {
   const { queue, index } = deps;
   const { scouts } = await readScouts(deps.vaultPath);
   const byId = new Map(scouts.map((s) => [s.id, s]));
   const rows = queue
     .prepare(
-      "SELECT * FROM proposals WHERE state = 'pending' ORDER BY first_seen DESC, id DESC"
+      "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
     )
-    .all() as ProposalRow[];
+    .all(lane) as ProposalRow[];
   const seen = queue.prepare(
     `SELECT DISTINCT a.scout_id, a.run_id, r.retroactive FROM appearances a
        JOIN scout_runs r ON r.id = a.run_id
