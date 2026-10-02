@@ -149,9 +149,11 @@ export function faultSentence(
     if (message === DISALLOWED) {
       return "The site asks not to be read by robots (disallowed by robots.txt), so nothing was checked.";
     }
+    const status = /HTTP (\d{3})/.exec(message ?? "")?.[1];
     return kind === "network"
       ? "The page could not be reached, so nothing was checked."
-      : `The page answered with an error${/HTTP (\d{3})/.test(message ?? "") ? ` (${/HTTP \d{3}/.exec(message ?? "")![0]})` : ""} or was too large to read, so nothing was checked.`;
+      : `The page answered with an error${status === undefined ? "" : ` (HTTP ${status})`} or was too large to read, ` +
+          "so nothing was checked.";
   }
   switch (kind) {
     case "credentials":

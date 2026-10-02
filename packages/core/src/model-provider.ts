@@ -89,6 +89,8 @@ const SCHEMA = {
   },
 } as const;
 
+class NotItems extends Error {}
+
 /** Anthropic through its SDK; the client is a parameter so a test hands in one that answers from a fixture. */
 export function createAnthropicProvider(
   makeClient: (apiKey: string) => Anthropic = (apiKey) =>
@@ -146,19 +148,12 @@ export function createAnthropicProvider(
         const parsed = JSON.parse(block?.type === "text" ? block.text : "") as {
           items?: unknown;
         };
-        if (!Array.isArray(parsed.items)) throw new Error("no items");
+        if (!Array.isArray(parsed.items)) throw new NotItems();
         return { items: parsed.items as ExtractedItem[], usage };
       } catch (cause) {
         // A schema violation arrives as text that does not parse: `model`,
         // not a crash, and the tokens it cost are still recorded.
-        if (cause instanceof SyntaxError || cause instanceof TypeError) {
-          throw new ModelError(
-            "model",
-            "the answer did not match what was asked for",
-            usage
-          );
-        }
-        if (cause instanceof Error && cause.message === "no items") {
+        if (cause instanceof SyntaxError || cause instanceof NotItems) {
           throw new ModelError(
             "model",
             "the answer did not match what was asked for",
