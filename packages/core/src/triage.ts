@@ -67,7 +67,11 @@ function decide(
   // Only a card in the stack can be decided: a held or accepted Proposal was
   // never a card, and deciding one would put a verdict in the log for a paper
   // the researcher was not shown.
-  if (stateOf(deps, proposalId) !== "pending") {
+  // Nor a Skim line: nothing there is owed, so there is nothing to refuse it.
+  const lane = queue
+    .prepare("SELECT lane FROM proposals WHERE id = ?")
+    .get(proposalId) as { lane: string } | undefined;
+  if (stateOf(deps, proposalId) !== "pending" || lane?.lane !== "review") {
     throw new VaultError("refused", "That card is not in the stack.");
   }
   inTransaction(queue, () => {
@@ -78,6 +82,68 @@ function decide(
       .prepare("INSERT INTO triage (proposal_id, action, at) VALUES (?, ?, ?)")
       .run(proposalId, action, stamp(deps));
   });
+}
+
+/**
+ * `T` on a Skim line: *to Review*. The `promote` row is what keeps the paper
+ * out of Accept rate however it ends — the researcher picked it, the Scout's
+ * brief did not (ADR 0039 decision 4) — and the lane is rewritten so that
+ * Review's own reads and the R/D/undo guards treat it as any other card.
+ * Skim itself offers no reject or defer: nothing there is owed.
+ */
+export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
+  const row = deps.queue
+    .prepare("SELECT state, lane FROM proposals WHERE id = ?")
+    .get(proposalId) as { state: string; lane: string } | undefined;
+  if (row === undefined) {
+    throw new VaultError("refused", "That Proposal is gone.");
+  }
+  if (row.state !== "pending" || row.lane !== "skim") {
+    throw new VaultError("refused", "That line is not in Skim.");
+  }
+  inTransaction(deps.queue, () => {
+    deps.queue
+      .prepare("UPDATE proposals SET lane = 'review' WHERE id = ?")
+      .run(proposalId);
+    deps.queue
+      .prepare(
+        "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'promote', ?)"
+      )
+      .run(proposalId, stamp(deps));
+  });
+}
+
+/** Accepts and rejects that count toward each Scout's Accept rate (beat 9 reads this; ADR 0039 decisions 4 and 6). */
+export type AcceptCounts = {
+  scoutId: string;
+  accepted: number;
+  rejected: number;
+};
+
+/**
+ * Only what the Scout placed in Review counts: a Proposal with a `promote`
+ * row was moved by hand, and one still in the Skim lane was never put to the
+ * brief's test, so neither earns or costs the Scout anything — accepted or
+ * not. A reject taken back by a later `undo` is not a reject. Credit goes to
+ * the Scout whose Appearance came first, as a deferral's does.
+ */
+export function acceptCounts(queue: DatabaseSync): AcceptCounts[] {
+  return queue
+    .prepare(
+      `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
+                ORDER BY run_id, rowid LIMIT 1) AS scoutId,
+              SUM(t.action = 'accept') AS accepted,
+              SUM(t.action = 'reject') AS rejected
+         FROM triage t JOIN proposals p ON p.id = t.proposal_id
+        WHERE t.action IN ('accept', 'reject')
+          AND p.lane = 'review'
+          AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
+                           AND x.action = 'promote')
+          AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
+                           AND u.action = 'undo' AND u.rowid > t.rowid)
+        GROUP BY scoutId ORDER BY scoutId`
+    )
+    .all() as AcceptCounts[];
 }
 
 /**
@@ -92,7 +158,7 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
     queue
       .prepare(
         `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
-          WHERE a.run_id = ? AND p.state = 'pending' ORDER BY p.id`
+          WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review' ORDER BY p.id`
       )
       .all(runId) as Array<{ id: number }>
   ).map((row) => row.id);
@@ -185,7 +251,7 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
             queue
               .prepare(
                 `SELECT COUNT(DISTINCT p.id) AS n FROM proposals p JOIN appearances a ON a.proposal_id = p.id
-                  WHERE a.run_id = ? AND p.state = 'pending'`
+                  WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'`
               )
               .get(run.id) as { n: number }
           ).n;

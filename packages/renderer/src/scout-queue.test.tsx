@@ -526,4 +526,109 @@ describe("the Scout Queue", () => {
       ).toBeDefined();
     });
   });
+
+  // Skim (#452): a quiet feed of single lines with nothing to clear. A line
+  // offers A, O and T and nothing else; a click selects, it never promotes.
+  describe("Skim", () => {
+    const line = (id: number, title: string) =>
+      card({ id, title, lane: "skim" });
+    const feed = (recent: Card[], older: Card[] = [], more = {}) =>
+      answers([], {
+        "scouts.skim": { recent, older },
+        "scouts.fleet": { claim: null, naming: [] },
+        ...more,
+      });
+    const toSkim = async () =>
+      fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+
+    it("draws the lines as a list, and a click selects one and opens its card without promoting", async () => {
+      const promote = vi.fn(() => undefined);
+      renderApp(
+        feed([line(1, "First line"), line(2, "Second line")], [], {
+          "scouts.promote": promote,
+        })
+      );
+      await toSkim();
+      const lines = await screen.findByRole("list", { name: "Skim" });
+      expect(within(lines).getAllByRole("listitem")).toHaveLength(2);
+
+      fireEvent.click(within(lines).getByText("Second line"));
+
+      const article = await screen.findByRole("article", {
+        name: "Second line",
+      });
+      expect(article.textContent).toContain("Sleep and memory");
+      expect(promote).not.toHaveBeenCalled();
+    });
+
+    it("T sends the line to Review, A accepts it, and R, D and P do nothing", async () => {
+      const promote = vi.fn(() => undefined);
+      const accept = vi.fn(() => ({ path: "sources/x.md", held: false }));
+      const reject = vi.fn(() => undefined);
+      const defer = vi.fn(() => undefined);
+      renderApp(
+        feed([line(1, "First line")], [], {
+          "scouts.promote": promote,
+          "scouts.accept": accept,
+          "scouts.reject": reject,
+          "scouts.defer": defer,
+        })
+      );
+      await toSkim();
+      const article = await screen.findByRole("article", {
+        name: "First line",
+      });
+
+      for (const key of ["r", "d", "p"]) fireEvent.keyDown(article, { key });
+      expect(article.textContent).not.toMatch(/reject|defer|pass/i);
+      fireEvent.keyDown(article, { key: "t" });
+      await waitFor(() =>
+        expect(promote).toHaveBeenCalledWith({ proposalId: 1 })
+      );
+      fireEvent.keyDown(article, { key: "a" });
+      await waitFor(() =>
+        expect(accept).toHaveBeenCalledWith({ proposalId: 1 })
+      );
+
+      expect(reject).not.toHaveBeenCalled();
+      expect(defer).not.toHaveBeenCalled();
+      expect(screen.queryByText(/card 1 of/)).toBeNull();
+    });
+
+    it("tucks lines older than 30 days behind *show older*", async () => {
+      renderApp(feed([line(1, "Fresh")], [line(2, "Stale")]));
+      await toSkim();
+      const lines = await screen.findByRole("list", { name: "Skim" });
+      expect(within(lines).queryByText("Stale")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /show older/ }));
+
+      expect(within(lines).getByText("Stale")).toBeDefined();
+    });
+
+    it("says its quiet from the fleet's claim, and withholds it while a Scout is broken", async () => {
+      renderApp(
+        feed([], [], {
+          "scouts.fleet": {
+            claim: "1 scout watching · all parsed cleanly · newest run 2h ago",
+            naming: [],
+          },
+        })
+      );
+      await toSkim();
+      expect(
+        await screen.findByText(/1 scout watching · all parsed cleanly/)
+      ).toBeDefined();
+      cleanup();
+
+      renderApp(
+        feed([], [], {
+          "scouts.fleet": { claim: null, naming: ["Sleep and memory"] },
+        })
+      );
+      await toSkim();
+      expect(await screen.findByText(/Sleep and memory/)).toBeDefined();
+      expect(screen.queryByText(/watching/)).toBeNull();
+    });
+  });
 });

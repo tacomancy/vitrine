@@ -823,3 +823,176 @@ describe("triage in Review", () => {
     ]);
   });
 });
+
+// The Skim lane (#452): a quiet feed with nothing to clear. A line offers
+// accept, open and *to Review*; promoting is the one thing that moves it,
+// and a hand-picked paper is not the brief's success (ADR 0039 decision 4).
+describe("Skim", () => {
+  const skimming = () =>
+    opened(serving("normal"), { "sleep.yaml": scoutYaml({ lane: "skim" }) });
+  type Skim = { recent: Card[]; older: Card[] };
+  type Counts = Array<{ scoutId: string; accepted: number; rejected: number }>;
+  const skim = async (c: Awaited<ReturnType<typeof opened>>) => {
+    const r = await c.c.query<Skim>("scouts.skim");
+    expect(r.error).toBeUndefined();
+    return r.result!.data;
+  };
+  const counts = async (c: Awaited<ReturnType<typeof opened>>) => {
+    const r = await c.c.query<Counts>("scouts.acceptCounts");
+    expect(r.error).toBeUndefined();
+    return r.result!.data;
+  };
+  const promote = async (
+    c: Awaited<ReturnType<typeof opened>>,
+    proposalId: number
+  ) => (await c.c.mutate("scouts.promote", { proposalId })).error?.message;
+  /** Backdate every Proposal, as if first seen `days` before the test's clock. */
+  const aged = (c: Awaited<ReturnType<typeof opened>>, days: number) => {
+    const db = new DatabaseSync(join(c.vault, ".vitrine/queue.sqlite"));
+    db.prepare("UPDATE proposals SET first_seen = ?").run(
+      new Date(NOW.getTime() - days * 86_400_000).toISOString()
+    );
+    db.close();
+  };
+
+  it("reads lane = skim: a Skim Scout's papers are lines, and never cards in Review", async () => {
+    const c = await skimming();
+    await c.run();
+
+    expect(await c.cards()).toEqual([]);
+    const { recent, older } = await skim(c);
+    expect(recent).toHaveLength(2);
+    expect(recent.every((line) => line.lane === "skim")).toBe(true);
+    expect(older).toEqual([]);
+  });
+
+  it("puts lines older than 30 days behind *show older*, and deletes nothing", async () => {
+    const c = await skimming();
+    await c.run();
+    aged(c, 31);
+
+    const { recent, older } = await skim(c);
+
+    expect(recent).toEqual([]);
+    expect(older).toHaveLength(2);
+    expect(c.rows("SELECT * FROM proposals")).toHaveLength(2);
+    aged(c, 30);
+    expect((await skim(c)).recent).toHaveLength(2);
+  });
+
+  it("*to Review* writes a promote row, and the Proposal enters Review", async () => {
+    const c = await skimming();
+    await c.run();
+    const [line] = (await skim(c)).recent;
+
+    expect(await promote(c, line!.id)).toBeUndefined();
+
+    expect(
+      c.rows("SELECT proposal_id, action FROM triage ORDER BY rowid")
+    ).toEqual([{ proposal_id: line!.id, action: "promote" }]);
+    expect((await c.cards()).map((card) => card.id)).toEqual([line!.id]);
+    expect((await skim(c)).recent.map((l) => l.id)).not.toContain(line!.id);
+  });
+
+  it("promotes only a pending Skim line", async () => {
+    const c = await skimming();
+    await c.run();
+    const [line, other] = (await skim(c)).recent;
+    await c.accept(other!.id);
+    await promote(c, line!.id);
+
+    expect(await promote(c, other!.id)).toBe("That line is not in Skim.");
+    expect(await promote(c, line!.id)).toBe("That line is not in Skim.");
+    expect(
+      c.rows("SELECT * FROM triage WHERE action = 'promote'")
+    ).toHaveLength(1);
+  });
+
+  it("has no reject, defer or reject-this-run on a Skim line", async () => {
+    const c = await skimming();
+    const { runId } = await c.run();
+    const [line] = (await skim(c)).recent;
+
+    expect(await c.act("reject", { proposalId: line!.id })).toBe(
+      "That card is not in the stack."
+    );
+    expect(await c.act("defer", { proposalId: line!.id })).toBe(
+      "That card is not in the stack."
+    );
+    expect(await c.act("rejectRun", { runId })).toBeUndefined();
+    expect((await skim(c)).recent).toHaveLength(2);
+    expect(c.rows("SELECT * FROM triage")).toEqual([]);
+    expect((await c.groups())[0]!.runPending).toBe(0);
+  });
+
+  it("accepts a line directly into a stub, with no Accept-rate credit; a Scout-placed Review accept does earn it", async () => {
+    const hand = await skimming();
+    await hand.run();
+    const [direct, promoted] = (await skim(hand)).recent;
+    const stub = await hand.accept(direct!.id);
+    await promote(hand, promoted!.id);
+    await hand.accept(promoted!.id);
+
+    // Both wrote a stub; neither is the brief's success.
+    expect(stub.held).toBe(false);
+    expect(await hand.read(stub.path)).toContain("kind: source-stub");
+    expect(
+      hand.rows("SELECT * FROM proposals WHERE state = 'accepted'")
+    ).toHaveLength(2);
+    expect(await counts(hand)).toEqual([]);
+
+    const placed = await opened(serving("normal"));
+    await placed.run();
+    const [first] = await placed.cards();
+    await placed.accept(first!.id);
+    expect(await counts(placed)).toEqual([
+      { scoutId: "sleep", accepted: 1, rejected: 0 },
+    ]);
+  });
+
+  it("counts a reject toward the rate unless an undo cancels it, and a promoted Proposal's reject not at all", async () => {
+    const c = await opened(serving("normal"));
+    await c.run();
+    const [a, b] = await c.cards();
+    await c.act("reject", { proposalId: a!.id });
+    await c.act("undo", { proposalId: a!.id });
+    await c.act("reject", { proposalId: b!.id });
+
+    expect(await counts(c)).toEqual([
+      { scoutId: "sleep", accepted: 0, rejected: 1 },
+    ]);
+
+    const s = await skimming();
+    await s.run();
+    const [line] = (await skim(s)).recent;
+    await promote(s, line!.id);
+    await s.act("reject", { proposalId: line!.id });
+    expect(await counts(s)).toEqual([]);
+  });
+
+  it("warrants a quiet Skim from the fleet, and withholds it while any Scout is broken", async () => {
+    let status = 200;
+    const c = await opened(async () => reply(await atom("empty"), status), {
+      "sleep.yaml": scoutYaml({ lane: "skim" }),
+    });
+    const claim = async () =>
+      (
+        await c.c.query<{ claim: string | null; naming: string[] }>(
+          "scouts.fleet"
+        )
+      ).result!.data;
+    await c.run();
+
+    expect((await claim()).claim).toMatch(
+      /^1 scout watching · all parsed cleanly · newest run /
+    );
+
+    status = 503;
+    await c.run();
+
+    expect(await claim()).toMatchObject({
+      claim: null,
+      naming: ["Sleep and memory"],
+    });
+  });
+});
