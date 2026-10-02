@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Card } from "core";
+import type { Card, Health } from "core";
 import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
+import { ScoutForm, type QuestionChoice } from "./ScoutForm";
+import { VoiceLine } from "./ScoutVoice";
+import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 
 /**
@@ -14,8 +17,9 @@ import { useTRPC } from "./trpc";
  * guesses: a field the source did not supply is said to be missing, and the
  * card says *assigned to* because nothing has scored a match. Skim (#452) is
  * the second lane: single lines with nothing to clear, offering `A`, `O` and
- * `T` (to Review) and no reject, defer or pass. The form and the rail's
- * voices are later tickets'.
+ * `T` (to Review) and no reject, defer or pass. The form (#451) opens in the
+ * centre pane in place of the stack, and every short place — a rail row, a
+ * Scout's header, an empty stack — speaks in one of ADR 0032's three voices.
  */
 export function ScoutQueue() {
   const trpc = useTRPC();
@@ -28,10 +32,13 @@ export function ScoutQueue() {
     ...trpc.scouts.skim.queryOptions(),
     enabled: lane === "skim",
   });
-  const fleet = useQuery({
-    ...trpc.scouts.fleet.queryOptions(),
-    enabled: lane === "skim",
-  });
+  const fleet = useQuery(trpc.scouts.fleet.queryOptions());
+  const health = useQuery(trpc.scouts.health.queryOptions());
+  const questionList = useQuery(
+    trpc.questions.list.queryOptions({ order: "newest" })
+  );
+  // The form, or null for the stack. `edit` is the Scout's id when reopened.
+  const [form, setForm] = useState<{ edit: string | null } | null>(null);
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
@@ -78,6 +85,12 @@ export function ScoutQueue() {
         );
         void reread();
       },
+      onError: (error) => setSaid(error.message),
+    })
+  );
+  const pause = useMutation(
+    trpc.scouts.setPaused.mutationOptions({
+      onSuccess: () => void reread(),
       onError: (error) => setSaid(error.message),
     })
   );
@@ -166,6 +179,20 @@ export function ScoutQueue() {
     id === null
       ? everything.length
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
+  const healthOf = (id: string): Health | undefined =>
+    health.data?.scouts.find((h) => h.id === id)?.health;
+  const questions: QuestionChoice[] = (
+    questionList.data?.questions ?? []
+  ).flatMap((q) =>
+    q.id === undefined
+      ? []
+      : [{ id: q.id, question: q.question, status: q.status }]
+  );
+  const selectedScout = scouts.data?.scouts.find((s) => s.id === selected);
+  const editing =
+    form?.edit == null
+      ? undefined
+      : scouts.data?.scouts.find((s) => s.id === form.edit);
   useChosenInView(`scout-rail-${selected ?? "all"}`);
   useChosenInView(
     lane === "review" && card !== undefined
@@ -260,9 +287,12 @@ export function ScoutQueue() {
             </button>
           ))}
         </span>
-        {lane === "review" && card !== undefined && (
+        {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
+        <button type="button" onClick={() => setForm({ edit: null })}>
+          + New Scout
+        </button>
       </header>
       <ul className={styles.scouts} aria-label="Scouts">
         {railRows.map((row) => (
@@ -291,6 +321,9 @@ export function ScoutQueue() {
                 Run now
               </button>
             )}
+            {/* On the row as well as in the header, so a broken Scout cannot
+                hide in a group nobody selects (spec #447 story 42). */}
+            {row.id !== null && <VoiceLine health={healthOf(row.id)} />}
           </li>
         ))}
         {/* A file that does not parse is a Scout the researcher made, not one
@@ -298,11 +331,65 @@ export function ScoutQueue() {
         {(scouts.data?.unreadable ?? []).map((file) => (
           <li key={file.file} className={styles.scout}>
             <span>{file.file}</span>
-            <span>{file.sentence}</span>
+            <VoiceLine
+              health={{ voice: "wrong", kind: null, sentence: file.sentence }}
+            />
           </li>
         ))}
       </ul>
-      {lane === "review" && group !== undefined && (
+      {selectedScout !== undefined && form === null && (
+        <div className={styles.scoutHeader}>
+          <h2 className={styles.scoutName}>{selectedScout.name}</h2>
+          <VoiceLine health={healthOf(selectedScout.id)} />
+          {selectedScout.assigned.length > 0 && (
+            <ul className={styles.assigned} aria-label="Assigned Questions">
+              {selectedScout.assigned.map((id) => {
+                const q = questions.find((candidate) => candidate.id === id);
+                // A closed Question gets no nag: it is drawn with its glyph
+                // like any other and the Scout keeps running (story 23).
+                return (
+                  <li key={id}>
+                    {q !== undefined && <StatusGlyph status={q.status} />}{" "}
+                    {q?.question ?? id}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className={styles.actions}>
+            <button
+              type="button"
+              onClick={() => setForm({ edit: selectedScout.id })}
+            >
+              Edit
+            </button>{" "}
+            <button
+              type="button"
+              disabled={pause.isPending}
+              onClick={() =>
+                pause.mutate({
+                  scoutId: selectedScout.id,
+                  paused: !selectedScout.paused,
+                })
+              }
+            >
+              {selectedScout.paused ? "Resume" : "Pause"}
+            </button>
+          </p>
+        </div>
+      )}
+      {form !== null && (form.edit === null || editing !== undefined) && (
+        <ScoutForm
+          key={form.edit ?? "new"}
+          {...(editing === undefined ? {} : { scout: editing })}
+          questions={questions}
+          onDone={(saved) => {
+            setForm(null);
+            if (saved !== null) setSelected(saved);
+          }}
+        />
+      )}
+      {form === null && lane === "review" && group !== undefined && (
         <div className={styles.group}>
           {group.held.length > 0 && (
             <div>
@@ -348,13 +435,13 @@ export function ScoutQueue() {
           <kbd>⌘Z</kbd>
         </p>
       )}
-      {lane === "review" && passedThrough && (
+      {form === null && lane === "review" && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
           {selected === null ? "here" : "in this group"}; they come round again.
         </p>
       )}
-      {lane === "skim" && (
+      {form === null && lane === "skim" && (
         <>
           {lines.length > 0 && (
             <ul className={styles.skim} aria-label="Skim">
@@ -401,7 +488,16 @@ export function ScoutQueue() {
           )}
         </>
       )}
-      {lane === "review" && card !== undefined && (
+      {form === null &&
+        lane === "review" &&
+        queue.isSuccess &&
+        inGroup.length === 0 && (
+          <ReviewQuiet
+            scout={selected === null ? undefined : healthOf(selected)}
+            claim={selected === null ? fleet.data : undefined}
+          />
+        )}
+      {form === null && lane === "review" && card !== undefined && (
         <Proposal
           key={card.id}
           card={card}
@@ -414,7 +510,7 @@ export function ScoutQueue() {
           onDefer={() => onDecide("deferred", defer, card.id, card.title)}
         />
       )}
-      {lane === "review" && stack.length > 1 && (
+      {form === null && lane === "review" && stack.length > 1 && (
         <ol className={styles.rest} aria-label="Next in the stack">
           {stack.slice(1).map((next) => (
             <li key={next.id} id={`scout-card-${next.id}`}>
@@ -572,6 +668,38 @@ function SkimQuiet({
     <p className={styles.line}>
       {claim.claim !== null
         ? `Skim is quiet — ${claim.claim}.`
+        : claim.naming.length > 0
+          ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} ${claim.naming.length === 1 ? "needs" : "need"} a look.`
+          : "No Scouts yet, so nothing is being watched."}
+    </p>
+  );
+}
+
+/**
+ * An empty Review stack in ADR 0032's voices, worded as Skim's quiet is so the
+ * two lanes never speak differently: one Scout claims *nothing pending* only
+ * after a clean run (otherwise its own voice, in its header, speaks); the
+ * whole stack is *Review cleared* with the fleet's warrant, and makes no
+ * claim while a Scout is broken. Nothing is said while the evidence has not
+ * been read.
+ */
+function ReviewQuiet({
+  scout,
+  claim,
+}: {
+  scout: Health | undefined;
+  claim: { claim: string | null; naming: string[] } | undefined;
+}) {
+  if (scout !== undefined) {
+    return scout.voice === "claim" ? (
+      <p className={styles.line}>Nothing pending.</p>
+    ) : null;
+  }
+  if (claim === undefined) return null;
+  return (
+    <p className={styles.line}>
+      {claim.claim !== null
+        ? `Review cleared — ${claim.claim}.`
         : claim.naming.length > 0
           ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} ${claim.naming.length === 1 ? "needs" : "need"} a look.`
           : "No Scouts yet, so nothing is being watched."}

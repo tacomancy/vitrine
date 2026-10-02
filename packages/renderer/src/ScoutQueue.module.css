@@ -200,3 +200,84 @@
 .skimLine[aria-current="true"] {
   background: var(--color-bg-raised);
 }
+
+/* The Voice slot (ADR 0032): a mono fragment, the glyph only on *wrong*, and
+   never a warm colour — what separates the voices is the glyph, not alarm. */
+.voice {
+  display: inline-flex;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.glyph {
+  flex: none;
+}
+
+.scoutHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-5) var(--space-3);
+}
+
+.scoutName {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.assigned {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-5) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+  font-size: var(--text-sm);
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.form .choice {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.try {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.try ol {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+}
