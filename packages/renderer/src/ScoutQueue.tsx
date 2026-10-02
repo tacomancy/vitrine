@@ -573,7 +573,7 @@ function SkimQuiet({
       {claim.claim !== null
         ? `Skim is quiet — ${claim.claim}.`
         : claim.naming.length > 0
-          ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} not looking or broken.`
+          ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} ${claim.naming.length === 1 ? "needs" : "need"} a look.`
           : "No Scouts yet, so nothing is being watched."}
     </p>
   );
