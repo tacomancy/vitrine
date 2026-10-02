@@ -344,7 +344,7 @@ export function ScoutQueue() {
           </p>
         </div>
       )}
-      {form !== null && (
+      {form !== null && (form.edit === null || editing !== undefined) && (
         <ScoutForm
           key={form.edit ?? "new"}
           {...(editing === undefined ? {} : { scout: editing })}
@@ -581,12 +581,9 @@ function EmptyStack(props: EmptyStackProps) {
       <ul className={styles.assigned} aria-label="Scouts that are broken">
         {broken.map((b) => (
           <li key={b.name}>
+            <span className={styles.voice}>{b.name}</span>{" "}
             <VoiceLine
-              health={{
-                voice: "wrong",
-                kind: null,
-                sentence: `${b.name}: ${b.sentence}`,
-              }}
+              health={{ voice: "wrong", kind: null, sentence: b.sentence }}
             />
           </li>
         ))}

@@ -90,18 +90,21 @@ export function ScoutForm({
     });
   }
 
+  // On the document, so Esc still returns after a click moves focus off the form.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDone(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
+
   const result = tried.data;
   return (
     <form
       className={styles.form}
       aria-label={scout === undefined ? "New Scout" : `Edit ${scout.name}`}
       onSubmit={submit}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onDone(null);
-        }
-      }}
     >
       <label>
         Name

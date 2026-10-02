@@ -279,7 +279,8 @@ describe("the form", () => {
         .map((box) => box.parentElement!.textContent)
     ).toEqual([expect.stringContaining("Is it consolidation?") as string]);
 
-    fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Escape" });
+    // Heard on the document, so it works after focus has left the form.
+    fireEvent.keyDown(document.body, { key: "Escape" });
 
     expect(await screen.findByRole("article")).toBeDefined();
     expect(screen.queryByRole("form")).toBeNull();
@@ -485,9 +486,9 @@ describe("empty stacks, in the three voices", () => {
     const broken = await screen.findByRole("list", {
       name: "Scouts that are broken",
     });
-    expect(broken.textContent).toContain(`Sleep and memory: ${wrong.sentence}`);
+    expect(broken.textContent).toContain(wrong.sentence);
     expect(broken.textContent).toContain(
-      "torn.yaml: This file could not be read"
+      "This file could not be read: it is not a map of keys."
     );
     expect(screen.queryByText("Review cleared.")).toBeNull();
   });
@@ -519,6 +520,24 @@ describe("empty stacks, in the three voices", () => {
     await screen.findByRole("button", { name: "Pause" });
     expect(screen.queryByText("Nothing pending.")).toBeNull();
     expect(screen.getAllByText(wrong.sentence).length).toBeGreaterThan(1);
+  });
+
+  it("says no Scout is looking, and names the ones that are not, rather than clearing", async () => {
+    renderApp(
+      answers({
+        "scouts.fleet": fleet({
+          watching: 0,
+          notLooking: [{ id: "sleep", name: "Sleep and memory" }],
+        }),
+      })
+    );
+
+    expect(
+      await screen.findByText(
+        /no Scout is looking · not looking: Sleep and memory/
+      )
+    ).toBeDefined();
+    expect(screen.queryByText("Review cleared.")).toBeNull();
   });
 
   it("says nothing at all while the evidence has not been read", async () => {

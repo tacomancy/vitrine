@@ -234,6 +234,17 @@ describe("editing a Scout", () => {
     ).toEqual([{ lane: "review" }]);
   });
 
+  it("saves an edited Query on a paused Scout without running it", async () => {
+    const { c, id } = await seeded();
+    await c.c.mutate("scouts.setPaused", { scoutId: id, paused: true });
+
+    const saved = await c.save({ id, query: "cat:q-bio.NC" });
+
+    expect(saved.run).toBeNull();
+    expect(c.requests).toEqual([]);
+    expect((await c.list())[0]!.query).toBe("cat:q-bio.NC");
+  });
+
   it("keeps keys the form does not know about", async () => {
     const c = await opened(serving("empty"));
     await c.write(
