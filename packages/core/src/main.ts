@@ -106,12 +106,18 @@ const appSupportDir = process.env["VITRINE_APP_SUPPORT_DIR"];
 const machine = process.env["VITRINE_MACHINE"];
 // The account's full name, for a highlight's author; only the shell can ask.
 const author = process.env["VITRINE_AUTHOR"];
+// A demo's stand-in arXiv server (`Scripts/scout-demo.mjs`); never set in use,
+// so the real endpoint is the default and nothing leaves the device by it.
+const arxivEndpoint = process.env["VITRINE_ARXIV_ENDPOINT"];
 const shell = parentPort ? hostOver(parentPort) : null;
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(appSupportDir === undefined ? {} : { appSupportDir }),
   ...(machine === undefined || machine === "" ? {} : { machine }),
   ...(author === undefined || author === "" ? {} : { author }),
+  ...(arxivEndpoint === undefined || arxivEndpoint === ""
+    ? {}
+    : { arxiv: { endpoint: arxivEndpoint } }),
   ...(shell ? { host: shell.host } : {}),
 });
 

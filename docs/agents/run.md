@@ -32,6 +32,8 @@ Copy `packages/core/fixtures/obsidian-vault` into the scratchpad: it has `.obsid
 
 `node Scripts/reader-demo.mjs <out-folder>` is the Reader beat's closing run (#429): attach a PDF to a stub, re-save it with the PDFKit stand-in for Preview (`Scripts/reader-demo/preview-resave.swift`, macOS with `swift`), resolve three Unmatched rows, open the Source and make a Question from a selection — one PNG each, on a scratch copy of the fixture vault. `KEEP=1` leaves the scratch vault behind.
 
+`node Scripts/scout-demo.mjs <out-folder>` is the Scouts beat's closing run (#454): seven hidden launches on one scratch vault, against a local stand-in for arXiv (`Scripts/scout-demo/standin.mjs`, the core's recorded fixtures plus a switchable 503) reached through `VITRINE_ARXIV_ENDPOINT` — never the real arXiv. One PNG each: the form with *try*, the Review stack, the Skim feed, the accepted stub's *Unfinished reading* row, the broken Scout on the rail and in Loose Ends, and the recovery.
+
 ## What cannot be driven this way
 
 Native dialogs and the menu: the folder chooser (`vault.pick`, `File ▸ Open Vault…`) needs a visible window and a human. Those stories are covered by the core's router tests with a fake host, and were verified by hand once in #104 — and again in #267 for the panel's *New Folder* button, which `createDirectory` draws and no test can see. The Obsidian round-trip (open the written file, see editable Properties) was checked once in #106 by registering the scratch vault in `~/Library/Application Support/obsidian/obsidian.json` — ask before doing that again; it adds a vault to the user's switcher.
