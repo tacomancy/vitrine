@@ -73,8 +73,12 @@ export async function pauseScout(
   }
   const folder = join(vaultPath, SCOUTS_FOLDER);
   const file = (await readdir(folder)).find(
-    (n) => n.replace(/\.ya?ml$/i, "") === scoutId && /\.ya?ml$/i.test(n)
-  )!;
+    (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === scoutId
+  );
+  // Gone between the read above and this one: refused, not a raw TypeError.
+  if (file === undefined) {
+    throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
+  }
   const doc = parseDocument(await readFile(join(folder, file), "utf8"));
   doc.set("paused", true);
   await writeFile(join(folder, file), doc.toString());

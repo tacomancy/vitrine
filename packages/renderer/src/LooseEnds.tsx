@@ -589,7 +589,7 @@ function BrokenScout({
   const pause = useMutation(trpc.scouts.pause.mutationOptions(settle));
   return (
     <RowShell
-      meta={`scout · ${row.errorKind.replace("_", " ")}`}
+      meta={`scout · ${row.errorKind.replaceAll("_", " ")}`}
       title={row.title}
       href={hashOf(SCOUTS)}
       why={row.sentence}
