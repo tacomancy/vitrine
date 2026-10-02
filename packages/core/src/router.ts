@@ -9,6 +9,7 @@ import {
   showStoredArtifact,
 } from "./artifact.js";
 import type { ArxivClient } from "./arxiv.js";
+import type { WatchedDeps } from "./watched.js";
 import type { Events } from "./events.js";
 import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
@@ -121,6 +122,8 @@ export type Context = {
   now: () => Date;
   /** The one arXiv client every Scout shares (ADR 0016 decision 3). */
   arxiv: ArxivClient;
+  /** Fetch, model and key for a Scout that watches a page (ADR 0017). */
+  watched: WatchedDeps;
   /** This machine's computer name, which a linked Artifact records (ADR 0035 decision 5); tests pass any string. */
   machine: string;
   coalesceMs: number;
@@ -252,6 +255,7 @@ async function scoutDeps(ctx: Context): Promise<ScoutDeps> {
     index,
     queue,
     arxiv: ctx.arxiv,
+    watched: ctx.watched,
     events: ctx.events,
     now: ctx.now,
   };

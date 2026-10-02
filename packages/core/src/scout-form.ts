@@ -79,6 +79,14 @@ async function write(
     if (before === undefined) {
       throw new VaultError("refused", `There is no Scout named ${id}.`);
     }
+    if (before.scout.source.kind === "watched") {
+      // The form's Query is an arXiv Query; writing it over a page's address
+      // would quietly turn the Scout into something else.
+      throw new VaultError(
+        "refused",
+        "A Scout that watches a web page is edited in its file for now."
+      );
+    }
     doc = parseDocument(await readFile(join(folder, before.file), "utf8"));
     doc.set("name", name);
   }

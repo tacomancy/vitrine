@@ -7,6 +7,9 @@ import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
 import { pdfBytes } from "./reader.js";
 import { createArxivClient, type ArxivOptions } from "./arxiv.js";
+import { createMemoryCredentialStore } from "./credentials.js";
+import { createAnthropicProvider, DEFAULT_MODEL } from "./model-provider.js";
+import type { WatchedDeps } from "./watched.js";
 import { createEvents } from "./events.js";
 import { checkDue } from "./scout-schedule.js";
 import { createPdfEngine } from "./pdf-engine.js";
@@ -65,6 +68,13 @@ export type AppOptions = {
   /** The arXiv client's `fetch`, clock and endpoint; tests and the demo's stand-in server replace them, nothing else does. */
   arxiv?: Partial<ArxivOptions>;
   /**
+   * What reading a page needs — its `fetch`, the `ModelProvider`, the
+   * `CredentialStore` — replaced by tests and the demo's stand-ins. Absent,
+   * the real fetch and Anthropic stand in, and the store is empty until the
+   * Keychain-backed one lands.
+   */
+  watched?: Partial<WatchedDeps>;
+  /**
    * How often, in ms, Scouts that are due are run while a vault is open; the
    * check also runs when one opens (ADR 0016 decision 3). Defaults to an
    * hour. `null` turns scheduled runs off: a test that does not drive them
@@ -108,6 +118,7 @@ export function createApp({
   pdfWorker,
   author,
   arxiv,
+  watched,
   scoutCheckMs = HOURLY_MS,
 }: AppOptions): App {
   const app = new Hono();
@@ -202,6 +213,7 @@ export function createApp({
         index: opened.index,
         queue: opened.queue,
         arxiv: context.arxiv,
+        watched: context.watched,
         events,
         now: context.now,
       });
@@ -232,6 +244,15 @@ export function createApp({
       },
       ...(arxiv?.endpoint === undefined ? {} : { endpoint: arxiv.endpoint }),
     }),
+    watched: {
+      fetch: watched?.fetch ?? fetch,
+      models: watched?.models ?? createAnthropicProvider(),
+      credentials: watched?.credentials ?? createMemoryCredentialStore(),
+      model: watched?.model ?? DEFAULT_MODEL,
+      ...(watched?.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: watched.timeoutMs }),
+    },
     machine: machine ?? hostname(),
     coalesceMs: historyWindowMs,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,

@@ -1,7 +1,15 @@
 import type { DatabaseSync } from "node:sqlite";
 import { isTagCharacter, parseTag } from "markdown";
 import { stringify } from "yaml";
-import { ArxivError, type ArxivClient, type ArxivItem } from "./arxiv.js";
+import { ArxivError, type ArxivClient } from "./arxiv.js";
+import {
+  readWatched,
+  WatchedError,
+  type Arrival,
+  type RunFacts,
+  type WatchedDeps,
+} from "./watched.js";
+import type { RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
 import type { Events } from "./events.js";
 import { readScouts, type Scout } from "./scout-file.js";
@@ -24,6 +32,8 @@ export type ScoutDeps = {
   index: VaultIndex;
   queue: DatabaseSync;
   arxiv: ArxivClient;
+  /** What reading a page needs: fetch, model and key (ADR 0017). */
+  watched: WatchedDeps;
   events: Events;
   now: () => Date;
 };
@@ -31,10 +41,12 @@ export type ScoutDeps = {
 export type RunSummary = {
   runId: number;
   outcome: "ok" | "failed";
-  errorKind: ArxivError["kind"] | null;
+  errorKind: RunErrorKind | null;
   fetched: number;
   new: number;
   held: number;
+  /** Cards the model returned that the page did not bear out; always 0 for arXiv. */
+  unverified: number;
   /** How many more matched than the ceiling let through; 0 when the run was not cut. */
   truncated: number;
 };
@@ -64,13 +76,17 @@ export async function runScout(
       "SELECT window_to FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' ORDER BY id DESC LIMIT 1"
     )
     .get(scoutId) as { window_to: string } | undefined;
-  const from =
-    last !== undefined
+  const watched = scout.source.kind === "watched";
+  // A page has no date window: "new" is an unseen `source_key`, so its first
+  // run proposes everything the page lists, all Retroactive (spec #463).
+  const from = watched
+    ? now
+    : last !== undefined
       ? new Date(last.window_to)
       : scout.searchBackTo !== null && scout.searchBackTo < scout.created
         ? scout.searchBackTo
         : scout.created;
-  const retroactive = last === undefined && from < scout.created;
+  const retroactive = last === undefined && (watched || from < scout.created);
   const runId = Number(
     queue
       .prepare(
@@ -88,44 +104,53 @@ export async function runScout(
 
   let summary: RunSummary;
   try {
-    const found = await arxiv.search(scout.query, { from, to: now });
+    const read =
+      scout.source.kind === "watched"
+        ? await readWatched(deps.watched, queue, {
+            id: scout.id,
+            url: scout.source.url,
+          })
+        : await readArxiv(arxiv, scout.query, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
     const arrived = inTransaction(queue, () => {
-      const arrived = arrive(deps, scout, runId, found.items);
+      const arrived = arrive(deps, scout, runId, read.items);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
       returnDeferred(deps, scout.id);
       return arrived;
     });
+    record(queue, runId, read.facts);
     queue
       .prepare(
         "UPDATE scout_runs SET finished = ?, outcome = 'ok', fetched = ?, new = ?, held = ?, truncated = ? WHERE id = ?"
       )
       .run(
         iso(deps.now()),
-        found.items.length,
+        read.fetched,
         arrived.new,
         arrived.held,
-        found.moreMatched,
+        read.moreMatched,
         runId
       );
     summary = {
       runId,
       outcome: "ok",
       errorKind: null,
-      fetched: found.items.length,
+      fetched: read.fetched,
       ...arrived,
-      truncated: found.moreMatched,
+      unverified: read.facts?.unverified ?? 0,
+      truncated: read.moreMatched,
     };
   } catch (cause) {
-    // Only what the client names is an arXiv fault; anything else is a bug
-    // in this module and must not be filed as "arXiv's answer did not read".
-    if (!(cause instanceof ArxivError)) {
+    // Only what a source names is its fault; anything else is a bug in this
+    // module and must not be filed as "the answer did not read".
+    if (!(cause instanceof ArxivError || cause instanceof WatchedError)) {
       queue
         .prepare("DELETE FROM scout_runs WHERE id = ? AND finished IS NULL")
         .run(runId);
       throw cause;
     }
+    if (cause instanceof WatchedError) record(queue, runId, cause.facts);
     queue
       .prepare(
         "UPDATE scout_runs SET finished = ?, outcome = 'failed', error_kind = ?, error_message = ? WHERE id = ?"
@@ -138,11 +163,67 @@ export async function runScout(
       fetched: 0,
       new: 0,
       held: 0,
+      unverified:
+        cause instanceof WatchedError ? (cause.facts.unverified ?? 0) : 0,
       truncated: 0,
     };
   }
   events.emit({ type: "scoutFinished", scoutId, runId });
   return summary;
+}
+
+async function readArxiv(
+  arxiv: ArxivClient,
+  query: string,
+  from: Date,
+  to: Date
+): Promise<{
+  items: Arrival[];
+  moreMatched: number;
+  fetched: number;
+  facts?: undefined;
+}> {
+  const found = await arxiv.search(query, { from, to });
+  return {
+    items: found.items.map((item) => ({
+      key: `arxiv:${item.arxivId}`,
+      doi: item.doi,
+      title: item.title,
+      authors: item.authors,
+      published: item.published,
+      venue: item.venue,
+      abstract: item.abstract,
+      url: item.url,
+    })),
+    moreMatched: found.moreMatched,
+    fetched: found.items.length,
+  };
+}
+
+/** What a model-read run spent and saw, written whether it ended clean or not: a failed extraction still cost tokens. */
+function record(
+  queue: DatabaseSync,
+  runId: number,
+  facts: Partial<RunFacts> | undefined
+): void {
+  if (facts === undefined) return;
+  queue
+    .prepare(
+      `UPDATE scout_runs SET model = ?, input_tokens = ?, output_tokens = ?, cache_read_tokens = ?,
+              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ? WHERE id = ?`
+    )
+    .run(
+      facts.model ?? null,
+      facts.usage?.input ?? null,
+      facts.usage?.output ?? null,
+      facts.usage?.cacheRead ?? null,
+      facts.costUsd ?? null,
+      facts.pageHash ?? null,
+      facts.pageLength ?? null,
+      facts.capped === true ? 1 : 0,
+      facts.unverified ?? 0,
+      runId
+    );
 }
 
 /**
@@ -155,7 +236,7 @@ function arrive(
   deps: ScoutDeps,
   scout: Scout,
   runId: number,
-  items: ArxivItem[]
+  items: Arrival[]
 ): { new: number; held: number } {
   const { queue } = deps;
   const at = iso(deps.now());
@@ -171,7 +252,7 @@ function arrive(
   let fresh = 0;
   let held = 0;
   for (const item of items) {
-    const key = `arxiv:${item.arxivId}`;
+    const key = item.key;
     let id = (known.get(key) as { id: number } | undefined)?.id;
     if (id === undefined) {
       const heldBy = vaultHas(key, item.doi);
