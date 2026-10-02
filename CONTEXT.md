@@ -351,11 +351,11 @@ A hand-written search string, in the Structured source's own syntax, that a Scou
 _Avoid_: Prompt, search
 
 **Watched source**:
-One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that; otherwise it needs an Extraction. Never crawled: one page, no link-following.
+One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that, and the page is never sent to a model; otherwise it needs an Extraction. Never crawled: one page and the feed it advertises, no link-following. Has no Filter until Tags exist; its Scout is made on the same form as an arXiv Scout and is first run at its first due check, never on save.
 _Avoid_: Site, crawl target, scrape
 
 **Feed**:
-An RSS or Atom document a Watched source advertises, whose entries map to a Proposal card directly. Read deterministically; no model call, no Extraction.
+An RSS or Atom document a Watched source advertises, whose entries map to a Proposal card directly. Read deterministically; no model call, no Extraction. A feed that fails is a failure said as one, never a reason to fall back to the model.
 
 **Extraction**:
 The one model call in the Scout pipeline: a Watched source's page, reduced to text, is asked for exactly the card fields — copied, never composed; missing shows as missing. Every returned item is then Verified before it can become a Proposal.
@@ -378,7 +378,7 @@ The user's own key for a Provider, kept in the login Keychain by the app and rea
 _Avoid_: API key (in copy — say key), token (that is the session token), secret
 
 **Blocked on credentials** (of a Scout):
-A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key. Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
+A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key — storing one runs the Scouts waiting on it. *No key* is *not yet*; a key the Provider rejected is a fault in the *wrong* Voice, though Settings names both. Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
 _Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:

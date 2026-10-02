@@ -1,0 +1,33 @@
+# 0040: A missing key is a run row, a feed is read and never guessed at, and a Watched Scout never spends unasked
+
+**Status:** Accepted
+
+The spec grill for beat 7 (#174), run on 2026-10-02 against ADR 0017, ADR 0025 and ADR 0032, found that three of ADR 0017's sentences cannot all be true at once. *Blocked on credentials* is to be derived "from the same run rows" as every other health fact (ADR 0016 decision 10, ADR 0025 decision 8), yet a Scout with no key "does not run" and so leaves no row. "One fetch per run" cannot hold for a page that advertises a Feed, which is a second request. And a Watched source's first run, and any *try*, can spend the user's money without the user having chosen to. This ADR settles each so the spec does not have to. The vocabulary is `CONTEXT.md` § Scouts; the shape is `docs/architecture.md` § BYOK and watched sources.
+
+## Decisions
+
+1. **A due Watched Scout with no key records a failed `credentials` run, message *no key*, and does nothing else.** No fetch, no model call. Health stays a query over `scout_runs`, so Home, Loose Ends, Scout Activity and Settings cannot disagree, and health never reads the Keychain: the one Keychain read is the run's own, as ADR 0017 decision 2 has it. The Voice follows the message, not only the kind: *no key* is **not yet** (nothing was attempted, and the reason is why it has not looked), while *key rejected* (the provider answered 401) is **wrong**, since the Scout did try and could not. Settings names the Scouts whose newest run is `credentials`, in both cases (ADR 0025 decision 8). `credentials` is never retried by the hourly check, because asking again without a key changes nothing; it clears only through the key being set or *Run now*.
+2. **Storing a key runs the Scouts waiting on it.** `credentials.set`, and a `credentials.test` that succeeds, run every Scout whose newest run is `credentials` for that Provider at once, overriding the wait, so a Scout does not sit blocked for an hour or a cadence after the thing it was missing arrives. This is the callee's job, not Settings': the procedure does it wherever it is called from.
+3. **A Feed is read, and the page that advertised it is never sent to a model.** The Scout fetches its URL. If the response is itself a feed it is parsed; if it is HTML advertising one, that feed is fetched — same host, `robots.txt` checked — and the HTML is neither reduced nor extracted. ADR 0017 decision 5's "one fetch" becomes *one page, plus its feed when it advertises one*; no link-following, no crawl, and at most one model call stand. **There is no fallback to the model when a feed fails.** It is an `http` or `parse` failure whose sentence says the page advertises a feed that could not be read, because falling back would spend the user's money on a path they did not choose and hide that the feed broke. The feed's address is never written into the Scout's file: discovery runs each time, so the file stays what the researcher wrote.
+4. **A Watched Scout is made on the same form, and the form's *try* runs the whole pipeline and writes nothing.** The form gains a *Watching* choice — arXiv, or a web page. The page choice swaps *Query* for *Address*; Assigned Questions, cadence and starting Lane are unchanged and *also search back to* is hidden (ADR 0017 decision 9). A Watched source has no Filter in this beat: a Filter is a Query, Tags or nothing, and the Lexicon is beat 10. *Try* shows the total and first five titles, and either *a feed was found · no model call* or the tokens and cost, with the verified and unverified counts. With no key it says so and offers the jump to Settings. The file gains `source: { kind: watched, url }`, beside the existing `kind: arxiv`.
+5. **Saving a Watched Scout does not run it.** Its first run proposes everything on the page, all Retroactive, and may spend. It happens at the next due check or on *Run now*, and until then the Scout says *not yet*, with the reason *first check due now*. This is a departure from an arXiv Query edit, which runs at once, and it is deliberate: that run is free.
+6. **Cost is shown where it was chosen, and nowhere else this beat.** The run row records model, tokens and cost (ADR 0017 decision 8). Two places draw it: a *try* result, and the Scout header's last-run line. There is no spend cap. The visibility is the guard, and Scout Activity (beat 9) draws per-Scout totals. The arXiv client's **500-item ceiling** applies to a feed's entries too, recorded as `truncated`.
+7. **One Loose Ends row per Scout.** A *structure change detected* row — an `extraction` run on a Scout with a prior `ok` run that found items; *open the page · run now · pause* — replaces the generic failed-Scout row for that Scout whenever its test holds, so one failure is never two rows. An `extraction` failure with no prior `ok` run stays on the generic row. *Blocked on credentials* is its own row kind, *open Settings*, in the *not yet* voice with no warning glyph for *no key*, and the fault voice for *key rejected*. The sentence is the rail's, never reworded (ADR 0032 decision 7).
+
+## Considered options
+
+- **Reading the Keychain in the health query, so *blocked* needs no row.** Rejected, decision 1: every surface read could prompt, and a Scout's Voice would depend on state `queue.sqlite` cannot show.
+- **A distinct `blocked` error kind.** Rejected: the Voice follows the message, so one kind and two Voices say it, as ADR 0017 decision 10 did for robots.txt.
+- **Retrying `credentials` hourly.** Rejected, decision 1: it cannot heal itself.
+- **Falling back to the model when a feed fails; pinning the discovered feed in the file.** Rejected, decision 3.
+- **Running a new Watched Scout on save, as arXiv does for a Query edit.** Rejected, decision 5.
+- **A spend cap or a monthly budget.** Rejected, decision 6: a number the app cannot defend, and a Scout stopping for money is a quiet field made by the app.
+
+## Consequences
+
+- **+** *Blocked on credentials* is derived once from rows, readable from the Scout's side and the key's, and clears the moment the key arrives.
+- **+** A feed that breaks is a stated failure, never a quiet spend on guesswork.
+- **+** The first run of a Watched Scout is always a thing the researcher started.
+- **−** A run row exists for something that did nothing; `scout_runs` now holds attempts that fetched nothing, and Scout Activity must not count them as checks of the field.
+- **−** *no key* and *key rejected* share an error kind but not a Voice, so a surface that branches on kind alone gets one wrong.
+- **−** `CONTEXT.md` **Watched source**, **Feed** and **Blocked on credentials** widen, and ADR 0017 takes a dated update.
