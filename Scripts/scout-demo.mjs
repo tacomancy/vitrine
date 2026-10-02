@@ -68,6 +68,8 @@ try {
   const stubs = readdirSync(join(vault, "sources")).filter((f) =>
     f.endsWith(".md")
   );
+  if (!stubs.includes("meer2026.md"))
+    throw new Error(`accept wrote no stub: ${stubs.join(", ")}`);
   console.log(`sources/: ${stubs.join(", ")}`);
   standin.mode.failing = true;
   await launch("5a-broken-rail.png", "broken-rail.mjs");

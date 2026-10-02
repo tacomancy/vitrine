@@ -23,6 +23,11 @@ const replay = normal
   )
   .replace("Slow Oscillations Reconsidered", "Replay During Quiet Waking");
 
+// A re-recorded normal.xml must not turn the replay field back into the same
+// papers without anyone noticing.
+if (replay.includes("2609.01234") || !replay.includes("Replay Without Sleep"))
+  throw new Error("standin: the replay feed no longer differs from normal.xml");
+
 export function startStandin() {
   const mode = { failing: false, requests: [] };
   const server = createServer((request, response) => {

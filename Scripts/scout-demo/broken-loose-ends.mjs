@@ -13,8 +13,9 @@ export default async (page) => {
   const loose = await page.eval("document.body.innerText");
   const sentence = /arXiv answered with an error[^\n]*/.exec(rail)?.[0];
   console.log(`SENTENCE: ${sentence}`);
-  console.log(
-    `SAME SENTENCE IN LOOSE ENDS: ${sentence !== undefined && loose.includes(sentence)}`
-  );
+  // The demo's point: a different sentence here would be two voices for one fault.
+  if (sentence === undefined || !loose.includes(sentence))
+    throw new Error("Loose Ends does not carry the rail's sentence");
+  console.log("SAME SENTENCE IN LOOSE ENDS: true");
   console.log(`LOOSE ENDS: ${loose.slice(0, 900)}`);
 };
