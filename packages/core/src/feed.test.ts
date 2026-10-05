@@ -10,12 +10,12 @@ describe("readFeed authors", () => {
   it("takes the name from an RSS <author> written `address (Name)`", () => {
     const entries = readFeed(fixture("lab-feed.rss.xml"));
     expect(
-      entries.find((e) => e.title.startsWith("Sleep Spindles"))?.authors
+      entries?.find((e) => e.title.startsWith("Sleep Spindles"))?.authors
     ).toEqual(["Cara Voss"]);
   });
 
   it("keeps a bare RSS <author> whole rather than its first character", () => {
     const rss = `<rss><channel><item><title>T</title><link>https://x.test/a</link><author>Cara Voss</author></item></channel></rss>`;
-    expect(readFeed(rss)[0]?.authors).toEqual(["Cara Voss"]);
+    expect(readFeed(rss)?.[0]?.authors).toEqual(["Cara Voss"]);
   });
 });
