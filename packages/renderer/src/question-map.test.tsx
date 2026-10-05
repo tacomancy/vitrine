@@ -22,6 +22,8 @@ const NO_READINGS = {
   clockedButUnquestioned: empty0,
 };
 
+const NO_UNREAD = { partial: [], unreadable: [] };
+
 const MATRIX: Matrix = {
   depth: 1,
   deepest: 1,
@@ -42,6 +44,7 @@ const open = (more: Record<string, unknown> = {}) => {
     "questionMap.origins": { rows: [], total: 0 },
     "questionMap.readings": NO_READINGS,
     "questionMap.matrix": MATRIX,
+    "questionMap.unread": NO_UNREAD,
     ...more,
   });
 };
@@ -72,6 +75,7 @@ describe("the Question Map", () => {
       "questionMap.origins": { rows: [], total: 0 },
       "questionMap.readings": NO_READINGS,
       "questionMap.matrix": MATRIX,
+      "questionMap.unread": NO_UNREAD,
     });
     await screen.findByRole("region", { name: "Question Inbox" });
     fireEvent.click(screen.getByRole("link", { name: "Question Map" }));
@@ -243,7 +247,7 @@ const row = (question: string, path: string, material = 0) => ({
   id: null,
   question,
   material,
-  unresolved: 0,
+  unresolved: [],
 });
 const READINGS = {
   depth: 1,
@@ -388,9 +392,18 @@ const shaped = (shown: [number, number], totals: [number, number]): Matrix => ({
   totals: { rows: totals[0], columns: totals[1] },
 });
 
+// The short pages read Coverage, so a matrix is only drawn behind a row with
+// a source attached.
+const attached = () => ({
+  "questionMap.coverage": {
+    ...COVERAGE,
+    rows: [mapRow("Q", ["s/a.md"])],
+  },
+});
+
 describe("the Question Map's matrix", () => {
   it("draws the grid in the matrix slot", async () => {
-    open({ "questionMap.matrix": shaped([2, 3], [2, 3]) });
+    open({ ...attached(), "questionMap.matrix": shaped([2, 3], [2, 3]) });
     const view = await page();
     const slot = await vi.waitFor(() => {
       const el = view.querySelector('[data-slot="matrix"]')!;
@@ -403,7 +416,7 @@ describe("the Question Map's matrix", () => {
   });
 
   it("states the cut from the real totals", async () => {
-    open({ "questionMap.matrix": shaped([24, 22], [64, 44]) });
+    open({ ...attached(), "questionMap.matrix": shaped([24, 22], [64, 44]) });
     const view = await page();
     await within(view).findByText(
       "64 questions · 44 tags · matrix shows the 24 × 22 heaviest"
@@ -411,14 +424,14 @@ describe("the Question Map's matrix", () => {
   });
 
   it("drops the clause when nothing is cut", async () => {
-    open({ "questionMap.matrix": shaped([2, 3], [2, 3]) });
+    open({ ...attached(), "questionMap.matrix": shaped([2, 3], [2, 3]) });
     const view = await page();
     await within(view).findByText("2 questions · 3 tags");
     expect(view.textContent).not.toMatch(/heaviest/);
   });
 
   it("keeps the shape: a vault of hundreds draws the same 24 × 22", async () => {
-    open({ "questionMap.matrix": shaped([24, 22], [412, 150]) });
+    open({ ...attached(), "questionMap.matrix": shaped([24, 22], [412, 150]) });
     const view = await page();
     await within(view).findByText(/412 questions · 150 tags/);
     expect(within(view).getAllByRole("gridcell")).toHaveLength(24 * 22);
@@ -495,5 +508,142 @@ describe("the Question Map's depth control", () => {
     const view = await page();
     await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
     expect(within(view).queryByRole("group", { name: "Depth" })).toBeNull();
+
+// What the Map could not read, and the short pages (#492; ADR 0041
+// decisions 13–14): the footer counts what was skipped, and a short page is a
+// Claim with a Warrant rather than a blank.
+
+const mapRow = (name: string, material: string[] = []) => ({
+  kind: "question" as const,
+  path: `q/${name}.md`,
+  id: null,
+  question: `${name}?`,
+  captured: "2026-09-01T10:00:00Z",
+  promoted: null,
+  material: material.map((path) => ({
+    path,
+    kind: "source" as const,
+    display: path,
+    tags: ["sleep"],
+  })),
+  unresolved: [],
+});
+
+describe("what the Map could not read", () => {
+  it("counts Partial and Unreadable Questions in the footer and opens to each path and reason", async () => {
+    open({
+      "questionMap.unread": {
+        partial: [{ path: "q/half.md", reason: "no question: or captured:" }],
+        unreadable: [{ path: "q/odd.md", reason: "status is not open" }],
+      },
+    });
+    const view = await page();
+    const summary = await within(view).findByText("2 files could not be read");
+    fireEvent.click(summary);
+    expect(within(view).getByText("q/half.md")).toBeDefined();
+    expect(within(view).getByText("no question: or captured:")).toBeDefined();
+    expect(within(view).getByText("q/odd.md")).toBeDefined();
+    expect(within(view).getByText("status is not open")).toBeDefined();
+  });
+
+  it("draws no line when every Question read", async () => {
+    open();
+    const view = await page();
+    await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
+    expect(view.textContent).not.toMatch(/could not be read/);
+  });
+
+  it("marks an unresolved and an ambiguous Related on the row, each in its own words, and does not count the row as plainly unanchored", async () => {
+    const bad = {
+      ...row("Why now?", "q/Now.md"),
+      unresolved: [
+        { link: "[[nowhere]]", reason: "matches no file in the vault" },
+        { link: "[[twin]]", reason: "matches more than one file" },
+      ],
+    };
+    open({
+      "questionMap.readings": {
+        ...NO_READINGS,
+        unanchored: { count: 2, items: [bad, row("Why then?", "q/Then.md")] },
+      },
+    });
+    const view = await page();
+    const slot = await vi.waitFor(() => {
+      const el = view.querySelector<HTMLElement>('[data-slot="readings"]')!;
+      expect(el.textContent).not.toBe("");
+      return el;
+    });
+    expect(
+      within(slot).getByRole("button", { name: "1 unanchored question" })
+    ).toBeDefined();
+    fireEvent.click(
+      within(slot).getByRole("button", {
+        name: /1 question with a link in Related that lands on nothing/,
+      })
+    );
+    expect(slot.textContent).toContain("Why now?");
+    expect(slot.textContent).toContain(
+      "a link in this question’s Related lands on nothing"
+    );
+    expect(slot.textContent).toContain("[[twin]] matches more than one file");
+  });
+});
+
+describe("the short pages", () => {
+  it("says there are no open questions, warranted by what was read", async () => {
+    open();
+    const view = await page();
+    await within(view).findByText("No open questions to map.");
+    expect(view.textContent).toContain("read 0 of 0 questions · just now");
+  });
+
+  it("counts what it could not read in the warrant, so the claim is not a quiet field", async () => {
+    open({
+      "questionMap.unread": {
+        partial: [],
+        unreadable: [{ path: "q/odd.md", reason: "status is not open" }],
+      },
+    });
+    const view = await page();
+    await within(view).findByText("No open questions to map.");
+    expect(view.textContent).toContain("read 0 of 1 questions · just now");
+  });
+
+  it("leads with the unanchored reading and says the matrix has no columns when no source is attached", async () => {
+    open({
+      "questionMap.coverage": {
+        ...COVERAGE,
+        rows: [mapRow("Why now"), mapRow("Why then")],
+      },
+      "questionMap.readings": {
+        ...NO_READINGS,
+        unanchored: {
+          count: 2,
+          items: [row("Why now?", "q/Now.md"), row("Why then?", "q/Then.md")],
+        },
+      },
+    });
+    const view = await page();
+    await within(view).findByText("The matrix has no columns.");
+    expect(view.textContent).toContain(
+      "2 open questions read · 0 sources attached"
+    );
+    expect(view.querySelector('[role="grid"]')).toBeNull();
+    const order = [...view.querySelectorAll("[data-slot]")].map((el) =>
+      el.getAttribute("data-slot")
+    );
+    expect(order.indexOf("readings")).toBeLessThan(order.indexOf("matrix"));
+  });
+
+  it("draws the matrix, and no short-page claim, once a source is attached", async () => {
+    open({
+      "questionMap.coverage": {
+        ...COVERAGE,
+        rows: [mapRow("Why now", ["s/a.md"])],
+      },
+    });
+    const view = await page();
+    await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
+    expect(view.textContent).not.toMatch(/no columns|No open questions/);
   });
 });

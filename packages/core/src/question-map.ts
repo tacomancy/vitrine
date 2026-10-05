@@ -563,8 +563,8 @@ export type RowSummary = {
   id: string | null;
   question: string;
   material: number;
-  /** A link in the row's Related landed on nothing: say so, not "plainly unanchored". */
-  unresolved: number;
+  /** Links in the row's Related that landed on nothing or on several: say so, not "plainly unanchored". */
+  unresolved: MapRow["unresolved"];
 };
 
 export type Readings = {
@@ -608,7 +608,7 @@ export function readings(index: VaultIndex, requested?: number): Readings {
     id: row.id,
     question: row.question,
     material: row.material.length,
-    unresolved: row.unresolved.length,
+    unresolved: row.unresolved,
   });
 
   const ranked = cov.rows
@@ -915,3 +915,32 @@ export function matrix(cover: Coverage): Matrix {
 /** A paper's `id` survives its file being renamed; a stub with none falls back to its path. */
 const rejectionKind = (paper: { id: string | null; path: string }) =>
   `inferred-link:${paper.id ?? paper.path}`;
+
+export type Unread = {
+  partial: Array<{ path: string; reason: string }>;
+  unreadable: Array<{ path: string; reason: string }>;
+};
+
+/**
+ * The Questions the Map skipped (ADR 0041 decision 13). `coverage` drops a
+ * file that fails its Kind's reader (ADR 0009), so without this a Question
+ * the researcher wrote would vanish from the page without a word. Read from
+ * the Index's `problems` — the channels the Inbox already counts — limited
+ * to the Kinds that can be Map rows.
+ */
+export function unread(index: VaultIndex): Unread {
+  const found = index.select<{
+    path: string;
+    channel: string;
+    problem: string;
+  }>(
+    `SELECT p.path, p.channel, p.problem FROM problems p JOIN files f USING (path)
+       WHERE p.channel IN ('partial', 'unreadable')
+         AND f.kind IN ('question', 'research-question') ORDER BY p.path`
+  );
+  const of = (channel: string) =>
+    found
+      .filter((p) => p.channel === channel)
+      .map(({ path, problem }) => ({ path, reason: problem }));
+  return { partial: of("partial"), unreadable: of("unreadable") };
+}

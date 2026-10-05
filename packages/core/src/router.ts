@@ -60,6 +60,7 @@ import {
   matrix,
   origins,
   readings,
+  unread,
 } from "./question-map.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
@@ -1373,6 +1374,11 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return matrix(coverage(index, input?.depth));
       }),
+    // What the page skipped, for its footer (#492).
+    unread: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return unread(index);
+    }),
     readings: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {

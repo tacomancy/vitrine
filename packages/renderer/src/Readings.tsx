@@ -22,6 +22,15 @@ export function ReadingsStrip({
 }) {
   const plural = (n: number, one: string, many: string) =>
     `${n} ${n === 1 ? one : many}`;
+  // A row whose Related holds a link that landed on nothing is not plainly
+  // unanchored: the researcher did try to anchor it, and the fix is the
+  // link, not a new source (ADR 0041 decision 13). It is its own count.
+  const plain = readings.unanchored.items.filter(
+    (r) => r.unresolved.length === 0
+  );
+  const broken = readings.unanchored.items.filter(
+    (r) => r.unresolved.length > 0
+  );
   return (
     <div className={styles.strip}>
       <Reading
@@ -35,18 +44,20 @@ export function ReadingsStrip({
         <Rows rows={readings.wellSupported.items} showMaterial />
       </Reading>
       <Reading
-        count={readings.unanchored.count}
+        count={plain.length}
         label={plural(
-          readings.unanchored.count,
+          plain.length,
           "unanchored question",
           "unanchored questions"
         )}
       >
-        <Rows
-          rows={readings.unanchored.items}
-          reviewable={reviewable}
-          onReview={onReview}
-        />
+        <Rows rows={plain} reviewable={reviewable} onReview={onReview} />
+      </Reading>
+      <Reading
+        count={broken.length}
+        label={`${plural(broken.length, "question", "questions")} with a link in Related that lands on nothing`}
+      >
+        <Rows rows={broken} reviewable={reviewable} onReview={onReview} />
       </Reading>
       <Reading
         count={readings.unquestionedKnowledge.count}
@@ -136,10 +147,17 @@ function Rows({
               onClick={() => onReview?.(row.path)}
             />
           )}
-          {row.unresolved > 0 && (
-            <span className={styles.meta}>
-              a link in this question&rsquo;s Related lands on nothing
-            </span>
+          {row.unresolved.length > 0 && (
+            <>
+              <span className={styles.meta}>
+                a link in this question&rsquo;s Related lands on nothing
+              </span>
+              {row.unresolved.map((u) => (
+                <span key={u.link} className={styles.meta}>
+                  {u.link} {u.reason}
+                </span>
+              ))}
+            </>
           )}
         </li>
       ))}

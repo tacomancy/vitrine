@@ -64,6 +64,7 @@ const open = (
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
     "questionMap.readings": NO_READINGS,
+    "questionMap.unread": { partial: [], unreadable: [] },
     "questionMap.candidates": candidates,
     "questions.link": link,
     "looseEnds.dismiss": dismiss,

@@ -61,6 +61,7 @@ export type {
   Matrix,
   Readings,
   RowSummary,
+  Unread,
 } from "./question-map.js";
 export type {
   PdfFault,
