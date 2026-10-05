@@ -41,6 +41,15 @@ const QUESTIONS: CandidateQuestion[] = [
   },
 ];
 
+const empty0 = { count: 0, items: [] };
+const NO_READINGS = {
+  depth: 1,
+  wellSupported: empty0,
+  unanchored: empty0,
+  unquestionedKnowledge: empty0,
+  clockedButUnquestioned: empty0,
+};
+
 const open = (candidates: unknown = QUESTIONS, link: unknown = vi.fn()) => {
   window.location.hash = "#/question-map";
   renderApp({
@@ -48,6 +57,7 @@ const open = (candidates: unknown = QUESTIONS, link: unknown = vi.fn()) => {
     "questions.list": empty,
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
+    "questionMap.readings": NO_READINGS,
     "questionMap.candidates": candidates,
     "questions.link": link,
   });
