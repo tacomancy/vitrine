@@ -50,6 +50,7 @@ export type {
 export type { IngestSummary } from "./ingest.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
+export type { Coverage, MapRow, MaterialItem } from "./question-map.js";
 export type {
   PdfFault,
   PdfFaultKind,

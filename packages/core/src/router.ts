@@ -54,6 +54,7 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
+import { coverage } from "./question-map.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
@@ -1336,6 +1337,17 @@ export const router = t.router({
           )
         )
       ),
+  }),
+  // The Question Map (§ Question Map): sibling reads over one derivation,
+  // `coverage`, so no reading counts what another would not. Nothing is
+  // written from this page's reads.
+  questionMap: t.router({
+    coverage: t.procedure
+      .input(z.object({ depth: z.number().int().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return coverage(index, input?.depth);
+      }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
   // plus `dismissals.json`, and *mark deliberate* and its undo are the only

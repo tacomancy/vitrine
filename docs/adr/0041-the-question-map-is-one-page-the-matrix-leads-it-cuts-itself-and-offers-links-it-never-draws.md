@@ -22,6 +22,8 @@ The brief's Question Map is "four panels sharing a name" (§ Open questions), an
 14. **Short pages are Claims with Warrants** (ADR 0032). No open Questions: *"No open questions to map."* warranted by *read 0 of 0 questions · just now*. Questions but no Material: the unanchored reading leads, and the matrix area says it has no columns, warranted by *N open questions read · 0 sources attached*. A grid with no axes is never drawn.
 15. **Beat 8 adds no Loose Ends row and no Home item.** The brief's boundary holds — "unquestioned knowledge" is analytical and stays on the Map; an orphan note is a defect and lives on Loose Ends. Unanchored and the other readings are not defects, so they never become rows.
 
+**Update 2026-10-05 (#483).** Decision 8's roll-up rule, stated where two tickets would otherwise each guess it: a Tag at depth *d* is its first *d* segments, and a Tag already shallower stays as it is. At the default depth — the deepest Tag in use — a parent whose children are also in use is its own column holding only what is tagged exactly that, so a parent and its children never double-count; at a shallower depth the parent is the union of its own and its children's, and an Implicit parent appears only then, as exactly that union. Every reading on the page follows the depth the page is at, not only the matrix's columns: the four readings group by the same rolled-up Tags. A depth outside what is in use is clamped to it.
+
 ## Considered options
 
 - **The scatter as its own Dashboard.** Rejected, decision 1: breaks the three-Dashboard symmetry, and nothing in beat 8 forces it.

@@ -76,7 +76,7 @@ describe("the window with a vault open", () => {
     );
   });
 
-  it("lists the eight surfaces and Loose Ends; only entries with an address are links", async () => {
+  it("lists the eight surfaces and the Dashboards; only entries with an address are links", async () => {
     window.history.replaceState(null, "", "/");
     renderApp({ "vault.current": vault });
     const nav = await screen.findByRole("navigation", { name: "Surfaces" });
@@ -93,6 +93,7 @@ describe("the window with a vault open", () => {
       "Scout Queue",
       "Vault",
       "Loose Ends",
+      "Question Map",
     ]);
     const links = screen.getAllByRole("link");
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
@@ -102,6 +103,7 @@ describe("the window with a vault open", () => {
       ["Experiment view", "#/experiments"],
       ["Scout Queue", "#/scouts"],
       ["Loose Ends", "#/loose-ends"],
+      ["Question Map", "#/question-map"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
       "Question Inbox"
@@ -128,7 +130,7 @@ describe("the window with a vault open", () => {
     expect(chords.querySelectorAll("li, a, button, [tabindex]")).toHaveLength(
       0
     );
-    expect(nav.querySelectorAll("li")).toHaveLength(9);
+    expect(nav.querySelectorAll("li")).toHaveLength(10);
   });
 
   it("shows the Inbox header with no count on an empty vault, no rows, and an empty detail pane", async () => {
