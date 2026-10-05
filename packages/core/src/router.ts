@@ -1338,9 +1338,6 @@ export const router = t.router({
         )
       ),
   }),
-  // The maintenance dashboard (§ Loose Ends): the rows are index queries
-  // plus `dismissals.json`, and *mark deliberate* and its undo are the only
-  // writes.
   // The Question Map (§ Question Map): sibling reads over one derivation,
   // `coverage`, so no reading counts what another would not. Nothing is
   // written from this page's reads.
@@ -1352,6 +1349,9 @@ export const router = t.router({
         return coverage(index, input?.depth);
       }),
   }),
+  // The maintenance dashboard (§ Loose Ends): the rows are index queries
+  // plus `dismissals.json`, and *mark deliberate* and its undo are the only
+  // writes.
   looseEnds: t.router({
     rows: t.procedure.query(async ({ ctx }) => {
       const { vault, index, days, queue } = await requireVault(ctx);

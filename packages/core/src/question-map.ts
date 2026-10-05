@@ -81,6 +81,14 @@ const EDGE_SECTIONS = [
 
 type Frontmatter = Record<string, unknown>;
 
+/** Where a `[[…]]` entry written in `owner` lands; null for text that is not a wikilink. */
+function resolveEntry(index: VaultIndex, owner: string, entry: string) {
+  const inner = /^\[\[(.*)\]\]$/.exec(entry.trim())?.[1];
+  return inner === undefined
+    ? null
+    : index.resolve(owner, parseWikilink(inner));
+}
+
 export function coverage(index: VaultIndex, requested?: number): Coverage {
   const frontmatter = new Map<string, Frontmatter>();
   for (const row of index.select<{ path: string; value: string }>(
@@ -221,12 +229,8 @@ function mapRows(
       continue;
     }
     if (page.promotedFrom !== undefined) {
-      const inner = /^\[\[(.*)\]\]$/.exec(page.promotedFrom.trim())?.[1];
-      const from =
-        inner === undefined
-          ? null
-          : index.resolve(path, parseWikilink(inner)).resolvedPath;
-      if (from !== null) folded.add(from);
+      const from = resolveEntry(index, path, page.promotedFrom)?.resolvedPath;
+      if (from != null) folded.add(from);
     }
     if (page.status !== "open") continue;
     pages.push({
@@ -282,12 +286,9 @@ function edgesOf(
   const landed: string[] = [];
   const fromRelated = (owner: string) => {
     for (const entry of relatedEntries(frontmatter.get(owner))) {
-      const inner = /^\[\[(.*)\]\]$/.exec(entry.trim())?.[1];
-      if (inner === undefined) continue;
-      const { resolution, resolvedPath } = index.resolve(
-        owner,
-        parseWikilink(inner)
-      );
+      const resolved = resolveEntry(index, owner, entry);
+      if (resolved === null) continue;
+      const { resolution, resolvedPath } = resolved;
       if (resolvedPath !== null) landed.push(resolvedPath);
       else
         row.unresolved.push({
@@ -345,14 +346,11 @@ function edgesOf(
   }
   // The thread's originating Question is folded in with its edges.
   const promotedFrom = frontmatter.get(row.path)?.["promoted_from"];
-  const inner =
+  const from =
     typeof promotedFrom === "string"
-      ? /^\[\[(.*)\]\]$/.exec(promotedFrom.trim())?.[1]
-      : undefined;
-  if (inner !== undefined) {
-    const from = index.resolve(row.path, parseWikilink(inner)).resolvedPath;
-    if (from !== null) fromRelated(from);
-  }
+      ? resolveEntry(index, row.path, promotedFrom)?.resolvedPath
+      : null;
+  if (from != null) fromRelated(from);
   return landed;
 }
 
