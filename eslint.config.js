@@ -58,17 +58,24 @@ export default tseslint.config(
       // current Safari; "widely available" baseline is the wrong bar.
       "css/use-baseline": "off",
       "brand/no-ramp-tokens": "error",
+      "brand/no-color-literals": "error",
     },
   },
   {
     files: ["**/*.{js,mjs,ts,tsx}"],
     plugins: { brand },
-    rules: { "brand/no-ramp-tokens-in-strings": "error" },
+    rules: {
+      "brand/no-ramp-tokens-in-strings": "error",
+      "brand/no-color-literals-in-strings": "error",
+    },
   },
   {
     // The rule's own fixtures name ramp steps on purpose.
     files: ["tooling/eslint-plugin-brand/*.test.js"],
-    rules: { "brand/no-ramp-tokens-in-strings": "off" },
+    rules: {
+      "brand/no-ramp-tokens-in-strings": "off",
+      "brand/no-color-literals-in-strings": "off",
+    },
   },
 
   prettier

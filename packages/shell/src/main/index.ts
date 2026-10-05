@@ -288,7 +288,10 @@ function createWindow({ port }: Session) {
     minHeight: 600,
     show: false,
     titleBarStyle: "hiddenInset",
-    // --color-bg (dark), so nothing lighter flashes before first paint.
+    // --color-bg (dark), so nothing lighter flashes before first paint. The
+    // main process has no stylesheet to bind a class from, so this is the one
+    // literal that cannot live in tokens.css.
+    // eslint-disable-next-line brand/no-color-literals-in-strings
     backgroundColor: "#09111D",
     webPreferences: {
       sandbox: true,
