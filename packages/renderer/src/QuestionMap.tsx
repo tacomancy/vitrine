@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CandidateReview } from "./CandidateReview";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./QuestionMap.module.css";
+import { ReadingsStrip } from "./Readings";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -20,6 +21,7 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 export function QuestionMap() {
   const trpc = useTRPC();
   const coverage = useQuery(trpc.questionMap.coverage.queryOptions());
+  const readings = useQuery(trpc.questionMap.readings.queryOptions());
   const status = useVaultStatusLines();
   const index = useQuery(trpc.vault.status.queryOptions());
 
@@ -28,8 +30,8 @@ export function QuestionMap() {
   // yet applied): that one is `current`, and it holds the gate too.
   const behind = index.data !== undefined && !index.data.current.ok;
   const voice = voiceOf({
-    incomplete: coverage.isError,
-    answered: coverage.data !== undefined,
+    incomplete: coverage.isError || readings.isError,
+    answered: coverage.data !== undefined && readings.data !== undefined,
     read: behind && status.read === "full" ? "reading" : status.read,
   });
 
@@ -47,18 +49,25 @@ export function QuestionMap() {
       ) : (
         <div className={styles.slots}>
           <div data-slot="matrix" />
-          <div data-slot="readings" />
+          <div data-slot="readings">
+            {readings.data !== undefined && (
+              <ReadingsStrip readings={readings.data} />
+            )}
+          </div>
           <div data-slot="origins" />
           <div data-slot="review">
             <CandidateReview />
           </div>
         </div>
       )}
-      {(status.hasLines || coverage.isError) && (
+      {(status.hasLines || coverage.isError || readings.isError) && (
         <footer className={styles.footer}>
           {status.lines}
           {coverage.isError && (
             <WarningLine label="not read">{coverage.error.message}</WarningLine>
+          )}
+          {readings.isError && (
+            <WarningLine label="not read">{readings.error.message}</WarningLine>
           )}
         </footer>
       )}

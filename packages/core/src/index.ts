@@ -56,6 +56,8 @@ export type {
   Coverage,
   MapRow,
   MaterialItem,
+  Readings,
+  RowSummary,
 } from "./question-map.js";
 export type {
   PdfFault,

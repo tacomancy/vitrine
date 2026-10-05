@@ -143,12 +143,22 @@ export function coverage(index: VaultIndex, requested?: number): Coverage {
 
   // Tags are read once per Material item, from the Source's own rows: a
   // highlight takes its Source's Tags because it resolves to the Source.
+  // The default depth is the deepest Tag in use by any Source or stub, not
+  // only those attached, so the four readings (which cover unattached
+  // Material too) and the matrix sit at the same depth.
+  const anyMaterial = new Set(
+    index
+      .select<{ path: string }>(
+        "SELECT path FROM files WHERE kind IN ('source', 'source-stub')"
+      )
+      .map((f) => f.path)
+  );
   const tagsByPath = new Map<string, string[]>();
   for (const { path, canonical } of index.select<{
     path: string;
     canonical: string;
   }>("SELECT path, canonical FROM tags WHERE canonical IS NOT NULL")) {
-    if (!material.has(path)) continue;
+    if (!anyMaterial.has(path)) continue;
     tagsByPath.set(path, [...(tagsByPath.get(path) ?? []), canonical]);
   }
   const deepest = Math.max(
@@ -170,14 +180,7 @@ export function coverage(index: VaultIndex, requested?: number): Coverage {
     });
   }
 
-  const displays = new Map<string, string>();
-  const walk = (nodes: TagNode[]) => {
-    for (const node of nodes) {
-      displays.set(node.canonical, node.display);
-      walk(node.children);
-    }
-  };
-  walk(tagTree(index).tags);
+  const displays = tagDisplays(index);
 
   return {
     depth,
@@ -380,6 +383,191 @@ function stubsNaming(
     if (Array.isArray(named) && named.includes(row.id)) out.push(path);
   }
   return out;
+}
+
+function tagDisplays(index: VaultIndex): Map<string, string> {
+  const displays = new Map<string, string>();
+  const walk = (nodes: TagNode[]) => {
+    for (const node of nodes) {
+      displays.set(node.canonical, node.display);
+      walk(node.children);
+    }
+  };
+  walk(tagTree(index).tags);
+  return displays;
+}
+
+/**
+ * How many rows the well-supported reading holds. The reading is "the top of
+ * the weight sort" and carries no threshold of its own (CONTEXT), so the
+ * only cut is a count; a row with no Material is never well-supported.
+ */
+export const WELL_SUPPORTED_ROWS = 5;
+
+export type RowSummary = {
+  kind: MapRow["kind"];
+  path: string;
+  id: string | null;
+  question: string;
+  material: number;
+  /** A link in the row's Related landed on nothing: say so, not "plainly unanchored". */
+  unresolved: number;
+};
+
+export type Readings = {
+  depth: number;
+  /** Each reading carries its own count and full list: none is a field of another, and nothing sums them (#252). */
+  wellSupported: { count: number; items: RowSummary[] };
+  unanchored: { count: number; items: RowSummary[] };
+  unquestionedKnowledge: {
+    count: number;
+    items: Array<{
+      tag: string;
+      display: string;
+      material: Array<{ path: string; display: string }>;
+    }>;
+  };
+  clockedButUnquestioned: {
+    /** Stubs, each once, however many Tags it has. */
+    count: number;
+    items: Array<{
+      tag: string;
+      display: string;
+      stubs: Array<{ path: string; display: string }>;
+    }>;
+  };
+};
+
+/**
+ * The four readings (ADR 0041 decisions 4 and 7), over the same Coverage the
+ * matrix reads and before any truncation: unanchored must still count rows
+ * the matrix cut off, because the cut comes off the top of the sort and
+ * the bare rows are exactly what falls away (#245). All are grouped by Tags
+ * at the page's depth.
+ */
+export function readings(index: VaultIndex, requested?: number): Readings {
+  const cov = coverage(index, requested);
+  const displays = tagDisplays(index);
+  const displayOf = (tag: string) => displays.get(tag) ?? tag;
+  const summary = (row: MapRow): RowSummary => ({
+    kind: row.kind,
+    path: row.path,
+    id: row.id,
+    question: row.question,
+    material: row.material.length,
+    unresolved: row.unresolved.length,
+  });
+
+  const ranked = cov.rows
+    .filter((row) => row.material.length > 0)
+    .sort((a, b) => b.material.length - a.material.length);
+  const wellSupported = ranked.slice(0, WELL_SUPPORTED_ROWS).map(summary);
+  // `cov.rows` is already newest first.
+  const unanchored = cov.rows
+    .filter((row) => row.material.length === 0)
+    .map(summary);
+
+  // Tags no row's Material carries, over every Source and stub in the vault.
+  const reached = new Set(
+    cov.rows.flatMap((r) => r.material.flatMap((m) => m.tags))
+  );
+  const reachedPaths = new Set(
+    cov.rows.flatMap((r) => r.material.map((m) => m.path))
+  );
+  const files = new Map(
+    index
+      .select<{ path: string; kind: string; display: string | null }>(
+        "SELECT path, kind, display FROM files WHERE kind IN ('source', 'source-stub')"
+      )
+      .map((f) => [f.path, f])
+  );
+  const tagged = new Map<string, string[]>();
+  for (const { path, canonical } of index.select<{
+    path: string;
+    canonical: string;
+  }>("SELECT path, canonical FROM tags WHERE canonical IS NOT NULL")) {
+    if (files.has(path))
+      tagged.set(path, [...(tagged.get(path) ?? []), canonical]);
+  }
+  const byTag = new Map<string, Array<{ path: string; display: string }>>();
+  for (const [path, tags] of tagged) {
+    for (const tag of rollUp(tags, cov.depth)) {
+      if (reached.has(tag)) continue;
+      byTag.set(tag, [
+        ...(byTag.get(tag) ?? []),
+        { path, display: files.get(path)!.display ?? path },
+      ]);
+    }
+  }
+  const grouped = (
+    groups: Map<string, Array<{ path: string; display: string }>>
+  ) =>
+    [...groups]
+      .map(([tag, list]) => ({
+        tag,
+        display: displayOf(tag),
+        list: list.sort((a, b) => byName(a.path, b.path)),
+      }))
+      .sort((a, b) => b.list.length - a.list.length || byName(a.tag, b.tag));
+  const unquestionedKnowledge = grouped(byTag).map(
+    ({ tag, display, list }) => ({
+      tag,
+      display,
+      material: list,
+    })
+  );
+
+  // A stub from a Scout assigned to nothing (`origin_question` empty) that no
+  // Question has linked since, whether or not that Question is on the Map.
+  const linked = new Set(
+    index
+      .select<{ resolved_path: string }>(
+        `SELECT DISTINCT l.resolved_path FROM links l JOIN files f ON f.path = l.path
+           WHERE l.resolution = 'resolved' AND l.resolved_path IS NOT NULL
+             AND f.kind IN ('question', 'research-question')`
+      )
+      .map((l) => l.resolved_path)
+  );
+  const clocked = new Map<string, Array<{ path: string; display: string }>>();
+  let clockedStubs = 0;
+  for (const { path, value } of index.select<{ path: string; value: string }>(
+    `SELECT path, value FROM frontmatter WHERE path IN
+       (SELECT path FROM files WHERE kind = 'source-stub')`
+  )) {
+    const fm = JSON.parse(value) as Frontmatter;
+    const assigned = fm["origin_question"];
+    if (
+      typeof fm["origin_scout"] !== "string" ||
+      (Array.isArray(assigned) && assigned.length > 0) ||
+      linked.has(path) ||
+      reachedPaths.has(path)
+    )
+      continue;
+    clockedStubs++;
+    for (const tag of rollUp(tagged.get(path) ?? [], cov.depth)) {
+      clocked.set(tag, [
+        ...(clocked.get(tag) ?? []),
+        { path, display: files.get(path)?.display ?? path },
+      ]);
+    }
+  }
+  const clockedButUnquestioned = grouped(clocked).map(
+    ({ tag, display, list }) => ({ tag, display, stubs: list })
+  );
+
+  return {
+    depth: cov.depth,
+    wellSupported: { count: wellSupported.length, items: wellSupported },
+    unanchored: { count: unanchored.length, items: unanchored },
+    unquestionedKnowledge: {
+      count: unquestionedKnowledge.length,
+      items: unquestionedKnowledge,
+    },
+    clockedButUnquestioned: {
+      count: clockedStubs,
+      items: clockedButUnquestioned,
+    },
+  };
 }
 
 /** A paper offered for a Question, and the Tags that make it a candidate. */
