@@ -23,6 +23,14 @@ export const cssRule = {
         data: { literal },
       });
     return {
+      // The parser leaves a custom property's value as raw text, so the
+      // Hash/Function visitors never see it; scan the text instead.
+      Declaration: (node) => {
+        if (!node.property.startsWith("--")) return;
+        const text = context.sourceCode.getText(node.value);
+        for (const match of text.matchAll(COLOR_LITERAL))
+          report(node, match[0]);
+      },
       Hash: (node) => report(node, `#${node.value}`),
       Function: (node) => {
         if (/^(?:rgba?|hsla?|oklch)$/i.test(node.name))

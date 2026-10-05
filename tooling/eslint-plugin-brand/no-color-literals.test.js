@@ -29,6 +29,9 @@ new RuleTester({ plugins: { css }, language: "css/css" }).run(
       { code: ".a { color: rgb(1 2 3); }", errors: err("rgb()") },
       { code: ".a { color: hsl(40 70% 50%); }", errors: err("hsl()") },
       { code: ".a { color: oklch(0.5 0.1 90); }", errors: err("oklch()") },
+      // A local custom property is the easy way round a value-only check.
+      { code: ".a { --b1: #E5B64A; }", errors: err("#E5B64A") },
+      { code: ".a { --b1: rgb(1 2 3); }", errors: err("rgb(") },
       {
         code: ".a { background: linear-gradient(var(--x), #000); }",
         errors: err("#000"),
