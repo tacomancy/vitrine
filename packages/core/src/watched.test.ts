@@ -94,12 +94,14 @@ const INVENTED = item({
 
 const usage = { input: 1200, output: 300, cacheRead: 0 };
 
-type Page = { body: string; status?: number };
+type Page = { body: string; status?: number; type?: string };
 
 async function opened(
   options: {
     scouts?: Record<string, string>;
     page?: () => Page;
+    /** Served by path in place of `page`, for a page and its feed. */
+    routes?: Record<string, Page>;
     robots?: string | null;
     model?: (page: string) => Extraction | Error | Promise<Extraction | Error>;
     key?: string | null;
@@ -166,11 +168,11 @@ async function opened(
                 : new Response(options.robots)
             );
           }
-          const served = page();
+          const served = options.routes?.[url.pathname] ?? page();
           return Promise.resolve(
             new Response(served.body, {
               status: served.status ?? 200,
-              headers: { "content-type": "text/html" },
+              headers: { "content-type": served.type ?? "text/html" },
             })
           );
         }),
@@ -500,14 +502,13 @@ describe("the fetch", () => {
 });
 
 describe("a model that cannot answer", () => {
-  it("records no key as a run that did nothing: no fetch, no model call", async () => {
+  it("records no key as a run that did nothing: no model call", async () => {
     const lab = await opened({ key: null });
 
     const run = await lab.run();
 
     expect(run).toMatchObject({ outcome: "failed", errorKind: "credentials" });
     expect(lab.lastRun()).toMatchObject({ error_message: "no key" });
-    expect(lab.requests).toEqual([]);
     expect(lab.calls.count + lab.calls.extract).toBe(0);
   });
 
@@ -523,7 +524,7 @@ describe("a model that cannot answer", () => {
 
     expect(await lab.run()).toMatchObject({ errorKind: "credentials" });
     expect(lab.lastRun().error_message).not.toBe("no key");
-    expect(lab.requests).toEqual([]);
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
     const health = (
       await lab.c.query<Array<{ voice: string; sentence: string }>>(
         "scouts.health"
@@ -670,5 +671,152 @@ describe("the first run", () => {
 
     expect(run).toMatchObject({ outcome: "ok", new: 500, truncated: 20 });
     expect(lab.lastRun()).toMatchObject({ truncated: 20 });
+  });
+});
+
+const RSS = await fixture("lab-feed.rss.xml");
+const ATOM = await fixture("lab-feed.atom.xml");
+const FED_PAGE = await fixture("lab-page-with-feed.html");
+const FEED_SENTENCE =
+  "This page advertises a feed that could not be read, so nothing was checked.";
+
+describe("a page that advertises a feed", () => {
+  const withFeed = (feed: Page, over: Parameters<typeof opened>[0] = {}) =>
+    opened({
+      key: null,
+      routes: { "/publications": { body: FED_PAGE }, "/feed.xml": feed },
+      ...over,
+    });
+
+  it("is read from an RSS feed alone: cards, no model call, no key", async () => {
+    const lab = await withFeed({ body: RSS, type: "application/rss+xml" });
+
+    const run = await lab.run();
+
+    expect(run).toMatchObject({ outcome: "ok", fetched: 2, new: 2 });
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
+    const cards = await lab.cards();
+    expect(cards.find((c) => c.title.startsWith("Overnight"))).toMatchObject({
+      authors: ["Ada Rowe", "Ben Ito"],
+      published: "2026-09-12",
+      abstract: "We record hippocampal replay across a night of sleep.",
+      url: "https://arxiv.org/abs/2609.01234v2",
+    });
+    expect(cards.map((c) => c.title)).toContain(
+      "Sleep Spindles & Next-Day Learning"
+    );
+    // The feed is a second request to the same host with robots.txt read first.
+    expect(lab.requests.map((r) => r.url.pathname)).toEqual([
+      "/robots.txt",
+      "/publications",
+      "/robots.txt",
+      "/feed.xml",
+    ]);
+    expect(lab.requests.every((r) => r.url.host === "lab.example")).toBe(true);
+  });
+
+  it("is read from an Atom feed alone", async () => {
+    const lab = await withFeed({ body: ATOM, type: "application/atom+xml" });
+
+    expect(await lab.run()).toMatchObject({ outcome: "ok", fetched: 2 });
+
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
+    expect(
+      (await lab.cards()).find((c) => c.title.startsWith("A Nap"))
+    ).toMatchObject({
+      url: "https://lab.example/papers/nap",
+      abstract: "Naps & nights differ.",
+    });
+  });
+
+  it("leaves the Scout's file byte-identical", async () => {
+    const lab = await withFeed({ body: RSS });
+    const before = await lab.read(".vitrine/scouts/lab.yaml");
+
+    await lab.run();
+
+    expect(await lab.read(".vitrine/scouts/lab.yaml")).toBe(before);
+  });
+
+  it("is a stated http failure when the feed cannot be fetched, and the model is not the fallback", async () => {
+    const lab = await withFeed({ body: "", status: 500 }, { key: "sk-test" });
+
+    const run = await lab.run();
+
+    expect(run).toMatchObject({ outcome: "failed", errorKind: "http" });
+    expect(lab.lastRun()).toMatchObject({ error_message: "feed unreadable" });
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
+    const health = (
+      await lab.c.query<{ scouts: Array<{ health: { sentence: string } }> }>(
+        "scouts.health"
+      )
+    ).result!.data;
+    expect(health.scouts[0]!.health.sentence).toBe(FEED_SENTENCE);
+  });
+
+  it("is a stated parse failure when the feed is not a feed", async () => {
+    const lab = await withFeed(
+      { body: "<html>nope</html>" },
+      { key: "sk-test" }
+    );
+
+    expect(await lab.run()).toMatchObject({
+      outcome: "failed",
+      errorKind: "parse",
+    });
+    expect(lab.lastRun()).toMatchObject({ error_message: "feed unreadable" });
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
+  });
+
+  it("does not follow a feed on another host", async () => {
+    const lab = await opened({
+      key: "sk-test",
+      page: () => ({
+        body: FED_PAGE.replace(
+          "/feed.xml",
+          "https://elsewhere.example/feed.xml"
+        ),
+      }),
+    });
+
+    expect(await lab.run()).toMatchObject({
+      outcome: "failed",
+      errorKind: "http",
+    });
+    expect(lab.requests.every((r) => r.url.host === "lab.example")).toBe(true);
+    expect(lab.calls.extract).toBe(0);
+  });
+
+  it("stops at the ceiling and says how many more", async () => {
+    const entries = Array.from(
+      { length: 503 },
+      (_, i) =>
+        `<item><title>Paper ${i}</title><link>https://lab.example/p/${i}</link></item>`
+    ).join("");
+    const lab = await withFeed({
+      body: `<rss version="2.0"><channel>${entries}</channel></rss>`,
+    });
+
+    const run = await lab.run();
+
+    expect(run).toMatchObject({ outcome: "ok", fetched: 503, truncated: 3 });
+    expect(await lab.cards()).toHaveLength(500);
+  });
+});
+
+describe("an address that is itself a feed", () => {
+  it("is parsed directly with no second request and no key", async () => {
+    const lab = await opened({
+      key: null,
+      page: () => ({ body: ATOM, type: "application/atom+xml" }),
+    });
+
+    expect(await lab.run()).toMatchObject({ outcome: "ok", fetched: 2 });
+
+    expect(lab.requests.map((r) => r.url.pathname)).toEqual([
+      "/robots.txt",
+      "/publications",
+    ]);
+    expect(lab.calls.count + lab.calls.extract).toBe(0);
   });
 });

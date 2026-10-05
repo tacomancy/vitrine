@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Sleep Lab — Publications</title>
+  <entry>
+    <title>Overnight Replay Consolidates Declarative Memory</title>
+    <link rel="self" href="https://lab.example/feed/1"/>
+    <link rel="alternate" href="https://arxiv.org/abs/2609.01234v2"/>
+    <author><name>Ada Rowe</name></author>
+    <author><name>Ben Ito</name></author>
+    <published>2026-09-12T08:00:00Z</published>
+    <updated>2026-09-13T08:00:00Z</updated>
+    <summary>We record hippocampal replay across a night of sleep.</summary>
+  </entry>
+  <entry>
+    <title>A Nap Is Not a Night</title>
+    <link href="https://lab.example/papers/nap"/>
+    <updated>2026-07-01T08:00:00Z</updated>
+    <content type="html">&lt;p&gt;Naps &amp;amp; nights differ.&lt;/p&gt;</content>
+  </entry>
+</feed>

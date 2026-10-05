@@ -2,6 +2,8 @@ import type { DatabaseSync } from "node:sqlite";
 import { readScouts, type Scout, type UnreadableScout } from "./scout-file.js";
 import { DISALLOWED } from "./page-fetch.js";
 import {
+  FEED_NOT_READ,
+  FEED_UNREADABLE,
   FEW_VERIFIED,
   KEY_REJECTED,
   LISTING_MISSED,
@@ -146,6 +148,14 @@ export function faultSentence(
   queryEdited: boolean,
   source: Scout["source"]["kind"] = "arxiv"
 ): string {
+  if (
+    source === "watched" &&
+    (message === FEED_UNREADABLE || message === FEED_NOT_READ)
+  ) {
+    return message === FEED_UNREADABLE
+      ? "This page advertises a feed that could not be read, so nothing was checked."
+      : "This address did not read as an RSS or Atom feed, so nothing was checked.";
+  }
   if (source === "watched" && (kind === "network" || kind === "http")) {
     if (message === DISALLOWED) {
       return "The site asks not to be read by robots (disallowed by robots.txt), so nothing was checked.";
