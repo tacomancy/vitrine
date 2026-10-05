@@ -52,17 +52,23 @@ export function CandidateReview({
   // This visit's rejections, newest last: what *Undo reject* can take back.
   const [rejected, setRejected] = useState<readonly CandidateLink[]>([]);
 
-  const link = useMutation(
-    trpc.questions.link.mutationOptions({
-      onSuccess: (_reply, input) => {
-        setDecided((was) => new Set(was).add(input.target));
-        // Every read on the page, at every depth it has been asked at: an
-        // accepted link anchors a row, so the matrix and readings change too.
-        void queryClient.invalidateQueries(trpc.questionMap.pathFilter());
-      },
-      onError: (error) => setRefused(error.message),
-    })
+  // Two writes, because the two Kinds keep the edge in two places: a
+  // Question's `related:` key, a Research Question's section (#489).
+  const settle = {
+    onSuccess: (_reply: unknown, input: { target: string }) => {
+      setDecided((was) => new Set(was).add(input.target));
+      // Every read on the page, at every depth it has been asked at: an
+      // accepted link anchors a row, so the matrix and readings change too.
+      void queryClient.invalidateQueries(trpc.questionMap.pathFilter());
+    },
+    onError: (error: { message: string }) => setRefused(error.message),
+  };
+  const linkQuestion = useMutation(trpc.questions.link.mutationOptions(settle));
+  const linkPage = useMutation(
+    trpc.researchQuestions.link.mutationOptions(settle)
   );
+  const link =
+    session?.[question]?.kind === "research-question" ? linkPage : linkQuestion;
 
   // Adjusted during render, not in an effect: a request is handled once,
   // the render it arrives in, and its object identity is what says "again".

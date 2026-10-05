@@ -537,6 +537,80 @@ function sourceLine(wikilink: string, note: string): string {
   return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
 }
 
+/** What a link onto a Research Question did, as `Linked` says it for a Question. */
+export type LinkedToPage = { path: string; target: string; linked: boolean };
+
+/**
+ * Accept a candidate onto a Research Question (#489; ADR 0041 decision 9):
+ * one `appendToSection` of `- [[cite]]` under `## Related questions`, the
+ * place this Kind keeps its Related edge. `questions.link` sets a key a page
+ * does not have. Never Supporting or Opposing: a paper nobody has judged is
+ * not evidence.
+ *
+ * `appendToSection` would *create* a missing heading at the end of the file,
+ * and a doubled one is not knowably the one meant; both refuse instead, as
+ * `relocate` does. A paper the section already links — by any line, as
+ * Coverage counts it — leaves the file untouched.
+ */
+export async function linkToResearchQuestion(
+  ctx: PageContext,
+  path: string,
+  targetPath: string
+): Promise<LinkedToPage> {
+  const { index, vaultPath } = ctx;
+  const { relativePath: target } = await locate(vaultPath, targetPath);
+  let linked = true;
+  let wikilink = "";
+  const result = await writeOwn(ctx, path, PAGE, (read) => {
+    const { heading, count } = section(read.outline, "Related questions");
+    if (count !== 1 || heading === undefined) {
+      return notExactlyOne(count, {
+        none: "no ## Related questions heading was found",
+        several: "more than one ## Related questions heading was found",
+      });
+    }
+    if (target === read.relativePath) {
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: `${target} cannot be related to itself.`,
+      };
+    }
+    wikilink = wikilinkTo(index, read.relativePath, target);
+    const listed = read.outline.links.some(
+      (l) =>
+        l.syntax === "wikilink" &&
+        l.range.start >= heading.body.start &&
+        l.range.end <= heading.body.end &&
+        index.resolve(read.relativePath, l).resolvedPath === target
+    );
+    if (listed) {
+      linked = false;
+      // Nothing to write; the plan answers with the refusal-shaped no-op the
+      // caller reads `linked` past, so a file already right is never rewritten.
+      return {
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: "already listed",
+      };
+    }
+    return {
+      operations: [
+        {
+          op: "appendToSection",
+          target: { section: "Related questions" },
+          line: `- ${wikilink}`,
+        },
+      ],
+      basedOn: read.hash,
+    };
+  });
+  if (!result.written && linked) {
+    throw new VaultError("refused", `Couldn't link ${path}: ${result.detail}`);
+  }
+  return { path, target: wikilink, linked };
+}
+
 /** The other side; there are only two, so this is a fact and not a lookup (ADR 0020 decision 5). */
 const otherSide = (side: Side): Side =>
   side === "supporting" ? "opposing" : "supporting";

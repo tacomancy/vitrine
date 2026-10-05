@@ -739,6 +739,8 @@ export type CandidateLink = {
 };
 
 export type CandidateQuestion = {
+  /** Where accepting writes: a Question's `related:`, or a page's `## Related questions`. */
+  kind: "question" | "research-question";
   path: string;
   id: string | null;
   question: string;
@@ -748,11 +750,10 @@ export type CandidateQuestion = {
 };
 
 /**
- * Candidate links (ADR 0041 decisions 9–10): for each unanchored Question
- * row, the papers that share a Tag with it. Inferred, so never counted by
+ * Candidate links (ADR 0041 decisions 9–10): for each unanchored row,
+ * Question or Research Question, the papers that share a Tag with it. Inferred, so never counted by
  * `coverage`; it becomes Material only when the researcher accepts, which
- * writes a Related edge. A Research Question row is not offered here: its
- * Related section is an Edited section the link write does not reach.
+ * writes a Related edge.
  *
  * Tags compare as written, not rolled up to the page's depth: a candidate
  * must be explainable by a Tag the researcher can see on both files.
@@ -790,7 +791,7 @@ export async function candidateLinks(
   const out: CandidateQuestion[] = [];
   for (const row of coverage(index).rows) {
     // Unanchored: no Material, so no paper is linked yet and none needs excluding.
-    if (row.kind !== "question" || row.material.length > 0) continue;
+    if (row.material.length > 0) continue;
     const mine = tagsOf.get(row.path);
     if (mine === undefined) continue;
     // The Question's id, so a rename in Obsidian keeps its rejections; a
@@ -811,6 +812,7 @@ export async function candidateLinks(
         byName(a.paper.path, b.paper.path)
     );
     out.push({
+      kind: row.kind,
       path: row.path,
       id: row.id,
       question: row.question,
