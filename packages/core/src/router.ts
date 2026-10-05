@@ -1348,11 +1348,12 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return coverage(index, input?.depth);
       }),
-    // The review's candidates (#487). Accept is `questions.link`; pass is
-    // the renderer's, and nothing here is written.
+    // The review's candidates (#487). Accept is `questions.link`; reject and
+    // its undo are `looseEnds.dismiss` and `undismiss` on each candidate's
+    // `rejection`; pass is the renderer's, and nothing here is written.
     candidates: t.procedure.query(async ({ ctx }) => {
-      const { index } = await requireVault(ctx);
-      return candidateLinks(index);
+      const { vault, index } = await requireVault(ctx);
+      return candidateLinks(index, vault.path);
     }),
     matrix: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
