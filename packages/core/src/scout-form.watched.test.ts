@@ -197,6 +197,7 @@ describe("saving a Scout that watches a page", () => {
           voice: "not yet",
           sentence: "Not yet — first check due now.",
         },
+        lastCostUsd: null,
       },
     ]);
   });
