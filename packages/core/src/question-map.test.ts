@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Coverage, Readings } from "./question-map.js";
-import { rollUp } from "./question-map.js";
+import type { Coverage, Matrix, Readings } from "./question-map.js";
+import { MAP_COLUMNS, MAP_ROWS, rollUp } from "./question-map.js";
 import { closeCores, core, vaultWith, type CoreOptions } from "./test-core.js";
 
 afterEach(closeCores);
@@ -504,5 +504,132 @@ describe("questionMap.readings", () => {
     expect(r.unanchored.count).toBe(0);
     expect(r.clockedButUnquestioned.count).toBe(0);
     expect(r.unquestionedKnowledge.count).toBe(0);
+  });
+});
+
+// The coverage matrix (#484; ADR 0041 decision 3): a cut in the core, from
+// the same Coverage, with the uncut totals beside it.
+
+describe("questionMap.matrix", () => {
+  const read = async (files: Record<string, string>, depth?: number) => {
+    const { c } = await mapOf(files);
+    const reply = await c.query<Matrix>(
+      "questionMap.matrix",
+      depth === undefined ? undefined : { depth }
+    );
+    expect(reply.error).toBeUndefined();
+    return reply.result!.data;
+  };
+  const names = (m: Matrix) => m.rows.map((r) => r.path);
+
+  it("sorts rows and columns by weight and counts each cell as distinct Material carrying the Tag", async () => {
+    const m = await read({
+      "q/Few.md": question("Few", { related: ["[[a]]"] }),
+      "q/Many.md": question("Many", { related: ["[[a]]", "[[b]]", "[[c]]"] }),
+      "s/a.md": source("a", ["sleep", "memory"]),
+      "s/b.md": source("b", ["sleep"]),
+      "s/c.md": source("c", ["sleep"]),
+    });
+    expect(names(m)).toEqual(["q/Many.md", "q/Few.md"]);
+    expect(m.rows.map((r) => r.weight)).toEqual([3, 1]);
+    // `a` carries two Tags but is one piece of Material: sleep outweighs
+    // memory by distinct papers, not by cells.
+    expect(m.columns.map((c) => [c.canonical, c.weight])).toEqual([
+      ["sleep", 3],
+      ["memory", 1],
+    ]);
+    expect(m.cells).toEqual([
+      [3, 1],
+      [1, 1],
+    ]);
+  });
+
+  it("weighs a column by distinct Material across the rows shown, not the sum of its cells", async () => {
+    const m = await read({
+      "q/One.md": question("One", { related: ["[[shared]]"] }),
+      "q/Two.md": question("Two", { related: ["[[shared]]"] }),
+      "s/shared.md": source("shared", ["sleep"]),
+    });
+    expect(m.columns[0]!.weight).toBe(1);
+    expect(m.cells).toEqual([[1], [1]]);
+  });
+
+  it("breaks row ties by recency, the later of captured and promoted, newest first", async () => {
+    const m = await read({
+      "q/Old.md": question("Old", { captured: "2026-01-01T00:00:00Z" }),
+      "q/New.md": question("New", { captured: "2026-09-01T00:00:00Z" }),
+      "q/Page (RQ).md": page("Page", { promotedFrom: null }),
+      "q/Page.md": question("Page", { status: "promoted" }),
+    });
+    // The page was promoted 2026-09-10, later than either capture.
+    expect(names(m)).toEqual(["q/Page (RQ).md", "q/New.md", "q/Old.md"]);
+  });
+
+  it("breaks column ties by Tag name ascending", async () => {
+    const m = await read({
+      "q/Q.md": question("Q", { related: ["[[a]]"] }),
+      "s/a.md": source("a", ["zebra", "apple", "mango"]),
+    });
+    expect(m.columns.map((c) => c.canonical)).toEqual([
+      "apple",
+      "mango",
+      "zebra",
+    ]);
+  });
+
+  it("cuts a vault of several hundred Questions to the heaviest 24 rows and 22 columns, with the uncut totals", async () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 300; i++) {
+      const n = String(i).padStart(3, "0");
+      files[`q/Q${n}.md`] = question(`Q${n}`, { related: [`[[s${n}]]`] });
+      files[`s/s${n}.md`] = source(`s${n}`, [`tag${n}`]);
+    }
+    const m = await read(files);
+    expect(m.rows).toHaveLength(MAP_ROWS);
+    expect(m.columns).toHaveLength(MAP_COLUMNS);
+    expect(m.cells).toHaveLength(MAP_ROWS);
+    expect(m.cells.every((r) => r.length === MAP_COLUMNS)).toBe(true);
+    expect(m.totals).toEqual({ rows: 300, columns: 300 });
+  });
+
+  it("weighs columns over the rows that survive the cut", async () => {
+    const files: Record<string, string> = {};
+    // 24 rows each hold one paper tagged `kept`; the 25th, weightless
+    // but newest-first irrelevant, is cut and its heavy Tag goes with it.
+    for (let i = 0; i < MAP_ROWS; i++) {
+      const n = String(i).padStart(2, "0");
+      files[`q/Q${n}.md`] = question(`Q${n}`, {
+        related: [`[[a${n}]]`, `[[b${n}]]`],
+      });
+      files[`s/a${n}.md`] = source(`a${n}`, ["kept"]);
+      files[`s/b${n}.md`] = source(`b${n}`, ["kept"]);
+    }
+    files["q/Cut.md"] = question("Cut", { related: ["[[x]]"] });
+    files["s/x.md"] = source("x", ["only-in-cut"]);
+    const m = await read(files);
+    expect(names(m)).not.toContain("q/Cut.md");
+    expect(m.columns.find((c) => c.canonical === "only-in-cut")!.weight).toBe(
+      0
+    );
+    expect(m.totals.rows).toBe(MAP_ROWS + 1);
+  });
+
+  it("returns an uncut matrix with totals equal to what is shown", async () => {
+    const m = await read({
+      "q/Q.md": question("Q", { related: ["[[a]]"] }),
+      "s/a.md": source("a", ["sleep"]),
+    });
+    expect(m.totals).toEqual({ rows: 1, columns: 1 });
+  });
+
+  it("gives a row's label the Kind it opens as", async () => {
+    const m = await read({
+      "q/Q.md": question("Q"),
+      "q/P (RQ).md": page("P", { promotedFrom: null }),
+    });
+    expect(m.rows.map((r) => [r.path, r.kind]).sort()).toEqual([
+      ["q/P (RQ).md", "research-question"],
+      ["q/Q.md", "question"],
+    ]);
   });
 });

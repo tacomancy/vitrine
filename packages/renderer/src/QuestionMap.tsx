@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CandidateReview } from "./CandidateReview";
+import { Matrix } from "./charts/matrix";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./QuestionMap.module.css";
 import { ReadingsStrip } from "./Readings";
@@ -48,7 +49,9 @@ export function QuestionMap() {
         </FirstSlot>
       ) : (
         <div className={styles.slots}>
-          <div data-slot="matrix" />
+          <div data-slot="matrix">
+            <MatrixSlot />
+          </div>
           <div data-slot="readings">
             {readings.data !== undefined && (
               <ReadingsStrip readings={readings.data} />
@@ -72,5 +75,35 @@ export function QuestionMap() {
         </footer>
       )}
     </section>
+  );
+}
+
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The matrix and the line that states its cut. A grid with no axes is never
+ * drawn (ADR 0041 decision 14); the short-page claims are a later ticket's.
+ */
+function MatrixSlot() {
+  const trpc = useTRPC();
+  const { data } = useQuery(trpc.questionMap.matrix.queryOptions());
+  if (data === undefined || data.rows.length === 0 || data.columns.length === 0)
+    return null;
+  // The counts are the core's, taken before its cut; the clause is dropped
+  // when no row and no column was left out.
+  const cut =
+    data.rows.length < data.totals.rows ||
+    data.columns.length < data.totals.columns;
+  return (
+    <>
+      <p className={styles.stated}>
+        {plural(data.totals.rows, "question", "questions")} ·{" "}
+        {plural(data.totals.columns, "tag", "tags")}
+        {cut &&
+          ` · matrix shows the ${data.rows.length} × ${data.columns.length} heaviest`}
+      </p>
+      <Matrix matrix={data} />
+    </>
   );
 }
