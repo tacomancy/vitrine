@@ -11,6 +11,9 @@ import styles from "./Readings.module.css";
  * absent, and one with members stays a count until the researcher opens it —
  * never automatically, and never because of how many it holds (#252, #245).
  */
+// The core's reason for a link that landed on several files.
+const AMBIGUOUS = "matches more than one file";
+
 export function ReadingsStrip({
   readings,
   reviewable,
@@ -55,7 +58,7 @@ export function ReadingsStrip({
       </Reading>
       <Reading
         count={broken.length}
-        label={`${plural(broken.length, "question", "questions")} with a link in Related that lands on nothing`}
+        label={`${plural(broken.length, "question", "questions")} with a link in Related that does not resolve`}
       >
         <Rows rows={broken} reviewable={reviewable} onReview={onReview} />
       </Reading>
@@ -147,18 +150,13 @@ function Rows({
               onClick={() => onReview?.(row.path)}
             />
           )}
-          {row.unresolved.length > 0 && (
-            <>
-              <span className={styles.meta}>
-                a link in this question&rsquo;s Related lands on nothing
-              </span>
-              {row.unresolved.map((u) => (
-                <span key={u.link} className={styles.meta}>
-                  {u.link} {u.reason}
-                </span>
-              ))}
-            </>
-          )}
+          {row.unresolved.map((u) => (
+            <span key={u.link} className={styles.meta}>
+              {u.reason === AMBIGUOUS
+                ? `a link in this question’s Related is ambiguous: ${u.link} matches more than one file`
+                : `a link in this question’s Related lands on nothing: ${u.link}`}
+            </span>
+          ))}
         </li>
       ))}
     </ol>

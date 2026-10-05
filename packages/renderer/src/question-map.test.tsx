@@ -578,14 +578,16 @@ describe("what the Map could not read", () => {
     ).toBeDefined();
     fireEvent.click(
       within(slot).getByRole("button", {
-        name: /1 question with a link in Related that lands on nothing/,
+        name: /1 question with a link in Related that does not resolve/,
       })
     );
     expect(slot.textContent).toContain("Why now?");
     expect(slot.textContent).toContain(
       "a link in this question’s Related lands on nothing"
     );
-    expect(slot.textContent).toContain("[[twin]] matches more than one file");
+    expect(slot.textContent).toContain(
+      "a link in this question’s Related is ambiguous: [[twin]]"
+    );
   });
 });
 
