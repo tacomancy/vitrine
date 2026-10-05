@@ -1,0 +1,66 @@
+/* Quiet by design: counts are plain text buttons, never badges (ADR 0041
+   decision 4), and nothing here is coloured for alarm. */
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.strip:empty {
+  display: none;
+}
+
+.reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+}
+
+.count {
+  all: unset;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+}
+
+.count:hover,
+.count:focus-visible {
+  text-decoration: underline;
+}
+
+.note,
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.meta {
+  margin-left: var(--space-3);
+}
+
+.list {
+  flex-basis: 100%;
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.members {
+  margin: var(--space-1) 0 var(--space-2);
+  padding-left: var(--space-4);
+  list-style: none;
+}
+
+.tag {
+  font-family: var(--font-mono);
+}
+
+.glyph {
+  margin-right: var(--space-2);
+  color: var(--color-fg-muted);
+}

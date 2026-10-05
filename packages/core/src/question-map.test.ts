@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Coverage } from "./question-map.js";
+import type { Coverage, Readings } from "./question-map.js";
 import { rollUp } from "./question-map.js";
 import { closeCores, core, vaultWith, type CoreOptions } from "./test-core.js";
 
@@ -379,5 +379,130 @@ describe("rollUp", () => {
       "b/x",
     ]);
     expect(rollUp(["b/x", "a/y/z", "a/y", "b", "a"], 1)).toEqual(["a", "b"]);
+  });
+});
+
+describe("questionMap.readings", () => {
+  const readings = async (
+    files: Record<string, string>,
+    depth?: number
+  ): Promise<Readings> => {
+    const { c } = await mapOf(files);
+    const reply = await c.query<Readings>(
+      "questionMap.readings",
+      depth === undefined ? undefined : { depth }
+    );
+    expect(reply.error).toBeUndefined();
+    return reply.result!.data;
+  };
+  const names = (list: Array<{ question: string }>) =>
+    list.map((r) => r.question);
+
+  it("ranks unanchored rows newest first, and counts every one the matrix would cut off", async () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 30; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      files[`q/Bare ${day}.md`] = question(`Bare ${day}`, {
+        captured: `2026-08-${day}T10:00:00Z`,
+      });
+    }
+    files["q/Held.md"] = question("Held", { related: ["[[a]]"] });
+    files["s/a.md"] = source("a", ["x"]);
+    const r = await readings(files);
+    expect(r.unanchored.count).toBe(30);
+    expect(r.unanchored.items).toHaveLength(30);
+    expect(names(r.unanchored.items).slice(0, 2)).toEqual([
+      "Bare 30?",
+      "Bare 29?",
+    ]);
+  });
+
+  it("puts the rows with most Material at the top of well-supported, and no row without any", async () => {
+    const r = await readings({
+      "q/Two.md": question("Two", { related: ["[[a]]", "[[b]]"] }),
+      "q/One.md": question("One", { related: ["[[a]]"] }),
+      "q/None.md": question("None"),
+      "s/a.md": source("a", ["x"]),
+      "s/b.md": source("b", ["x"]),
+    });
+    expect(names(r.wellSupported.items)).toEqual(["Two?", "One?"]);
+    expect(r.wellSupported.count).toBe(2);
+    expect(r.wellSupported.items[0]!.material).toBe(2);
+  });
+
+  it("holds a Tag whose Material no row reaches, ranked by Material count", async () => {
+    const r = await readings({
+      "q/Q.md": question("Q", { related: ["[[a]]"] }),
+      "s/a.md": source("a", ["asked"]),
+      "s/b.md": source("b", ["lone"]),
+      "s/c.md": source("c", ["pair"]),
+      "s/d.md": source("d", ["pair"]),
+    });
+    expect(r.unquestionedKnowledge.count).toBe(2);
+    expect(
+      r.unquestionedKnowledge.items.map((t) => [t.tag, t.material.length])
+    ).toEqual([
+      ["pair", 2],
+      ["lone", 1],
+    ]);
+  });
+
+  it("holds a stub from an unassigned Scout, and not one from an assigned Scout or one a Question has since linked", async () => {
+    const r = await readings({
+      "q/Q.md": question("Q", { related: ["[[linked]]"] }),
+      "s/free.md": stub("free", ["sleep"], { scout: "sc-1" }),
+      "s/assigned.md": stub("assigned", ["sleep"], {
+        scout: "sc-2",
+        questions: ["q-Q"],
+      }),
+      "s/linked.md": stub("linked", ["sleep"], { scout: "sc-1" }),
+      "s/manual.md": stub("manual", ["sleep"]),
+    });
+    expect(r.clockedButUnquestioned.count).toBe(1);
+    expect(r.clockedButUnquestioned.items).toEqual([
+      {
+        tag: "sleep",
+        display: "sleep",
+        stubs: [{ path: "s/free.md", display: "free" }],
+      },
+    ]);
+  });
+
+  it("ranks clocked but unquestioned by stubs per Tag", async () => {
+    const r = await readings({
+      "s/a.md": stub("a", ["few"], { scout: "s" }),
+      "s/b.md": stub("b", ["many"], { scout: "s" }),
+      "s/c.md": stub("c", ["many"], { scout: "s" }),
+    });
+    expect(r.clockedButUnquestioned.items.map((t) => t.tag)).toEqual([
+      "many",
+      "few",
+    ]);
+  });
+
+  it("rolls its Tags up at a shallower depth and shows the deepest by default", async () => {
+    const files = {
+      "s/a.md": source("a", ["ml/probing"]),
+      "s/b.md": source("b", ["ml/scaling"]),
+    };
+    const deep = await readings(files);
+    expect(deep.unquestionedKnowledge.items.map((t) => t.tag)).toEqual([
+      "ml/probing",
+      "ml/scaling",
+    ]);
+    const shallow = await readings(files, 1);
+    expect(
+      shallow.unquestionedKnowledge.items.map((t) => [t.tag, t.material.length])
+    ).toEqual([["ml", 2]]);
+  });
+
+  it("is empty on a vault with nothing to say", async () => {
+    const r = await readings({
+      "q/Q.md": question("Q", { related: ["[[a]]"] }),
+      "s/a.md": source("a", ["x"]),
+    });
+    expect(r.unanchored.count).toBe(0);
+    expect(r.clockedButUnquestioned.count).toBe(0);
+    expect(r.unquestionedKnowledge.count).toBe(0);
   });
 });
