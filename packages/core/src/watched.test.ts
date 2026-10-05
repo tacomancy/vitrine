@@ -400,6 +400,24 @@ describe("what a run records", () => {
     expect(lab.calls.extract).toBe(2);
   });
 
+  it("asks the model again about a page whose last look failed, since only a clean run vouches for a page", async () => {
+    let answer: Extraction | Error = new ModelError(
+      "model",
+      "the provider answered HTTP 529"
+    );
+    const lab = await opened({
+      page: () => ({ body: PAGE }),
+      model: () => answer,
+    });
+    await lab.run();
+    answer = { items: GOOD, usage };
+
+    const second = await lab.run();
+
+    expect(second).toMatchObject({ outcome: "ok", new: 3 });
+    expect(lab.calls.extract).toBe(2);
+  });
+
   it("cuts a page over the token budget and says it did", async () => {
     const long = `${PAGE}<p>${"word ".repeat(250_000)}</p>`;
     const lab = await opened({ page: () => ({ body: long }) });
@@ -641,5 +659,113 @@ describe("the first run", () => {
 
     expect(run).toMatchObject({ outcome: "ok", new: 500, truncated: 20 });
     expect(lab.lastRun()).toMatchObject({ truncated: 20 });
+  });
+});
+
+describe("what the rail says of a page that stopped reading", () => {
+  const rail = async (lab: Awaited<ReturnType<typeof opened>>) => {
+    const r = await lab.c.query<{
+      scouts: Array<{
+        id: string;
+        health: { voice: string; sentence: string };
+      }>;
+    }>("scouts.health");
+    expect(r.error).toBeUndefined();
+    return r.result!.data.scouts.find((s) => s.id === "lab")!.health;
+  };
+
+  /** A clean first run, then the page and the model's answer change. */
+  async function afterCleanRun(next: {
+    body: string;
+    answer: Extraction | Error;
+  }) {
+    let answer: Extraction | Error = { items: GOOD, usage };
+    const lab = await opened({
+      page: () => ({ body: PAGE }),
+      model: () => answer,
+    });
+    await lab.run();
+    lab.serve(() => ({ body: next.body }));
+    answer = next.answer;
+    await lab.run();
+    return lab;
+  }
+
+  const CHANGED = PAGE.replace("<h2>Publications", "<h2>Our Publications");
+
+  it("says a missed listing and a redesigned page in different words, and neither is a quiet field", async () => {
+    const missed = await rail(
+      await afterCleanRun({ body: CHANGED, answer: { items: [], usage } })
+    );
+    const redesign = await rail(
+      await afterCleanRun({ body: redesigned, answer: { items: [], usage } })
+    );
+
+    expect(missed).toMatchObject({ voice: "wrong" });
+    expect(redesign).toMatchObject({ voice: "wrong" });
+    expect(missed.sentence).toBe(
+      "The model returned nothing, but the papers seen last time are still on the page: the listing was missed."
+    );
+    expect(redesign.sentence).toBe(
+      "The papers this page listed before are no longer on it: its structure changed."
+    );
+  });
+
+  it("says each model failure with its reason", async () => {
+    const refusal = new ModelError(
+      "model",
+      "the model refused to read the page (cyber)"
+    );
+    const down = new ModelError("model", "the provider answered HTTP 529");
+
+    expect(
+      (await rail(await afterCleanRun({ body: CHANGED, answer: refusal })))
+        .sentence
+    ).toBe(
+      "The model could not read this page (the model refused to read the page (cyber)), so nothing was checked."
+    );
+    expect(
+      (await rail(await afterCleanRun({ body: CHANGED, answer: down })))
+        .sentence
+    ).toBe(
+      "The model could not read this page (the provider answered HTTP 529), so nothing was checked."
+    );
+  });
+
+  it("says fewer than half verified, and a first page that lists nothing", async () => {
+    const few = await rail(
+      await afterCleanRun({
+        body: CHANGED,
+        answer: { items: [GOOD[0]!, INVENTED, INVENTED], usage },
+      })
+    );
+    expect(few).toMatchObject({
+      voice: "wrong",
+      sentence:
+        "Fewer than half of what the model returned appears on the page, so nothing was proposed.",
+    });
+
+    const first = await opened({
+      page: () => ({ body: PAGE }),
+      model: () => ({ items: [], usage }),
+    });
+    await first.run();
+    expect(await rail(first)).toMatchObject({
+      voice: "wrong",
+      sentence: "The model found no papers listed on this page.",
+    });
+  });
+
+  it("names no path in any sentence", async () => {
+    const lab = await opened({
+      page: () => ({ body: PAGE }),
+      model: () => new ModelError("model", "the provider answered HTTP 529"),
+    });
+    await lab.run();
+
+    const { sentence } = await rail(lab);
+
+    expect(sentence).not.toContain(lab.vault);
+    expect(sentence).not.toMatch(/\.vitrine|\.yaml|\/Users\//);
   });
 });
