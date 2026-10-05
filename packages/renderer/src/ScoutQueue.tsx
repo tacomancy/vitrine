@@ -22,11 +22,11 @@ import { useTRPC } from "./trpc";
  * Scout's header, an empty stack — speaks in one of ADR 0032's three voices.
  */
 export function ScoutQueue({
-  draft,
-  setDraft,
+  form,
+  setForm,
 }: {
-  draft: ScoutDraft | null;
-  setDraft: (draft: ScoutDraft | null) => void;
+  form: ScoutDraft | null;
+  setForm: (form: ScoutDraft | null) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -45,8 +45,6 @@ export function ScoutQueue({
   );
   // The form, or null for the stack. Held by the window and not here: *Add a
   // key* leaves for Settings, and this surface unmounts on the way.
-  const form = draft;
-  const setForm = setDraft;
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [said, setSaid] = useState<string | null>(null);

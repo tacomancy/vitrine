@@ -18,6 +18,9 @@ import { serialised } from "./serialise.js";
  * later beat's `cap`, a comment) survives.
  */
 
+const WEB_ADDRESS = /^https?:\/\/\S+$/i;
+const ADDRESS_REFUSAL = "An address needs to start with http:// or https://.";
+
 export type ScoutForm = {
   /** Present when editing; the file's own name. */
   id?: string | undefined;
@@ -187,9 +190,6 @@ export async function tryQuery(
   }
 }
 
-const WEB_ADDRESS = /^https?:\/\/\S+$/i;
-const ADDRESS_REFUSAL = "An address needs to start with http:// or https://.";
-
 export type TriedPage =
   | {
       outcome: "found";
@@ -201,7 +201,7 @@ export type TriedPage =
   | {
       outcome: "found";
       via: "model";
-      /** What the model returned, of which `verified` are on the page and `dropped` are not. */
+      /** What the model returned (not `verified`), of which `verified` are on the page and `dropped` are not. */
       total: number;
       verified: number;
       dropped: number;
