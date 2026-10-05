@@ -1,0 +1,78 @@
+/* The review sits in the page's last slot, set apart by space rather than a
+   rule (ADR 0023 decision 1). */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.question {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.question a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: default;
+}
+
+.row[data-chosen="true"] {
+  background: var(--color-bg-raised);
+}
+
+.paper {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+}
+
+.why {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.keys {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.refused {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+.next {
+  align-self: flex-start;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+  cursor: pointer;
+}
