@@ -1,5 +1,6 @@
 // Entry for the Electron utilityProcess the shell spawns. Everything Electron
 // specific is confined to this file so the rest of the core is plain Node.
+import { createMemoryCredentialStore } from "./credentials.js";
 import { errorMessage } from "./errors.js";
 import type { Host } from "./host.js";
 import { startCore } from "./start.js";
@@ -109,6 +110,9 @@ const author = process.env["VITRINE_AUTHOR"];
 // A demo's stand-in arXiv server (`Scripts/scout-demo.mjs`); never set in use,
 // so the real endpoint is the default and nothing leaves the device by it.
 const arxivEndpoint = process.env["VITRINE_ARXIV_ENDPOINT"];
+// A demo's hidden run keeps its key in memory so the real Keychain is never
+// touched (`Scripts/watched-demo.mjs`); never set in use.
+const memoryKeys = process.env["VITRINE_CREDENTIALS"] === "memory";
 const shell = parentPort ? hostOver(parentPort) : null;
 const running = await startCore({
   ...(staticDir === undefined ? {} : { staticDir }),
@@ -118,6 +122,7 @@ const running = await startCore({
   ...(arxivEndpoint === undefined || arxivEndpoint === ""
     ? {}
     : { arxiv: { endpoint: arxivEndpoint } }),
+  ...(memoryKeys ? { credentials: createMemoryCredentialStore() } : {}),
   ...(shell ? { host: shell.host } : {}),
 });
 
