@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "./app.js";
+import { createKeychainCredentialStore } from "./keychain.js";
 import type { Host } from "./host.js";
 
 export type StartOptions = {
@@ -69,6 +70,9 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     ...(options.machine === undefined ? {} : { machine: options.machine }),
     ...(options.author === undefined ? {} : { author: options.author }),
     ...(options.arxiv === undefined ? {} : { arxiv: options.arxiv }),
+    // Built once here, and read at each run: the Keychain is the one source
+    // of truth for a key (§ BYOK and watched sources).
+    watched: { credentials: createKeychainCredentialStore() },
   });
   // The last-resort teardown for an exit nothing else caught: an `exit`
   // handler cannot await, so it drops the handles and splices nothing.

@@ -2,7 +2,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createMemoryCredentialStore } from "./credentials.js";
+import {
+  CredentialFault,
+  createMemoryCredentialStore,
+  type CredentialStore,
+} from "./credentials.js";
 import {
   ModelError,
   type ExtractedItem,
@@ -99,6 +103,7 @@ async function opened(
     robots?: string | null;
     model?: (page: string) => Extraction | Error | Promise<Extraction | Error>;
     key?: string | null;
+    store?: CredentialStore;
     modelId?: string;
     timeoutMs?: number;
     fetch?: typeof fetch;
@@ -140,9 +145,11 @@ async function opened(
     watched: {
       timeoutMs: options.timeoutMs ?? 1000,
       models,
-      credentials: createMemoryCredentialStore(
-        options.key === null ? {} : { anthropic: options.key ?? "sk-test" }
-      ),
+      credentials:
+        options.store ??
+        createMemoryCredentialStore(
+          options.key === null ? {} : { anthropic: options.key ?? "sk-test" }
+        ),
       ...(options.modelId === undefined ? {} : { model: options.modelId }),
       fetch:
         options.fetch ??
@@ -502,6 +509,28 @@ describe("a model that cannot answer", () => {
     expect(lab.lastRun()).toMatchObject({ error_message: "no key" });
     expect(lab.requests).toEqual([]);
     expect(lab.calls.count + lab.calls.extract).toBe(0);
+  });
+
+  it("records a Keychain that could not be read as a fault, never as no key", async () => {
+    const lab = await opened({
+      page: () => ({ body: PAGE }),
+      store: {
+        get: () => Promise.reject(new CredentialFault()),
+        set: () => Promise.resolve(),
+        delete: () => Promise.resolve(),
+      },
+    });
+
+    expect(await lab.run()).toMatchObject({ errorKind: "credentials" });
+    expect(lab.lastRun().error_message).not.toBe("no key");
+    expect(lab.requests).toEqual([]);
+    const health = (
+      await lab.c.query<Array<{ voice: string; sentence: string }>>(
+        "scouts.health"
+      )
+    ).result!.data;
+    expect(JSON.stringify(health)).toMatch(/Keychain/);
+    expect(JSON.stringify(health)).toMatch(/"wrong"/);
   });
 
   it("records a key the provider refused, and a provider that failed, as stated failures", async () => {

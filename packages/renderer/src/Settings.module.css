@@ -196,3 +196,23 @@
 .wrong {
   color: var(--color-warning);
 }
+
+/* A Provider's name, under the section heading: what the block below it is about. */
+.block {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* A field in a row, in the data's face; the stored key is never in it. */
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
