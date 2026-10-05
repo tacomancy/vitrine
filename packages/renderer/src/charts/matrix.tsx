@@ -93,6 +93,10 @@ export function Matrix({
     `${matrix.rows[r]!.question} · ${matrix.columns[c]!.display}`;
   const material = chosen === null ? [] : matrix.material[chosen.r]![chosen.c]!;
 
+  // The page never draws an axis-less grid; this keeps the component from
+  // choosing a cell that does not exist if it is ever handed one.
+  if (rows === 0 || cols === 0) return null;
+
   return (
     <div className={styles.matrix}>
       <ul className={styles.legend} aria-label="Legend: items per cell">
@@ -107,7 +111,6 @@ export function Matrix({
         role="grid"
         aria-label="Coverage: questions by tags"
         aria-activedescendant={chosenId}
-        aria-expanded={open}
         tabIndex={0}
         onFocus={() => setChosen((was) => was ?? ORIGIN)}
         onKeyDown={onKeyDown}
@@ -157,6 +160,7 @@ export function Matrix({
                     role="gridcell"
                     tabIndex={-1}
                     aria-selected={here}
+                    aria-expanded={here ? open : undefined}
                     className={`${styles.cell} ${styles[binOf(count)]} ${here ? styles.chosen : ""}`}
                     aria-label={label}
                     title={label}
@@ -180,7 +184,8 @@ export function Matrix({
       {chosen !== null && (
         // The exact count for a cell the shading and an unprinted zero leave
         // unsaid: intensity is never colour alone (decision 11).
-        <p role="status" className={styles.readout}>
+        // Hidden from assistive tech: the cell's own label already says it.
+        <p aria-hidden="true" className={styles.readout}>
           {labelOf(chosen)}: {items(matrix.cells[chosen.r]![chosen.c]!)}
         </p>
       )}

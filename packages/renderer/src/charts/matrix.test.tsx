@@ -175,7 +175,7 @@ describe("the matrix as an interface", () => {
     fireEvent.focus(grid());
     key("ArrowRight");
     expect(active()?.getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("status").textContent).toBe(
+    expect(screen.getByText(/Probing: 0 items$/).textContent).toBe(
       "Does sleep help? · Probing: 0 items"
     );
   });
@@ -189,7 +189,7 @@ describe("the matrix as an interface", () => {
       name: "Material: Does sleep help? · Sleep",
     });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
-    expect(grid().getAttribute("aria-expanded")).toBe("true");
+    expect(active()?.getAttribute("aria-expanded")).toBe("true");
     key("Escape");
     expect(screen.queryByRole("list", { name: /material/i })).toBeNull();
   });
