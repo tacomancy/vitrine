@@ -692,6 +692,7 @@ describe("the first run", () => {
   });
 });
 
+<<<<<<< HEAD
 describe("what the rail says of a page that stopped reading", () => {
   const rail = async (lab: Awaited<ReturnType<typeof opened>>) => {
     const r = await lab.c.query<{
@@ -797,9 +798,7 @@ describe("what the rail says of a page that stopped reading", () => {
 
     expect(sentence).not.toContain(lab.vault);
     expect(sentence).not.toMatch(/\.vitrine|\.yaml|\/Users\//);
-  });
-});
-
+=======
 const RSS = await fixture("lab-feed.rss.xml");
 const ATOM = await fixture("lab-feed.atom.xml");
 const FED_PAGE = await fixture("lab-page-with-feed.html");
@@ -944,167 +943,6 @@ describe("an address that is itself a feed", () => {
       "/publications",
     ]);
     expect(lab.calls.count + lab.calls.extract).toBe(0);
-  });
-});
-
-// #468 (ADR 0040 d.1, d.2): a missing key is a row, and a stored one starts
-// what was waiting on it.
-describe("a Scout waiting on a key", () => {
-  type Health = {
-    scouts: Array<{
-      id: string;
-      health: {
-        voice: string;
-        sentence?: string;
-        warrant?: { fragments: string[] } | null;
-      };
-    }>;
-  };
-  const healthOf = async (lab: Awaited<ReturnType<typeof opened>>) =>
-    (await lab.c.query<Health>("scouts.health")).result!.data.scouts[0]!.health;
-  const runCount = (lab: Awaited<ReturnType<typeof opened>>) =>
-    lab.rows<{ n: number }>("SELECT COUNT(*) AS n FROM scout_runs")[0]!.n;
-
-  it("says why it has not looked, in the not-yet voice, and is not asked again by the hour", async () => {
-    const lab = await opened({ key: null, page: () => ({ body: PAGE }) });
-    await lab.run();
-
-    expect(await healthOf(lab)).toMatchObject({
-      voice: "not yet",
-      sentence: "No model key is stored, so this page has not been read yet.",
-    });
-    await lab.c.mutate("scouts.checkDue", {});
-    expect(runCount(lab)).toBe(1);
-    expect(lab.calls.count + lab.calls.extract).toBe(0);
-    // *Run now* still asks.
-    await lab.run();
-    expect(runCount(lab)).toBe(2);
-  });
-
-  it("says a rejected key in the wrong voice, with its own sentence", async () => {
-    const lab = await opened({
-      page: () => ({ body: PAGE }),
-      model: () => new ModelError("credentials", "key rejected"),
-    });
-    await lab.run();
-
-    const health = await healthOf(lab);
-    expect(health.voice).toBe("wrong");
-    expect(health.sentence).toBe(
-      "The model provider refused the stored key, so nothing was checked."
-    );
-    await lab.c.mutate("scouts.checkDue", {});
-    expect(runCount(lab)).toBe(1);
-  });
-
-  it("runs at once when a key is stored, and the cards arrive", async () => {
-    const lab = await opened({ key: null, page: () => ({ body: PAGE }) });
-    await lab.run();
-
-    const set = await lab.c.mutate("credentials.set", {
-      provider: "anthropic",
-      key: "sk-new",
-    });
-    expect(set.error).toBeUndefined();
-
-    expect(runCount(lab)).toBe(2);
-    expect(lab.lastRun()).toMatchObject({ outcome: "ok" });
-    expect((await lab.cards()).length).toBe(GOOD.length);
-  });
-
-  it("runs when a test succeeds, and not when it fails", async () => {
-    const store = createMemoryCredentialStore();
-    const lab = await opened({ store, page: () => ({ body: PAGE }) });
-    await lab.run();
-    expect(runCount(lab)).toBe(1);
-
-    // No key: the test says so and starts nothing.
-    await lab.c.mutate("credentials.test", { provider: "anthropic" });
-    expect(runCount(lab)).toBe(1);
-
-    // A key written behind the procedures' back, as a hand edit of the
-    // Keychain would: only a successful test notices it.
-    await store.set("anthropic", "sk-test");
-    await lab.c.mutate("credentials.test", { provider: "anthropic" });
-    expect(runCount(lab)).toBe(2);
-    expect(lab.lastRun()).toMatchObject({ outcome: "ok" });
-  });
-
-  it("leaves a paused Scout alone", async () => {
-    const lab = await opened({
-      key: null,
-      scouts: {
-        "lab.yaml": SCOUT,
-        "other.yaml":
-          SCOUT.replace("Sleep Lab", "Other Lab") + "paused: true\n",
-      },
-      page: () => ({ body: PAGE }),
-    });
-    await lab.run("lab");
-    await lab.run("other");
-    lab.serve(() => ({ body: "", status: 503 }));
-
-    await lab.c.mutate("credentials.set", {
-      provider: "anthropic",
-      key: "sk-new",
-    });
-
-    const ran = lab.rows<{ scout_id: string }>(
-      "SELECT scout_id FROM scout_runs ORDER BY id"
-    );
-    expect(ran.map((r) => r.scout_id)).toEqual(["lab", "other", "lab"]);
-  });
-
-  it("is named, with why, by credentials.waiting — a rejected key too", async () => {
-    const lab = await opened({
-      key: null,
-      model: () => new ModelError("credentials", "key rejected"),
-      scouts: {
-        "lab.yaml": SCOUT,
-        "fine.yaml": SCOUT.replace("Sleep Lab", "Fine Lab"),
-      },
-      page: () => ({ body: PAGE }),
-    });
-    await lab.run("lab");
-
-    const waiting = async () =>
-      (
-        await lab.c.query<Array<{ id: string; name: string; message: string }>>(
-          "credentials.waiting",
-          { provider: "anthropic" }
-        )
-      ).result!.data;
-    expect(await waiting()).toEqual([
-      { id: "lab", name: "Sleep Lab", message: "no key" },
-    ]);
-
-    // A key the provider refuses leaves it waiting, with the other reason.
-    lab.serve(() => ({ body: PAGE }));
-    await lab.c.mutate("credentials.set", {
-      provider: "anthropic",
-      key: "sk-bad",
-    });
-    expect(await waiting()).toEqual([
-      { id: "lab", name: "Sleep Lab", message: "key rejected" },
-    ]);
-  });
-
-  it("keeps its no-key rows out of the Warrant: no last ran, no clean count", async () => {
-    const lab = await opened({ key: null, page: () => ({ body: PAGE }) });
-    await lab.run();
-    await lab.run();
-    expect(await healthOf(lab)).not.toHaveProperty("warrant");
-
-    // The key arrives; the first clean run is the first run of the field.
-    await lab.c.mutate("credentials.set", {
-      provider: "anthropic",
-      key: "sk-new",
-    });
-    await lab.c.mutate("scouts.runNow", { scoutId: "lab" });
-    const health = await healthOf(lab);
-    // Only runs that fetched count: one clean run is under the baseline, so
-    // the rate is not quoted and the two no-key rows are not in the tally.
-    const warrant = health.warrant?.fragments ?? [];
-    expect(warrant.join(" ")).not.toMatch(/\(\d+ runs\)/);
+>>>>>>> origin/main
   });
 });

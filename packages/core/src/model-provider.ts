@@ -138,9 +138,12 @@ export function createAnthropicProvider(
           cacheRead: message.usage.cache_read_input_tokens ?? 0,
         };
         if (message.stop_reason === "refusal") {
+          // The category is the provider's own word for why; null when it
+          // names none, and then nothing is added (ADR 0017 decision 6).
+          const category = message.stop_details?.category;
           throw new ModelError(
             "model",
-            "the model refused to read the page",
+            `the model refused to read the page${category ? ` (${category})` : ""}`,
             usage
           );
         }
