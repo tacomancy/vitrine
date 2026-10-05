@@ -661,3 +661,77 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
       byName(a.path, b.path)
   );
 }
+
+/** The matrix's shape, whatever the vault's size (ADR 0041 decision 3). */
+export const MAP_ROWS = 24;
+export const MAP_COLUMNS = 22;
+
+export type Matrix = {
+  depth: number;
+  deepest: number;
+  /** Heaviest first; ties newest first. */
+  rows: Array<{
+    kind: MapRow["kind"];
+    path: string;
+    question: string;
+    /** Distinct Material attached to the row. */
+    weight: number;
+    unresolved: MapRow["unresolved"];
+  }>;
+  /** Heaviest first over the rows shown; ties by Tag name. */
+  columns: Array<{ canonical: string; display: string; weight: number }>;
+  /** `cells[row][column]`: distinct Material on that row carrying that Tag. */
+  cells: number[][];
+  /** Before the cut, so the page's stated line is built from real counts. */
+  totals: { rows: number; columns: number };
+};
+
+/**
+ * Cut the Coverage to what the matrix draws. The cut is here, not in the
+ * renderer, so no surface can draw more than the constants allow and the
+ * totals beside it are the ones the cut was made from. A column's weight is
+ * counted over the rows that survive: Material only a cut row reaches is not
+ * evidence for a column the reader can see.
+ */
+export function matrix(cover: Coverage): Matrix {
+  // `cover.rows` is already newest first, and a stable sort keeps that order
+  // among equal weights: the recency tie-break.
+  const shown = [...cover.rows]
+    .sort((a, b) => b.material.length - a.material.length)
+    .slice(0, MAP_ROWS);
+
+  const weighted = cover.tags.map((tag) => {
+    const carrying = new Set<string>();
+    for (const row of shown) {
+      for (const item of row.material) {
+        if (item.tags.includes(tag.canonical)) carrying.add(item.path);
+      }
+    }
+    return { ...tag, weight: carrying.size };
+  });
+  // `cover.tags` is sorted by name, which the stable sort keeps among ties.
+  const columns = weighted
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, MAP_COLUMNS);
+
+  return {
+    depth: cover.depth,
+    deepest: cover.deepest,
+    rows: shown.map((row) => ({
+      kind: row.kind,
+      path: row.path,
+      question: row.question,
+      weight: row.material.length,
+      unresolved: row.unresolved,
+    })),
+    columns,
+    cells: shown.map((row) =>
+      columns.map(
+        (col) =>
+          row.material.filter((item) => item.tags.includes(col.canonical))
+            .length
+      )
+    ),
+    totals: { rows: cover.rows.length, columns: cover.tags.length },
+  };
+}

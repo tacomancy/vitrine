@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { Coverage } from "core";
+import type { Coverage, Matrix } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -22,6 +22,15 @@ const NO_READINGS = {
   clockedButUnquestioned: empty0,
 };
 
+const MATRIX: Matrix = {
+  depth: 1,
+  deepest: 1,
+  rows: [],
+  columns: [],
+  cells: [],
+  totals: { rows: 0, columns: 0 },
+};
+
 const open = (more: Record<string, unknown> = {}) => {
   window.location.hash = "#/question-map";
   return renderApp({
@@ -30,6 +39,7 @@ const open = (more: Record<string, unknown> = {}) => {
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
     "questionMap.readings": NO_READINGS,
+    "questionMap.matrix": MATRIX,
     ...more,
   });
 };
@@ -58,6 +68,7 @@ describe("the Question Map", () => {
       "vault.status": READ,
       "questionMap.coverage": COVERAGE,
       "questionMap.readings": NO_READINGS,
+      "questionMap.matrix": MATRIX,
     });
     await screen.findByRole("region", { name: "Question Inbox" });
     fireEvent.click(screen.getByRole("link", { name: "Question Map" }));
@@ -238,5 +249,73 @@ describe("the four readings", () => {
   it("shows no total across the readings", async () => {
     const slot = await readings();
     expect(slot.textContent).not.toMatch(/\b6\b|of \d+/);
+  });
+});
+
+// The matrix slot (#484; ADR 0041 decision 3): the grid, and a line that
+// states the cut from real counts.
+
+const matrixRow = (n: number) => ({
+  kind: "question" as const,
+  path: `q/Q${n}.md`,
+  question: `Question ${n}?`,
+  weight: 1,
+  unresolved: [],
+});
+const shaped = (shown: [number, number], totals: [number, number]): Matrix => ({
+  ...MATRIX,
+  rows: Array.from({ length: shown[0] }, (_, i) => matrixRow(i)),
+  columns: Array.from({ length: shown[1] }, (_, i) => ({
+    canonical: `t${i}`,
+    display: `Tag ${i}`,
+    weight: 1,
+  })),
+  cells: Array.from({ length: shown[0] }, () =>
+    Array<number>(shown[1]).fill(1)
+  ),
+  totals: { rows: totals[0], columns: totals[1] },
+});
+
+describe("the Question Map's matrix", () => {
+  it("draws the grid in the matrix slot", async () => {
+    open({ "questionMap.matrix": shaped([2, 3], [2, 3]) });
+    const view = await page();
+    const slot = await vi.waitFor(() => {
+      const el = view.querySelector('[data-slot="matrix"]')!;
+      expect(within(el as HTMLElement).getAllByRole("gridcell")).toHaveLength(
+        6
+      );
+      return el as HTMLElement;
+    });
+    expect(slot.querySelector("a")?.textContent).toBe("Question 0?");
+  });
+
+  it("states the cut from the real totals", async () => {
+    open({ "questionMap.matrix": shaped([24, 22], [64, 44]) });
+    const view = await page();
+    await within(view).findByText(
+      "64 questions · 44 tags · matrix shows the 24 × 22 heaviest"
+    );
+  });
+
+  it("drops the clause when nothing is cut", async () => {
+    open({ "questionMap.matrix": shaped([2, 3], [2, 3]) });
+    const view = await page();
+    await within(view).findByText("2 questions · 3 tags");
+    expect(view.textContent).not.toMatch(/heaviest/);
+  });
+
+  it("keeps the shape: a vault of hundreds draws the same 24 × 22", async () => {
+    open({ "questionMap.matrix": shaped([24, 22], [412, 150]) });
+    const view = await page();
+    await within(view).findByText(/412 questions · 150 tags/);
+    expect(within(view).getAllByRole("gridcell")).toHaveLength(24 * 22);
+  });
+
+  it("draws no grid when it has no axes", async () => {
+    open();
+    const view = await page();
+    await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
+    expect(within(view).queryByRole("grid")).toBeNull();
   });
 });

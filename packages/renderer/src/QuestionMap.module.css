@@ -48,3 +48,11 @@
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
+
+/* The stated cut, in the footer channel's quiet mono voice. */
+.stated {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

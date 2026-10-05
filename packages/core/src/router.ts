@@ -54,7 +54,7 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
-import { candidateLinks, coverage, readings } from "./question-map.js";
+import { candidateLinks, coverage, matrix, readings } from "./question-map.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
@@ -1354,6 +1354,12 @@ export const router = t.router({
       const { index } = await requireVault(ctx);
       return candidateLinks(index);
     }),
+    matrix: t.procedure
+      .input(z.object({ depth: z.number().int().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return matrix(coverage(index, input?.depth));
+      }),
     readings: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {
