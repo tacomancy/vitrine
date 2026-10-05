@@ -410,7 +410,9 @@ export type CandidateQuestion = {
  * Tags compare as written, not rolled up to the page's depth: a candidate
  * must be explainable by a Tag the researcher can see on both files.
  * Questions with no candidate are absent, so the review lists only work to
- * do; the page says a Question has none by the Question's own row.
+ * do. A Question with none is therefore said by the review's empty
+ * Claim, not per Question, until a row can enter the review (a later ticket).
+ * Rejected pairs are not read here yet: reject is that ticket's.
  */
 export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
   const tagsOf = new Map<string, Set<string>>();
@@ -433,12 +435,11 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
 
   const out: CandidateQuestion[] = [];
   for (const row of coverage(index).rows) {
+    // Unanchored: no Material, so no paper is linked yet and none needs excluding.
     if (row.kind !== "question" || row.material.length > 0) continue;
     const mine = tagsOf.get(row.path);
     if (mine === undefined) continue;
-    const linked = new Set(row.material.map((m) => m.path));
     const found = papers.flatMap((paper) => {
-      if (linked.has(paper.path)) return [];
       const shared = [...(tagsOf.get(paper.path) ?? [])]
         .filter((tag) => mine.has(tag))
         .sort(byName);
@@ -467,7 +468,8 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
   return out.sort(
     (a, b) =>
       b.candidates.length - a.candidates.length ||
-      Date.parse(b.captured ?? "") - Date.parse(a.captured ?? "") ||
+      (Date.parse(b.captured ?? "") || 0) -
+        (Date.parse(a.captured ?? "") || 0) ||
       byName(a.path, b.path)
   );
 }

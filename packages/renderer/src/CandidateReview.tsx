@@ -22,7 +22,12 @@ import { useTRPC } from "./trpc";
 export function CandidateReview() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const read = useQuery(trpc.questionMap.candidates.queryOptions());
+  // Never served from a cache: a list left by an earlier visit would still
+  // hold Questions anchored since, and the visit's snapshot is taken once.
+  const read = useQuery({
+    ...trpc.questionMap.candidates.queryOptions(),
+    gcTime: 0,
+  });
   const [session, setSession] = useState<CandidateQuestion[] | null>(null);
   if (session === null && read.data !== undefined) setSession(read.data);
 
