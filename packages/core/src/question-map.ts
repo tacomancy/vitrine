@@ -569,3 +569,95 @@ export function readings(index: VaultIndex, requested?: number): Readings {
     },
   };
 }
+
+/** A paper offered for a Question, and the Tags that make it a candidate. */
+export type CandidateLink = {
+  path: string;
+  kind: "source" | "source-stub";
+  display: string;
+  /** The Tags the paper shares with the Question, sorted: what the offer rests on. */
+  shared: string[];
+};
+
+export type CandidateQuestion = {
+  path: string;
+  id: string | null;
+  question: string;
+  captured: string | null;
+  /** Ranked: most shared Tags first, then the paper's file recency. */
+  candidates: CandidateLink[];
+};
+
+/**
+ * Candidate links (ADR 0041 decisions 9–10): for each unanchored Question
+ * row, the papers that share a Tag with it. Inferred, so never counted by
+ * `coverage`; it becomes Material only when the researcher accepts, which
+ * writes a Related edge. A Research Question row is not offered here: its
+ * Related section is an Edited section the link write does not reach.
+ *
+ * Tags compare as written, not rolled up to the page's depth: a candidate
+ * must be explainable by a Tag the researcher can see on both files.
+ * Questions with no candidate are absent, so the review lists only work to
+ * do. A Question with none is therefore said by the review's empty
+ * Claim, not per Question, until a row can enter the review (a later ticket).
+ * Rejected pairs are not read here yet: reject is that ticket's.
+ */
+export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
+  const tagsOf = new Map<string, Set<string>>();
+  for (const { path, canonical } of index.select<{
+    path: string;
+    canonical: string;
+  }>("SELECT path, canonical FROM tags WHERE canonical IS NOT NULL")) {
+    const set = tagsOf.get(path) ?? new Set<string>();
+    set.add(canonical);
+    tagsOf.set(path, set);
+  }
+  const papers = index.select<{
+    path: string;
+    kind: "source" | "source-stub";
+    display: string | null;
+    mtime: number | null;
+  }>(
+    "SELECT path, kind, display, mtime FROM files WHERE kind IN ('source', 'source-stub')"
+  );
+
+  const out: CandidateQuestion[] = [];
+  for (const row of coverage(index).rows) {
+    // Unanchored: no Material, so no paper is linked yet and none needs excluding.
+    if (row.kind !== "question" || row.material.length > 0) continue;
+    const mine = tagsOf.get(row.path);
+    if (mine === undefined) continue;
+    const found = papers.flatMap((paper) => {
+      const shared = [...(tagsOf.get(paper.path) ?? [])]
+        .filter((tag) => mine.has(tag))
+        .sort(byName);
+      return shared.length === 0 ? [] : [{ paper, shared }];
+    });
+    if (found.length === 0) continue;
+    found.sort(
+      (a, b) =>
+        b.shared.length - a.shared.length ||
+        (b.paper.mtime ?? 0) - (a.paper.mtime ?? 0) ||
+        byName(a.paper.path, b.paper.path)
+    );
+    out.push({
+      path: row.path,
+      id: row.id,
+      question: row.question,
+      captured: row.captured,
+      candidates: found.map(({ paper, shared }) => ({
+        path: paper.path,
+        kind: paper.kind,
+        display: paper.display ?? paper.path,
+        shared,
+      })),
+    });
+  }
+  return out.sort(
+    (a, b) =>
+      b.candidates.length - a.candidates.length ||
+      (Date.parse(b.captured ?? "") || 0) -
+        (Date.parse(a.captured ?? "") || 0) ||
+      byName(a.path, b.path)
+  );
+}

@@ -51,6 +51,8 @@ export type { IngestSummary } from "./ingest.js";
 export type { Linked } from "./link.js";
 export type { OpenDays } from "./open-days.js";
 export type {
+  CandidateLink,
+  CandidateQuestion,
   Coverage,
   MapRow,
   MaterialItem,

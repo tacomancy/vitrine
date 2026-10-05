@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { CandidateReview } from "./CandidateReview";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./QuestionMap.module.css";
 import { ReadingsStrip } from "./Readings";
@@ -54,7 +55,9 @@ export function QuestionMap() {
             )}
           </div>
           <div data-slot="origins" />
-          <div data-slot="review" />
+          <div data-slot="review">
+            <CandidateReview />
+          </div>
         </div>
       )}
       {(status.hasLines || coverage.isError || readings.isError) && (

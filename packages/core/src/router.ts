@@ -54,7 +54,7 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
-import { coverage, readings } from "./question-map.js";
+import { candidateLinks, coverage, readings } from "./question-map.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
@@ -1348,6 +1348,12 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return coverage(index, input?.depth);
       }),
+    // The review's candidates (#487). Accept is `questions.link`; pass is
+    // the renderer's, and nothing here is written.
+    candidates: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return candidateLinks(index);
+    }),
     readings: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {
