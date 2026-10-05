@@ -13,6 +13,15 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
 const COVERAGE: Coverage = { depth: 1, deepest: 1, rows: [], tags: [] };
 
+const empty0 = { count: 0, items: [] };
+const NO_READINGS = {
+  depth: 1,
+  wellSupported: empty0,
+  unanchored: empty0,
+  unquestionedKnowledge: empty0,
+  clockedButUnquestioned: empty0,
+};
+
 const open = (more: Record<string, unknown> = {}) => {
   window.location.hash = "#/question-map";
   return renderApp({
@@ -20,6 +29,7 @@ const open = (more: Record<string, unknown> = {}) => {
     "questions.list": empty,
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
+    "questionMap.readings": NO_READINGS,
     ...more,
   });
 };
@@ -47,6 +57,7 @@ describe("the Question Map", () => {
       "questions.list": empty,
       "vault.status": READ,
       "questionMap.coverage": COVERAGE,
+      "questionMap.readings": NO_READINGS,
     });
     await screen.findByRole("region", { name: "Question Inbox" });
     fireEvent.click(screen.getByRole("link", { name: "Question Map" }));
@@ -98,5 +109,134 @@ describe("the Question Map", () => {
     const view = await page();
     await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
     expect(view.textContent).not.toMatch(/not read yet/);
+  });
+});
+
+// The four readings (#485; ADR 0041 decision 4): a count per kind that
+// names a decision, never summed, collapsed away when empty and opened to
+// its full list only on request.
+
+const none = { count: 0, items: [] };
+const row = (question: string, path: string, material = 0) => ({
+  kind: "question" as const,
+  path,
+  id: null,
+  question,
+  material,
+  unresolved: 0,
+});
+const READINGS = {
+  depth: 1,
+  wellSupported: {
+    count: 1,
+    items: [row("Does sleep help?", "q/Sleep.md", 4)],
+  },
+  unanchored: {
+    count: 2,
+    items: [row("Why now?", "q/Now.md"), row("Why then?", "q/Then.md")],
+  },
+  unquestionedKnowledge: {
+    count: 1,
+    items: [
+      {
+        tag: "ml/probing",
+        display: "ml/probing",
+        material: [{ path: "s/rasch.md", display: "Rasch" }],
+      },
+    ],
+  },
+  clockedButUnquestioned: {
+    count: 2,
+    items: [
+      {
+        tag: "memory",
+        display: "memory",
+        stubs: [
+          { path: "s/a.md", display: "Stub A" },
+          { path: "s/b.md", display: "Stub B" },
+        ],
+      },
+    ],
+  },
+};
+
+describe("the four readings", () => {
+  const readings = async (data: unknown = READINGS) => {
+    open({ "questionMap.readings": data });
+    const view = await page();
+    return await vi.waitFor(() => {
+      const slot = view.querySelector<HTMLElement>('[data-slot="readings"]')!;
+      expect(slot.textContent).not.toBe("");
+      return slot;
+    });
+  };
+
+  it("shows each reading's count and no list until asked", async () => {
+    const slot = await readings();
+    for (const name of [
+      /2 unanchored/,
+      /1 well-supported/,
+      /1 tag.*unquestioned knowledge/,
+      /2.*clocked but unquestioned/,
+    ])
+      expect(within(slot).getByRole("button", { name })).toBeDefined();
+    expect(within(slot).queryByRole("list")).toBeNull();
+    expect(slot.textContent).not.toMatch(/Why now/);
+  });
+
+  it("opens one reading's full list on request, and closes it again", async () => {
+    const slot = await readings();
+    const button = within(slot).getByRole("button", { name: /2 unanchored/ });
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const link = within(slot).getByRole("link", { name: "Why now?" });
+    expect(link.getAttribute("href")).toBe("#/question/q/Now.md");
+    expect(slot.textContent).not.toMatch(/Does sleep help/);
+    fireEvent.click(button);
+    expect(within(slot).queryByRole("link", { name: "Why now?" })).toBeNull();
+  });
+
+  it("leaves an empty reading out of the page", async () => {
+    const slot = await readings({ ...READINGS, unanchored: none });
+    expect(slot.textContent).not.toMatch(/unanchored/);
+    expect(within(slot).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("draws nothing at all when every reading is empty", async () => {
+    open({
+      "questionMap.readings": {
+        ...READINGS,
+        wellSupported: none,
+        unanchored: none,
+        unquestionedKnowledge: none,
+        clockedButUnquestioned: none,
+      },
+    });
+    const view = await page();
+    await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
+    expect(view.querySelector('[data-slot="readings"]')!.textContent).toBe("");
+  });
+
+  it("names a stub kept from a Scout and never says Skim, and opens what has an Address only", async () => {
+    const slot = await readings();
+    fireEvent.click(
+      within(slot).getByRole("button", { name: /clocked but unquestioned/ })
+    );
+    expect(slot.textContent).toMatch(/kept from a Scout/);
+    expect(slot.textContent).not.toMatch(/skim/i);
+    expect(slot.textContent).toMatch(/Stub A/);
+    expect(within(slot).queryByRole("link", { name: "Stub A" })).toBeNull();
+
+    fireEvent.click(
+      within(slot).getByRole("button", { name: /unquestioned knowledge/ })
+    );
+    expect(
+      within(slot).getByRole("link", { name: "Rasch" }).getAttribute("href")
+    ).toBe("#/source/s/rasch.md");
+  });
+
+  it("shows no total across the readings", async () => {
+    const slot = await readings();
+    expect(slot.textContent).not.toMatch(/\b6\b|of \d+/);
   });
 });
