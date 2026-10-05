@@ -125,7 +125,7 @@ function authorsOf(entry: string): string[] {
   const atom = [
     ...entry.matchAll(/<(?:\w+:)?author\b[^>]*>[\s\S]*?<\/(?:\w+:)?author>/g),
   ]
-    .map(([author]) => text(author, "name") ?? clean(author[0]!))
+    .map(([author]) => text(author, "name") ?? clean(author))
     .filter((name): name is string => name !== null);
   const creators = [
     ...entry.matchAll(/<(?:\w+:)?creator\b[^>]*>[\s\S]*?<\/(?:\w+:)?creator>/g),

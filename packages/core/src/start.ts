@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "./app.js";
+import type { CredentialStore } from "./credentials.js";
 import { createKeychainCredentialStore } from "./keychain.js";
 import type { Host } from "./host.js";
 
@@ -20,6 +21,8 @@ export type StartOptions = {
   author?: string;
   /** Where the arXiv client asks; only a demo's stand-in server sets it, so the default is the real API. */
   arxiv?: { endpoint: string };
+  /** Where the model key lives; only a demo's hidden run sets it, so the default is the login Keychain and a demo never touches the real one. */
+  credentials?: CredentialStore;
 };
 
 // Where macOS expects an app's own files (docs/architecture.md § Vault layout).
@@ -72,7 +75,9 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     ...(options.arxiv === undefined ? {} : { arxiv: options.arxiv }),
     // Built once here, and read at each run: the Keychain is the one source
     // of truth for a key (§ BYOK and watched sources).
-    watched: { credentials: createKeychainCredentialStore() },
+    watched: {
+      credentials: options.credentials ?? createKeychainCredentialStore(),
+    },
   });
   // The last-resort teardown for an exit nothing else caught: an `exit`
   // handler cannot await, so it drops the handles and splices nothing.
