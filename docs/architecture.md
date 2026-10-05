@@ -64,6 +64,7 @@ Technical decisions the brief structurally couldn't hold: library choices, file 
 - A Revision is one Markdown list item with its previous text indented inside it; a Research Question's prose sections are *Edited sections* the view replaces whole with `replaceSection`; supporting and opposing are the only two sides; a Research Question has `status: open | answered | abandoned` and resolves by write-back; a stub can be made by hand from the attach form; the window's location is the URL hash — ADR 0020. The detail that ADR leaves to this file is § Vault layout (Position history) and § Research Question view and triage.
 - An Artifact is copied into the vault by the app, never out and never moved; the 25 MB threshold proposes stored or linked and the user decides per Artifact; a linked Artifact records the machine and a Fingerprint it was linked from, checked when it is attached as Evidence and never a refusal — ADR 0035, which adds `copyArtifact` to ADR 0008's closed set. The detail is § Vault layout (Experiment) and § Experiment view.
 - The Vault editor is CodeMirror 6 behind a hand-rolled React wrapper; it opens any Markdown file in the vault, its whole-file save records Position Revisions itself and never refuses on shape, and a file changed on disk under a dirty editor is a non-modal line with *keep mine* / *take the disk copy* — ADR 0015. The detail that ADR leaves to this file is § Vault surface below.
+- The Question Map is one page: the coverage matrix leads and truncates in place (24 × 22, the cut stated), Origins is a list beside it, the funnel is cut, the scatter joins in beat 10 as a separate panel; inferred links are Candidate links whose accept writes Related and whose reject is a per-pair dismissal — ADR 0041. The detail that ADR leaves to this file is § Question Map below.
 
 ## Vault layout
 
@@ -606,6 +607,26 @@ The shell lands with beat 2 and every later beat's spec names the rows it adds. 
 | An ambiguous link — a bare `[[name]]` matching several files | Disconnected material | beat 2 | *open* the linking file (the path-qualified rewrite arrives with the Vault editor, beat 11: it edits the user's prose, which no operation does) · mark deliberate |
 | Conflict copy · PDF missing · no Source | Broken plumbing / Unfinished reading | Reader beat | § Watcher and Ingest |
 | Failed Scout · stub without PDF · blocked on credentials | Broken plumbing / Unfinished reading | Scout beats | ADR 0016, 0017 |
+
+## Question Map
+
+The shape ADR 0041 decided, in enough detail to write against; lands with beat 8. Every number is a code constant.
+
+**Reads.** One core query, `questionMap.read`, over `index.sqlite` (§ Index) and the files the Index already holds: no file is read from disk and nothing is stored, so the page is derived like every other list. Map rows are the open Questions that are not `promoted`, plus the open Research Questions with their `promoted_from` Question folded in. A row's Material is the distinct set of Sources and stubs reached through `links` from the row's `related:` (or a Research Question's `## Related questions`, supporting and opposing lists) and from a stub's `origin_question` naming it, each only where `resolution` is `resolved`, plus a highlight (`[[cite#^h3]]`) counted once with its Source. A Material item's Tags are its Source's `tags` rows. Cell, row weight and column weight are counts of distinct Material (CONTEXT § Material), never a sum of cells.
+
+**Truncation** is in the core, not the renderer: rows sorted by weight then the later of `captured` and `promoted` newest first, columns by weight then Tag name ascending, cut to `MAP_ROWS = 24` and `MAP_COLUMNS = 22`, with the uncut totals returned beside them so the stated line is built from real counts. Tags roll up to the page's depth control (default: the deepest Tags in use); an Implicit tag appears only when rolled up to.
+
+**The four readings** come from the same query over the *untruncated* rows and columns: *unanchored* is a row with zero Material; *unquestioned knowledge* is a Tag whose Material no row reaches; *clocked but unquestioned* is a stub with `origin_scout` set, whose Scout's `assigned` list is empty, with no inbound `related`, grouped by Tag; *well-supported* is the top of the weight sort. Each reading returns its count and, on request, its full ranked list; none is a field of another. The page answers `not yet` instead of any reading while `vault.status` is not `current`, not watching, or still indexing.
+
+**Origins** groups every Question's `from` target (all Statuses, all contexts; no `from` is *unattached*) and returns, per target, Questions produced and the Material attached to those Questions; ranked by the first, cut to `ORIGINS_ROWS = 10` with the uncut count beside it.
+
+**Candidate links.** For each unanchored row, the papers sharing at least one Tag with the row's own Tags, minus papers already linked and minus any pair in `dismissals.json` under `<question id>` / `inferred-link:<paper id>`, ranked by shared Tags then the paper's `mtime` newest first. `questions.link` is the accept write (§ Research Question view and triage, Link); reject is `dismiss` with the pair's row kind and `undismiss` its undo, through the same queue inside `dismissals.ts`; pass is renderer state — the session's stack — and never reaches the core. A dismissal keyed by a Question's `id` survives a rename without help; one for a paper that has gone is inert.
+
+**Matrix component** `packages/renderer/src/charts/matrix.tsx` + `matrix.module.css`, a `role="grid"` with the chosen-id rule of ADR 0030. Bins by `d3-scale`'s threshold scale over `[1, 2, 4, 8]` into class names `none`, `b1`…`b4`; the CSS Module binds `b1→--color-seq-5`, `b2→--color-seq-4`, `b3→--color-seq-2`, `b4→--color-seq-1`, `none` to the surface token, and the legend swatch reuses the same classes. The `tooling/eslint-plugin-brand` colour-literal rule and its `var(--color-<ramp>-*)` JSX RuleTester case are the beat's first ticket.
+
+**Footer channel.** Partial and Unreadable Questions are counted by the same quiet line the Inbox draws (ADR 0009), opening to each path and reason. A row whose Related holds an unresolved or ambiguous link says so on the row; it is not counted as unanchored silently.
+
+**Loose Ends and Home.** None added (ADR 0041 decision 15).
 
 ## Open, in the order they block work
 

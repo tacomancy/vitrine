@@ -496,10 +496,36 @@ A local date on which the vault was opened, or its window brought to the front, 
 _Avoid_: Active day, calendar day (it is not one)
 
 **Coverage**:
-How much explicitly linked material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question. Inferred connections never count; they are offered as candidate links.
+How much Material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question — and only if the link resolves. Inferred connections never count; they are offered as Candidate links.
+
+**Material** (of a Question):
+A Source or Source stub explicitly attached to a Question, or one of its highlights. A highlight takes its Source's Tags, and a highlight and its own Source count once. Coverage is a count of distinct Material: a cell is the Material attached to a Question that carries a Tag, a row's weight is its distinct Material, a column's weight is the distinct Material carrying the Tag across the rows shown — never a sum of cells, which would count a paper with three Tags three times.
+_Avoid_: Evidence (a Hypothesis's), support (that is the Supporting side), attachment
+
+**Map row**:
+One open thread of inquiry in the coverage matrix: an open Question that has not been promoted, or an open Research Question with its originating Question folded into it, so one thread is never split across two rows. Answered and abandoned threads are not rows, and neither is a Hypothesis, whose edges are Evidence and not Coverage.
+_Avoid_: Question (a row may be a Research Question), item
+
+**Well-supported**:
+A reading of the Question Map: the Map rows at the top of the weight sort. Names material enough to answer or promote; carries no threshold of its own.
+
+**Unanchored**:
+A reading of the Question Map: a Map row with no Material. No age threshold — age stays a neutral, sortable fact — so a captured Question owes nothing and one promoted last week reads the same as one promoted a year ago. Read from this count and never from the bottom of the matrix, which truncates from the top of the sort (#245).
+_Avoid_: Backlog (the prototype's word; there is no total to work through, #252), neglected, stale
+
+**Unquestioned knowledge**:
+A reading of the Question Map: a Tag carried by Material that no Map row has an edge to. Either settled, or a sign of collecting without asking.
+
+**Clocked but unquestioned**:
+A reading of the Question Map: a Source stub whose `origin_scout` is set, whose Scout was Assigned to no Question, and which no Question has since linked — counted per Tag. Derived, never stored: a stub does not record its Lane, so the reading says *kept from a Scout*, not *from Skim*, which is the brief's wording and diverges from it deliberately (ADR for #91).
+_Avoid_: Skim items (the Lane is not recorded), orphan (a Loose Ends word)
+
+**Candidate link**:
+A (Question, paper) pair the inferred-link review offers: an unanchored Map row and a Source or stub sharing at least one Tag with it, ranked by shared Tags and then recency. Already-linked papers and rejected pairs never appear. Keyword overlap needs the Lexicon and waits for it. Accepting writes a Related edge and never Supporting or Opposing — attaching is the judgement (ADR 0020) — so a candidate is never evidence. Moves are accept `A`, open `O`, pass `P`, reject `R` (ADR 0016, update of 2026-09-26): pass records nothing and returns the candidate to the bottom of the session's stack; reject is recorded per pair in `dismissals.json` under the Question's `id` and the row kind `inferred-link:<paper id>`, and is undoable while the candidate is on screen; accept is not.
+_Avoid_: Suggestion, inferred edge (it is not an edge until accepted), match (implies a score)
 
 **Origins**:
-A reading of the Question Map: Provenance aggregated across every Question regardless of Status — which sources and contexts the wondering came from, ranked by how many Questions each produced. Endogenous, like Coverage. Read beside the matrix: an Origin high on the list whose Coverage is thin is a source worth going back to. Carries no other statistic (how often a source was read, how many sessions a context had) — those are accumulation. The flow funnel the brief placed beside it was cut (#92).
+A reading of the Question Map: Provenance aggregated across every Question regardless of Status — which sources and contexts the wondering came from, ranked by how many Questions each produced. Endogenous, like Coverage. Grouped by the Provenance `from` target across every context, with *unattached* captures as one line; each row carries how many Questions it produced and how much Material is attached to them, and the list is cut to its top 10 with the cut stated. Read beside the matrix: an Origin high on the list whose Material is thin is a source worth going back to. Carries no other statistic (how often a source was read, how many sessions a context had) — those are accumulation. The flow funnel the brief placed beside it was cut (#92).
 _Avoid_: Provenance panel (Provenance is the per-Question fact; Origins is the aggregate), funnel, flow
 
 **Lexicon**:
