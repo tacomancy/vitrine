@@ -5,7 +5,7 @@ import { useChosenInView } from "./chosen";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
-import { ScoutForm, type QuestionChoice } from "./ScoutForm";
+import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
 import { VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -21,7 +21,13 @@ import { useTRPC } from "./trpc";
  * centre pane in place of the stack, and every short place — a rail row, a
  * Scout's header, an empty stack — speaks in one of ADR 0032's three voices.
  */
-export function ScoutQueue() {
+export function ScoutQueue({
+  form,
+  setForm,
+}: {
+  form: ScoutDraft | null;
+  setForm: (form: ScoutDraft | null) => void;
+}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const scouts = useQuery(trpc.scouts.list.queryOptions());
@@ -37,8 +43,8 @@ export function ScoutQueue() {
   const questionList = useQuery(
     trpc.questions.list.queryOptions({ order: "newest" })
   );
-  // The form, or null for the stack. `edit` is the Scout's id when reopened.
-  const [form, setForm] = useState<{ edit: string | null } | null>(null);
+  // The form, or null for the stack. Held by the window and not here: *Add a
+  // key* leaves for Settings, and this surface unmounts on the way.
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
@@ -290,7 +296,10 @@ export function ScoutQueue() {
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
-        <button type="button" onClick={() => setForm({ edit: null })}>
+        <button
+          type="button"
+          onClick={() => setForm({ edit: null, values: null })}
+        >
           + New Scout
         </button>
       </header>
@@ -359,7 +368,7 @@ export function ScoutQueue() {
           <p className={styles.actions}>
             <button
               type="button"
-              onClick={() => setForm({ edit: selectedScout.id })}
+              onClick={() => setForm({ edit: selectedScout.id, values: null })}
             >
               Edit
             </button>{" "}
@@ -382,6 +391,8 @@ export function ScoutQueue() {
         <ScoutForm
           key={form.edit ?? "new"}
           {...(editing === undefined ? {} : { scout: editing })}
+          values={form.values}
+          onChange={(values) => setForm({ edit: form.edit, values })}
           questions={questions}
           onDone={(saved) => {
             setForm(null);

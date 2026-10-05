@@ -56,7 +56,7 @@ import { listQuestions } from "./list.js";
 import { looseEnds } from "./loose-ends.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
-import { saveScout, setPaused, tryQuery } from "./scout-form.js";
+import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
@@ -542,6 +542,7 @@ export const router = t.router({
         z.object({
           id: z.string().min(1).optional(),
           name: z.string(),
+          watching: z.enum(["arxiv", "watched"]).optional(),
           query: z.string(),
           cadence: z.enum(["daily", "weekly", "monthly"]),
           assigned: z.array(z.string()),
@@ -561,6 +562,13 @@ export const router = t.router({
       .input(z.object({ query: z.string() }))
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
+    // *Try* for a page: a mutation like `tryQuery`, since it spends a request
+    // and perhaps a model call, and writes nothing.
+    tryWatched: t.procedure
+      .input(z.object({ address: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(tryPage(await scoutDeps(ctx), input.address))
       ),
     accept: t.procedure
       .input(z.object({ proposalId: z.number().int() }))

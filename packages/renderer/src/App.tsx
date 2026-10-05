@@ -12,6 +12,7 @@ import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { ScoutQueue } from "./ScoutQueue";
+import type { ScoutDraft } from "./ScoutForm";
 import { Reader } from "./Reader";
 import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
@@ -81,6 +82,10 @@ function Workspace({ vault }: { vault: Vault }) {
     path: string;
     field: WriteOnArrival;
   } | null>(null);
+
+  // The Scout form as the window holds it, so a trip to Settings and back
+  // (its *Add a key*) finds what was typed (ADR 0025 decision 3).
+  const [scoutDraft, setScoutDraft] = useState<ScoutDraft | null>(null);
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -183,7 +188,9 @@ function Workspace({ vault }: { vault: Vault }) {
               }
             />
           )}
-          {route.surface === "scouts" && <ScoutQueue />}
+          {route.surface === "scouts" && (
+            <ScoutQueue form={scoutDraft} setForm={setScoutDraft} />
+          )}
           {route.surface === "settings" && <Settings vault={vault} />}
           {route.surface === "loose-ends" && (
             <LooseEnds
