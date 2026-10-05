@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KeyStatus, KeyTest } from "core";
 import { useState } from "react";
 import styles from "./Settings.module.css";
+import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
 import { Wrong } from "./Wrong";
 
@@ -22,16 +23,30 @@ export function WhatItTalksTo() {
   const queryClient = useQueryClient();
   const status = useQuery(trpc.credentials.status.queryOptions(PROVIDER));
   const model = useQuery(trpc.credentials.model.queryOptions(PROVIDER));
+  const waiting = useQuery(trpc.credentials.waiting.queryOptions(PROVIDER));
   const [typed, setTyped] = useState("");
   const [modelEdit, setModelEdit] = useState<string | null>(null);
 
-  const test = useMutation(trpc.credentials.test.mutationOptions());
+  // Storing a key, or a test that passes, starts the Scouts waiting on it, so
+  // who is waiting has changed too.
+  const waitersChanged = () => {
+    void queryClient.invalidateQueries({
+      queryKey: trpc.credentials.waiting.queryKey(),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: trpc.scouts.health.queryKey(),
+    });
+  };
+  const test = useMutation(
+    trpc.credentials.test.mutationOptions({ onSuccess: waitersChanged })
+  );
   const keyChanged = () => {
     // A verdict on the old key says nothing about the new state.
     test.reset();
     void queryClient.invalidateQueries({
       queryKey: trpc.credentials.status.queryKey(),
     });
+    waitersChanged();
   };
   const set = useMutation(
     trpc.credentials.set.mutationOptions({
@@ -159,6 +174,31 @@ export function WhatItTalksTo() {
             </button>
           </dd>
         </div>
+        {waiting.data !== undefined && waiting.data.length > 0 && (
+          <div className={styles.row}>
+            <dt className={styles.label}>Waiting</dt>
+            <dd className={styles.value}>
+              <ul className={styles.waiting}>
+                {waiting.data.map((scout) => (
+                  <li key={scout.id}>
+                    <a href={hashOf(SCOUTS)}>{scout.name}</a>{" "}
+                    {/* The Voice follows the message (ADR 0040 d.1): nothing
+                        was tried without a key, and a refused one was. */}
+                    {scout.message === "no key" ? (
+                      <>not yet — no key stored</>
+                    ) : (
+                      <Wrong>
+                        {scout.message === "key rejected"
+                          ? "key rejected"
+                          : "the key could not be used"}
+                      </Wrong>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
         {test.data !== undefined && (
           <div className={styles.row}>
             <dt className={styles.label}>Test</dt>

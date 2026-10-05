@@ -31,6 +31,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
   "globalCommand.destinations": { rows: [] },
   "credentials.status": { state: "absent" },
   "credentials.model": { model: "claude-opus-5" },
+  "credentials.waiting": [],
   ...more,
 });
 
@@ -256,5 +257,36 @@ describe("Settings: what it talks to", () => {
         })
       );
     });
+  });
+});
+
+describe("Settings: the Scouts waiting on the key (#468)", () => {
+  const waiting = [
+    { id: "lab", name: "Sleep Lab", message: "no key" },
+    { id: "other", name: "Other Lab", message: "key rejected" },
+  ];
+
+  it("names each waiting Scout as a link to the Scouts surface, and never counts them", async () => {
+    renderApp(answers({ "credentials.waiting": waiting }));
+    const section = await talks();
+
+    const lab = await within(section).findByRole("link", { name: "Sleep Lab" });
+    expect(lab.getAttribute("href")).toBe("#/scouts");
+    expect(
+      within(section).getByRole("link", { name: "Other Lab" })
+    ).toBeTruthy();
+    expect(row(section, "Waiting")).toMatch(/not yet/i);
+    // The rejected key is said as a fault, beside its Scout.
+    expect(row(section, "Waiting")).toMatch(/key rejected/);
+    expect(section.textContent).not.toMatch(/\b[12] (scouts?|waiting)\b/i);
+  });
+
+  it("draws no row when nothing is waiting", async () => {
+    renderApp(answers());
+    const section = await talks();
+    await vi.waitFor(() => expect(row(section, "Key")).toMatch(/no key/i));
+    expect(
+      within(section).queryByText("Waiting", { selector: "dt" })
+    ).toBeNull();
   });
 });
