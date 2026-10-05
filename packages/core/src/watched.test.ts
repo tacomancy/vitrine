@@ -797,7 +797,9 @@ describe("what the rail says of a page that stopped reading", () => {
 
     expect(sentence).not.toContain(lab.vault);
     expect(sentence).not.toMatch(/\.vitrine|\.yaml|\/Users\//);
-=======
+  });
+});
+
 const RSS = await fixture("lab-feed.rss.xml");
 const ATOM = await fixture("lab-feed.atom.xml");
 const FED_PAGE = await fixture("lab-page-with-feed.html");
@@ -942,6 +944,5 @@ describe("an address that is itself a feed", () => {
       "/publications",
     ]);
     expect(lab.calls.count + lab.calls.extract).toBe(0);
->>>>>>> origin/main
   });
 });
