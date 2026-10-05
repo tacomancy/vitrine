@@ -1,5 +1,5 @@
 // 4. The provider refuses the key: the *wrong* voice on the rail.
-import { openQueue, rail, runNow, storeKey } from "./helpers.mjs";
+import { openQueue, railText, runNow, storeKey } from "./helpers.mjs";
 export default async (page) => {
   await storeKey(page, "sk-demo-refused");
   await openQueue(page);
@@ -8,5 +8,5 @@ export default async (page) => {
     "document.body.innerText.includes('refused the stored key')",
     20000
   );
-  console.log(`RAIL: ${await rail(page)}`);
+  console.log(`RAIL: ${await railText(page)}`);
 };

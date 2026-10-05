@@ -2,7 +2,7 @@
 import {
   fillPageScout,
   openQueue,
-  rail,
+  railText,
   runNow,
   saveScout,
 } from "./helpers.mjs";
@@ -12,5 +12,5 @@ export default async (page) => {
   await saveScout(page);
   await runNow(page, "Lab feed");
   await page.wait("!!document.querySelector('article[aria-label]')", 20000);
-  console.log(`RAIL: ${await rail(page)}`);
+  console.log(`RAIL: ${await railText(page)}`);
 };

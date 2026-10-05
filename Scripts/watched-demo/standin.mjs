@@ -22,8 +22,7 @@ const pages = {
   feed: read("lab-feed.rss.xml"),
 };
 
-export const WELL_KEY = "sk-demo-good";
-export const REFUSED_KEY = "sk-demo-refused";
+const REFUSED_KEY = "sk-demo-refused";
 
 const LISTED = [
   {
@@ -77,14 +76,10 @@ export function startStandin() {
     posted: false,
     /** The lab's page has been redesigned: its listing is gone. */
     redesigned: false,
-    /** The provider answers 401 whatever key it is sent. */
-    refuseKeys: false,
     modelCalls: 0,
-    paths: [],
   };
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
-    mode.paths.push(url.pathname);
     const send = (status, type, body) =>
       response.writeHead(status, { "content-type": type }).end(body);
     if (url.pathname === "/lab/")
@@ -109,7 +104,7 @@ export function startStandin() {
       request.on("data", (chunk) => (body += chunk));
       request.on("end", () => {
         const key = request.headers["x-api-key"];
-        if (mode.refuseKeys || key === REFUSED_KEY)
+        if (key === REFUSED_KEY)
           return send(
             401,
             "application/json",

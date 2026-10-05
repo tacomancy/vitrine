@@ -1,13 +1,13 @@
 // 5b. The structure-change row under Broken plumbing: one row, three actions,
 // the rail's sentence word for word.
-import { openQueue, rail } from "./helpers.mjs";
+import { openQueue, railText } from "./helpers.mjs";
 export default async (page) => {
   await openQueue(page);
   await page.wait(
     "document.body.innerText.includes('its structure changed')",
     15000
   );
-  const railText = await rail(page);
+  const rail = await railText(page);
   await page.eval("location.hash='#/loose-ends'");
   await page.wait(
     "document.body.innerText.includes('its structure changed')",
@@ -15,7 +15,7 @@ export default async (page) => {
   );
   const text = await page.eval("document.body.innerText");
   const sentence = /[^\n]*its structure changed[^\n]*/
-    .exec(railText)?.[0]
+    .exec(rail)?.[0]
     ?.replace(/^⚠\s*/, "");
   if (sentence === undefined || !text.includes(sentence))
     throw new Error("Loose Ends does not carry the rail's sentence");

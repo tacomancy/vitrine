@@ -38,5 +38,3 @@ export async function storeKey(page, key) {
   await page.eval(`${button("Store")}.click()`);
   await page.wait("document.body.innerText.includes('a key is stored')", 10000);
 }
-
-export const rail = (page) => railText(page);

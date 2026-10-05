@@ -4,7 +4,7 @@ import {
   button,
   fillPageScout,
   openQueue,
-  rail,
+  railText,
   runNow,
   saveScout,
 } from "./helpers.mjs";
@@ -22,5 +22,5 @@ export default async (page) => {
     "(document.querySelector('ul[aria-label=\"Scouts\"]')?.innerText ?? '').toLowerCase().includes('not yet')",
     15000
   );
-  console.log(`RAIL: ${await rail(page)}`);
+  console.log(`RAIL: ${await railText(page)}`);
 };
