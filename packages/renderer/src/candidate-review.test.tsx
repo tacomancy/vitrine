@@ -176,3 +176,111 @@ describe("the candidate review", () => {
     expect(view.textContent).toContain("read in full · watching");
   });
 });
+
+// Entering the review from an unanchored row (#493; ADR 0041 decision 10).
+describe("entering the review from a row", () => {
+  const row = (question: string, path: string) => ({
+    kind: "question" as const,
+    path,
+    question,
+    material: 0,
+    unresolved: 0,
+  });
+  const readings = {
+    ...NO_READINGS,
+    unanchored: {
+      count: 3,
+      items: [
+        row("Why many?", "q/Many.md"),
+        row("Why few?", "q/Few.md"),
+        row("Why none?", "q/None.md"),
+      ],
+    },
+  };
+  const matrixRow = (question: string, path: string) => ({
+    kind: "question" as const,
+    path,
+    question,
+    weight: 0,
+    unresolved: 0,
+  });
+  const matrix = {
+    depth: 1,
+    deepest: 1,
+    rows: [
+      matrixRow("Why many?", "q/Many.md"),
+      matrixRow("Why few?", "q/Few.md"),
+      matrixRow("Why none?", "q/None.md"),
+      { ...matrixRow("Why heavy?", "q/Heavy.md"), weight: 4 },
+    ],
+    columns: [{ canonical: "sleep", display: "sleep", weight: 1 }],
+    cells: [[0], [0], [0], [4]],
+    totals: { rows: 4, columns: 1 },
+  };
+  const openWith = () => {
+    window.location.hash = "#/question-map";
+    renderApp({
+      "vault.current": vault,
+      "questions.list": empty,
+      "vault.status": READ,
+      "questionMap.coverage": COVERAGE,
+      "questionMap.readings": readings,
+      "questionMap.matrix": matrix,
+      "questionMap.candidates": QUESTIONS,
+      "questions.link": vi.fn(),
+    });
+  };
+
+  it("opens the review at the readings' row, without a count", async () => {
+    openWith();
+    const strip = await screen.findByRole("button", { name: /3 unanchored/ });
+    fireEvent.click(strip);
+    await listbox();
+    const slot = strip.closest("section")!;
+    fireEvent.click(
+      within(slot).getByRole("button", { name: /review links.*Why few\?/ })
+    );
+    expect((await panel()).textContent).toContain("Why few?");
+    expect((await panel()).textContent).not.toMatch(/\d+ of \d+/);
+  });
+
+  it("offers nothing on a row with no candidates, or on a row with Material", async () => {
+    openWith();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /3 unanchored/ })
+    );
+    await listbox();
+    expect(
+      screen.queryByRole("button", { name: /review links.*Why none\?/ })
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /review links.*Why heavy\?/ })
+    ).toBeNull();
+  });
+
+  it("opens the review from the matrix's row header too", async () => {
+    openWith();
+    await listbox();
+    const grid = await screen.findByRole("grid");
+    fireEvent.click(
+      within(grid).getByRole("button", { name: /review links.*Why few\?/ })
+    );
+    expect((await panel()).textContent).toContain("Why few?");
+  });
+
+  it("leaves next question on the review's own order", async () => {
+    openWith();
+    await listbox();
+    const grid = await screen.findByRole("grid");
+    fireEvent.click(
+      within(grid).getByRole("button", { name: /review links.*Why few\?/ })
+    );
+    key("P");
+    // Few is the last in the review's order: entering did not reorder it.
+    expect(screen.queryByRole("button", { name: "next question" })).toBeNull();
+    fireEvent.click(
+      within(grid).getByRole("button", { name: /review links.*Why many\?/ })
+    );
+    expect((await panel()).textContent).toContain("Why many?");
+  });
+});

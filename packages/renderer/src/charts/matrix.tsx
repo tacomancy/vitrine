@@ -29,7 +29,16 @@ export function binOf(count: number): Bin {
 
 const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
 
-export function Matrix({ matrix }: { matrix: MatrixData }) {
+export function Matrix({
+  matrix,
+  reviewable = new Set(),
+  onReview,
+}: {
+  matrix: MatrixData;
+  /** Questions the review has candidates for. */
+  reviewable?: ReadonlySet<string>;
+  onReview?: (path: string) => void;
+}) {
   return (
     <div className={styles.matrix}>
       <ul className={styles.legend} aria-label="Legend: items per cell">
@@ -72,6 +81,16 @@ export function Matrix({ matrix }: { matrix: MatrixData }) {
                   row.question
                 ) : (
                   <a href={address}>{row.question}</a>
+                )}
+                {row.weight === 0 && reviewable.has(row.path) && (
+                  <button
+                    type="button"
+                    className={styles.review}
+                    aria-label={`review links for ${row.question}`}
+                    onClick={() => onReview?.(row.path)}
+                  >
+                    review links
+                  </button>
                 )}
               </span>
               {matrix.columns.map((column, c) => {

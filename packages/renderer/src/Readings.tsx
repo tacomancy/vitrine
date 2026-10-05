@@ -10,7 +10,15 @@ import styles from "./Readings.module.css";
  * absent, and one with members stays a count until the researcher opens it —
  * never automatically, and never because of how many it holds (#252, #245).
  */
-export function ReadingsStrip({ readings }: { readings: Readings }) {
+export function ReadingsStrip({
+  readings,
+  reviewable,
+  onReview,
+}: {
+  readings: Readings;
+  reviewable: ReadonlySet<string>;
+  onReview: (path: string) => void;
+}) {
   const plural = (n: number, one: string, many: string) =>
     `${n} ${n === 1 ? one : many}`;
   return (
@@ -33,7 +41,11 @@ export function ReadingsStrip({ readings }: { readings: Readings }) {
           "unanchored questions"
         )}
       >
-        <Rows rows={readings.unanchored.items} />
+        <Rows
+          rows={readings.unanchored.items}
+          reviewable={reviewable}
+          onReview={onReview}
+        />
       </Reading>
       <Reading
         count={readings.unquestionedKnowledge.count}
@@ -100,9 +112,14 @@ function Reading({
 function Rows({
   rows,
   showMaterial = false,
+  reviewable,
+  onReview,
 }: {
   rows: Readings["unanchored"]["items"];
   showMaterial?: boolean;
+  /** Present only on the unanchored list: a row with candidates offers the review. */
+  reviewable?: ReadonlySet<string>;
+  onReview?: (path: string) => void;
 }) {
   return (
     <ol className={styles.list}>
@@ -111,6 +128,16 @@ function Rows({
           <Named kind={row.kind} path={row.path} name={row.question} />
           {showMaterial && (
             <span className={styles.meta}>{row.material} material</span>
+          )}
+          {reviewable?.has(row.path) === true && (
+            <button
+              type="button"
+              className={styles.review}
+              aria-label={`review links for ${row.question}`}
+              onClick={() => onReview?.(row.path)}
+            >
+              review links
+            </button>
           )}
           {row.unresolved > 0 && (
             <span className={styles.meta}>

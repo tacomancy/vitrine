@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CandidateLink, CandidateQuestion } from "core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
 import styles from "./CandidateReview.module.css";
 import { FirstSlot } from "./FirstSlot";
@@ -19,7 +19,16 @@ import { useTRPC } from "./trpc";
  * Question, so a re-read would drop it from the list mid-review and jump the
  * panel to the next; the page's own cell fills on the next read instead.
  */
-export function CandidateReview() {
+export function CandidateReview({
+  request = null,
+}: {
+  /**
+   * A row asking to be reviewed. It moves the review to that Question and
+   * nothing else: no count starts, and *next question* still follows the
+   * review's own order from there (ADR 0041 decision 10).
+   */
+  request?: { path: string } | null;
+}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   // Never served from a cache: a list left by an earlier visit would still
@@ -50,6 +59,26 @@ export function CandidateReview() {
       onError: (error) => setRefused(error.message),
     })
   );
+
+  // Adjusted during render, not in an effect: a request is handled once,
+  // the render it arrives in, and its object identity is what says "again".
+  const [handled, setHandled] = useState<{ path: string } | null>(null);
+  const asked = session?.findIndex((q) => q.path === request?.path) ?? -1;
+  if (request !== handled && session !== null) {
+    setHandled(request);
+    if (asked !== -1) {
+      setQuestion(asked);
+      setAt(0);
+      setDecided(new Set());
+      setPassed([]);
+      setRefused(null);
+    }
+  }
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (request !== null && asked !== -1)
+      section.current?.scrollIntoView?.({ block: "nearest" });
+  }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = session?.[question];
   // Fresh candidates in their ranked order, then the passed ones in the order
@@ -150,7 +179,11 @@ export function CandidateReview() {
   if (current === undefined) return null;
 
   return (
-    <section className={styles.review} aria-label="Candidate links">
+    <section
+      ref={section}
+      className={styles.review}
+      aria-label="Candidate links"
+    >
       <h2 className={styles.question}>
         <a href={hashOf({ surface: "inbox", question: current.path })}>
           {current.question}
