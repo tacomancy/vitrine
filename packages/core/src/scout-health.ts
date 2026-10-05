@@ -7,6 +7,7 @@ import {
   FEW_VERIFIED,
   KEY_REJECTED,
   LISTING_MISSED,
+  KEYCHAIN_FAULT,
   NO_KEY,
   STRUCTURE_CHANGE,
 } from "./watched.js";
@@ -171,7 +172,9 @@ export function faultSentence(
         ? "No model key is stored, so this page has not been read yet."
         : message === KEY_REJECTED
           ? "The model provider refused the stored key, so nothing was checked."
-          : "The model key could not be used, so nothing was checked.";
+          : message === KEYCHAIN_FAULT
+            ? "The Keychain could not be used to read the model key, so nothing was checked."
+            : "The model key could not be used, so nothing was checked.";
     case "model":
       return `The model could not read this page${message === null ? "" : ` (${message})`}, so nothing was checked.`;
     case "extraction":

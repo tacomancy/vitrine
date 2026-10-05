@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { ANTHROPIC, type CredentialStore } from "./credentials.js";
+import {
+  ANTHROPIC,
+  CredentialFault,
+  type CredentialStore,
+} from "./credentials.js";
 import { CEILING } from "./arxiv.js";
 import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
@@ -27,7 +31,8 @@ export type WatchedDeps = {
   models: ModelProvider;
   /** Read at each run and never held between runs. */
   credentials: CredentialStore;
-  model: string;
+  /** The model id, asked for at each run so an edit in Settings reaches the next one. */
+  model: () => Promise<string>;
 };
 
 /** A paper as a run found it, from whichever source: what `arrive` records. */
@@ -84,6 +89,7 @@ export const FEED_UNREADABLE = "feed unreadable";
 export const FEED_NOT_READ = "feed not read";
 export const NO_KEY = "no key";
 export const KEY_REJECTED = "key rejected";
+export const KEYCHAIN_FAULT = "keychain fault";
 export const LISTING_MISSED = "listing missed";
 export const STRUCTURE_CHANGE = "structure change";
 export const NO_LISTING = "no listing found";
@@ -131,7 +137,17 @@ export async function readWatched(
     return fromFeed(feed.body, FEED_UNREADABLE);
   }
 
-  const key = await deps.credentials.get(ANTHROPIC);
+  let key;
+  try {
+    key = await deps.credentials.get(ANTHROPIC);
+  } catch (cause) {
+    // A Keychain that cannot be read is not a missing key: it is said as a
+    // fault, in the *wrong* voice, so no one is sent to store one that is there.
+    if (cause instanceof CredentialFault) {
+      throw new WatchedError("credentials", KEYCHAIN_FAULT);
+    }
+    throw cause;
+  }
   // No model call: a Scout with no key records that it did nothing, so "not
   // yet" is a row and not an inference (ADR 0040 d.1).
   if (key === null) throw new WatchedError("credentials", NO_KEY);
@@ -159,7 +175,7 @@ export async function readWatched(
     return { items: [], moreMatched: 0, fetched: 0, facts };
   }
 
-  const model = deps.model;
+  const model = await deps.model();
   facts.model = model;
   try {
     const tokens = await deps.models.countTokens({ key, model, text });

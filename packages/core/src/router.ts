@@ -10,6 +10,13 @@ import {
 } from "./artifact.js";
 import type { ArxivClient } from "./arxiv.js";
 import type { WatchedDeps } from "./watched.js";
+import {
+  ANTHROPIC,
+  CredentialFault,
+  keyStatus,
+  testKey,
+} from "./credentials.js";
+import type { ProviderSettings } from "./providers.js";
 import type { Events } from "./events.js";
 import type { Host } from "./host.js";
 import { destinations } from "./destinations.js";
@@ -124,6 +131,8 @@ export type Context = {
   arxiv: ArxivClient;
   /** Fetch, model and key for a Scout that watches a page (ADR 0017). */
   watched: WatchedDeps;
+  /** The Provider's model id, kept in `providers.json` (`providers.ts`). */
+  providers: ProviderSettings;
   /** This machine's computer name, which a linked Artifact records (ADR 0035 decision 5); tests pass any string. */
   machine: string;
   coalesceMs: number;
@@ -294,7 +303,7 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
   try {
     return await work;
   } catch (cause) {
-    if (cause instanceof VaultError) {
+    if (cause instanceof VaultError || cause instanceof CredentialFault) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: cause.message,
@@ -304,6 +313,9 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
     throw cause;
   }
 }
+
+/** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
+const providerInput = z.object({ provider: z.literal(ANTHROPIC) });
 
 export const router = t.router({
   health: t.procedure.query(() => ({ ok: true as const })),
@@ -417,6 +429,43 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return destinations(index, { query: input.query });
       }),
+  }),
+  // What the app talks to (#465, ADR 0017 decision 4). Deliberately no `get`:
+  // the key goes in and is spent by the one call that needs it, and nothing
+  // here or anywhere answers with it.
+  credentials: t.router({
+    status: t.procedure
+      .input(providerInput)
+      .query(({ ctx, input }) =>
+        keyStatus(ctx.watched.credentials, input.provider)
+      ),
+    set: t.procedure
+      .input(providerInput.extend({ key: z.string().trim().min(1) }))
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.watched.credentials.set(input.provider, input.key))
+      ),
+    delete: t.procedure
+      .input(providerInput)
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.watched.credentials.delete(input.provider))
+      ),
+    test: t.procedure
+      .input(providerInput)
+      .mutation(async ({ ctx, input }) =>
+        testKey(
+          ctx.watched.credentials,
+          ctx.watched.models,
+          input.provider,
+          await ctx.watched.model()
+        )
+      ),
+    // The model id is not a secret and is not the key's: it has its own pair.
+    model: t.procedure
+      .input(providerInput)
+      .query(async ({ ctx }) => ({ model: await ctx.providers.model() })),
+    setModel: t.procedure
+      .input(providerInput.extend({ model: z.string().trim().min(1) }))
+      .mutation(({ ctx, input }) => ctx.providers.setModel(input.model)),
   }),
   // The Scout Queue (beat 6, #448): a Scout is a file read as found, a run
   // turns what arXiv holds into Proposals, and accept is the one write.
