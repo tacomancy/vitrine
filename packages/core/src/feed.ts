@@ -27,17 +27,21 @@ export function isFeed(body: string): boolean {
 
 const FEED_TYPE = /^application\/(?:rss|atom)\+xml\b/i;
 
+/** An attribute's value, single- or double-quoted. */
+function quoted(tag: string, name: string): string | undefined {
+  const found = new RegExp(
+    `\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+    "i"
+  ).exec(tag);
+  return found?.[1] ?? found?.[2];
+}
+
 /** The first feed a page advertises, made absolute; null when it advertises none. */
 export function advertisedFeed(html: string, base: string): string | null {
   for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
-    const attr = (name: string) =>
-      new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i").exec(tag);
-    const rel = attr("rel");
-    const type = attr("type");
-    const href = attr("href");
-    const relValue = rel?.[1] ?? rel?.[2] ?? "";
-    const typeValue = type?.[1] ?? type?.[2] ?? "";
-    const target = href?.[1] ?? href?.[2];
+    const relValue = quoted(tag, "rel") ?? "";
+    const typeValue = quoted(tag, "type") ?? "";
+    const target = quoted(tag, "href");
     if (
       /\balternate\b/i.test(relValue) &&
       FEED_TYPE.test(typeValue.trim()) &&
@@ -82,6 +86,7 @@ export function readFeed(xml: string): FeedEntry[] | null {
       url,
     });
   }
+  // Entries that all failed to read are a broken feed, not a quiet one.
   return raw.length > 0 && entries.length === 0 ? null : entries;
 }
 
@@ -107,8 +112,8 @@ function clean(raw: string): string | null {
 
 function linkOf(entry: string): string | null {
   for (const [tag] of entry.matchAll(/<(?:\w+:)?link\b[^>]*>/g)) {
-    const rel = /\brel="([^"]*)"/.exec(tag)?.[1];
-    const href = /\bhref="([^"]*)"/.exec(tag)?.[1];
+    const rel = quoted(tag, "rel");
+    const href = quoted(tag, "href");
     if (href !== undefined && (rel === undefined || rel === "alternate")) {
       return decode(href);
     }

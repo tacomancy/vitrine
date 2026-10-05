@@ -117,6 +117,7 @@ export async function readWatched(
     // fails is a stated failure, never a quiet fall back to paying a model.
     let feed;
     try {
+      // One page and its feed, never a crawl: a feed elsewhere is not read.
       if (new URL(advertised).host !== new URL(page.url).host) {
         throw new FetchError("http", FEED_UNREADABLE);
       }
@@ -259,7 +260,7 @@ function verify(
   };
 }
 
-const NO_FACTS: RunFacts = {
+const noFacts = (): RunFacts => ({
   model: null,
   usage: null,
   costUsd: null,
@@ -267,7 +268,7 @@ const NO_FACTS: RunFacts = {
   pageLength: null,
   capped: false,
   unverified: 0,
-};
+});
 
 /** `message` is what a failure says; null leaves the default for an address that was itself a feed. */
 function fromFeed(xml: string, message: string | null): Read {
@@ -281,7 +282,7 @@ function fromFeed(xml: string, message: string | null): Read {
     moreMatched: Math.max(0, arrivals.length - CEILING),
     fetched: arrivals.length,
     // No page hash: nothing was reduced, so the hash short-circuit has nothing to compare.
-    facts: NO_FACTS,
+    facts: noFacts(),
   };
 }
 
