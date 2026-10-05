@@ -150,3 +150,4 @@ export type { Group } from "./triage.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";
 export type { TriedQuery } from "./scout-form.js";
 export type { Health, Warrant } from "./scout-health.js";
+export type { KeyStatus, KeyTest } from "./credentials.js";

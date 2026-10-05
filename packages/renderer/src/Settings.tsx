@@ -1,20 +1,21 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { PdfFolder, Vault, Watching } from "core";
 import { useEffect } from "react";
+import { WhatItTalksTo } from "./Credentials";
 import { voiceOf } from "./FirstSlot";
 import { hashOf, pushRoute, SETTINGS } from "./router";
 import { localTime } from "./rows";
 import styles from "./Settings.module.css";
 import { formatDateTime } from "./time";
 import { useTRPC } from "./trpc";
+import { Wrong } from "./Wrong";
 import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
 
 /**
  * Settings (`CONTEXT.md`; ADR 0025; prototype 13): how this vault is
  * arranged, as statements each checkable against the world, and no
- * preference. Two of its three sections: *What it talks to* is beat 7's,
- * and is not drawn as a heading before it can be filled — an empty section
- * would be a promise, not a statement.
+ * preference. Three sections; the third, *What it talks to* (beat 7), is
+ * the one place here that sets anything, and only a key and a model id.
  */
 export function Settings({ vault }: { vault: Vault }) {
   const trpc = useTRPC();
@@ -103,6 +104,7 @@ export function Settings({ vault }: { vault: Vault }) {
           read={footer.read}
           onReveal={() => reveal.mutate({ folder: "pdfs" })}
         />
+        <WhatItTalksTo />
       </div>
       {/* The footer channel, as on every surface. *Not watching* is sounded
           here and only stated above: two alarms for one fault are two
@@ -238,15 +240,6 @@ function ResolvesToRow({ state }: { state: Read }) {
   if (state.resolves === null) return <>not known</>;
   if (state.link === null) return <>itself — a plain folder in the vault</>;
   return <>{state.resolves.known ?? state.resolves.path}</>;
-}
-
-/** The *wrong* Voice on a row: the warning glyph and the words in copper, never red. */
-function Wrong({ children }: { children: React.ReactNode }) {
-  return (
-    <span className={styles.wrong}>
-      <span aria-hidden="true">‖</span> {children}
-    </span>
-  );
 }
 
 /**

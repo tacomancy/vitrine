@@ -52,6 +52,8 @@ const answers = (status: unknown = watched, pdfFolder: unknown = fresh) => ({
   "vault.status": status,
   "vault.pdfFolder": pdfFolder,
   "vault.kinds": [],
+  "credentials.status": { state: "absent" },
+  "credentials.model": { model: "claude-opus-5" },
   "questions.list": empty,
   "globalCommand.destinations": { rows: [] },
 });
@@ -175,17 +177,23 @@ describe("Settings at #/settings: where the vault is", () => {
     );
   });
 
-  it("holds no preference and no Credentials heading", async () => {
+  it("holds no preference: the only thing it sets is what it talks to", async () => {
     window.location.hash = "#/settings";
     renderApp(answers());
     const page = await settings();
-    // Every line is a statement: nothing here sets a value.
-    expect(
-      page.querySelectorAll("input, select, textarea, [role='switch']")
-    ).toHaveLength(0);
     const headings = [...page.querySelectorAll("h2")].map((h) => h.textContent);
-    expect(headings).toEqual(["Where the vault is", "Where the PDFs are"]);
-    expect(page.textContent).not.toMatch(/credential|what it talks to/i);
+    expect(headings).toEqual([
+      "Where the vault is",
+      "Where the PDFs are",
+      "What it talks to",
+    ]);
+    // Every line of the first two is a statement: nothing there sets a value.
+    for (const name of ["Where the vault is", "Where the PDFs are"]) {
+      const section = within(page).getByRole("region", { name });
+      expect(
+        section.querySelectorAll("input, select, textarea, [role='switch']")
+      ).toHaveLength(0);
+    }
   });
 });
 

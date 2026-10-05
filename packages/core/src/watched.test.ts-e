@@ -692,6 +692,7 @@ describe("the first run", () => {
   });
 });
 
+<<<<<<< HEAD
 describe("what the rail says of a page that stopped reading", () => {
   const rail = async (lab: Awaited<ReturnType<typeof opened>>) => {
     const r = await lab.c.query<{

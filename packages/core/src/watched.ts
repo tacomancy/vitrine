@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { ANTHROPIC, type CredentialStore } from "./credentials.js";
+import {
+  ANTHROPIC,
+  CredentialFault,
+  type CredentialStore,
+} from "./credentials.js";
 import { CEILING } from "./arxiv.js";
+import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
 import { ModelError, type ModelProvider } from "./model-provider.js";
 import { FetchError, fetchPage } from "./page-fetch.js";
@@ -26,7 +31,8 @@ export type WatchedDeps = {
   models: ModelProvider;
   /** Read at each run and never held between runs. */
   credentials: CredentialStore;
-  model: string;
+  /** The model id, asked for at each run so an edit in Settings reaches the next one. */
+  model: () => Promise<string>;
 };
 
 /** A paper as a run found it, from whichever source: what `arrive` records. */
@@ -44,7 +50,7 @@ export type Arrival = {
 };
 
 export type WatchedErrorKind =
-  "network" | "http" | "credentials" | "model" | "extraction";
+  "network" | "http" | "parse" | "credentials" | "model" | "extraction";
 
 /** What a run that fetched or called a model learned even when it failed. */
 export type RunFacts = {
@@ -79,8 +85,11 @@ export type Read = {
 export const TOKEN_BUDGET = 40_000;
 
 /** The extraction's messages; the sentences that say them live in `scout-health.ts`. */
+export const FEED_UNREADABLE = "feed unreadable";
+export const FEED_NOT_READ = "feed not read";
 export const NO_KEY = "no key";
 export const KEY_REJECTED = "key rejected";
+export const KEYCHAIN_FAULT = "keychain fault";
 export const LISTING_MISSED = "listing missed";
 export const STRUCTURE_CHANGE = "structure change";
 export const NO_LISTING = "no listing found";
@@ -91,23 +100,57 @@ export async function readWatched(
   queue: DatabaseSync,
   scout: { id: string; url: string }
 ): Promise<Read> {
-  const key = await deps.credentials.get(ANTHROPIC);
-  // No fetch and no model call: a Scout with no key records that it did
-  // nothing, so "not yet" is a row and not an inference (ADR 0040 d.1).
-  if (key === null) throw new WatchedError("credentials", NO_KEY);
-
+  const fetchOptions = {
+    fetch: deps.fetch,
+    ...(deps.timeoutMs === undefined ? {} : { timeoutMs: deps.timeoutMs }),
+  };
   let page;
   try {
-    page = await fetchPage(scout.url, {
-      fetch: deps.fetch,
-      ...(deps.timeoutMs === undefined ? {} : { timeoutMs: deps.timeoutMs }),
-    });
+    page = await fetchPage(scout.url, fetchOptions);
   } catch (cause) {
     if (cause instanceof FetchError) {
       throw new WatchedError(cause.kind, cause.message);
     }
     throw cause;
   }
+
+  // A feed needs no model and so no key, which is why the key is read only
+  // once the page is known not to be one or to advertise one (ADR 0040 d.3).
+  if (isFeed(page.body)) return fromFeed(page.body, null);
+  const advertised = advertisedFeed(page.body, page.url);
+  if (advertised !== null) {
+    // The page's HTML is never reduced or sent anywhere, and a feed that
+    // fails is a stated failure, never a quiet fall back to paying a model.
+    let feed;
+    try {
+      // One page and its feed, never a crawl: a feed elsewhere is not read.
+      if (new URL(advertised).host !== new URL(page.url).host) {
+        throw new FetchError("http", FEED_UNREADABLE);
+      }
+      feed = await fetchPage(advertised, fetchOptions);
+    } catch (cause) {
+      if (cause instanceof FetchError) {
+        throw new WatchedError("http", FEED_UNREADABLE);
+      }
+      throw cause;
+    }
+    return fromFeed(feed.body, FEED_UNREADABLE);
+  }
+
+  let key;
+  try {
+    key = await deps.credentials.get(ANTHROPIC);
+  } catch (cause) {
+    // A Keychain that cannot be read is not a missing key: it is said as a
+    // fault, in the *wrong* voice, so no one is sent to store one that is there.
+    if (cause instanceof CredentialFault) {
+      throw new WatchedError("credentials", KEYCHAIN_FAULT);
+    }
+    throw cause;
+  }
+  // No model call: a Scout with no key records that it did nothing, so "not
+  // yet" is a row and not an inference (ADR 0040 d.1).
+  if (key === null) throw new WatchedError("credentials", NO_KEY);
 
   let text = reduceHtml(page.body, page.url);
   const facts: RunFacts = {
@@ -132,7 +175,7 @@ export async function readWatched(
     return { items: [], moreMatched: 0, fetched: 0, facts };
   }
 
-  const model = deps.model;
+  const model = await deps.model();
   facts.model = model;
   try {
     const tokens = await deps.models.countTokens({ key, model, text });
@@ -232,3 +275,40 @@ function verify(
     facts,
   };
 }
+
+const noFacts = (): RunFacts => ({
+  model: null,
+  usage: null,
+  costUsd: null,
+  pageHash: null,
+  pageLength: null,
+  capped: false,
+  unverified: 0,
+});
+
+/** `message` is what a failure says; null leaves the default for an address that was itself a feed. */
+function fromFeed(xml: string, message: string | null): Read {
+  const entries = isFeed(xml) ? readFeed(xml) : null;
+  if (entries === null) {
+    throw new WatchedError("parse", message ?? FEED_NOT_READ);
+  }
+  const arrivals = entries.map(arrivalOf);
+  return {
+    items: arrivals.slice(0, CEILING),
+    moreMatched: Math.max(0, arrivals.length - CEILING),
+    fetched: arrivals.length,
+    // No page hash: nothing was reduced, so the hash short-circuit has nothing to compare.
+    facts: noFacts(),
+  };
+}
+
+const arrivalOf = (entry: FeedEntry): Arrival => ({
+  key: sourceKeyOf(entry.url),
+  doi: doiOf(entry.url),
+  title: entry.title,
+  authors: entry.authors,
+  published: entry.published,
+  venue: null,
+  abstract: entry.abstract,
+  url: entry.url,
+});
