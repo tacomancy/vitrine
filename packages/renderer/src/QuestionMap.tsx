@@ -1,0 +1,64 @@
+import { useQuery } from "@tanstack/react-query";
+import { FirstSlot, voiceOf } from "./FirstSlot";
+import styles from "./QuestionMap.module.css";
+import { useTRPC } from "./trpc";
+import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
+
+/**
+ * The Question Map (ADR 0041): one page, a frame of named slots that each
+ * later reading fills — the matrix, the four readings, Origins, the review —
+ * so no reading touches another's place.
+ *
+ * Every slot sits behind one gate. Until the vault is read in full, the
+ * Index is Current and the watcher is up, the page answers *not yet* in the
+ * footer channel's words, because a reading drawn from a half-read vault
+ * would show *nothing to map* where the truth is *not looked yet* (ADR 0032;
+ * ADR 0041 decision 4). A slot that is empty for want of a reading is
+ * therefore never the gate's doing.
+ */
+export function QuestionMap() {
+  const trpc = useTRPC();
+  const coverage = useQuery(trpc.questionMap.coverage.queryOptions());
+  const status = useVaultStatusLines();
+  const index = useQuery(trpc.vault.status.queryOptions());
+
+  // `read` is the footer channel's reckoning, which knows a build and a
+  // dead watcher but not an Index that is merely behind (a settled batch not
+  // yet applied): that one is `current`, and it holds the gate too.
+  const behind = index.data !== undefined && !index.data.current.ok;
+  const voice = voiceOf({
+    incomplete: coverage.isError,
+    answered: coverage.data !== undefined,
+    read: behind && status.read === "full" ? "reading" : status.read,
+  });
+
+  return (
+    <section className={styles.page} aria-labelledby="question-map-title">
+      <div className={styles.header}>
+        <h1 id="question-map-title" className={styles.title}>
+          Question Map
+        </h1>
+      </div>
+      {voice !== "claim" ? (
+        <FirstSlot voice={voice} claim="">
+          {null}
+        </FirstSlot>
+      ) : (
+        <div className={styles.slots}>
+          <div data-slot="matrix" />
+          <div data-slot="readings" />
+          <div data-slot="origins" />
+          <div data-slot="review" />
+        </div>
+      )}
+      {(status.hasLines || coverage.isError) && (
+        <footer className={styles.footer}>
+          {status.lines}
+          {coverage.isError && (
+            <WarningLine label="not read">{coverage.error.message}</WarningLine>
+          )}
+        </footer>
+      )}
+    </section>
+  );
+}

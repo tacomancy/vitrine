@@ -11,6 +11,7 @@ import { GlobalCommand } from "./GlobalCommand";
 import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
+import { QuestionMap } from "./QuestionMap";
 import { ScoutQueue } from "./ScoutQueue";
 import type { ScoutDraft } from "./ScoutForm";
 import { Reader } from "./Reader";
@@ -194,6 +195,7 @@ function Workspace({ vault }: { vault: Vault }) {
           {route.surface === "settings" && (
             <Settings vault={vault} section={route.section} />
           )}
+          {route.surface === "question-map" && <QuestionMap />}
           {route.surface === "loose-ends" && (
             <LooseEnds
               onAttach={(path) => {

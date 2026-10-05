@@ -17,6 +17,7 @@ export type Route =
   | { surface: "source"; path: string; arrival?: Arrival }
   | { surface: "experiments" }
   | { surface: "loose-ends" }
+  | { surface: "question-map" }
   | { surface: "scouts" }
   | { surface: "settings"; section?: "credentials" };
 
@@ -39,6 +40,8 @@ export type Unresolved = { address: string; reason: string };
 
 export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
+/** The Question Map (ADR 0041): a Dashboard, opened deliberately. */
+export const QUESTION_MAP: Route = { surface: "question-map" };
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
 export const SETTINGS: Route = { surface: "settings" };
@@ -81,6 +84,8 @@ export function hashOf(route: Route): string {
         : QUESTION + encodePath(route.question);
     case "loose-ends":
       return "#/loose-ends";
+    case "question-map":
+      return "#/question-map";
     case "experiments":
       return "#/experiments";
     case "settings":
@@ -169,6 +174,7 @@ function parseSource(hash: string): Route {
  */
 function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
+  if (hash === "#/question-map") return QUESTION_MAP;
   if (hash === "#/experiments") return EXPERIMENTS;
   if (hash === "#/settings") return SETTINGS;
   if (hash === "#/settings/credentials") return SETTINGS_CREDENTIALS;
