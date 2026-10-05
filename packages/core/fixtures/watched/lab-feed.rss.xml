@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Sleep Lab — Publications</title>
+    <link>https://lab.example/publications</link>
+    <item>
+      <title>Overnight Replay Consolidates Declarative Memory</title>
+      <link>https://arxiv.org/abs/2609.01234v2</link>
+      <dc:creator>Ada Rowe</dc:creator>
+      <dc:creator>Ben Ito</dc:creator>
+      <pubDate>Sat, 12 Sep 2026 08:00:00 GMT</pubDate>
+      <description><![CDATA[<p>We record hippocampal replay across a night of sleep.</p>]]></description>
+    </item>
+    <item>
+      <title>Sleep Spindles &amp; Next-Day Learning</title>
+      <link>https://lab.example/papers/spindles/</link>
+      <author>cara@lab.example (Cara Voss)</author>
+      <pubDate>Sun, 30 Aug 2026 08:00:00 GMT</pubDate>
+      <description>Spindle density predicts what is retained.</description>
+    </item>
+  </channel>
+</rss>
