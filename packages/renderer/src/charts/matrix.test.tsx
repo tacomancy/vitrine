@@ -1,4 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { Matrix as MatrixData } from "core";
 import { afterEach, describe, expect, it } from "vitest";
 import { addressOf } from "../kinds";
@@ -35,6 +41,21 @@ const DATA: MatrixData = {
   cells: [
     [8, 0],
     [3, 1],
+  ],
+  material: [
+    [
+      [
+        { path: "s/a.md", kind: "source", display: "Paper A", tags: ["sleep"] },
+        {
+          path: "s/stub.md",
+          kind: "source-stub",
+          display: "Stub B",
+          tags: ["sleep"],
+        },
+      ],
+      [],
+    ],
+    [[], []],
   ],
   totals: { rows: 2, columns: 2 },
 };
@@ -107,5 +128,102 @@ describe("the coverage matrix", () => {
     const grid = screen.getByRole("grid");
     // 9 is a row weight and 9 a column weight in DATA; neither is drawn.
     expect(within(grid).queryByText("9")).toBeNull();
+  });
+});
+
+// The matrix as an interface (#490; ADR 0041 decision 11; ADR 0030): one
+// grid the keyboard walks by its chosen id, and a cell that opens its Material.
+
+describe("the matrix as an interface", () => {
+  const grid = () => screen.getByRole("grid", { name: /coverage/i });
+  const key = (k: string) => fireEvent.keyDown(grid(), { key: k });
+  const active = () =>
+    document.getElementById(grid().getAttribute("aria-activedescendant")!);
+
+  it("is one tab stop whose chosen cell is published as aria-activedescendant", () => {
+    render(<Matrix matrix={DATA} />);
+    expect(grid().tabIndex).toBe(0);
+    expect(
+      within(grid())
+        .getAllByRole("gridcell")
+        .every((c) => c.tabIndex === -1)
+    ).toBe(true);
+    fireEvent.focus(grid());
+    expect(active()?.getAttribute("aria-label")).toBe(
+      "Does sleep help? · Sleep: 8 items"
+    );
+  });
+
+  it("walks cell to cell with the arrow keys and stops at the edges", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.focus(grid());
+    key("ArrowRight");
+    expect(active()?.getAttribute("aria-label")).toMatch(/Probing: 0/);
+    key("ArrowRight");
+    expect(active()?.getAttribute("aria-label")).toMatch(/Probing: 0/);
+    key("ArrowDown");
+    expect(active()?.getAttribute("aria-label")).toBe(
+      "Why probing? · Probing: 1 item"
+    );
+    key("ArrowLeft");
+    key("ArrowUp");
+    expect(active()?.getAttribute("aria-label")).toMatch(/Sleep: 8/);
+  });
+
+  it("marks the chosen cell selected and prints its exact count, even when the cell is empty", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.focus(grid());
+    key("ArrowRight");
+    expect(active()?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("status").textContent).toBe(
+      "Does sleep help? · Probing: 0 items"
+    );
+  });
+
+  it("opens the cell's Material on return and closes it on escape", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.focus(grid());
+    expect(screen.queryByRole("list", { name: /material/i })).toBeNull();
+    key("Enter");
+    const list = screen.getByRole("list", {
+      name: "Material: Does sleep help? · Sleep",
+    });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(grid().getAttribute("aria-expanded")).toBe("true");
+    key("Escape");
+    expect(screen.queryByRole("list", { name: /material/i })).toBeNull();
+  });
+
+  it("opens a Source in its Reader and names a stub without linking it", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.focus(grid());
+    key("Enter");
+    const list = screen.getByRole("list", { name: /material/i });
+    const [source, stub] = within(list).getAllByRole("listitem");
+    expect(source!.querySelector("a")?.getAttribute("href")).toBe(
+      addressOf("source", "s/a.md")
+    );
+    expect(source!.textContent).toContain("Paper A");
+    expect(stub!.querySelector("a")).toBeNull();
+    expect(stub!.textContent).toContain("Stub B");
+    expect(stub!.textContent).toMatch(/stub/i);
+  });
+
+  it("says so when an open cell holds nothing, and closes when the choice moves", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.focus(grid());
+    key("ArrowRight");
+    key("Enter");
+    expect(screen.getByRole("list", { name: /material/i }).textContent).toMatch(
+      /no material/i
+    );
+    key("ArrowLeft");
+    expect(screen.queryByRole("list", { name: /material/i })).toBeNull();
+  });
+
+  it("opens by click as well, choosing the cell it was on", () => {
+    render(<Matrix matrix={DATA} />);
+    fireEvent.click(within(grid()).getAllByRole("gridcell")[0]!);
+    expect(screen.getByRole("list", { name: /material/i })).toBeDefined();
   });
 });

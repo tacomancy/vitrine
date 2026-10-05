@@ -28,6 +28,7 @@ const MATRIX: Matrix = {
   rows: [],
   columns: [],
   cells: [],
+  material: [],
   totals: { rows: 0, columns: 0 },
 };
 
@@ -380,6 +381,9 @@ const shaped = (shown: [number, number], totals: [number, number]): Matrix => ({
   })),
   cells: Array.from({ length: shown[0] }, () =>
     Array<number>(shown[1]).fill(1)
+  ),
+  material: Array.from({ length: shown[0] }, () =>
+    Array.from({ length: shown[1] }, () => [])
   ),
   totals: { rows: totals[0], columns: totals[1] },
 });
