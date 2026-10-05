@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { CandidateReview } from "./CandidateReview";
 import { Matrix } from "./charts/matrix";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -25,6 +26,16 @@ export function QuestionMap() {
   const readings = useQuery(trpc.questionMap.readings.queryOptions());
   const status = useVaultStatusLines();
   const index = useQuery(trpc.vault.status.queryOptions());
+  // The same uncached read the review holds its visit on: a row offers
+  // *review links* only if the review has something to show for it.
+  const candidates = useQuery({
+    ...trpc.questionMap.candidates.queryOptions(),
+    gcTime: 0,
+  });
+  const [request, setRequest] = useState<{ path: string } | null>(null);
+  const reviewable = new Set(candidates.data?.map((q) => q.path));
+  // A fresh object each click, so choosing the same row again re-enters it.
+  const review = (path: string) => setRequest({ path });
 
   // `read` is the footer channel's reckoning, which knows a build and a
   // dead watcher but not an Index that is merely behind (a settled batch not
@@ -50,16 +61,20 @@ export function QuestionMap() {
       ) : (
         <div className={styles.slots}>
           <div data-slot="matrix">
-            <MatrixSlot />
+            <MatrixSlot reviewable={reviewable} onReview={review} />
           </div>
           <div data-slot="readings">
             {readings.data !== undefined && (
-              <ReadingsStrip readings={readings.data} />
+              <ReadingsStrip
+                readings={readings.data}
+                reviewable={reviewable}
+                onReview={review}
+              />
             )}
           </div>
           <div data-slot="origins" />
           <div data-slot="review">
-            <CandidateReview />
+            <CandidateReview request={request} />
           </div>
         </div>
       )}
@@ -85,7 +100,13 @@ const plural = (n: number, one: string, many: string) =>
  * The matrix and the line that states its cut. A grid with no axes is never
  * drawn (ADR 0041 decision 14); the short-page claims are a later ticket's.
  */
-function MatrixSlot() {
+function MatrixSlot({
+  reviewable,
+  onReview,
+}: {
+  reviewable: ReadonlySet<string>;
+  onReview: (path: string) => void;
+}) {
   const trpc = useTRPC();
   const { data } = useQuery(trpc.questionMap.matrix.queryOptions());
   if (data === undefined || data.rows.length === 0 || data.columns.length === 0)
@@ -103,7 +124,7 @@ function MatrixSlot() {
         {cut &&
           ` · matrix shows the ${data.rows.length} × ${data.columns.length} heaviest`}
       </p>
-      <Matrix matrix={data} />
+      <Matrix matrix={data} reviewable={reviewable} onReview={onReview} />
     </>
   );
 }

@@ -1,0 +1,13 @@
+.review {
+  all: unset;
+  margin-left: var(--space-3);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.review:hover,
+.review:focus-visible {
+  text-decoration: underline;
+}

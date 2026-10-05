@@ -1,5 +1,6 @@
 import type { Matrix as MatrixData } from "core";
 import { addressOf } from "../kinds";
+import { ReviewLinks } from "../ReviewLinks";
 import styles from "./matrix.module.css";
 
 /**
@@ -29,7 +30,16 @@ export function binOf(count: number): Bin {
 
 const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
 
-export function Matrix({ matrix }: { matrix: MatrixData }) {
+export function Matrix({
+  matrix,
+  reviewable = new Set(),
+  onReview,
+}: {
+  matrix: MatrixData;
+  /** Questions the review has candidates for. */
+  reviewable?: ReadonlySet<string>;
+  onReview?: (path: string) => void;
+}) {
   return (
     <div className={styles.matrix}>
       <ul className={styles.legend} aria-label="Legend: items per cell">
@@ -72,6 +82,12 @@ export function Matrix({ matrix }: { matrix: MatrixData }) {
                   row.question
                 ) : (
                   <a href={address}>{row.question}</a>
+                )}
+                {row.weight === 0 && reviewable.has(row.path) && (
+                  <ReviewLinks
+                    question={row.question}
+                    onClick={() => onReview?.(row.path)}
+                  />
                 )}
               </span>
               {matrix.columns.map((column, c) => {
