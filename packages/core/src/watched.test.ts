@@ -932,6 +932,7 @@ describe("a Scout waiting on a key", () => {
   it("is named, with why, by credentials.waiting — a rejected key too", async () => {
     const lab = await opened({
       key: null,
+      model: () => new ModelError("credentials", "key rejected"),
       scouts: {
         "lab.yaml": SCOUT,
         "fine.yaml": SCOUT.replace("Sleep Lab", "Fine Lab"),
@@ -949,6 +950,16 @@ describe("a Scout waiting on a key", () => {
       ).result!.data;
     expect(await waiting()).toEqual([
       { id: "lab", name: "Sleep Lab", message: "no key" },
+    ]);
+
+    // A key the provider refuses leaves it waiting, with the other reason.
+    lab.serve(() => ({ body: PAGE }));
+    await lab.c.mutate("credentials.set", {
+      provider: "anthropic",
+      key: "sk-bad",
+    });
+    expect(await waiting()).toEqual([
+      { id: "lab", name: "Sleep Lab", message: "key rejected" },
     ]);
   });
 
