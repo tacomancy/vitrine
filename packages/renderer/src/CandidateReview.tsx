@@ -78,6 +78,8 @@ export function CandidateReview({
   useEffect(() => {
     if (request !== null && asked !== -1)
       section.current?.scrollIntoView?.({ block: "nearest" });
+    // Keyed on the request alone: `asked` moves as the session loads, and a
+    // scroll then would be one nobody asked for.
   }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = session?.[question];

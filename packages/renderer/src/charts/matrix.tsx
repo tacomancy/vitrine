@@ -1,5 +1,6 @@
 import type { Matrix as MatrixData } from "core";
 import { addressOf } from "../kinds";
+import { ReviewLinks } from "../ReviewLinks";
 import styles from "./matrix.module.css";
 
 /**
@@ -83,14 +84,10 @@ export function Matrix({
                   <a href={address}>{row.question}</a>
                 )}
                 {row.weight === 0 && reviewable.has(row.path) && (
-                  <button
-                    type="button"
-                    className={styles.review}
-                    aria-label={`review links for ${row.question}`}
+                  <ReviewLinks
+                    question={row.question}
                     onClick={() => onReview?.(row.path)}
-                  >
-                    review links
-                  </button>
+                  />
                 )}
               </span>
               {matrix.columns.map((column, c) => {

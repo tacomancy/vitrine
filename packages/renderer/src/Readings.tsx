@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { Readings } from "core";
 import { hashOf, type Route } from "./router";
 import { markOf, routeOf } from "./kinds";
+import { ReviewLinks } from "./ReviewLinks";
 import styles from "./Readings.module.css";
 
 /**
@@ -130,14 +131,10 @@ function Rows({
             <span className={styles.meta}>{row.material} material</span>
           )}
           {reviewable?.has(row.path) === true && (
-            <button
-              type="button"
-              className={styles.review}
-              aria-label={`review links for ${row.question}`}
+            <ReviewLinks
+              question={row.question}
               onClick={() => onReview?.(row.path)}
-            >
-              review links
-            </button>
+            />
           )}
           {row.unresolved > 0 && (
             <span className={styles.meta}>
