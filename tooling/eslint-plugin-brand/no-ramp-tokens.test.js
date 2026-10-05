@@ -76,6 +76,13 @@ tsTester.run(
           { messageId: "rampToken", data: { token: "--color-brass-300" } },
         ],
       },
+      // A chart mark naming a ramp through an attribute rather than a class.
+      {
+        code: 'const m = <rect fill="var(--color-sapphire-600)" />;',
+        errors: [
+          { messageId: "rampToken", data: { token: "--color-sapphire-600" } },
+        ],
+      },
       {
         code: "const c = `1px solid var(--color-ink-700)`;",
         errors: [

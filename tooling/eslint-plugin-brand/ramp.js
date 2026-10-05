@@ -21,3 +21,12 @@ export const RAMP_TOKEN = new RegExp(
 export function isTokensFile(filename) {
   return /(^|[\\/])tokens\.css$/.test(filename);
 }
+
+// BRAND.md law 1 again, from the other side: chart code binds colour by class
+// name, so a literal in a string or a stylesheet is a value tokens.css can't
+// see or re-theme. The lookbehind spares `&#123;`; the lookahead spares
+// `#abcdefg`; a 3–4 digit hex with no letter in it is an issue number (`#482`),
+// so a strings-side `#000` (any all-digit 3–4 digit hex) gets through; the CSS
+// rule, which has no issue numbers to spare, flags it.
+export const COLOR_LITERAL =
+  /(?<![\w&])#(?:[0-9a-f]{8}|[0-9a-f]{6}|(?=\d*[a-f])[0-9a-f]{3,4})(?![\w-])|\b(?:rgba?|hsla?|oklch)\(/gi;
