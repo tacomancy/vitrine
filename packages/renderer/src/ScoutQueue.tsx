@@ -6,7 +6,7 @@ import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
 import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
-import { VoiceLine } from "./ScoutVoice";
+import { CostLine, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 
@@ -185,6 +185,8 @@ export function ScoutQueue({
     id === null
       ? everything.length
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
+  const costOf = (id: string): number | null =>
+    health.data?.scouts.find((h) => h.id === id)?.lastCostUsd ?? null;
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
   const questions: QuestionChoice[] = (
@@ -350,6 +352,7 @@ export function ScoutQueue({
         <div className={styles.scoutHeader}>
           <h2 className={styles.scoutName}>{selectedScout.name}</h2>
           <VoiceLine health={healthOf(selectedScout.id)} />
+          <CostLine usd={costOf(selectedScout.id)} />
           {selectedScout.assigned.length > 0 && (
             <ul className={styles.assigned} aria-label="Assigned Questions">
               {selectedScout.assigned.map((id) => {

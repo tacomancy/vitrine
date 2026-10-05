@@ -20,6 +20,31 @@ const FAILED = {
   errorKind: "network" as const,
   sentence: SENTENCE,
 };
+const CHANGED = {
+  kind: "structure-change" as const,
+  subject: "lab",
+  path: ".vitrine/scouts/lab.yaml",
+  title: "Sleep Lab",
+  address: "https://lab.example/publications",
+  sentence:
+    "The papers this page listed before are no longer on it: its structure changed.",
+};
+const NO_KEY = {
+  kind: "blocked-on-credentials" as const,
+  subject: "keyless",
+  path: ".vitrine/scouts/keyless.yaml",
+  title: "Keyless Lab",
+  voice: "not yet" as const,
+  sentence: "No model key is stored, so this page has not been read yet.",
+};
+const REFUSED = {
+  ...NO_KEY,
+  subject: "refused",
+  title: "Refused Lab",
+  voice: "wrong" as const,
+  sentence:
+    "The model provider refused the stored key, so nothing was checked.",
+};
 const FILE = {
   kind: "unreadable-scout" as const,
   subject: "broken.yaml",
@@ -37,7 +62,10 @@ const STUB = {
 const ends = (): LooseEnds => ({
   problems: [],
   groups: [
-    { group: "Broken plumbing", rows: [FAILED, FILE] },
+    {
+      group: "Broken plumbing",
+      rows: [FAILED, CHANGED, NO_KEY, REFUSED, FILE],
+    },
     { group: "Unfinished reading", rows: [STUB] },
   ],
 });
@@ -88,6 +116,48 @@ describe("the failed Scout row", () => {
     await vi.waitFor(() => expect(pause).toHaveBeenCalled());
     expect(run).toHaveBeenCalledWith({ scoutId: "sleep" });
     expect(pause).toHaveBeenCalledWith({ scoutId: "sleep" });
+  });
+});
+
+describe("the structure change row", () => {
+  it("shows the rail's sentence with open the page, run now and pause", async () => {
+    const run = vi.fn<(input: unknown) => unknown>(() => ({}));
+    const pause = vi.fn<(input: unknown) => unknown>(() => undefined);
+    open({ "scouts.runNow": run, "scouts.pause": pause });
+    const item = await rowFor("Sleep Lab");
+    expect(within(item).getByText(CHANGED.sentence)).toBeDefined();
+    expect(within(item).getByText("scout · structure change")).toBeDefined();
+    const page = within(item).getByRole("link", { name: "open the page" });
+    expect(page.getAttribute("href")).toBe(CHANGED.address);
+    fireEvent.click(within(item).getByRole("button", { name: "run now" }));
+    fireEvent.click(within(item).getByRole("button", { name: "pause" }));
+    await vi.waitFor(() => expect(pause).toHaveBeenCalled());
+    expect(run).toHaveBeenCalledWith({ scoutId: "lab" });
+    expect(pause).toHaveBeenCalledWith({ scoutId: "lab" });
+  });
+});
+
+describe("the blocked on credentials row", () => {
+  it("says no key without a warning glyph and opens Settings", async () => {
+    open();
+    const item = await rowFor("Keyless Lab");
+    expect(within(item).getByText(NO_KEY.sentence)).toBeDefined();
+    expect(within(item).queryByRole("img", { name: "not working" })).toBeNull();
+    const link = within(item).getByRole("link", { name: "open Settings" });
+    expect(link.getAttribute("href")).toBe("#/settings");
+    expect(within(item).queryByRole("button", { name: "run now" })).toBeNull();
+  });
+
+  it("says a refused key in the fault voice, with the warning glyph", async () => {
+    open();
+    const item = await rowFor("Refused Lab");
+    expect(within(item).getByText(REFUSED.sentence)).toBeDefined();
+    expect(
+      within(item).getByRole("img", { name: "not working" })
+    ).toBeDefined();
+    expect(
+      within(item).getByRole("link", { name: "open Settings" })
+    ).toBeDefined();
   });
 });
 

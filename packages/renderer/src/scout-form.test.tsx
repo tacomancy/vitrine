@@ -87,6 +87,39 @@ const answers = (more: Record<string, unknown> = {}) => ({
   ...more,
 });
 
+describe("the header's cost line", () => {
+  const withCost = (lastCostUsd: number | null) =>
+    answers({
+      "scouts.health": {
+        scouts: [{ id: "sleep", health: quiet, lastCostUsd }],
+        unreadable: [],
+      },
+    });
+
+  it("shows what the last run cost", async () => {
+    renderApp(withCost(0.0123));
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    await screen.findByRole("heading", { name: "Sleep and memory" });
+    expect(await screen.findByText("last run cost $0.0123")).toBeDefined();
+  });
+
+  it("says nothing for a run that cost nothing", async () => {
+    renderApp(withCost(null));
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    await screen.findByRole("heading", { name: "Sleep and memory" });
+    await screen.findAllByText(/parsed cleanly/);
+    expect(screen.queryByText(/last run cost/)).toBeNull();
+  });
+});
+
 const rail = () => screen.findByRole("list", { name: "Scouts" });
 
 describe("the rail's voices", () => {

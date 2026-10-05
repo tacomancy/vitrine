@@ -35,7 +35,8 @@ export type RunErrorKind =
 export type Health =
   /** `kind` is null for a Scout file that does not parse: no run exists to carry one (ADR 0039 decision 7). */
   | { voice: "wrong"; kind: RunErrorKind | null; sentence: string }
-  | { voice: "not yet"; sentence: string }
+  /** `kind` is set only for a Scout waiting on a key, which Loose Ends draws as its own row. */
+  | { voice: "not yet"; sentence: string; kind?: "credentials" }
   | { voice: "claim"; warrant: Warrant | null };
 
 /** A Quiet field's evidence: the three fragments, in the order they are read. */
@@ -65,8 +66,10 @@ type RunRow = {
   window_from: string;
   window_to: string;
   retroactive: number;
+  fetched: number;
   new: number;
   query: string | null;
+  cost_usd: number | null;
 };
 
 /** Finished runs for a Scout, oldest first. An unfinished one has said nothing yet. */
@@ -110,6 +113,7 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     if (kind === "credentials" && newest.error_message === NO_KEY) {
       return {
         voice: "not yet",
+        kind,
         sentence: faultSentence(kind, NO_KEY, false, scout.source.kind),
       };
     }
@@ -254,10 +258,24 @@ function usualRate(ok: RunRow[]): string {
 }
 
 export type FleetHealth = {
-  scouts: Array<{ id: string; health: Health }>;
+  scouts: Array<{
+    id: string;
+    health: Health;
+    /**
+     * What the newest run cost, in USD; null when it cost nothing or the
+     * model had no price (the app never invents a figure). The only place
+     * cost is drawn, and nothing caps it (ADR 0040 decision 6).
+     */
+    lastCostUsd: number | null;
+  }>;
   /** Keyed by the file's name, which is all the rail may show of it. */
   unreadable: Array<{ file: string; health: Health }>;
 };
+
+function lastCost(queue: DatabaseSync, scoutId: string): number | null {
+  const cost = finishedRuns(queue, scoutId).at(-1)?.cost_usd ?? null;
+  return cost === null || cost <= 0 ? null : cost;
+}
 
 export async function readHealth(deps: {
   vaultPath: string;
@@ -270,6 +288,7 @@ export async function readHealth(deps: {
     scouts: scouts.map((s) => ({
       id: s.id,
       health: healthOf(deps.queue, s, now),
+      lastCostUsd: lastCost(deps.queue, s.id),
     })),
     unreadable: unreadable.map((u) => ({
       file: u.file,

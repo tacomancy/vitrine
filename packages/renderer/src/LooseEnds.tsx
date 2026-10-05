@@ -3,6 +3,7 @@ import type {
   AmbiguousLinks,
   ConflictCopy,
   DocumentChanged,
+  BlockedOnCredentials,
   FailedScout,
   LooseEndGroupName,
   LooseEndRow,
@@ -12,6 +13,7 @@ import type {
   StalledExperiment,
   StalledHypothesis,
   StalledResearchQuestion,
+  StructureChange,
   StubWithoutPdf,
   UnlinkedAnnotations,
   UnmatchedAnnotation,
@@ -24,7 +26,8 @@ import { useState, type ReactNode } from "react";
 import { addressOf, KIND, markOf } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { Picker } from "./Picker";
-import { hashOf, SCOUTS } from "./router";
+import { classifyLink } from "./link-rule";
+import { hashOf, SCOUTS, SETTINGS } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -301,6 +304,10 @@ function Row(props: {
       return <MissingFiles row={props.row} resolution={props.resolution} />;
     case "failed-scout":
       return <BrokenScout row={props.row} resolution={props.resolution} />;
+    case "structure-change":
+      return <ChangedPage row={props.row} resolution={props.resolution} />;
+    case "blocked-on-credentials":
+      return <BlockedScout row={props.row} resolution={props.resolution} />;
     case "unreadable-scout":
       return <UnreadableScout row={props.row} resolution={props.resolution} />;
     case "stub-without-pdf":
@@ -565,13 +572,7 @@ function OpenOrDeliberate({
  * fault. There is no *mark deliberate*: a failure that is fine is a Scout
  * the researcher *pauses*, and pausing is what makes the row go.
  */
-function BrokenScout({
-  row,
-  resolution,
-}: {
-  row: FailedScout;
-  resolution: Resolution;
-}) {
+function useScoutActions() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<string | undefined>(undefined);
@@ -587,6 +588,17 @@ function BrokenScout({
   };
   const run = useMutation(trpc.scouts.runNow.mutationOptions(settle));
   const pause = useMutation(trpc.scouts.pause.mutationOptions(settle));
+  return { run, pause, refusal };
+}
+
+function BrokenScout({
+  row,
+  resolution,
+}: {
+  row: FailedScout;
+  resolution: Resolution;
+}) {
+  const { run, pause, refusal } = useScoutActions();
   return (
     <RowShell
       meta={`scout · ${row.errorKind.replaceAll("_", " ")}`}
@@ -616,6 +628,103 @@ function BrokenScout({
             open
           </a>
         </>
+      }
+    />
+  );
+}
+
+/**
+ * *A page whose structure changed* (#470; ADR 0040 decision 7): the failed
+ * Scout's row for the failure that is known to be the page's, so it offers
+ * the page itself beside the same two ways out. The sentence is the rail's.
+ */
+function ChangedPage({
+  row,
+  resolution,
+}: {
+  row: StructureChange;
+  resolution: Resolution;
+}) {
+  const { run, pause, refusal } = useScoutActions();
+  // The address came from a file the researcher may have hand-written, so
+  // it goes through the one link rule like every other outbound link.
+  const link = classifyLink(row.address);
+  return (
+    <RowShell
+      meta="scout · structure change"
+      title={row.title}
+      href={hashOf(SCOUTS)}
+      why={row.sentence}
+      resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
+      actions={
+        <>
+          {link.kind === "out" && (
+            <a
+              className={styles.primary}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              open the page
+            </a>
+          )}
+          <button
+            type="button"
+            className={styles.action}
+            disabled={run.isPending}
+            onClick={() => run.mutate({ scoutId: row.subject })}
+          >
+            run now
+          </button>
+          <button
+            type="button"
+            className={styles.action}
+            disabled={pause.isPending}
+            onClick={() => pause.mutate({ scoutId: row.subject })}
+          >
+            pause
+          </button>
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * *A Scout blocked on credentials* (#470; ADR 0040 decision 7): the fix is a
+ * key, which goes in Settings, so that is the only way out. No key is the
+ * *not yet* voice and carries no glyph; a refused key is a fault and does.
+ * The row clears by itself once a key is stored and the Scout runs.
+ */
+function BlockedScout({
+  row,
+  resolution,
+}: {
+  row: BlockedOnCredentials;
+  resolution: Resolution;
+}) {
+  return (
+    <RowShell
+      meta="scout · credentials"
+      title={row.title}
+      href={hashOf(SCOUTS)}
+      why={
+        row.voice === "wrong" ? (
+          <>
+            <span role="img" aria-label="not working">
+              ⚠
+            </span>{" "}
+            {row.sentence}
+          </>
+        ) : (
+          row.sentence
+        )
+      }
+      resolution={resolution}
+      actions={
+        <a className={styles.primary} href={hashOf(SETTINGS)}>
+          open Settings
+        </a>
       }
     />
   );

@@ -36,3 +36,17 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
     </span>
   );
 }
+
+/**
+ * The last run's cost, on the header and nowhere else (ADR 0040 decision 6):
+ * the visibility is the guard, so there is no cap and no running total. A
+ * run that cost nothing draws nothing.
+ */
+export function CostLine({ usd }: { usd: number | null }) {
+  if (usd === null) return null;
+  return (
+    <span className={styles.voice}>
+      last run cost ${usd < 0.1 ? usd.toFixed(4) : usd.toFixed(2)}
+    </span>
+  );
+}
