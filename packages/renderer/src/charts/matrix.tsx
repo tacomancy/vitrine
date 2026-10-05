@@ -33,6 +33,7 @@ export function binOf(count: number): Bin {
 const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
 
 type Cell = { r: number; c: number };
+const ORIGIN: Cell = { r: 0, c: 0 };
 
 export function Matrix({
   matrix,
@@ -64,7 +65,7 @@ export function Matrix({
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    const at = chosen ?? { r: 0, c: 0 };
+    const at = chosen ?? ORIGIN;
     const moves: Record<string, Cell> = {
       ArrowRight: { r: at.r, c: Math.min(at.c + 1, cols - 1) },
       ArrowLeft: { r: at.r, c: Math.max(at.c - 1, 0) },
@@ -77,8 +78,10 @@ export function Matrix({
       if (move.r !== at.r || move.c !== at.c) choose(move);
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // Return on a grid nothing is chosen in yet opens the first cell
+      // rather than toggling a list that was never shown.
       setChosen(at);
-      setOpen((was) => !was || chosen === null);
+      setOpen(chosen === null ? true : !open);
     } else if (e.key === "Escape" && open) {
       e.preventDefault();
       e.stopPropagation();
@@ -106,7 +109,7 @@ export function Matrix({
         aria-activedescendant={chosenId}
         aria-expanded={open}
         tabIndex={0}
-        onFocus={() => setChosen((was) => was ?? { r: 0, c: 0 })}
+        onFocus={() => setChosen((was) => was ?? ORIGIN)}
         onKeyDown={onKeyDown}
         className={styles.grid}
         style={{
@@ -145,7 +148,7 @@ export function Matrix({
               </span>
               {matrix.columns.map((column, c) => {
                 const count = matrix.cells[r]![c]!;
-                const label = `${row.question} · ${column.display}: ${items(count)}`;
+                const label = `${labelOf({ r, c })}: ${items(count)}`;
                 const here = chosen?.r === r && chosen.c === c;
                 return (
                   <span
