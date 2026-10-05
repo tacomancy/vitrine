@@ -1,4 +1,4 @@
-import { readFile, utimes } from "node:fs/promises";
+import { mkdir, readFile, rename, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CandidateQuestion } from "./question-map.js";
@@ -38,14 +38,15 @@ tags: [${tags.join(", ")}]
 /** `mtimes` are days after a fixed epoch, so recency is the test's to say. */
 async function review(
   files: Record<string, string>,
-  mtimes: Record<string, number> = {}
+  mtimes: Record<string, number> = {},
+  settleMs?: number
 ) {
   const vault = await vaultWith(files);
   for (const [path, day] of Object.entries(mtimes)) {
     const when = new Date(Date.UTC(2026, 0, 1 + day));
     await utimes(join(vault, path), when, when);
   }
-  const c = await core();
+  const c = await core(settleMs === undefined ? {} : { settleMs });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const read = async () => {
@@ -161,5 +162,95 @@ describe("accepting a candidate", () => {
     const before = await readFile(join(vault, "q/Q.md"), "utf8");
     await c.mutate("questions.link", { path: "q/Q.md", target: "s/one.md" });
     expect(await readFile(join(vault, "q/Q.md"), "utf8")).toBe(before);
+  });
+});
+
+describe("rejecting a candidate", () => {
+  const files = {
+    "q/Q.md": question("Q", { tags: ["a"] }),
+    "s/one.md": paper("one", ["a"]),
+    "s/two.md": paper("two", ["a"]),
+  };
+  const rejectionOf = async (
+    read: () => Promise<CandidateQuestion[]>,
+    path: string
+  ) => (await read())[0]!.candidates.find((p) => p.path === path)!.rejection;
+  const dismissalsOf = async (vault: string) =>
+    JSON.parse(
+      await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+    ) as Record<string, Record<string, string>>;
+
+  it("records one dismissal per pair under the Question's id, and leaves its other candidates offered", async () => {
+    const { c, vault, read } = await review(files);
+    const rejection = await rejectionOf(read, "s/one.md");
+    expect(rejection.subject).toBe("q-Q");
+    expect(rejection.kind).toMatch(/^inferred-link:/);
+    expect(
+      (await c.mutate("looseEnds.dismiss", rejection)).error
+    ).toBeUndefined();
+    expect(Object.keys((await dismissalsOf(vault))["q-Q"]!)).toEqual([
+      rejection.kind,
+    ]);
+    expect(papersOf((await read())[0]!)).toEqual(["s/two.md"]);
+  });
+
+  it("never offers a rejected pair again, and a rejected Question's last candidate removes the Question", async () => {
+    const { c, read } = await review({
+      "q/Q.md": files["q/Q.md"],
+      "s/one.md": files["s/one.md"],
+    });
+    await c.mutate("looseEnds.dismiss", await rejectionOf(read, "s/one.md"));
+    expect(await read()).toEqual([]);
+  });
+
+  it("undo removes exactly that pair", async () => {
+    const { c, vault, read } = await review(files);
+    const one = await rejectionOf(read, "s/one.md");
+    const two = await rejectionOf(read, "s/two.md");
+    await c.mutate("looseEnds.dismiss", one);
+    await c.mutate("looseEnds.dismiss", two);
+    await c.mutate("looseEnds.undismiss", one);
+    expect(Object.keys((await dismissalsOf(vault))["q-Q"]!)).toEqual([
+      two.kind,
+    ]);
+    expect(papersOf((await read())[0]!)).toEqual(["s/one.md"]);
+  });
+
+  it("is refused, saying so, when the dismissals file does not parse", async () => {
+    const { c, vault, read } = await review(files);
+    await mkdir(join(vault, ".vitrine"), { recursive: true });
+    await writeFile(join(vault, ".vitrine/dismissals.json"), "{ not json");
+    const reply = await c.mutate(
+      "looseEnds.dismiss",
+      await rejectionOf(read, "s/one.md")
+    );
+    expect(reply.error?.message).toMatch(/dismissals\.json could not be read/);
+    expect(
+      await readFile(join(vault, ".vitrine/dismissals.json"), "utf8")
+    ).toBe("{ not json");
+  });
+
+  it("survives the Question being renamed", async () => {
+    const { c, vault, read } = await review(files, {}, 40);
+    await c.mutate("looseEnds.dismiss", await rejectionOf(read, "s/one.md"));
+    const events = await c.events();
+    await rename(join(vault, "q/Q.md"), join(vault, "q/Renamed.md"));
+    await events.next("vaultChanged");
+    events.close();
+    const [q] = await read();
+    expect(q!.path).toBe("q/Renamed.md");
+    expect(papersOf(q!)).toEqual(["s/two.md"]);
+  });
+
+  it("does nothing for a dismissal naming a paper that no longer exists", async () => {
+    const { c, read } = await review(files);
+    await c.mutate("looseEnds.dismiss", {
+      subject: "q-Q",
+      kind: "inferred-link:gone-paper",
+    });
+    expect(papersOf((await read())[0]!).sort()).toEqual([
+      "s/one.md",
+      "s/two.md",
+    ]);
   });
 });

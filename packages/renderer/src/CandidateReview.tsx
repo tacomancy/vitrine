@@ -13,7 +13,9 @@ import { useTRPC } from "./trpc";
  * pairs. Accept writes a Related edge through `questions.link` and nothing
  * else; open looks and decides nothing; pass records nothing — it only moves
  * the candidate to the bottom of this visit's stack, so leaving the page
- * forgets it. Reject is a later ticket's.
+ * forgets it. Reject is the one answer that is remembered: the core writes
+ * it per pair to `dismissals.json`, and it can be taken back only while the
+ * candidate is on screen — accept wrote a file, so it offers no undo.
  *
  * The list is read once and held for the visit. An accept anchors its
  * Question, so a re-read would drop it from the list mid-review and jump the
@@ -47,6 +49,8 @@ export function CandidateReview({
   const [decided, setDecided] = useState<ReadonlySet<string>>(new Set());
   const [passed, setPassed] = useState<readonly string[]>([]);
   const [refused, setRefused] = useState<string | null>(null);
+  // This visit's rejections, newest last: what *Undo reject* can take back.
+  const [rejected, setRejected] = useState<readonly CandidateLink[]>([]);
 
   const link = useMutation(
     trpc.questions.link.mutationOptions({
@@ -71,6 +75,7 @@ export function CandidateReview({
       setAt(0);
       setDecided(new Set());
       setPassed([]);
+      setRejected([]);
       setRefused(null);
     }
   }
@@ -81,20 +86,33 @@ export function CandidateReview({
     // Keyed on the request alone: `asked` moves as the session loads, and a
     // scroll then would be one nobody asked for.
   }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reject = useMutation(
+    trpc.looseEnds.dismiss.mutationOptions({
+      onError: (error) => setRefused(error.message),
+    })
+  );
+  const unreject = useMutation(
+    trpc.looseEnds.undismiss.mutationOptions({
+      onError: (error) => setRefused(error.message),
+    })
+  );
 
   const current = session?.[question];
   // Fresh candidates in their ranked order, then the passed ones in the order
   // they were passed: a pass is a *not now*, so it goes to the back.
+  const isRejected = (c: CandidateLink) =>
+    rejected.some((r) => r.path === c.path);
   const stack: CandidateLink[] =
     current === undefined
       ? []
       : [
           ...current.candidates.filter(
-            (c) => !decided.has(c.path) && !passed.includes(c.path)
+            (c) =>
+              !decided.has(c.path) && !passed.includes(c.path) && !isRejected(c)
           ),
           ...passed.flatMap((path) =>
             current.candidates.filter(
-              (c) => c.path === path && !decided.has(c.path)
+              (c) => c.path === path && !decided.has(c.path) && !isRejected(c)
             )
           ),
         ];
@@ -119,6 +137,24 @@ export function CandidateReview({
       focused.path,
     ]);
   }
+  // Not marked rejected until the core has written it: a refused write must
+  // leave the candidate offered, saying why, never gone with nothing recorded.
+  function rejectFocused() {
+    if (focused === undefined || reject.isPending) return;
+    const target = focused;
+    setRefused(null);
+    reject.mutate(target.rejection, {
+      onSuccess: () => setRejected((was) => [...was, target]),
+    });
+  }
+  const lastRejected = rejected.at(-1);
+  function undo() {
+    if (lastRejected === undefined || unreject.isPending) return;
+    setRefused(null);
+    unreject.mutate(lastRejected.rejection, {
+      onSuccess: () => setRejected((was) => was.slice(0, -1)),
+    });
+  }
   function open() {
     if (focused === undefined) return;
     pushRoute({ surface: "source", path: focused.path });
@@ -128,6 +164,7 @@ export function CandidateReview({
     setAt(0);
     setDecided(new Set());
     setPassed([]);
+    setRejected([]);
     setRefused(null);
   }
 
@@ -140,6 +177,11 @@ export function CandidateReview({
         target instanceof HTMLElement &&
         target.closest("input, textarea, select, [contenteditable]") !== null
       ) {
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        undo();
         return;
       }
       if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -158,6 +200,9 @@ export function CandidateReview({
       } else if (key === "p") {
         event.preventDefault();
         pass();
+      } else if (key === "r") {
+        event.preventDefault();
+        rejectFocused();
       } else if (key === "o") {
         event.preventDefault();
         open();
@@ -213,8 +258,17 @@ export function CandidateReview({
         ))}
       </ul>
       <p className={styles.keys} aria-hidden="true">
-        <kbd>A</kbd> link as related · <kbd>O</kbd> open · <kbd>P</kbd> pass
+        <kbd>A</kbd> link as related · <kbd>O</kbd> open · <kbd>P</kbd> pass ·{" "}
+        <kbd>R</kbd> reject
       </p>
+      {lastRejected !== undefined && (
+        <p className={styles.keys}>
+          <button type="button" onClick={undo}>
+            Undo reject
+          </button>{" "}
+          <kbd>⌘Z</kbd>
+        </p>
+      )}
       {refused !== null && (
         <p role="alert" className={styles.refused}>
           {refused}
