@@ -27,7 +27,7 @@ import { addressOf, KIND, markOf } from "./kinds";
 import styles from "./LooseEnds.module.css";
 import { Picker } from "./Picker";
 import { classifyLink } from "./link-rule";
-import { hashOf, SCOUTS, SETTINGS } from "./router";
+import { hashOf, SCOUTS, SETTINGS_CREDENTIALS } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -722,7 +722,7 @@ function BlockedScout({
       }
       resolution={resolution}
       actions={
-        <a className={styles.primary} href={hashOf(SETTINGS)}>
+        <a className={styles.primary} href={hashOf(SETTINGS_CREDENTIALS)}>
           open Settings
         </a>
       }

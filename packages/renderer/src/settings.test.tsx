@@ -79,6 +79,27 @@ const chooseSettingsFromMenu = () =>
     window.dispatchEvent(new Event("vitrine:settings"));
   });
 
+describe("Settings at #/settings/credentials", () => {
+  it("brings What it talks to into view, and plain #/settings does not", async () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    window.location.hash = "#/settings";
+    renderApp(answers());
+    await settings();
+    await screen.findByRole("region", { name: "What it talks to" });
+    expect(scrolled).not.toHaveBeenCalled();
+    cleanup();
+
+    window.location.hash = "#/settings/credentials";
+    renderApp(answers());
+    const talks = await screen.findByRole("region", {
+      name: "What it talks to",
+    });
+    await vi.waitFor(() => expect(scrolled).toHaveBeenCalled());
+    expect(scrolled.mock.contexts[0]).toBe(talks);
+  });
+});
+
 describe("Settings at #/settings: where the vault is", () => {
   it("states the folder, the App state folder, and since when outside changes have been seen", async () => {
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });

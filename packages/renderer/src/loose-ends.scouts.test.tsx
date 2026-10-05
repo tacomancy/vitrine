@@ -144,7 +144,7 @@ describe("the blocked on credentials row", () => {
     expect(within(item).getByText(NO_KEY.sentence)).toBeDefined();
     expect(within(item).queryByRole("img", { name: "not working" })).toBeNull();
     const link = within(item).getByRole("link", { name: "open Settings" });
-    expect(link.getAttribute("href")).toBe("#/settings");
+    expect(link.getAttribute("href")).toBe("#/settings/credentials");
     expect(within(item).queryByRole("button", { name: "run now" })).toBeNull();
   });
 
