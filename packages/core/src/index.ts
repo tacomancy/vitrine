@@ -56,6 +56,8 @@ export type {
   Coverage,
   MapRow,
   MaterialItem,
+  OriginRow,
+  Origins,
   Matrix,
   Readings,
   RowSummary,
