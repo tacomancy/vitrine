@@ -4,6 +4,7 @@ import { CandidateReview } from "./CandidateReview";
 import { Matrix } from "./charts/matrix";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./QuestionMap.module.css";
+import { Origins } from "./Origins";
 import { ReadingsStrip } from "./Readings";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
@@ -72,7 +73,9 @@ export function QuestionMap() {
               />
             )}
           </div>
-          <div data-slot="origins" />
+          <div data-slot="origins">
+            <Origins />
+          </div>
           <div data-slot="review">
             <CandidateReview request={request} />
           </div>

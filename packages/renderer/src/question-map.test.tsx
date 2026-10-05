@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { Coverage, Matrix } from "core";
+import type { Coverage, Matrix, OriginRow, Origins } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -38,6 +38,7 @@ const open = (more: Record<string, unknown> = {}) => {
     "questions.list": empty,
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
+    "questionMap.origins": { rows: [], total: 0 },
     "questionMap.readings": NO_READINGS,
     "questionMap.matrix": MATRIX,
     ...more,
@@ -67,6 +68,7 @@ describe("the Question Map", () => {
       "questions.list": empty,
       "vault.status": READ,
       "questionMap.coverage": COVERAGE,
+      "questionMap.origins": { rows: [], total: 0 },
       "questionMap.readings": NO_READINGS,
       "questionMap.matrix": MATRIX,
     });
@@ -120,6 +122,112 @@ describe("the Question Map", () => {
     const view = await page();
     await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
     expect(view.textContent).not.toMatch(/not read yet/);
+  });
+});
+
+// Origins (#486; ADR 0041 decision 2): a list beside the matrix, two facts a
+// row, the cut stated, and no accumulation statistic anywhere.
+
+const origin = (over: Partial<OriginRow>): OriginRow => ({
+  label: "rasch",
+  path: "s/rasch.md",
+  kind: "source",
+  questions: 3,
+  material: 1,
+  ...over,
+});
+
+const origins = async (more: Record<string, unknown>) => {
+  open(more);
+  const view = await page();
+  return within(
+    await vi.waitFor(() => {
+      const slot = view.querySelector<HTMLElement>('[data-slot="origins"]');
+      if (slot === null || slot.textContent === "") throw new Error("empty");
+      return slot;
+    })
+  );
+};
+
+describe("Origins on the Question Map", () => {
+  it("shows both numbers per row, and opens a row only where it has an Address", async () => {
+    const slot = await origins({
+      "questionMap.origins": {
+        rows: [
+          origin({}),
+          origin({ label: "unattached", path: null, kind: null, questions: 2 }),
+          origin({ label: "a lecture", path: null, kind: null, questions: 1 }),
+          origin({
+            label: "Pilot",
+            path: "x/Pilot.md",
+            kind: "experiment",
+            questions: 1,
+            material: 0,
+          }),
+          origin({
+            label: "A note",
+            path: "n/A.md",
+            kind: "note",
+            questions: 1,
+          }),
+        ],
+        total: 5,
+      } satisfies Origins,
+    });
+    const rasch = slot.getByRole("link", { name: /rasch/ });
+    expect(rasch.getAttribute("href")).toBe("#/source/s/rasch.md");
+    expect(rasch.closest("li")!.textContent).toMatch(/3 questions/);
+    expect(rasch.closest("li")!.textContent).toMatch(/1 material/);
+    expect(slot.getByRole("link", { name: /Pilot/ })).toBeDefined();
+    // Named and left alone: no Address, no link.
+    for (const name of ["unattached", "a lecture", "A note"]) {
+      expect(slot.getByText(name).closest("a")).toBeNull();
+    }
+  });
+
+  it("states the cut and offers the full list on demand", async () => {
+    const shown = Array.from({ length: 10 }, (_, i) =>
+      origin({ label: `s${i}`, path: null, kind: null, questions: 20 - i })
+    );
+    const everything = [
+      ...shown,
+      origin({ label: "s10", path: null, kind: null, questions: 1 }),
+      origin({ label: "s11", path: null, kind: null, questions: 1 }),
+    ];
+    const asked: unknown[] = [];
+    const slot = await origins({
+      "questionMap.origins": (input: { all?: boolean } | undefined) => {
+        asked.push(input);
+        return input?.all
+          ? { rows: everything, total: 12 }
+          : { rows: shown, total: 12 };
+      },
+    });
+    expect(slot.getAllByRole("listitem")).toHaveLength(10);
+    expect(slot.getByText(/top 10 of 12/)).toBeDefined();
+    fireEvent.click(slot.getByRole("button", { name: /all 12/ }));
+    await vi.waitFor(() =>
+      expect(slot.getAllByRole("listitem")).toHaveLength(12)
+    );
+    expect(slot.queryByText(/top 10 of 12/)).toBeNull();
+  });
+
+  it("states no cut when nothing is cut, and carries no accumulation statistic", async () => {
+    const slot = await origins({
+      "questionMap.origins": { rows: [origin({})], total: 1 },
+    });
+    expect(slot.queryByText(/top 10/)).toBeNull();
+    expect(slot.queryByRole("button")).toBeNull();
+    expect(slot.getByRole("list").textContent).not.toMatch(
+      /read \d|session|times|×/
+    );
+  });
+
+  it("says plainly when no Question has been captured", async () => {
+    const slot = await origins({
+      "questionMap.origins": { rows: [], total: 0 },
+    });
+    expect(slot.getByText(/no questions captured yet/i)).toBeDefined();
   });
 });
 

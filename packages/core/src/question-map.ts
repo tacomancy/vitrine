@@ -1,5 +1,5 @@
 import { parseWikilink } from "markdown";
-import { readQuestion } from "./question-kind.js";
+import { asString, readQuestion } from "./question-kind.js";
 import { readResearchQuestion } from "./research-question.js";
 import { tagTree, type TagNode } from "./vault-tags.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -101,44 +101,13 @@ export function coverage(index: VaultIndex, requested?: number): Coverage {
   const rows = mapRows(index, frontmatter);
   const material = new Map<string, Omit<MaterialItem, "tags">>();
   const attached = new Map<string, Set<string>>();
-  const attach = (row: MapRow, path: string) => {
-    const set = attached.get(row.path) ?? new Set<string>();
-    set.add(path);
-    attached.set(row.path, set);
-  };
-
   for (const row of rows) {
-    for (const path of edgesOf(index, row, frontmatter)) {
-      const file = index
-        .select<{ kind: string | null; display: string | null }>(
-          "SELECT kind, display FROM files WHERE path = ?",
-          path
-        )
-        .at(0);
-      // Only a Source or a stub is Material: a Related note or Question is
-      // an edge, but not coverage (CONTEXT § Material).
-      if (file?.kind == null || !MATERIAL_KINDS.includes(file.kind)) continue;
-      material.set(path, {
-        path,
-        kind: file.kind as MaterialItem["kind"],
-        display: file.display ?? path,
-      });
-      attach(row, path);
+    const set = new Set<string>();
+    for (const item of materialOf(index, row, frontmatter)) {
+      material.set(item.path, item);
+      set.add(item.path);
     }
-    for (const path of stubsNaming(row, frontmatter)) {
-      const file = index
-        .select<{ display: string | null }>(
-          "SELECT display FROM files WHERE path = ?",
-          path
-        )
-        .at(0);
-      material.set(path, {
-        path,
-        kind: "source-stub",
-        display: file?.display ?? path,
-      });
-      attach(row, path);
-    }
+    attached.set(row.path, set);
   }
 
   // Tags are read once per Material item, from the Source's own rows: a
@@ -193,6 +162,46 @@ export function coverage(index: VaultIndex, requested?: number): Coverage {
       display: displays.get(canonical) ?? canonical,
     })),
   };
+}
+
+/**
+ * The Material a thread reaches (CONTEXT § Material): the Sources and stubs on
+ * its explicit edges, plus the stubs that name its id. Shared by the matrix's
+ * rows and by Origins, which counts the same thing over Questions of every
+ * Status, so the two cannot disagree about what attaches.
+ */
+function materialOf(
+  index: VaultIndex,
+  row: MapRow,
+  frontmatter: Map<string, Frontmatter>
+): Array<Omit<MaterialItem, "tags">> {
+  const found: Array<Omit<MaterialItem, "tags">> = [];
+  for (const path of edgesOf(index, row, frontmatter)) {
+    const file = index
+      .select<{ kind: string | null; display: string | null }>(
+        "SELECT kind, display FROM files WHERE path = ?",
+        path
+      )
+      .at(0);
+    // Only a Source or a stub is Material: a Related note or Question is
+    // an edge, but not coverage.
+    if (file?.kind == null || !MATERIAL_KINDS.includes(file.kind)) continue;
+    found.push({
+      path,
+      kind: file.kind as MaterialItem["kind"],
+      display: file.display ?? path,
+    });
+  }
+  for (const path of stubsNaming(row, frontmatter)) {
+    const file = index
+      .select<{ display: string | null }>(
+        "SELECT display FROM files WHERE path = ?",
+        path
+      )
+      .at(0);
+    found.push({ path, kind: "source-stub", display: file?.display ?? path });
+  }
+  return found;
 }
 
 const recency = (row: MapRow) =>
@@ -383,6 +392,149 @@ function stubsNaming(
     if (Array.isArray(named) && named.includes(row.id)) out.push(path);
   }
   return out;
+}
+
+/** Cut to this many rows, with the uncut count stated (ADR 0041 decision 2). */
+export const ORIGINS_ROWS = 10;
+
+export type OriginRow = {
+  /** The target as the page names it; `unattached` for a capture with no document open. */
+  label: string;
+  /** Where the target landed, null for unattached and for text that is not a link or lands on nothing. */
+  path: string | null;
+  kind: string | null;
+  /** Questions of any Status that name this target in `from`. */
+  questions: number;
+  /** Distinct Material attached to those Questions. */
+  material: number;
+};
+
+export type Origins = {
+  rows: OriginRow[];
+  /** Every Origin, before the cut. */
+  total: number;
+};
+
+/**
+ * Where the researcher's Questions were captured from (ADR 0041 decision 2).
+ * Two numbers per target and nothing else: how many Questions it produced,
+ * and how much Material they reached, so a high first over a thin second
+ * names a source worth going back to. No read count and no session count —
+ * those are accumulation. A Question is counted whatever its Status: the
+ * wondering happened whether or not the thread is still open.
+ */
+export function origins(index: VaultIndex, all = false): Origins {
+  const frontmatter = new Map<string, Frontmatter>();
+  for (const row of index.select<{ path: string; value: string }>(
+    `SELECT path, value FROM frontmatter WHERE path IN
+       (SELECT path FROM files WHERE kind IN ('question', 'research-question', 'source-stub'))`
+  )) {
+    frontmatter.set(row.path, JSON.parse(row.value) as Frontmatter);
+  }
+  const kinds = new Map(
+    index
+      .select<{ path: string; kind: string }>(
+        "SELECT path, kind FROM files WHERE kind IN ('question', 'research-question')"
+      )
+      .map((f) => [f.path, f.kind])
+  );
+
+  // A promoted Question's later Material is attached on its page, so the
+  // thread's page is read with it; otherwise a well-supported thread would
+  // read as thin the moment it was promoted.
+  const pageOf = new Map<string, string[]>();
+  for (const [path, kind] of kinds) {
+    if (kind !== "research-question") continue;
+    const promotedFrom = frontmatter.get(path)?.["promoted_from"];
+    const from =
+      typeof promotedFrom === "string"
+        ? resolveEntry(index, path, promotedFrom)?.resolvedPath
+        : null;
+    if (from != null) pageOf.set(from, [...(pageOf.get(from) ?? []), path]);
+  }
+
+  type Group = OriginRow & { reached: Set<string> };
+  const groups = new Map<string, Group>();
+  for (const [path, kind] of kinds) {
+    if (kind !== "question") continue;
+    let read;
+    try {
+      read = readQuestion(frontmatter.get(path) ?? {});
+    } catch {
+      // Unreadable and Partial Questions are the Map's footer line to count
+      // (ADR 0009); Origins only counts what it can read.
+      continue;
+    }
+    if (read === null) continue;
+
+    const text = read.from?.trim() ?? "";
+    const landed =
+      text === ""
+        ? null
+        : (resolveEntry(index, path, text)?.resolvedPath ?? null);
+    const key =
+      text === ""
+        ? "unattached"
+        : landed === null
+          ? `text:${text}`
+          : `path:${landed}`;
+    let group = groups.get(key);
+    if (group === undefined) {
+      const file =
+        landed === null
+          ? undefined
+          : index
+              .select<{ kind: string | null; display: string | null }>(
+                "SELECT kind, display FROM files WHERE path = ?",
+                landed
+              )
+              .at(0);
+      group = {
+        label:
+          text === ""
+            ? "unattached"
+            : landed === null
+              ? text
+              : (file?.display ?? landed),
+        path: landed,
+        kind: file?.kind ?? null,
+        questions: 0,
+        material: 0,
+        reached: new Set(),
+      };
+    }
+    groups.set(key, group);
+    group.questions += 1;
+
+    const threads: MapRow[] = [path, ...(pageOf.get(path) ?? [])].map((p) => ({
+      kind: kinds.get(p) as MapRow["kind"],
+      path: p,
+      id: asString(frontmatter.get(p)?.["id"]) ?? null,
+      question: read.question,
+      captured: null,
+      promoted: null,
+      material: [],
+      unresolved: [],
+    }));
+    for (const thread of threads) {
+      for (const item of materialOf(index, thread, frontmatter)) {
+        group.reached.add(item.path);
+      }
+    }
+  }
+
+  const ranked = [...groups.values()]
+    .map(({ reached, ...row }) => ({ ...row, material: reached.size }))
+    .sort(
+      (a, b) =>
+        b.questions - a.questions ||
+        byName(a.label.toLowerCase(), b.label.toLowerCase()) ||
+        byName(a.label, b.label)
+    );
+  return {
+    rows: all ? ranked : ranked.slice(0, ORIGINS_ROWS),
+    total: ranked.length,
+  };
 }
 
 function tagDisplays(index: VaultIndex): Map<string, string> {

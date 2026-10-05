@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Coverage, Matrix, Readings } from "./question-map.js";
+import type { Coverage, Matrix, Origins, Readings } from "./question-map.js";
 import { MAP_COLUMNS, MAP_ROWS, rollUp } from "./question-map.js";
 import { closeCores, core, vaultWith, type CoreOptions } from "./test-core.js";
 
@@ -631,5 +631,141 @@ describe("questionMap.matrix", () => {
       ["q/P (RQ).md", "research-question"],
       ["q/Q.md", "question"],
     ]);
+  });
+});
+
+// Origins (#486; ADR 0041 decision 2): where the wondering came from, over
+// every Status and every context, read through the router like the matrix.
+
+const from = (target: string | null) =>
+  target === null ? "" : `from: "${target}"\n`;
+
+async function originsOf(files: Record<string, string>) {
+  const vault = await vaultWith(files);
+  const c = await core();
+  expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
+  await c.indexed();
+  return async (all?: boolean) => {
+    const reply = await c.query<Origins>(
+      "questionMap.origins",
+      all === undefined ? undefined : { all }
+    );
+    expect(reply.error).toBeUndefined();
+    return reply.result!.data;
+  };
+}
+
+const labelled = (o: Origins) =>
+  o.rows.map((r) => [r.label, r.questions, r.material]);
+
+describe("questionMap.origins", () => {
+  it("groups Questions by their from target across every Status and context, with both numbers per row", async () => {
+    const read = await originsOf({
+      "q/A.md": question("A", {
+        related: ["[[rasch]]"],
+        extra: from("[[rasch]]"),
+      }),
+      "q/B.md": question("B", {
+        status: "answered",
+        related: ["[[rasch]]", "[[other]]"],
+        extra: from("[[rasch]]"),
+      }),
+      "q/C.md": question("C", {
+        status: "abandoned",
+        extra: from("[[rasch#^h3]]"),
+      }),
+      "q/D.md": question("D", { extra: from("[[other]]") }),
+      "s/rasch.md": source("rasch", ["sleep"], "\nA passage. ^h3\n"),
+      "s/other.md": source("other", ["sleep"]),
+    });
+    const origins = await read();
+    // A highlight link lands on its Source, so it is the same Origin.
+    expect(labelled(origins)).toEqual([
+      ["rasch", 3, 2],
+      ["other", 1, 0],
+    ]);
+    expect(origins.total).toBe(2);
+  });
+
+  it("names every capture that had no document open as one line, unattached", async () => {
+    const read = await originsOf({
+      "q/A.md": question("A"),
+      "q/B.md": question("B", { status: "answered" }),
+      "q/C.md": question("C", { extra: from("[[rasch]]") }),
+      "s/rasch.md": source("rasch", []),
+    });
+    const origins = await read();
+    expect(origins.rows[0]).toMatchObject({
+      label: "unattached",
+      questions: 2,
+      path: null,
+    });
+    expect(origins.total).toBe(2);
+  });
+
+  it("counts Material once however many of the group's Questions reach it, and through a promoted thread's page", async () => {
+    const read = await originsOf({
+      "q/A.md": question("A", {
+        status: "promoted",
+        extra: from("[[rasch]]"),
+      }),
+      "q/A (RQ).md": page("A", { supporting: "- [[late]] — why\n" }),
+      "q/B.md": question("B", {
+        related: ["[[late]]", "[[rasch]]"],
+        extra: from("[[rasch]]"),
+      }),
+      "s/rasch.md": source("rasch", []),
+      "s/late.md": source("late", []),
+    });
+    expect(labelled(await read())).toEqual([["rasch", 2, 2]]);
+  });
+
+  it("opens only what has an Address: a Source, a Research Question, an Experiment carry their path and Kind; text that lands on nothing is only named", async () => {
+    const read = await originsOf({
+      "q/A.md": question("A", { extra: from("[[rasch]]") }),
+      "q/B.md": question("B", { extra: from("[[Lost]]") }),
+      "q/C.md": question("C", { extra: from("a lecture on Tuesday") }),
+      "s/rasch.md": source("rasch", []),
+    });
+    const rows = (await read()).rows;
+    expect(rows.find((r) => r.label === "rasch")).toMatchObject({
+      path: "s/rasch.md",
+      kind: "source",
+    });
+    expect(rows.find((r) => r.label === "[[Lost]]")).toMatchObject({
+      path: null,
+      kind: null,
+    });
+    expect(rows.find((r) => r.label === "a lecture on Tuesday")).toMatchObject({
+      path: null,
+    });
+  });
+
+  it("ranks by Questions produced and cuts to ten, stating the uncut count; the full list on demand", async () => {
+    const files: Record<string, string> = {};
+    // Twelve sources; source n produced n Questions (1…12).
+    for (let n = 1; n <= 12; n++) {
+      files[`s/s${n}.md`] = source(`s${n}`, []);
+      for (let k = 0; k < n; k++) {
+        files[`q/q${n}-${k}.md`] = question(`q${n}-${k}`, {
+          extra: from(`[[s${n}]]`),
+        });
+      }
+    }
+    const read = await originsOf(files);
+    const cut = await read();
+    expect(cut.rows).toHaveLength(10);
+    expect(cut.total).toBe(12);
+    expect(cut.rows.map((r) => r.questions)).toEqual([
+      12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
+    ]);
+    const full = await read(true);
+    expect(full.rows).toHaveLength(12);
+    expect(full.total).toBe(12);
+  });
+
+  it("is empty when no Question has been captured", async () => {
+    const read = await originsOf({ "s/rasch.md": source("rasch", []) });
+    expect(await read()).toMatchObject({ rows: [], total: 0 });
   });
 });
