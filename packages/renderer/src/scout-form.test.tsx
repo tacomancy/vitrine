@@ -21,6 +21,7 @@ beforeEach(() => {
 const scout = (rest: Record<string, unknown> = {}) => ({
   id: "sleep",
   name: "Sleep and memory",
+  source: { kind: "arxiv" },
   query: "all:sleep",
   cadence: "daily",
   assigned: [],
@@ -423,6 +424,168 @@ describe("the form", () => {
       query: "all:sleep AND all:rem",
       searchBackTo: null,
     });
+  });
+});
+
+describe("the form, watching a page", () => {
+  const open = async (more: Record<string, unknown> = {}) => {
+    renderApp(answers(more));
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+  };
+  const type = (label: string, value: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  const watch = () => type("Watching", "watched");
+
+  it("swaps Query for Address, hides the search-back date, and saves without a try", async () => {
+    const saves: Array<Record<string, unknown>> = [];
+    await open({
+      "scouts.save": (input: Record<string, unknown>) => {
+        saves.push(input);
+        return { id: "lab", run: null };
+      },
+    });
+    expect(screen.getByLabelText("Query")).toBeDefined();
+
+    watch();
+
+    expect(screen.queryByLabelText("Query")).toBeNull();
+    expect(screen.queryByLabelText("Also search back to")).toBeNull();
+    const save = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Save",
+    });
+    expect(save.disabled).toBe(true);
+    type("Name", "Sleep Lab");
+    expect(save.disabled).toBe(true);
+    type("Address", "https://lab.example/publications");
+    expect(save.disabled).toBe(false);
+
+    fireEvent.click(save);
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toMatchObject({
+      watching: "watched",
+      query: "https://lab.example/publications",
+      searchBackTo: null,
+    });
+  });
+
+  it("says what a model read: counts, five titles and what it cost", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "found",
+        via: "model",
+        total: 3,
+        verified: 2,
+        dropped: 1,
+        titles: ["First paper", "Second paper"],
+        tokens: { input: 1200, output: 300 },
+        costUsd: 0.0054,
+      },
+    });
+    watch();
+    type("Address", "https://lab.example/publications");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    expect(
+      await screen.findByText(/3 found · 2 verified · 1 dropped/)
+    ).toBeDefined();
+    expect(screen.getByText(/1,200 in · 300 out · \$0\.0054/)).toBeDefined();
+    expect(
+      within(screen.getByRole("list", { name: "First results" }))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual(["First paper", "Second paper"]);
+  });
+
+  it("says a feed was found, and that no model was called", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "found",
+        via: "feed",
+        total: 14,
+        titles: ["First paper"],
+      },
+    });
+    watch();
+    type("Address", "https://lab.example/");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    expect(
+      await screen.findByText(/a feed was found · no model call/)
+    ).toBeDefined();
+    expect(screen.getByText(/14 found/)).toBeDefined();
+  });
+
+  it("says a failure in the Scout's own sentence", async () => {
+    await open({
+      "scouts.tryWatched": { outcome: "failed", sentence: wrong.sentence },
+    });
+    watch();
+    type("Address", "https://lab.example/");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    expect(await screen.findByText(wrong.sentence)).toBeDefined();
+  });
+
+  it("with no key says so, offers Settings, and loses nothing on the trip", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "no-key",
+        sentence: "No model key is stored, so this page has not been read yet.",
+      },
+      "credentials.status": { state: "absent" },
+      "credentials.model": { model: "claude-sonnet-5-5" },
+    });
+    type("Name", "Sleep Lab");
+    watch();
+    type("Address", "https://lab.example/publications");
+    type("Cadence", "monthly");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Is it consolidation/ })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+    expect(await screen.findByText(/No model key is stored/)).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a key" }));
+
+    expect(window.location.hash).toBe("#/settings");
+    await screen.findByRole("region", { name: "Settings" });
+    // Back, as the browser's back would.
+    window.location.hash = "#/scouts";
+
+    await screen.findByRole("form", { name: "New Scout" });
+    expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
+      "Sleep Lab"
+    );
+    expect(screen.getByLabelText<HTMLSelectElement>("Watching").value).toBe(
+      "watched"
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(
+      "https://lab.example/publications"
+    );
+    expect(screen.getByLabelText<HTMLSelectElement>("Cadence").value).toBe(
+      "monthly"
+    );
+    expect(
+      screen.getByRole<HTMLInputElement>("checkbox", {
+        name: /Is it consolidation/,
+      }).checked
+    ).toBe(true);
+  });
+
+  it("is forgotten once cancelled, so the next form opens empty", async () => {
+    await open();
+    type("Name", "Half done");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+
+    expect((await screen.findByLabelText<HTMLInputElement>("Name")).value).toBe(
+      ""
+    );
   });
 });
 

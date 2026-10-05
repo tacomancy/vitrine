@@ -91,7 +91,15 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   }
   const newest = runs.at(-1);
   if (newest === undefined) {
-    return { voice: "not yet", sentence: "It has not run yet." };
+    // Saving a page's Scout runs nothing (ADR 0040 d.5), and the header
+    // says why rather than leaving it to look idle.
+    return {
+      voice: "not yet",
+      sentence:
+        scout.source.kind === "watched"
+          ? "Not yet — first check due now."
+          : "It has not run yet.",
+    };
   }
   const ok = runs.filter((r) => r.outcome === "ok");
   if (newest.outcome === "failed") {

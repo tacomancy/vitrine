@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Scout } from "core";
+import type { Scout, TriedPage } from "core";
 
 /** What the form edits of a Scout, as the wire carries it (dates arrive as strings). */
 type Editable = Pick<
   Scout,
-  "id" | "name" | "query" | "cadence" | "assigned" | "lane"
+  "id" | "name" | "query" | "cadence" | "assigned" | "lane" | "source"
 >;
 import { useEffect, useRef, useState } from "react";
+import { pushRoute, SETTINGS } from "./router";
 import { StatusGlyph } from "./StatusGlyph";
 import styles from "./ScoutQueue.module.css";
 import { useTRPC } from "./trpc";
@@ -17,6 +18,24 @@ export type QuestionChoice = {
   question: string;
   status: "open" | "promoted" | "answered" | "abandoned";
 };
+
+/**
+ * What the form holds, kept by the window and not by the form: *Add a key*
+ * leaves for Settings, and a form that held these itself would come back
+ * empty (ADR 0025 decision 3 — the regression it names as silent).
+ */
+export type FormValues = {
+  name: string;
+  watching: "arxiv" | "watched";
+  query: string;
+  cadence: Scout["cadence"];
+  lane: Scout["lane"];
+  assigned: string[];
+  back: string;
+};
+
+/** The form as the window keeps it: which Scout, or null for a new one, and what has been typed. */
+export type ScoutDraft = { edit: string | null; values: FormValues | null };
 
 const DAY_MS = 24 * 3_600_000;
 /** The default *also search back to* (ADR 0016 decision 5), a day-granular date. */
@@ -31,24 +50,44 @@ const BACK_DAYS = 90;
  */
 export function ScoutForm({
   scout,
+  values,
+  onChange,
   questions,
   onDone,
 }: {
   /** The Scout being edited; absent for a new one. */
   scout?: Editable;
+  /** What was typed before the form last left the screen. */
+  values: FormValues | null;
+  onChange: (values: FormValues) => void;
   questions: QuestionChoice[];
   onDone: (savedId: string | null) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [name, setName] = useState(scout?.name ?? "");
-  const [query, setQuery] = useState(scout?.query ?? "");
-  const [cadence, setCadence] = useState(scout?.cadence ?? "daily");
-  const [lane, setLane] = useState(scout?.lane ?? "review");
-  const [assigned, setAssigned] = useState<string[]>(scout?.assigned ?? []);
-  const [back, setBack] = useState(() =>
-    new Date(Date.now() - BACK_DAYS * DAY_MS).toISOString().slice(0, 10)
+  const [name, setName] = useState(values?.name ?? scout?.name ?? "");
+  const [watching, setWatching] = useState(
+    values?.watching ?? scout?.source.kind ?? "arxiv"
   );
+  const [query, setQuery] = useState(values?.query ?? scout?.query ?? "");
+  const [cadence, setCadence] = useState(
+    values?.cadence ?? scout?.cadence ?? "daily"
+  );
+  const [lane, setLane] = useState(values?.lane ?? scout?.lane ?? "review");
+  const [assigned, setAssigned] = useState<string[]>(
+    values?.assigned ?? scout?.assigned ?? []
+  );
+  const [back, setBack] = useState(
+    () =>
+      values?.back ??
+      new Date(Date.now() - BACK_DAYS * DAY_MS).toISOString().slice(0, 10)
+  );
+  useEffect(
+    () => onChange({ name, watching, query, cadence, lane, assigned, back }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onChange` is new each render
+    [name, watching, query, cadence, lane, assigned, back]
+  );
+  const page = watching === "watched";
   const [said, setSaid] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => nameRef.current?.focus(), []);
@@ -63,6 +102,7 @@ export function ScoutForm({
     })
   );
   const tried = useMutation(trpc.scouts.tryQuery.mutationOptions());
+  const triedPage = useMutation(trpc.scouts.tryWatched.mutationOptions());
 
   // Open Questions only are offered (spec #447 story 5); one the Scout is
   // already assigned to stays on the list even when it has closed, so the
@@ -79,12 +119,14 @@ export function ScoutForm({
     save.mutate({
       ...(scout === undefined ? {} : { id: scout.id }),
       name,
+      watching,
       query,
       cadence,
       assigned,
       lane,
+      // A page has no date window: its first run proposes all it lists.
       searchBackTo:
-        scout === undefined && back !== ""
+        scout === undefined && !page && back !== ""
           ? new Date(`${back}T00:00:00Z`).toISOString()
           : null,
     });
@@ -100,6 +142,7 @@ export function ScoutForm({
   });
 
   const result = tried.data;
+  const pageResult = triedPage.data;
   return (
     <form
       className={styles.form}
@@ -115,42 +158,91 @@ export function ScoutForm({
         />
       </label>
       <label>
-        Query
-        <textarea
-          value={query}
-          rows={2}
+        Watching
+        {/* What a Scout watches is fixed when it is made: an edit that
+            changed it would turn one Scout's history into another's. */}
+        <select
+          value={watching}
+          disabled={scout !== undefined}
           onChange={(e) => {
-            setQuery(e.target.value);
-            // What was tried was the old text.
+            setWatching(e.target.value as FormValues["watching"]);
             tried.reset();
+            triedPage.reset();
           }}
-        />
-      </label>
-      <p className={styles.try}>
-        <button
-          type="button"
-          disabled={query.trim() === "" || tried.isPending}
-          onClick={() => tried.mutate({ query })}
         >
-          Try
-        </button>{" "}
-        {tried.isPending && <span>trying…</span>}
-        {tried.isError && <span>{tried.error.message}</span>}
-        {result?.outcome === "failed" && <span>{result.sentence}</span>}
-        {result?.outcome === "found" && result.total === 0 && (
-          <span>0 results across all of arXiv for this query</span>
-        )}
-        {result?.outcome === "found" && result.total > 0 && (
-          <span>
-            {result.total} results across all of arXiv
-            <ol aria-label="First results">
-              {result.titles.map((title, i) => (
-                <li key={i}>{title}</li>
-              ))}
-            </ol>
-          </span>
-        )}
-      </p>
+          <option value="arxiv">arXiv</option>
+          <option value="watched">a web page</option>
+        </select>
+      </label>
+      {!page && (
+        <label>
+          Query
+          <textarea
+            value={query}
+            rows={2}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // What was tried was the old text.
+              tried.reset();
+            }}
+          />
+        </label>
+      )}
+      {page && (
+        <label>
+          Address
+          <input
+            type="url"
+            value={query}
+            placeholder="https://"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              triedPage.reset();
+            }}
+          />
+        </label>
+      )}
+      {!page && (
+        <p className={styles.try}>
+          <button
+            type="button"
+            disabled={query.trim() === "" || tried.isPending}
+            onClick={() => tried.mutate({ query })}
+          >
+            Try
+          </button>{" "}
+          {tried.isPending && <span>trying…</span>}
+          {tried.isError && <span>{tried.error.message}</span>}
+          {result?.outcome === "failed" && <span>{result.sentence}</span>}
+          {result?.outcome === "found" && result.total === 0 && (
+            <span>0 results across all of arXiv for this query</span>
+          )}
+          {result?.outcome === "found" && result.total > 0 && (
+            <span>
+              {result.total} results across all of arXiv
+              <ol aria-label="First results">
+                {result.titles.map((title, i) => (
+                  <li key={i}>{title}</li>
+                ))}
+              </ol>
+            </span>
+          )}
+        </p>
+      )}
+      {page && (
+        <p className={styles.try}>
+          <button
+            type="button"
+            disabled={query.trim() === "" || triedPage.isPending}
+            onClick={() => triedPage.mutate({ address: query })}
+          >
+            Try
+          </button>{" "}
+          {triedPage.isPending && <span>trying…</span>}
+          {triedPage.isError && <span>{triedPage.error.message}</span>}
+          {pageResult !== undefined && <PageResult result={pageResult} />}
+        </p>
+      )}
       <label>
         Cadence
         <select
@@ -172,7 +264,7 @@ export function ScoutForm({
           <option value="skim">Skim</option>
         </select>
       </label>
-      {scout === undefined && (
+      {scout === undefined && !page && (
         <label>
           Also search back to
           <input
@@ -225,5 +317,41 @@ export function ScoutForm({
         <kbd>Esc</kbd> back to the stack
       </p>
     </form>
+  );
+}
+
+/** What *try* learned about a page, in the words the Scout would use for it. */
+function PageResult({ result }: { result: TriedPage }) {
+  if (result.outcome === "failed") return <span>{result.sentence}</span>;
+  if (result.outcome === "no-key") {
+    return (
+      <span>
+        {result.sentence}{" "}
+        {/* The form is kept by the window, so back returns to it as left. */}
+        <button type="button" onClick={() => pushRoute(SETTINGS)}>
+          Add a key
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span>
+      {result.via === "feed"
+        ? `${result.total} found · a feed was found · no model call`
+        : `${result.total} found · ${result.verified} verified · ${result.dropped} dropped`}
+      {result.via === "model" && result.tokens !== null && (
+        <span>
+          {" "}
+          · {result.tokens.input.toLocaleString("en-US")} in ·{" "}
+          {result.tokens.output.toLocaleString("en-US")} out
+          {result.costUsd !== null && ` · $${result.costUsd.toFixed(4)}`}
+        </span>
+      )}
+      <ol aria-label="First results">
+        {result.titles.map((title, i) => (
+          <li key={i}>{title}</li>
+        ))}
+      </ol>
+    </span>
   );
 }

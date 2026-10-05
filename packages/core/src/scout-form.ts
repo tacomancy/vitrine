@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
 import { writeAtomically } from "./atomic-write.js";
 import { ArxivError } from "./arxiv.js";
+import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { VaultError } from "./errors.js";
 import { readScouts, SCOUTS_FOLDER, type Scout } from "./scout-file.js";
 import { faultSentence } from "./scout-health.js";
@@ -21,6 +22,8 @@ export type ScoutForm = {
   /** Present when editing; the file's own name. */
   id?: string | undefined;
   name: string;
+  /** What it watches; a page's *Address* travels in `query`, so one field is one field (ADR 0040 d.4). */
+  watching?: "arxiv" | "watched" | undefined;
   query: string;
   cadence: Scout["cadence"];
   assigned: string[];
@@ -54,8 +57,17 @@ async function write(
 ): Promise<{ id: string; runAfter: boolean }> {
   const name = form.name.trim();
   const query = form.query.trim();
+  const watched = form.watching === "watched";
   if (name === "" || query === "") {
-    throw new VaultError("refused", "A Scout needs a name and a Query.");
+    throw new VaultError(
+      "refused",
+      watched
+        ? "A Scout needs a name and an address."
+        : "A Scout needs a name and a Query."
+    );
+  }
+  if (watched && !WEB_ADDRESS.test(query)) {
+    throw new VaultError("refused", ADDRESS_REFUSAL);
   }
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
   const { scouts } = await readScouts(deps.vaultPath);
@@ -69,9 +81,13 @@ async function write(
     id = freeId(name, names);
     doc = new Document({});
     doc.set("name", name);
-    doc.set("source", { kind: "arxiv" });
+    doc.set(
+      "source",
+      watched ? { kind: "watched", url: query } : { kind: "arxiv" }
+    );
     doc.set("created", deps.now().toISOString());
-    if (form.searchBackTo !== null) {
+    // A page has no date window: its first run proposes all it lists.
+    if (!watched && form.searchBackTo !== null) {
       doc.set("search_back_to", form.searchBackTo);
     }
   } else {
@@ -93,8 +109,10 @@ async function write(
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
   doc.set("assigned", form.assigned);
-  if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
-  else doc.set("filter", { query });
+  if (!watched) {
+    if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
+    else doc.set("filter", { query });
+  }
 
   await mkdir(folder, { recursive: true });
   await writeAtomically(
@@ -168,6 +186,78 @@ export async function tryQuery(
     };
   }
 }
+
+const WEB_ADDRESS = /^https?:\/\/\S+$/i;
+const ADDRESS_REFUSAL = "An address needs to start with http:// or https://.";
+
+export type TriedPage =
+  | {
+      outcome: "found";
+      /** A feed costs no model call; a page is read by one and verified. */
+      via: "feed";
+      total: number;
+      titles: string[];
+    }
+  | {
+      outcome: "found";
+      via: "model";
+      /** What the model returned, of which `verified` are on the page and `dropped` are not. */
+      total: number;
+      verified: number;
+      dropped: number;
+      titles: string[];
+      tokens: { input: number; output: number } | null;
+      costUsd: number | null;
+    }
+  | { outcome: "no-key"; sentence: string }
+  | { outcome: "failed"; sentence: string };
+
+/**
+ * *Try* for a page: the whole pipeline — fetch, feed or extraction,
+ * verification — and nothing written, so what it shows is what the Scout
+ * would find (spec #463 story 25). It reads no history: the run it asks
+ * about does not exist, so the hash short-circuit has nothing to hit.
+ * A missing key is not a failure; it is the one outcome that offers a way on.
+ */
+export async function tryPage(
+  deps: ScoutDeps,
+  address: string
+): Promise<TriedPage> {
+  const url = address.trim();
+  if (!WEB_ADDRESS.test(url)) throw new VaultError("refused", ADDRESS_REFUSAL);
+  try {
+    const read = await readWatched(deps.watched, deps.queue, {
+      id: TRY_ID,
+      url,
+    });
+    const titles = read.items.slice(0, 5).map((item) => item.title);
+    if (read.facts.model === null) {
+      return { outcome: "found", via: "feed", total: read.fetched, titles };
+    }
+    const { usage } = read.facts;
+    return {
+      outcome: "found",
+      via: "model",
+      total: read.fetched + read.facts.unverified,
+      verified: read.fetched,
+      dropped: read.facts.unverified,
+      titles,
+      tokens:
+        usage === null ? null : { input: usage.input, output: usage.output },
+      costUsd: read.facts.costUsd,
+    };
+  } catch (cause) {
+    // A bug here must not be worded as a page's fault.
+    if (!(cause instanceof WatchedError)) throw cause;
+    const sentence = faultSentence(cause.kind, cause.message, false, "watched");
+    return cause.kind === "credentials" && cause.message === NO_KEY
+      ? { outcome: "no-key", sentence }
+      : { outcome: "failed", sentence };
+  }
+}
+
+/** A Scout id no file can have (ids are file names): *try* is looking for no one's history. */
+const TRY_ID = "\0try";
 
 /** A Scout and the file it came from: a hand-written one may end `.yml`. */
 function fileOf(scouts: Scout[], id: string, names: string[]) {
