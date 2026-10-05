@@ -458,7 +458,10 @@ describe("the Question Map's depth control", () => {
       "questionMap.matrix": atDepth,
       "questionMap.readings": (input: unknown) => {
         asked.push(input);
-        return NO_READINGS;
+        return {
+          ...NO_READINGS,
+          depth: (input as { depth?: number } | undefined)?.depth ?? 3,
+        };
       },
     });
     return asked;

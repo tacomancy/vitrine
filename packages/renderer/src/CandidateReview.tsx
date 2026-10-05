@@ -56,9 +56,9 @@ export function CandidateReview({
     trpc.questions.link.mutationOptions({
       onSuccess: (_reply, input) => {
         setDecided((was) => new Set(was).add(input.target));
-        void queryClient.invalidateQueries(
-          trpc.questionMap.coverage.pathFilter()
-        );
+        // Every read on the page, at every depth it has been asked at: an
+        // accepted link anchors a row, so the matrix and readings change too.
+        void queryClient.invalidateQueries(trpc.questionMap.pathFilter());
       },
       onError: (error) => setRefused(error.message),
     })

@@ -72,7 +72,7 @@ export function QuestionMap() {
         {voice === "claim" && matrix.data !== undefined && (
           <DepthControl
             deepest={matrix.data.deepest}
-            depth={matrix.data.depth}
+            depth={depth ?? matrix.data.depth}
             onChange={setDepth}
           />
         )}
@@ -91,13 +91,17 @@ export function QuestionMap() {
             />
           </div>
           <div data-slot="readings">
-            {readings.data !== undefined && (
-              <ReadingsStrip
-                readings={readings.data}
-                reviewable={reviewable}
-                onReview={review}
-              />
-            )}
+            {/* Both reads keep their previous answer while a new depth is on
+                its way; the strip waits for the one that matches the matrix,
+                so the page is never at two depths at once. */}
+            {readings.data !== undefined &&
+              readings.data.depth === matrix.data?.depth && (
+                <ReadingsStrip
+                  readings={readings.data}
+                  reviewable={reviewable}
+                  onReview={review}
+                />
+              )}
           </div>
           <div data-slot="origins">
             <Origins />
