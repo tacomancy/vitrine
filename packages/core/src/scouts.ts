@@ -172,6 +172,68 @@ export async function runScout(
   return summary;
 }
 
+export type WaitingScout = { id: string; name: string; message: string };
+
+/**
+ * The Scouts whose newest run stopped for want of a usable key — *no key* and
+ * *key rejected* both, since Settings names both (ADR 0040 decision 1). Read
+ * from the run rows, never the Keychain, so it cannot disagree with the
+ * Scout's own Voice. A paused Scout is not waiting on anything: it has been
+ * told to stop, and a key must not start it. Watched Scouts are the only ones
+ * that use a Provider, and there is one.
+ */
+export async function waitingOnKey(deps: {
+  vaultPath: string;
+  queue: DatabaseSync;
+}): Promise<WaitingScout[]> {
+  const { scouts } = await readScouts(deps.vaultPath);
+  const newest = deps.queue.prepare(
+    "SELECT finished, error_kind, error_message FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
+  );
+  return scouts.flatMap((scout) => {
+    if (scout.paused || scout.source.kind !== "watched") return [];
+    const run = newest.get(scout.id) as
+      | {
+          finished: string | null;
+          error_kind: string | null;
+          error_message: string | null;
+        }
+      | undefined;
+    return run?.finished != null && run.error_kind === "credentials"
+      ? [{ id: scout.id, name: scout.name, message: run.error_message ?? "" }]
+      : [];
+  });
+}
+
+// Storing a key and a passing test can arrive together; each must see the
+// other's runs as done, so the second finds nothing left waiting. The queue
+// is here, in the function, and not in the two procedures that call it.
+const starting = serialised();
+
+/**
+ * Run every Scout waiting on the key, at once, overriding the wait the hourly
+ * check would otherwise leave them in (ADR 0040 decision 2). It is the
+ * callee's job so that no caller — Settings or anything after it — can store
+ * a key and forget to start what was waiting. A Scout that throws does not
+ * stop the ones behind it.
+ */
+export function runWaiting(deps: ScoutDeps): Promise<string[]> {
+  return starting(async () => {
+    const ran: string[] = [];
+    for (const { id } of await waitingOnKey(deps)) {
+      try {
+        await runScout(deps, id);
+        ran.push(id);
+      } catch (cause) {
+        console.error(
+          `vitrine-core: Scout ${id} failed to run: ${cause instanceof Error ? cause.message : String(cause)}`
+        );
+      }
+    }
+    return ran;
+  });
+}
+
 async function readArxiv(
   arxiv: ArxivClient,
   query: string,

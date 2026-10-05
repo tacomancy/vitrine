@@ -63,6 +63,8 @@ import {
   readQueue,
   readSkim,
   runScout,
+  runWaiting,
+  waitingOnKey,
   type ScoutDeps,
 } from "./scouts.js";
 import {
@@ -441,23 +443,40 @@ export const router = t.router({
       ),
     set: t.procedure
       .input(providerInput.extend({ key: z.string().trim().min(1) }))
-      .mutation(({ ctx, input }) =>
-        refusing(ctx.watched.credentials.set(input.provider, input.key))
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await refusing(ctx.watched.credentials.set(input.provider, input.key));
+        // A key is stored to be used: whatever was waiting on it starts now.
+        // Without a vault open there is nothing waiting.
+        if ((await ctx.vault.opened()) !== null) {
+          await runWaiting(await scoutDeps(ctx));
+        }
+      }),
     delete: t.procedure
       .input(providerInput)
       .mutation(({ ctx, input }) =>
         refusing(ctx.watched.credentials.delete(input.provider))
       ),
-    test: t.procedure
+    test: t.procedure.input(providerInput).mutation(async ({ ctx, input }) => {
+      const tested = await testKey(
+        ctx.watched.credentials,
+        ctx.watched.models,
+        input.provider,
+        await ctx.watched.model()
+      );
+      // A key that works is the other way one arrives: it may have been
+      // put in the Keychain by hand, so `set` never saw it.
+      if (tested.result === "ok" && (await ctx.vault.opened()) !== null) {
+        await runWaiting(await scoutDeps(ctx));
+      }
+      return tested;
+    }),
+    // The Scouts a key would start, named for Settings and never counted.
+    waiting: t.procedure
       .input(providerInput)
-      .mutation(async ({ ctx, input }) =>
-        testKey(
-          ctx.watched.credentials,
-          ctx.watched.models,
-          input.provider,
-          await ctx.watched.model()
-        )
+      .query(async ({ ctx }) =>
+        (await ctx.vault.opened()) === null
+          ? []
+          : refusing(waitingOnKey(await scoutDeps(ctx)))
       ),
     // The model id is not a secret and is not the key's: it has its own pair.
     model: t.procedure
