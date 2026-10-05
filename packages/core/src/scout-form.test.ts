@@ -165,7 +165,11 @@ describe("saving a Scout from the form", () => {
     const { id } = await c.save({});
 
     expect((await c.health()).scouts).toEqual([
-      { id, health: { voice: "not yet", sentence: "It has not run yet." } },
+      {
+        id,
+        health: { voice: "not yet", sentence: "It has not run yet." },
+        lastCostUsd: null,
+      },
     ]);
   });
 

@@ -23,7 +23,7 @@ import {
 } from "./pdf-plumbing.js";
 import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
 import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
-import { healthOf, type RunErrorKind } from "./scout-health.js";
+import { finishedRuns, healthOf, type RunErrorKind } from "./scout-health.js";
 import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -202,6 +202,37 @@ export type FailedScout = {
   sentence: string;
 };
 
+/**
+ * A watched Scout whose page stopped yielding what it did (#470; ADR 0040
+ * decision 7): an `extraction` run, on a Scout with an earlier clean run that
+ * found items. It replaces the failed-Scout row, so one failure is one row; a
+ * first-ever extraction failure has nothing to compare against and stays
+ * generic. `address` is what *open the page* opens.
+ */
+export type StructureChange = {
+  kind: "structure-change";
+  subject: string;
+  path: string;
+  title: string;
+  address: string;
+  sentence: string;
+};
+
+/**
+ * A Scout whose newest run is `credentials` (#470; ADR 0040 decision 7).
+ * `voice` is the rail's: *not yet* for no key — no warning glyph, since the
+ * Scout has not been set up rather than broken — and *wrong* for a key the
+ * provider refused or a Keychain that would not answer.
+ */
+export type BlockedOnCredentials = {
+  kind: "blocked-on-credentials";
+  subject: string;
+  path: string;
+  title: string;
+  voice: "not yet" | "wrong";
+  sentence: string;
+};
+
 /** A Scout file that does not parse: named by its file, with the rail's sentence and no error kind (no run exists to carry one). */
 export type UnreadableScoutFile = {
   kind: "unreadable-scout";
@@ -226,6 +257,8 @@ export type StubWithoutPdf = {
 
 export type LooseEndRow =
   | FailedScout
+  | StructureChange
+  | BlockedOnCredentials
   | UnreadableScoutFile
   | StubWithoutPdf
   | UnmatchedRow
@@ -397,13 +430,63 @@ async function scoutRows(
   vaultPath: string,
   queue: DatabaseSync,
   now: Date
-): Promise<Array<FailedScout | UnreadableScoutFile>> {
+): Promise<
+  Array<
+    FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
+  >
+> {
   const { scouts, unreadable } = await readScouts(vaultPath);
-  const rows: Array<FailedScout | UnreadableScoutFile> = [];
+  const rows: Array<
+    FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
+  > = [];
   for (const scout of scouts) {
     const health = healthOf(queue, scout, now);
+    const path = `${SCOUTS_FOLDER}/${scout.id}.yaml`;
+    // A Scout is one row however it failed, so each of these replaces the
+    // generic failed-Scout row rather than sitting beside it.
+    if (health.voice === "not yet" && health.kind === "credentials") {
+      rows.push({
+        kind: "blocked-on-credentials",
+        subject: scout.id,
+        path,
+        title: scout.name,
+        voice: "not yet",
+        sentence: health.sentence,
+      });
+      continue;
+    }
     // `kind` is null only for an unreadable file, which has its own row.
     if (health.voice !== "wrong" || health.kind === null) continue;
+    if (health.kind === "credentials") {
+      rows.push({
+        kind: "blocked-on-credentials",
+        subject: scout.id,
+        path,
+        title: scout.name,
+        voice: "wrong",
+        sentence: health.sentence,
+      });
+      continue;
+    }
+    // Only a page that once yielded items can be said to have *changed*;
+    // with no such run there is nothing to compare against.
+    if (
+      health.kind === "extraction" &&
+      scout.source.kind === "watched" &&
+      finishedRuns(queue, scout.id).some(
+        (r) => r.outcome === "ok" && r.fetched > 0
+      )
+    ) {
+      rows.push({
+        kind: "structure-change",
+        subject: scout.id,
+        path,
+        title: scout.name,
+        address: scout.source.url,
+        sentence: health.sentence,
+      });
+      continue;
+    }
     rows.push({
       kind: "failed-scout",
       subject: scout.id,

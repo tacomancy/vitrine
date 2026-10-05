@@ -17,7 +17,13 @@ import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
  * preference. Three sections; the third, *What it talks to* (beat 7), is
  * the one place here that sets anything, and only a key and a model id.
  */
-export function Settings({ vault }: { vault: Vault }) {
+export function Settings({
+  vault,
+  section,
+}: {
+  vault: Vault;
+  section?: "credentials" | undefined;
+}) {
   const trpc = useTRPC();
   const status = useQuery(trpc.vault.status.queryOptions());
   const reveal = useMutation(trpc.vault.reveal.mutationOptions());
@@ -104,7 +110,7 @@ export function Settings({ vault }: { vault: Vault }) {
           read={footer.read}
           onReveal={() => reveal.mutate({ folder: "pdfs" })}
         />
-        <WhatItTalksTo />
+        <WhatItTalksTo scrollTo={section === "credentials"} />
       </div>
       {/* The footer channel, as on every surface. *Not watching* is sounded
           here and only stated above: two alarms for one fault are two

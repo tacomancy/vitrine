@@ -67,6 +67,8 @@ export type {
   MissingArtifacts,
   NoSource,
   FailedScout,
+  StructureChange,
+  BlockedOnCredentials,
   UnreadableScoutFile,
   StubWithoutPdf,
   UnreadablePdf,

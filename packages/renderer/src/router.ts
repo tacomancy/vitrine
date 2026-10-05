@@ -18,7 +18,7 @@ export type Route =
   | { surface: "experiments" }
   | { surface: "loose-ends" }
   | { surface: "scouts" }
-  | { surface: "settings" };
+  | { surface: "settings"; section?: "credentials" };
 
 /**
  * An Address the window arrived on and could not reach, and what came back
@@ -42,6 +42,11 @@ export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
 export const SETTINGS: Route = { surface: "settings" };
+/** Settings with the Credentials section brought into view: where a Scout blocked on its key sends the researcher (#470). */
+export const SETTINGS_CREDENTIALS: Route = {
+  surface: "settings",
+  section: "credentials",
+};
 /** The Scout Queue (#448): where what the Scouts found waits to be decided. */
 export const SCOUTS: Route = { surface: "scouts" };
 
@@ -79,7 +84,9 @@ export function hashOf(route: Route): string {
     case "experiments":
       return "#/experiments";
     case "settings":
-      return "#/settings";
+      return route.section === "credentials"
+        ? "#/settings/credentials"
+        : "#/settings";
     case "scouts":
       return "#/scouts";
     case "research-question":
@@ -164,6 +171,7 @@ function parseHash(hash: string): Route {
   if (hash === "#/loose-ends") return LOOSE_ENDS;
   if (hash === "#/experiments") return EXPERIMENTS;
   if (hash === "#/settings") return SETTINGS;
+  if (hash === "#/settings/credentials") return SETTINGS_CREDENTIALS;
   if (hash === "#/scouts") return SCOUTS;
   const question = pathUnder(hash, QUESTION);
   if (question !== null) return { surface: "inbox", question };

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KeyStatus, KeyTest } from "core";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./Settings.module.css";
 import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
@@ -18,7 +18,7 @@ import { Wrong } from "./Wrong";
 
 const PROVIDER = { provider: "anthropic" } as const;
 
-export function WhatItTalksTo() {
+export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const status = useQuery(trpc.credentials.status.queryOptions(PROVIDER));
@@ -70,6 +70,13 @@ export function WhatItTalksTo() {
     })
   );
 
+  // A Scout blocked on its key sends the researcher here; the section is the
+  // last on the page, so without this they would land above it and look for it.
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (scrollTo) section.current?.scrollIntoView?.({ block: "start" });
+  }, [scrollTo]);
+
   const state = status.data;
   const present = state?.state === "present";
   const rejected = present && test.data?.result === "rejected";
@@ -77,7 +84,11 @@ export function WhatItTalksTo() {
   const refusal = set.error ?? remove.error ?? saveModel.error;
 
   return (
-    <section className={styles.section} aria-labelledby="settings-talks">
+    <section
+      ref={section}
+      className={styles.section}
+      aria-labelledby="settings-talks"
+    >
       <h2 id="settings-talks" className={styles.heading}>
         What it talks to
       </h2>
