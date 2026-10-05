@@ -4,6 +4,7 @@ import { parseWikilink, type Heading, type ListItem } from "markdown";
 import { stringify } from "yaml";
 import { errorMessage, VaultError } from "./errors.js";
 import { wikilinkTo } from "./link-text.js";
+import type { Linked } from "./link.js";
 import {
   asString,
   quoted,
@@ -537,9 +538,6 @@ function sourceLine(wikilink: string, note: string): string {
   return text === "" ? `- ${wikilink}` : `- ${wikilink} \u2014 ${text}`;
 }
 
-/** What a link onto a Research Question did, as `Linked` says it for a Question. */
-export type LinkedToPage = { path: string; target: string; linked: boolean };
-
 /**
  * Accept a candidate onto a Research Question (#489; ADR 0041 decision 9):
  * one `appendToSection` of `- [[cite]]` under `## Related questions`, the
@@ -556,7 +554,7 @@ export async function linkToResearchQuestion(
   ctx: PageContext,
   path: string,
   targetPath: string
-): Promise<LinkedToPage> {
+): Promise<Linked> {
   const { index, vaultPath } = ctx;
   const { relativePath: target } = await locate(vaultPath, targetPath);
   let linked = true;
@@ -586,8 +584,8 @@ export async function linkToResearchQuestion(
     );
     if (listed) {
       linked = false;
-      // Nothing to write; the plan answers with the refusal-shaped no-op the
-      // caller reads `linked` past, so a file already right is never rewritten.
+      // `writeOwn` has no "nothing to write" answer for a plan, so this is
+      // the refusal-shaped one; `linked` is what tells it from a real refusal.
       return {
         written: false,
         reason: "changedAndUnreapplyable",

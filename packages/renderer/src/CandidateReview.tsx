@@ -67,8 +67,6 @@ export function CandidateReview({
   const linkPage = useMutation(
     trpc.researchQuestions.link.mutationOptions(settle)
   );
-  const link =
-    session?.[question]?.kind === "research-question" ? linkPage : linkQuestion;
 
   // Adjusted during render, not in an effect: a request is handled once,
   // the render it arrives in, and its object identity is what says "again".
@@ -104,6 +102,7 @@ export function CandidateReview({
   );
 
   const current = session?.[question];
+  const link = current?.kind === "research-question" ? linkPage : linkQuestion;
   // Fresh candidates in their ranked order, then the passed ones in the order
   // they were passed: a pass is a *not now*, so it goes to the back.
   const isRejected = (c: CandidateLink) =>

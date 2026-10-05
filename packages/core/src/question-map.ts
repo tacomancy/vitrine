@@ -740,7 +740,7 @@ export type CandidateLink = {
 
 export type CandidateQuestion = {
   /** Where accepting writes: a Question's `related:`, or a page's `## Related questions`. */
-  kind: "question" | "research-question";
+  kind: MapRow["kind"];
   path: string;
   id: string | null;
   question: string;
