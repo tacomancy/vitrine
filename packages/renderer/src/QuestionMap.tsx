@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import type { Matrix as MatrixData } from "core";
 import { CandidateReview } from "./CandidateReview";
 import { Matrix } from "./charts/matrix";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -24,7 +25,21 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 export function QuestionMap() {
   const trpc = useTRPC();
   const coverage = useQuery(trpc.questionMap.coverage.queryOptions());
-  const readings = useQuery(trpc.questionMap.readings.queryOptions());
+  // The page's one depth (ADR 0041 decision 8). Undefined asks for the
+  // core's default, the deepest Tag in use; a choice is only a request
+  // parameter, so nothing is stored and a reload starts at the default. The
+  // previous answer stays up while the next arrives, so the gate below does
+  // not flip to *not yet* — and unmount the control — on every change.
+  const [depth, setDepth] = useState<number>();
+  const input = depth === undefined ? undefined : { depth };
+  const readings = useQuery({
+    ...trpc.questionMap.readings.queryOptions(input),
+    placeholderData: keepPreviousData,
+  });
+  const matrix = useQuery({
+    ...trpc.questionMap.matrix.queryOptions(input),
+    placeholderData: keepPreviousData,
+  });
   const status = useVaultStatusLines();
   const index = useQuery(trpc.vault.status.queryOptions());
   // The same uncached read the review holds its visit on: a row offers
@@ -54,6 +69,13 @@ export function QuestionMap() {
         <h1 id="question-map-title" className={styles.title}>
           Question Map
         </h1>
+        {voice === "claim" && matrix.data !== undefined && (
+          <DepthControl
+            deepest={matrix.data.deepest}
+            depth={matrix.data.depth}
+            onChange={setDepth}
+          />
+        )}
       </div>
       {voice !== "claim" ? (
         <FirstSlot voice={voice} claim="">
@@ -62,7 +84,11 @@ export function QuestionMap() {
       ) : (
         <div className={styles.slots}>
           <div data-slot="matrix">
-            <MatrixSlot reviewable={reviewable} onReview={review} />
+            <MatrixSlot
+              data={matrix.data}
+              reviewable={reviewable}
+              onReview={review}
+            />
           </div>
           <div data-slot="readings">
             {readings.data !== undefined && (
@@ -104,14 +130,14 @@ const plural = (n: number, one: string, many: string) =>
  * drawn (ADR 0041 decision 14); the short-page claims are a later ticket's.
  */
 function MatrixSlot({
+  data,
   reviewable,
   onReview,
 }: {
+  data: MatrixData | undefined;
   reviewable: ReadonlySet<string>;
   onReview: (path: string) => void;
 }) {
-  const trpc = useTRPC();
-  const { data } = useQuery(trpc.questionMap.matrix.queryOptions());
   if (data === undefined || data.rows.length === 0 || data.columns.length === 0)
     return null;
   // The counts are the core's, taken before its cut; the clause is dropped
@@ -129,5 +155,37 @@ function MatrixSlot({
       </p>
       <Matrix matrix={data} reviewable={reviewable} onReview={onReview} />
     </>
+  );
+}
+
+/**
+ * One button per depth from 1 to the deepest in use. A single depth leaves
+ * nothing to choose, so the control is not drawn.
+ */
+function DepthControl({
+  deepest,
+  depth,
+  onChange,
+}: {
+  deepest: number;
+  depth: number;
+  onChange: (depth: number) => void;
+}) {
+  if (deepest < 2) return null;
+  return (
+    <div className={styles.depth} role="group" aria-label="Depth">
+      <span className={styles.depthLabel}>Depth</span>
+      {Array.from({ length: deepest }, (_, i) => i + 1).map((d) => (
+        <button
+          key={d}
+          type="button"
+          className={styles.depthOption}
+          aria-pressed={d === depth}
+          onClick={() => onChange(d)}
+        >
+          {d}
+        </button>
+      ))}
+    </div>
   );
 }
