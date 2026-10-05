@@ -1,4 +1,5 @@
 import { parseWikilink } from "markdown";
+import { dismissed, readDismissals } from "./dismissals.js";
 import { readQuestion } from "./question-kind.js";
 import { readResearchQuestion } from "./research-question.js";
 import { tagTree, type TagNode } from "./vault-tags.js";
@@ -577,6 +578,12 @@ export type CandidateLink = {
   display: string;
   /** The Tags the paper shares with the Question, sorted: what the offer rests on. */
   shared: string[];
+  /**
+   * The dismissal that rejects this pair, for `looseEnds.dismiss` and its
+   * undo: the Question's `id` and a row kind naming this paper alone, so one
+   * rejection never silences another paper for the same Question.
+   */
+  rejection: { subject: string; kind: string };
 };
 
 export type CandidateQuestion = {
@@ -602,7 +609,13 @@ export type CandidateQuestion = {
  * Claim, not per Question, until a row can enter the review (a later ticket).
  * Rejected pairs are not read here yet: reject is that ticket's.
  */
-export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
+export async function candidateLinks(
+  index: VaultIndex,
+  vaultPath: string
+): Promise<CandidateQuestion[]> {
+  // A file that does not parse silences nothing (it is reported where it is
+  // written to, not here): an offer left standing is the safe side of that.
+  const { dismissals } = await readDismissals(vaultPath);
   const tagsOf = new Map<string, Set<string>>();
   for (const { path, canonical } of index.select<{
     path: string;
@@ -617,8 +630,9 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
     kind: "source" | "source-stub";
     display: string | null;
     mtime: number | null;
+    id: string | null;
   }>(
-    "SELECT path, kind, display, mtime FROM files WHERE kind IN ('source', 'source-stub')"
+    "SELECT path, kind, display, mtime, id FROM files WHERE kind IN ('source', 'source-stub')"
   );
 
   const out: CandidateQuestion[] = [];
@@ -627,7 +641,11 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
     if (row.kind !== "question" || row.material.length > 0) continue;
     const mine = tagsOf.get(row.path);
     if (mine === undefined) continue;
+    // The Question's id, so a rename in Obsidian keeps its rejections; a
+    // Question without one falls back to its path, as every dismissal does.
+    const subject = row.id ?? row.path;
     const found = papers.flatMap((paper) => {
+      if (dismissed(dismissals, subject, rejectionKind(paper))) return [];
       const shared = [...(tagsOf.get(paper.path) ?? [])]
         .filter((tag) => mine.has(tag))
         .sort(byName);
@@ -650,6 +668,7 @@ export function candidateLinks(index: VaultIndex): CandidateQuestion[] {
         kind: paper.kind,
         display: paper.display ?? paper.path,
         shared,
+        rejection: { subject, kind: rejectionKind(paper) },
       })),
     });
   }
@@ -735,3 +754,7 @@ export function matrix(cover: Coverage): Matrix {
     totals: { rows: cover.rows.length, columns: cover.tags.length },
   };
 }
+
+/** A paper's `id` survives its file being renamed; a stub with none falls back to its path. */
+const rejectionKind = (paper: { id: string | null; path: string }) =>
+  `inferred-link:${paper.id ?? paper.path}`;

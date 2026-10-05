@@ -23,6 +23,7 @@ const paper = (name: string, shared = ["sleep"]) => ({
   kind: "source" as const,
   display: name,
   shared,
+  rejection: { subject: "q-many", kind: `inferred-link:${name}` },
 });
 const QUESTIONS: CandidateQuestion[] = [
   {
@@ -50,7 +51,12 @@ const NO_READINGS = {
   clockedButUnquestioned: empty0,
 };
 
-const open = (candidates: unknown = QUESTIONS, link: unknown = vi.fn()) => {
+const open = (
+  candidates: unknown = QUESTIONS,
+  link: unknown = vi.fn(),
+  dismiss: unknown = vi.fn(),
+  undismiss: unknown = vi.fn()
+) => {
   window.location.hash = "#/question-map";
   renderApp({
     "vault.current": vault,
@@ -60,6 +66,8 @@ const open = (candidates: unknown = QUESTIONS, link: unknown = vi.fn()) => {
     "questionMap.readings": NO_READINGS,
     "questionMap.candidates": candidates,
     "questions.link": link,
+    "looseEnds.dismiss": dismiss,
+    "looseEnds.undismiss": undismiss,
   });
   return link as ReturnType<typeof vi.fn>;
 };
@@ -282,5 +290,76 @@ describe("entering the review from a row", () => {
       within(grid).getByRole("button", { name: /review links.*Why many\?/ })
     );
     expect((await panel()).textContent).toContain("Why many?");
+  });
+});
+
+describe("rejecting a candidate", () => {
+  const names = async () =>
+    within(await listbox())
+      .getAllByRole("option")
+      .map((o) => /one|two|three/.exec(o.textContent)![0]);
+
+  it("rejects the focused candidate on R through looseEnds.dismiss, and offers an undo", async () => {
+    const dismiss = vi.fn();
+    open(QUESTIONS, vi.fn(), dismiss);
+    await listbox();
+    key("j");
+    key("R");
+    await vi.waitFor(() =>
+      expect(dismiss).toHaveBeenCalledWith({
+        subject: "q-many",
+        kind: "inferred-link:two",
+      })
+    );
+    await vi.waitFor(async () =>
+      expect(await names()).toEqual(["one", "three"])
+    );
+    expect(screen.getByRole("button", { name: "Undo reject" })).toBeTruthy();
+  });
+
+  it("undoes the rejection, bringing the candidate back", async () => {
+    const undismiss = vi.fn();
+    open(QUESTIONS, vi.fn(), vi.fn(), undismiss);
+    await listbox();
+    key("R");
+    fireEvent.click(await screen.findByRole("button", { name: "Undo reject" }));
+    await vi.waitFor(() =>
+      expect(undismiss).toHaveBeenCalledWith({
+        subject: "q-many",
+        kind: "inferred-link:one",
+      })
+    );
+    await vi.waitFor(async () =>
+      expect(await names()).toEqual(["one", "two", "three"])
+    );
+    expect(screen.queryByRole("button", { name: "Undo reject" })).toBeNull();
+  });
+
+  it("offers no undo for an accepted candidate", async () => {
+    const link = open();
+    await listbox();
+    key("A");
+    await vi.waitFor(() => expect(link).toHaveBeenCalled());
+    await vi.waitFor(async () =>
+      expect(await names()).toEqual(["two", "three"])
+    );
+    expect(screen.queryByRole("button", { name: /undo/i })).toBeNull();
+  });
+
+  it("says a refused write on the candidate and keeps it offered", async () => {
+    open(
+      QUESTIONS,
+      vi.fn(),
+      vi.fn(() => {
+        throw new Error(".vitrine/dismissals.json could not be read.");
+      })
+    );
+    await listbox();
+    key("R");
+    expect((await panel()).textContent).toContain(
+      "dismissals.json could not be read"
+    );
+    expect(await names()).toEqual(["one", "two", "three"]);
+    expect(screen.queryByRole("button", { name: "Undo reject" })).toBeNull();
   });
 });
