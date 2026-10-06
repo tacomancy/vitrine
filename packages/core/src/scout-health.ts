@@ -33,7 +33,7 @@ export type RunErrorKind =
   | "extraction";
 
 export type Health =
-  /** `kind` is null for a Scout file that does not parse: no run exists to carry one (ADR 0039 decision 7). */
+  /** `kind` is null for a Scout file that does not parse or could not be read: no run exists to carry one (ADR 0039 decision 7). */
   | { voice: "wrong"; kind: RunErrorKind | null; sentence: string }
   /** `kind` is set only for a Scout waiting on a key, which Loose Ends draws as its own row. */
   | { voice: "not yet"; sentence: string; kind?: "credentials" }
@@ -180,7 +180,7 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   };
 }
 
-/** *wrong*, by the second route: a Scout file that does not parse, named by its file only. */
+/** *wrong*, by the second route: a Scout file that does not parse or could not be read, named by its file only. */
 export function unreadableHealth(file: UnreadableScout): Health {
   return { voice: "wrong", kind: null, sentence: file.sentence };
 }

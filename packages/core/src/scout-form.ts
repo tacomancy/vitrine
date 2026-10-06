@@ -1,11 +1,16 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
 import { writeAtomically } from "./atomic-write.js";
 import { ArxivError } from "./arxiv.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { VaultError } from "./errors.js";
-import { readScouts, SCOUTS_FOLDER, type Scout } from "./scout-file.js";
+import {
+  listScoutsFolder,
+  readScouts,
+  SCOUTS_FOLDER,
+  type Scout,
+} from "./scout-file.js";
 import { faultSentence } from "./scout-health.js";
 import { runScout, type RunSummary, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
@@ -74,7 +79,7 @@ async function write(
   }
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
   const { scouts } = await readScouts(deps.vaultPath);
-  const names = await readdir(folder).catch(() => [] as string[]);
+  const names = await listScoutsFolder(deps.vaultPath);
   const before =
     form.id === undefined ? undefined : fileOf(scouts, form.id, names);
 
@@ -145,7 +150,7 @@ export function setPaused(
     const found = fileOf(
       scouts,
       scoutId,
-      await readdir(folder).catch(() => [] as string[])
+      await listScoutsFolder(deps.vaultPath)
     );
     if (found === undefined) {
       throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
