@@ -34,8 +34,9 @@ function acceptRateOf(
   scout: Scout,
   counts: AcceptCounts | undefined
 ): AcceptRate {
-  const triaged = (counts?.accepted ?? 0) + (counts?.rejected ?? 0);
-  if (counts === undefined || triaged === 0) return { kind: "nothing triaged" };
+  // `acceptCounts` groups only the rows it counts, so a Scout it names has at least one.
+  if (counts === undefined) return { kind: "nothing triaged" };
+  const triaged = counts.accepted + counts.rejected;
   const missing = [
     ...(counts.noAuthors * 2 >= triaged ? ["authors"] : []),
     ...(scout.source.kind === "watched" && counts.noVenue * 2 >= triaged
