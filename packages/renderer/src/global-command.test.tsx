@@ -179,6 +179,7 @@ const RECENT = [
   row("▪", "Scout Queue", "surface"),
   row("▦", "Loose Ends", "dashboard"),
   row("▦", "Question Map", "dashboard"),
+  row("▦", "Scout Activity", "dashboard"),
   row("⚙", "Settings", "settings"),
   row("■", "Does slow-wave density predict recall gain?", "research question"),
   row("◆", "Is replay necessary for consolidation?", "question"),
@@ -188,13 +189,13 @@ const RECENT = [
 describe("⌘K opens one list over whatever the window was doing", () => {
   it("opens from the Inbox and lists the Surfaces, the Dashboards and the objects", async () => {
     const dialog = await openCommand();
-    expect(said((await settled(dialog, 9)).destinations)).toEqual(RECENT);
+    expect(said((await settled(dialog, 10)).destinations)).toEqual(RECENT);
   });
 
   it("opens from a Dashboard too, with the window's own Address marked current", async () => {
     window.location.hash = "#/loose-ends";
     const dialog = await openCommand();
-    const { destinations } = await settled(dialog, 9);
+    const { destinations } = await settled(dialog, 10);
     expect(said(destinations)[3]).toBe(
       row("▦", "Loose Ends", "dashboard", true)
     );
@@ -274,7 +275,7 @@ describe("typing narrows the list, and each row says why it is here", () => {
     // The screens are still reachable and still listed — but counting them
     // as the whole answer would say the vault holds four things. The
     // capture is there as always, and is not one of them.
-    expect((await settled(dialog, 6)).destinations).toHaveLength(6);
+    expect((await settled(dialog, 7)).destinations).toHaveLength(7);
     expect(
       within(dialog).getByText("the Surfaces, Dashboards and Settings only")
     ).toBeDefined();
@@ -285,7 +286,7 @@ describe("typing narrows the list, and each row says why it is here", () => {
 describe("the side ↵ belongs to, and the verb that names it", () => {
   it("starts on the capture, because nothing typed is nothing matched", async () => {
     const dialog = await openCommand();
-    const { destinations, capture } = await settled(dialog, 9);
+    const { destinations, capture } = await settled(dialog, 10);
     expect(destinations[0]?.getAttribute("aria-current")).toBe("page");
     expect(chosenIn(destinations)).toBe(-1);
     expect(capture.getAttribute("aria-selected")).toBe("true");
@@ -368,7 +369,7 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
 
   it("moves with the arrows across both sides, the current Address included", async () => {
     const dialog = await openCommand();
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     // Starts on the capture, the last row: up walks back into the list.
     press(dialog, "ArrowUp");
     expect(verbOf(dialog)).toBe(
@@ -382,18 +383,19 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
     press(dialog, "ArrowUp");
     press(dialog, "ArrowUp");
     press(dialog, "ArrowUp");
-    expect(chosenIn((await settled(dialog, 9)).destinations)).toBe(0);
+    press(dialog, "ArrowUp");
+    expect(chosenIn((await settled(dialog, 10)).destinations)).toBe(0);
     expect(verbOf(dialog)).toBe("↵Go toQuestion Inbox");
     press(dialog, "ArrowUp");
-    expect(chosenIn((await settled(dialog, 9)).destinations)).toBe(0);
+    expect(chosenIn((await settled(dialog, 10)).destinations)).toBe(0);
   });
 
   it("never points past the list a new query returned", async () => {
     const dialog = await openCommand();
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     press(dialog, "ArrowUp");
     press(dialog, "ArrowUp");
-    expect(chosenIn((await settled(dialog, 9)).destinations)).toBe(7);
+    expect(chosenIn((await settled(dialog, 10)).destinations)).toBe(8);
     type(dialog, "loose");
     const { destinations, capture } = await settled(dialog, 1);
     expect(chosenIn(destinations)).toBe(0);
@@ -526,7 +528,7 @@ describe("before a character is typed, the list is what changed most recently", 
 
   it("says the rows are the recent set rather than counting them as matches", async () => {
     const dialog = await openCommand();
-    expect(said((await settled(dialog, 9)).destinations)).toEqual(RECENT);
+    expect(said((await settled(dialog, 10)).destinations)).toEqual(RECENT);
     expect(
       await within(dialog).findByText("recent · type to narrow")
     ).toBeDefined();
@@ -541,9 +543,9 @@ describe("before a character is typed, the list is what changed most recently", 
         total: 312,
       }),
     });
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     expect(
-      await within(dialog).findByText("recent · 9 of 318 · type to narrow")
+      await within(dialog).findByText("recent · 10 of 319 · type to narrow")
     ).toBeDefined();
   });
 
@@ -551,7 +553,7 @@ describe("before a character is typed, the list is what changed most recently", 
     // The count line says which list this is, and it is read by whoever can
     // see it; the list's own name is what says it to whoever cannot.
     const dialog = await openCommand();
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     expect(await nameOfList(dialog)).toBe("Recent and capture");
 
     type(dialog, "loose");
@@ -566,7 +568,7 @@ describe("before a character is typed, the list is what changed most recently", 
     expect(await within(dialog).findByText("1 matching")).toBeDefined();
 
     type(dialog, "");
-    expect(said((await settled(dialog, 9)).destinations)).toEqual(RECENT);
+    expect(said((await settled(dialog, 10)).destinations)).toEqual(RECENT);
     expect(
       await within(dialog).findByText("recent · type to narrow")
     ).toBeDefined();
@@ -575,7 +577,7 @@ describe("before a character is typed, the list is what changed most recently", 
   it("remembers nothing between openings: recent is what changed on disk, not where the user has been", async () => {
     const stored = storedAfterClearing();
     const dialog = await openCommand();
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     type(dialog, "loose");
     await settled(dialog, 1);
     fireEvent.keyDown(queryBox(dialog), { key: "Enter" });
@@ -589,7 +591,7 @@ describe("before a character is typed, the list is what changed most recently", 
     // the Dashboard just visited has not risen to the top, because a visit
     // is not recorded anywhere (ADR 0021 refused the store).
     expect((queryBox(reopened) as HTMLInputElement).value).toBe("");
-    const { destinations, capture } = await settled(reopened, 9);
+    const { destinations, capture } = await settled(reopened, 10);
     expect(said(destinations)).toEqual([
       row("▪", "Question Inbox", "surface"),
       row("▪", "Experiment view", "surface"),
@@ -749,8 +751,8 @@ describe("the command opens over a page as it does over a list", () => {
   it("opens from a Research Question's page, with that page marked current", async () => {
     window.location.hash = RQ_HASH;
     const dialog = await openCommand({ "researchQuestions.page": page });
-    const { destinations, capture } = await settled(dialog, 9);
-    expect(said(destinations)[6]).toBe(
+    const { destinations, capture } = await settled(dialog, 10);
+    expect(said(destinations)[7]).toBe(
       row(
         "■",
         "Does slow-wave density predict recall gain?",
@@ -773,7 +775,7 @@ describe("the capture row", () => {
 
   it("is last in the list, under every destination, and carries the Kind glyph and the Provenance", async () => {
     const dialog = await openCommand();
-    const { all, capture } = await settled(dialog, 9);
+    const { all, capture } = await settled(dialog, 10);
     expect(all[all.length - 1]).toBe(capture);
     expect(capture.textContent).toContain("Unattached · 19 Sep 2026, 07:04");
     // The mark ships with a word, never alone (BRAND.md law 6).
@@ -784,7 +786,7 @@ describe("the capture row", () => {
 
   it("invites rather than sitting blank before a character is typed", async () => {
     const dialog = await openCommand();
-    const { capture } = await settled(dialog, 9);
+    const { capture } = await settled(dialog, 10);
     expect(capture.textContent).toBe(
       "◆Write a question — it costs nothing and keeps where you wereUnattached · 19 Sep 2026, 07:04"
     );
@@ -805,7 +807,7 @@ describe("the capture row", () => {
   it("says what the Provenance will be from a Research Question's page", async () => {
     window.location.hash = RQ_HASH;
     const dialog = await openCommand({ "researchQuestions.page": page });
-    const { capture } = await settled(dialog, 9);
+    const { capture } = await settled(dialog, 10);
     expect(capture.textContent).toContain(
       "Pursuing · Does slow-wave density predict recall gain (RQ)"
     );
@@ -944,7 +946,7 @@ describe("what ↵ writes", () => {
   it("captures nothing on an empty query, and no duplicate on a second ↵ mid-write", async () => {
     const capture = vi.fn(() => captured("Does this hold?"));
     const dialog = await openCommand({ "questions.capture": capture });
-    await settled(dialog, 9);
+    await settled(dialog, 10);
     press(dialog, "Enter");
     expect(capture).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeNull();
@@ -1005,20 +1007,20 @@ describe("the row the keyboard is on stays in view", () => {
 
   it("follows the choice up out of the capture and through the destinations", async () => {
     const dialog = await many();
-    const { destinations } = await settled(dialog, 18);
+    const { destinations } = await settled(dialog, 19);
     const scrolled = scrollsInto();
     // An empty query is weaker than WORTH_GOING_TO, so the default choice is
     // the capture — the last row of all. Walking up from it crosses the fold
     // almost at once.
     for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
 
-    expect(chosenIn(destinations)).toBe(6);
-    expect(scrolled.at(-1)?.row).toBe(destinations[6]);
+    expect(chosenIn(destinations)).toBe(7);
+    expect(scrolled.at(-1)?.row).toBe(destinations[7]);
   });
 
   it("follows it back down to the capture, which every destination stands above", async () => {
     const dialog = await many();
-    const { capture } = await settled(dialog, 18);
+    const { capture } = await settled(dialog, 19);
     for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
     const scrolled = scrollsInto();
     for (let i = 0; i < 12; i++) press(dialog, "ArrowDown");
@@ -1038,7 +1040,7 @@ describe("the row the keyboard is on stays in view", () => {
     // (ADR 0030).
     const scrolled = scrollsInto();
     const dialog = await many();
-    await settled(dialog, 18);
+    await settled(dialog, 19);
     press(dialog, "ArrowUp");
 
     expect(scrolled.length).toBeGreaterThan(1);
@@ -1049,7 +1051,7 @@ describe("the row the keyboard is on stays in view", () => {
 
   it("brings the row a narrowed list re-chose into view", async () => {
     const dialog = await many();
-    await settled(dialog, 18);
+    await settled(dialog, 19);
     for (let i = 0; i < 12; i++) press(dialog, "ArrowUp");
     const scrolled = scrollsInto();
     // Typed from the name's own first word, so the one survivor is a prefix

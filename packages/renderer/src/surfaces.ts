@@ -3,6 +3,7 @@ import {
   INBOX,
   LOOSE_ENDS,
   QUESTION_MAP,
+  SCOUT_ACTIVITY,
   SCOUTS,
   SETTINGS,
   type Route,
@@ -71,6 +72,7 @@ export const SURFACES: readonly Entry[] = [
 export const DASHBOARDS: readonly Entry[] = [
   { name: "Loose Ends", to: LOOSE_ENDS },
   { name: "Question Map", to: QUESTION_MAP },
+  { name: "Scout Activity", to: SCOUT_ACTIVITY },
 ];
 
 /**
