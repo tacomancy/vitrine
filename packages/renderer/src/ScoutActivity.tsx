@@ -212,6 +212,8 @@ function SourceHealth({ fleet }: { fleet: FleetSource }) {
   const parts = [
     [fleet.parsingCleanly, "parsing cleanly"],
     [fleet.notParsing, "not parsing"],
+    [fleet.notReached, "not reached"],
+    [fleet.keyRejected, "key rejected"],
     [fleet.noKey, "no key"],
   ].flatMap(([count, words]) => (count === 0 ? [] : [`${count} ${words}`]));
   if (parts.length === 0) return null;

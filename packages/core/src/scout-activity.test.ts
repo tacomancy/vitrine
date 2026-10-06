@@ -274,7 +274,13 @@ describe("scouts.activity — nothing to draw", () => {
 
     expect(await f.activity()).toEqual({
       rows: [],
-      fleet: { parsingCleanly: 0, notParsing: 0, noKey: 0 },
+      fleet: {
+        parsingCleanly: 0,
+        notParsing: 0,
+        notReached: 0,
+        keyRejected: 0,
+        noKey: 0,
+      },
     });
   });
 
@@ -340,11 +346,13 @@ describe("scouts.activity — the fleet's source health", () => {
     expect((await f.activity()).fleet).toEqual({
       parsingCleanly: 2,
       notParsing: 0,
+      notReached: 0,
+      keyRejected: 0,
       noKey: 0,
     });
   });
 
-  it("counts a failed check and a file that will not parse as not parsing", async () => {
+  it("names a fault for what failed: an arXiv outage is not reached, and only an unreadable file is not parsing", async () => {
     const f = await opened({
       "d.yaml": scoutYaml("D", "all:d"),
       "t.yaml": "name: Torn\ncadence: [daily\nfilter:\n  query: x\n",
@@ -354,7 +362,9 @@ describe("scouts.activity — the fleet's source health", () => {
 
     expect((await f.activity()).fleet).toEqual({
       parsingCleanly: 0,
-      notParsing: 2,
+      notParsing: 1,
+      notReached: 1,
+      keyRejected: 0,
       noKey: 0,
     });
   });

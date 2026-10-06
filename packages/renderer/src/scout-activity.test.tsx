@@ -12,7 +12,13 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // what is asserted is what the renderer draws from what the core says.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
-const NO_FLEET = { parsingCleanly: 0, notParsing: 0, noKey: 0 };
+const NO_FLEET = {
+  parsingCleanly: 0,
+  notParsing: 0,
+  notReached: 0,
+  keyRejected: 0,
+  noKey: 0,
+};
 const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET };
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
@@ -409,13 +415,15 @@ describe("the fleet's source health", () => {
       fleet([BROKEN, QUIET, RESTING], {
         parsingCleanly: 10,
         notParsing: 1,
+        notReached: 2,
+        keyRejected: 1,
         noKey: 1,
       })
     );
     await tableRows();
 
     expect(summary()!.textContent).toBe(
-      "10 parsing cleanly · 1 not parsing · 1 no key"
+      "10 parsing cleanly · 1 not parsing · 2 not reached · 1 key rejected · 1 no key"
     );
   });
 

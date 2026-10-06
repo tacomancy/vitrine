@@ -64,7 +64,16 @@ const READS: Array<Call & { empty: unknown }> = [
   {
     call: "scouts.activity",
     how: "query",
-    empty: { rows: [], fleet: { parsingCleanly: 0, notParsing: 0, noKey: 0 } },
+    empty: {
+      rows: [],
+      fleet: {
+        parsingCleanly: 0,
+        notParsing: 0,
+        notReached: 0,
+        keyRejected: 0,
+        noKey: 0,
+      },
+    },
   },
   { call: "scouts.groups", how: "query", empty: [] },
   { call: "scouts.queue", how: "query", empty: [] },

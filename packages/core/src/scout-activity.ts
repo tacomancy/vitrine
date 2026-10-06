@@ -49,7 +49,11 @@ export type ActivityRow =
  */
 export type FleetSource = {
   parsingCleanly: number;
+  /** The source answered and its answer would not read: a parse or extraction fault, or a Scout file that will not parse. */
   notParsing: number;
+  /** The check never got an answer to read: the network, an HTTP error, a rate limit, a model fault or an interrupted run. */
+  notReached: number;
+  keyRejected: number;
   noKey: number;
 };
 
@@ -76,7 +80,23 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
     rows.filter((row) => keep(row.health)).length;
   return {
     parsingCleanly: count((h) => h.voice === "claim"),
-    notParsing: count((h) => h.voice === "wrong"),
+    // A fault is named for what failed: calling a rejected key or a dropped
+    // connection "not parsing" would say the page was bad when it was not.
+    notParsing: count(
+      (h) =>
+        h.voice === "wrong" &&
+        (h.kind === null || h.kind === "parse" || h.kind === "extraction")
+    ),
+    notReached: count(
+      (h) =>
+        h.voice === "wrong" &&
+        (h.kind === "network" ||
+          h.kind === "http" ||
+          h.kind === "rate_limited" ||
+          h.kind === "interrupted" ||
+          h.kind === "model")
+    ),
+    keyRejected: count((h) => h.voice === "wrong" && h.kind === "credentials"),
     // `kind: "credentials"` is set on a *not yet* Health only for a Scout
     // waiting on a key (scout-health.ts), so it is the no-key test.
     noKey: count((h) => h.voice === "not yet" && h.kind === "credentials"),

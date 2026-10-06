@@ -143,6 +143,8 @@ describe("scouts.activity — a Scout waiting on a key, in the fleet's source he
     expect(await lab.fleet()).toEqual({
       parsingCleanly: 0,
       notParsing: 0,
+      notReached: 0,
+      keyRejected: 0,
       noKey: 1,
     });
   });
