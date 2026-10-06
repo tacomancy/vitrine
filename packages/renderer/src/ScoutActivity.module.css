@@ -1,0 +1,153 @@
+/* A pane: its own surface on the ground at the surfaces' radius, separated
+   by the gutter around it rather than by a border (ADR 0023 decision 1). */
+.page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.header {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-5) var(--space-7);
+}
+
+/* A row is a surface on the pane's ground, separated from the next by the
+   gutter between them and never by a rule (ADR 0023 decision 1). The columns
+   are fixed so a long Query is cut by the cell, not by the table. */
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.table thead th {
+  padding: 0 var(--space-4) var(--space-1);
+  text-align: left;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-secondary);
+}
+
+.table thead th:nth-child(1) {
+  width: 36%;
+}
+
+.table thead th:nth-child(2) {
+  width: 32%;
+}
+
+.table thead th:nth-child(3) {
+  width: 12%;
+}
+
+.table thead th:nth-child(4) {
+  width: 20%;
+}
+
+.table tbody th,
+.table tbody td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  vertical-align: top;
+  font-weight: normal;
+  background: var(--color-bg-sunken);
+}
+
+.table tbody tr > :first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.table tbody tr > :last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+/* The Scout and, stacked beneath it, how it is doing: its Voice and Warrant,
+   which the Queue's own component draws. */
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.name {
+  font-size: var(--text-base);
+  color: var(--color-fg);
+}
+
+/* A file that will not parse is named as the file it is. */
+.file {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+}
+
+/* What it watches, cadence and last run are data: mono, quiet, one line each —
+   a cell that wrapped "just now" onto two lines would read as a different
+   thing, and a long Query is cut by `.watching` instead. */
+.table tbody td {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+}
+
+.watching {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The footer channel, as every Dashboard draws it: one quiet mono line each. */
+.footer {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* An action beside the first slot's fragment: a button wearing the quiet
+   clothes a resolution wears on Loose Ends. */
+.action {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  background: var(--color-bg-raised);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.action:hover {
+  color: var(--color-fg);
+}
