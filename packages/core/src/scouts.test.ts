@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -550,6 +550,53 @@ describe("accept", () => {
       c.rows("SELECT state, stub_path FROM proposals WHERE id = " + first!.id)
     ).toEqual([{ state: "pending", stub_path: null }]);
     await expect(c.read("sources/muller2026.md")).rejects.toThrow("ENOENT");
+  });
+
+  // The Questions a paper was found for are the Assigned Questions of the
+  // Scouts that found it. A Scout whose file the app cannot use still has
+  // them: a stub written without them would read as a Scout that had none.
+  it.each([
+    ["does not parse", (file: string) => writeFile(file, "name: [unclosed\n")],
+    [
+      "cannot be read",
+      async (file: string) => {
+        await rm(file);
+        await symlink("nowhere.yaml", file);
+      },
+    ],
+  ] as const)(
+    "refuses, and writes no stub, when the Scout that found it has a file that %s",
+    async (_how, spoil) => {
+      const c = await opened(serving("normal"));
+      await c.run();
+      const [, first] = await c.cards();
+      await spoil(join(c.vault, ".vitrine/scouts/sleep.yaml"));
+
+      const refused = await c.c.mutate("scouts.accept", {
+        proposalId: first!.id,
+      });
+
+      expect(refused.error?.message).toBe(
+        "sleep.yaml could not be read, so the Questions this paper was found for are not known."
+      );
+      expect(
+        c.rows("SELECT state, stub_path FROM proposals WHERE id = " + first!.id)
+      ).toEqual([{ state: "pending", stub_path: null }]);
+      await expect(c.read("sources/muller2026.md")).rejects.toThrow("ENOENT");
+    }
+  );
+
+  it("is not held up by the file of a Scout that did not find it", async () => {
+    const c = await opened(serving("normal"), {
+      "sleep.yaml": scoutYaml(),
+      "broken.yaml": "name: Broken\nfilter: [unclosed\n",
+    });
+    await c.run();
+    const [, first] = await c.cards();
+
+    await c.accept(first!.id);
+
+    expect(await c.read("sources/muller2026.md")).toContain("origin_question:");
   });
 
   it("takes the next citekey rather than overwriting one that is taken", async () => {

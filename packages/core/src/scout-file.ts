@@ -6,8 +6,9 @@ import { errorMessageWithoutPath, VaultError } from "./errors.js";
 /**
  * A Scout as its file says it (ADR 0016 decision 4; `docs/architecture.md`
  * § Vault layout, `scouts/<id>.yaml`). Read as found, ADR 0009's rule: a
- * hand edit is honoured on the next read, and a file that does not parse is
- * returned by name rather than skipped (ADR 0039 decision 7). Runtime never
+ * hand edit is honoured on the next read, and a file that does not parse, or
+ * cannot be read, is returned by name rather than skipped (ADR 0039 decision
+ * 7). Runtime never
  * lives in the file; everything a run learns is a row in `queue.sqlite`.
  */
 export type Scout = {
@@ -30,9 +31,20 @@ export type Scout = {
   searchBackTo: Date | null;
 };
 
-/** A Scout file that does not parse: its name, and one sentence naming what is wrong. */
+/** A Scout file the app cannot use — it does not parse, or its bytes could not be read: its name, and one sentence naming what is wrong. */
 export type UnreadableScout = { file: string; sentence: string };
 
+/** The one sentence the rail and Loose Ends both print for such a file. */
+const unreadableFile = (file: string, problem: string): UnreadableScout => ({
+  file,
+  sentence: `This file could not be read: ${problem}.`,
+});
+
+/**
+ * Vault-relative, and kept so: it goes into the reasons a surface shows as
+ * well as onto the vault path, and a message that interpolated the joined
+ * path would put back what the errno's cut took out (ADR 0028, #288).
+ */
 export const SCOUTS_FOLDER = ".vitrine/scouts";
 
 const CADENCES = ["daily", "weekly", "monthly"] as const;
@@ -74,23 +86,16 @@ export async function readScouts(
     try {
       text = await readFile(join(folder, file), "utf8");
     } catch (cause) {
-      // Listed, so someone made it; the app only cannot read it. It is named
-      // as a file that does not parse is, and does not take the other Scouts
-      // down with it: a file the app cannot read must not look like a Scout
-      // nobody made (ADR 0039 decision 7).
-      unreadable.push({
-        file,
-        sentence: `This file could not be read: ${errorMessageWithoutPath(cause)}.`,
-      });
+      // Listed, so someone made it, and the app could not read it. It is
+      // named as a file that does not parse is, and does not take the other
+      // Scouts down with it: a file the app cannot read must not look like a
+      // Scout nobody made (ADR 0039 decision 7).
+      unreadable.push(unreadableFile(file, errorMessageWithoutPath(cause)));
       continue;
     }
     const read = readScout(file.replace(/\.ya?ml$/i, ""), text);
     if (read.ok) scouts.push(read.scout);
-    else
-      unreadable.push({
-        file,
-        sentence: `This file could not be read: ${read.problem}.`,
-      });
+    else unreadable.push(unreadableFile(file, read.problem));
   }
   return { scouts, unreadable };
 }

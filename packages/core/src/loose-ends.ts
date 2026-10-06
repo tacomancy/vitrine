@@ -233,7 +233,7 @@ export type BlockedOnCredentials = {
   sentence: string;
 };
 
-/** A Scout file that does not parse: named by its file, with the rail's sentence and no error kind (no run exists to carry one). */
+/** A Scout file that does not parse, or could not be read: named by its file, with the rail's sentence and no error kind (no run exists to carry one). */
 export type UnreadableScoutFile = {
   kind: "unreadable-scout";
   /** The file's name. */

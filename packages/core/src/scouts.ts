@@ -215,12 +215,27 @@ const starting = serialised();
  * check would otherwise leave them in (ADR 0040 decision 2). It is the
  * callee's job so that no caller — Settings or anything after it — can store
  * a key and forget to start what was waiting. A Scout that throws does not
- * stop the ones behind it.
+ * stop the ones behind it, and Scouts that cannot be listed start none
+ * without failing the key.
  */
 export function runWaiting(deps: ScoutDeps): Promise<string[]> {
   return starting(async () => {
     const ran: string[] = [];
-    for (const { id } of await waitingOnKey(deps)) {
+    let waiting: WaitingScout[];
+    try {
+      waiting = await waitingOnKey(deps);
+    } catch (cause) {
+      // The key is stored and it works, and whoever stored it is not told it
+      // failed because the Scouts could not be listed. Which were waiting is
+      // not known, so none start; the Scout surfaces state the folder's fault
+      // for themselves, as they do for every other read of it.
+      if (!(cause instanceof VaultError)) throw cause;
+      console.error(
+        `vitrine-core: no Scout started for the key: ${cause.message}`
+      );
+      return ran;
+    }
+    for (const { id } of waiting) {
       try {
         await runScout(deps, id);
         ran.push(id);
@@ -572,7 +587,7 @@ export function acceptProposal(
       return { path: heldBy, held: true };
     }
 
-    const { scouts } = await readScouts(vaultPath);
+    const { scouts, unreadable } = await readScouts(vaultPath);
     const first = queue
       .prepare(
         `SELECT a.scout_id, r.retroactive FROM appearances a
@@ -598,6 +613,18 @@ export function acceptProposal(
         ).map((a) => a.scout_id)
       ),
     ];
+    // A Scout whose file the app cannot use still has its Assigned
+    // Questions. A stub written without them would read as a Scout that had
+    // none, with nothing to say they were lost (ADR 0039 decision 7).
+    const unknown = unreadable.filter((u) =>
+      involved.includes(u.file.replace(/\.ya?ml$/i, ""))
+    );
+    if (unknown.length > 0) {
+      throw new VaultError(
+        "refused",
+        `${unknown.map((u) => u.file).join(", ")} could not be read, so the Questions this paper was found for are not known.`
+      );
+    }
     const assigned = involved.flatMap(
       (id) => scouts.find((s) => s.id === id)?.assigned ?? []
     );
