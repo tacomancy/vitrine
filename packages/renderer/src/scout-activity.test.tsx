@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ActivityRow, ScoutActivity } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, renderApp, vault } from "./fake-core";
+import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -12,7 +12,19 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // what is asserted is what the renderer draws from what the core says.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
-const NONE: ScoutActivity = { rows: [] };
+const NO_FLEET = {
+  parsingCleanly: 0,
+  notParsing: 0,
+  notReached: 0,
+  keyRejected: 0,
+  noKey: 0,
+};
+const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET };
+/** The core's read of these rows: the rows as handed over, and the fleet's counts. */
+const fleet = (
+  rows: ActivityRow[],
+  counts: Partial<typeof NO_FLEET> = {}
+): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts } });
 
 const answers = (
   activity: unknown,
@@ -119,7 +131,7 @@ describe("Scout Activity", () => {
 
 describe("the table", () => {
   it("draws a row for each Scout: its name, what it watches, how often it looks, and when it last ran", async () => {
-    open({ rows: [BROKEN, QUIET, RESTING] });
+    open(fleet([BROKEN, QUIET, RESTING]));
 
     const rows = await tableRows();
 
@@ -137,12 +149,14 @@ describe("the table", () => {
         "arXiv · all:broken",
         "daily",
         "3h ago",
+        "queue",
       ],
       [
         expect.stringContaining("Quiet by design"),
         "arXiv · all:quiet",
         "weekly",
         "2h ago",
+        "queue",
       ],
       // A Scout that has never run says so, and a page is named by its address.
       [
@@ -150,6 +164,7 @@ describe("the table", () => {
         "https://lab.example/publications",
         "monthly",
         "not yet",
+        "queue",
       ],
     ]);
   });
@@ -160,7 +175,7 @@ describe("a long Query", () => {
     const query =
       `(cat:q-bio.NC OR cat:cs.LG) AND ${"all:sleep ".repeat(20)}`.trim();
     open({
-      rows: [{ ...QUIET, source: { kind: "arxiv", query } } as ActivityRow],
+      ...fleet([{ ...QUIET, source: { kind: "arxiv", query } }]),
     });
 
     const [row] = await tableRows();
@@ -180,7 +195,7 @@ describe("each Scout's Voice", () => {
     ]);
 
   it("says each Scout's Voice and Warrant in the words the Queue's rail speaks for the same health, and a file that will not parse in the wrong Voice", async () => {
-    open({ rows: [BROKEN, QUIET, RESTING, TORN] });
+    open(fleet([BROKEN, QUIET, RESTING, TORN]));
     const table = await screen.findByRole("table", { name: "Scouts" });
 
     // The rail draws these same words from the same `Health` through the same
@@ -207,7 +222,7 @@ describe("each Scout's Voice", () => {
 describe("a check finishing", () => {
   it("reads the fleet again, so a Scout that has just broken does not go on reading as well", async () => {
     let rows: ActivityRow[] = [QUIET];
-    const { stream } = open(() => ({ rows }));
+    const { stream } = open(() => fleet(rows));
     const [before] = await tableRows();
     expect(before!.textContent).toContain("parsed cleanly");
 
@@ -258,7 +273,7 @@ describe("a vault with no Scouts", () => {
   });
 
   it("is not drawn for a fleet that holds only a file that will not parse: that file is a row", async () => {
-    open({ rows: [TORN] });
+    open(fleet([TORN]));
 
     const [row] = await tableRows();
 
@@ -306,5 +321,223 @@ describe("a read that has not answered, or has failed", () => {
       within(view).queryByRole("button", { name: "new scout" })
     ).toBeNull();
     expect(within(view).queryByRole("table")).toBeNull();
+  });
+});
+
+const names = async () =>
+  (await tableRows()).map(
+    (row) =>
+      within(row).getByRole("rowheader").querySelector("span > span")!
+        .textContent
+  );
+
+describe("the order of the table", () => {
+  it("draws the rows in the order the core hands over, which is by need", async () => {
+    open(fleet([BROKEN, RESTING, QUIET]));
+
+    expect(await names()).toEqual([
+      "Broken by arXiv",
+      "Resting",
+      "Quiet by design",
+    ]);
+  });
+
+  it("sorts by a column when its header is clicked, and reverses it when it is clicked again", async () => {
+    open(fleet([BROKEN, RESTING, QUIET]));
+    await tableRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+    expect(await names()).toEqual([
+      "Broken by arXiv",
+      "Quiet by design",
+      "Resting",
+    ]);
+    expect(
+      screen
+        .getByRole("columnheader", { name: "Scout" })
+        .getAttribute("aria-sort")
+    ).toBe("ascending");
+
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+    expect(await names()).toEqual([
+      "Resting",
+      "Quiet by design",
+      "Broken by arXiv",
+    ]);
+    expect(
+      screen
+        .getByRole("columnheader", { name: "Scout" })
+        .getAttribute("aria-sort")
+    ).toBe("descending");
+  });
+
+  it("sorts cadence by how often it looks, not alphabetically, and last run by when", async () => {
+    open(fleet([RESTING, QUIET, BROKEN]));
+    await tableRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cadence" }));
+    expect(await names()).toEqual([
+      "Broken by arXiv",
+      "Quiet by design",
+      "Resting",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Last run" }));
+    // Oldest first; a Scout that never ran is not a time, so it is last.
+    expect(await names()).toEqual([
+      "Broken by arXiv",
+      "Quiet by design",
+      "Resting",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Last run" }));
+    expect(await names()).toEqual([
+      "Quiet by design",
+      "Broken by arXiv",
+      "Resting",
+    ]);
+  });
+
+  it("keeps a file that will not parse in the table whichever column is sorted", async () => {
+    open(fleet([TORN, QUIET]));
+    await tableRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cadence" }));
+
+    expect(await tableRows()).toHaveLength(2);
+  });
+});
+
+describe("the fleet's source health", () => {
+  const summary = () => screen.queryByLabelText("Source health");
+
+  it("counts faults only, in the core's counts, and says nothing of a count that is none", async () => {
+    open(
+      fleet([BROKEN, QUIET, RESTING], {
+        parsingCleanly: 10,
+        notParsing: 1,
+        notReached: 2,
+        keyRejected: 1,
+        noKey: 1,
+      })
+    );
+    await tableRows();
+
+    expect(summary()!.textContent).toBe(
+      "10 parsing cleanly · 1 not parsing · 2 not reached · 1 key rejected · 1 no key"
+    );
+  });
+
+  it("reads a fleet of ten quiet Scouts as 10 parsing cleanly, and never counts them as quiet", async () => {
+    open(fleet([QUIET], { parsingCleanly: 10 }));
+    await tableRows();
+
+    expect(summary()!.textContent).toBe("10 parsing cleanly");
+    expect(
+      screen.queryByText(/quiet/i, {
+        selector: "[aria-label='Source health'] *",
+      })
+    ).toBeNull();
+  });
+
+  it("is not drawn when there is nothing to count", async () => {
+    open(fleet([RESTING]));
+    await tableRows();
+
+    expect(summary()).toBeNull();
+  });
+});
+
+describe("the keyboard", () => {
+  const list = () => screen.getByRole("group", { name: "Scout rows" });
+  const active = () => {
+    const id = list().getAttribute("aria-activedescendant");
+    return id === null ? null : document.getElementById(id);
+  };
+
+  it("moves a choice with j and k, published as the list's active descendant, and stops at the ends", async () => {
+    open(fleet([BROKEN, RESTING, QUIET]));
+    const rows = await tableRows();
+    expect(active()).toBeNull();
+
+    fireEvent.keyDown(list(), { key: "j" });
+    expect(active()).toBe(rows[0]);
+    fireEvent.keyDown(list(), { key: "j" });
+    expect(active()).toBe(rows[1]);
+    fireEvent.keyDown(list(), { key: "j" });
+    fireEvent.keyDown(list(), { key: "j" });
+    expect(active()).toBe(rows[2]);
+    fireEvent.keyDown(list(), { key: "k" });
+    expect(active()).toBe(rows[1]);
+    fireEvent.keyDown(list(), { key: "k" });
+    fireEvent.keyDown(list(), { key: "k" });
+    expect(active()).toBe(rows[0]);
+  });
+
+  it("scrolls the chosen row into view the least it can", async () => {
+    open(fleet([BROKEN, RESTING, QUIET]));
+    const rows = await tableRows();
+    const scrolled = scrollsInto();
+
+    fireEvent.keyDown(list(), { key: "j" });
+    fireEvent.keyDown(list(), { key: "j" });
+
+    expect(scrolled.at(-1)).toEqual({ row: rows[1], block: "nearest" });
+  });
+
+  it("follows the same row when the table is re-sorted", async () => {
+    open(fleet([BROKEN, RESTING, QUIET]));
+    await tableRows();
+    fireEvent.keyDown(list(), { key: "j" });
+    expect(active()!.textContent).toContain("Broken by arXiv");
+
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+
+    expect(active()!.textContent).toContain("Broken by arXiv");
+  });
+});
+
+describe("a row's link", () => {
+  it("opens the Queue on that Scout's stack", async () => {
+    open(fleet([QUIET]), {
+      "scouts.list": {
+        scouts: [
+          { id: "quiet", name: "Quiet by design", assigned: [], paused: false },
+        ],
+        unreadable: [],
+      },
+      "scouts.queue": [],
+      "scouts.groups": [{ id: "quiet", runId: null, runPending: 0, held: [] }],
+      "scouts.fleet": { claim: null, naming: [] },
+      "scouts.health": { scouts: [], unreadable: [] },
+    });
+    const [row] = await tableRows();
+
+    fireEvent.click(
+      within(row!).getByRole("link", { name: /Quiet by design.*Queue/ })
+    );
+
+    expect(window.location.hash).toBe("#/scouts?scout=quiet");
+    const rail = await screen.findByRole("list", { name: "Scouts" });
+    expect(
+      (
+        await within(rail).findByRole("button", { name: /Quiet by design/ })
+      ).getAttribute("aria-current")
+    ).toBe("true");
+  });
+
+  it("is not drawn for a file that will not parse, which has no stack", async () => {
+    open(fleet([TORN]));
+    const [row] = await tableRows();
+
+    expect(within(row!).queryByRole("link")).toBeNull();
+  });
+
+  it("paints no row for how it is doing: a failing Scout's row carries the same class as a quiet one's", async () => {
+    open(fleet([BROKEN, QUIET]));
+    const rows = await tableRows();
+
+    expect(rows[0]!.className).toBe(rows[1]!.className);
+    expect(rows[0]!.getAttribute("style")).toBeNull();
   });
 });

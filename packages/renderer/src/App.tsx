@@ -191,7 +191,11 @@ function Workspace({ vault }: { vault: Vault }) {
             />
           )}
           {route.surface === "scouts" && (
-            <ScoutQueue form={scoutDraft} setForm={setScoutDraft} />
+            <ScoutQueue
+              form={scoutDraft}
+              setForm={setScoutDraft}
+              scout={route.scout}
+            />
           )}
           {route.surface === "settings" && (
             <Settings vault={vault} section={route.section} />

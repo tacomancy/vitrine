@@ -24,6 +24,11 @@
   letter-spacing: var(--tracking-tight);
 }
 
+/* The group takes the keyboard, and what it is on is the chosen row's lift below; a ring round the whole table would say nothing more. */
+.scroll:focus-visible {
+  outline: none;
+}
+
 .scroll {
   flex: 1;
   min-height: 0;
@@ -54,19 +59,76 @@
 }
 
 .table thead th:nth-child(1) {
-  width: 36%;
-}
-
-.table thead th:nth-child(2) {
   width: 32%;
 }
 
+.table thead th:nth-child(2) {
+  width: 28%;
+}
+
 .table thead th:nth-child(3) {
-  width: 12%;
+  width: 11%;
 }
 
 .table thead th:nth-child(4) {
-  width: 20%;
+  width: 17%;
+}
+
+.table thead th:nth-child(5) {
+  width: 12%;
+}
+
+/* A column header that sorts: its text, in the header's own type, with the
+   direction said by the glyph and by aria-sort, never by colour. */
+.sort {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sort:hover {
+  color: var(--color-fg);
+}
+
+.table thead th[aria-sort="ascending"] .sort::after {
+  content: " ↑";
+}
+
+.table thead th[aria-sort="descending"] .sort::after {
+  content: " ↓";
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The fleet's source health, one quiet mono line beside the title. */
+.health {
+  margin: 0 0 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* The link to the Scout's stack: a quiet word in the row's own type. */
+.link {
+  color: var(--color-fg-secondary);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-fg);
 }
 
 .table tbody th,
@@ -119,6 +181,12 @@
 .watching {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The row the keyboard is on, said by a lift in the ground and never by a
+   line (ADR 0023 decision 1). It is the keyboard's, not a verdict. */
+.table tbody tr[data-chosen] > * {
+  background: var(--color-bg-raised);
 }
 
 /* The footer channel, as every Dashboard draws it: one quiet mono line each. */
