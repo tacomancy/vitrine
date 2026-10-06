@@ -101,19 +101,19 @@ export async function readScouts(
   return { scouts, unreadable };
 }
 
+// Editing a Scout's own file — `pauseScout` below, and the form's save and
+// pause in `scout-form.ts` — reads it and writes it back. A step the
+// filesystem refuses is a `VaultError` in the app's words, the file named
+// vault-relative and Node's path cut off: surfaces print its message as it
+// stands, and the machine's layout is not for a window or a bug report (ADR
+// 0028, #530). The words say which step it was, because with the path gone
+// `EACCES: permission denied` cannot tell a read from a write, or the Scout
+// from the temp file `writeAtomically` makes beside it.
+
 /**
- * The steps of editing a Scout's own file, which `pauseScout` below and the
- * form's save and pause (`scout-form.ts`) all take. One that the filesystem
- * refuses is a `VaultError` in the app's words, the file named vault-relative
- * and Node's path cut off, since surfaces print it as it stands and the
- * machine's layout is not for a window or a bug report (ADR 0028, #530).
- *
- * With the path gone `EACCES: permission denied` cannot say which step it
- * was, nor whether it was the Scout or the temp file beside it that was
- * refused, so the words do: *Couldn't read*, *Couldn't write*, and the file.
- * ENOENT keeps its cause, as it does everywhere ADR 0028 gives it no words
- * of its own: the file was listed a moment ago, and `no such file` is what
- * the reader needs of it going.
+ * A Scout's file as text, to edit it. ENOENT keeps its cause, as ADR 0028 has
+ * it wherever it gives the absence no words of its own: the file was listed a
+ * moment ago and is gone, and *no such file* says so.
  */
 export async function readScoutFile(
   vaultPath: string,
@@ -129,7 +129,7 @@ export async function readScoutFile(
   }
 }
 
-/** A Scout's file written whole and renamed into place, as the form's queue writes it. */
+/** A Scout's file written whole and renamed into place, as the form's save and pause write it. */
 export async function writeScoutFile(
   vaultPath: string,
   file: string,
@@ -142,6 +142,7 @@ export async function writeScoutFile(
   }
 }
 
+/** Shared with `pauseScout`'s own write, so the two cannot spell one refusal two ways. */
 const couldNotWrite = (file: string, cause: unknown) =>
   new VaultError(
     "writeFailed",
