@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, parseDocument, YAMLParseError } from "yaml";
+import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
 /**
@@ -100,11 +101,60 @@ export async function readScouts(
   return { scouts, unreadable };
 }
 
+// Editing a Scout's own file — `pauseScout` below, and the form's save and
+// pause in `scout-form.ts` — reads it and writes it back. A step the
+// filesystem refuses is a `VaultError` in the app's words, the file named
+// vault-relative and Node's path cut off: surfaces print its message as it
+// stands, and the machine's layout is not for a window or a bug report (ADR
+// 0028, #530). The words carry what the path used to: with it cut,
+// `EACCES: permission denied` says neither whether a read or a write was
+// refused nor which Scout, and for a write Node had named a temp file that
+// nobody made.
+
 /**
- * *Pause* from Loose Ends (#453): the one edit the app makes to a Scout file,
- * a key set in place. The document is edited rather than re-stringified so a
- * hand-written file keeps its comments and order (ADR 0009). A file that does
- * not parse is refused, not rewritten: the app would be guessing at its shape.
+ * A Scout's file as text, to edit it. ENOENT keeps its cause, as ADR 0028 has
+ * it for every write: a file that goes between the listing and the edit is a
+ * race, not an absence anyone is waiting on.
+ */
+export async function readScoutFile(
+  vaultPath: string,
+  file: string
+): Promise<string> {
+  try {
+    return await readFile(join(vaultPath, SCOUTS_FOLDER, file), "utf8");
+  } catch (cause) {
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
+}
+
+/** Shared with `pauseScout`'s own write, so the two cannot spell one refusal two ways. */
+const couldNotWrite = (file: string, cause: unknown) =>
+  new VaultError(
+    "writeFailed",
+    `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+  );
+
+/** How the form's save and pause write a Scout's file; `pauseScout` writes its own in place. */
+export async function writeScoutFile(
+  vaultPath: string,
+  file: string,
+  text: string
+): Promise<void> {
+  try {
+    await writeAtomically(join(vaultPath, SCOUTS_FOLDER, file), text);
+  } catch (cause) {
+    throw couldNotWrite(file, cause);
+  }
+}
+
+/**
+ * *Pause* from Loose Ends (#453): a key set in place. The document is edited
+ * rather than re-stringified so a hand-written file keeps its comments and
+ * order (ADR 0009). A file that does not parse is refused, not rewritten: the
+ * app would be guessing at its shape.
  */
 export async function pauseScout(
   vaultPath: string,
@@ -114,7 +164,6 @@ export async function pauseScout(
   if (!scouts.some((s) => s.id === scoutId)) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
-  const folder = join(vaultPath, SCOUTS_FOLDER);
   const file = (await listScoutsFolder(vaultPath)).find(
     (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === scoutId
   );
@@ -122,9 +171,18 @@ export async function pauseScout(
   if (file === undefined) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
-  const doc = parseDocument(await readFile(join(folder, file), "utf8"));
+  const doc = parseDocument(await readScoutFile(vaultPath, file));
   doc.set("paused", true);
-  await writeFile(join(folder, file), doc.toString());
+  // Outside the `try`: a document that cannot be stringified is not a write
+  // the filesystem refused, and must not be worded as one.
+  const text = doc.toString();
+  // In place, unlike the form's atomic write, and left so: a rename would
+  // replace a file the user made read-only, where this refuses it.
+  try {
+    await writeFile(join(vaultPath, SCOUTS_FOLDER, file), text);
+  } catch (cause) {
+    throw couldNotWrite(file, cause);
+  }
 }
 
 type Read = { ok: true; scout: Scout } | { ok: false; problem: string };
