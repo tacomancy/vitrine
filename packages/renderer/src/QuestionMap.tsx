@@ -40,6 +40,7 @@ export function QuestionMap() {
     ...trpc.questionMap.matrix.queryOptions(input),
     placeholderData: keepPreviousData,
   });
+  const unread = useQuery(trpc.questionMap.unread.queryOptions());
   const status = useVaultStatusLines();
   const index = useQuery(trpc.vault.status.queryOptions());
   // The same uncached read the review holds its visit on: a row offers
@@ -58,10 +59,38 @@ export function QuestionMap() {
   // yet applied): that one is `current`, and it holds the gate too.
   const behind = index.data !== undefined && !index.data.current.ok;
   const voice = voiceOf({
-    incomplete: coverage.isError || readings.isError,
-    answered: coverage.data !== undefined && readings.data !== undefined,
+    incomplete: coverage.isError || readings.isError || unread.isError,
+    answered:
+      coverage.data !== undefined &&
+      readings.data !== undefined &&
+      unread.data !== undefined,
     read: behind && status.read === "full" ? "reading" : status.read,
   });
+
+  // Material is distinct across rows, as the matrix counts it, so a paper
+  // two Questions share is one source.
+  const sources = new Set(
+    coverage.data?.rows.flatMap((r) => r.material.map((m) => m.path))
+  ).size;
+  const rows = coverage.data?.rows.length ?? 0;
+  const skipped =
+    (unread.data?.partial.length ?? 0) + (unread.data?.unreadable.length ?? 0);
+  const noColumns = rows > 0 && sources === 0;
+  const readingsSlot = (
+    <div data-slot="readings">
+      {/* Both reads keep their previous answer while a new depth is on its
+          way; the strip waits for the one that matches the matrix, so the
+          page is never at two depths at once. */}
+      {readings.data !== undefined &&
+        readings.data.depth === matrix.data?.depth && (
+          <ReadingsStrip
+            readings={readings.data}
+            reviewable={reviewable}
+            onReview={review}
+          />
+        )}
+    </div>
+  );
 
   return (
     <section className={styles.page} aria-labelledby="question-map-title">
@@ -83,26 +112,31 @@ export function QuestionMap() {
         </FirstSlot>
       ) : (
         <div className={styles.slots}>
+          {/* With nothing attached the matrix has nothing to say, so the
+              reading that does leads (ADR 0041 decision 14). */}
+          {noColumns && readingsSlot}
           <div data-slot="matrix">
-            <MatrixSlot
-              data={matrix.data}
-              reviewable={reviewable}
-              onReview={review}
-            />
+            {rows === 0 ? (
+              <FirstSlot
+                voice="claim"
+                claim="No open questions to map."
+                warrant={`read ${rows} of ${rows + skipped} questions · just now`}
+              />
+            ) : noColumns ? (
+              <FirstSlot
+                voice="claim"
+                claim="The matrix has no columns."
+                warrant={`${plural(rows, "open question", "open questions")} read · 0 sources attached`}
+              />
+            ) : (
+              <MatrixSlot
+                data={matrix.data}
+                reviewable={reviewable}
+                onReview={review}
+              />
+            )}
           </div>
-          <div data-slot="readings">
-            {/* Both reads keep their previous answer while a new depth is on
-                its way; the strip waits for the one that matches the matrix,
-                so the page is never at two depths at once. */}
-            {readings.data !== undefined &&
-              readings.data.depth === matrix.data?.depth && (
-                <ReadingsStrip
-                  readings={readings.data}
-                  reviewable={reviewable}
-                  onReview={review}
-                />
-              )}
-          </div>
+          {!noColumns && readingsSlot}
           <div data-slot="origins">
             <Origins />
           </div>
@@ -111,14 +145,38 @@ export function QuestionMap() {
           </div>
         </div>
       )}
-      {(status.hasLines || coverage.isError || readings.isError) && (
+      {(status.hasLines ||
+        skipped > 0 ||
+        coverage.isError ||
+        readings.isError ||
+        unread.isError) && (
         <footer className={styles.footer}>
+          {skipped > 0 && unread.data !== undefined && (
+            <details className={styles.unreadableDetails}>
+              <summary className={styles.footerLine}>
+                {skipped} {skipped === 1 ? "file" : "files"} could not be read
+              </summary>
+              <ul className={styles.unreadable}>
+                {[...unread.data.partial, ...unread.data.unreadable].map(
+                  (file) => (
+                    <li key={file.path}>
+                      <span>{file.path}</span>
+                      <span className={styles.reason}>{file.reason}</span>
+                    </li>
+                  )
+                )}
+              </ul>
+            </details>
+          )}
           {status.lines}
           {coverage.isError && (
             <WarningLine label="not read">{coverage.error.message}</WarningLine>
           )}
           {readings.isError && (
             <WarningLine label="not read">{readings.error.message}</WarningLine>
+          )}
+          {unread.isError && (
+            <WarningLine label="not read">{unread.error.message}</WarningLine>
           )}
         </footer>
       )}
@@ -131,7 +189,7 @@ const plural = (n: number, one: string, many: string) =>
 
 /**
  * The matrix and the line that states its cut. A grid with no axes is never
- * drawn (ADR 0041 decision 14); the short-page claims are a later ticket's.
+ * drawn (ADR 0041 decision 14); the page says why in place of it.
  */
 function MatrixSlot({
   data,

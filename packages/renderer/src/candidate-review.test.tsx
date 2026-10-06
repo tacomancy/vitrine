@@ -64,6 +64,7 @@ const open = (
     "vault.status": READ,
     "questionMap.coverage": COVERAGE,
     "questionMap.readings": NO_READINGS,
+    "questionMap.unread": { partial: [], unreadable: [] },
     "questionMap.candidates": candidates,
     "questions.link": link,
     "looseEnds.dismiss": dismiss,
@@ -192,7 +193,7 @@ describe("entering the review from a row", () => {
     path,
     question,
     material: 0,
-    unresolved: 0,
+    unresolved: [],
   });
   const readings = {
     ...NO_READINGS,
@@ -231,7 +232,23 @@ describe("entering the review from a row", () => {
       "vault.current": vault,
       "questions.list": empty,
       "vault.status": READ,
-      "questionMap.coverage": COVERAGE,
+      // A matrix is drawn only behind a row with a source attached.
+      "questionMap.coverage": {
+        ...COVERAGE,
+        rows: [
+          {
+            ...row("Why heavy?", "q/Heavy.md"),
+            id: null,
+            captured: null,
+            promoted: null,
+            material: [
+              { path: "s/a.md", kind: "source", display: "A", tags: ["sleep"] },
+            ],
+            unresolved: [],
+          },
+        ],
+      },
+      "questionMap.unread": { partial: [], unreadable: [] },
       "questionMap.readings": readings,
       "questionMap.matrix": matrix,
       "questionMap.candidates": QUESTIONS,

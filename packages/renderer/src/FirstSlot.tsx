@@ -36,22 +36,27 @@ export function voiceOf({
 export function FirstSlot({
   voice,
   claim,
+  warrant = "read in full · watching",
   children,
 }: {
   voice: Voice;
   /** The sentence, full stop and all. */
   claim: string;
+  /** What the claim rests on, when it is not the usual full, watched read. */
+  warrant?: string;
   /** The paragraph under the claim, said once at the page's own size. */
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   if (voice === "claim")
     return (
       <>
         <p className={styles.slot}>
           <span className={styles.claim}>{claim}</span>
-          <span className={styles.warrant}>read in full · watching</span>
+          <span className={styles.warrant}>{warrant}</span>
         </p>
-        <p className={styles.paragraph}>{children}</p>
+        {children !== undefined && (
+          <p className={styles.paragraph}>{children}</p>
+        )}
       </>
     );
   return (

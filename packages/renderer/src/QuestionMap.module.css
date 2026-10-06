@@ -92,3 +92,36 @@
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
+
+/* What the page could not read: the Inbox's quiet footer line, opening to
+   each path and its reason (ADR 0009; ADR 0041 decision 13). */
+.unreadableDetails {
+  flex: 1 1 auto;
+}
+
+.unreadableDetails[open] {
+  flex-basis: 100%;
+}
+
+.footerLine {
+  cursor: default;
+}
+
+.unreadable {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.unreadable li {
+  display: flex;
+  flex-direction: column;
+}
+
+.reason {
+  color: var(--color-fg-secondary);
+}

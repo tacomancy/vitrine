@@ -784,3 +784,39 @@ describe("questionMap.origins", () => {
     expect(await read()).toMatchObject({ rows: [], total: 0 });
   });
 });
+
+// What the Map could not read (#492; ADR 0041 decision 13): a Partial or
+// Unreadable Question is never a row, and the footer says so.
+describe("questionMap.unread", () => {
+  const unreadOf = async (files: Record<string, string>) => {
+    const { c } = await mapOf(files);
+    const reply = await c.query<{
+      partial: Array<{ path: string; reason: string }>;
+      unreadable: Array<{ path: string; reason: string }>;
+    }>("questionMap.unread");
+    expect(reply.error).toBeUndefined();
+    return reply.result!.data;
+  };
+
+  it("names a Partial and an Unreadable Question each with its reason, and neither is a row", async () => {
+    const files = {
+      "q/ok.md": question("ok"),
+      "q/partial.md": "---\nkind: question\nid: q-p\n---\n",
+      "q/odd.md": question("odd", { status: "sleeping" }),
+    };
+    const unread = await unreadOf(files);
+    expect(unread.partial.map((f) => f.path)).toEqual(["q/partial.md"]);
+    expect(unread.unreadable.map((f) => f.path)).toEqual(["q/odd.md"]);
+    expect(unread.unreadable[0]!.reason).toMatch(/status/);
+    const { read } = await mapOf(files);
+    expect((await read()).rows.map((r) => r.path)).toEqual(["q/ok.md"]);
+  });
+
+  it("is empty when every Question reads, and ignores files of other Kinds", async () => {
+    const unread = await unreadOf({
+      "q/ok.md": question("ok"),
+      "s/bad.md": "---\nkind: source\n---\n",
+    });
+    expect(unread).toEqual({ partial: [], unreadable: [] });
+  });
+});
