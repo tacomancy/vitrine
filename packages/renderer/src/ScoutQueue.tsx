@@ -24,9 +24,12 @@ import { useTRPC } from "./trpc";
 export function ScoutQueue({
   form,
   setForm,
+  scout,
 }: {
   form: ScoutDraft | null;
   setForm: (form: ScoutDraft | null) => void;
+  /** The Scout whose stack the window arrived on (Scout Activity's row link); the rail's own choice takes over from there. */
+  scout?: string | undefined;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -48,7 +51,7 @@ export function ScoutQueue({
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(scout ?? null);
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.

@@ -162,7 +162,11 @@ export type { Highlighted, Questioned, Removal } from "./ingest.js";
 export type { ReadingPosition } from "./annotation-sidecar.js";
 export type { Accepted, Card, RunSummary } from "./scouts.js";
 export type { Group } from "./triage.js";
-export type { ActivityRow, ScoutActivity } from "./scout-activity.js";
+export type {
+  ActivityRow,
+  FleetSource,
+  ScoutActivity,
+} from "./scout-activity.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";
 export type { TriedPage, TriedQuery } from "./scout-form.js";
 export type { Health, Warrant } from "./scout-health.js";
