@@ -138,7 +138,17 @@ async function write(
   return { id, runAfter: edited };
 }
 
-/** Pause or resume. There is no delete: a Scout owns the runs health reads (spec #447 story 25). */
+/**
+ * Pause or resume, for the Scout's header and Loose Ends' row alike (#453,
+ * #533). It is queued with the form's saves and written whole, as they are: a
+ * second way to write the file would be a second way to lose an edit or leave
+ * half of one. The document is edited rather than re-stringified so a
+ * hand-written file keeps its comments and order (ADR 0009), and a file that
+ * does not parse is refused, not rewritten — `readScouts` does not list it, so
+ * there is no Scout to find — because the app would be guessing at its shape.
+ *
+ * There is no delete: a Scout owns the runs health reads (spec #447 story 25).
+ */
 export function setPaused(
   deps: ScoutDeps,
   scoutId: string,

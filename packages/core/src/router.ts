@@ -63,7 +63,7 @@ import {
   unread,
 } from "./question-map.js";
 import { readActivity } from "./scout-activity.js";
-import { pauseScout, readScouts } from "./scout-file.js";
+import { readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
@@ -509,13 +509,14 @@ export const router = t.router({
         refusing(runScout(await scoutDeps(ctx), input.scoutId))
       ),
     // Loose Ends' way out of a broken Scout: it stops looking, and its row
-    // goes with the failure it was about (`healthOf` answers *paused*).
+    // goes with the failure it was about (`healthOf` answers *paused*). The
+    // header's *pause* by another name: one edit of the file, not two ways to
+    // write it (#533).
     pause: t.procedure
       .input(z.object({ scoutId: z.string().min(1) }))
-      .mutation(async ({ ctx, input }) => {
-        const { vault } = await requireVault(ctx);
-        await refusing(pauseScout(vault.path, input.scoutId));
-      }),
+      .mutation(async ({ ctx, input }) =>
+        refusing(setPaused(await scoutDeps(ctx), input.scoutId, true))
+      ),
     queue: t.procedure.query(async ({ ctx }) =>
       refusing(readQueue(await scoutDeps(ctx)))
     ),
