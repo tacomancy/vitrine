@@ -27,6 +27,7 @@ const paper = (name: string, shared = ["sleep"]) => ({
 });
 const QUESTIONS: CandidateQuestion[] = [
   {
+    kind: "question" as const,
     path: "q/Many.md",
     id: "q-many",
     question: "Why many?",
@@ -34,6 +35,7 @@ const QUESTIONS: CandidateQuestion[] = [
     candidates: [paper("one"), paper("two"), paper("three")],
   },
   {
+    kind: "question" as const,
     path: "q/Few.md",
     id: "q-few",
     question: "Why few?",
@@ -55,7 +57,8 @@ const open = (
   candidates: unknown = QUESTIONS,
   link: unknown = vi.fn(),
   dismiss: unknown = vi.fn(),
-  undismiss: unknown = vi.fn()
+  undismiss: unknown = vi.fn(),
+  pageLink: unknown = vi.fn()
 ) => {
   window.location.hash = "#/question-map";
   renderApp({
@@ -69,6 +72,7 @@ const open = (
     "questions.link": link,
     "looseEnds.dismiss": dismiss,
     "looseEnds.undismiss": undismiss,
+    "researchQuestions.link": pageLink,
   });
   return link as ReturnType<typeof vi.fn>;
 };
@@ -91,6 +95,33 @@ describe("the candidate review", () => {
     expect(view.textContent).not.toMatch(/\d+ of \d+|backlog|total/i);
     expect(within(await listbox()).getAllByRole("option")).toHaveLength(3);
     expect(await chosen()).toContain("one");
+  });
+
+  it("accepts onto a Research Question through researchQuestions.link, not questions.link", async () => {
+    const link = vi.fn();
+    const pageLink = vi.fn();
+    open(
+      [
+        {
+          ...QUESTIONS[1]!,
+          kind: "research-question" as const,
+          path: "q/Few (RQ).md",
+        },
+      ],
+      link,
+      undefined,
+      undefined,
+      pageLink
+    );
+    await listbox();
+    key("A");
+    await vi.waitFor(() =>
+      expect(pageLink).toHaveBeenCalledWith({
+        path: "q/Few (RQ).md",
+        target: "s/four.md",
+      })
+    );
+    expect(link).not.toHaveBeenCalled();
   });
 
   it("moves focus with j and k, following the published id", async () => {
