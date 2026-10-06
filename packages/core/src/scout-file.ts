@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, parseDocument, YAMLParseError } from "yaml";
-import { VaultError } from "./errors.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
 /**
  * A Scout as its file says it (ADR 0016 decision 4; `docs/architecture.md`
@@ -38,18 +38,53 @@ export const SCOUTS_FOLDER = ".vitrine/scouts";
 const CADENCES = ["daily", "weekly", "monthly"] as const;
 const LANES = ["review", "skim"] as const;
 
+/**
+ * The names in the Scouts folder. A folder that is not there is a vault with
+ * no Scouts yet, and that is the one absence; anything else that stops it
+ * being listed — a file where the folder should be, a folder the app may not
+ * read — means what the Scouts are is *not known*, so the read fails rather
+ * than answering an empty list that nobody looked to warrant (ADR 0032;
+ * `CLAUDE.md` § Invariants, no silent failures). Every reader of the folder
+ * comes through here, so none can forget the difference.
+ *
+ * The reason is vault-relative with Node's path cut off: surfaces print it
+ * as it stands (ADR 0028).
+ */
+export async function listScoutsFolder(vaultPath: string): Promise<string[]> {
+  try {
+    return await readdir(join(vaultPath, SCOUTS_FOLDER));
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${SCOUTS_FOLDER}/: ${errorMessageWithoutPath(cause)}`
+    );
+  }
+}
+
 export async function readScouts(
   vaultPath: string
 ): Promise<{ scouts: Scout[]; unreadable: UnreadableScout[] }> {
   const folder = join(vaultPath, SCOUTS_FOLDER);
-  const names = await readdir(folder).catch(() => [] as string[]);
+  const names = await listScoutsFolder(vaultPath);
   const scouts: Scout[] = [];
   const unreadable: UnreadableScout[] = [];
   for (const file of names.filter((n) => /\.ya?ml$/i.test(n)).sort()) {
-    const read = readScout(
-      file.replace(/\.ya?ml$/i, ""),
-      await readFile(join(folder, file), "utf8")
-    );
+    let text: string;
+    try {
+      text = await readFile(join(folder, file), "utf8");
+    } catch (cause) {
+      // Listed, so someone made it; the app only cannot read it. It is named
+      // as a file that does not parse is, and does not take the other Scouts
+      // down with it: a file the app cannot read must not look like a Scout
+      // nobody made (ADR 0039 decision 7).
+      unreadable.push({
+        file,
+        sentence: `This file could not be read: ${errorMessageWithoutPath(cause)}.`,
+      });
+      continue;
+    }
+    const read = readScout(file.replace(/\.ya?ml$/i, ""), text);
     if (read.ok) scouts.push(read.scout);
     else
       unreadable.push({
@@ -75,7 +110,7 @@ export async function pauseScout(
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
   const folder = join(vaultPath, SCOUTS_FOLDER);
-  const file = (await readdir(folder)).find(
+  const file = (await listScoutsFolder(vaultPath)).find(
     (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === scoutId
   );
   // Gone between the read above and this one: refused, not a raw TypeError.

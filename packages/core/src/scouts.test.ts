@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -527,6 +527,29 @@ describe("accept", () => {
     expect(text).toContain(
       'origin_question:\n  - "[[Is the overnight benefit consolidation or encoding (RQ)]]"\n  - gone-question\n'
     );
+  });
+
+  // The Questions a paper was found for are read off the Scouts' files. A
+  // folder that cannot be listed is not a Scout with none assigned: the stub
+  // would be written smaller, and wrong, with nothing to say so.
+  it("refuses, and writes no stub, when the Scouts folder cannot be read", async () => {
+    const c = await opened(serving("normal"));
+    await c.run();
+    const [, first] = await c.cards();
+    await rm(join(c.vault, ".vitrine/scouts"), { recursive: true });
+    await writeFile(join(c.vault, ".vitrine/scouts"), "a file, not a folder");
+
+    const refused = await c.c.mutate("scouts.accept", {
+      proposalId: first!.id,
+    });
+
+    expect(refused.error?.message).toBe(
+      "Couldn't read .vitrine/scouts/: ENOTDIR: not a directory"
+    );
+    expect(
+      c.rows("SELECT state, stub_path FROM proposals WHERE id = " + first!.id)
+    ).toEqual([{ state: "pending", stub_path: null }]);
+    await expect(c.read("sources/muller2026.md")).rejects.toThrow("ENOENT");
   });
 
   it("takes the next citekey rather than overwriting one that is taken", async () => {

@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { linkedHere, linksToUrl, type LinkedArtifact } from "./artifact.js";
 import { dismissed, readDismissals } from "./dismissals.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage, VaultError } from "./errors.js";
 import {
   KIND as EXPERIMENT,
   readExperimentPage,
@@ -283,9 +283,10 @@ export type LooseEnds = {
   groups: LooseEndGroup[];
   /**
    * What the dashboard could not judge: a `dismissals.json` that does not
-   * parse (so rows it was told to silence may be here), or a file whose
-   * frontmatter it could not read (so a row that belongs here may be
-   * missing). Either way it says so rather than looking tidy.
+   * parse (so rows it was told to silence may be here), a file whose
+   * frontmatter it could not read, or a Scouts folder it could not list (so
+   * a row that belongs here may be missing). Any of them says so rather than
+   * looking tidy.
    */
   problems: string[];
 };
@@ -352,7 +353,7 @@ export async function looseEnds(
       ...copies,
       ...plumbingOfKind("pdf-missing"),
       ...experiments.missingUnderFalsification,
-      ...scouts,
+      ...scouts.rows,
     ],
     "Unfinished reading": [
       ...noSourceRows(index).filter(
@@ -390,6 +391,7 @@ export async function looseEnds(
       ...experiments.problems,
       ...unmatched.problems,
       ...plumbing.problems,
+      ...scouts.problems,
     ],
   };
 }
@@ -430,12 +432,24 @@ async function scoutRows(
   vaultPath: string,
   queue: DatabaseSync,
   now: Date
-): Promise<
-  Array<
+): Promise<{
+  rows: Array<
     FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
-  >
-> {
-  const { scouts, unreadable } = await readScouts(vaultPath);
+  >;
+  problems: string[];
+}> {
+  let read;
+  try {
+    read = await readScouts(vaultPath);
+  } catch (cause) {
+    // A folder that cannot be listed leaves the Scouts unknown, and with
+    // them whether any is broken. That is a line the dashboard could not
+    // judge, not a failed dashboard: every other group is still true. Only
+    // the vault's own refusal is worded so; a bug is not a fault in the vault.
+    if (!(cause instanceof VaultError)) throw cause;
+    return { rows: [], problems: [cause.message] };
+  }
+  const { scouts, unreadable } = read;
   const rows: Array<
     FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
   > = [];
@@ -506,7 +520,7 @@ async function scoutRows(
       sentence: file.sentence,
     });
   }
-  return rows;
+  return { rows, problems: [] };
 }
 
 /**
