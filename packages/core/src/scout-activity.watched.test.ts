@@ -95,6 +95,11 @@ async function opened(key: string | null) {
       expect(r.error).toBeUndefined();
       return r.result!.data.rows[0]!;
     },
+    fleet: async () => {
+      const r = await c.query<ScoutActivity>("scouts.activity");
+      expect(r.error).toBeUndefined();
+      return r.result!.data.fleet;
+    },
   };
 }
 
@@ -126,6 +131,19 @@ describe("scouts.activity — the last run of a page that needs a key", () => {
     expect(await lab.row()).toMatchObject({
       lastRun: { finished: new Date(START).toISOString(), ago: "2h ago" },
       health: WAITING,
+    });
+  });
+});
+
+describe("scouts.activity — a Scout waiting on a key, in the fleet's source health", () => {
+  it("is counted as no key, and neither as parsing cleanly nor as not parsing", async () => {
+    const lab = await opened(null);
+    await lab.run();
+
+    expect(await lab.fleet()).toEqual({
+      parsingCleanly: 0,
+      notParsing: 0,
+      noKey: 1,
     });
   });
 });

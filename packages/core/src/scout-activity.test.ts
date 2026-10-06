@@ -163,11 +163,11 @@ describe("scouts.activity — what a Scout watches", () => {
     expect(
       rows.map((row) => row.kind === "scout" && [row.source, row.cadence])
     ).toEqual([
-      [{ kind: "arxiv", query: "all:sleep" }, "weekly"],
       [{ kind: "watched", url: "https://lab.example/publications" }, "monthly"],
+      [{ kind: "arxiv", query: "all:sleep" }, "weekly"],
     ]);
     // A page saved but never checked says why it has not looked, in the rail's words.
-    expect(rows[1]!.health).toEqual({
+    expect(rows[0]!.health).toEqual({
       voice: "not yet",
       sentence: "Not yet — first check due now.",
     });
@@ -180,27 +180,25 @@ describe("scouts.activity — each Scout's Voice", () => {
 
     const { rows } = await f.activity();
 
-    expect(rows.map((row) => row.kind === "scout" && row.name)).toEqual([
-      "Broken by arXiv",
-      "Quiet by design",
-      "Resting",
-    ]);
-    expect(rows.map((row) => row.health)).toEqual([
-      {
-        voice: "wrong",
-        kind: "http",
-        sentence:
-          "arXiv answered with an error (HTTP 503), so nothing was checked.",
+    const byName = (name: string) =>
+      rows.find((row) => row.kind === "scout" && row.name === name)!.health;
+    expect(byName("Broken by arXiv")).toEqual({
+      voice: "wrong",
+      kind: "http",
+      sentence:
+        "arXiv answered with an error (HTTP 503), so nothing was checked.",
+    });
+    expect(byName("Quiet by design")).toEqual({
+      voice: "claim",
+      warrant: {
+        finished: new Date(START + HOUR).toISOString(),
+        fragments: ["newest run 2h ago", "parsed cleanly", "no baseline yet"],
       },
-      {
-        voice: "claim",
-        warrant: {
-          finished: new Date(START + HOUR).toISOString(),
-          fragments: ["newest run 2h ago", "parsed cleanly", "no baseline yet"],
-        },
-      },
-      { voice: "not yet", sentence: "Paused — it is not looking." },
-    ]);
+    });
+    expect(byName("Resting")).toEqual({
+      voice: "not yet",
+      sentence: "Paused — it is not looking.",
+    });
   });
 
   it("is the Queue rail's wording to the letter, so the two surfaces cannot describe one Scout two ways", async () => {
@@ -224,8 +222,8 @@ describe("scouts.activity — each Scout's Voice", () => {
 
     expect(rows.map((row) => row.kind === "scout" && row.lastRun)).toEqual([
       { finished: new Date(START).toISOString(), ago: "3h ago" },
-      { finished: new Date(START + HOUR).toISOString(), ago: "2h ago" },
       null,
+      { finished: new Date(START + HOUR).toISOString(), ago: "2h ago" },
     ]);
   });
 });
@@ -242,8 +240,8 @@ describe("scouts.activity — a Scout file that does not parse", () => {
     const { rows } = await f.activity();
     const rail = await f.rail();
 
-    expect(rows.map((row) => row.kind)).toEqual(["scout", "unreadable"]);
-    const bad = rows[1]!;
+    expect(rows.map((row) => row.kind)).toEqual(["unreadable", "scout"]);
+    const bad = rows[0]!;
     expect(bad).toEqual({
       kind: "unreadable",
       file: "bad.yaml",
@@ -274,7 +272,10 @@ describe("scouts.activity — nothing to draw", () => {
   it("is no rows for a vault with no Scouts", async () => {
     const f = await opened({});
 
-    expect(await f.activity()).toEqual({ rows: [] });
+    expect(await f.activity()).toEqual({
+      rows: [],
+      fleet: { parsingCleanly: 0, notParsing: 0, noKey: 0 },
+    });
   });
 
   it("answers an error, never an empty fleet, when no vault is open", async () => {
@@ -284,5 +285,77 @@ describe("scouts.activity — nothing to draw", () => {
 
     expect(r.result).toBeUndefined();
     expect(r.error?.message).toBe("No vault is open.");
+  });
+});
+
+describe("scouts.activity — the order of the fleet", () => {
+  const names = (rows: ScoutActivity["rows"]) =>
+    rows.map((row) => (row.kind === "scout" ? row.name : row.file));
+
+  it("puts faults first, then Scouts not looking, then the rest, and is stable on name within each", async () => {
+    // Written out of order, in names that sort against the need order, so
+    // only the sort can produce what is asserted.
+    const f = await opened({
+      "a-quiet.yaml": scoutYaml("A quiet one", "all:aquiet"),
+      "b-paused.yaml": scoutYaml("B paused", "all:bpaused", { paused: "true" }),
+      "c-fresh.yaml": scoutYaml("C never run", "all:cfresh"),
+      "d-down.yaml": scoutYaml("D down", "all:ddown"),
+      "e-torn.yaml": "name: Torn\ncadence: [daily\nfilter:\n  query: x\n",
+      "f-quiet.yaml": scoutYaml("F quiet", "all:fquiet"),
+      "g-down.yaml": scoutYaml("A down", "all:gdown"),
+    });
+    for (const key of ["aquiet", "fquiet"]) {
+      f.serve[`all:${key}`] = nothing;
+      await f.run(key === "aquiet" ? "a-quiet" : "f-quiet");
+    }
+    for (const id of ["d-down", "g-down"]) {
+      f.serve[`all:${id === "d-down" ? "ddown" : "gdown"}`] = down;
+      await f.run(id);
+    }
+
+    expect(names((await f.activity()).rows)).toEqual([
+      "A down",
+      "D down",
+      "e-torn.yaml",
+      "B paused",
+      "C never run",
+      "A quiet one",
+      "F quiet",
+    ]);
+  });
+});
+
+describe("scouts.activity — the fleet's source health", () => {
+  it("counts faults only: a fleet of quiet Scouts is all parsing cleanly, and Scouts not looking are in no count", async () => {
+    const f = await opened({
+      "q1.yaml": scoutYaml("Q1", "all:q1"),
+      "q2.yaml": scoutYaml("Q2", "all:q2"),
+      "p.yaml": scoutYaml("P", "all:p", { paused: "true" }),
+    });
+    for (const id of ["q1", "q2"]) {
+      f.serve[`all:${id}`] = nothing;
+      await f.run(id);
+    }
+
+    expect((await f.activity()).fleet).toEqual({
+      parsingCleanly: 2,
+      notParsing: 0,
+      noKey: 0,
+    });
+  });
+
+  it("counts a failed check and a file that will not parse as not parsing", async () => {
+    const f = await opened({
+      "d.yaml": scoutYaml("D", "all:d"),
+      "t.yaml": "name: Torn\ncadence: [daily\nfilter:\n  query: x\n",
+    });
+    f.serve["all:d"] = down;
+    await f.run("d");
+
+    expect((await f.activity()).fleet).toEqual({
+      parsingCleanly: 0,
+      notParsing: 2,
+      noKey: 0,
+    });
   });
 });

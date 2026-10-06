@@ -1,10 +1,61 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ActivityRow } from "core";
+import { useState, type KeyboardEvent } from "react";
+import type { ActivityRow, FleetSource } from "core";
+import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
+import { pushRoute, scoutStack } from "./router";
 import styles from "./ScoutActivity.module.css";
 import { VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
+
+type Column = "scout" | "watching" | "cadence" | "last run";
+type Sort = { column: Column; descending: boolean };
+
+/** Faster first: ascending reads *how often it looks*, which is not the alphabet. */
+const CADENCE_RANK = { daily: 0, weekly: 1, monthly: 2 } as const;
+
+const keyOf = (row: ActivityRow) =>
+  row.kind === "scout" ? `scout:${row.id}` : `file:${row.file}`;
+
+/**
+ * A column's value for a row, or null where the row has none to give — a file
+ * that will not parse has no cadence, and a Scout that never ran has no last
+ * run. Null sorts last in both directions: *no value* is not a smallest one,
+ * and putting it first on a descending sort would lead the table with what
+ * says least.
+ */
+function valueOf(row: ActivityRow, column: Column): string | number | null {
+  if (column === "scout") {
+    return row.kind === "scout" ? row.name : row.file;
+  }
+  if (row.kind === "unreadable") return null;
+  switch (column) {
+    case "watching":
+      return row.source.kind === "arxiv" ? row.source.query : row.source.url;
+    case "cadence":
+      return CADENCE_RANK[row.cadence];
+    case "last run":
+      return row.lastRun === null ? null : Date.parse(row.lastRun.finished);
+  }
+}
+
+/** The core's order (by need) until a header is clicked; then a stable sort on that column, so ties keep the order by need. */
+function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
+  if (sort === null) return rows;
+  const direction = sort.descending ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const x = valueOf(a, sort.column);
+    const y = valueOf(b, sort.column);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    return (
+      direction *
+      (typeof x === "number" && typeof y === "number"
+        ? x - y
+        : String(x).localeCompare(String(y)))
+    );
+  });
+}
 
 /**
  * Scout Activity (brief § Scout Activity, Prompt 10; ADR 0042): are the
@@ -17,7 +68,42 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   const trpc = useTRPC();
   const activity = useQuery(trpc.scouts.activity.queryOptions());
   const status = useVaultStatusLines();
-  const rows = activity.data?.rows ?? [];
+  const [sort, setSort] = useState<Sort | null>(null);
+  // Held by the row's key and not its place, so a re-sort leaves the choice on
+  // the Scout it was on.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const rows = sorted(activity.data?.rows ?? [], sort);
+  const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
+  const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
+  useChosenInView(chosenId);
+
+  function onSort(column: Column) {
+    setSort((was) =>
+      was?.column === column
+        ? { column, descending: !was.descending }
+        : { column, descending: false }
+    );
+  }
+
+  function onKeyDown(event: KeyboardEvent) {
+    const target = event.target;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (
+      target instanceof HTMLElement &&
+      target.closest("input, textarea, select")
+    ) {
+      return;
+    }
+    let next: number;
+    if (event.key === "j" || event.key === "ArrowDown") {
+      next = Math.min(chosenIndex + 1, rows.length - 1);
+    } else if (event.key === "k" || event.key === "ArrowUp") {
+      next = Math.max(chosenIndex - 1, 0);
+    } else return;
+    event.preventDefault();
+    const row = rows[next];
+    if (row !== undefined) setChosen(keyOf(row));
+  }
 
   return (
     <section className={styles.page} aria-labelledby="scout-activity-title">
@@ -25,6 +111,9 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         <h1 id="scout-activity-title" className={styles.title}>
           Scout Activity
         </h1>
+        {activity.data !== undefined && (
+          <SourceHealth fleet={activity.data.fleet} />
+        )}
       </div>
       {rows.length === 0 && (
         <NoRows
@@ -34,25 +123,60 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         />
       )}
       {rows.length > 0 && (
-        <div className={styles.scroll}>
+        // A group, not a grid: the table keeps its own roles, and the group is
+        // what holds the keyboard and names the row it is on (ADR 0030).
+        <div
+          className={styles.scroll}
+          role="group"
+          aria-label="Scout rows"
+          aria-activedescendant={chosenId}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+        >
           <table className={styles.table} aria-label="Scouts">
             <thead>
               <tr>
-                <th scope="col">Scout</th>
-                <th scope="col">Watching</th>
-                <th scope="col">Cadence</th>
-                <th scope="col">Last run</th>
+                {(
+                  [
+                    ["scout", "Scout"],
+                    ["watching", "Watching"],
+                    ["cadence", "Cadence"],
+                    ["last run", "Last run"],
+                  ] as const
+                ).map(([column, label]) => (
+                  <th
+                    key={column}
+                    scope="col"
+                    aria-sort={
+                      sort?.column !== column
+                        ? undefined
+                        : sort.descending
+                          ? "descending"
+                          : "ascending"
+                    }
+                  >
+                    <button
+                      type="button"
+                      className={styles.sort}
+                      onClick={() => onSort(column)}
+                    >
+                      {label}
+                    </button>
+                  </th>
+                ))}
+                <th scope="col">
+                  <span className={styles.srOnly}>Queue</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <Row
-                  key={
-                    row.kind === "scout"
-                      ? `scout:${row.id}`
-                      : `file:${row.file}`
-                  }
+                  key={keyOf(row)}
                   row={row}
+                  id={rowId(index)}
+                  chosen={index === chosenIndex}
+                  onChoose={() => setChosen(keyOf(row))}
                 />
               ))}
             </tbody>
@@ -72,6 +196,29 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         </footer>
       )}
     </section>
+  );
+}
+
+// For aria-activedescendant: a position, unique in the document.
+const rowId = (index: number) => `scout-activity-row-${index}`;
+
+/**
+ * *10 parsing cleanly · 1 not parsing · 1 no key*: faults counted, and a count
+ * of none left unsaid (ADR 0042 decision 8). It is one line of facts in the
+ * header's own type, with no colour, so a fleet of working Scouts that found
+ * nothing is never a number to feel bad about.
+ */
+function SourceHealth({ fleet }: { fleet: FleetSource }) {
+  const parts = [
+    [fleet.parsingCleanly, "parsing cleanly"],
+    [fleet.notParsing, "not parsing"],
+    [fleet.noKey, "no key"],
+  ].flatMap(([count, words]) => (count === 0 ? [] : [`${count} ${words}`]));
+  if (parts.length === 0) return null;
+  return (
+    <p className={styles.health} aria-label="Source health">
+      {parts.join(" · ")}
+    </p>
   );
 }
 
@@ -107,19 +254,29 @@ function NoRows({
   );
 }
 
-function Row({ row }: { row: ActivityRow }) {
+function Row({
+  row,
+  id,
+  chosen,
+  onChoose,
+}: {
+  row: ActivityRow;
+  id: string;
+  chosen: boolean;
+  onChoose: () => void;
+}) {
   if (row.kind === "unreadable") {
     // Nothing is known of a file that will not parse but its name and why, so
     // the columns that would say more are left empty rather than guessed at.
     return (
-      <tr>
+      <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
         <th scope="row">
           <span className={styles.who}>
             <span className={styles.file}>{row.file}</span>
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={3} />
+        <td colSpan={4} />
       </tr>
     );
   }
@@ -128,7 +285,10 @@ function Row({ row }: { row: ActivityRow }) {
       ? `arXiv · ${row.source.query}`
       : row.source.url;
   return (
-    <tr>
+    // No class carries how the Scout is doing: the Voice beside the name is
+    // the whole of it, and a tint would be a threshold the app has no way to
+    // defend (ADR 0042 decision 8).
+    <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
       <th scope="row">
         <span className={styles.who}>
           <span className={styles.name}>{row.name}</span>
@@ -150,6 +310,19 @@ function Row({ row }: { row: ActivityRow }) {
         ) : (
           <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
         )}
+      </td>
+      <td>
+        <a
+          href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
+          className={styles.link}
+          aria-label={`${row.name}: open its stack in the Queue`}
+          onClick={(event) => {
+            event.preventDefault();
+            pushRoute(scoutStack(row.id));
+          }}
+        >
+          queue
+        </a>
       </td>
     </tr>
   );

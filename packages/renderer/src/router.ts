@@ -19,7 +19,7 @@ export type Route =
   | { surface: "loose-ends" }
   | { surface: "question-map" }
   | { surface: "scout-activity" }
-  | { surface: "scouts" }
+  | { surface: "scouts"; scout?: string }
   | { surface: "settings"; section?: "credentials" };
 
 /**
@@ -55,6 +55,11 @@ export const SETTINGS_CREDENTIALS: Route = {
 };
 /** The Scout Queue (#448): where what the Scouts found waits to be decided. */
 export const SCOUTS: Route = { surface: "scouts" };
+/** The Queue opened on one Scout's stack, as Scout Activity's rows link to it (#514). Like a Question's Address, it says where to arrive; choosing another Scout afterwards is not a change of location. */
+export const scoutStack = (scout: string): Route => ({
+  surface: "scouts",
+  scout,
+});
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -98,7 +103,9 @@ export function hashOf(route: Route): string {
         ? "#/settings/credentials"
         : "#/settings";
     case "scouts":
-      return "#/scouts";
+      return route.scout === undefined
+        ? "#/scouts"
+        : `#/scouts?scout=${encodeURIComponent(route.scout)}`;
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
@@ -185,6 +192,12 @@ function parseHash(hash: string): Route {
   if (hash === "#/settings") return SETTINGS;
   if (hash === "#/settings/credentials") return SETTINGS_CREDENTIALS;
   if (hash === "#/scouts") return SCOUTS;
+  if (hash.startsWith("#/scouts?")) {
+    const scout = new URLSearchParams(hash.slice("#/scouts?".length)).get(
+      "scout"
+    );
+    return scout === null || scout === "" ? SCOUTS : scoutStack(scout);
+  }
   const question = pathUnder(hash, QUESTION);
   if (question !== null) return { surface: "inbox", question };
   const page = pathUnder(hash, RESEARCH_QUESTION);

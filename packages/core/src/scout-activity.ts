@@ -39,7 +39,47 @@ export type ActivityRow =
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
 
-export type ScoutActivity = { rows: ActivityRow[] };
+/**
+ * The fleet's source health, counted by fault only (ADR 0042 decision 8, and
+ * the brief's *no badges*): *10 parsing cleanly · 1 not parsing · 1 no key*.
+ * A Scout that is paused or has not run yet is in none of them — it has said
+ * nothing about its source — and a quiet one is *parsing cleanly*, never a
+ * count of its own, so a field of working Scouts that found nothing is not a
+ * number to feel bad about.
+ */
+export type FleetSource = {
+  parsingCleanly: number;
+  notParsing: number;
+  noKey: number;
+};
+
+export type ScoutActivity = { rows: ActivityRow[]; fleet: FleetSource };
+
+/**
+ * Where a row sits by need (ADR 0042 decision 8): faults, then Scouts that are
+ * not looking, then everything else. It reads the Voice the row already
+ * carries, so the order and the words beside it cannot disagree about a Scout.
+ */
+const NEED = { wrong: 0, "not yet": 1, claim: 2 } as const;
+
+const labelOf = (row: ActivityRow) =>
+  row.kind === "scout" ? row.name : row.file;
+
+/** Stable on name: `localeCompare` for people's names, then the file or id, so two Scouts named alike keep one order. */
+const byNeed = (a: ActivityRow, b: ActivityRow) =>
+  NEED[a.health.voice] - NEED[b.health.voice] ||
+  labelOf(a).localeCompare(labelOf(b)) ||
+  (a.kind === "scout" && b.kind === "scout" ? a.id.localeCompare(b.id) : 0);
+
+function sourceHealth(rows: ActivityRow[]): FleetSource {
+  const count = (keep: (health: Health) => boolean) =>
+    rows.filter((row) => keep(row.health)).length;
+  return {
+    parsingCleanly: count((h) => h.voice === "claim"),
+    notParsing: count((h) => h.voice === "wrong"),
+    noKey: count((h) => h.voice === "not yet" && h.kind === "credentials"),
+  };
+}
 
 /** The run `healthOf` answers *not yet* for (ADR 0040 decision 1): it fetched nothing, so it is not a time the Scout looked. */
 const looked = (run: {
@@ -54,36 +94,33 @@ export async function readActivity(deps: {
 }): Promise<ScoutActivity> {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
-  return {
-    // Readable Scouts, then the files that would not parse: the rail's own
-    // order, standing in until ADR 0042 decision 8's sort by need replaces it.
-    rows: [
-      ...scouts.map((scout): ActivityRow => {
-        const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
-        return {
-          kind: "scout",
-          id: scout.id,
-          name: scout.name,
-          source:
-            scout.source.kind === "watched"
-              ? { kind: "watched", url: scout.source.url }
-              : { kind: "arxiv", query: scout.query },
-          cadence: scout.cadence,
-          lastRun:
-            newest === undefined
-              ? null
-              : {
-                  finished: newest.finished,
-                  ago: ago(now.getTime() - Date.parse(newest.finished)),
-                },
-          health: healthOf(deps.queue, scout, now),
-        };
-      }),
-      ...unreadable.map((file): ActivityRow => ({
-        kind: "unreadable",
-        file: file.file,
-        health: unreadableHealth(file),
-      })),
-    ],
-  };
+  const rows = [
+    ...scouts.map((scout): ActivityRow => {
+      const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
+      return {
+        kind: "scout",
+        id: scout.id,
+        name: scout.name,
+        source:
+          scout.source.kind === "watched"
+            ? { kind: "watched", url: scout.source.url }
+            : { kind: "arxiv", query: scout.query },
+        cadence: scout.cadence,
+        lastRun:
+          newest === undefined
+            ? null
+            : {
+                finished: newest.finished,
+                ago: ago(now.getTime() - Date.parse(newest.finished)),
+              },
+        health: healthOf(deps.queue, scout, now),
+      };
+    }),
+    ...unreadable.map((file): ActivityRow => ({
+      kind: "unreadable",
+      file: file.file,
+      health: unreadableHealth(file),
+    })),
+  ].sort(byNeed);
+  return { rows, fleet: sourceHealth(rows) };
 }
