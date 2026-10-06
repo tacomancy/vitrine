@@ -304,7 +304,11 @@ describe("a pause", () => {
       const reply = await c.mutate(call, input);
 
       expect(reply.error?.message).toBe("There is no Scout named sleep.");
-      expect(reply.error?.data.kind).toBe("refused");
+      // A refusal, not a fault: the 400 `refusing` makes of a `VaultError`.
+      expect(reply.error?.data).toMatchObject({
+        code: "BAD_REQUEST",
+        kind: "refused",
+      });
     }
   );
 
@@ -317,7 +321,10 @@ describe("a pause", () => {
 
       const reply = await c.mutate(call, input);
 
-      expect(reply.error?.data.kind).toBe("refused");
+      expect(reply.error?.data).toMatchObject({
+        code: "BAD_REQUEST",
+        kind: "refused",
+      });
       expect(await file()).toBe(broken);
     }
   );
