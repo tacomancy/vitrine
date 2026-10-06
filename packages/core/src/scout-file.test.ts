@@ -197,7 +197,7 @@ describe("a vault with no Scouts folder yet", () => {
     expect(reply.result!.data).toEqual(empty);
   });
 
-  it("answers an act on a Scout that there is none, not that the folder failed", async () => {
+  it("says there is no such Scout when asked to act on one, not that the folder failed", async () => {
     const { c } = await opened();
 
     const reply = await c.mutate("scouts.runNow", { scoutId: "sleep" });

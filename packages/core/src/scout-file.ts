@@ -8,8 +8,8 @@ import { errorMessageWithoutPath, VaultError } from "./errors.js";
  * § Vault layout, `scouts/<id>.yaml`). Read as found, ADR 0009's rule: a
  * hand edit is honoured on the next read, and a file that does not parse, or
  * cannot be read, is returned by name rather than skipped (ADR 0039 decision
- * 7). Runtime never
- * lives in the file; everything a run learns is a row in `queue.sqlite`.
+ * 7). Runtime never lives in the file; everything a run learns is a row in
+ * `queue.sqlite`.
  */
 export type Scout = {
   /** The file's own name, `.vitrine/scouts/<id>.yaml`: what a run row refers to. */
