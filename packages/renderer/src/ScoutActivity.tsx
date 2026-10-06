@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type KeyboardEvent } from "react";
-import type { ActivityRow, FleetSource } from "core";
+import type { AcceptRate, ActivityRow, FleetSource } from "core";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
@@ -164,6 +164,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                     </button>
                   </th>
                 ))}
+                <th scope="col">Accept rate</th>
                 <th scope="col">
                   <span className={styles.srOnly}>Queue</span>
                 </th>
@@ -256,6 +257,18 @@ function NoRows({
   );
 }
 
+/** A rate says what it rests on; one that cannot be said says why, and nothing judged is not 0% (ADR 0042 decisions 2 and 3). */
+function rateWords(rate: AcceptRate): string {
+  switch (rate.kind) {
+    case "rate":
+      return `${Math.round(rate.rate * 100)}% · ${rate.triaged} triaged`;
+    case "nothing triaged":
+      return "nothing triaged yet";
+    case "unavailable":
+      return rate.reason;
+  }
+}
+
 function Row({
   row,
   id,
@@ -278,7 +291,7 @@ function Row({
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={4} />
+        <td colSpan={5} />
       </tr>
     );
   }
@@ -313,6 +326,7 @@ function Row({
           <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
         )}
       </td>
+      <td>{rateWords(row.acceptRate)}</td>
       <td>
         <a
           href={`#/scouts?scout=${encodeURIComponent(row.id)}`}

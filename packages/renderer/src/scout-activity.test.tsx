@@ -60,6 +60,7 @@ const BROKEN: ActivityRow = {
     sentence:
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
+  acceptRate: { kind: "rate", accepted: 3, triaged: 4, rate: 0.75 },
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -79,6 +80,7 @@ const QUIET: ActivityRow = {
       ],
     },
   },
+  acceptRate: { kind: "nothing triaged" },
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -88,6 +90,10 @@ const RESTING: ActivityRow = {
   cadence: "monthly",
   lastRun: null,
   health: { voice: "not yet", sentence: "Paused — it is not looking." },
+  acceptRate: {
+    kind: "unavailable",
+    reason: "Most of this Scout's papers arrive without authors or venue.",
+  },
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -149,6 +155,7 @@ describe("the table", () => {
         "arXiv · all:broken",
         "daily",
         "3h ago",
+        "75% · 4 triaged",
         "queue",
       ],
       [
@@ -156,6 +163,7 @@ describe("the table", () => {
         "arXiv · all:quiet",
         "weekly",
         "2h ago",
+        "nothing triaged yet",
         "queue",
       ],
       // A Scout that has never run says so, and a page is named by its address.
@@ -164,6 +172,7 @@ describe("the table", () => {
         "https://lab.example/publications",
         "monthly",
         "not yet",
+        "Most of this Scout's papers arrive without authors or venue.",
         "queue",
       ],
     ]);
