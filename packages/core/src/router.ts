@@ -103,6 +103,7 @@ import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import {
   attachSource,
+  linkToResearchQuestion,
   dateOf,
   detachSource,
   EDITED_SECTIONS,
@@ -1269,6 +1270,19 @@ export const router = t.router({
       )
       .mutation(async ({ ctx, input }) =>
         refusing(attachSource(await requirePage(ctx), input.path, input))
+      ),
+    // Accept a candidate (#489): the Related edge a page keeps is a line
+    // under its `## Related questions`, not a key.
+    link: t.procedure
+      .input(linkInput)
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          linkToResearchQuestion(
+            await requirePage(ctx),
+            input.path,
+            input.target
+          )
+        )
       ),
     // Move a source to the other side, or detach it (#219): the line is
     // named by its text, not its position, so a file edited underneath
