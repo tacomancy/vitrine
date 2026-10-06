@@ -5,18 +5,25 @@ import { dirname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 
 /**
- * Write whole, then rename into place: a crash mid-write leaves a temp file
- * the vault scan ignores (it is a dot-entry), never half a file.
+ * Write whole, then rename into place: the target is only ever a whole file.
+ * A write that fails — a full disk, an I/O error — removes its temp file, as
+ * far as the disk allows. A crash leaves one, which the vault scan ignores (it
+ * is a dot-entry).
  */
 export async function writeAtomically(
   path: string,
   content: string | Uint8Array
 ): Promise<void> {
   const temp = join(dirname(path), `.${randomBytes(6).toString("hex")}.tmp`);
-  await writeFile(temp, content, { flag: "wx" });
   try {
+    await writeFile(temp, content, { flag: "wx" });
     await rename(temp, path);
   } catch (cause) {
+    // Either step can fail with the temp file on the disk: a full disk fails
+    // the write after the file is made, leaving what fit in it (#540), and
+    // nothing else in the app removes a temp file. Whatever the unlink says is
+    // not the reason: when the write was refused before there was a file it
+    // finds nothing, and that ENOENT must not stand in for the cause.
     await unlink(temp).catch(() => undefined);
     throw cause;
   }
