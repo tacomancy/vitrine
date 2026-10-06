@@ -94,6 +94,7 @@ describe("the window with a vault open", () => {
       "Vault",
       "Loose Ends",
       "Question Map",
+      "Scout Activity",
     ]);
     const links = screen.getAllByRole("link");
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
@@ -104,6 +105,7 @@ describe("the window with a vault open", () => {
       ["Scout Queue", "#/scouts"],
       ["Loose Ends", "#/loose-ends"],
       ["Question Map", "#/question-map"],
+      ["Scout Activity", "#/scout-activity"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
       "Question Inbox"
@@ -125,12 +127,12 @@ describe("the window with a vault open", () => {
     expect(
       Array.from(chords.querySelectorAll("p"), (p) => p.textContent)
     ).toEqual(["⌘K go anywhere, or capture", "⌘' capture"]);
-    // The map's entries are what they were: the line adds no tenth row and
-    // nothing the keyboard can land on.
+    // The map's entries are what they were: the line adds no row of its own
+    // and nothing the keyboard can land on.
     expect(chords.querySelectorAll("li, a, button, [tabindex]")).toHaveLength(
       0
     );
-    expect(nav.querySelectorAll("li")).toHaveLength(10);
+    expect(nav.querySelectorAll("li")).toHaveLength(11);
   });
 
   it("shows the Inbox header with no count on an empty vault, no rows, and an empty detail pane", async () => {

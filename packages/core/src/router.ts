@@ -62,6 +62,7 @@ import {
   readings,
   unread,
 } from "./question-map.js";
+import { readActivity } from "./scout-activity.js";
 import { pauseScout, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
@@ -539,6 +540,11 @@ export const router = t.router({
     // rows on every read, so no surface keeps a copy that could disagree.
     health: t.procedure.query(async ({ ctx }) =>
       refusing(readHealth(await scoutDeps(ctx)))
+    ),
+    // Scout Activity (beat 9, ADR 0042): everything the dashboard shows, in
+    // one read, with each Scout's Voice taken from the same derivation.
+    activity: t.procedure.query(async ({ ctx }) =>
+      refusing(readActivity(await scoutDeps(ctx)))
     ),
     // The scheduled check by name: what the hourly timer and a vault open
     // run, so a caller can ask for it at a moment of its choosing.

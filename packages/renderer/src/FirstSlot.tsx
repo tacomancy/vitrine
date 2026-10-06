@@ -37,6 +37,8 @@ export function FirstSlot({
   voice,
   claim,
   warrant = "read in full · watching",
+  fragment,
+  action,
   children,
 }: {
   voice: Voice;
@@ -44,6 +46,15 @@ export function FirstSlot({
   claim: string;
   /** What the claim rests on, when it is not the usual full, watched read. */
   warrant?: string;
+  /**
+   * The fragment's own words, for a surface that has not looked for a reason
+   * of its own (ADR 0032 decision 3): an empty fleet of Scouts is *no scouts
+   * yet*, which is not *not read yet*. Only a fragment has it; a claim says
+   * its sentence.
+   */
+  fragment?: string;
+  /** What can be done about a fragment, beside it: a claim has nothing wanting doing. */
+  action?: ReactNode;
   /** The paragraph under the claim, said once at the page's own size. */
   children?: ReactNode;
 }) {
@@ -69,8 +80,11 @@ export function FirstSlot({
         ) : (
           <span aria-hidden="true">◐</span>
         )}
-        <span>{voice === "wrong" ? "not known" : "not read yet"}</span>
+        <span>
+          {fragment ?? (voice === "wrong" ? "not known" : "not read yet")}
+        </span>
       </span>
+      {action}
     </p>
   );
 }

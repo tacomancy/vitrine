@@ -12,12 +12,13 @@ import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
 import { QuestionMap } from "./QuestionMap";
+import { ScoutActivity } from "./ScoutActivity";
 import { ScoutQueue } from "./ScoutQueue";
 import type { ScoutDraft } from "./ScoutForm";
 import { Reader } from "./Reader";
 import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
-import { pushRoute, useRoute } from "./router";
+import { pushRoute, SCOUTS, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -196,6 +197,17 @@ function Workspace({ vault }: { vault: Vault }) {
             <Settings vault={vault} section={route.section} />
           )}
           {route.surface === "question-map" && <QuestionMap />}
+          {route.surface === "scout-activity" && (
+            <ScoutActivity
+              onNewScout={() => {
+                // The Queue holds the form, and the window holds what it is
+                // showing, so one gesture across two surfaces: a fresh draft,
+                // and the Queue it opens in.
+                setScoutDraft({ edit: null, values: null });
+                pushRoute(SCOUTS);
+              }}
+            />
+          )}
           {route.surface === "loose-ends" && (
             <LooseEnds
               onAttach={(path) => {
