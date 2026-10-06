@@ -431,3 +431,69 @@ describe("the Question Map's matrix", () => {
     expect(within(view).queryByRole("grid")).toBeNull();
   });
 });
+
+// The page's one depth control (#491; ADR 0041 decision 8): the matrix and
+// the readings are asked at the same depth, and the choice is only a request
+// parameter — nothing is stored.
+describe("the Question Map's depth control", () => {
+  const TAGS: Record<number, string[]> = {
+    1: ["ai"],
+    2: ["ai", "ai/safety"],
+    3: ["ai/safety/rlhf", "ai/safety/eval"],
+  };
+  const atDepth = (input: unknown): Matrix => {
+    const depth = (input as { depth?: number } | undefined)?.depth ?? 3;
+    const tags = TAGS[depth]!;
+    return {
+      ...shaped([1, tags.length], [1, tags.length]),
+      depth,
+      deepest: 3,
+      columns: tags.map((t) => ({ canonical: t, display: t, weight: 1 })),
+    };
+  };
+
+  const setup = () => {
+    const asked: unknown[] = [];
+    open({
+      "questionMap.matrix": atDepth,
+      "questionMap.readings": (input: unknown) => {
+        asked.push(input);
+        return {
+          ...NO_READINGS,
+          depth: (input as { depth?: number } | undefined)?.depth ?? 3,
+        };
+      },
+    });
+    return asked;
+  };
+
+  it("opens at the deepest depth, with that depth pressed", async () => {
+    setup();
+    const view = await page();
+    const group = await within(view).findByRole("group", { name: "Depth" });
+    const pressed = (name: string) =>
+      within(group).getByRole("button", { name }).getAttribute("aria-pressed");
+    expect(pressed("3")).toBe("true");
+    expect(pressed("1")).toBe("false");
+    expect(within(view).getByText("ai/safety/rlhf")).toBeDefined();
+  });
+
+  it("rolls the matrix's columns up, and asks the readings at the same depth", async () => {
+    const asked = setup();
+    const view = await page();
+    const group = await within(view).findByRole("group", { name: "Depth" });
+    fireEvent.click(within(group).getByRole("button", { name: "1" }));
+    await vi.waitFor(() => {
+      expect(within(view).queryByText("ai/safety/rlhf")).toBeNull();
+      expect(within(view).getByText("ai")).toBeDefined();
+    });
+    expect(asked.at(-1)).toEqual({ depth: 1 });
+  });
+
+  it("draws no control when there is only one depth to choose", async () => {
+    open();
+    const view = await page();
+    await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
+    expect(within(view).queryByRole("group", { name: "Depth" })).toBeNull();
+  });
+});
