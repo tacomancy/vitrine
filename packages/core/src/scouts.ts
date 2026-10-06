@@ -12,7 +12,7 @@ import {
 import type { RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
 import type { Events } from "./events.js";
-import { readScouts, type Scout } from "./scout-file.js";
+import { readScouts, scoutIdOf, type Scout } from "./scout-file.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
@@ -617,7 +617,7 @@ export function acceptProposal(
     // Questions. A stub written without them would read as a Scout that had
     // none, with nothing to say they were lost (ADR 0039 decision 7).
     const unknown = unreadable.filter((u) =>
-      involved.includes(u.file.replace(/\.ya?ml$/i, ""))
+      involved.includes(scoutIdOf(u.file))
     );
     if (unknown.length > 0) {
       throw new VaultError(

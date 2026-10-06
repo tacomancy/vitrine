@@ -5,9 +5,11 @@ import { ArxivError } from "./arxiv.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
+  isScoutFile,
   listScoutsFolder,
   readScouts,
   readScoutFile,
+  scoutIdOf,
   SCOUTS_FOLDER,
   writeScoutFile,
   type Scout,
@@ -41,9 +43,12 @@ export type ScoutForm = {
   searchBackTo: string | null;
 };
 
-// Picking a free file name reads the folder and then writes to it; two saves
-// that overlapped would both see the name free. The queue is here, in the
-// function, never in a caller that must remember it.
+// Every edit of a Scout's file reads it and writes it back: a save picks a free
+// file name from the folder and then writes to it, and a pause or resume plans
+// its write against the text it read. Two that overlapped would both see the
+// name free, or one would write back a file without the other's change. So
+// they all join this queue, and so must any later edit of the file. It is here,
+// in the function, never in a caller that must remember it.
 const saving = serialised();
 
 export async function saveScout(
@@ -287,16 +292,14 @@ const TRY_ID = "\0try";
  */
 function fileOf(scouts: Scout[], id: string, names: string[]) {
   const scout = scouts.find((s) => s.id === id);
-  const file = names.find(
-    (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === id
-  );
+  const file = names.find((n) => isScoutFile(n) && scoutIdOf(n) === id);
   return scout === undefined || file === undefined
     ? undefined
     : { scout, file };
 }
 
 function freeId(name: string, names: string[]): string {
-  const taken = new Set(names.map((n) => n.replace(/\.ya?ml$/i, "")));
+  const taken = new Set(names.map(scoutIdOf));
   const base =
     name
       .normalize("NFKD")

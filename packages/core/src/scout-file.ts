@@ -48,6 +48,15 @@ const unreadableFile = (file: string, problem: string): UnreadableScout => ({
  */
 export const SCOUTS_FOLDER = ".vitrine/scouts";
 
+/**
+ * Which names in the Scouts folder are Scouts, and the id each one gives. One
+ * definition, so the read of the Scouts and the lookup of a Scout's file for
+ * an edit cannot take different names (#533).
+ */
+const SCOUT_FILE = /\.ya?ml$/i;
+export const isScoutFile = (name: string) => SCOUT_FILE.test(name);
+export const scoutIdOf = (file: string) => file.replace(SCOUT_FILE, "");
+
 const CADENCES = ["daily", "weekly", "monthly"] as const;
 const LANES = ["review", "skim"] as const;
 
@@ -82,7 +91,7 @@ export async function readScouts(
   const names = await listScoutsFolder(vaultPath);
   const scouts: Scout[] = [];
   const unreadable: UnreadableScout[] = [];
-  for (const file of names.filter((n) => /\.ya?ml$/i.test(n)).sort()) {
+  for (const file of names.filter(isScoutFile).sort()) {
     let text: string;
     try {
       text = await readFile(join(folder, file), "utf8");
@@ -94,7 +103,7 @@ export async function readScouts(
       unreadable.push(unreadableFile(file, errorMessageWithoutPath(cause)));
       continue;
     }
-    const read = readScout(file.replace(/\.ya?ml$/i, ""), text);
+    const read = readScout(scoutIdOf(file), text);
     if (read.ok) scouts.push(read.scout);
     else unreadable.push(unreadableFile(file, read.problem));
   }
