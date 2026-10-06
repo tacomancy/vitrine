@@ -7,7 +7,54 @@ import {
   unreadableHealth,
   type Health,
 } from "./scout-health.js";
+import { acceptCounts, type AcceptCounts } from "./triage.js";
 import { NO_KEY } from "./watched.js";
+
+/** The window the headline rate reads: twelve weeks, the same the chart draws (ADR 0042 decision 2). */
+const WINDOW_MS = 12 * 7 * 86_400_000;
+
+/**
+ * What a row says about how often its Scout's Review items are accepted. A
+ * Scout nobody has judged is *nothing triaged yet*, never 0%: not having
+ * judged is not having rejected. A rate that rests on fields the source
+ * arrives without is *unavailable*, stated as why (ADR 0042 decision 3).
+ */
+export type AcceptRate =
+  | { kind: "rate"; accepted: number; triaged: number; rate: number }
+  | { kind: "nothing triaged" }
+  | { kind: "unavailable"; reason: string };
+
+/**
+ * The guard tests only the fields the source is expected to supply: arXiv
+ * carries a venue only when a paper has a `journal_ref`, so counting it missing
+ * would have withheld every arXiv Scout's rate (ADR 0042 decision 3). It is a
+ * fact about the measure, never a health state: the items verified.
+ */
+function acceptRateOf(
+  scout: Scout,
+  counts: AcceptCounts | undefined
+): AcceptRate {
+  const triaged = (counts?.accepted ?? 0) + (counts?.rejected ?? 0);
+  if (counts === undefined || triaged === 0) return { kind: "nothing triaged" };
+  const missing = [
+    ...(counts.noAuthors * 2 >= triaged ? ["authors"] : []),
+    ...(scout.source.kind === "watched" && counts.noVenue * 2 >= triaged
+      ? ["venue"]
+      : []),
+  ];
+  if (missing.length > 0) {
+    return {
+      kind: "unavailable",
+      reason: `Most of this Scout's papers arrive without ${missing.join(" or ")}.`,
+    };
+  }
+  return {
+    kind: "rate",
+    accepted: counts.accepted,
+    triaged,
+    rate: counts.accepted / triaged,
+  };
+}
 
 /**
  * What Scout Activity draws, in one read (ADR 0042; `docs/architecture.md`
@@ -35,6 +82,7 @@ export type ActivityRow =
        */
       lastRun: { finished: string; ago: string } | null;
       health: Health;
+      acceptRate: AcceptRate;
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
@@ -66,12 +114,25 @@ export type ScoutActivity = { rows: ActivityRow[]; fleet: FleetSource };
  */
 const NEED = { wrong: 0, "not yet": 1, claim: 2 } as const;
 
+/** After every rate: a Scout whose rate cannot be said, then one nobody has judged. */
+const RATE_TAIL = { rate: 0, unavailable: 1, "nothing triaged": 2 } as const;
+
+/** A file that will not parse has judged nothing, so it sorts with the Scouts nobody has. */
+const rateOrder = (row: ActivityRow) =>
+  RATE_TAIL[row.kind === "scout" ? row.acceptRate.kind : "nothing triaged"];
+const rateOf = (row: ActivityRow) =>
+  row.kind === "scout" && row.acceptRate.kind === "rate"
+    ? row.acceptRate.rate
+    : 0;
+
 const labelOf = (row: ActivityRow) =>
   row.kind === "scout" ? row.name : row.file;
 
 /** Stable on name: `localeCompare` for people's names, then the file or id, so two Scouts named alike keep one order. */
 const byNeed = (a: ActivityRow, b: ActivityRow) =>
   NEED[a.health.voice] - NEED[b.health.voice] ||
+  rateOrder(a) - rateOrder(b) ||
+  rateOf(a) - rateOf(b) ||
   labelOf(a).localeCompare(labelOf(b)) ||
   (a.kind === "scout" && b.kind === "scout" ? a.id.localeCompare(b.id) : 0);
 
@@ -116,6 +177,10 @@ export async function readActivity(deps: {
 }): Promise<ScoutActivity> {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
+  const counts = acceptCounts(
+    deps.queue,
+    new Date(now.getTime() - WINDOW_MS).toISOString()
+  );
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
@@ -136,6 +201,10 @@ export async function readActivity(deps: {
                 ago: ago(now.getTime() - Date.parse(newest.finished)),
               },
         health: healthOf(deps.queue, scout, now),
+        acceptRate: acceptRateOf(
+          scout,
+          counts.find((c) => c.scoutId === scout.id)
+        ),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({

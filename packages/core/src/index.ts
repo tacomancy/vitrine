@@ -163,6 +163,7 @@ export type { ReadingPosition } from "./annotation-sidecar.js";
 export type { Accepted, Card, RunSummary } from "./scouts.js";
 export type { Group } from "./triage.js";
 export type {
+  AcceptRate,
   ActivityRow,
   FleetSource,
   ScoutActivity,

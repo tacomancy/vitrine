@@ -118,6 +118,9 @@ export type AcceptCounts = {
   scoutId: string;
   accepted: number;
   rejected: number;
+  /** Of those counted, how many arrived with no authors, and with no venue: the guard on the rate reads these (ADR 0042 decision 3). */
+  noAuthors: number;
+  noVenue: number;
 };
 
 /**
@@ -126,24 +129,35 @@ export type AcceptCounts = {
  * brief's test, so neither earns or costs the Scout anything — accepted or
  * not. A reject taken back by a later `undo` is not a reject. Credit goes to
  * the Scout whose Appearance came first, as a deferral's does.
+ *
+ * A *reject this run* on a Retroactive run is no reject either: it clears a
+ * backward search nobody wanted and says nothing about the brief (ADR 0042
+ * decision 2). The same act on an ordinary run is *this run was junk*, a
+ * real judgement, and counts. `since` limits the read to acts at or after
+ * that time, for the trailing window the row draws.
  */
-export function acceptCounts(queue: DatabaseSync): AcceptCounts[] {
+export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
   return queue
     .prepare(
       `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
                 ORDER BY run_id, rowid LIMIT 1) AS scoutId,
               SUM(t.action = 'accept') AS accepted,
-              SUM(t.action = 'reject') AS rejected
+              SUM(t.action = 'reject') AS rejected,
+              SUM(p.authors = '[]') AS noAuthors,
+              SUM(p.venue IS NULL) AS noVenue
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
         WHERE t.action IN ('accept', 'reject')
+          AND t.at >= ?
           AND p.lane = 'review'
+          AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
+                           AND r.retroactive = 1)
           AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
                            AND x.action = 'promote')
           AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
                            AND u.action = 'undo' AND u.rowid > t.rowid)
         GROUP BY scoutId ORDER BY scoutId`
     )
-    .all() as AcceptCounts[];
+    .all(since) as AcceptCounts[];
 }
 
 /**
