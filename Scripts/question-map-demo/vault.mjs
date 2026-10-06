@@ -7,6 +7,7 @@ import { join } from "node:path";
 const AREAS = 5;
 const TAGS_PER_AREA = 5; // 25 Tags: three more than the 22 columns shown
 const SOURCES = 30;
+// matrix.mjs states the cut these produce: 28 + the fixture's 2 = 30 questions, 25 tags.
 const QUESTIONS = 28; // 25 anchored + 3 unanchored: four more than the 24 rows
 const UNANCHORED = 3;
 
@@ -60,7 +61,8 @@ export function emptyVault(vault) {
 }
 
 /** Enough notes that the first read takes long enough to be caught mid-build. */
-export function bigVault(vault, notes = 12000) {
+export function bigVault(vault) {
+  const notes = 12000;
   emptyVault(vault);
   mkdirSync(join(vault, "filler"), { recursive: true });
   for (let n = 0; n < notes; n++) {

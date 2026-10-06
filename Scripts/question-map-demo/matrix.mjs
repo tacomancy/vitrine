@@ -5,8 +5,20 @@ import {
   gridSize,
   openMapRead,
   stated,
-  tokens,
 } from "./helpers.mjs";
+/** The styles a theme resolves to, quoted in the PR (docs/agents/run.md § 3). */
+const tokens = (page) =>
+  page.eval(`(() => {
+    const css=getComputedStyle(document.documentElement);
+    const cell=document.querySelector('[role=gridcell][aria-label]:not([aria-label$=": 0 items"])');
+    return {
+      seq1: css.getPropertyValue('--color-seq-1').trim(),
+      seq5: css.getPropertyValue('--color-seq-5').trim(),
+      page: getComputedStyle(document.body).backgroundColor,
+      cell: cell && getComputedStyle(cell).backgroundColor,
+    };
+  })()`);
+
 export default async (page) => {
   await openMapRead(page);
   await applyTheme(page);

@@ -52,16 +52,3 @@ export const readingButtons = (page) =>
 export const expect = (ok, what) => {
   if (!ok) throw new Error(`demo expectation failed: ${what}`);
 };
-
-/** The styles a theme resolves to, quoted in the PR (docs/agents/run.md § 3). */
-export const tokens = (page) =>
-  page.eval(`(() => {
-    const css=getComputedStyle(document.documentElement);
-    const cell=document.querySelector('[role=gridcell][aria-label]:not([aria-label$=": 0 items"])');
-    return {
-      seq1: css.getPropertyValue('--color-seq-1').trim(),
-      seq5: css.getPropertyValue('--color-seq-5').trim(),
-      page: getComputedStyle(document.body).backgroundColor,
-      cell: cell && getComputedStyle(cell).backgroundColor,
-    };
-  })()`);
