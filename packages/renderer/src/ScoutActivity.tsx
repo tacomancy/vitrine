@@ -9,7 +9,9 @@ import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 /**
  * Scout Activity (brief § Scout Activity, Prompt 10; ADR 0042): are the
  * Scouts earning their keep. One read, `scouts.activity`, says everything the
- * screen shows, and the renderer words none of it.
+ * screen shows. A Scout's Voice, Warrant and fault sentence are the core's,
+ * drawn as the Queue's rail draws them (ADR 0032 decision 7); this file words
+ * only its own labels and the empty fleet.
  */
 export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   const trpc = useTRPC();
@@ -24,32 +26,13 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           Scout Activity
         </h1>
       </div>
-      {/* The first slot speaks only where the rows would begin (ADR 0033
-          decision 3), and in one of ADR 0032's three Voices. A failed read is
-          *wrong* and outranks everything, so it can never pass for a fleet
-          with no Scouts in it; a read still on its way has not looked yet; and
-          a fleet with nothing in it is not yet a fleet, and offers to be one. */}
-      {rows.length === 0 &&
-        (activity.isError ? (
-          <FirstSlot voice="wrong" claim="" />
-        ) : activity.data === undefined ? (
-          <FirstSlot voice="not yet" claim="" />
-        ) : (
-          <FirstSlot
-            voice="not yet"
-            claim=""
-            fragment="no scouts yet"
-            action={
-              <button
-                type="button"
-                className={styles.action}
-                onClick={onNewScout}
-              >
-                new scout
-              </button>
-            }
-          />
-        ))}
+      {rows.length === 0 && (
+        <NoRows
+          failed={activity.isError}
+          answered={activity.data !== undefined}
+          onNewScout={onNewScout}
+        />
+      )}
       {rows.length > 0 && (
         <div className={styles.scroll}>
           <table className={styles.table} aria-label="Scouts">
@@ -89,6 +72,38 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         </footer>
       )}
     </section>
+  );
+}
+
+/**
+ * The first slot, where the rows would begin, in one of ADR 0032's three
+ * Voices (ADR 0033 decision 3). A failed read is *wrong* and is asked first,
+ * so it can never pass for a fleet with no Scouts in it; a read still on its
+ * way has not looked yet; and a fleet with nothing in it is not yet a fleet,
+ * and offers to be one.
+ */
+function NoRows({
+  failed,
+  answered,
+  onNewScout,
+}: {
+  failed: boolean;
+  answered: boolean;
+  onNewScout: () => void;
+}) {
+  if (failed) return <FirstSlot voice="wrong" claim="" />;
+  if (!answered) return <FirstSlot voice="not yet" claim="" />;
+  return (
+    <FirstSlot
+      voice="not yet"
+      claim=""
+      fragment="no scouts yet"
+      action={
+        <button type="button" className={styles.action} onClick={onNewScout}>
+          new scout
+        </button>
+      }
+    />
   );
 }
 

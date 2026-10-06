@@ -166,7 +166,7 @@ describe("scouts.activity — what a Scout watches", () => {
       [{ kind: "arxiv", query: "all:sleep" }, "weekly"],
       [{ kind: "watched", url: "https://lab.example/publications" }, "monthly"],
     ]);
-    // A page saved but never checked says why it is quiet, in the rail's words.
+    // A page saved but never checked says why it has not looked, in the rail's words.
     expect(rows[1]!.health).toEqual({
       voice: "not yet",
       sentence: "Not yet — first check due now.",

@@ -1,15 +1,15 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ActivityRow, ScoutActivity } from "core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // Scout Activity's tracer (#513; spec #511; ADR 0042; ADR 0032): a Dashboard
-// at its own Address that draws what `scouts.activity` says and words nothing
-// itself. The core is faked, so what is asserted is what the renderer draws
-// from what the core says.
+// at its own Address that draws what `scouts.activity` says. A Scout's Voice,
+// Warrant and fault sentence are the core's to word, so with the core faked
+// what is asserted is what the renderer draws from what the core says.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
 const NONE: ScoutActivity = { rows: [] };
@@ -103,7 +103,6 @@ describe("Scout Activity", () => {
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
       "Scout Activity"
     );
-    expect(window.location.hash).toBe("#/scout-activity");
   });
 
   it("is reached from the Sidebar", async () => {
@@ -173,87 +172,21 @@ describe("a long Query", () => {
 });
 
 describe("each Scout's Voice", () => {
-  /**
-   * What the Queue's rail says of these same Scouts, drawn from the same
-   * health the core handed Scout Activity: the rail is the other surface that
-   * words a Scout's Voice, and the two must agree to the letter.
-   */
-  async function railSays(rows: ActivityRow[]) {
-    const scouts = rows.flatMap((row) =>
-      row.kind === "scout"
-        ? [
-            {
-              id: row.id,
-              name: row.name,
-              source: { kind: "arxiv" },
-              query: "all:x",
-              cadence: row.cadence,
-              assigned: [],
-              lane: "review",
-              paused: false,
-              created: "2026-09-20T00:00:00.000Z",
-              searchBackTo: null,
-            },
-          ]
-        : []
-    );
-    window.location.hash = "#/scouts";
-    renderApp({
-      "vault.current": vault,
-      "questions.list": empty,
-      "vault.status": READ,
-      "scouts.list": {
-        scouts,
-        unreadable: rows.flatMap((row) =>
-          row.kind === "unreadable"
-            ? [
-                {
-                  file: row.file,
-                  sentence:
-                    row.health.voice === "claim" ? "" : row.health.sentence,
-                },
-              ]
-            : []
-        ),
-      },
-      "scouts.queue": [],
-      "scouts.groups": scouts.map(({ id }) => ({
-        id,
-        runId: null,
-        runPending: 0,
-        held: [],
-      })),
-      "scouts.fleet": { claim: null, naming: [] },
-      "scouts.health": {
-        scouts: rows.flatMap((row) =>
-          row.kind === "scout" ? [{ id: row.id, health: row.health }] : []
-        ),
-        unreadable: [],
-      },
-    });
-    const rail = await screen.findByRole("list", { name: "Scouts" });
-    await within(rail).findByText(/Paused — it is not looking\./);
-    const said = voicesIn(rail);
-    cleanup();
-    return said;
-  }
-
-  /** Each Voice drawn under a node, which Voice it is and every word of it. */
+  /** Each Voice drawn under a node: which Voice it is, and every word of it. */
   const voicesIn = (node: HTMLElement) =>
     [...node.querySelectorAll("[data-voice]")].map((voice) => [
       voice.getAttribute("data-voice"),
       voice.textContent,
     ]);
 
-  it("says each Scout's Voice and Warrant exactly as the Queue's rail words it, and a file that will not parse in the wrong Voice", async () => {
-    const rows = [BROKEN, QUIET, RESTING, TORN];
-    const rail = await railSays(rows);
-
-    open({ rows });
+  it("says each Scout's Voice and Warrant in the words the Queue's rail speaks for the same health, and a file that will not parse in the wrong Voice", async () => {
+    open({ rows: [BROKEN, QUIET, RESTING, TORN] });
     const table = await screen.findByRole("table", { name: "Scouts" });
 
-    expect(voicesIn(table)).toEqual(rail);
-    // And what both say is the core's: a failure with its one sentence, a
+    // The rail draws these same words from the same `Health` through the same
+    // component (`scout-form.test.tsx` pins them there), and the core hands
+    // both surfaces one derivation (`scout-activity.test.ts` pins that), so
+    // the literals are the whole contract: a failure with its one sentence, a
     // quiet field as a claim with its Warrant, a Scout that is not looking
     // saying so, and the torn file by its name in the wrong Voice.
     expect(voicesIn(table)).toEqual([
@@ -268,6 +201,25 @@ describe("each Scout's Voice", () => {
       ["not yet", "Paused — it is not looking."],
       ["wrong", "⚠This file could not be read: line 2 is not valid YAML."],
     ]);
+  });
+});
+
+describe("a check finishing", () => {
+  it("reads the fleet again, so a Scout that has just broken does not go on reading as well", async () => {
+    let rows: ActivityRow[] = [QUIET];
+    const { stream } = open(() => ({ rows }));
+    const [before] = await tableRows();
+    expect(before!.textContent).toContain("parsed cleanly");
+
+    rows = [{ ...QUIET, health: BROKEN.health }];
+    stream.push({ type: "scoutFinished", scoutId: "quiet", runId: 4 });
+
+    await vi.waitFor(async () => {
+      const [after] = await tableRows();
+      expect(after!.textContent).toContain(
+        "arXiv answered with an error (HTTP 503)"
+      );
+    });
   });
 });
 

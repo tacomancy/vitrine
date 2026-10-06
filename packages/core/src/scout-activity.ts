@@ -27,9 +27,9 @@ export type ActivityRow =
       cadence: Scout["cadence"];
       /**
        * The newest check that looked, whatever came of it; null before the
-       * first. A check refused for want of a key read nothing (ADR 0040
-       * decision 1) and is not one, so a Scout waiting on a key never shows a
-       * time it did not look (ADR 0042 decision 6). `ago` is the phrase a
+       * first. A check refused for want of a key read nothing, so it is not
+       * one: a Scout waiting on a key must not show a time it did not look
+       * (ADR 0040, Consequences; ADR 0042 decision 6). `ago` is the phrase a
        * Quiet field's Warrant uses for its own newest run, so one row never
        * gives that moment two wordings.
        */
@@ -41,7 +41,7 @@ export type ActivityRow =
 
 export type ScoutActivity = { rows: ActivityRow[] };
 
-/** A check refused for want of a key read nothing (ADR 0040 decision 1): it is not a time the Scout looked. */
+/** The run `healthOf` answers *not yet* for (ADR 0040 decision 1): it fetched nothing, so it is not a time the Scout looked. */
 const looked = (run: {
   error_kind: string | null;
   error_message: string | null;
@@ -55,8 +55,8 @@ export async function readActivity(deps: {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   return {
-    // Readable Scouts, then the files that would not parse — the rail's own
-    // order, which holds until the fleet table sorts by need.
+    // Readable Scouts, then the files that would not parse: the rail's own
+    // order, standing in until ADR 0042 decision 8's sort by need replaces it.
     rows: [
       ...scouts.map((scout): ActivityRow => {
         const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
