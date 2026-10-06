@@ -782,6 +782,8 @@ describe("questionMap.origins", () => {
   it("is empty when no Question has been captured", async () => {
     const read = await originsOf({ "s/rasch.md": source("rasch", []) });
     expect(await read()).toMatchObject({ rows: [], total: 0 });
+  });
+});
 
 // What the Map could not read (#492; ADR 0041 decision 13): a Partial or
 // Unreadable Question is never a row, and the footer says so.

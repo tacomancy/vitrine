@@ -468,6 +468,7 @@ describe("the Question Map's depth control", () => {
   const setup = () => {
     const asked: unknown[] = [];
     open({
+      ...attached(),
       "questionMap.matrix": atDepth,
       "questionMap.readings": (input: unknown) => {
         asked.push(input);
@@ -508,6 +509,8 @@ describe("the Question Map's depth control", () => {
     const view = await page();
     await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
     expect(within(view).queryByRole("group", { name: "Depth" })).toBeNull();
+  });
+});
 
 // What the Map could not read, and the short pages (#492; ADR 0041
 // decisions 13–14): the footer counts what was skipped, and a short page is a
