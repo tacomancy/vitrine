@@ -1,15 +1,15 @@
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { Scout, UnreadableScout } from "./scout-file.js";
 import { closeCores, core, tmp } from "./test-core.js";
 
 // Loose Ends' *pause* is the form's own edit of a Scout's file, not a second
-// way to write it (#533). Every edit of the file is a read-modify-write, so
-// it is queued with the others and lands whole or not at all: two that
-// overlap lose neither, and a write the disk cannot finish leaves the file
-// as it was. Driven through the router, and what is asserted is what the
-// researcher would find on the next read.
+// way to write it (#533). Every edit of the file is a read-modify-write, so it
+// is queued with the others and lands whole or not at all: two that overlap
+// lose neither, and a write the disk cannot finish leaves the file as it was.
+// Driven through the router, and what is asserted is what the researcher would
+// find on the next read.
 
 // The one place a test reaches below the router, as `questions.atomic.test.ts`
 // does for `rename`: an overlap and a full disk both happen *between* an
@@ -25,23 +25,17 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...fs.actual, writeFile: fs.writeFile };
 });
 
-/** What lets go of the write a test is holding, so a failure cannot leave a call hanging. */
-let letGo: (() => void) | undefined;
-
 afterEach(async () => {
-  letGo?.();
-  letGo = undefined;
   fs.writeFile.mockImplementation(fs.actual.writeFile as never);
   await closeCores();
 });
 
-const NOW = new Date("2026-09-30T12:34:00Z");
 const FOLDER = ".vitrine/scouts";
 
 const scoutYaml = `name: Sleep and memory\ncadence: daily\nlane: review\ncreated: 2026-09-20T00:00:00Z\nfilter:\n  query: all:sleep\n`;
 
-/** An edit from the form that changes three keys and not the Query, so it runs nothing. */
-const EDIT = {
+/** The form saving an edit that changes three keys and not the Query, so it runs nothing. */
+const EDITED_FORM = {
   id: "sleep",
   name: "Renamed",
   query: "all:sleep",
@@ -52,10 +46,8 @@ const EDIT = {
 };
 
 /**
- * The two ways to pause a Scout: Loose Ends' *pause*, and the header's
- * *pause*, which is the form's own. `scouts.setPaused` is the control
- * wherever it appears: it was queued and atomic before #533, so a test that
- * fails for `scouts.pause` alone is failing on what `pauseScout` did.
+ * Loose Ends' *pause* and the header's. They are one edit of the file, so
+ * every test that takes a pause takes both.
  */
 const PAUSES = [
   { call: "scouts.pause", input: { scoutId: "sleep" } },
@@ -65,7 +57,7 @@ const PAUSES = [
 /** Every act that edits a Scout's file, and what the next read of the Scout shows of it. */
 const EDITS = [
   ...PAUSES.map((pause) => ({ ...pause, shows: { paused: true } })),
-  { call: "scouts.save", input: EDIT, shows: { name: "Renamed" } },
+  { call: "scouts.save", input: EDITED_FORM, shows: { name: "Renamed" } },
 ];
 
 async function opened(files: Record<string, string>) {
@@ -74,21 +66,21 @@ async function opened(files: Record<string, string>) {
     await mkdir(dirname(join(vault, file)), { recursive: true });
     await fs.actual.writeFile(join(vault, file), text);
   }
-  const c = await core({ now: () => NOW });
+  const c = await core();
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
-  const scouts = async () => {
-    const listed = await c.query<{
+  const listed = async () => {
+    const read = await c.query<{
       scouts: Scout[];
       unreadable: UnreadableScout[];
     }>("scouts.list");
-    expect(listed.error).toBeUndefined();
-    return listed.result!.data;
+    expect(read.error).toBeUndefined();
+    return read.result!.data;
   };
   return {
     c,
     vault,
-    scouts,
+    listed,
     file: () => readFile(join(vault, FOLDER, "sleep.yaml"), "utf8"),
     path: () => join(vault, FOLDER, "sleep.yaml"),
   };
@@ -100,8 +92,8 @@ function interceptNextScoutWrite(
 ) {
   let taken = false;
   fs.writeFile.mockImplementation(async (...args) => {
-    const into = String(args[0]);
-    if (taken || !into.includes(`/${FOLDER}/`)) {
+    const target = String(args[0]);
+    if (taken || !target.includes(`/${FOLDER}/`)) {
       return fs.actual.writeFile(
         ...(args as Parameters<typeof fs.actual.writeFile>)
       );
@@ -120,7 +112,8 @@ function holdNextScoutWrite() {
   let release!: () => void;
   const reached = new Promise<void>((resolve) => (held = resolve));
   const released = new Promise<void>((resolve) => (release = resolve));
-  letGo = release;
+  // A test that fails while a write is held must not leave its call hanging.
+  onTestFinished(release);
   interceptNextScoutWrite(async (args) => {
     held();
     await released;
@@ -143,19 +136,20 @@ function failNextScoutWrite() {
   });
 }
 
+const ALLOWED_MS = 250;
+
 /**
- * Whether a call has finished once nothing is holding it back. One that is
- * not queued behind the held edit finishes in a few milliseconds; one that
- * is does nothing until the edit lets go, so there is no event to wait for,
- * only a time that is long next to an edit and short next to a test. Being
- * wrong costs the one side: a slow machine can only make a call that would
- * have overlapped look queued, and never the reverse.
+ * Give a call the chance to finish while an edit is held. One that is not
+ * queued behind the held edit finishes in a few milliseconds; one that is does
+ * nothing until the edit lets go, so there is no event to wait for, only a time
+ * that is long next to an edit and short next to a test. Being wrong costs the
+ * one side: a slow machine can only make a call that would have overlapped
+ * look queued, and never the reverse.
  */
-const SETTLE_MS = 250;
-const settled = (call: Promise<unknown>) =>
+const allowToFinish = (call: Promise<unknown>) =>
   Promise.race([
     call,
-    new Promise((resolve) => setTimeout(resolve, SETTLE_MS)),
+    new Promise((resolve) => setTimeout(resolve, ALLOWED_MS)),
   ]);
 
 describe("a pause and an edit of one Scout that overlap", () => {
@@ -170,53 +164,53 @@ describe("a pause and an edit of one Scout that overlap", () => {
   it.each(PAUSES)(
     "$call keeps the pause when the edit was already under way",
     async ({ call, input }) => {
-      const { c, scouts } = await opened({
+      const { c, listed } = await opened({
         [`${FOLDER}/sleep.yaml`]: scoutYaml,
       });
       const write = holdNextScoutWrite();
-      const edit = c.mutate("scouts.save", EDIT);
+      const edit = c.mutate("scouts.save", EDITED_FORM);
       await write.reached;
 
       const pause = c.mutate(call, input);
-      await settled(pause);
+      await allowToFinish(pause);
       write.release();
 
       expect((await edit).error).toBeUndefined();
       expect((await pause).error).toBeUndefined();
-      expect((await scouts()).scouts).toMatchObject([BOTH]);
+      expect((await listed()).scouts).toMatchObject([BOTH]);
     }
   );
 
   it.each(PAUSES)(
     "$call keeps the edit when the pause was already under way",
     async ({ call, input }) => {
-      const { c, scouts } = await opened({
+      const { c, listed } = await opened({
         [`${FOLDER}/sleep.yaml`]: scoutYaml,
       });
       const write = holdNextScoutWrite();
       const pause = c.mutate(call, input);
       await write.reached;
 
-      const edit = c.mutate("scouts.save", EDIT);
-      await settled(edit);
+      const edit = c.mutate("scouts.save", EDITED_FORM);
+      await allowToFinish(edit);
       write.release();
 
       expect((await pause).error).toBeUndefined();
       expect((await edit).error).toBeUndefined();
-      expect((await scouts()).scouts).toMatchObject([BOTH]);
+      expect((await listed()).scouts).toMatchObject([BOTH]);
     }
   );
 });
 
 describe("an edit the disk cannot finish", () => {
-  // The injected failure does not destroy a Scout by itself: only a write
-  // that empties the file first does, as `pauseScout`'s did and the atomic
-  // writer's never does. `scouts.setPaused` and `scouts.save` are the
-  // controls that say so.
-  it.each([...PAUSES, { call: "scouts.save", input: EDIT }])(
+  // The failure injected here empties the file it opens, as a full disk does,
+  // so only a writer that opens the Scout's own file can lose it. Every edit
+  // writes a temp file and renames it, and so every edit leaves the Scout as
+  // it was.
+  it.each(EDITS)(
     "$call leaves the Scout file as it was, and still a Scout",
     async ({ call, input }) => {
-      const { c, scouts, file } = await opened({
+      const { c, listed, file } = await opened({
         [`${FOLDER}/sleep.yaml`]: scoutYaml,
       });
       failNextScoutWrite();
@@ -225,7 +219,7 @@ describe("an edit the disk cannot finish", () => {
 
       expect(reply.result).toBeUndefined();
       expect(reply.error?.data.kind).toBe("writeFailed");
-      const read = await scouts();
+      const read = await listed();
       expect(read.unreadable).toEqual([]);
       expect(read.scouts.map((s) => s.id)).toEqual(["sleep"]);
       expect(await file()).toBe(scoutYaml);
@@ -233,19 +227,16 @@ describe("an edit the disk cannot finish", () => {
   );
 });
 
-// `pauseScout` opened the Scout's own file for writing, so a file the user
-// made read-only refused it, where the form's save and pause have always
-// replaced the file by rename and asked only the folder's mode (#533). One
-// rule for what the app does to such a file, whichever act asked: it is
-// replaced. Honouring a read-only mark would be a rule for all three, and a
-// decision of its own.
+// An edit replaces a Scout's file by rename, so only the folder's mode is
+// asked of the filesystem, never the file's: all three edits replace a
+// read-only file alike (`docs/architecture.md` § Scouts, *Form*).
 describe.skipIf(process.getuid?.() === 0)(
   "a Scout whose file the user made read-only",
   () => {
     it.each(EDITS)(
       "is changed by $call all the same",
       async ({ call, input, shows }) => {
-        const { c, scouts, path } = await opened({
+        const { c, listed, path } = await opened({
           [`${FOLDER}/sleep.yaml`]: scoutYaml,
         });
         await chmod(path(), 0o444);
@@ -253,7 +244,7 @@ describe.skipIf(process.getuid?.() === 0)(
         const reply = await c.mutate(call, input);
 
         expect(reply.error).toBeUndefined();
-        expect((await scouts()).scouts).toMatchObject([shows]);
+        expect((await listed()).scouts).toMatchObject([shows]);
       }
     );
   }
@@ -262,11 +253,9 @@ describe.skipIf(process.getuid?.() === 0)(
 // `readScouts` takes a Scout from a `.yaml` or `.yml` name, and the lookup that
 // finds its file for an edit must take the same ones: a folder, or any other
 // file, named like the id sorts ahead of `sleep.yaml` and is not the Scout.
-// `pauseScout` had that check; the form's lookup did not, so a pause from
-// Loose Ends would have lost it (#533).
 describe("a Scout with something beside it named like it", () => {
   it.each(EDITS)("is still found by $call", async ({ call, input, shows }) => {
-    const { c, vault, scouts } = await opened({
+    const { c, vault, listed } = await opened({
       [`${FOLDER}/sleep.yaml`]: scoutYaml,
     });
     await mkdir(join(vault, FOLDER, "sleep"));
@@ -274,13 +263,13 @@ describe("a Scout with something beside it named like it", () => {
     const reply = await c.mutate(call, input);
 
     expect(reply.error).toBeUndefined();
-    expect((await scouts()).scouts).toMatchObject([shows]);
+    expect((await listed()).scouts).toMatchObject([shows]);
   });
 });
 
-// What `pauseScout`'s own comment promised, and what a hand-written file is
-// owed (ADR 0009): a key set in place, in a document edited rather than
-// re-stringified, and a file the app cannot parse left for its owner.
+// What a hand-written file is owed (ADR 0009): a key set in place, in a
+// document edited rather than re-stringified, and a file the app cannot parse
+// left for its owner.
 describe("a pause", () => {
   it.each(PAUSES)(
     "$call sets one key, and leaves a hand-written file's comments, unknown keys and order as they were",
