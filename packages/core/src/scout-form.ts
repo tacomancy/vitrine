@@ -274,10 +274,16 @@ export async function tryPage(
 /** A Scout id no file can have (ids are file names): *try* is looking for no one's history. */
 const TRY_ID = "\0try";
 
-/** A Scout and the file it came from: a hand-written one may end `.yml`. */
+/**
+ * A Scout and the file it came from: a hand-written one may end `.yml`. Only
+ * the names `readScouts` takes for a Scout are candidates — a folder or a
+ * file named like the id sorts ahead of `<id>.yaml` and is not it.
+ */
 function fileOf(scouts: Scout[], id: string, names: string[]) {
   const scout = scouts.find((s) => s.id === id);
-  const file = names.find((n) => n.replace(/\.ya?ml$/i, "") === id);
+  const file = names.find(
+    (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === id
+  );
   return scout === undefined || file === undefined
     ? undefined
     : { scout, file };

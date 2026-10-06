@@ -62,6 +62,12 @@ const PAUSES = [
   { call: "scouts.setPaused", input: { scoutId: "sleep", paused: true } },
 ];
 
+/** Every act that edits a Scout's file, and what the next read of the Scout shows of it. */
+const EDITS = [
+  ...PAUSES.map((pause) => ({ ...pause, shows: { paused: true } })),
+  { call: "scouts.save", input: EDIT, shows: { name: "Renamed" } },
+];
+
 async function opened(files: Record<string, string>) {
   const vault = await tmp("scout-pause");
   for (const [file, text] of Object.entries(files)) {
@@ -81,6 +87,7 @@ async function opened(files: Record<string, string>) {
   };
   return {
     c,
+    vault,
     scouts,
     file: (name = "sleep") =>
       readFile(join(vault, FOLDER, `${name}.yaml`), "utf8"),
@@ -202,11 +209,12 @@ describe("a pause and an edit of one Scout that overlap", () => {
   );
 });
 
-describe("a pause the disk cannot finish", () => {
-  // The control: the same failure, through the writer the form has always
-  // used, leaves the file alone. The injected failure does not destroy a
-  // Scout by itself; only a write that empties the file first does.
-  it.each(PAUSES)(
+describe("an edit the disk cannot finish", () => {
+  // The injected failure does not destroy a Scout by itself: only a write
+  // that empties the file first does, as `pauseScout`'s did and the atomic
+  // writer's never does. `scouts.setPaused` and `scouts.save` are the
+  // controls that say so.
+  it.each([...PAUSES, { call: "scouts.save", input: EDIT }])(
     "$call leaves the Scout file as it was, and still a Scout",
     async ({ call, input }) => {
       const { c, scouts, file } = await opened({
@@ -235,22 +243,41 @@ describe("a pause the disk cannot finish", () => {
 describe.skipIf(process.getuid?.() === 0)(
   "a Scout whose file the user made read-only",
   () => {
-    it.each([
-      ...PAUSES.map((pause) => ({ ...pause, shows: { paused: true } })),
-      { call: "scouts.save", input: EDIT, shows: { name: "Renamed" } },
-    ])("is changed by $call all the same", async ({ call, input, shows }) => {
-      const { c, scouts, path } = await opened({
-        [`${FOLDER}/sleep.yaml`]: scoutYaml,
-      });
-      await chmod(path(), 0o444);
+    it.each(EDITS)(
+      "is changed by $call all the same",
+      async ({ call, input, shows }) => {
+        const { c, scouts, path } = await opened({
+          [`${FOLDER}/sleep.yaml`]: scoutYaml,
+        });
+        await chmod(path(), 0o444);
 
-      const reply = await c.mutate(call, input);
+        const reply = await c.mutate(call, input);
 
-      expect(reply.error).toBeUndefined();
-      expect((await scouts()).scouts).toMatchObject([shows]);
-    });
+        expect(reply.error).toBeUndefined();
+        expect((await scouts()).scouts).toMatchObject([shows]);
+      }
+    );
   }
 );
+
+// `readScouts` takes a Scout from a `.yaml` or `.yml` name, and the lookup that
+// finds its file for an edit must take the same ones: a folder, or any other
+// file, named like the id sorts ahead of `sleep.yaml` and is not the Scout.
+// `pauseScout` had that check; the form's lookup did not, so a pause from
+// Loose Ends would have lost it (#533).
+describe("a Scout with something beside it named like it", () => {
+  it.each(EDITS)("is still found by $call", async ({ call, input, shows }) => {
+    const { c, vault, scouts } = await opened({
+      [`${FOLDER}/sleep.yaml`]: scoutYaml,
+    });
+    await mkdir(join(vault, FOLDER, "sleep"));
+
+    const reply = await c.mutate(call, input);
+
+    expect(reply.error).toBeUndefined();
+    expect((await scouts()).scouts).toMatchObject([shows]);
+  });
+});
 
 // What `pauseScout`'s own comment promised, and what a hand-written file is
 // owed (ADR 0009): a key set in place, in a document edited rather than
