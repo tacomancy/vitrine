@@ -378,7 +378,7 @@ The user's own key for a Provider, kept in the login Keychain by the app and rea
 _Avoid_: API key (in copy — say key), token (that is the session token), secret
 
 **Blocked on credentials** (of a Scout):
-A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key — storing one runs the Scouts waiting on it. *No key* is *not yet*; a key the Provider rejected is a fault in the *wrong* Voice, though Settings names both. Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
+A Scout whose Watched source needs an Extraction while no Credential exists, or whose Provider rejected the key. Nothing has failed; something is missing. Shown apart from *broken*, resolved by adding a key — storing one runs the Scouts waiting on it. *No key* is *not yet*; a key the Provider rejected is a fault in the *wrong* Voice, though Settings names both. The *no key* run it leaves went no further than the missing key, so it is no check of the field: it is left out of every count of runs, every mean over them and the Quiet field's baseline (ADR 0042). Read from either end of the same derivation: the Scout's row says it is waiting, and Settings names the Scouts waiting on that Provider's key — named, never counted (ADR 0025).
 _Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:

@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { LooseEnds } from "./loose-ends.js";
 import type { Health } from "./scout-health.js";
 import type { Card, RunSummary } from "./scouts.js";
 import {
@@ -38,6 +39,19 @@ const scoutYaml = (
     ...(over.paused ? ["paused: true"] : []),
     "filter:",
     `  query: ${over.query ?? "all:sleep"}`,
+    "",
+  ].join("\n");
+
+// The only kind of Scout that can be refused for want of a key (ADR 0040).
+const watchedYaml = (name: string) =>
+  [
+    `name: ${name}`,
+    "source:",
+    "  kind: watched",
+    "  url: https://lab.example/publications",
+    "cadence: daily",
+    "lane: review",
+    "created: 2026-09-20T00:00:00Z",
     "",
   ].join("\n");
 
@@ -583,5 +597,193 @@ describe("how a Scout says it is doing", () => {
       /^This file could not be read: line \d+ is not valid YAML\.$/
     );
     expect(JSON.stringify(unreadable)).not.toContain(f.vault);
+  });
+});
+
+// Beat 9's prefactor (#512; ADR 0042 decision 6): a *no key* run went no
+// further than the missing key, so it is no check of the field, and a Scout
+// waiting on a key must never read as having looked. Its row is there so that
+// *blocked on credentials* is derived from rows (ADR 0040 decision 1). Seeded
+// like the block above, because what is under test is what the rows mean; that
+// a due Scout with no key leaves one is `watched.test.ts`'s.
+describe("a no-key run", () => {
+  type Fleet = Awaited<ReturnType<typeof fleet>>;
+  // What `queue.sqlite` holds for a Scout that was due and found no key. The
+  // message is spelled out because it is stored: renaming it must fail here.
+  const refused = {
+    outcome: "failed",
+    kind: "credentials",
+    message: "no key",
+  } as const;
+  // Before a Scout's first clean read there is nothing to be after, so the
+  // row is Retroactive, as a real one is.
+  const refusedFirst = { ...refused, retroactive: true } as const;
+  const NOT_YET = {
+    voice: "not yet",
+    kind: "credentials",
+    sentence: "No model key is stored, so this page has not been read yet.",
+  };
+
+  // A page has no date window, so each run is an instant. The first takes in
+  // everything the page lists (Retroactive); the next four find something on
+  // alternate days.
+  const readCleanly = (f: Fleet, scout: string) => {
+    for (const { daysAgo, found } of [
+      { daysAgo: 8, found: 3 },
+      { daysAgo: 7, found: 1 },
+      { daysAgo: 6, found: 0 },
+      { daysAgo: 5, found: 1 },
+      { daysAgo: 4, found: 0 },
+    ]) {
+      const at = f.at - daysAgo * DAY;
+      f.seed({
+        scout,
+        started: at,
+        from: at,
+        new: found,
+        retroactive: daysAgo === 8,
+      });
+    }
+  };
+  // The key is stored again and the Scout reads at once; nothing new.
+  const readQuietly = (f: Fleet, scout: string) => {
+    const at = f.at - 3 * HOUR;
+    f.seed({ scout, started: at, from: at });
+  };
+
+  it("leaves a Scout whose only runs were refused not yet, with why, and with no Warrant or baseline", async () => {
+    const f = await fleet(serving("empty"), {
+      "lab.yaml": watchedYaml("Sleep Lab"),
+    });
+    for (const daysAgo of [3, 2, 1]) {
+      f.seed({ scout: "lab", started: f.at - daysAgo * DAY, ...refusedFirst });
+    }
+    const c = await f.start();
+
+    expect((await f.health(c)).scouts.map((s) => s.health)).toEqual([NOT_YET]);
+  });
+
+  it("says the same of a Scout that was reading cleanly until its key went missing, and shows none of the baseline it had", async () => {
+    const f = await fleet(serving("empty"), {
+      "plain.yaml": watchedYaml("Plain Lab"),
+      "lab.yaml": watchedYaml("Sleep Lab"),
+    });
+    readCleanly(f, "plain");
+    readCleanly(f, "lab");
+    for (const daysAgo of [3, 2]) {
+      f.seed({ scout: "lab", started: f.at - daysAgo * DAY, ...refused });
+    }
+    const c = await f.start();
+
+    const { scouts } = await f.health(c);
+    // The history is one that warrants a claim: the Scout without a no-key
+    // run makes it, with a baseline over its five runs.
+    expect(scouts.find((s) => s.id === "plain")!.health).toMatchObject({
+      voice: "claim",
+      warrant: {
+        fragments: [
+          expect.any(String),
+          "parsed cleanly",
+          expect.stringMatching(/^usually ~\d+ a week \(5 runs\)$/),
+        ],
+      },
+    });
+    // A no-key run is the newest thing it said, so it speaks as a Scout that
+    // has not looked: *not yet* with the reason, and no Warrant (ADR 0032
+    // decision 2). The baseline is not lost, only not asserted while it waits.
+    expect(scouts.find((s) => s.id === "lab")!.health).toEqual(NOT_YET);
+  });
+
+  it("keeps the baseline a Scout had before, with the same run count, once it reads again", async () => {
+    const f = await fleet(serving("empty"), {
+      "plain.yaml": watchedYaml("Plain Lab"),
+      "lost.yaml": watchedYaml("Lost Lab"),
+      "waited.yaml": watchedYaml("Waited Lab"),
+    });
+    readCleanly(f, "plain");
+    readQuietly(f, "plain");
+    // The key went missing for two checks, then came back.
+    readCleanly(f, "lost");
+    for (const daysAgo of [3, 2]) {
+      f.seed({ scout: "lost", started: f.at - daysAgo * DAY, ...refused });
+    }
+    readQuietly(f, "lost");
+    // The key was not there for its first two checks, which is how a page's
+    // Scout is first made, and the first clean read is then its first run.
+    for (const daysAgo of [10, 9]) {
+      f.seed({
+        scout: "waited",
+        started: f.at - daysAgo * DAY,
+        ...refusedFirst,
+      });
+    }
+    readCleanly(f, "waited");
+    readQuietly(f, "waited");
+    const c = await f.start();
+
+    // Six clean runs, two of which found something once the first (which
+    // took in the whole page) is set aside: the no-key runs are in neither
+    // the count nor the rate, wherever they sit, so each Scout reads exactly
+    // as the one that never lost its key.
+    const reads = {
+      voice: "claim",
+      warrant: {
+        finished: new Date(f.at - 3 * HOUR + 60_000).toISOString(),
+        fragments: [
+          "newest run 2h ago",
+          "parsed cleanly",
+          "usually ~2 a week (6 runs)",
+        ],
+      },
+    };
+    const { scouts } = await f.health(c);
+    expect(Object.fromEntries(scouts.map((s) => [s.id, s.health]))).toEqual({
+      plain: reads,
+      lost: reads,
+      waited: reads,
+    });
+  });
+
+  it("is worded in Loose Ends exactly as the Queue's rail words it, whichever way the Scout came to be waiting", async () => {
+    const f = await fleet(serving("empty"), {
+      "fresh.yaml": watchedYaml("Fresh Lab"),
+      "lab.yaml": watchedYaml("Sleep Lab"),
+    });
+    f.seed({ scout: "fresh", started: f.at - 2 * DAY, ...refusedFirst });
+    readCleanly(f, "lab");
+    f.seed({ scout: "lab", started: f.at - 2 * DAY, ...refused });
+    const c = await f.start();
+
+    const rail = Object.fromEntries(
+      (await f.health(c)).scouts.map((s) => [s.id, s.health])
+    );
+    expect(rail).toEqual({ fresh: NOT_YET, lab: NOT_YET });
+
+    // One row each, and never a second for the same wait: the sentence is
+    // the rail's, not a wording of its own.
+    const ends = await c.query<LooseEnds>("looseEnds.rows");
+    expect(ends.error).toBeUndefined();
+    const ours = ends
+      .result!.data.groups.flatMap((g) => g.rows)
+      .filter((r) => r.subject === "fresh" || r.subject === "lab")
+      .sort((a, b) => a.subject.localeCompare(b.subject));
+    expect(ours).toEqual([
+      {
+        kind: "blocked-on-credentials",
+        subject: "fresh",
+        path: ".vitrine/scouts/fresh.yaml",
+        title: "Fresh Lab",
+        voice: "not yet",
+        sentence: NOT_YET.sentence,
+      },
+      {
+        kind: "blocked-on-credentials",
+        subject: "lab",
+        path: ".vitrine/scouts/lab.yaml",
+        title: "Sleep Lab",
+        voice: "not yet",
+        sentence: NOT_YET.sentence,
+      },
+    ]);
   });
 });
