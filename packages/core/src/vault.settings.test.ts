@@ -140,7 +140,10 @@ describe("Open a different folder…", () => {
     await c.indexed();
     // The fixture's Source has a PDF and no `id:`, so the open's own Ingest
     // mints one (#419) — the vault's doing, not the switch's, and a snapshot
-    // taken before it lands would see it as the switch's.
+    // taken before it lands would see it as the switch's. It is the first of
+    // the Ingest's writes, not the last: the sidecar follows (the PDF has no
+    // annotations, so nothing more lands in the page), under `.vitrine/`,
+    // which `files()` drops after walking it (#529).
     await vi.waitFor(async () => {
       expect(
         await readFile(join(first, "sources/rasch2013.md"), "utf8")
