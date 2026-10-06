@@ -5,9 +5,11 @@ import { ArxivError } from "./arxiv.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
+  isScoutFile,
   listScoutsFolder,
   readScouts,
   readScoutFile,
+  scoutIdOf,
   SCOUTS_FOLDER,
   writeScoutFile,
   type Scout,
@@ -41,9 +43,12 @@ export type ScoutForm = {
   searchBackTo: string | null;
 };
 
-// Picking a free file name reads the folder and then writes to it; two saves
-// that overlapped would both see the name free. The queue is here, in the
-// function, never in a caller that must remember it.
+// Every edit of a Scout's file reads it and writes it back: a save picks a free
+// file name from the folder and then writes to it, and a pause or resume plans
+// its write against the text it read. Two that overlapped would both see the
+// name free, or one would write back a file without the other's change. So
+// they all join this queue, and so must any later edit of the file. It is here,
+// in the function, never in a caller that must remember it.
 const saving = serialised();
 
 export async function saveScout(
@@ -145,7 +150,17 @@ async function write(
   return { id, runAfter: edited };
 }
 
-/** Pause or resume. There is no delete: a Scout owns the runs health reads (spec #447 story 25). */
+/**
+ * Pause or resume, for the Scout's header and Loose Ends' row alike (#453,
+ * #533). It is queued with the form's saves and written whole, as they are: a
+ * second way to write the file would be a second way to lose an edit or leave
+ * half of one. The document is edited rather than re-stringified so a
+ * hand-written file keeps its comments and order (ADR 0009), and a file that
+ * does not parse is refused, not rewritten — `readScouts` does not list it, so
+ * there is no Scout to find — because the app would be guessing at its shape.
+ *
+ * There is no delete: a Scout owns the runs health reads (spec #447 story 25).
+ */
 export function setPaused(
   deps: ScoutDeps,
   scoutId: string,
@@ -270,17 +285,21 @@ export async function tryPage(
 /** A Scout id no file can have (ids are file names): *try* is looking for no one's history. */
 const TRY_ID = "\0try";
 
-/** A Scout and the file it came from: a hand-written one may end `.yml`. */
+/**
+ * A Scout and the file it came from: a hand-written one may end `.yml`. Only
+ * the names `readScouts` takes for a Scout are candidates — a folder or a
+ * file named like the id sorts ahead of `<id>.yaml` and is not it.
+ */
 function fileOf(scouts: Scout[], id: string, names: string[]) {
   const scout = scouts.find((s) => s.id === id);
-  const file = names.find((n) => n.replace(/\.ya?ml$/i, "") === id);
+  const file = names.find((n) => isScoutFile(n) && scoutIdOf(n) === id);
   return scout === undefined || file === undefined
     ? undefined
     : { scout, file };
 }
 
 function freeId(name: string, names: string[]): string {
-  const taken = new Set(names.map((n) => n.replace(/\.ya?ml$/i, "")));
+  const taken = new Set(names.map(scoutIdOf));
   const base =
     name
       .normalize("NFKD")

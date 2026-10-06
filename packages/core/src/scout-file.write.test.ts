@@ -40,6 +40,12 @@ const FOLDER = ".vitrine/scouts";
 
 const scoutYaml = `name: Sleep and memory\ncadence: daily\nlane: review\ncreated: 2026-09-20T00:00:00Z\nfilter:\n  query: all:sleep\n`;
 
+/** Loose Ends' *pause* and the header's: one edit of the file (#533). */
+const PAUSES = [
+  { call: "scouts.pause", input: { scoutId: "sleep" } },
+  { call: "scouts.setPaused", input: { scoutId: "sleep", paused: true } },
+];
+
 /** A first Scout, as the form sends it. */
 const FORM = {
   name: "Sleep and memory",
@@ -106,39 +112,27 @@ function refusedAs(
 }
 
 describe.skipIf(process.getuid?.() === 0)("a write the mode forbids", () => {
-  // `pauseScout` opens the Scout's own file for writing, so it is the
-  // file's mode that stops it; the folder's has no part.
-  it("scouts.pause names the file it could not write", async () => {
-    const { vault, c } = await opened({ [`${FOLDER}/sleep.yaml`]: scoutYaml });
-
-    const reply = await withMode(join(vault, FOLDER, "sleep.yaml"), 0o444, () =>
-      c.mutate("scouts.pause", { scoutId: "sleep" })
-    );
-
-    refusedAs(
-      reply,
-      vault,
-      "writeFailed",
-      "Couldn't write .vitrine/scouts/sleep.yaml: EACCES: permission denied"
-    );
-  });
-
-  // `writeAtomically` makes a temp file beside the Scout, so here it is the
+  // `writeAtomically` makes a temp file beside the Scout, so it is the
   // folder's mode that stops it, and Node names the temp file, not the Scout.
-  it("scouts.setPaused names the file it could not write", async () => {
-    const { vault, c } = await opened({ [`${FOLDER}/sleep.yaml`]: scoutYaml });
+  it.each(PAUSES)(
+    "$call names the file it could not write",
+    async ({ call, input }) => {
+      const { vault, c } = await opened({
+        [`${FOLDER}/sleep.yaml`]: scoutYaml,
+      });
 
-    const reply = await withMode(join(vault, FOLDER), 0o555, () =>
-      c.mutate("scouts.setPaused", { scoutId: "sleep", paused: true })
-    );
+      const reply = await withMode(join(vault, FOLDER), 0o555, () =>
+        c.mutate(call, input)
+      );
 
-    refusedAs(
-      reply,
-      vault,
-      "writeFailed",
-      "Couldn't write .vitrine/scouts/sleep.yaml: EACCES: permission denied"
-    );
-  });
+      refusedAs(
+        reply,
+        vault,
+        "writeFailed",
+        "Couldn't write .vitrine/scouts/sleep.yaml: EACCES: permission denied"
+      );
+    }
+  );
 
   it("scouts.save names the file of the Scout it could not make", async () => {
     const { vault, c } = await opened({ [`${FOLDER}/other.yaml`]: scoutYaml });
@@ -207,8 +201,7 @@ describe("a Scout file that goes between the lookup and the edit", () => {
     "Couldn't read .vitrine/scouts/sleep.yaml: ENOENT: no such file or directory";
 
   it.each([
-    { call: "scouts.pause", input: { scoutId: "sleep" } },
-    { call: "scouts.setPaused", input: { scoutId: "sleep", paused: true } },
+    ...PAUSES,
     { call: "scouts.save", input: { ...FORM, id: "sleep" } },
   ])("$call names the file it could not read", async ({ call, input }) => {
     const { vault, c } = await opened({ [`${FOLDER}/sleep.yaml`]: scoutYaml });

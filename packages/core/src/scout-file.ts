@@ -1,6 +1,6 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse, parseDocument, YAMLParseError } from "yaml";
+import { parse, YAMLParseError } from "yaml";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
@@ -48,6 +48,15 @@ const unreadableFile = (file: string, problem: string): UnreadableScout => ({
  */
 export const SCOUTS_FOLDER = ".vitrine/scouts";
 
+/**
+ * Which names in the Scouts folder are Scouts, and the id each one gives. One
+ * definition, so the read of the Scouts and the lookup of a Scout's file for
+ * an edit cannot take different names (#533).
+ */
+const SCOUT_FILE = /\.ya?ml$/i;
+export const isScoutFile = (name: string) => SCOUT_FILE.test(name);
+export const scoutIdOf = (file: string) => file.replace(SCOUT_FILE, "");
+
 const CADENCES = ["daily", "weekly", "monthly"] as const;
 const LANES = ["review", "skim"] as const;
 
@@ -82,7 +91,7 @@ export async function readScouts(
   const names = await listScoutsFolder(vaultPath);
   const scouts: Scout[] = [];
   const unreadable: UnreadableScout[] = [];
-  for (const file of names.filter((n) => /\.ya?ml$/i.test(n)).sort()) {
+  for (const file of names.filter(isScoutFile).sort()) {
     let text: string;
     try {
       text = await readFile(join(folder, file), "utf8");
@@ -94,19 +103,19 @@ export async function readScouts(
       unreadable.push(unreadableFile(file, errorMessageWithoutPath(cause)));
       continue;
     }
-    const read = readScout(file.replace(/\.ya?ml$/i, ""), text);
+    const read = readScout(scoutIdOf(file), text);
     if (read.ok) scouts.push(read.scout);
     else unreadable.push(unreadableFile(file, read.problem));
   }
   return { scouts, unreadable };
 }
 
-// Editing a Scout's own file — `pauseScout` below, and the form's save and
-// pause in `scout-form.ts` — reads it and writes it back. A step the
-// filesystem refuses is a `VaultError` in the app's words, the file named
-// vault-relative and Node's path cut off: surfaces print its message as it
-// stands, and the machine's layout is not for a window or a bug report (ADR
-// 0028, #530). The words carry what the path used to: with it cut,
+// Editing a Scout's own file — the form's save, and pause and resume from the
+// header or from Loose Ends, all in `scout-form.ts` — reads it and writes it
+// back. A step the filesystem refuses is a `VaultError` in the app's words, the
+// file named vault-relative and Node's path cut off: surfaces print its
+// message as it stands, and the machine's layout is not for a window or a bug
+// report (ADR 0028, #530). The words carry what the path used to: with it cut,
 // `EACCES: permission denied` says neither whether a read or a write was
 // refused nor which Scout, and for a write Node had named a temp file that
 // nobody made.
@@ -130,14 +139,7 @@ export async function readScoutFile(
   }
 }
 
-/** Shared with `pauseScout`'s own write, so the two cannot spell one refusal two ways. */
-const couldNotWrite = (file: string, cause: unknown) =>
-  new VaultError(
-    "writeFailed",
-    `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
-  );
-
-/** How the form's save and pause write a Scout's file; `pauseScout` writes its own in place. */
+/** A Scout's file written whole and renamed into place: how every edit of one is written (#533). */
 export async function writeScoutFile(
   vaultPath: string,
   file: string,
@@ -146,42 +148,10 @@ export async function writeScoutFile(
   try {
     await writeAtomically(join(vaultPath, SCOUTS_FOLDER, file), text);
   } catch (cause) {
-    throw couldNotWrite(file, cause);
-  }
-}
-
-/**
- * *Pause* from Loose Ends (#453): a key set in place. The document is edited
- * rather than re-stringified so a hand-written file keeps its comments and
- * order (ADR 0009). A file that does not parse is refused, not rewritten: the
- * app would be guessing at its shape.
- */
-export async function pauseScout(
-  vaultPath: string,
-  scoutId: string
-): Promise<void> {
-  const { scouts } = await readScouts(vaultPath);
-  if (!scouts.some((s) => s.id === scoutId)) {
-    throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
-  }
-  const file = (await listScoutsFolder(vaultPath)).find(
-    (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === scoutId
-  );
-  // Gone between the read above and this one: refused, not a raw TypeError.
-  if (file === undefined) {
-    throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
-  }
-  const doc = parseDocument(await readScoutFile(vaultPath, file));
-  doc.set("paused", true);
-  // Outside the `try`: a document that cannot be stringified is not a write
-  // the filesystem refused, and must not be worded as one.
-  const text = doc.toString();
-  // In place, unlike the form's atomic write, and left so: a rename would
-  // replace a file the user made read-only, where this refuses it.
-  try {
-    await writeFile(join(vaultPath, SCOUTS_FOLDER, file), text);
-  } catch (cause) {
-    throw couldNotWrite(file, cause);
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+    );
   }
 }
 
