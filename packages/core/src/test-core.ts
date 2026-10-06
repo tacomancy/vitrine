@@ -473,6 +473,14 @@ const INDEX_FILES =
  * assert that opening left the folder byte-for-byte as it found it. The
  * index files under `.vitrine/` are left out — `vault-index.test.ts` is
  * where they are looked at — so `.vitrine/` alone is what an open adds.
+ *
+ * A file that is listed and gone by the time it is read is not an entry. A
+ * write to a page or a sidecar is a temp file renamed into place
+ * (`writeAtomically`), and the open's Ingest is still writing its sidecars
+ * when a test takes its first snapshot, so the walk can be handed a temp file
+ * the rename has taken away (#529). Only `ENOENT` is forgiven: a temp file
+ * left behind is still listed, and a file that is there but cannot be read
+ * still fails the walk.
  */
 export async function fingerprint(root: string): Promise<string[]> {
   const out: string[] = [];
@@ -485,10 +493,14 @@ export async function fingerprint(root: string): Promise<string[]> {
         out.push(`${rel}/`);
         await walk(full);
       } else {
-        const hash = createHash("sha256")
-          .update(await readFile(full))
-          .digest("hex");
-        out.push(`${rel}:${hash}`);
+        let content: Buffer;
+        try {
+          content = await readFile(full);
+        } catch (cause) {
+          if ((cause as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw cause;
+        }
+        out.push(`${rel}:${sha256(content)}`);
       }
     }
   }
