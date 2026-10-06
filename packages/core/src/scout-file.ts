@@ -173,10 +173,13 @@ export async function pauseScout(
   }
   const doc = parseDocument(await readScoutFile(vaultPath, file));
   doc.set("paused", true);
+  // Outside the `try`: a document that cannot be stringified is not a write
+  // the filesystem refused, and must not be worded as one.
+  const text = doc.toString();
   // In place, unlike the form's atomic write, and left so: a rename would
   // replace a file the user made read-only, where this refuses it.
   try {
-    await writeFile(join(vaultPath, SCOUTS_FOLDER, file), doc.toString());
+    await writeFile(join(vaultPath, SCOUTS_FOLDER, file), text);
   } catch (cause) {
     throw couldNotWrite(file, cause);
   }
