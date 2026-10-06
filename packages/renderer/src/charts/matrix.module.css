@@ -1,20 +1,23 @@
 /* A bin's hue lives here and nowhere else: the component names a class, and
    this file binds it to the sequential ramp (ADR 0041 decision 12). `none` is
-   the surface, so an empty cell is the page showing through, not a colour. */
+   the surface, so an empty cell is the page showing through, not a colour.
+   The ramp runs from the step nearest the surface (seq-1) to the one furthest
+   from it (seq-5) in both themes, so the heavier the bin the more visible it
+   is (#501). seq-3 is skipped to keep the middle bins apart. */
 .none {
   background: var(--color-bg-surface);
 }
 .b1 {
-  background: var(--color-seq-5);
+  background: var(--color-seq-1);
 }
 .b2 {
-  background: var(--color-seq-4);
-}
-.b3 {
   background: var(--color-seq-2);
 }
+.b3 {
+  background: var(--color-seq-4);
+}
 .b4 {
-  background: var(--color-seq-1);
+  background: var(--color-seq-5);
 }
 
 .matrix {
