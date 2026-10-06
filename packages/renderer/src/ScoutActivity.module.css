@@ -24,6 +24,7 @@
   letter-spacing: var(--tracking-tight);
 }
 
+/* The group takes the keyboard, and what it is on is the chosen row's lift below; a ring round the whole table would say nothing more. */
 .scroll:focus-visible {
   outline: none;
 }

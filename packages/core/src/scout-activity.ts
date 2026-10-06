@@ -77,6 +77,8 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
   return {
     parsingCleanly: count((h) => h.voice === "claim"),
     notParsing: count((h) => h.voice === "wrong"),
+    // `kind: "credentials"` is set on a *not yet* Health only for a Scout
+    // waiting on a key (scout-health.ts), so it is the no-key test.
     noKey: count((h) => h.voice === "not yet" && h.kind === "credentials"),
   };
 }
