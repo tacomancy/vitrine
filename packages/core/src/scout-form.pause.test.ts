@@ -89,9 +89,8 @@ async function opened(files: Record<string, string>) {
     c,
     vault,
     scouts,
-    file: (name = "sleep") =>
-      readFile(join(vault, FOLDER, `${name}.yaml`), "utf8"),
-    path: (name = "sleep") => join(vault, FOLDER, `${name}.yaml`),
+    file: () => readFile(join(vault, FOLDER, "sleep.yaml"), "utf8"),
+    path: () => join(vault, FOLDER, "sleep.yaml"),
   };
 }
 
@@ -225,7 +224,7 @@ describe("an edit the disk cannot finish", () => {
       const reply = await c.mutate(call, input);
 
       expect(reply.result).toBeUndefined();
-      expect(reply.error).toBeDefined();
+      expect(reply.error?.data.kind).toBe("writeFailed");
       const read = await scouts();
       expect(read.unreadable).toEqual([]);
       expect(read.scouts.map((s) => s.id)).toEqual(["sleep"]);
