@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, parseDocument, YAMLParseError } from "yaml";
+import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
 /**
@@ -101,6 +102,53 @@ export async function readScouts(
 }
 
 /**
+ * The steps of editing a Scout's own file, which `pauseScout` below and the
+ * form's save and pause (`scout-form.ts`) all take. One that the filesystem
+ * refuses is a `VaultError` in the app's words, the file named vault-relative
+ * and Node's path cut off, since surfaces print it as it stands and the
+ * machine's layout is not for a window or a bug report (ADR 0028, #530).
+ *
+ * With the path gone `EACCES: permission denied` cannot say which step it
+ * was, nor whether it was the Scout or the temp file beside it that was
+ * refused, so the words do: *Couldn't read*, *Couldn't write*, and the file.
+ * ENOENT keeps its cause, as it does everywhere ADR 0028 gives it no words
+ * of its own: the file was listed a moment ago, and `no such file` is what
+ * the reader needs of it going.
+ */
+export async function readScoutFile(
+  vaultPath: string,
+  file: string
+): Promise<string> {
+  try {
+    return await readFile(join(vaultPath, SCOUTS_FOLDER, file), "utf8");
+  } catch (cause) {
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
+}
+
+/** A Scout's file written whole and renamed into place, as the form's queue writes it. */
+export async function writeScoutFile(
+  vaultPath: string,
+  file: string,
+  text: string
+): Promise<void> {
+  try {
+    await writeAtomically(join(vaultPath, SCOUTS_FOLDER, file), text);
+  } catch (cause) {
+    throw couldNotWrite(file, cause);
+  }
+}
+
+const couldNotWrite = (file: string, cause: unknown) =>
+  new VaultError(
+    "writeFailed",
+    `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+  );
+
+/**
  * *Pause* from Loose Ends (#453): the one edit the app makes to a Scout file,
  * a key set in place. The document is edited rather than re-stringified so a
  * hand-written file keeps its comments and order (ADR 0009). A file that does
@@ -114,7 +162,6 @@ export async function pauseScout(
   if (!scouts.some((s) => s.id === scoutId)) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
-  const folder = join(vaultPath, SCOUTS_FOLDER);
   const file = (await listScoutsFolder(vaultPath)).find(
     (n) => /\.ya?ml$/i.test(n) && n.replace(/\.ya?ml$/i, "") === scoutId
   );
@@ -122,9 +169,13 @@ export async function pauseScout(
   if (file === undefined) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
-  const doc = parseDocument(await readFile(join(folder, file), "utf8"));
+  const doc = parseDocument(await readScoutFile(vaultPath, file));
   doc.set("paused", true);
-  await writeFile(join(folder, file), doc.toString());
+  try {
+    await writeFile(join(vaultPath, SCOUTS_FOLDER, file), doc.toString());
+  } catch (cause) {
+    throw couldNotWrite(file, cause);
+  }
 }
 
 type Read = { ok: true; scout: Scout } | { ok: false; problem: string };
