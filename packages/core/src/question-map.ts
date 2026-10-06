@@ -853,6 +853,8 @@ export type Matrix = {
   columns: Array<{ canonical: string; display: string; weight: number }>;
   /** `cells[row][column]`: distinct Material on that row carrying that Tag. */
   cells: number[][];
+  /** `material[row][column]`: the items `cells` counts, for the cell's own list (decision 11). */
+  material: MaterialItem[][][];
   /** Before the cut, so the page's stated line is built from real counts. */
   totals: { rows: number; columns: number };
 };
@@ -885,6 +887,14 @@ export function matrix(cover: Coverage): Matrix {
     .sort((a, b) => b.weight - a.weight)
     .slice(0, MAP_COLUMNS);
 
+  // One filter feeds both, so a cell's list and its count are the same set.
+  const material = shown.map((row) =>
+    columns.map((col) =>
+      row.material.filter((item) => item.tags.includes(col.canonical))
+    )
+  );
+  const cells = material.map((row) => row.map((items) => items.length));
+
   return {
     depth: cover.depth,
     deepest: cover.deepest,
@@ -896,13 +906,8 @@ export function matrix(cover: Coverage): Matrix {
       unresolved: row.unresolved,
     })),
     columns,
-    cells: shown.map((row) =>
-      columns.map(
-        (col) =>
-          row.material.filter((item) => item.tags.includes(col.canonical))
-            .length
-      )
-    ),
+    cells,
+    material,
     totals: { rows: cover.rows.length, columns: cover.tags.length },
   };
 }

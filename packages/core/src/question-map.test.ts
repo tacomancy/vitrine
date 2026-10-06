@@ -544,6 +544,21 @@ describe("questionMap.matrix", () => {
     ]);
   });
 
+  it("hands each cell the Material it counts, so a cell's list can never disagree with its number", async () => {
+    const m = await read({
+      "q/Q.md": question("Q", { related: ["[[a]]", "[[b]]"] }),
+      "s/a.md": source("a", ["sleep", "memory"]),
+      "s/b.md": source("b", ["sleep"]),
+    });
+    expect(m.columns.map((c) => c.canonical)).toEqual(["sleep", "memory"]);
+    expect(m.material[0]![0]!.map((i) => i.path).sort()).toEqual([
+      "s/a.md",
+      "s/b.md",
+    ]);
+    expect(m.material[0]![1]!.map((i) => i.path)).toEqual(["s/a.md"]);
+    expect(m.material.map((r) => r.map((c) => c.length))).toEqual(m.cells);
+  });
+
   it("weighs a column by distinct Material across the rows shown, not the sum of its cells", async () => {
     const m = await read({
       "q/One.md": question("One", { related: ["[[shared]]"] }),
