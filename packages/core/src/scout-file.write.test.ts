@@ -87,7 +87,7 @@ async function withMode<T>(
 }
 
 /**
- * What the surface shows for a refused write: these words, of this kind, and
+ * What the surface shows for a refused step: these words, of this kind, and
  * nothing of where the vault is. The equality alone says the last, but a
  * message loosened to a `toContain` later should still fail on a path.
  */

@@ -106,14 +106,15 @@ export async function readScouts(
 // filesystem refuses is a `VaultError` in the app's words, the file named
 // vault-relative and Node's path cut off: surfaces print its message as it
 // stands, and the machine's layout is not for a window or a bug report (ADR
-// 0028, #530). The words say which step it was, because with the path gone
-// `EACCES: permission denied` cannot tell a read from a write, or the Scout
-// from the temp file `writeAtomically` makes beside it.
+// 0028, #530). The words carry what the path used to: with it cut,
+// `EACCES: permission denied` says neither whether a read or a write was
+// refused nor which Scout, and for a write Node had named a temp file that
+// nobody made.
 
 /**
  * A Scout's file as text, to edit it. ENOENT keeps its cause, as ADR 0028 has
- * it wherever it gives the absence no words of its own: the file was listed a
- * moment ago and is gone, and *no such file* says so.
+ * it for every write: a file that goes between the listing and the edit is a
+ * race, not an absence anyone is waiting on.
  */
 export async function readScoutFile(
   vaultPath: string,
@@ -129,7 +130,14 @@ export async function readScoutFile(
   }
 }
 
-/** A Scout's file written whole and renamed into place, as the form's save and pause write it. */
+/** Shared with `pauseScout`'s own write, so the two cannot spell one refusal two ways. */
+const couldNotWrite = (file: string, cause: unknown) =>
+  new VaultError(
+    "writeFailed",
+    `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+  );
+
+/** How the form's save and pause write a Scout's file; `pauseScout` writes its own in place. */
 export async function writeScoutFile(
   vaultPath: string,
   file: string,
@@ -142,18 +150,11 @@ export async function writeScoutFile(
   }
 }
 
-/** Shared with `pauseScout`'s own write, so the two cannot spell one refusal two ways. */
-const couldNotWrite = (file: string, cause: unknown) =>
-  new VaultError(
-    "writeFailed",
-    `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
-  );
-
 /**
- * *Pause* from Loose Ends (#453): the one edit the app makes to a Scout file,
- * a key set in place. The document is edited rather than re-stringified so a
- * hand-written file keeps its comments and order (ADR 0009). A file that does
- * not parse is refused, not rewritten: the app would be guessing at its shape.
+ * *Pause* from Loose Ends (#453): a key set in place. The document is edited
+ * rather than re-stringified so a hand-written file keeps its comments and
+ * order (ADR 0009). A file that does not parse is refused, not rewritten: the
+ * app would be guessing at its shape.
  */
 export async function pauseScout(
   vaultPath: string,
@@ -172,6 +173,8 @@ export async function pauseScout(
   }
   const doc = parseDocument(await readScoutFile(vaultPath, file));
   doc.set("paused", true);
+  // In place, unlike the form's atomic write, and left so: a rename would
+  // replace a file the user made read-only, where this refuses it.
   try {
     await writeFile(join(vaultPath, SCOUTS_FOLDER, file), doc.toString());
   } catch (cause) {
