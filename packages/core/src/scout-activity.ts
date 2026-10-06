@@ -10,7 +10,7 @@ import {
 import { acceptCounts, type AcceptCounts } from "./triage.js";
 import { NO_KEY } from "./watched.js";
 
-/** The window the headline rate reads: twelve weeks, the same the chart draws (ADR 0042 decision 2). */
+/** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
 const WINDOW_MS = 12 * 7 * 86_400_000;
 
 /**
@@ -121,6 +121,7 @@ const RATE_TAIL = { rate: 0, unavailable: 1, "nothing triaged": 2 } as const;
 /** A file that will not parse has judged nothing, so it sorts with the Scouts nobody has. */
 const rateOrder = (row: ActivityRow) =>
   RATE_TAIL[row.kind === "scout" ? row.acceptRate.kind : "nothing triaged"];
+/** Only meaningful among `kind: "rate"` rows: `byNeed` compares `rateOrder` first. */
 const rateOf = (row: ActivityRow) =>
   row.kind === "scout" && row.acceptRate.kind === "rate"
     ? row.acceptRate.rate

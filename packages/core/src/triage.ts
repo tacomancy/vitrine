@@ -134,7 +134,8 @@ export type AcceptCounts = {
  * backward search nobody wanted and says nothing about the brief (ADR 0042
  * decision 2). The same act on an ordinary run is *this run was junk*, a
  * real judgement, and counts. `since` limits the read to acts at or after
- * that time, for the trailing window the row draws.
+ * that time, for the trailing window the row draws; the default `""` sorts
+ * before any ISO timestamp, so it means no lower bound.
  */
 export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
   return queue
