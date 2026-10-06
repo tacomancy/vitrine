@@ -911,7 +911,12 @@ describe("Skim", () => {
   const counts = async (c: Awaited<ReturnType<typeof opened>>) => {
     const r = await c.c.query<Counts>("scouts.acceptCounts");
     expect(r.error).toBeUndefined();
-    return r.result!.data;
+    // The two missing-field counts are the row's guard, not this suite's subject.
+    return r.result!.data.map(({ scoutId, accepted, rejected }) => ({
+      scoutId,
+      accepted,
+      rejected,
+    }));
   };
   const promote = async (
     c: Awaited<ReturnType<typeof opened>>,
