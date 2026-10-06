@@ -72,13 +72,37 @@ type RunRow = {
   cost_usd: number | null;
 };
 
-/** Finished runs for a Scout, oldest first. An unfinished one has said nothing yet. */
+/**
+ * Finished runs for a Scout, oldest first. An unfinished one has said nothing
+ * yet. A *no key* run is among them, since the Voice and the scheduler read
+ * what the Scout last *said*; anything that counts or averages what it
+ * *checked* must leave `isNoKeyRun` rows out.
+ */
 export function finishedRuns(queue: DatabaseSync, scoutId: string): RunRow[] {
   return queue
     .prepare(
       "SELECT * FROM scout_runs WHERE scout_id = ? AND finished IS NOT NULL ORDER BY id"
     )
     .all(scoutId) as RunRow[];
+}
+
+/**
+ * A *no key* run (ADR 0040 decision 1): the Scout was due, found no Credential
+ * and went no further — no model call, no item read. Its row exists so that
+ * *blocked on credentials* is read from rows, and for no other reason: it is
+ * no check of the field, so a count of runs, a mean over them and the Quiet
+ * field's baseline all leave it out, or a Scout waiting on a key would read
+ * as having looked (ADR 0042 decision 6). A *rejected* key is not this: the
+ * Scout did try, and that is a fault.
+ */
+export function isNoKeyRun(
+  run: Pick<RunRow, "outcome" | "error_kind" | "error_message">
+): boolean {
+  return (
+    run.outcome === "failed" &&
+    run.error_kind === "credentials" &&
+    run.error_message === NO_KEY
+  );
 }
 
 export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
@@ -104,17 +128,25 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
           : "It has not run yet.",
     };
   }
+  // What the baseline rests on: runs that read the field and parsed it. A *no
+  // key* run is `failed`, so it is never one: a Scout that lost its key and got
+  // it back keeps the baseline it earned.
   const ok = runs.filter((r) => r.outcome === "ok");
   if (newest.outcome === "failed") {
     const kind = newest.error_kind ?? "network";
     // A key never stored is not a fault: the Scout has not been set up, so
     // it says *not yet* with the reason, and a rejected key says *wrong*
     // (ADR 0040 decision 1). Which one is the run's message, not its kind.
-    if (kind === "credentials" && newest.error_message === NO_KEY) {
+    if (isNoKeyRun(newest)) {
       return {
         voice: "not yet",
-        kind,
-        sentence: faultSentence(kind, NO_KEY, false, scout.source.kind),
+        kind: "credentials",
+        sentence: faultSentence(
+          "credentials",
+          NO_KEY,
+          false,
+          scout.source.kind
+        ),
       };
     }
     const lastClean = ok.at(-1);

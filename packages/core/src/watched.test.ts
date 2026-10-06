@@ -110,6 +110,8 @@ async function opened(
     timeoutMs?: number;
     fetch?: typeof fetch;
     arxiv?: string;
+    /** The core's clock; fixed unless a test moves it. */
+    now?: () => Date;
   } = {}
 ) {
   const vault = await fixtureCopy("obsidian-vault");
@@ -139,7 +141,7 @@ async function opened(
     },
   };
   const c = await core({
-    now: () => NOW,
+    now: options.now ?? (() => NOW),
     arxiv: {
       clock: virtualClock(),
       fetch: () => Promise.resolve(new Response(options.arxiv ?? "")),
@@ -1089,22 +1091,33 @@ describe("a Scout waiting on a key", () => {
     ]);
   });
 
-  it("keeps its no-key rows out of the Warrant: no last ran, no clean count", async () => {
-    const lab = await opened({ key: null, page: () => ({ body: PAGE }) });
+  it("keeps its no-key rows out of the Warrant, and out of the baseline once it reads", async () => {
+    // The clock moves: the baseline is a rate over the days its runs span,
+    // and a clock that never moved would leave it none to quote.
+    let at = NOW.getTime();
+    const lab = await opened({
+      key: null,
+      page: () => ({ body: PAGE }),
+      now: () => new Date(at),
+    });
     await lab.run();
     await lab.run();
     expect(await healthOf(lab)).not.toHaveProperty("warrant");
 
-    // The key arrives; the first clean run is the first run of the field.
+    // The key arrives and the Scout reads at once. Three more days, the page
+    // unchanged: four clean runs, the first of which took in the whole page.
     await lab.c.mutate("credentials.set", {
       provider: "anthropic",
       key: "sk-new",
     });
-    await lab.c.mutate("scouts.runNow", { scoutId: "lab" });
-    const health = await healthOf(lab);
-    // Only runs that fetched count: one clean run is under the baseline, so
-    // the rate is not quoted and the two no-key rows are not in the tally.
-    const warrant = health.warrant?.fragments ?? [];
-    expect(warrant.join(" ")).not.toMatch(/\(\d+ runs\)/);
+    for (let day = 0; day < 3; day++) {
+      at += 24 * 3_600_000;
+      await lab.run();
+    }
+    expect((await healthOf(lab)).warrant?.fragments).toEqual([
+      "newest run just now",
+      "parsed cleanly",
+      "nothing found yet (4 runs)",
+    ]);
   });
 });

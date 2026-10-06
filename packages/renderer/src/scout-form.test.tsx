@@ -183,6 +183,33 @@ describe("the rail's voices", () => {
     expect(torn.textContent).toContain("line 2 is not valid YAML");
   });
 
+  it("says a Scout waiting on a key once on its row and once in its header, with no glyph: nothing has failed", async () => {
+    const waiting = {
+      voice: "not yet",
+      kind: "credentials",
+      sentence: "No model key is stored, so this page has not been read yet.",
+    };
+    renderApp(
+      answers({
+        "scouts.health": {
+          scouts: [{ id: "sleep", health: waiting }],
+          unreadable: [],
+        },
+      })
+    );
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    await screen.findByRole("heading", { name: "Sleep and memory" });
+
+    // The glyph is what marks a failure, and a Scout with no key has not
+    // failed: it has not been set up.
+    expect(screen.getAllByText(waiting.sentence)).toHaveLength(2);
+    expect(screen.queryByRole("img", { name: "not working" })).toBeNull();
+  });
+
   it("draws the chosen Scout's header with its voice and each Assigned Question's glyph, closed ones without a nag", async () => {
     renderApp(
       answers({
