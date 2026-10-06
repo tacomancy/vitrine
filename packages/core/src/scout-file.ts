@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, YAMLParseError } from "yaml";
+import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 
 /**
@@ -98,6 +99,51 @@ export async function readScouts(
     else unreadable.push(unreadableFile(file, read.problem));
   }
   return { scouts, unreadable };
+}
+
+// Editing a Scout's own file — the form's save, and pause and resume from the
+// header or from Loose Ends, all in `scout-form.ts` — reads it and writes it
+// back. A step the filesystem refuses is a `VaultError` in the app's words, the
+// file named vault-relative and Node's path cut off: surfaces print its
+// message as it stands, and the machine's layout is not for a window or a bug
+// report (ADR 0028, #530). The words carry what the path used to: with it cut,
+// `EACCES: permission denied` says neither whether a read or a write was
+// refused nor which Scout, and for a write Node had named a temp file that
+// nobody made.
+
+/**
+ * A Scout's file as text, to edit it. ENOENT keeps its cause, as ADR 0028 has
+ * it for every write: a file that goes between the listing and the edit is a
+ * race, not an absence anyone is waiting on.
+ */
+export async function readScoutFile(
+  vaultPath: string,
+  file: string
+): Promise<string> {
+  try {
+    return await readFile(join(vaultPath, SCOUTS_FOLDER, file), "utf8");
+  } catch (cause) {
+    throw new VaultError(
+      "unreadable",
+      `Couldn't read ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
+}
+
+/** A Scout's file written whole and renamed into place: how every edit of one is written (#533). */
+export async function writeScoutFile(
+  vaultPath: string,
+  file: string,
+  text: string
+): Promise<void> {
+  try {
+    await writeAtomically(join(vaultPath, SCOUTS_FOLDER, file), text);
+  } catch (cause) {
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't write ${SCOUTS_FOLDER}/${file}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
 }
 
 type Read = { ok: true; scout: Scout } | { ok: false; problem: string };

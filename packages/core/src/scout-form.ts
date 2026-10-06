@@ -1,14 +1,15 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
-import { writeAtomically } from "./atomic-write.js";
 import { ArxivError } from "./arxiv.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
-import { VaultError } from "./errors.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
   listScoutsFolder,
   readScouts,
+  readScoutFile,
   SCOUTS_FOLDER,
+  writeScoutFile,
   type Scout,
 } from "./scout-file.js";
 import { faultSentence } from "./scout-health.js";
@@ -111,7 +112,7 @@ async function write(
         "A Scout that watches a web page is edited in its file for now."
       );
     }
-    doc = parseDocument(await readFile(join(folder, before.file), "utf8"));
+    doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
     doc.set("name", name);
   }
   doc.set("cadence", form.cadence);
@@ -122,9 +123,15 @@ async function write(
     else doc.set("filter", { query });
   }
 
-  await mkdir(folder, { recursive: true });
-  await writeAtomically(
-    join(folder, before?.file ?? `${id}.yaml`),
+  await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't create ${SCOUTS_FOLDER}/: ${errorMessageWithoutPath(cause)}`
+    );
+  });
+  await writeScoutFile(
+    deps.vaultPath,
+    before?.file ?? `${id}.yaml`,
     String(doc)
   );
 
@@ -155,7 +162,6 @@ export function setPaused(
   paused: boolean
 ): Promise<void> {
   return saving(async () => {
-    const folder = join(deps.vaultPath, SCOUTS_FOLDER);
     const { scouts } = await readScouts(deps.vaultPath);
     const found = fileOf(
       scouts,
@@ -165,10 +171,10 @@ export function setPaused(
     if (found === undefined) {
       throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
     }
-    const doc = parseDocument(await readFile(join(folder, found.file), "utf8"));
+    const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
     if (paused) doc.set("paused", true);
     else doc.delete("paused");
-    await writeAtomically(join(folder, found.file), String(doc));
+    await writeScoutFile(deps.vaultPath, found.file, String(doc));
   });
 }
 
