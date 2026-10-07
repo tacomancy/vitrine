@@ -92,18 +92,17 @@ describe("the harness's wait on the event stream is bounded", () => {
     stream.close();
   });
 
-  /**
-   * Vitest's default `testTimeout`, which neither config raises: a suite that
-   * ever does has to come back to `NEXT_TIMEOUT_MS` first.
-   */
-  const VITEST_DEFAULT_TIMEOUT_MS = 5_000;
-
-  it("keeps its default under Vitest's, or the diagnostic never gets to fire", () => {
+  it("keeps its default under Vitest's, or the diagnostic never gets to fire", ({
+    task,
+  }) => {
     // The whole point of the bound is winning that race. Asserted on the
     // number rather than by waiting it out: a test that sleeps the default to
     // prove it spends it on every run, and has the rest of the budget to open
-    // a vault in.
-    expect(NEXT_TIMEOUT_MS).toBeLessThan(VITEST_DEFAULT_TIMEOUT_MS);
+    // a vault in. The timeout is read from this test's own task, which is the
+    // core project's (`vitest.config.ts`) that every test waiting on the
+    // default is held to: it was raised past Vitest's 5 s when a returned PDF
+    // began to wait on the run window (#553), and this follows it, not a copy.
+    expect(NEXT_TIMEOUT_MS).toBeLessThan(task.timeout);
   });
 
   it("says so when the stream closes under a wait, rather than sitting out the bound", async () => {
