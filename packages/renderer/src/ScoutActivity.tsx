@@ -21,6 +21,14 @@ import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
 import styles from "./ScoutActivity.module.css";
+import {
+  DropButton,
+  DropRefused,
+  DroppedInPlace,
+  DroppedLine,
+  useDrops,
+  type Drops,
+} from "./ScoutDropped";
 import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
@@ -101,6 +109,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const drops = useDrops();
   const rows = sorted(activity.data?.rows ?? [], sort);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -171,6 +180,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         <NoRows
           failed={activity.isError}
           answered={activity.data !== undefined}
+          dropped={activity.data?.dropped.length ?? 0}
           onNewScout={onNewScout}
         />
       )}
@@ -220,12 +230,19 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   open={opened.has(keyOf(row))}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
+                  drops={drops}
                 />
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {/* After the rows, and still there when every Scout is dropped: it is
+          how a Scout comes back once its row has left. */}
+      <DroppedLine
+        dropped={activity.data?.dropped ?? []}
+        onRestore={drops.onRestore}
+      />
       {/* The footer channel, as every Dashboard draws it: only when there is
           something to say, and polite — a state the app is in, not a refusal
           of something the user did (ADR 0033). The reason a read failed is
@@ -311,10 +328,13 @@ function SourceHealth({ fleet }: { fleet: FleetSource }) {
 function NoRows({
   failed,
   answered,
+  dropped,
   onNewScout,
 }: {
   failed: boolean;
   answered: boolean;
+  /** How many Scouts are dropped: a fleet that is all dropped has had Scouts, and *yet* would say it had not. */
+  dropped: number;
   onNewScout: () => void;
 }) {
   if (failed) return <FirstSlot voice="wrong" claim="" />;
@@ -323,7 +343,7 @@ function NoRows({
     <FirstSlot
       voice="not yet"
       claim=""
-      fragment="no scouts yet"
+      fragment={dropped > 0 ? "no scouts watching" : "no scouts yet"}
       action={
         <button type="button" className={styles.action} onClick={onNewScout}>
           new scout
@@ -533,6 +553,7 @@ function Row({
   open,
   onToggle,
   onChoose,
+  drops,
 }: {
   row: ActivityRow;
   id: string;
@@ -540,6 +561,7 @@ function Row({
   open: boolean;
   onToggle: () => void;
   onChoose: () => void;
+  drops: Drops;
 }) {
   const [showRuns, setShowRuns] = useState(false);
   if (row.kind === "unreadable") {
@@ -555,6 +577,34 @@ function Row({
         </th>
         <td colSpan={COLUMNS - 1} />
       </tr>
+    );
+  }
+  // What the core refused of a drop or an undo, on this row and nowhere else.
+  const refusal = drops.refused[row.id];
+  const refused = refusal !== undefined && (
+    <tr>
+      <td className={styles.detail} colSpan={COLUMNS}>
+        <DropRefused message={refusal} />
+      </td>
+    </tr>
+  );
+  // Dropped during this visit: the row keeps its place and says so, with the
+  // way back, in place of figures nobody is reading any more.
+  if (drops.dropped.has(row.id)) {
+    return (
+      <>
+        <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+          <th scope="row">
+            <span className={styles.who}>
+              <span className={styles.name}>{row.name}</span>
+            </span>
+          </th>
+          <td colSpan={COLUMNS - 1} className={styles.wraps}>
+            <DroppedInPlace onUndo={() => drops.onRestore(row.id)} />
+          </td>
+        </tr>
+        {refused}
+      </>
     );
   }
   const watching =
@@ -586,6 +636,7 @@ function Row({
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
             <VoiceLine health={row.health} />
+            <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
           </span>
         </th>
         {/* The column cuts a long Query to one line; the cut is only to the
@@ -646,6 +697,7 @@ function Row({
           </a>
         </ReviewCell>
       </tr>
+      {refused}
       {open && (
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>

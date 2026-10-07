@@ -27,13 +27,23 @@ const NO_FLEET = {
   noKey: 0,
 };
 const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
-const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET, review: NO_REVIEW };
+const NONE: ScoutActivity = {
+  rows: [],
+  fleet: NO_FLEET,
+  review: NO_REVIEW,
+  dropped: [],
+};
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
   rows: ActivityRow[],
   counts: Partial<typeof NO_FLEET> = {},
   review: ScoutActivity["review"] = NO_REVIEW
-): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts }, review });
+): ScoutActivity => ({
+  rows,
+  fleet: { ...NO_FLEET, ...counts },
+  review,
+  dropped: [],
+});
 
 const answers = (
   activity: unknown,
