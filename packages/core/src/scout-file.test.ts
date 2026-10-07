@@ -54,7 +54,11 @@ type Call = { call: string; how: "query" | "mutate"; input?: unknown };
 
 /** Every call that reads the Scouts, and what it answers when there are none. */
 const READS: Array<Call & { empty: unknown }> = [
-  { call: "scouts.list", how: "query", empty: { scouts: [], unreadable: [] } },
+  {
+    call: "scouts.list",
+    how: "query",
+    empty: { scouts: [], dropped: [], unreadable: [] },
+  },
   {
     call: "scouts.health",
     how: "query",
@@ -74,6 +78,7 @@ const READS: Array<Call & { empty: unknown }> = [
         noKey: 0,
       },
       review: { pending: 0, deferred: 0, median: null, oldest: null },
+      dropped: [],
     },
   },
   { call: "scouts.groups", how: "query", empty: [] },

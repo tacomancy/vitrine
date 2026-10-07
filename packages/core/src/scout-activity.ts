@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { readScouts, type Scout } from "./scout-file.js";
+import { readScouts, type DroppedScout, type Scout } from "./scout-file.js";
 import {
   ago,
   finishedRuns,
@@ -172,11 +172,21 @@ export type FleetSource = {
   noKey: number;
 };
 
+/**
+ * A Scout the researcher retired (ADR 0042 decisions 1 and 9): not a row, since
+ * it is not looking, but named so the one line at the foot of the table can
+ * open to it and bring it back. Its figures are not here because nothing about
+ * it is being read; its runs and Proposals are where they were.
+ */
+export type DroppedRow = { id: string; name: string };
+
 export type ScoutActivity = {
   rows: ActivityRow[];
   fleet: FleetSource;
-  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. */
+  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. A dropped Scout's Proposals stay in Review, so they are in it. */
   review: ReviewDepth;
+  /** The dropped, by name; empty when none, which is when the page draws no line at all. */
+  dropped: DroppedRow[];
 };
 
 /**
@@ -208,6 +218,11 @@ const byNeed = (a: ActivityRow, b: ActivityRow) =>
   rateOf(a) - rateOf(b) ||
   labelOf(a).localeCompare(labelOf(b)) ||
   (a.kind === "scout" && b.kind === "scout" ? a.id.localeCompare(b.id) : 0);
+
+const droppedRows = (dropped: DroppedScout[]): DroppedRow[] =>
+  dropped
+    .map(({ id, name }) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
 function sourceHealth(rows: ActivityRow[]): FleetSource {
   const count = (keep: (health: Health) => boolean) =>
@@ -353,7 +368,7 @@ export async function readActivity(deps: {
   queue: DatabaseSync;
   now: () => Date;
 }): Promise<ScoutActivity> {
-  const { scouts, unreadable } = await readScouts(deps.vaultPath);
+  const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
   const depth = reviewDepth(deps.queue, now);
@@ -399,5 +414,10 @@ export async function readActivity(deps: {
       health: unreadableHealth(file),
     })),
   ].sort(byNeed);
-  return { rows, fleet: sourceHealth(rows), review: depth.fleet };
+  return {
+    rows,
+    fleet: sourceHealth(rows),
+    review: depth.fleet,
+    dropped: droppedRows(dropped),
+  };
 }

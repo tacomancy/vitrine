@@ -149,6 +149,7 @@ describe("a hand-written Scout", () => {
         assigned: [QUESTION],
         lane: "review",
         paused: false,
+        dropped: null,
         created: "2026-09-20T00:00:00.000Z",
         searchBackTo: null,
         source: { kind: "arxiv" },
@@ -278,6 +279,7 @@ describe("Run now", () => {
             name: "Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?",
           },
         ],
+        dropped: false,
       },
     ]);
   });

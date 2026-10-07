@@ -183,6 +183,37 @@ export function setPaused(
   });
 }
 
+/**
+ * Drop a Scout, or restore one (ADR 0042 decisions 1 and 9): the `dropped` key
+ * in its file set or cleared, and nothing else written. The same queued, atomic
+ * edit as a pause, so one that overlaps a save loses neither.
+ */
+export function setDropped(
+  deps: ScoutDeps,
+  scoutId: string,
+  dropped: boolean
+): Promise<void> {
+  return saving(async () => {
+    const read = await readScouts(deps.vaultPath);
+    // A dropped Scout is a file too, and restoring one has to find it.
+    const found = fileOf(
+      [...read.scouts, ...read.dropped],
+      scoutId,
+      await listScoutsFolder(deps.vaultPath)
+    );
+    if (found === undefined) {
+      throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
+    }
+    // Already as asked: a second click, or a restore of a Scout that never
+    // left, writes nothing, and a drop keeps the date of the first.
+    if ((found.scout.dropped !== null) === dropped) return;
+    const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
+    if (dropped) doc.set("dropped", deps.now().toISOString());
+    else doc.delete("dropped");
+    await writeScoutFile(deps.vaultPath, found.file, String(doc));
+  });
+}
+
 export type TriedQuery =
   | { outcome: "found"; total: number; titles: string[] }
   | { outcome: "failed"; sentence: string };

@@ -26,11 +26,19 @@ export type Scout = {
   /** Where a Proposal lands on arrival; stamped then, so editing it moves nothing already here. */
   lane: "review" | "skim";
   paused: boolean;
+  /**
+   * When the researcher retired it (ADR 0042 decision 1), or null while it is
+   * looking. Not *paused*, which is a Scout that will look again.
+   */
+  dropped: Date | null;
   /** Where the first run's window opens, unless `searchBackTo` reaches further. */
   created: Date;
   /** *Also search back to* (ADR 0016 decision 5): the first run opens its window here and its finds are Retroactive. */
   searchBackTo: Date | null;
 };
+
+/** A Scout the researcher retired: still a file, with everything it owns still where it was. */
+export type DroppedScout = Scout & { dropped: Date };
 
 /** A Scout file the app cannot use — it does not parse, or its bytes could not be read: its name, and one sentence naming what is wrong. */
 export type UnreadableScout = { file: string; sentence: string };
@@ -84,12 +92,24 @@ export async function listScoutsFolder(vaultPath: string): Promise<string[]> {
   }
 }
 
-export async function readScouts(
-  vaultPath: string
-): Promise<{ scouts: Scout[]; unreadable: UnreadableScout[] }> {
+/**
+ * Every Scout file, told apart by what the app may do with it. `scouts` are
+ * the ones that are looking; a dropped Scout (ADR 0042 decision 1) is in
+ * `dropped` and never in `scouts`, so the scheduler, the Queue's rail and every
+ * other list of Scouts skip it because the reader has not handed it to them —
+ * not because each caller remembered to ask. The few places that must still
+ * name a dropped Scout — its Proposals' cards, an accept that stamps its
+ * origin, the line that lists the dropped — read `dropped` on purpose.
+ */
+export async function readScouts(vaultPath: string): Promise<{
+  scouts: Scout[];
+  dropped: DroppedScout[];
+  unreadable: UnreadableScout[];
+}> {
   const folder = join(vaultPath, SCOUTS_FOLDER);
   const names = await listScoutsFolder(vaultPath);
   const scouts: Scout[] = [];
+  const dropped: DroppedScout[] = [];
   const unreadable: UnreadableScout[] = [];
   for (const file of names.filter(isScoutFile).sort()) {
     let text: string;
@@ -104,10 +124,12 @@ export async function readScouts(
       continue;
     }
     const read = readScout(scoutIdOf(file), text);
-    if (read.ok) scouts.push(read.scout);
-    else unreadable.push(unreadableFile(file, read.problem));
+    if (!read.ok) unreadable.push(unreadableFile(file, read.problem));
+    else if (read.scout.dropped !== null) {
+      dropped.push({ ...read.scout, dropped: read.scout.dropped });
+    } else scouts.push(read.scout);
   }
-  return { scouts, unreadable };
+  return { scouts, dropped, unreadable };
 }
 
 // Editing a Scout's own file — the form's save, and pause and resume from the
@@ -221,6 +243,11 @@ function readScout(id: string, text: string): Read {
   if (back !== undefined && searchBackTo === null) {
     return { ok: false, problem: "search_back_to is not a date" };
   }
+  const retired = file["dropped"];
+  const dropped = retired === undefined ? null : date(retired);
+  if (retired !== undefined && dropped === null) {
+    return { ok: false, problem: "dropped is not a date" };
+  }
   return {
     ok: true,
     scout: {
@@ -235,6 +262,7 @@ function readScout(id: string, text: string): Read {
       assigned,
       lane: lane as Scout["lane"],
       paused: file["paused"] === true,
+      dropped,
       created,
       searchBackTo,
     },

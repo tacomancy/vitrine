@@ -291,6 +291,7 @@ describe("scouts.activity — nothing to draw", () => {
         noKey: 0,
       },
       review: { pending: 0, deferred: 0, median: null, oldest: null },
+      dropped: [],
     });
   });
 

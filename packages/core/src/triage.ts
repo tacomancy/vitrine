@@ -329,8 +329,10 @@ export type Group = {
 
 export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
   const { queue } = deps;
-  const { scouts } = await readScouts(deps.vaultPath);
-  return scouts.map((scout) => {
+  const { scouts, dropped } = await readScouts(deps.vaultPath);
+  // A dropped Scout's stack is cleared with *reject this run* like any other,
+  // so it has a group though the rail does not list it (ADR 0042 decision 1).
+  return [...scouts, ...dropped].map((scout) => {
     const run = queue
       .prepare(
         "SELECT id FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' ORDER BY id DESC LIMIT 1"

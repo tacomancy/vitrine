@@ -72,6 +72,7 @@ export async function openedWithQueue(scouts: Record<string, string>) {
   return {
     c,
     db,
+    vault,
     /** One Proposal this Scout placed, and what the researcher did with it. */
     seed: (scout: string, s: Seed = {}) => {
       n += 1;

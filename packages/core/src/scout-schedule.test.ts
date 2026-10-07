@@ -29,7 +29,12 @@ const atom = (name: string) =>
   readFile(join(fixtures, "arxiv", `${name}.xml`), "utf8");
 
 const scoutYaml = (
-  over: { cadence?: string; query?: string; paused?: boolean } = {}
+  over: {
+    cadence?: string;
+    query?: string;
+    paused?: boolean;
+    dropped?: boolean;
+  } = {}
 ) =>
   [
     "name: Sleep and memory",
@@ -37,6 +42,7 @@ const scoutYaml = (
     "lane: review",
     "created: 2026-09-20T00:00:00Z",
     ...(over.paused ? ["paused: true"] : []),
+    ...(over.dropped ? ["dropped: 2026-09-25T00:00:00Z"] : []),
     "filter:",
     `  query: ${over.query ?? "all:sleep"}`,
     "",
@@ -206,6 +212,40 @@ describe("when a Scout is due", () => {
     });
     const c = await f.start();
 
+    expect(await f.check(c)).toEqual(["sleep"]);
+  });
+
+  it("is never for a dropped Scout, even one that has never run and so would be due at once", async () => {
+    const f = await fleet(serving("empty"), {
+      "sleep.yaml": scoutYaml(),
+      "gone.yaml": scoutYaml({ dropped: true, query: "all:gone" }),
+    });
+    const c = await f.start();
+
+    expect(await f.check(c)).toEqual(["sleep"]);
+
+    // Not asked of arXiv either: a Scout that did not run left no request.
+    expect(
+      f.requests.map((url) => url.searchParams.get("search_query"))
+    ).toEqual([expect.stringContaining("all:sleep")]);
+    expect(
+      f.rows<{ scout_id: string }>("SELECT scout_id FROM scout_runs")
+    ).toEqual([{ scout_id: "sleep" }]);
+  });
+
+  it("is never for a dropped Scout whose cadence has long elapsed, until it is restored; then at the next check, and not at the restore itself", async () => {
+    const f = await fleet(serving("empty"), {
+      "sleep.yaml": scoutYaml({ dropped: true }),
+    });
+    f.seed({ started: f.at - 3 * DAY });
+    const c = await f.start();
+
+    expect(await f.check(c)).toEqual([]);
+
+    expect(
+      (await c.mutate("scouts.restore", { scoutId: "sleep" })).error
+    ).toBeUndefined();
+    expect(f.requests).toEqual([]);
     expect(await f.check(c)).toEqual(["sleep"]);
   });
 
