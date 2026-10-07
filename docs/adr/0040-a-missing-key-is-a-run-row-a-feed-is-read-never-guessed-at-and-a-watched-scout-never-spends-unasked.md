@@ -31,3 +31,7 @@ The spec grill for beat 7 (#174), run on 2026-10-02 against ADR 0017, ADR 0025 a
 - **−** A run row exists for something that did nothing; `scout_runs` now holds attempts that fetched nothing, and Scout Activity must not count them as checks of the field.
 - **−** *no key* and *key rejected* share an error kind but not a Voice, so a surface that branches on kind alone gets one wrong.
 - **−** `CONTEXT.md` **Watched source**, **Feed** and **Blocked on credentials** widen, and ADR 0017 takes a dated update.
+
+## Update (2026-10-07, ADR 0043)
+
+**ADR 0043** extends two decisions. Decision 5's first run is the first run at a page: a Scout pointed at another page is *not yet* again until a run has read it, and saving the change runs nothing. Decision 7's "prior `ok` run that found items" is a prior one at the Scout's current page, so a first look that finds nothing is the generic failed-Scout row, not *structure change detected*.
