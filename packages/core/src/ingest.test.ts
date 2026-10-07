@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { questionText } from "./ingest.js";
 import {
   closeCores,
@@ -21,6 +21,7 @@ import {
   vaultWith,
   LONG_RUN_WINDOW_MS,
   type CoreOptions,
+  NEXT_TIMEOUT_MS,
 } from "./test-core.js";
 import { effectiveSettleMs, FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
@@ -281,17 +282,26 @@ describe("an Ingest that could not finish", () => {
         join(vault, "sources/pdf/rasch2013.pdf"),
         await pdf("annotated.pdf")
       );
+      // The run is waited for as the counter landing in the sidecar: the PDF
+      // settles and is held for the run window first (#553), so a stopwatch
+      // would end before the run began and this would restore the folder's
+      // permissions in time for it to succeed. Then nothing lands, since the
+      // note's rename is refused.
+      await vi.waitFor(
+        async () =>
+          expect((await sidecar()).pending).toEqual({
+            kept: 0,
+            removed: 0,
+            unmatched: 0,
+          }),
+        { timeout: NEXT_TIMEOUT_MS }
+      );
       await expect(
-        events.next("ingestLanded", { timeoutMs: 800 })
+        events.next("ingestLanded", { timeoutMs: 400 })
       ).rejects.toThrow();
     } finally {
       await chmod(join(vault, "sources"), 0o755);
     }
-    expect((await sidecar()).pending).toEqual({
-      kept: 0,
-      removed: 0,
-      unmatched: 0,
-    });
     await c.close();
     const again = await core({ settleMs: 40 });
     await again.mutate("vault.open", { path: vault });
@@ -310,19 +320,25 @@ describe("a PDF returning alone", () => {
   // between two large files, which is where the window is for. Neither the
   // window nor the ceiling may be asked for less than the floor they are held
   // to (twice the settle window; the window), so asking for 1 ms of either must
-  // not read the PDF early. A lower bound, so that a loaded machine can only
-  // make it pass more easily.
+  // not read the PDF early.
+  //
+  // Both are lower bounds, so a loaded machine can only make them pass more
+  // easily; and the settle window is a second, not the harness's 40 ms, so that
+  // the floor (2 s) is far enough above what a PDF takes with no floor at all
+  // (about a second, and noise on top) for the test to tell them apart.
   it.each([
     ["window", { runWindowMs: 1 }],
     ["ceiling", { runCeilingMs: 1 }],
   ])(
     "is read no sooner than the run window, whatever %s the core is asked for",
     async (_, options) => {
-      const { returned } = await opened({}, options);
+      const settleMs = 1000;
+      const { returned } = await opened({}, { settleMs, ...options });
       const started = performance.now();
       await returned(await pdf("annotated.pdf"));
+      // Settled, then held for the window: both at their floors.
       expect(performance.now() - started).toBeGreaterThanOrEqual(
-        2 * effectiveSettleMs(40)
+        3 * effectiveSettleMs(settleMs)
       );
     }
   );

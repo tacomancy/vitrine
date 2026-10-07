@@ -1,7 +1,7 @@
 import { watch as fsWatch, type WatchListener } from "node:fs";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Highlighted } from "./ingest.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import { readSidecar } from "./annotation-sidecar.js";
@@ -12,6 +12,8 @@ import {
   tmp,
   vaultWith,
   LONG_RUN_WINDOW_MS,
+  NEXT_TIMEOUT_MS,
+  type CoreOptions,
 } from "./test-core.js";
 
 afterEach(closeCores);
@@ -42,7 +44,10 @@ type Removal =
   | { outcome: "confirm"; links: Array<{ path: string; title: string }> }
   | { outcome: "gone" | "removed"; block: string };
 
-async function opened(extra: Record<string, string> = {}) {
+async function opened(
+  extra: Record<string, string> = {},
+  options: CoreOptions = {}
+) {
   const vault = await vaultWith({
     "sources/rasch2013.md": SOURCE,
     [PDF]: "",
@@ -57,6 +62,7 @@ async function opened(extra: Record<string, string> = {}) {
     settleMs: 40,
     runWindowMs: LONG_RUN_WINDOW_MS,
     author: "Sarah Lehman",
+    ...options,
   });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
@@ -132,18 +138,32 @@ describe("recolouring and re-noting", () => {
   });
 
   it("is re-matched by the next Ingest on a fast tier, not made Unmatched or new", async () => {
-    const t = await opened();
+    // The harness's window, not a long one: this touches the PDF as a sync
+    // client would and waits for the Ingest that makes.
+    const t = await opened({}, { runWindowMs: 0 });
     const made = (await t.highlight([LINE_TWO])).result!.data;
     await t.edit("amend", made.id, { colour: "blue" });
-    const landed = t.events
-      .next("ingestLanded", { timeoutMs: 500 })
-      .catch(() => null);
+    const before = await readSidecar(t.vault, "src-1");
     const bytes = await readFile(join(t.vault, PDF));
     await writeFile(
       join(t.vault, PDF),
       Buffer.concat([bytes, Buffer.from("\n%touched\n")])
     );
-    expect(await landed).toBeNull();
+    // A clean re-match raises no summary, so there is no event to wait on: the
+    // run is the sidecar saying it read the new bytes, and then nothing lands.
+    // A stopwatch would end before the run began, which waits out the settle
+    // window and then the run window (#553), and the assertions below would
+    // pass without it.
+    await vi.waitFor(
+      async () => {
+        const after = await readSidecar(t.vault, "src-1");
+        expect(after!.file.hash).not.toBe(before!.file.hash);
+      },
+      { timeout: NEXT_TIMEOUT_MS }
+    );
+    await expect(
+      t.events.next("ingestLanded", { timeoutMs: 300 })
+    ).rejects.toThrow();
     const sidecar = await readSidecar(t.vault, "src-1");
     expect(sidecar!.annotations).toHaveLength(1);
     expect(sidecar!.annotations[0]).toMatchObject({
