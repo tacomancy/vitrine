@@ -62,7 +62,7 @@ import {
   readings,
   unread,
 } from "./question-map.js";
-import { readActivity } from "./scout-activity.js";
+import { readActivity, readRunCosts } from "./scout-activity.js";
 import { readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
@@ -549,6 +549,12 @@ export const router = t.router({
     activity: t.procedure.query(async ({ ctx }) =>
       refusing(readActivity(await scoutDeps(ctx)))
     ),
+    // The runs behind a row's *cost / run*, tokens and cost each (ADR 0042 decision 6).
+    runCosts: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .query(async ({ ctx, input }) =>
+        readRunCosts(await scoutDeps(ctx), input.scoutId)
+      ),
     // The scheduled check by name: what the hourly timer and a vault open
     // run, so a caller can ask for it at a moment of its choosing.
     checkDue: t.procedure.mutation(async ({ ctx }) =>

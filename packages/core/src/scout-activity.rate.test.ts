@@ -1,9 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ScoutActivity } from "./scout-activity.js";
-import { closeCores, core, fixtureCopy } from "./test-core.js";
+import {
+  arxivScout,
+  daysAgo,
+  openedWithQueue,
+  watchedScout,
+} from "./scout-queue-seed.js";
+import { closeCores } from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -12,131 +15,29 @@ afterEach(closeCores);
 // about when it cannot be said. The triage log is seeded directly — what is
 // asserted is the figure a row carries, never how the rows came to be.
 
-const NOW = new Date("2026-09-30T12:00:00Z");
-const DAY = 86_400_000;
-const daysAgo = (n: number) => new Date(NOW.getTime() - n * DAY).toISOString();
-
-const arxivScout = (name: string) =>
-  `name: ${name}\ncadence: daily\nlane: review\ncreated: 2026-06-01T00:00:00Z\nfilter:\n  query: all:${name}\n`;
-const watchedScout = (name: string) =>
-  `name: ${name}\ncadence: weekly\nlane: review\ncreated: 2026-06-01T00:00:00Z\nsource:\n  kind: watched\n  url: https://lab.example/${name}\n`;
-
-type Seed = {
-  action?: "accept" | "reject";
-  /** Triaged this many days ago. */
-  ago?: number;
-  lane?: "review" | "skim";
-  authors?: string[];
-  venue?: string | null;
-  promoted?: boolean;
-  undone?: boolean;
-  held?: boolean;
-  /** `reject this run` on a run that was (or was not) a backward search. */
-  batch?: { retroactive: boolean };
-  /** Another Scout found it first. */
-  firstBy?: string;
-};
-
 async function opened(scouts: Record<string, string>) {
-  const vault = await fixtureCopy("obsidian-vault");
-  for (const [file, text] of Object.entries(scouts)) {
-    const path = join(vault, ".vitrine/scouts", file);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, text);
-  }
-  const c = await core({ now: () => NOW });
-  expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
-  await c.indexed();
-  const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
-  let n = 0;
-  const run = (scout: string, retroactive: boolean) =>
-    Number(
-      db
-        .prepare(
-          `INSERT INTO scout_runs (scout_id, started, finished, outcome, window_from, window_to, retroactive)
-           VALUES (?, ?, ?, 'ok', ?, ?, ?)`
-        )
-        .run(
-          scout,
-          daysAgo(1),
-          daysAgo(1),
-          daysAgo(2),
-          daysAgo(1),
-          +retroactive
-        ).lastInsertRowid
-    );
-  const rateOf = async (scoutId: string) => {
+  const { c, seed } = await openedWithQueue(scouts);
+  const row = async (scoutId: string) => {
     const r = await c.query<ScoutActivity>("scouts.activity");
     expect(r.error).toBeUndefined();
-    const row = r.result!.data.rows.find(
+    const found = r.result!.data.rows.find(
       (row) => row.kind === "scout" && row.id === scoutId
     );
-    if (row?.kind !== "scout") throw new Error("no such row");
-    return row.acceptRate;
+    if (found?.kind !== "scout") throw new Error("no such row");
+    return found;
   };
   return {
-    /** One Proposal this Scout placed, and what the researcher did with it. */
-    seed(scout: string, s: Seed = {}) {
-      n += 1;
-      const firstRun = s.firstBy === undefined ? null : run(s.firstBy, false);
-      const ordinary = run(scout, false);
-      const batchRun =
-        s.batch === undefined ? null : run(scout, s.batch.retroactive);
-      const proposal = Number(
-        db
-          .prepare(
-            `INSERT INTO proposals (source_key, title, authors, published, venue, abstract, url, lane, state, first_seen)
-             VALUES (?, ?, ?, '2026-01-01', ?, '', 'https://x.example', ?, ?, ?)`
-          )
-          .run(
-            `k${n}`,
-            `T${n}`,
-            JSON.stringify(s.authors ?? ["A. Author"]),
-            s.venue === undefined ? "A Journal" : s.venue,
-            s.lane ?? "review",
-            s.held === true
-              ? "held"
-              : s.action === undefined
-                ? "pending"
-                : s.action === "accept"
-                  ? "accepted"
-                  : "rejected",
-            daysAgo(s.ago ?? 3)
-          ).lastInsertRowid
-      );
-      const appear = (by: string, runId: number) =>
-        db
-          .prepare(
-            "INSERT INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, 'https://x.example')"
-          )
-          .run(proposal, runId, by, daysAgo(s.ago ?? 3));
-      if (s.firstBy !== undefined) appear(s.firstBy, firstRun!);
-      appear(scout, ordinary);
-      const log = (action: string, batch: number | null = null) =>
-        db
-          .prepare(
-            "INSERT INTO triage (proposal_id, action, at, batch) VALUES (?, ?, ?, ?)"
-          )
-          .run(proposal, action, daysAgo(s.ago ?? 3), batch);
-      if (s.promoted === true) log("promote");
-      if (s.action !== undefined) log(s.action, batchRun);
-      if (s.undone === true) log("undo");
-    },
-    rate: rateOf,
+    seed,
+    rate: async (scoutId: string) => (await row(scoutId)).acceptRate,
     /** The line a row opens to; a rate that cannot be said has none, and that is a failure here. */
     series: async (scoutId: string) => {
-      const rate = await rateOf(scoutId);
-      if (rate.kind !== "rate") throw new Error(`no line: ${rate.kind}`);
-      return rate.weeks;
+      const { acceptRate } = await row(scoutId);
+      if (acceptRate.kind !== "rate") {
+        throw new Error(`no line: ${acceptRate.kind}`);
+      }
+      return acceptRate.weeks;
     },
-    health: async (scoutId: string) => {
-      const r = await c.query<ScoutActivity>("scouts.activity");
-      const row = r.result!.data.rows.find(
-        (row) => row.kind === "scout" && row.id === scoutId
-      );
-      if (row?.kind !== "scout") throw new Error("no such row");
-      return row.health;
-    },
+    health: async (scoutId: string) => (await row(scoutId)).health,
     ids: async () => {
       const r = await c.query<ScoutActivity>("scouts.activity");
       return r.result!.data.rows.map((row) =>

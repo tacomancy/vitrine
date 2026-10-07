@@ -59,29 +59,35 @@
 }
 
 .table thead th:nth-child(1) {
-  width: 26%;
+  width: 15%;
 }
 
 .table thead th:nth-child(2) {
-  width: 21%;
+  width: 20%;
 }
 
 .table thead th:nth-child(3) {
-  width: 9%;
+  width: 7%;
 }
 
 .table thead th:nth-child(4) {
-  width: 13%;
+  width: 10%;
 }
 
-/* The widths run to a hundred with the last column counted: left out, it was
-   given none, and the rate's text ran into the link beside it. */
 .table thead th:nth-child(5) {
-  width: 24%;
+  width: 12%;
 }
 
 .table thead th:nth-child(6) {
-  width: 7%;
+  width: 15%;
+}
+
+.table thead th:nth-child(7) {
+  width: 12%;
+}
+
+.table thead th:nth-child(8) {
+  width: 9%;
 }
 
 /* A column header that sorts: its text, in the header's own type, with the
@@ -127,8 +133,24 @@
   color: var(--color-fg-muted);
 }
 
+/* The per-run list: plain lines in the page's own type, newest first. */
+.runs {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
 /* The link to the Scout's stack: a quiet word in the row's own type. */
 .link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  background: none;
+  cursor: pointer;
   color: var(--color-fg-secondary);
   text-decoration: none;
 }
@@ -152,6 +174,16 @@
 
 .table tbody tr > :last-child {
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+/* A row of one cell is both first and last: the rules above would leave it
+   square on the left. It is a surface of its own under its row, a gutter below
+   it as every row is from the next (ADR 0023 decision 1), and what it holds
+   (the per-run list, the accept-rate line and the sentence that says why there
+   is none) wraps with it. */
+.table tbody tr > .detail {
+  border-radius: var(--radius-md);
+  white-space: normal;
 }
 
 /* The Scout and, stacked beneath it, how it is doing: its Voice and Warrant,
@@ -187,6 +219,18 @@
 .watching {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A cell that says something in words wraps, so a narrow column stacks what
+   it has to say and never prints over the cell beside it. */
+.table tbody td.wraps {
+  white-space: normal;
+}
+
+.parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* The row the keyboard is on, said by a lift in the ground and never by a
@@ -227,11 +271,10 @@
 }
 
 /* The rate cell's button opens the row, for a keyboard and a screen reader:
-   the cell's own type, so it weighs no more on one row than another. */
+   the cell's own type, so it weighs no more on one row than another. Its text
+   wraps with the cell, as every cell that speaks in words does. */
 .open {
   appearance: none;
-  display: block;
-  max-width: 100%;
   border: 0;
   padding: 0;
   font: inherit;
@@ -239,20 +282,8 @@
   background: none;
   cursor: pointer;
   text-align: left;
-  white-space: nowrap;
-  /* A reason longer than the column is cut to one line, as a long Query is;
-     the whole of it is on the button's title and in its name. */
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .open:hover {
   color: var(--color-fg);
-}
-
-/* The line is a surface of its own under its row, a gutter below it as every
-   row is from the next (ADR 0023 decision 1). */
-.table tbody tr.detail > td {
-  white-space: normal;
-  border-radius: var(--radius-md);
 }

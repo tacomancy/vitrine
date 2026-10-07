@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useState, type KeyboardEvent, type MouseEvent } from "react";
-import type { AcceptRate, ActivityRow, FleetSource } from "core";
+import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import type {
+  AcceptRate,
+  ActivityRow,
+  Cost,
+  FleetSource,
+  ScoutRunCost,
+  Volume,
+} from "core";
 import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
@@ -10,11 +17,15 @@ import { VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
-type Column = "scout" | "watching" | "cadence" | "last run";
+type Column =
+  "scout" | "watching" | "cadence" | "last run" | "proposed" | "cost";
 type Sort = { column: Column; descending: boolean };
 
 /** Faster first: ascending reads *how often it looks*, which is not the alphabet. */
 const CADENCE_RANK = { daily: 0, weekly: 1, monthly: 2 } as const;
+
+/** The row header and its seven cells: what a row that spans the table, or the file that will not parse, must add up to. */
+const COLUMNS = 8;
 
 const keyOf = (row: ActivityRow) =>
   row.kind === "scout" ? `scout:${row.id}` : `file:${row.file}`;
@@ -38,6 +49,11 @@ function valueOf(row: ActivityRow, column: Column): string | number | null {
       return CADENCE_RANK[row.cadence];
     case "last run":
       return row.lastRun === null ? null : Date.parse(row.lastRun.finished);
+    case "proposed":
+      return row.volume.proposals;
+    // *No model call* and *unpriced* have no figure to put in order.
+    case "cost":
+      return row.cost.kind === "cost" ? row.cost.perRun : null;
   }
 }
 
@@ -89,6 +105,8 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         : { column, descending: false }
     );
   }
+
+  const headerProps = { sort, onSort };
 
   function toggle(key: string) {
     setOpened((was) => {
@@ -159,35 +177,25 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           <table className={styles.table} aria-label="Scouts">
             <thead>
               <tr>
-                {(
-                  [
-                    ["scout", "Scout"],
-                    ["watching", "Watching"],
-                    ["cadence", "Cadence"],
-                    ["last run", "Last run"],
-                  ] as const
-                ).map(([column, label]) => (
-                  <th
-                    key={column}
-                    scope="col"
-                    aria-sort={
-                      sort?.column !== column
-                        ? undefined
-                        : sort.descending
-                          ? "descending"
-                          : "ascending"
-                    }
-                  >
-                    <button
-                      type="button"
-                      className={styles.sort}
-                      onClick={() => onSort(column)}
-                    >
-                      {label}
-                    </button>
-                  </th>
-                ))}
+                <SortHeader column="scout" label="Scout" {...headerProps} />
+                <SortHeader
+                  column="watching"
+                  label="Watching"
+                  {...headerProps}
+                />
+                <SortHeader column="cadence" label="Cadence" {...headerProps} />
+                <SortHeader
+                  column="last run"
+                  label="Last run"
+                  {...headerProps}
+                />
                 <th scope="col">Accept rate</th>
+                <SortHeader
+                  column="proposed"
+                  label="Proposed"
+                  {...headerProps}
+                />
+                <SortHeader column="cost" label="Cost / run" {...headerProps} />
                 <th scope="col">
                   <span className={styles.srOnly}>Queue</span>
                 </th>
@@ -222,6 +230,40 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         </footer>
       )}
     </section>
+  );
+}
+
+/** A column header that sorts, its direction said by `aria-sort` and a glyph and never by colour. */
+function SortHeader({
+  column,
+  label,
+  sort,
+  onSort,
+}: {
+  column: Column;
+  label: string;
+  sort: Sort | null;
+  onSort: (column: Column) => void;
+}) {
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        sort?.column !== column
+          ? undefined
+          : sort.descending
+            ? "descending"
+            : "ascending"
+      }
+    >
+      <button
+        type="button"
+        className={styles.sort}
+        onClick={() => onSort(column)}
+      >
+        {label}
+      </button>
+    </th>
   );
 }
 
@@ -294,6 +336,91 @@ function rateWords(rate: AcceptRate): string {
   }
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const thousands = (n: number) => n.toLocaleString("en-US");
+
+/** A figure of several parts, one to a line: a narrow column stacks them, and none is ever printed over its neighbour. */
+function Parts({ of }: { of: string[] }) {
+  return (
+    <ul className={styles.parts}>
+      {of.map((part) => (
+        <li key={part}>{part}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** What a Scout found over the thirty days, then a part for each thing worth knowing about it and none for a count of nothing (ADR 0042 decision 10). */
+const volumeParts = (volume: Volume): string[] => [
+  `${volume.proposals} / 30d`,
+  ...(volume.held > 0 ? [`${volume.held} already in your vault`] : []),
+  ...(volume.alsoFoundElsewhere > 0
+    ? [`${volume.alsoFoundElsewhere} also found elsewhere`]
+    : []),
+];
+
+/** Cents to the cent, and a smaller sum to the figure that shows it: a $0.0054 run is not `$0.01`. */
+const dollars = (usd: number) => `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
+
+/**
+ * *no model call* is not `$0.00`: a read that costs nothing and a spend of
+ * nothing are different claims. A model the price table does not know is
+ * *unpriced*, never a guess, and the runs a mean rests on are named as a
+ * rate's items are (ADR 0042 decision 6).
+ */
+function costParts(cost: Cost): string[] {
+  switch (cost.kind) {
+    case "no model call":
+      return ["no model call"];
+    case "unpriced":
+      return ["unpriced", plural(cost.runs, "run")];
+    case "cost":
+      return [
+        dollars(cost.perRun),
+        plural(cost.runs, "run"),
+        ...(cost.unpriced > 0 ? [`${cost.unpriced} unpriced`] : []),
+      ];
+  }
+}
+
+/** What one run spent, after when it was: its model, its tokens and, where the model is priced, what that cost. */
+const runParts = (run: ScoutRunCost): string[] => [
+  ...(run.model === null ? [] : [run.model]),
+  `${thousands(run.tokens.input)} in`,
+  `${thousands(run.tokens.output)} out`,
+  ...(run.tokens.cacheRead > 0
+    ? [`${thousands(run.tokens.cacheRead)} cached`]
+    : []),
+  run.costUsd === null ? "unpriced" : dollars(run.costUsd),
+];
+
+/** The runs the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
+function Runs({ scoutId, name }: { scoutId: string; name: string }) {
+  const trpc = useTRPC();
+  const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
+  if (runs.isError) {
+    return <WarningLine label="not read">{runs.error.message}</WarningLine>;
+  }
+  if (runs.data === undefined) return null;
+  if (runs.data.length === 0) {
+    return (
+      <p className={styles.runs}>
+        No run in the last thirty days called a model.
+      </p>
+    );
+  }
+  return (
+    <ul className={styles.runs} aria-label={`${name} runs`}>
+      {runs.data.map((run) => (
+        <li key={run.runId}>
+          <time dateTime={run.finished}>{run.ago}</time>
+          {` · ${runParts(run).join(" · ")}`}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Row({
   row,
   id,
@@ -309,6 +436,7 @@ function Row({
   onToggle: () => void;
   onChoose: () => void;
 }) {
+  const [showRuns, setShowRuns] = useState(false);
   if (row.kind === "unreadable") {
     // Nothing is known of a file that will not parse but its name and why, so
     // the columns that would say more are left empty rather than guessed at.
@@ -320,7 +448,7 @@ function Row({
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={5} />
+        <td colSpan={COLUMNS - 1} />
       </tr>
     );
   }
@@ -341,7 +469,7 @@ function Row({
     }
   }
   return (
-    <Fragment>
+    <>
       {/* No class carries how the Scout is doing: the Voice beside the name is
           the whole of it, and a tint would be a threshold the app has no way
           to defend (ADR 0042 decision 8). */}
@@ -368,18 +496,36 @@ function Row({
             <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
           )}
         </td>
-        <td>
+        <td className={styles.wraps}>
           <button
             type="button"
             className={styles.open}
             aria-expanded={open}
             aria-controls={open ? detail : undefined}
             aria-label={`${row.name}: accept rate, ${rate}`}
-            title={rate}
             onClick={onToggle}
           >
             {rate}
           </button>
+        </td>
+        <td className={styles.wraps}>
+          <Parts of={volumeParts(row.volume)} />
+        </td>
+        <td className={styles.wraps}>
+          <Parts of={costParts(row.cost)} />
+          {/* A Scout that never called a model has no runs to list: the figure
+              already says so. */}
+          {row.cost.kind !== "no model call" && (
+            <button
+              type="button"
+              className={styles.link}
+              aria-expanded={showRuns}
+              aria-label={`${row.name}: each run`}
+              onClick={() => setShowRuns((was) => !was)}
+            >
+              each run
+            </button>
+          )}
         </td>
         <td>
           <a
@@ -396,12 +542,19 @@ function Row({
         </td>
       </tr>
       {open && (
-        <tr id={detail} className={styles.detail}>
-          <td colSpan={6}>
+        <tr id={detail}>
+          <td className={styles.detail} colSpan={COLUMNS}>
             <AcceptLine rate={row.acceptRate} />
           </td>
         </tr>
       )}
-    </Fragment>
+      {showRuns && row.cost.kind !== "no model call" && (
+        <tr>
+          <td className={styles.detail} colSpan={COLUMNS}>
+            <Runs scoutId={row.id} name={row.name} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

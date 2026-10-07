@@ -113,6 +113,19 @@ export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
   });
 }
 
+/**
+ * The Scout a Proposal is credited to: the one whose Appearance came first, by
+ * run and then by the order the rows were written, since two runs can overlap
+ * (a *run now* beside a scheduled check) and `rowid` alone would then credit
+ * whichever finished writing first. A deferral's return, the Accept rate and
+ * Scout Activity's volume all read it here, so a card is one Scout's in all
+ * three and the figures beside each other cannot disagree (ADR 0042 decision
+ * 10). `proposal` is the SQL column that names the Proposal, never a value.
+ */
+export const firstAppearanceScout = (proposal: string) =>
+  `(SELECT scout_id FROM appearances WHERE proposal_id = ${proposal}
+     ORDER BY run_id, rowid LIMIT 1)`;
+
 /** Accepts and rejects that count toward each Scout's Accept rate (beat 9 reads this; ADR 0039 decisions 4 and 6). */
 export type AcceptCounts = {
   scoutId: string;
@@ -122,10 +135,6 @@ export type AcceptCounts = {
   noAuthors: number;
   noVenue: number;
 };
-
-/** The Scout credited with a Proposal: the one whose Appearance came first, as a deferral's credit goes. */
-const FIRST_SCOUT = `(SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
-                ORDER BY run_id, rowid LIMIT 1)`;
 
 /** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Reads `t` (triage) and `p` (proposals) and binds one `?`, the window's `since`. */
 const COUNTED = `t.action IN ('accept', 'reject')
@@ -155,7 +164,7 @@ const COUNTED = `t.action IN ('accept', 'reject')
 export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
   return queue
     .prepare(
-      `SELECT ${FIRST_SCOUT} AS scoutId,
+      `SELECT ${firstAppearanceScout("t.proposal_id")} AS scoutId,
               SUM(t.action = 'accept') AS accepted,
               SUM(t.action = 'reject') AS rejected,
               SUM(p.authors = '[]') AS noAuthors,
@@ -203,7 +212,7 @@ export function acceptWeeks(
     .prepare(
       `SELECT t.action AS action, t.at AS at
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
-        WHERE ${COUNTED} AND ${FIRST_SCOUT} = ?`
+        WHERE ${COUNTED} AND ${firstAppearanceScout("t.proposal_id")} = ?`
     )
     .all(since, scoutId) as Array<{ action: "accept" | "reject"; at: string }>;
   const from = Date.parse(since);
@@ -302,8 +311,7 @@ export function returnDeferred(deps: ScoutDeps, scoutId: string): void {
     .prepare(
       `UPDATE proposals SET state = 'pending'
         WHERE state = 'deferred'
-          AND ? = (SELECT scout_id FROM appearances WHERE proposal_id = proposals.id
-                    ORDER BY run_id, rowid LIMIT 1)`
+          AND ? = ${firstAppearanceScout("proposals.id")}`
     )
     .run(scoutId);
 }
