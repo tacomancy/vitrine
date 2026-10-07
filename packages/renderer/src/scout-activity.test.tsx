@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { ActivityRow, ScoutActivity } from "core";
+import type { Cost, ScoutActivity, ActivityRow, ScoutRunCost } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -69,6 +69,8 @@ const BROKEN: ActivityRow = {
     median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
     oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
   },
+  volume: { proposals: 12, held: 0, alsoFoundElsewhere: 0 },
+  cost: { kind: "no model call" },
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -90,6 +92,8 @@ const QUIET: ActivityRow = {
   },
   acceptRate: { kind: "nothing triaged" },
   review: NO_REVIEW,
+  volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+  cost: { kind: "no model call" },
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -104,6 +108,8 @@ const RESTING: ActivityRow = {
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
   review: { ...NO_REVIEW, deferred: 2 },
+  volume: { proposals: 5, held: 2, alsoFoundElsewhere: 1 },
+  cost: { kind: "cost", perRun: 0.0312, runs: 3, unpriced: 0 },
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -115,28 +121,39 @@ const TORN: ActivityRow = {
   },
 };
 
+/** A cell's words: a figure of several parts is read as its parts, one to a line. */
+const cellWords = (cell: HTMLElement) => {
+  const parts = within(cell).queryAllByRole("listitem");
+  return parts.length === 0
+    ? cell.textContent
+    : parts.map((p) => p.textContent);
+};
+
 /** The Scouts' rows, header row left out. */
 const tableRows = async () =>
   within(await screen.findByRole("table", { name: "Scouts" }))
     .getAllByRole("row")
     .slice(1);
 
-/** A row's In Review cell, as the lines it draws: its stack on one, what is deferred on another. */
-const reviewLines = (row: HTMLElement) =>
-  Array.from(within(row).getAllByRole("cell")[4]!.children).map(
-    (line) => line.textContent
-  );
+/** A row's In Review cell, the last: the stack's parts, one to a line, and below them the link that opens that stack in the Queue. */
+const reviewCell = (row: HTMLElement) => within(row).getAllByRole("cell")[6]!;
+const reviewParts = (row: HTMLElement) =>
+  within(reviewCell(row))
+    .queryAllByRole("listitem")
+    .map((part) => part.textContent);
 
 const HEADER_NOTE = "Skim is a feed and has no depth";
 
 describe("Scout Activity — Review depth and age", () => {
-  it("states a Scout's stack in neutral facts, with what is deferred apart on a line of its own", async () => {
+  it("states a Scout's stack in neutral facts, the ages beside the pending figure and what is deferred apart after them", async () => {
     open(fleet([BROKEN]));
 
     const [row] = await tableRows();
 
-    expect(reviewLines(row!)).toEqual([
-      "3 pending · median 3 days ago · oldest 5 days ago",
+    expect(reviewParts(row!)).toEqual([
+      "3 pending",
+      "median 3 days ago",
+      "oldest 5 days ago",
       "1 deferred",
     ]);
   });
@@ -146,7 +163,7 @@ describe("Scout Activity — Review depth and age", () => {
 
     const [row] = await tableRows();
 
-    expect(reviewLines(row!)).toEqual(["Nothing pending."]);
+    expect(reviewParts(row!)).toEqual(["Nothing pending."]);
   });
 
   it("says nothing of the stack for a Scout that has not looked or whose check failed, leaving the Voice beside its name to speak", async () => {
@@ -161,7 +178,7 @@ describe("Scout Activity — Review depth and age", () => {
 
     // An empty cell, not a 0 and not *nothing pending*: that would pass a
     // broken Scout for a quiet field.
-    expect(rows.map(reviewLines)).toEqual([[], []]);
+    expect(rows.map(reviewParts)).toEqual([[], []]);
     expect(rows[0]!.textContent).toContain("HTTP 503");
     expect(rows[1]!.textContent).toContain("Paused");
   });
@@ -171,10 +188,27 @@ describe("Scout Activity — Review depth and age", () => {
 
     const rows = await tableRows();
 
-    expect(rows.map(reviewLines)).toEqual([
+    expect(rows.map(reviewParts)).toEqual([
       ["2 deferred"],
       ["Nothing pending.", "4 deferred"],
     ]);
+  });
+
+  it("keeps the link to a Scout's stack in the same cell, below the figures, and on a Scout with none", async () => {
+    open(fleet([BROKEN, { ...RESTING, review: NO_REVIEW }]));
+
+    const [broken, resting] = await tableRows();
+
+    for (const [row, name] of [
+      [broken!, "Broken by arXiv"],
+      [resting!, "Resting"],
+    ] as const) {
+      expect(
+        within(reviewCell(row)).getByRole("link", {
+          name: `${name}: open its stack in the Queue`,
+        }).textContent
+      ).toBe("queue");
+    }
   });
 
   it("heads the fleet with the same facts, deferred apart, and names Skim a feed with no depth", async () => {
@@ -248,9 +282,7 @@ describe("the table", () => {
     expect(
       rows.map((row) => [
         within(row).getByRole("rowheader").textContent,
-        ...within(row)
-          .getAllByRole("cell")
-          .map((cell) => cell.textContent),
+        ...within(row).getAllByRole("cell").map(cellWords),
       ])
     ).toEqual([
       [
@@ -259,8 +291,9 @@ describe("the table", () => {
         "daily",
         "3h ago",
         "75% · 4 triaged",
-        "3 pending · median 3 days ago · oldest 5 days ago1 deferred",
-        "queue",
+        ["12 / 30d"],
+        ["no model call"],
+        ["3 pending", "median 3 days ago", "oldest 5 days ago", "1 deferred"],
       ],
       [
         expect.stringContaining("Quiet by design"),
@@ -268,8 +301,9 @@ describe("the table", () => {
         "weekly",
         "2h ago",
         "nothing triaged yet",
-        "Nothing pending.",
-        "queue",
+        ["0 / 30d"],
+        ["no model call"],
+        ["Nothing pending."],
       ],
       // A Scout that has never run says so, and a page is named by its address.
       [
@@ -278,10 +312,144 @@ describe("the table", () => {
         "monthly",
         "not yet",
         "Most of this Scout's papers arrive without authors or venue.",
-        "2 deferred",
-        "queue",
+        ["5 / 30d", "2 already in your vault", "1 also found elsewhere"],
+        ["$0.03", "3 runs"],
+        ["2 deferred"],
       ],
     ]);
+  });
+});
+
+describe("a row's cost", () => {
+  const costed = (cost: Cost) => ({ ...QUIET, cost });
+  const costCell = async () => {
+    const [row] = await tableRows();
+    return cellWords(within(row!).getAllByRole("cell")[5]!);
+  };
+
+  it("says unpriced, never a figure, for a model that has no price, and how many runs that is", async () => {
+    open(fleet([costed({ kind: "unpriced", runs: 2 })]));
+
+    expect(await costCell()).toEqual(["unpriced", "2 runs"]);
+  });
+
+  it("names the runs a mean rests on and how many were left out as unpriced", async () => {
+    open(fleet([costed({ kind: "cost", perRun: 0.5, runs: 2, unpriced: 1 })]));
+
+    expect(await costCell()).toEqual(["$0.50", "2 runs", "1 unpriced"]);
+  });
+
+  it("says a mean of one run in the singular, and a sum under a cent to the figure that shows it", async () => {
+    open(
+      fleet([costed({ kind: "cost", perRun: 0.0054, runs: 1, unpriced: 0 })])
+    );
+
+    expect(await costCell()).toEqual(["$0.0054", "1 run"]);
+  });
+});
+
+describe("the runs behind a row", () => {
+  const RUNS: ScoutRunCost[] = [
+    {
+      runId: 9,
+      finished: "2026-09-29T09:00:00.000Z",
+      ago: "1 day ago",
+      model: "claude-sonnet-5-5",
+      tokens: { input: 1200, output: 300, cacheRead: 0 },
+      costUsd: 0.0054,
+    },
+    {
+      runId: 8,
+      finished: "2026-09-28T09:00:00.000Z",
+      ago: "2 days ago",
+      model: "odd-model",
+      tokens: { input: 50, output: 5, cacheRead: 40 },
+      costUsd: null,
+    },
+  ];
+  // A Scout whose cost has runs behind it: one that made no model call has
+  // none to list.
+  const COSTLY: ActivityRow = {
+    ...QUIET,
+    cost: { kind: "cost", perRun: 0.0057, runs: 2, unpriced: 0 },
+  };
+  const opener = () =>
+    screen.findByRole("button", { name: "Quiet by design: each run" });
+
+  it("opens from the row, listing each run's model, tokens and cost as the core ordered them, and says unpriced where there is no price", async () => {
+    const asked = vi.fn((input: unknown) => {
+      void input;
+      return RUNS;
+    });
+    open(fleet([COSTLY]), { "scouts.runCosts": asked });
+
+    // Behind the row: nothing is read, and nothing drawn, until it is opened.
+    const button = await opener();
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(asked).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("list", { name: "Quiet by design runs" })
+    ).toBeNull();
+
+    fireEvent.click(button);
+
+    const list = await screen.findByRole("list", {
+      name: "Quiet by design runs",
+    });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      "1 day ago · claude-sonnet-5-5 · 1,200 in · 300 out · $0.0054",
+      "2 days ago · odd-model · 50 in · 5 out · 40 cached · unpriced",
+    ]);
+    expect(asked).toHaveBeenCalledWith({ scoutId: "quiet" });
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("is not offered for a Scout that made no model call: the figure already says so", async () => {
+    open(fleet([QUIET]));
+    await tableRows();
+
+    expect(screen.queryByRole("button", { name: /each run/ })).toBeNull();
+  });
+
+  it("closes again from the same control", async () => {
+    open(fleet([COSTLY]), { "scouts.runCosts": RUNS });
+
+    fireEvent.click(await opener());
+    await screen.findByRole("list", { name: "Quiet by design runs" });
+    fireEvent.click(await opener());
+
+    expect(
+      screen.queryByRole("list", { name: "Quiet by design runs" })
+    ).toBeNull();
+  });
+
+  it("says so, plainly, when no run in the thirty days called a model", async () => {
+    open(fleet([COSTLY]), { "scouts.runCosts": [] });
+
+    fireEvent.click(await opener());
+
+    expect(
+      await screen.findByText("No run in the last thirty days called a model.")
+    ).toBeDefined();
+  });
+
+  it("says why on a polite line when the runs cannot be read, and not that there were none", async () => {
+    open(fleet([COSTLY]), {
+      "scouts.runCosts": () => {
+        throw new Error("No vault is open.");
+      },
+    });
+
+    fireEvent.click(await opener());
+
+    expect(await screen.findByText(/No vault is open\./)).toBeDefined();
+    expect(
+      screen.queryByText("No run in the last thirty days called a model.")
+    ).toBeNull();
   });
 });
 
@@ -526,6 +694,40 @@ describe("the order of the table", () => {
       "Quiet by design",
       "Broken by arXiv",
       "Resting",
+    ]);
+  });
+
+  it("sorts by what a Scout proposed, and by what a run costs, with the Scouts that have no cost figure last either way", async () => {
+    const costly: ActivityRow = {
+      ...BROKEN,
+      id: "costly",
+      name: "Costly",
+      cost: { kind: "cost", perRun: 0.5, runs: 2, unpriced: 0 },
+    };
+    open(fleet([BROKEN, QUIET, RESTING, costly]));
+    await tableRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "Proposed" }));
+    expect(await names()).toEqual([
+      "Quiet by design",
+      "Resting",
+      "Broken by arXiv",
+      "Costly",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cost / run" }));
+    expect(await names()).toEqual([
+      "Resting",
+      "Costly",
+      "Broken by arXiv",
+      "Quiet by design",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Cost / run" }));
+    expect(await names()).toEqual([
+      "Costly",
+      "Resting",
+      "Broken by arXiv",
+      "Quiet by design",
     ]);
   });
 

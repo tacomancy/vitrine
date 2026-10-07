@@ -165,8 +165,11 @@ export type { Group } from "./triage.js";
 export type {
   AcceptRate,
   ActivityRow,
+  Cost,
   FleetSource,
   ScoutActivity,
+  ScoutRunCost,
+  Volume,
 } from "./scout-activity.js";
 export type { ReviewDepth, StackAge } from "./review-depth.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";

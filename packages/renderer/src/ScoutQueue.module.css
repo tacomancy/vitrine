@@ -281,3 +281,21 @@
   margin: var(--space-1) 0 0;
   padding-left: var(--space-5);
 }
+
+/* The footer channel, as every surface draws it: one quiet mono line each.
+   This surface is its own scroller, so the line is held to its bottom edge
+   instead of sitting after a long stack, out of sight. */
+.footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-bg-surface);
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
