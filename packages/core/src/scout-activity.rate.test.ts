@@ -122,6 +122,14 @@ async function opened(scouts: Record<string, string>) {
       if (row?.kind !== "scout") throw new Error("no such row");
       return row.acceptRate;
     },
+    series: async (scoutId: string) => {
+      const r = await c.query<ScoutActivity>("scouts.activity");
+      const row = r.result!.data.rows.find(
+        (row) => row.kind === "scout" && row.id === scoutId
+      );
+      if (row?.kind !== "scout") throw new Error("no such row");
+      return row.acceptWeeks;
+    },
     health: async (scoutId: string) => {
       const r = await c.query<ScoutActivity>("scouts.activity");
       const row = r.result!.data.rows.find(
@@ -287,5 +295,64 @@ describe("the fleet's order by accept rate", () => {
     f.seed("e", { action: "reject" });
 
     expect(await f.ids()).toEqual(["e", "b", "a", "d", "c"]);
+  });
+});
+
+describe("a row's weekly accept rate", () => {
+  it("is twelve weeks, oldest first, the newest ending now", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(5, () => f.seed("s", { action: "accept", ago: 1 }));
+
+    const weeks = await f.series("s");
+    expect(weeks).toHaveLength(12);
+    expect(weeks.at(-1)).toEqual({
+      start: daysAgo(7),
+      triaged: 5,
+      rate: 1,
+    });
+    expect(weeks[0]!.start).toBe(daysAgo(84));
+  });
+
+  it("is a gap for a week with four triaged items and a point for one with five", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(4, () => f.seed("s", { action: "accept", ago: 10 }));
+    times(4, () => f.seed("s", { action: "accept", ago: 3 }));
+    f.seed("s", { action: "reject", ago: 3 });
+
+    const weeks = await f.series("s");
+    expect(weeks.at(-2)).toMatchObject({ triaged: 4, rate: null });
+    expect(weeks.at(-1)).toMatchObject({ triaged: 5, rate: 0.8 });
+  });
+
+  it("is a gap, never a zero, for a week nothing was triaged", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    f.seed("s", { action: "accept", ago: 3 });
+
+    expect((await f.series("s"))[0]).toEqual({
+      start: daysAgo(84),
+      triaged: 0,
+      rate: null,
+    });
+  });
+
+  it("counts what the headline counts: not a Retroactive reject, not an undone one, not a promoted accept", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(5, () => f.seed("s", { action: "accept", ago: 3 }));
+    f.seed("s", { action: "reject", ago: 3, batch: { retroactive: true } });
+    f.seed("s", { action: "reject", ago: 3, undone: true });
+    f.seed("s", { action: "accept", ago: 3, promoted: true });
+
+    expect((await f.series("s")).at(-1)).toMatchObject({
+      triaged: 5,
+      rate: 1,
+    });
+  });
+
+  it("keeps a triage from exactly twelve weeks ago, as the headline does", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(5, () => f.seed("s", { action: "accept", ago: 84 }));
+
+    expect((await f.series("s"))[0]).toMatchObject({ triaged: 5, rate: 1 });
+    expect(await f.rate("s")).toMatchObject({ triaged: 5 });
   });
 });

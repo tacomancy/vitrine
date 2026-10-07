@@ -7,7 +7,13 @@ import {
   unreadableHealth,
   type Health,
 } from "./scout-health.js";
-import { acceptCounts, type AcceptCounts } from "./triage.js";
+import {
+  acceptCounts,
+  acceptWeeks,
+  noAcceptWeeks,
+  type AcceptCounts,
+  type AcceptWeek,
+} from "./triage.js";
 import { NO_KEY } from "./watched.js";
 
 /** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
@@ -84,6 +90,8 @@ export type ActivityRow =
       lastRun: { finished: string; ago: string } | null;
       health: Health;
       acceptRate: AcceptRate;
+      /** The line the row opens to: twelve weeks, a point only where a week rests on enough items (ADR 0042 decision 2). */
+      acceptWeeks: AcceptWeek[];
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
@@ -183,6 +191,7 @@ export async function readActivity(deps: {
     deps.queue,
     new Date(now.getTime() - WINDOW_MS).toISOString()
   );
+  const weeks = acceptWeeks(deps.queue, now);
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
@@ -207,6 +216,7 @@ export async function readActivity(deps: {
           scout,
           counts.find((c) => c.scoutId === scout.id)
         ),
+        acceptWeeks: weeks.get(scout.id) ?? noAcceptWeeks(now),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({

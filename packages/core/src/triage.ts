@@ -123,6 +123,21 @@ export type AcceptCounts = {
   noVenue: number;
 };
 
+/** The Scout credited with a Proposal: the one whose Appearance came first, as a deferral's credit goes. */
+const FIRST_SCOUT = `(SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
+                ORDER BY run_id, rowid LIMIT 1)`;
+
+/** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Binds `since`. */
+const COUNTED = `t.action IN ('accept', 'reject')
+          AND t.at >= ?
+          AND p.lane = 'review'
+          AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
+                           AND r.retroactive = 1)
+          AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
+                           AND x.action = 'promote')
+          AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
+                           AND u.action = 'undo' AND u.rowid > t.rowid)`;
+
 /**
  * Only what the Scout placed in Review counts: a Proposal with a `promote`
  * row was moved by hand, and one still in the Skim lane was never put to the
@@ -140,26 +155,82 @@ export type AcceptCounts = {
 export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
   return queue
     .prepare(
-      `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
-                ORDER BY run_id, rowid LIMIT 1) AS scoutId,
+      `SELECT ${FIRST_SCOUT} AS scoutId,
               SUM(t.action = 'accept') AS accepted,
               SUM(t.action = 'reject') AS rejected,
               SUM(p.authors = '[]') AS noAuthors,
               SUM(p.venue IS NULL) AS noVenue
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
-        WHERE t.action IN ('accept', 'reject')
-          AND t.at >= ?
-          AND p.lane = 'review'
-          AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
-                           AND r.retroactive = 1)
-          AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
-                           AND x.action = 'promote')
-          AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
-                           AND u.action = 'undo' AND u.rowid > t.rowid)
+        WHERE ${COUNTED}
         GROUP BY scoutId ORDER BY scoutId`
     )
     .all(since) as AcceptCounts[];
 }
+
+/** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
+export const MIN_WEEK_ITEMS = 5;
+
+const WEEK_MS = 7 * 86_400_000;
+const WEEKS = 12;
+
+/** One week of a Scout's accept-rate line: `rate` is null for a gap, and `triaged` is what the week rests on either way. */
+export type AcceptWeek = {
+  /** ISO time the week begins; it ends a week later. */
+  start: string;
+  triaged: number;
+  rate: number | null;
+};
+
+/**
+ * The trailing twelve weeks per Scout, oldest first, the newest ending at
+ * `now`. It reads the rows `acceptCounts` counts (one `COUNTED` filter), so a
+ * point can never rest on an item the headline leaves out. A triage exactly
+ * twelve weeks old falls in the oldest week, because `acceptCounts`' window
+ * keeps it. Buckets are cut here and not in SQL so the week's edge is one
+ * expression, the one `start` is printed from.
+ */
+export function acceptWeeks(
+  queue: DatabaseSync,
+  now: Date
+): Map<string, AcceptWeek[]> {
+  const rows = queue
+    .prepare(
+      `SELECT ${FIRST_SCOUT} AS scoutId, t.action AS action, t.at AS at
+         FROM triage t JOIN proposals p ON p.id = t.proposal_id
+        WHERE ${COUNTED}`
+    )
+    .all(new Date(now.getTime() - WEEKS * WEEK_MS).toISOString()) as Array<{
+    scoutId: string;
+    action: "accept" | "reject";
+    at: string;
+  }>;
+  const tallies = new Map<string, Tallies>();
+  for (const row of rows) {
+    const age = Math.max(0, now.getTime() - Date.parse(row.at));
+    const week = WEEKS - 1 - Math.min(Math.floor(age / WEEK_MS), WEEKS - 1);
+    const weeks = tallies.get(row.scoutId) ?? blankTallies();
+    weeks[week]!.triaged += 1;
+    if (row.action === "accept") weeks[week]!.accepted += 1;
+    tallies.set(row.scoutId, weeks);
+  }
+  return new Map(
+    [...tallies].map(([scout, counts]) => [scout, weeksOf(now, counts)])
+  );
+}
+
+/** A Scout nobody has triaged for still has a line to draw: twelve gaps. */
+export const noAcceptWeeks = (now: Date) => weeksOf(now, blankTallies());
+
+type Tallies = Array<{ accepted: number; triaged: number }>;
+const blankTallies = (): Tallies =>
+  Array.from({ length: WEEKS }, () => ({ accepted: 0, triaged: 0 }));
+
+const weeksOf = (now: Date, counts: Tallies) =>
+  counts.map(({ accepted, triaged }, i): AcceptWeek => ({
+    start: new Date(now.getTime() - (WEEKS - i) * WEEK_MS).toISOString(),
+    triaged,
+    rate: triaged >= MIN_WEEK_ITEMS ? accepted / triaged : null,
+  }));
 
 /**
  * *Reject this run*: one `reject` row per Proposal still pending that the

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { ActivityRow, ScoutActivity } from "core";
+import type { AcceptWeek, ActivityRow, ScoutActivity } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -47,6 +47,19 @@ const page = () => screen.findByRole("region", { name: "Scout Activity" });
 // Three Scouts of three different health and a file that will not parse, as
 // the core hands them over: the words in `health` are the core's, copied from
 // what the Queue's rail says for the same Scouts.
+const DAY = 86_400_000;
+/** Twelve weeks ending 2026-09-30, oldest first; weeks not named are gaps. */
+const weeksOf = (
+  filled: Record<number, { triaged: number; rate: number | null }> = {}
+): AcceptWeek[] =>
+  Array.from({ length: 12 }, (_, i) => ({
+    start: new Date(
+      Date.parse("2026-09-30T12:00:00Z") - (12 - i) * 7 * DAY
+    ).toISOString(),
+    triaged: 0,
+    rate: null,
+    ...filled[i],
+  }));
 const BROKEN: ActivityRow = {
   kind: "scout",
   id: "broken",
@@ -61,6 +74,7 @@ const BROKEN: ActivityRow = {
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
   acceptRate: { kind: "rate", accepted: 3, triaged: 4, rate: 0.75 },
+  acceptWeeks: weeksOf(),
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -81,6 +95,7 @@ const QUIET: ActivityRow = {
     },
   },
   acceptRate: { kind: "nothing triaged" },
+  acceptWeeks: weeksOf(),
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -94,6 +109,7 @@ const RESTING: ActivityRow = {
     kind: "unavailable",
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
+  acceptWeeks: weeksOf(),
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -548,5 +564,94 @@ describe("a row's link", () => {
 
     expect(rows[0]!.className).toBe(rows[1]!.className);
     expect(rows[0]!.getAttribute("style")).toBeNull();
+  });
+});
+
+describe("opening a row", () => {
+  const TWELVE_WEEKS: ActivityRow = {
+    ...BROKEN,
+    acceptRate: { kind: "rate", accepted: 30, triaged: 48, rate: 0.625 },
+    acceptWeeks: weeksOf({
+      9: { triaged: 4, rate: null },
+      10: { triaged: 5, rate: 0.8 },
+      11: { triaged: 7, rate: 0.5 },
+    }),
+  };
+  const opener = (name: string) =>
+    screen.findByRole("button", {
+      name: new RegExp(`${name}.*accept rate`, "i"),
+    });
+
+  it("draws no row pre-expanded", async () => {
+    open(fleet([TWELVE_WEEKS]));
+    await screen.findByRole("table", { name: "Scouts" });
+
+    expect(
+      screen.queryByRole("group", { name: "Accept rate by week" })
+    ).toBeNull();
+  });
+
+  it("draws the Scout's weekly line with its headline when its row is opened, and closes again", async () => {
+    open(fleet([TWELVE_WEEKS]));
+
+    const button = await opener("Broken by arXiv");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(button);
+
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const line = screen.getByRole("group", { name: "Accept rate by week" });
+    expect(
+      within(line)
+        .getAllByRole("img")
+        .map((p) => p.getAttribute("aria-label"))
+    ).toEqual([
+      "week of Sep 16: 80% of 5 triaged",
+      "week of Sep 23: 50% of 7 triaged",
+    ]);
+    expect(screen.getByText("63% over 12 weeks · 48 triaged")).toBeDefined();
+
+    fireEvent.click(button);
+    expect(
+      screen.queryByRole("group", { name: "Accept rate by week" })
+    ).toBeNull();
+  });
+
+  it("says why there is no line for a young Scout", async () => {
+    open(
+      fleet([
+        {
+          ...TWELVE_WEEKS,
+          acceptWeeks: weeksOf({ 11: { triaged: 3, rate: null } }),
+        },
+      ])
+    );
+
+    fireEvent.click(await opener("Broken by arXiv"));
+
+    expect(
+      screen.getByText(
+        "No week has five triaged items yet, so there is no line."
+      )
+    ).toBeDefined();
+  });
+
+  it("opens the chosen row with Enter", async () => {
+    open(fleet([TWELVE_WEEKS]));
+    const group = await screen.findByRole("group", { name: "Scout rows" });
+    group.focus();
+    fireEvent.keyDown(group, { key: "j" });
+
+    fireEvent.keyDown(group, { key: "Enter" });
+
+    expect(
+      screen.getByRole("group", { name: "Accept rate by week" })
+    ).toBeDefined();
+  });
+
+  it("offers nothing to open on a file that will not parse", async () => {
+    open(fleet([TORN]));
+    await screen.findByRole("table", { name: "Scouts" });
+
+    expect(screen.queryByRole("button", { name: /accept rate/i })).toBeNull();
   });
 });

@@ -161,7 +161,7 @@ export type { Connection, ReaderAnnotation, SourcePage } from "./reader.js";
 export type { Highlighted, Questioned, Removal } from "./ingest.js";
 export type { ReadingPosition } from "./annotation-sidecar.js";
 export type { Accepted, Card, RunSummary } from "./scouts.js";
-export type { Group } from "./triage.js";
+export type { AcceptWeek, Group } from "./triage.js";
 export type {
   AcceptRate,
   ActivityRow,

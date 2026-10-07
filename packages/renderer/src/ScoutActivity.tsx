@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type KeyboardEvent } from "react";
+import { Fragment, useState, type KeyboardEvent } from "react";
 import type { AcceptRate, ActivityRow, FleetSource } from "core";
+import { AcceptLine } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
@@ -72,6 +73,9 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // Held by the row's key and not its place, so a re-sort leaves the choice on
   // the Scout it was on.
   const [chosen, setChosen] = useState<string | null>(null);
+  // Nothing starts open: *edit* and the line weigh the same on every row, so
+  // no row is singled out by being expanded (ADR 0042 decision 8).
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const rows = sorted(activity.data?.rows ?? [], sort);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -85,6 +89,14 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
     );
   }
 
+  function toggle(key: string) {
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }
+
   function onKeyDown(event: KeyboardEvent) {
     const target = event.target;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -95,6 +107,16 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
       return;
     }
     let next: number;
+    if (event.key === "Enter") {
+      // Only on the group itself: Enter on a button or link inside it is that
+      // control's own.
+      const row = rows[chosenIndex];
+      if (target === event.currentTarget && row?.kind === "scout") {
+        event.preventDefault();
+        toggle(keyOf(row));
+      }
+      return;
+    }
     if (event.key === "j" || event.key === "ArrowDown") {
       next = Math.min(chosenIndex + 1, rows.length - 1);
     } else if (event.key === "k" || event.key === "ArrowUp") {
@@ -177,6 +199,8 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   row={row}
                   id={rowId(index)}
                   chosen={index === chosenIndex}
+                  open={open.has(keyOf(row))}
+                  onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
                 />
               ))}
@@ -273,11 +297,15 @@ function Row({
   row,
   id,
   chosen,
+  open,
+  onToggle,
   onChoose,
 }: {
   row: ActivityRow;
   id: string;
   chosen: boolean;
+  open: boolean;
+  onToggle: () => void;
   onChoose: () => void;
 }) {
   if (row.kind === "unreadable") {
@@ -299,47 +327,68 @@ function Row({
     row.source.kind === "arxiv"
       ? `arXiv · ${row.source.query}`
       : row.source.url;
+  const detail = `${id}-detail`;
   return (
-    // No class carries how the Scout is doing: the Voice beside the name is
-    // the whole of it, and a tint would be a threshold the app has no way to
-    // defend (ADR 0042 decision 8).
-    <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
-      <th scope="row">
-        <span className={styles.who}>
-          <span className={styles.name}>{row.name}</span>
-          {/* The Queue's own component on the core's own derivation, so a
+    <Fragment>
+      {/* No class carries how the Scout is doing: the Voice beside the name is
+          the whole of it, and a tint would be a threshold the app has no way
+          to defend (ADR 0042 decision 8). */}
+      <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+        <th scope="row">
+          <span className={styles.who}>
+            <span className={styles.name}>{row.name}</span>
+            {/* The Queue's own component on the core's own derivation, so a
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
-          <VoiceLine health={row.health} />
-        </span>
-      </th>
-      {/* The column cuts a long Query to one line; the cut is only to the
+            <VoiceLine health={row.health} />
+          </span>
+        </th>
+        {/* The column cuts a long Query to one line; the cut is only to the
           eye, and the whole of it is here for whoever hovers. */}
-      <td className={styles.watching} title={watching}>
-        {watching}
-      </td>
-      <td>{row.cadence}</td>
-      <td>
-        {row.lastRun === null ? (
-          "not yet"
-        ) : (
-          <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
-        )}
-      </td>
-      <td>{rateWords(row.acceptRate)}</td>
-      <td>
-        <a
-          href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
-          className={styles.link}
-          aria-label={`${row.name}: open its stack in the Queue`}
-          onClick={(event) => {
-            event.preventDefault();
-            pushRoute(scoutStack(row.id));
-          }}
-        >
-          queue
-        </a>
-      </td>
-    </tr>
+        <td className={styles.watching} title={watching}>
+          {watching}
+        </td>
+        <td>{row.cadence}</td>
+        <td>
+          {row.lastRun === null ? (
+            "not yet"
+          ) : (
+            <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
+          )}
+        </td>
+        <td>
+          <button
+            type="button"
+            className={styles.open}
+            aria-expanded={open}
+            aria-controls={open ? detail : undefined}
+            aria-label={`${row.name}: accept rate, ${rateWords(row.acceptRate)}`}
+            onClick={onToggle}
+          >
+            {rateWords(row.acceptRate)}
+          </button>
+        </td>
+        <td>
+          <a
+            href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
+            className={styles.link}
+            aria-label={`${row.name}: open its stack in the Queue`}
+            onClick={(event) => {
+              event.preventDefault();
+              pushRoute(scoutStack(row.id));
+            }}
+          >
+            queue
+          </a>
+        </td>
+      </tr>
+      {open && (
+        <tr id={detail} className={styles.detail}>
+          <td colSpan={6}>
+            <AcceptLine weeks={row.acceptWeeks} headline={row.acceptRate} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
   );
 }
