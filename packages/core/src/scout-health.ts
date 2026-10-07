@@ -109,6 +109,19 @@ export function isNoKeyRun(
   );
 }
 
+/**
+ * A Scout blocked on a key it was never given. It is *not yet* and never
+ * *wrong*: a rejected key is a fault the Scout did try, and `kind:
+ * "credentials"` is set on a *not yet* Health only for this case (ADR 0040
+ * decision 1). One test, so Loose Ends, Scout Activity's source health and its
+ * coverage gaps cannot draw the line in three places.
+ */
+export function isWaitingOnKey(
+  health: Health
+): health is Extract<Health, { voice: "not yet" }> & { kind: "credentials" } {
+  return health.voice === "not yet" && health.kind === "credentials";
+}
+
 export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   const runs = finishedRuns(queue, scout.id);
   // Before `wrong`: a paused Scout is not looking, so a retired Scout does

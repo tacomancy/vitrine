@@ -22,6 +22,13 @@ export type MapRow = {
   /** Vault-relative, as the index keys it: the page's own for a Research Question. */
   path: string;
   id: string | null;
+  /**
+   * The id of the Question folded into this row: a Research Question stands
+   * for the Question it was promoted from, so a Scout Assigned to either is
+   * looking at this one thread (ADR 0042 decision 4). Null on a Question, and
+   * where the folded Question is gone or has no id.
+   */
+  foldedId: string | null;
   question: string;
   /** The later of these is the row's recency, the matrix's tie-break (ADR 0041 decision 3). */
   captured: string | null;
@@ -241,15 +248,20 @@ function mapRows(
     } catch {
       continue;
     }
+    let foldedId: string | null = null;
     if (page.promotedFrom !== undefined) {
       const from = resolveEntry(index, path, page.promotedFrom)?.resolvedPath;
-      if (from != null) folded.add(from);
+      if (from != null) {
+        folded.add(from);
+        foldedId = asString(frontmatter.get(from)?.["id"]) ?? null;
+      }
     }
     if (page.status !== "open") continue;
     pages.push({
       kind: "research-question",
       path,
       id: page.id ?? null,
+      foldedId,
       question: page.question,
       captured: page.captured ?? null,
       promoted: page.promoted ?? null,
@@ -272,6 +284,7 @@ function mapRows(
       kind: "question",
       path,
       id: read.id ?? null,
+      foldedId: null,
       question: read.question,
       captured: read.captured,
       promoted: null,
@@ -511,6 +524,7 @@ export function origins(index: VaultIndex, all = false): Origins {
       kind: kinds.get(p) as MapRow["kind"],
       path: p,
       id: asString(frontmatter.get(p)?.["id"]) ?? null,
+      foldedId: null,
       question: read.question,
       captured: null,
       promoted: null,
