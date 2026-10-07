@@ -713,6 +713,7 @@ function Row({
             className={styles.menuButton}
             aria-haspopup="menu"
             aria-expanded={choosing}
+            aria-controls={choosing ? `${id}-cadence` : undefined}
             aria-label={`${row.name}: cadence, ${row.cadence}`}
             onClick={onToggleCadence}
           >
@@ -779,7 +780,7 @@ function Row({
         </tr>
       )}
       {choosing && (
-        <tr>
+        <tr id={`${id}-cadence`}>
           <td className={styles.detail} colSpan={COLUMNS}>
             <CadenceMenu
               name={row.name}

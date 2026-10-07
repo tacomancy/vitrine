@@ -302,6 +302,10 @@ describe("the cadence menu", () => {
       "false",
     ]);
     expect((await trigger()).getAttribute("aria-expanded")).toBe("true");
+    // The word says what it opened, as the edit and the rate say theirs.
+    expect((await trigger()).getAttribute("aria-controls")).toBe(
+      screen.getByRole("menu").closest("tr")!.id
+    );
   });
 
   it("says, beside the choices that would make the Scout due at the next check, that they would, before any is chosen", async () => {
@@ -1012,6 +1016,9 @@ describe("the edit form's own keys and focus", () => {
     fireEvent.submit(
       screen.getByRole("form", { name: "Edit Sleep and memory" })
     );
+    // A send reaches the core a tick after it is asked for, so a second one
+    // has to be given the chance to arrive before there is none to find.
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(asked).toHaveLength(1);
     land({ id: "sleep", run: null });
@@ -1059,17 +1066,22 @@ describe("the cadence menu's own keys", () => {
     const [daily, weekly, monthly] = items();
     expect(document.activeElement).toBe(weekly);
 
-    fireEvent.keyDown(weekly!, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(monthly);
-    fireEvent.keyDown(monthly!, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(daily);
-    fireEvent.keyDown(daily!, { key: "ArrowUp" });
-    expect(document.activeElement).toBe(monthly);
-    fireEvent.keyDown(monthly!, { key: "Home" });
-    expect(document.activeElement).toBe(daily);
-    fireEvent.keyDown(daily!, { key: "End" });
-    expect(document.activeElement).toBe(monthly);
-
+    // The table's choice is read after every key: a run of keys that happened to
+    // net out to nothing would otherwise pass for one the table never heard.
+    const moves: Array<[HTMLElement, string, HTMLElement]> = [
+      [weekly!, "ArrowDown", monthly!],
+      [monthly!, "ArrowDown", daily!],
+      [daily!, "ArrowUp", monthly!],
+      [monthly!, "Home", daily!],
+      [daily!, "End", monthly!],
+    ];
+    for (const [from, key, to] of moves) {
+      fireEvent.keyDown(from, { key });
+      expect(document.activeElement).toBe(to);
+      expect(active()).toBe(first);
+    }
+    // And the table's own letters are the menu's no more than its arrows are.
+    fireEvent.keyDown(monthly!, { key: "j" });
     expect(active()).toBe(first);
   });
 
