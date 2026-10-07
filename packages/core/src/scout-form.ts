@@ -15,6 +15,7 @@ import {
   type Scout,
 } from "./scout-file.js";
 import { faultSentence } from "./scout-health.js";
+import { dueUnder } from "./scout-schedule.js";
 import { runScout, type RunSummary, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
 
@@ -109,12 +110,19 @@ async function write(
     if (before === undefined) {
       throw new VaultError("refused", `There is no Scout named ${id}.`);
     }
-    if (before.scout.source.kind === "watched") {
-      // The form's Query is an arXiv Query; writing it over a page's address
-      // would quietly turn the Scout into something else.
+    // What a saved Scout watches is fixed for now. An arXiv Query written over
+    // a page's address would turn one Scout's history into another's, and a
+    // different address invalidates the page hash and the structure-change test
+    // that history rests on. ADR 0042 decision 5 keeps that change on the form
+    // and leaves how it is made to a decision of its own; until then the
+    // address is changed in the file and a save that would change it is
+    // refused. A Scout Activity row saves a page's Assigned Questions through
+    // here with the address it has.
+    const wasWatched = before.scout.source.kind === "watched";
+    if (wasWatched !== watched || (watched && query !== before.scout.query)) {
       throw new VaultError(
         "refused",
-        "A Scout that watches a web page is edited in its file for now."
+        "What a Scout watches is changed in its file for now."
       );
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
@@ -122,7 +130,14 @@ async function write(
   }
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
-  doc.set("assigned", form.assigned);
+  // A list is a node `doc.set` replaces whole, so setting it to what it
+  // already was would drop a comment on it and the style it was written in,
+  // and add the key to a file that never had one: a save that did not change a
+  // key does not write it (ADR 0009). The scalars above keep their comments
+  // when set to what they were, so only the list needs the check.
+  if (before === undefined || !sameList(before.scout.assigned, form.assigned)) {
+    doc.set("assigned", form.assigned);
+  }
   if (!watched) {
     if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
     else doc.set("filter", { query });
@@ -137,7 +152,7 @@ async function write(
   await writeScoutFile(
     deps.vaultPath,
     before?.file ?? `${id}.yaml`,
-    String(doc)
+    scoutText(doc)
   );
 
   // A paused Scout is not looking: the edit is saved and the run waits for
@@ -150,21 +165,34 @@ async function write(
   return { id, runAfter: edited };
 }
 
+const sameList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((item, at) => item === b[at]);
+
 /**
- * Pause or resume, for the Scout's header and Loose Ends' row alike (#453,
- * #533). It is queued with the form's saves and written whole, as they are: a
+ * A Scout's file as text, printed the way a person writes one. `yaml` folds a
+ * plain scalar longer than 80 columns onto a second line and pads a flow list
+ * (`[ a, b ]`) unless told not to: the same values in other bytes, so a write
+ * that never touched a long Query, or a list written `[a, b]`, would still
+ * reshape it (ADR 0009).
+ */
+const scoutText = (doc: Document) =>
+  doc.toString({ lineWidth: 0, flowCollectionPadding: false });
+
+/**
+ * A narrow write of one Scout's file: pause and resume, for the Scout's header,
+ * Loose Ends' row and Scout Activity's alike (#453, #533), and a row's cadence
+ * (#520). It is queued with the form's saves and written whole, as they are: a
  * second way to write the file would be a second way to lose an edit or leave
  * half of one. The document is edited rather than re-stringified so a
  * hand-written file keeps its comments and order (ADR 0009), and a file that
  * does not parse is refused, not rewritten — `readScouts` does not list it, so
  * there is no Scout to find — because the app would be guessing at its shape.
- *
- * There is no delete: a Scout owns the runs health reads (spec #447 story 25).
+ * `change` sets the keys the write owns and no others.
  */
-export function setPaused(
+function editScoutFile(
   deps: ScoutDeps,
   scoutId: string,
-  paused: boolean
+  change: (doc: Document, scout: Scout) => void
 ): Promise<void> {
   return saving(async () => {
     const { scouts } = await readScouts(deps.vaultPath);
@@ -177,10 +205,43 @@ export function setPaused(
       throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
     }
     const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
+    change(doc, found.scout);
+    await writeScoutFile(deps.vaultPath, found.file, scoutText(doc));
+  });
+}
+
+/**
+ * Pause or resume. There is no delete: a Scout owns the runs health reads
+ * (spec #447 story 25).
+ */
+export function setPaused(
+  deps: ScoutDeps,
+  scoutId: string,
+  paused: boolean
+): Promise<void> {
+  return editScoutFile(deps, scoutId, (doc) => {
     if (paused) doc.set("paused", true);
     else doc.delete("paused");
-    await writeScoutFile(deps.vaultPath, found.file, String(doc));
   });
+}
+
+/**
+ * A row's cadence menu: the one key, and no other (spec #511, *Implementation
+ * Decisions*). It answers whether this change made the Scout due at the next
+ * check, read from the Scout as the file had it, so the row can say a run is
+ * coming.
+ */
+export async function setCadence(
+  deps: ScoutDeps,
+  scoutId: string,
+  cadence: Scout["cadence"]
+): Promise<{ dueAtNextCheck: boolean }> {
+  let dueAtNextCheck = false;
+  await editScoutFile(deps, scoutId, (doc, scout) => {
+    dueAtNextCheck = dueUnder(deps.queue, scout, deps.now()).includes(cadence);
+    doc.set("cadence", cadence);
+  });
+  return { dueAtNextCheck };
 }
 
 /**
@@ -210,7 +271,7 @@ export function setDropped(
     const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
     if (dropped) doc.set("dropped", deps.now().toISOString());
     else doc.delete("dropped");
-    await writeScoutFile(deps.vaultPath, found.file, String(doc));
+    await writeScoutFile(deps.vaultPath, found.file, scoutText(doc));
   });
 }
 

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Fragment,
   useId,
+  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -20,10 +21,14 @@ import type {
   ScoutRunCost,
   Volume,
 } from "core";
+import { questionChoices } from "./AssignedQuestions";
+import { CadenceMenu } from "./CadenceMenu";
 import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
+import { scoutKey, toggled, useRowActs, type RowActs } from "./row-acts";
+import { ScoutEdit } from "./ScoutEdit";
 import styles from "./ScoutActivity.module.css";
 import {
   DropButton,
@@ -48,7 +53,7 @@ const CADENCE_RANK = { daily: 0, weekly: 1, monthly: 2 } as const;
 const COLUMNS = 8;
 
 const keyOf = (row: ActivityRow) =>
-  row.kind === "scout" ? `scout:${row.id}` : `file:${row.file}`;
+  row.kind === "scout" ? scoutKey(row.id) : `file:${row.file}`;
 
 /**
  * A column's value for a row, or null where the row has none to give — a file
@@ -95,6 +100,23 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
 }
 
 /**
+ * The rows in the order the researcher was looking at when they acted, so a
+ * Scout the act has just changed is not carried up or down the table by it: a
+ * pause makes a Scout one that is not looking, which the core's sort by need
+ * puts above those that are (spec #511 story 58). A row the order was not taken
+ * of — a Scout made since — follows the rest, in the order it came.
+ */
+function inHeldOrder(rows: ActivityRow[], held: readonly string[] | null) {
+  if (held === null) return rows;
+  const place = new Map(held.map((key, index) => [key, index]));
+  return [...rows].sort(
+    (a, b) =>
+      (place.get(keyOf(a)) ?? held.length) -
+      (place.get(keyOf(b)) ?? held.length)
+  );
+}
+
+/**
  * Scout Activity (brief § Scout Activity, Prompt 10; ADR 0042): are the
  * Scouts earning their keep. One read, `scouts.activity`, says everything the
  * screen shows. A Scout's Voice, Warrant and fault sentence are the core's,
@@ -103,9 +125,12 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
  */
 export function ScoutActivity({
   onNewScout,
+  onEditOnForm,
 }: {
   /** With a Question id, the form opens with it Assigned. */
   onNewScout: (assigning?: string) => void;
+  /** The Queue holds the form, so a page's address is changed there: one gesture across two surfaces, as a new Scout's is. */
+  onEditOnForm: (scoutId: string) => void;
 }) {
   const trpc = useTRPC();
   const activity = useQuery(trpc.scouts.activity.queryOptions());
@@ -118,13 +143,33 @@ export function ScoutActivity({
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  // Taken when a row is acted on and let go when a column is asked for, so the
+  // table only ever re-sorts by need when the researcher arrives or asks.
+  const [held, setHeld] = useState<readonly string[] | null>(null);
   const drops = useDrops(activity.dataUpdatedAt);
-  const rows = sorted(activity.data?.rows ?? [], sort);
+  const rows = inHeldOrder(sorted(activity.data?.rows ?? [], sort), held);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
   useChosenInView(chosenId);
 
+  function hold() {
+    setHeld(rows.map(keyOf));
+  }
+  // What a row can be told to do, shared by its buttons and by the keys.
+  const acts = useRowActs(hold);
+  // The Questions a Scout may be Assigned to, read when an edit is first
+  // opened and kept. The page owns the read so that its failure is said on the
+  // footer with the others (ADR 0033 decision 2); the form says only what it
+  // does without them.
+  const editOpen = acts.editing.size > 0;
+  const questions = useQuery({
+    ...trpc.questions.list.queryOptions({ order: "newest" }),
+    enabled: editOpen,
+  });
+  const questionsUnread = editOpen && questions.isError;
+
   function onSort(column: Column) {
+    setHeld(null);
     setSort((was) =>
       was?.column === column
         ? { column, descending: !was.descending }
@@ -135,31 +180,42 @@ export function ScoutActivity({
   const headerProps = { sort, onSort };
 
   function toggle(key: string) {
-    setOpened((was) => {
-      const next = new Set(was);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
+    setOpened((was) => toggled(was, key));
   }
 
   function onKeyDown(event: KeyboardEvent) {
     const target = event.target;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    // A field being typed in, a form being filled and a menu being moved
+    // through have keys of their own, and the table hears none of them.
     if (
       target instanceof HTMLElement &&
-      target.closest("input, textarea, select")
+      target.closest("input, textarea, select, form, [role='menu']")
     ) {
       return;
     }
+    const row = rows[chosenIndex];
     let next: number;
     if (event.key === "Enter") {
       // Only on the group itself: Enter on a button or link inside it is that
       // control's own.
-      const row = rows[chosenIndex];
       if (target === event.currentTarget && row?.kind === "scout") {
         event.preventDefault();
         toggle(keyOf(row));
       }
+      return;
+    }
+    // The chosen row's own acts, one key each, on a Scout and never on a file
+    // that will not parse, nor on a row dropped a moment ago, which offers
+    // none. Held down, a key would write the file again at every repeat, so
+    // only the press is an act.
+    if (event.key === "e" || event.key === "c" || event.key === "p") {
+      if (row?.kind !== "scout" || drops.justDropped(row.id)) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      if (event.key === "e") acts.toggleEdit(keyOf(row));
+      else if (event.key === "c") acts.toggleCadence(keyOf(row));
+      else acts.pauseOrResume(row);
       return;
     }
     if (event.key === "j" || event.key === "ArrowDown") {
@@ -168,8 +224,8 @@ export function ScoutActivity({
       next = Math.max(chosenIndex - 1, 0);
     } else return;
     event.preventDefault();
-    const row = rows[next];
-    if (row !== undefined) setChosen(keyOf(row));
+    const moved = rows[next];
+    if (moved !== undefined) setChosen(keyOf(moved));
   }
 
   return (
@@ -245,8 +301,17 @@ export function ScoutActivity({
                   id={rowId(index)}
                   chosen={index === chosenIndex}
                   open={opened.has(keyOf(row))}
+                  acts={acts}
+                  questions={{
+                    choices:
+                      questions.data === undefined
+                        ? null
+                        : questionChoices(questions.data),
+                    failed: questions.isError,
+                  }}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
+                  onEditOnForm={onEditOnForm}
                   drops={drops}
                 />
               ))}
@@ -265,11 +330,16 @@ export function ScoutActivity({
           something to say, and polite — a state the app is in, not a refusal
           of something the user did (ADR 0033). The reason a read failed is
           said here and nowhere else. */}
-      {(status.hasLines || activity.isError) && (
+      {(status.hasLines || activity.isError || questionsUnread) && (
         <footer className={styles.footer}>
           {status.lines}
           {activity.isError && (
             <WarningLine label="not read">{activity.error.message}</WarningLine>
+          )}
+          {questionsUnread && (
+            <WarningLine label="not read">
+              {questions.error?.message}
+            </WarningLine>
           )}
         </footer>
       )}
@@ -666,19 +736,31 @@ function Row({
   id,
   chosen,
   open,
+  acts,
+  questions,
   onToggle,
   onChoose,
+  onEditOnForm,
   drops,
 }: {
   row: ActivityRow;
   id: string;
   chosen: boolean;
   open: boolean;
+  acts: RowActs;
+  /** What the row's edit offers to Assign, once the page has read it. */
+  questions: {
+    choices: ReturnType<typeof questionChoices> | null;
+    failed: boolean;
+  };
   onToggle: () => void;
   onChoose: () => void;
+  onEditOnForm: (scoutId: string) => void;
   drops: Drops;
 }) {
   const [showRuns, setShowRuns] = useState(false);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const cadenceButton = useRef<HTMLButtonElement>(null);
   if (row.kind === "unreadable") {
     // Nothing is known of a file that will not parse but its name and why, so
     // the columns that would say more are left empty rather than guessed at.
@@ -694,6 +776,10 @@ function Row({
       </tr>
     );
   }
+  const key = keyOf(row);
+  const editing = acts.editing.has(key);
+  const cadenceOpen = acts.cadenceOpen.has(key);
+  const said = acts.said.get(key);
   // What the core refused of a drop or an undo, on this row and nowhere else.
   const refusal = drops.refused[row.id];
   const refused = refusal !== undefined && (
@@ -729,10 +815,11 @@ function Row({
       : row.source.url;
   const detail = `${id}-detail`;
   const rate = rateWords(row.acceptRate);
-  // A click anywhere on the row opens it, as prototype 10's does. The rate's
-  // own button is the control a keyboard or a screen reader reaches, so it
-  // toggles on its own click and the row leaves it alone. (The *queue* link
-  // needs no exception: it leaves the page.)
+  // A click anywhere on the row opens it, as prototype 10's does. A button in
+  // the row is an act of its own and the row leaves its click alone: the rate's
+  // opens the row for a keyboard or a screen reader, and *edit*, *pause* and
+  // the cadence word do what they say. (The *queue* link needs no exception:
+  // it leaves the page.)
   function onRowClick(event: MouseEvent) {
     onChoose();
     if (!(event.target instanceof Element && event.target.closest("button"))) {
@@ -752,7 +839,33 @@ function Row({
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
             <VoiceLine health={row.health} />
-            <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
+            {/* The same buttons on every row, so *edit* weighs no more on the
+                row that is doing worst than on the one that is doing best
+                (ADR 0042 decision 8). */}
+            <span className={styles.actions}>
+              <button
+                ref={editButton}
+                type="button"
+                className={styles.act}
+                aria-expanded={editing}
+                aria-controls={editing ? `${id}-edit` : undefined}
+                aria-keyshortcuts="e"
+                aria-label={`${row.name}: edit`}
+                onClick={() => acts.toggleEdit(key)}
+              >
+                edit
+              </button>
+              <button
+                type="button"
+                className={styles.act}
+                aria-keyshortcuts="p"
+                aria-label={`${row.name}: ${row.paused ? "resume" : "pause"}`}
+                onClick={() => acts.pauseOrResume(row)}
+              >
+                {row.paused ? "resume" : "pause"}
+              </button>
+              <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
+            </span>
           </span>
         </th>
         {/* The column cuts a long Query to one line; the cut is only to the
@@ -760,7 +873,21 @@ function Row({
         <td className={styles.watching} title={watching}>
           {watching}
         </td>
-        <td>{row.cadence}</td>
+        <td>
+          <button
+            ref={cadenceButton}
+            type="button"
+            className={styles.menuButton}
+            aria-haspopup="menu"
+            aria-expanded={cadenceOpen}
+            aria-controls={cadenceOpen ? `${id}-cadence` : undefined}
+            aria-keyshortcuts="c"
+            aria-label={`${row.name}: cadence, ${row.cadence}`}
+            onClick={() => acts.toggleCadence(key)}
+          >
+            {row.cadence}
+          </button>
+        </td>
         <td>
           {row.lastRun === null ? (
             "not yet"
@@ -814,6 +941,49 @@ function Row({
         </ReviewCell>
       </tr>
       {refused}
+      {said !== undefined && (
+        <tr>
+          <td className={styles.note} colSpan={COLUMNS}>
+            <p role={said.refused ? "alert" : "status"}>{said.text}</p>
+          </td>
+        </tr>
+      )}
+      {cadenceOpen && (
+        <tr id={`${id}-cadence`}>
+          <td className={styles.detail} colSpan={COLUMNS}>
+            <CadenceMenu
+              name={row.name}
+              cadence={row.cadence}
+              dueUnder={row.dueUnder}
+              onPick={(cadence) => {
+                acts.pickCadence(row, cadence);
+                cadenceButton.current?.focus();
+              }}
+              onClose={() => {
+                acts.closeCadence(key);
+                cadenceButton.current?.focus();
+              }}
+            />
+          </td>
+        </tr>
+      )}
+      {editing && (
+        <tr id={`${id}-edit`}>
+          <td className={styles.detail} colSpan={COLUMNS}>
+            <ScoutEdit
+              row={row}
+              questions={questions}
+              onAct={acts.hold}
+              onSaved={(text) => acts.say(key, { refused: false, text })}
+              onEditOnForm={() => onEditOnForm(row.id)}
+              onClose={() => {
+                acts.closeEdit(key);
+                editButton.current?.focus();
+              }}
+            />
+          </td>
+        </tr>
+      )}
       {open && (
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>

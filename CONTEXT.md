@@ -351,7 +351,7 @@ The open Questions a Scout is run on behalf of. Stamped on every Proposal's Orig
 _Avoid_: Briefed on, matched (implies a score), linked (that is Related), watching (that is the source relation)
 
 **Due** (of a Scout):
-Its cadence has elapsed since its last completed run — one that finished without failing. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. A failed run does not complete: a network or HTTP failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt, since asking again sooner gets the same answer. *Run now*, or editing the Query, runs it whether or not it is due.
+Its cadence has elapsed since its last completed run — one that finished without failing. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. A failed run does not complete: a network or HTTP failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt, since asking again sooner gets the same answer. *Run now*, or editing the Query, runs it whether or not it is due. Shortening a cadence below the time since the last completed run makes a Scout due at the next check, which Scout Activity says before the choice is made, so that changing a cadence is never a surprise run.
 _Avoid_: Scheduled, overdue, late
 
 **Query**:
