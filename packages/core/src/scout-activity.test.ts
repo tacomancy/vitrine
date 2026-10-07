@@ -138,6 +138,8 @@ describe("scouts.activity — a row for each readable Scout", () => {
         lastRun: null,
         health: { voice: "not yet", sentence: "It has not run yet." },
         acceptRate: { kind: "nothing triaged" },
+        volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+        cost: { kind: "no model call" },
       },
     ]);
   });
@@ -367,6 +369,20 @@ describe("scouts.activity — the fleet's source health", () => {
       notReached: 1,
       keyRejected: 0,
       noKey: 0,
+    });
+  });
+});
+
+describe("scouts.activity — the cost of a Scout that has really run", () => {
+  it("is no model call for an arXiv Scout: a read of arXiv leaves no tokens, and a zero would have read as unpriced", async () => {
+    const f = await opened({
+      "sleep.yaml": scoutYaml("Sleep and memory", "all:sleep"),
+    });
+    f.serve["all:sleep"] = found;
+    await f.run("sleep");
+
+    expect((await f.activity()).rows[0]).toMatchObject({
+      cost: { kind: "no model call" },
     });
   });
 });

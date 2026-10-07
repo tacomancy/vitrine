@@ -416,6 +416,12 @@ The same work surfacing from several Scouts, merged into one Proposal that keeps
 **Accept rate**:
 Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal. Only a Proposal the Scout itself placed in Review counts: one the researcher promoted from Skim by hand and then accepted writes a stub like any other, but says something about the researcher's choosing, not about the Scout's brief. A *reject this run* on a Retroactive run is not counted either: clearing a backward search nobody wanted says nothing about the brief. Drawn over time as one point per week, and only for a week with enough triaged Review items to judge; a thinner week is a gap, never a zero.
 
+**Candidates proposed** (per Scout):
+New Proposals over the trailing thirty days, credited to the Scout of a Proposal's first Appearance — the credit Accept rate uses, so the two cannot disagree. A Held Proposal is not a find: it is counted apart as *already in your vault*, and a card another Scout also found is still counted once, with *also found elsewhere* on the first Scout's row. Shown as a bare count; no chart (ADR 0042).
+
+**Cost per run** (per Scout):
+The mean cost of the trailing thirty days' runs that called a model, read from the run rows and never stored on a Scout. A Scout whose runs make no model call says *no model call*, never $0.00; a run on a model the price table does not know shows its tokens and *unpriced* and is left out of the mean. A `no key` run is no run: it fetched nothing and is in no count or mean (ADR 0042).
+
 **Dropped** (of a Scout):
 Retired by the user: the Scout's file keeps its data and gains a `dropped` date, the scheduler skips it, and the Queue rail and Scout Activity stop listing it. Nothing it owns is removed — its runs, its triage record, the stubs that name it in `origin_scout` — so health, Accept rate and Clocked but unquestioned keep reading true. Its pending Proposals stay in Review until triaged, under its name, marked dropped; none is rejected on the user's behalf, since a bulk reject would write triage rows that speak about a brief the user has already given up on. Undoable while the row is on screen, and from the line that lists dropped Scouts. Not *paused*, which is a Scout that will look again.
 _Avoid_: Deleted, archived, removed
