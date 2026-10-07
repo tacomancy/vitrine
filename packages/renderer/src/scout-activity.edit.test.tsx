@@ -233,6 +233,46 @@ describe("the order of the table after an act", () => {
   });
 });
 
+describe("a Scout that arrives after an act", () => {
+  it("follows the rows the researcher was looking at, and does not lead them", async () => {
+    const NEW = scout({
+      id: "new",
+      name: "Newcomer",
+      health: {
+        voice: "wrong",
+        kind: "http",
+        sentence:
+          "arXiv answered with an error (HTTP 503), so nothing was checked.",
+      },
+    });
+    let rows = [
+      scout({ id: "a", name: "Alpha" }),
+      scout({ id: "b", name: "Beta" }),
+    ];
+    open(() => fleet(rows), {
+      "scouts.setPaused": () => {
+        // The core's answer to the next read has a broken Scout first.
+        rows = [NEW, ...rows];
+      },
+    });
+    const names = async () =>
+      (await tableRows()).flatMap((row) => {
+        const header = within(row).queryByRole("rowheader");
+        return header === null
+          ? []
+          : [header.querySelector("span > span")!.textContent];
+      });
+    expect(await names()).toEqual(["Alpha", "Beta"]);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Alpha: pause" })
+    );
+    await screen.findByText("Paused. It will not run until you resume it.");
+
+    expect(await names()).toEqual(["Alpha", "Beta", "Newcomer"]);
+  });
+});
+
 describe("the cadence menu", () => {
   const trigger = (cadence = "weekly") =>
     screen.findByRole("button", {
@@ -589,6 +629,20 @@ describe("saving an edit from the row", () => {
     expect((await screen.findByRole("status")).textContent).toBe(
       "Saved. It is paused, so it did not run."
     );
+  });
+
+  // *Did not run* is a thing said about an edited Query; a paused Scout whose
+  // Questions alone were saved had nothing to run for.
+  it("does not say a paused Scout did not run when only its Questions were saved", async () => {
+    const { panel } = await edited(
+      { paused: true, health: PAUSED },
+      saved(null),
+      "all:sleep"
+    );
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe("Saved.");
   });
 
   it("keeps the form open with the typing, and says why as an alert, when the core refuses", async () => {
