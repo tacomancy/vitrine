@@ -22,6 +22,12 @@ import {
 import { followPdfRenames, isPdfInFolder, type PdfReads } from "./sources.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { Host } from "./host.js";
+import {
+  createRunWindow,
+  RUN_CEILING_MS,
+  RUN_WINDOW_MS,
+  type RunWindow,
+} from "./run-window.js";
 import { localDay, openDays, type OpenDays } from "./open-days.js";
 import {
   openPendingRevisions,
@@ -30,6 +36,7 @@ import {
 import { closeInterrupted, openQueue, QueueOpenError } from "./queue.js";
 import { splicePendingRevisions } from "./page-write.js";
 import {
+  effectiveSettleMs,
   pdfFolderOutside,
   SETTLE_MS,
   watchVault,
@@ -72,6 +79,10 @@ export type VaultServiceOptions = {
   index?: IndexOptions | undefined;
   /** The watcher's settle window; tests shorten it (ADR 0013 decision 5). */
   settleMs?: number | undefined;
+  /** How long after the last PDF a change names Ingest waits before it reads the ones held; tests shorten it (#553). */
+  runWindowMs?: number | undefined;
+  /** The longest a PDF is held, from the first in its hold, however steadily more arrive; tests shorten it (#553). */
+  runCeilingMs?: number | undefined;
   /** `fs.watch`, or a test's wrapper that fails or refuses a watch (#190). */
   watch?: typeof fsWatch | undefined;
   /** How long the probe may go unanswered before the watch is given up on; tests shorten it (#272). */
@@ -192,6 +203,8 @@ export type Opened = {
   index: VaultIndex;
   /** Reads a returning PDF into its Source; null when the core has no engine (#419). */
   ingest: Ingest | null;
+  /** Holds the PDFs a change names until the delivery goes quiet, then reads them as one run (#553). */
+  runWindow: RunWindow;
   /** The Revisions Obsidian edits to this vault still owe their files (#217). */
   pending: PendingRevisions;
   /** The local dates this vault was open in the app (#243). */
@@ -219,6 +232,8 @@ export function createVaultService({
   appSupportDir,
   index: indexOptions,
   settleMs = SETTLE_MS,
+  runWindowMs = RUN_WINDOW_MS,
+  runCeilingMs = RUN_CEILING_MS,
   watch,
   probeTimeoutMs,
   now = () => new Date(),
@@ -266,6 +281,7 @@ export function createVaultService({
   type Resources = {
     index: VaultIndex;
     ingest: Ingest | null;
+    runWindow: RunWindow;
     pending: PendingRevisions;
     days: OpenDays;
     arrival: LastArrival;
@@ -337,6 +353,15 @@ export function createVaultService({
     // Set once the index is open; a change the index reports before then is
     // skipped here and found by the open-time pass over every Source.
     let ingest: Ingest | null = null;
+    // Where a PDF a change names waits for stragglers before it is read
+    // (#553). Reads `ingest` when it fires, not now: it is set once the index
+    // is open, and a change reported before then is the open-time pass's.
+    const runWindow = createRunWindow({
+      settleMs: effectiveSettleMs(settleMs),
+      windowMs: runWindowMs,
+      ceilingMs: runCeilingMs,
+      run: (paths) => void runIngest(ingest, paths),
+    });
     const opening = openIndex(absolute, {
       ...indexOptions,
       onStatus: async () => {
@@ -360,11 +385,12 @@ export function createVaultService({
           );
         }
         heldRenames.push(...event.renamed);
-        // A PDF whose bytes changed is read when it settles (#419). Not
-        // awaited: Ingest writes Source notes through this same index, which
+        // A PDF whose bytes changed is read once it has settled and the run
+        // window has gone quiet (#419, #553). The read is not awaited when it
+        // comes: Ingest writes Source notes through this same index, which
         // would wait on the chunk that is waiting on this listener.
         const changedPdfs = event.changed.filter(isPdfInFolder);
-        if (changedPdfs.length > 0) void runIngest(ingest, changedPdfs);
+        if (changedPdfs.length > 0) runWindow.hold(changedPdfs);
         await indexOptions?.onChanged?.(event);
       },
     });
@@ -397,11 +423,12 @@ export function createVaultService({
               },
             });
     } catch (cause) {
+      runWindow.close();
       pending.close();
       queue.close();
       return refusingToOpen(cause);
     }
-    return { index, ingest, pending, days, arrival, queue };
+    return { index, ingest, runWindow, pending, days, arrival, queue };
   }
 
   /**
@@ -431,6 +458,18 @@ export function createVaultService({
     }
   }
 
+  /**
+   * Ingest every Source's PDF, which is what a sweep ends with, and drop what
+   * the run window holds: reading everything covers it. Here, in the one place
+   * that reads everything, so a caller cannot forget to.
+   */
+  async function runIngestEverything(
+    o: Pick<Opened, "ingest" | "runWindow">
+  ): Promise<void> {
+    o.runWindow.drain();
+    await runIngest(o.ingest, null);
+  }
+
   // Bumped by every install and by close, so an install still waiting on
   // its watcher — or a watcher reporting its death later — can tell it has
   // been overtaken and discard what it made.
@@ -446,6 +485,7 @@ export function createVaultService({
     opened = null;
     if (going === null) return;
     going.watcher?.close();
+    going.runWindow.close();
     // Never rejects: a file that could not take its entries leaves them
     // parked, says so in the core's log, and the rest are still tried
     // (`pending-revisions.ts`).
@@ -534,7 +574,7 @@ export function createVaultService({
     // status reason rather than rejecting. Started before the status is
     // raised, so a reader woken by the event never sees the watcher back
     // and the index current with the catch-up still to come.
-    void o.index.sweep().then(() => runIngest(o.ingest, null));
+    void o.index.sweep().then(() => runIngestEverything(o));
     void checkPdfFolder(o);
     await raiseStatus();
   }
@@ -618,11 +658,13 @@ export function createVaultService({
    * watcher per vault, and the old vault answers until the new one can.
    */
   async function install(vault: Vault, resources: Resources): Promise<void> {
-    const { index, ingest, pending, days, arrival, queue } = resources;
+    const { index, ingest, runWindow, pending, days, arrival, queue } =
+      resources;
     const o: Opened = {
       vault,
       index,
       ingest,
+      runWindow,
       pending,
       days,
       arrival,
@@ -638,6 +680,7 @@ export function createVaultService({
     if (overtaken(o)) {
       // A later open or the exit got here first; nothing of ours is wanted.
       o.watcher?.close();
+      runWindow.close();
       pending.close();
       index.close();
       queue.close();
@@ -655,7 +698,7 @@ export function createVaultService({
     // is done", which is what the watch-then-sweep test writes on.
     // Then every Source's PDF is compared to its sidecar: one attached, or
     // one that changed while the app was closed, is not an event to wait for.
-    void index.sweep().then(() => runIngest(ingest, null));
+    void index.sweep().then(() => runIngestEverything({ ingest, runWindow }));
     void checkPdfFolder(o);
     onOpened?.();
   }
@@ -691,6 +734,7 @@ export function createVaultService({
     try {
       await remember(absolute);
     } catch (cause) {
+      resources.runWindow.close();
       resources.pending.close();
       resources.index.close();
       resources.queue.close();
@@ -807,6 +851,7 @@ export function createVaultService({
       const going = opened;
       opened = null;
       going?.watcher?.close();
+      going?.runWindow.close();
       going?.pending.close();
       going?.index.close();
       going?.queue.close();

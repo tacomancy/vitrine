@@ -5,7 +5,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Highlighted } from "./ingest.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import { readSidecar } from "./annotation-sidecar.js";
-import { closeCores, core, fixtures, tmp, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  tmp,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -45,7 +52,12 @@ async function opened(extra: Record<string, string> = {}) {
     join(vault, PDF),
     await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
   );
-  const c = await core({ settleMs: 40, author: "Sarah Lehman" });
+  // A run window no test waits out: what this waits on must not wait for it (#553).
+  const c = await core({
+    settleMs: 40,
+    runWindowMs: LONG_RUN_WINDOW_MS,
+    author: "Sarah Lehman",
+  });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const events = await c.events();

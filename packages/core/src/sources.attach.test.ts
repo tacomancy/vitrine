@@ -10,7 +10,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
 import type { Candidates } from "./picker.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+} from "./test-core.js";
 import type { OutlineResponse } from "./vault-files.js";
 
 afterEach(closeCores);
@@ -175,7 +181,12 @@ id: src-minted-1
       join(vault, "sources/pdf/mystery.pdf"),
       await readFile(join(fixtures, "pdf", "annotated-questions.pdf"))
     );
-    const c = await core({ settleMs: 40, newId: () => "src-minted-1" });
+    // A run window no test waits out: what this waits on must not wait for it (#553).
+    const c = await core({
+      settleMs: 40,
+      runWindowMs: LONG_RUN_WINDOW_MS,
+      newId: () => "src-minted-1",
+    });
     expect(
       (await c.mutate("vault.open", { path: vault })).error
     ).toBeUndefined();

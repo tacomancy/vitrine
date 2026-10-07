@@ -3,7 +3,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readSidecar } from "./annotation-sidecar.js";
 import { createPdfEngine } from "./pdf-engine.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+  type CoreOptions,
+  NEXT_TIMEOUT_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -37,7 +45,7 @@ type Listed = {
   annotation?: string;
 };
 
-async function opened() {
+async function opened(options: CoreOptions = {}) {
   const vault = await vaultWith({
     "sources/rasch2013.md": SOURCE,
     [PDF]: "",
@@ -46,7 +54,13 @@ async function opened() {
     join(vault, PDF),
     await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
   );
-  const c = await core({ settleMs: 40, author: "Sarah Lehman" });
+  // A run window no test waits out: what this waits on must not wait for it (#553).
+  const c = await core({
+    settleMs: 40,
+    runWindowMs: LONG_RUN_WINDOW_MS,
+    author: "Sarah Lehman",
+    ...options,
+  });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const listed = async () => {
@@ -97,7 +111,11 @@ describe("sources.question, with a selection", () => {
   });
 
   it("sets the once-only flag at write time, so the next Ingest spawns no second", async () => {
-    const { make, listed, onDisk, vault, c } = await opened();
+    // The harness's window, not a long one: this saves the PDF as a sync client
+    // would and waits for the Ingest that makes, which a long window would hold.
+    const { make, listed, onDisk, vault, c } = await opened({
+      runWindowMs: 0,
+    });
     const reply = await make();
     const sidecar = await readSidecar(vault, "src-1");
     expect(sidecar!.annotations[0]!.question).toBe(
@@ -109,10 +127,13 @@ describe("sources.question, with a selection", () => {
       join(vault, PDF),
       Buffer.concat([Buffer.from(await onDisk()), Buffer.from("\n%touched\n")])
     );
-    await vi.waitFor(async () => {
-      const after = await readSidecar(vault, "src-1");
-      expect(after!.file.hash).not.toBe(before!.file.hash);
-    });
+    await vi.waitFor(
+      async () => {
+        const after = await readSidecar(vault, "src-1");
+        expect(after!.file.hash).not.toBe(before!.file.hash);
+      },
+      { timeout: NEXT_TIMEOUT_MS }
+    );
     void events;
     expect(await listed()).toHaveLength(1);
   });

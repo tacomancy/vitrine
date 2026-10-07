@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { citekeyFor } from "./sources.js";
 import type { LooseEnds, LooseEndRow } from "./loose-ends.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -42,8 +48,10 @@ async function openIn(
       await writeFile(target, source);
     }
   }
+  // A run window no test waits out: what this waits on must not wait for it (#553).
   const c = await core({
     settleMs: 40,
+    runWindowMs: LONG_RUN_WINDOW_MS,
     newId: () => "src-minted-1",
     ...options,
   });

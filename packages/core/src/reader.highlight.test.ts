@@ -4,7 +4,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Highlighted } from "./ingest.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import { readSidecar } from "./annotation-sidecar.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+  type CoreOptions,
+  NEXT_TIMEOUT_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -34,13 +42,19 @@ const LINE_TWO = [60, 678, 560, 696];
 const LINE_TWO_TEXT =
   "Participants who heard the odor cue recalled more of the invented word pairs";
 
-async function opened(bytes = "synthetic-body.pdf") {
+async function opened(bytes = "synthetic-body.pdf", options: CoreOptions = {}) {
   const vault = await vaultWith({
     "sources/rasch2013.md": SOURCE,
     [PDF]: "",
   });
   await writeFile(join(vault, PDF), await fixture(bytes));
-  const c = await core({ settleMs: 40, author: NAME });
+  // A run window no test waits out: what this waits on must not wait for it (#553).
+  const c = await core({
+    settleMs: 40,
+    runWindowMs: LONG_RUN_WINDOW_MS,
+    author: NAME,
+    ...options,
+  });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const events = await c.events();
@@ -154,7 +168,11 @@ describe("sources.highlight", () => {
   });
 
   it("is matched by the next Ingest through its identity, and is not counted as new", async () => {
-    const { highlight, onDisk, vault } = await opened();
+    // The harness's window, not a long one: this saves the PDF as a sync client
+    // would and waits for the Ingest that makes, which a long window would hold.
+    const { highlight, onDisk, vault } = await opened(undefined, {
+      runWindowMs: 0,
+    });
     const reply = await highlight({ note: "kept" });
     const before = await readSidecar(vault, "src-1");
     // The PDF is saved again with the same content (a sync client's rewrite):
@@ -163,10 +181,13 @@ describe("sources.highlight", () => {
       join(vault, PDF),
       Buffer.concat([Buffer.from(await onDisk()), Buffer.from("\n%touched\n")])
     );
-    await vi.waitFor(async () => {
-      const after = await readSidecar(vault, "src-1");
-      expect(after!.file.hash).not.toBe(before!.file.hash);
-    });
+    await vi.waitFor(
+      async () => {
+        const after = await readSidecar(vault, "src-1");
+        expect(after!.file.hash).not.toBe(before!.file.hash);
+      },
+      { timeout: NEXT_TIMEOUT_MS }
+    );
     const after = await readSidecar(vault, "src-1");
     expect(after!.annotations).toHaveLength(1);
     expect(after!.annotations[0]).toMatchObject({
