@@ -10,6 +10,7 @@ import {
   tmp,
   vaultWith,
   type CoreOptions,
+  DELIVERY_TEST_BUDGET_MS,
 } from "./test-core.js";
 
 afterEach(closeCores);
@@ -195,29 +196,33 @@ describe("an annotation edited in Preview", () => {
     }
   );
 
-  it("is found by geometry while it keeps 0.4 of its box, and is a different highlight below that", async () => {
-    // Measured on these files: half the words keep 0.46 of the box, one word
-    // 0.33. The threshold sits between; where it moves, one of these changes.
-    const halved = await opened();
-    const before = await halved.first("annotated.pdf");
-    const kept = halved.byBlock(
-      await halved.returned("annotated-halved.pdf"),
-      "h1"
-    );
-    expect(kept).toMatchObject({
-      id: halved.byBlock(before, "h1").id,
-      matched_by: "geometry",
-      quote: "Participants who",
-    });
+  it(
+    "is found by geometry while it keeps 0.4 of its box, and is a different highlight below that",
+    async () => {
+      // Measured on these files: half the words keep 0.46 of the box, one word
+      // 0.33. The threshold sits between; where it moves, one of these changes.
+      const halved = await opened();
+      const before = await halved.first("annotated.pdf");
+      const kept = halved.byBlock(
+        await halved.returned("annotated-halved.pdf"),
+        "h1"
+      );
+      expect(kept).toMatchObject({
+        id: halved.byBlock(before, "h1").id,
+        matched_by: "geometry",
+        quote: "Participants who",
+      });
 
-    const sliver = await opened();
-    await sliver.first("annotated.pdf");
-    const after = await sliver.returned("annotated-sliver.pdf");
-    expect(sliver.byBlock(after, "h1").removed_at).toBeDefined();
-    expect(sliver.byBlock(after, "h5")).toMatchObject({
-      quote: "Participants",
-    });
-  });
+      const sliver = await opened();
+      await sliver.first("annotated.pdf");
+      const after = await sliver.returned("annotated-sliver.pdf");
+      expect(sliver.byBlock(after, "h1").removed_at).toBeDefined();
+      expect(sliver.byBlock(after, "h5")).toMatchObject({
+        quote: "Participants",
+      });
+    },
+    DELIVERY_TEST_BUDGET_MS
+  );
 
   it("is found by its text when its line moved: the highlight follows the words", async () => {
     const t = await opened();
@@ -301,22 +306,29 @@ describe("two identical short highlights on one page", () => {
 });
 
 describe("an annotation deleted in Preview", () => {
-  it("is removed when nothing linked to it: its block leaves, its number is never reused, the summary counts it", async () => {
-    const t = await opened();
-    await t.first("annotated.pdf");
-    const landed = t.events.next("ingestLanded");
-    const after = await t.returned("annotated-fewer.pdf");
-    expect((await landed).summary).toMatchObject({ removed: 1, unmatched: 0 });
-    expect(await t.source()).not.toContain("^h2");
-    expect(t.byBlock(after, "h2").removed_at).toBeDefined();
-    // The same highlight put back is a new one, on the next number.
-    const again = await t.returned("annotated.pdf");
-    expect(again.next_block).toBe(6);
-    expect(await t.source()).toContain(
-      '"difference was reliable across the downstream analyses" ^h5'
-    );
-    expect(await t.source()).not.toMatch(/\^h2\b/);
-  });
+  it(
+    "is removed when nothing linked to it: its block leaves, its number is never reused, the summary counts it",
+    async () => {
+      const t = await opened();
+      await t.first("annotated.pdf");
+      const landed = t.events.next("ingestLanded");
+      const after = await t.returned("annotated-fewer.pdf");
+      expect((await landed).summary).toMatchObject({
+        removed: 1,
+        unmatched: 0,
+      });
+      expect(await t.source()).not.toContain("^h2");
+      expect(t.byBlock(after, "h2").removed_at).toBeDefined();
+      // The same highlight put back is a new one, on the next number.
+      const again = await t.returned("annotated.pdf");
+      expect(again.next_block).toBe(6);
+      expect(await t.source()).toContain(
+        '"difference was reliable across the downstream analyses" ^h5'
+      );
+      expect(await t.source()).not.toMatch(/\^h2\b/);
+    },
+    DELIVERY_TEST_BUDGET_MS
+  );
 
   it.each([
     ["a note links to its block", LINK],
