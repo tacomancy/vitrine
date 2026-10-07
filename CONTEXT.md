@@ -138,6 +138,10 @@ _Avoid_: Offline, disconnected, stale
 A stat-only pass over files comparing size and modification time to what the app recorded, catching up what the watcher could not see — at vault open, after a watcher failure, and over the PDF folder when the window regains focus. Reads no content. Never a timer.
 _Avoid_: Poll, rescan, full scan
 
+**PDF folder check**:
+Asking whether the PDF folder resolves to a folder the app can read, and what it holds. Reads no file and compares none to a record, so it is not a Sweep; a folder that does not resolve is a fault, sounded in the footer as *papers not arriving*.
+_Avoid_: Sweep (which compares files to what the app recorded), scan
+
 **Evicted** (of a PDF):
 Present in the folder but with its bytes not on disk — iCloud or Dropbox keeping it online-only. Unreadable-not-changed: never hashed, never ingested, until the Reader opens it and the read brings it down.
 _Avoid_: Missing (that is a file that is gone), placeholder, offline
