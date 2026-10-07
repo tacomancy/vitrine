@@ -103,11 +103,11 @@ The app noticing a changed PDF on disk and reading its Annotations back in. Trig
 _Avoid_: Import, sync (sync moves files; ingest reads them)
 
 **Ingest run**:
-The PDFs ingested together: those of every Batch that closed inside one run window, or those of one ask that does not wait, such as attaching a Source's PDF or the read after a sweep. One summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land close together are a Burst.
+The PDFs ingested together: those of every Batch that closed inside one run window, or those of one ask that does not wait, such as attaching a Source's PDF or the read after the sweep at open or after a watcher failure. One summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land close together are a Burst.
 _Avoid_: Ingest event, batch (in UI copy)
 
 **Burst** (of Ingest runs):
-Runs that land within a few seconds of each other. They share one summary line, their counts added; a run that lands after the burst starts a line of its own.
+Runs — and removals made in the Reader, which are reported the same way — that land before the previous one's line would have faded. They share one summary line, their counts added; one that lands after the burst starts a line of its own.
 _Avoid_: Batch (that is the watcher's), group
 
 **Settled** (of a file):
