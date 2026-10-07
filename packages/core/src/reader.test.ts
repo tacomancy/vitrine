@@ -2,7 +2,13 @@ import { open, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SourcePage } from "./reader.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -269,7 +275,8 @@ describe("an evicted PDF", () => {
     const handle = await open(join(vault, "sources/pdf/rasch2013.pdf"), "w");
     await handle.truncate(4 * 1024 * 1024);
     await handle.close();
-    const c = await core({ settleMs: 40 });
+    // A window no test waits out (`LONG_RUN_WINDOW_MS`, #553).
+    const c = await core({ settleMs: 40, runWindowMs: LONG_RUN_WINDOW_MS });
     await c.mutate("vault.open", { path: vault });
     await c.indexed();
     return { vault, c };

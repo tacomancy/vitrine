@@ -48,6 +48,10 @@ export type AppOptions = {
   machine?: string;
   /** The watcher's settle window in ms; tests shorten it as they pin `now`, to no less than 200 ms (`MIN_SETTLE_MS`, `vault-watcher.ts`). */
   settleMs?: number;
+  /** How long after the last PDF a change names Ingest waits before reading the ones held, in ms (ADR 0013, update for #553); tests shorten it, to no less than twice the settle window. */
+  runWindowMs?: number;
+  /** The longest a PDF a change names is held, in ms, from the first one in its hold (ADR 0013, update for #553); tests shorten it, to no less than the window. */
+  runCeilingMs?: number;
   /** Position history's coalescing window in ms (ADR 0006 decision 5); tests shorten it. */
   coalesceMs?: number;
   /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
@@ -114,6 +118,8 @@ export function createApp({
   newId,
   machine,
   settleMs,
+  runWindowMs,
+  runCeilingMs,
   coalesceMs,
   stalledOpenDays,
   watch,
@@ -141,6 +147,8 @@ export function createApp({
     host,
     appSupportDir,
     settleMs,
+    runWindowMs,
+    runCeilingMs,
     watch,
     probeTimeoutMs,
     ...(now ? { now } : {}),

@@ -14,6 +14,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
+import { effectiveRunWindowMs } from "./run-window.js";
+import { effectiveSettleMs } from "./vault-watcher.js";
 import type { ArxivClock } from "./arxiv.js";
 import type { Host } from "./host.js";
 import { readOutline, type WriteResult } from "./vault-files.js";
@@ -166,6 +168,12 @@ export async function core(opts: CoreOptions = {}): Promise<{
     scoutCheckMs: opts.scoutCheckMs ?? null,
     machine: opts.machine ?? "this-mac",
     ...(opts.settleMs !== undefined ? { settleMs: opts.settleMs } : {}),
+    // The floor (twice the settle window) unless a test asks for another: the
+    // production window is 5 s, and no returned-PDF wait should be that long.
+    runWindowMs: opts.runWindowMs ?? 0,
+    ...(opts.runCeilingMs !== undefined
+      ? { runCeilingMs: opts.runCeilingMs }
+      : {}),
     ...(opts.coalesceMs !== undefined ? { coalesceMs: opts.coalesceMs } : {}),
     ...(opts.stalledOpenDays !== undefined
       ? { stalledOpenDays: opts.stalledOpenDays }
@@ -275,16 +283,30 @@ export type EventStream = {
 };
 
 /**
- * How long a `next()` waits before it says the event never came. Well under
+ * The widest wait a watcher-driven event legitimately has: a PDF settles, which
+ * is the watcher's floor, and then Ingest holds it for the run window, at its
+ * floor (`run-window.ts`, #553).
+ */
+export const WIDEST_WAIT_MS = effectiveSettleMs(0) + effectiveRunWindowMs(0, 0);
+
+/**
+ * How long a `next()` waits before it says the event never came. Under
  * Vitest's 5 s default so this bound always wins that race: a bare `Test timed
  * out` says the test was slow, where a lost event has to say which event was
- * lost (#294, after #292 took an instrumented CI run to tell the two apart).
+ * lost (#294, after #292 took an instrumented CI run to tell the two apart). The
+ * default is left alone, deliberately (ADR 0029): raising it hangs a lost event
+ * longer and still fails it.
  *
- * Ten times the widest settle window any suite injects (200 ms,
- * `vault-watcher.test.ts`), so it is a diagnostic and not a new constraint —
- * no wait that passes today comes near it. A test that legitimately needs
- * longer passes its own `timeoutMs`, as the timing tests there pass their own
- * budget to `it`.
+ * Five times the widest wait a watcher-driven event has (600 ms: the settle
+ * window and then the run window, both at their floors), so 3 s. It was 2 s, ten
+ * times the settle window alone, before the run window existed (#553). Ten times
+ * 600 ms would be 6 s, past that default, and an open and an `indexed()` ahead of
+ * it have to fit beside it. So it has less headroom than it had, and is still a
+ * diagnostic and not a new constraint: no wait that passes comes near it, except
+ * in a test that asks for a longer settle window than the harness's, as the
+ * floor tests in `ingest.test.ts` do, and passes its own bound. A test that
+ * legitimately needs longer passes its own `timeoutMs`, as the timing tests
+ * there pass their own budget to `it`.
  *
  * One wait it is deliberately *not* long enough for: a watcher-driven event on
  * a core built without `settleMs`, which is due at the production `SETTLE_MS`
@@ -292,7 +314,15 @@ export type EventStream = {
  * settle window, as every watcher suite does — no suite should be waiting out
  * a production timing constant anyway.
  */
-export const NEXT_TIMEOUT_MS = 2000;
+export const NEXT_TIMEOUT_MS = 5 * WIDEST_WAIT_MS;
+
+/**
+ * A run window no test waits out (#553): ten times the longest a `next()` waits.
+ * A core built with it holds a returned PDF past the end of the test, so a test
+ * that gives it one proves that what it waits on — a PDF asked for by name, a
+ * Reader write, the read after a sweep — does not wait for the window.
+ */
+export const LONG_RUN_WINDOW_MS = 10 * NEXT_TIMEOUT_MS;
 
 /** One outstanding `next()`: handed the event it waited for, or told why not. */
 type Waiter = {

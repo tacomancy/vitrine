@@ -12,9 +12,18 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { questionText } from "./ingest.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  LONG_RUN_WINDOW_MS,
+  type CoreOptions,
+  NEXT_TIMEOUT_MS,
+  WIDEST_WAIT_MS,
+} from "./test-core.js";
 import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
 afterEach(closeCores);
@@ -44,7 +53,10 @@ type Sidecar = {
   pending?: { kept: number };
 };
 
-async function opened(extra: Record<string, string> = {}) {
+async function opened(
+  extra: Record<string, string> = {},
+  options: CoreOptions = {}
+) {
   const vault = await vaultWith({
     "sources/rasch2013.md": SOURCE,
     "sources/pdf/rasch2013.pdf": "",
@@ -54,7 +66,7 @@ async function opened(extra: Record<string, string> = {}) {
     join(vault, "sources/pdf/rasch2013.pdf"),
     await pdf("synthetic-body.pdf")
   );
-  const c = await core({ settleMs: 40 });
+  const c = await core({ settleMs: 40, ...options });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const events = await c.events();
@@ -64,9 +76,14 @@ async function opened(extra: Record<string, string> = {}) {
       await readFile(join(vault, ".vitrine/annotations/src-1.json"), "utf8")
     ) as Sidecar;
   /** Replace the PDF as Preview would on a return, and wait for the run it makes. */
-  const returned = async (bytes: Buffer, name = "rasch2013.pdf") => {
+  const returned = async (
+    bytes: Buffer,
+    name = "rasch2013.pdf",
+    timeoutMs?: number
+  ) => {
     await writeFile(join(vault, "sources/pdf", name), bytes);
-    return (await events.next("ingestLanded")).summary;
+    const options = timeoutMs === undefined ? undefined : { timeoutMs };
+    return (await events.next("ingestLanded", options)).summary;
   };
   return { vault, c, events, source, sidecar, returned };
 }
@@ -271,17 +288,26 @@ describe("an Ingest that could not finish", () => {
         join(vault, "sources/pdf/rasch2013.pdf"),
         await pdf("annotated.pdf")
       );
+      // The run is waited for as the counter landing in the sidecar: the PDF
+      // settles and is held for the run window first (#553), so a stopwatch
+      // would end before the run began and this would restore the folder's
+      // permissions in time for it to succeed. Then nothing lands, since the
+      // note's rename is refused.
+      await vi.waitFor(
+        async () =>
+          expect((await sidecar()).pending).toEqual({
+            kept: 0,
+            removed: 0,
+            unmatched: 0,
+          }),
+        { timeout: NEXT_TIMEOUT_MS }
+      );
       await expect(
-        events.next("ingestLanded", { timeoutMs: 800 })
+        events.next("ingestLanded", { timeoutMs: 400 })
       ).rejects.toThrow();
     } finally {
       await chmod(join(vault, "sources"), 0o755);
     }
-    expect((await sidecar()).pending).toEqual({
-      kept: 0,
-      removed: 0,
-      unmatched: 0,
-    });
     await c.close();
     const again = await core({ settleMs: 40 });
     await again.mutate("vault.open", { path: vault });
@@ -290,6 +316,83 @@ describe("an Ingest that could not finish", () => {
     const blocks = (await source()).match(/\^h\d+/g);
     expect(blocks).toHaveLength(4);
     expect((await sidecar()).annotations).toHaveLength(6);
+  });
+});
+
+describe("a PDF returning alone", () => {
+  // It always waits (ADR 0013, update for #553): read once it has settled and
+  // the run window has gone quiet, never at the settle. Waiting only while the
+  // watcher has more pending would be cheaper, and wrong after a stall and
+  // between two large files, which is where the window is for. Neither the
+  // window nor the ceiling may be asked for less than the floor they are held
+  // to (twice the settle window; the window), so asking for 1 ms of either must
+  // not read the PDF early.
+  //
+  // Both are lower bounds, so a loaded machine can only make them pass more
+  // easily; and the settle window is a second, not the harness's 40 ms, so that
+  // the floor (2 s) is far enough above what a PDF takes with no floor at all
+  // (about a second, and noise on top) for the test to tell them apart.
+  it.each([
+    ["window", { runWindowMs: 1 }],
+    ["ceiling", { runCeilingMs: 1 }],
+  ])(
+    "is read no sooner than the run window, whatever %s the core is asked for",
+    async (_, options) => {
+      const settleMs = 1000;
+      const { returned } = await opened({}, { settleMs, ...options });
+      const started = performance.now();
+      // A settle window of a second takes about half the harness's bound, so
+      // this wait is given its own.
+      await returned(
+        await pdf("annotated.pdf"),
+        undefined,
+        2 * NEXT_TIMEOUT_MS
+      );
+      // Settled, then held for the window: the settle window, and twice it
+      // (ADR 0013, update for #553).
+      expect(performance.now() - started).toBeGreaterThanOrEqual(3 * settleMs);
+    },
+    // Each takes about three seconds, and the harness's budget is Vitest's 5 s.
+    20_000
+  );
+});
+
+describe("a vault opened over PDFs that changed while the app was closed", () => {
+  // The sweep at open raises one `vaultChanged` per chunk of files (250 in
+  // production, one here), and the PDFs in each chunk were a run of their own
+  // (#553): four PDFs in four chunks said "6 new" in the footer, not 24. What
+  // the sweep ends with reads every Source at once, and does not wait for the
+  // run window, which here outlasts the test.
+  it("are one run, read at once", async () => {
+    const files: Record<string, string> = {};
+    for (let n = 1; n <= 4; n++) {
+      files[`sources/paper${n}.md`] =
+        `---\nkind: source\nid: src-${n}\ncitekey: paper${n}\npdf: paper${n}.pdf\n---\n`;
+      files[`sources/pdf/paper${n}.pdf`] = "";
+    }
+    const vault = await vaultWith(files);
+    const bytes = await pdf("annotated.pdf");
+    for (let n = 1; n <= 4; n++) {
+      await writeFile(join(vault, `sources/pdf/paper${n}.pdf`), bytes);
+    }
+    const c = await core({
+      settleMs: 40,
+      chunkSize: 1,
+      runWindowMs: LONG_RUN_WINDOW_MS,
+    });
+    // Before the open: the run is raised during it.
+    const events = await c.events();
+    await c.mutate("vault.open", { path: vault });
+    const landed = await events.next("ingestLanded");
+    expect(landed.summary).toEqual({
+      new: 24,
+      questions: 0,
+      removed: 0,
+      unmatched: 0,
+    });
+    await expect(
+      events.next("ingestLanded", { timeoutMs: 400 })
+    ).rejects.toThrow();
   });
 });
 
@@ -374,13 +477,14 @@ function held() {
     },
     /**
      * Once the OS has named every PDF, hands the watcher all of them: the
-     * first `groups[0]` in one callback, each group after it one FSEvents
-     * latency later, and what is left in the last. Every callback is timed from
-     * now, not from the one before, so a loop that stalls delivers the ones it
-     * missed together and in order. Answers with the size of each callback it
-     * made.
+     * first `groups[0]` in one callback, each group after it `gapMs` later
+     * (one FSEvents latency, unless a test wants the watcher to close a Batch
+     * between two of them), and what is left in the last. Every callback is
+     * timed from now, not from the one before, so a loop that stalls delivers
+     * the ones it missed together and in order. Answers with the size of each
+     * callback it made.
      */
-    deliver: async (groups: number[]) => {
+    deliver: async (groups: number[], gapMs = FSEVENTS_LATENCY_MS) => {
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(
           () =>
@@ -411,7 +515,7 @@ function held() {
             setTimeout(() => {
               for (const [filename, kind] of group) listener(kind, filename);
               resolve(group.length);
-            }, n * FSEVENTS_LATENCY_MS)
+            }, n * gapMs)
           )
         );
       }
@@ -421,10 +525,19 @@ function held() {
 }
 
 /**
- * Fifty PDFs written one after another and heard in `groups`' callbacks: one
- * run, one summary, and no second.
+ * Fifty PDFs written one after another and heard in `groups`' callbacks, `gapMs`
+ * apart, by a core built with the run window and ceiling a test asks for (the
+ * harness's own when it does not). Answers once the watcher has heard them all;
+ * what Ingest does with them is the test's to wait for on `events`.
  */
-async function expectOneRun(groups: number[]) {
+async function deliveredFifty(
+  groups: number[],
+  {
+    gapMs,
+    runWindowMs,
+    runCeilingMs,
+  }: { gapMs?: number; runWindowMs?: number; runCeilingMs?: number } = {}
+) {
   const files: Record<string, string> = {};
   for (let n = 1; n <= PDFS; n++) {
     files[`sources/s${n}.md`] =
@@ -434,7 +547,12 @@ async function expectOneRun(groups: number[]) {
   await mkdir(join(vault, "sources/pdf"), { recursive: true });
   const base = await pdf("annotated-again.pdf");
   const os = held();
-  const c = await core({ settleMs: 40, watch: os.watch });
+  const c = await core({
+    settleMs: 40,
+    watch: os.watch,
+    ...(runWindowMs === undefined ? {} : { runWindowMs }),
+    ...(runCeilingMs === undefined ? {} : { runCeilingMs }),
+  });
   await c.mutate("vault.open", { path: vault });
   await c.indexed();
   const events = await c.events();
@@ -449,7 +567,16 @@ async function expectOneRun(groups: number[]) {
   // Said back, so a helper that stopped waiting for the OS, or stopped cutting
   // the burst, fails here by name.
   const left = PDFS - groups.reduce((sum, size) => sum + size, 0);
-  expect(await os.deliver(groups)).toEqual([...groups, left]);
+  expect(await os.deliver(groups, gapMs)).toEqual([...groups, left]);
+  return { events };
+}
+
+/** Fifty PDFs heard as `deliveredFifty` says: one run, one summary, and no second. */
+async function expectOneRun(
+  groups: number[],
+  options: Parameters<typeof deliveredFifty>[1] = {}
+) {
+  const { events } = await deliveredFifty(groups, options);
   const landed = await events.next("ingestLanded", { timeoutMs: BUDGET_MS });
   // One markup in the fixture, so a block to each PDF.
   expect(landed.summary).toEqual({
@@ -477,6 +604,49 @@ describe("a batch of PDFs", () => {
   it(
     "is still one run when FSEvents reports the burst in three callbacks, one latency apart",
     () => expectOneRun([10, 20]),
+    3 * BUDGET_MS
+  );
+
+  // The watcher closes a Batch as soon as nothing is pending, so callbacks
+  // further apart than its settle window are a Batch each, and each of those
+  // was a run: the footer said "10 new", not 50 (#553). Five callbacks 350 ms
+  // apart are five Batches 350 ms apart. The run window is 800 ms: wide enough
+  // that a loaded machine cannot split the delivery, and shorter than the
+  // delivery itself (1.4 s of callbacks), so a window that did not start
+  // again with each Batch would read the first three and then the rest.
+  it(
+    "is one run when the watcher hears it as five Batches, each inside the run window of the one before",
+    () => expectOneRun([10, 10, 10, 10], { gapMs: 350, runWindowMs: 800 }),
+    3 * BUDGET_MS
+  );
+
+  // A window that starts again with every Batch can be starved by a stream that
+  // never goes quiet: a library syncing for an hour, a PDF rewritten every few
+  // seconds. No PDF is held past the ceiling, so that is read in turns instead.
+  // The ceiling may be no less than the window, and here it is equal: the
+  // first three Batches (30 PDFs) are read at 800 ms and the last two in a turn
+  // of their own, where a window with no ceiling would read all fifty at the
+  // end.
+  it(
+    "is read in turns when the stream keeps arriving for longer than the ceiling",
+    async () => {
+      const { events } = await deliveredFifty([10, 10, 10, 10], {
+        gapMs: 350,
+        runWindowMs: 800,
+        runCeilingMs: 800,
+      });
+      const runs: Array<{ new: number; sources: string[] }> = [];
+      while (runs.reduce((sum, run) => sum + run.new, 0) < PDFS) {
+        const landed = await events.next("ingestLanded", {
+          timeoutMs: BUDGET_MS,
+        });
+        runs.push({ new: landed.summary.new, sources: landed.sources });
+      }
+      expect(runs.length).toBeGreaterThan(1);
+      // Every PDF once: none dropped between turns, none read in two.
+      expect(runs.reduce((sum, run) => sum + run.new, 0)).toBe(PDFS);
+      expect(new Set(runs.flatMap((run) => run.sources)).size).toBe(PDFS);
+    },
     3 * BUDGET_MS
   );
 });
@@ -583,7 +753,7 @@ describe("a note that begins Q:", () => {
   });
 
   it("never makes a second when the same PDF returns, and records the Question in the sidecar", async () => {
-    const { returned, c, sidecar, vault } = await opened();
+    const { returned, c, events, sidecar, vault } = await opened();
     await returned(await pdf("annotated-questions.pdf"));
     const first = await sidecar();
     expect(
@@ -594,7 +764,13 @@ describe("a note that begins Q:", () => {
       join(vault, "sources/pdf/rasch2013.pdf"),
       await pdf("annotated-questions.pdf")
     );
-    await c.indexed();
+    // Nothing is read, so there is nothing to wait on but the time a run would
+    // take, twice over: the PDF settles, the run window goes quiet, and then the
+    // run. `indexed()` answers at once, before any of that, so this test used to
+    // read the Questions before an Ingest could have made a second (#553).
+    await expect(
+      events.next("ingestLanded", { timeoutMs: 2 * WIDEST_WAIT_MS })
+    ).rejects.toThrow();
     expect(await listed(c)).toHaveLength(3);
   });
 
