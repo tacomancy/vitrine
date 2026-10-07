@@ -424,6 +424,8 @@ export type Card = {
     id: string;
     name: string;
     assigned: Array<{ id: string; name: string | null }>;
+    /** A Scout the researcher retired: its Proposals stay in Review under its name, marked, until they are triaged (ADR 0042 decision 1). */
+    dropped: boolean;
   }>;
   retroactive: boolean;
 };
@@ -480,8 +482,10 @@ async function readCards(
   lane: "review" | "skim"
 ): Promise<Card[]> {
   const { queue, index } = deps;
-  const { scouts } = await readScouts(deps.vaultPath);
-  const byId = new Map(scouts.map((s) => [s.id, s]));
+  const { scouts, dropped } = await readScouts(deps.vaultPath);
+  // A dropped Scout is not in `scouts` and the rail does not list it, but its
+  // Proposals stay in Review under its name, so the card has to know it.
+  const byId = new Map([...scouts, ...dropped].map((s) => [s.id, s]));
   const rows = queue
     .prepare(
       "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
@@ -520,6 +524,7 @@ async function readCards(
                   id: q,
                   name: questionFile(index, q)?.display ?? null,
                 })),
+                dropped: scout.dropped !== null,
               },
             ];
       }),
@@ -587,7 +592,7 @@ export function acceptProposal(
       return { path: heldBy, held: true };
     }
 
-    const { scouts, unreadable } = await readScouts(vaultPath);
+    const { scouts, dropped, unreadable } = await readScouts(vaultPath);
     const first = queue
       .prepare(
         `SELECT a.scout_id, r.retroactive FROM appearances a
@@ -625,8 +630,12 @@ export function acceptProposal(
         `${unknown.map((u) => u.file).join(", ")} could not be read, so the Questions this paper was found for are not known.`
       );
     }
+    // A dropped Scout's Proposals stay in Review until triaged, and accepting
+    // one stamps the Questions that Scout was for like any other's would: its
+    // file keeps them (ADR 0042 decision 1).
+    const everyScout = [...scouts, ...dropped];
     const assigned = involved.flatMap(
-      (id) => scouts.find((s) => s.id === id)?.assigned ?? []
+      (id) => everyScout.find((s) => s.id === id)?.assigned ?? []
     );
     const authors = JSON.parse(row.authors) as string[];
     const year = String(new Date(row.published).getUTCFullYear());

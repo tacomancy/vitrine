@@ -138,6 +138,52 @@ describe("scouts.activity — coverage gaps", () => {
     expect(await f.coverage()).toMatchObject({ kind: "covered" });
   });
 
+  // A dropped Scout is retired and covers nothing (ADR 0042 decisions 1 and 4,
+  // #521): the Question it was Assigned to is a gap that names it, and one a
+  // Scout that is looking shares with it is not.
+  it("is a gap when its only Scout is dropped, naming it, and not one while a Scout that is looking shares it", async () => {
+    const f = await opened(
+      {
+        "gone.yaml": `${withAssigned(arxivScout("gone"), ["q-gone", "q-shared"])}dropped: 2026-09-20T00:00:00Z\n`,
+        "looking.yaml": withAssigned(arxivScout("looking"), [
+          ...FIXTURE_IDS,
+          "q-shared",
+        ]),
+      },
+      {
+        "q/gone.md": question("q-gone", "Only a dropped Scout?"),
+        "q/shared.md": question("q-shared", "Shared with a dropped one?"),
+      }
+    );
+    insertRun(f.db, "looking");
+
+    const { shown, notShown } = await f.gaps();
+
+    expect(notShown).toBe(0);
+    expect(
+      shown.map(({ question, notLooking }) => [question, notLooking])
+    ).toEqual([
+      [
+        "Only a dropped Scout?",
+        [{ id: "gone", name: "gone", reason: "dropped" }],
+      ],
+    ]);
+  });
+
+  it("claims coverage over the Scouts that are looking without counting or naming one that is dropped", async () => {
+    const f = await opened({
+      "looking.yaml": withAssigned(arxivScout("looking"), FIXTURE_IDS),
+      "gone.yaml": `${arxivScout("gone")}dropped: 2026-09-20T00:00:00Z\n`,
+    });
+    insertRun(f.db, "looking");
+
+    expect(await f.coverage()).toEqual({
+      kind: "covered",
+      warrant: { questions: 2, scouts: 1 },
+      notLooking: [],
+    });
+  });
+
   it("covers a Scout that has not run yet: it is due at its next check", async () => {
     const f = await opened({
       "new.yaml": withAssigned(arxivScout("new"), FIXTURE_IDS),
