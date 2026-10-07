@@ -59,23 +59,29 @@
 }
 
 .table thead th:nth-child(1) {
-  width: 32%;
+  width: 26%;
 }
 
 .table thead th:nth-child(2) {
-  width: 28%;
+  width: 21%;
 }
 
 .table thead th:nth-child(3) {
-  width: 11%;
+  width: 9%;
 }
 
 .table thead th:nth-child(4) {
-  width: 17%;
+  width: 13%;
 }
 
+/* The widths run to a hundred with the last column counted: left out, it was
+   given none, and the rate's text ran into the link beside it. */
 .table thead th:nth-child(5) {
-  width: 12%;
+  width: 24%;
+}
+
+.table thead th:nth-child(6) {
+  width: 7%;
 }
 
 /* A column header that sorts: its text, in the header's own type, with the
@@ -224,6 +230,8 @@
    the cell's own type, so it weighs no more on one row than another. */
 .open {
   appearance: none;
+  display: block;
+  max-width: 100%;
   border: 0;
   padding: 0;
   font: inherit;
@@ -231,7 +239,11 @@
   background: none;
   cursor: pointer;
   text-align: left;
-  white-space: inherit;
+  white-space: nowrap;
+  /* A reason longer than the column is cut to one line, as a long Query is;
+     the whole of it is on the button's title and in its name. */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .open:hover {

@@ -329,14 +329,14 @@ function Row({
       ? `arXiv · ${row.source.query}`
       : row.source.url;
   const detail = `${id}-detail`;
-  // A click anywhere on the row opens it, as prototype 10's does. The link and
-  // the rate's own button act for themselves; the button is the one a keyboard
-  // or a screen reader reaches, so it toggles on its own click.
+  const rate = rateWords(row.acceptRate);
+  // A click anywhere on the row opens it, as prototype 10's does. The rate's
+  // own button is the control a keyboard or a screen reader reaches, so it
+  // toggles on its own click and the row leaves it alone. (The *queue* link
+  // needs no exception: it leaves the page.)
   function onRowClick(event: MouseEvent) {
     onChoose();
-    if (!(
-      event.target instanceof Element && event.target.closest("a, button")
-    )) {
+    if (!(event.target instanceof Element && event.target.closest("button"))) {
       onToggle();
     }
   }
@@ -374,10 +374,11 @@ function Row({
             className={styles.open}
             aria-expanded={open}
             aria-controls={open ? detail : undefined}
-            aria-label={`${row.name}: accept rate, ${rateWords(row.acceptRate)}`}
+            aria-label={`${row.name}: accept rate, ${rate}`}
+            title={rate}
             onClick={onToggle}
           >
-            {rateWords(row.acceptRate)}
+            {rate}
           </button>
         </td>
         <td>

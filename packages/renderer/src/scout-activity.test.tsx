@@ -617,16 +617,14 @@ describe("opening a row", () => {
     expect(line()).not.toBeNull();
   });
 
-  it("is not opened by the link to the Scout's stack, which goes to the Queue instead", async () => {
-    open(fleet([TWELVE_WEEKS]));
+  it("keeps the whole of a long reason on the rate's button, which the column cuts to one line", async () => {
+    open(fleet([RESTING]));
 
-    fireEvent.click(
-      await screen.findByRole("link", {
-        name: "Broken by arXiv: open its stack in the Queue",
-      })
+    const button = await opener("Resting");
+
+    expect(button.getAttribute("title")).toBe(
+      "Most of this Scout's papers arrive without authors or venue."
     );
-
-    expect(line()).toBeNull();
   });
 
   it("says why there is no line for a young Scout", async () => {
