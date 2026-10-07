@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, TRPCClientError, type TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { AppRouter, CoreEvent } from "core";
+import type { AcceptRate, AcceptWeek, AppRouter, CoreEvent } from "core";
 import { vi } from "vitest";
 import { App } from "./App";
 import { TRPCProvider } from "./trpc";
@@ -122,6 +122,39 @@ export const vault = {
 };
 
 export const empty = { questions: [], partial: [], unreadable: [], shape: [] };
+
+const WEEK = 7 * 86_400_000;
+
+/**
+ * A Scout's twelve weeks ending 2026-07-15, oldest first, as the core hands
+ * them over; a week not named is a gap with nothing in it. July, so a week's
+ * label does not depend on how a locale abbreviates September.
+ */
+export const weeksOf = (
+  filled: Record<number, { triaged: number; rate: number | null }> = {}
+): AcceptWeek[] =>
+  Array.from({ length: 12 }, (_, i) => ({
+    start: new Date(
+      Date.parse("2026-07-15T12:00:00Z") - (12 - i) * WEEK
+    ).toISOString(),
+    triaged: 0,
+    rate: null,
+    ...filled[i],
+  }));
+
+/** An accept rate that can be said, over these weeks, with the core's floor of five. */
+export const rateOver = (
+  accepted: number,
+  triaged: number,
+  weeks: AcceptWeek[] = weeksOf()
+): AcceptRate => ({
+  kind: "rate",
+  accepted,
+  triaged,
+  rate: accepted / triaged,
+  weeks,
+  weekFloor: 5,
+});
 
 export const question = (
   text: string,

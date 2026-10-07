@@ -16,8 +16,12 @@ import {
 } from "./review-depth.js";
 import {
   acceptCounts,
+  acceptSince,
+  acceptWeeks,
   firstAppearanceScout,
+  MIN_WEEK_ITEMS,
   type AcceptCounts,
+  type AcceptWeek,
 } from "./triage.js";
 
 /** The window every figure that says *30 days* reads: a count of finds and the mean cost of a run (ADR 0042 decisions 6 and 10). */
@@ -51,17 +55,26 @@ export type Cost =
   | { kind: "unpriced"; runs: number }
   | { kind: "cost"; perRun: number; runs: number; unpriced: number };
 
-/** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
-const WINDOW_MS = 12 * 7 * 86_400_000;
-
 /**
  * What a row says about how often its Scout's Review items are accepted. A
  * Scout nobody has judged is *nothing triaged yet*, never 0%: not having
  * judged is not having rejected. A rate that rests on fields the source
  * arrives without is *unavailable*, stated as why (ADR 0042 decision 3).
+ *
+ * The weekly line belongs to a rate that can be said: the weeks rest on the
+ * same items as the headline, so when the guard withholds one it withholds
+ * the other, and no surface has to remember to.
  */
 export type AcceptRate =
-  | { kind: "rate"; accepted: number; triaged: number; rate: number }
+  | {
+      kind: "rate";
+      accepted: number;
+      triaged: number;
+      rate: number;
+      /** Twelve weeks, oldest first; a week under `weekFloor` items is a gap (ADR 0042 decision 2). */
+      weeks: AcceptWeek[];
+      weekFloor: number;
+    }
   | { kind: "nothing triaged" }
   | { kind: "unavailable"; reason: string };
 
@@ -73,7 +86,8 @@ export type AcceptRate =
  */
 function acceptRateOf(
   scout: Scout,
-  counts: AcceptCounts | undefined
+  counts: AcceptCounts | undefined,
+  weeks: AcceptWeek[]
 ): AcceptRate {
   // `acceptCounts` groups only the rows it counts, so a Scout it names has at least one.
   if (counts === undefined) return { kind: "nothing triaged" };
@@ -92,6 +106,8 @@ function acceptRateOf(
   }
   return {
     kind: "rate",
+    weeks,
+    weekFloor: MIN_WEEK_ITEMS,
     accepted: counts.accepted,
     triaged,
     rate: counts.accepted / triaged,
@@ -339,10 +355,7 @@ export async function readActivity(deps: {
 }): Promise<ScoutActivity> {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
-  const counts = acceptCounts(
-    deps.queue,
-    new Date(now.getTime() - WINDOW_MS).toISOString()
-  );
+  const counts = acceptCounts(deps.queue, acceptSince(now));
   const depth = reviewDepth(deps.queue, now);
   const since = thirtyDaysBefore(now);
   const volumeByScout = volumes(deps.queue, since);
@@ -368,7 +381,8 @@ export async function readActivity(deps: {
         health: healthOf(deps.queue, scout, now),
         acceptRate: acceptRateOf(
           scout,
-          counts.find((c) => c.scoutId === scout.id)
+          counts.find((c) => c.scoutId === scout.id),
+          acceptWeeks(deps.queue, scout.id, now)
         ),
         review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
         volume: volumeByScout.get(scout.id) ?? {

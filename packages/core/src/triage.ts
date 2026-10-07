@@ -136,6 +136,17 @@ export type AcceptCounts = {
   noVenue: number;
 };
 
+/** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Reads `t` (triage) and `p` (proposals) and binds one `?`, the window's `since`. */
+const COUNTED = `t.action IN ('accept', 'reject')
+          AND t.at >= ?
+          AND p.lane = 'review'
+          AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
+                           AND r.retroactive = 1)
+          AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
+                           AND x.action = 'promote')
+          AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
+                           AND u.action = 'undo' AND u.rowid > t.rowid)`;
+
 /**
  * Only what the Scout placed in Review counts: a Proposal with a `promote`
  * row was moved by hand, and one still in the Skim lane was never put to the
@@ -159,18 +170,73 @@ export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
               SUM(p.authors = '[]') AS noAuthors,
               SUM(p.venue IS NULL) AS noVenue
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
-        WHERE t.action IN ('accept', 'reject')
-          AND t.at >= ?
-          AND p.lane = 'review'
-          AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
-                           AND r.retroactive = 1)
-          AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
-                           AND x.action = 'promote')
-          AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
-                           AND u.action = 'undo' AND u.rowid > t.rowid)
+        WHERE ${COUNTED}
         GROUP BY scoutId ORDER BY scoutId`
     )
     .all(since) as AcceptCounts[];
+}
+
+/** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
+export const MIN_WEEK_ITEMS = 5;
+
+const WEEK_MS = 7 * 86_400_000;
+const WEEKS = 12;
+
+/** Where the twelve weeks an Accept rate reads begin. The headline and the weekly line both start here, so they read the same rows. */
+export const acceptSince = (now: Date) =>
+  new Date(now.getTime() - WEEKS * WEEK_MS).toISOString();
+
+/** One week of a Scout's accept-rate line: `rate` is null for a gap, and `triaged` is what the week rests on either way. */
+export type AcceptWeek = {
+  /** ISO time the week begins, inclusive; it ends a week later, exclusive. */
+  start: string;
+  triaged: number;
+  rate: number | null;
+};
+
+/**
+ * One Scout's trailing twelve weeks, oldest first, the newest ending at
+ * `now`. The weeks roll with `now` rather than follow the calendar, as the
+ * headline's window does. It reads the rows `acceptCounts` counts (one
+ * `COUNTED` filter, one `acceptSince`), so a point can never rest on an item
+ * the headline leaves out. The buckets are cut here and not in SQL so the
+ * week's edge is one expression, the one `start` is printed from.
+ */
+export function acceptWeeks(
+  queue: DatabaseSync,
+  scoutId: string,
+  now: Date
+): AcceptWeek[] {
+  const since = acceptSince(now);
+  const rows = queue
+    .prepare(
+      `SELECT t.action AS action, t.at AS at
+         FROM triage t JOIN proposals p ON p.id = t.proposal_id
+        WHERE ${COUNTED} AND ${firstAppearanceScout("t.proposal_id")} = ?`
+    )
+    .all(since, scoutId) as Array<{ action: "accept" | "reject"; at: string }>;
+  const from = Date.parse(since);
+  const weeks = Array.from({ length: WEEKS }, (_, i) => ({
+    start: new Date(from + i * WEEK_MS).toISOString(),
+    accepted: 0,
+    triaged: 0,
+  }));
+  for (const row of rows) {
+    // Nothing bounds `at` above, so a row stamped after `now` is in the
+    // headline and has to be in a week: the newest, not one past the end.
+    // `COUNTED` already keeps everything below `since` out.
+    const week =
+      weeks[
+        Math.min(Math.floor((Date.parse(row.at) - from) / WEEK_MS), WEEKS - 1)
+      ]!;
+    week.triaged += 1;
+    if (row.action === "accept") week.accepted += 1;
+  }
+  return weeks.map(({ start, accepted, triaged }) => ({
+    start,
+    triaged,
+    rate: triaged >= MIN_WEEK_ITEMS ? accepted / triaged : null,
+  }));
 }
 
 /**

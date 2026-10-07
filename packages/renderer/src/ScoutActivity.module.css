@@ -203,9 +203,13 @@
 }
 
 /* A row of one cell is both first and last: the rules above would leave it
-   square on the left. */
+   square on the left. It is a surface of its own under its row, a gutter below
+   it as every row is from the next (ADR 0023 decision 1), and what it holds
+   (the per-run list, the accept-rate line and the sentence that says why there
+   is none) wraps with it. */
 .table tbody tr > .detail {
   border-radius: var(--radius-md);
+  white-space: normal;
 }
 
 /* The Scout and, stacked beneath it, how it is doing: its Voice and Warrant,
@@ -289,5 +293,23 @@
 }
 
 .action:hover {
+  color: var(--color-fg);
+}
+
+/* The rate cell's button opens the row, for a keyboard and a screen reader:
+   the cell's own type, so it weighs no more on one row than another. Its text
+   wraps with the cell, as every cell that speaks in words does. */
+.open {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.open:hover {
   color: var(--color-fg);
 }

@@ -1,7 +1,14 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { Cost, ScoutActivity, ActivityRow, ScoutRunCost } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, renderApp, scrollsInto, vault } from "./fake-core";
+import {
+  empty,
+  rateOver,
+  renderApp,
+  scrollsInto,
+  vault,
+  weeksOf,
+} from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -62,7 +69,7 @@ const BROKEN: ActivityRow = {
     sentence:
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
-  acceptRate: { kind: "rate", accepted: 3, triaged: 4, rate: 0.75 },
+  acceptRate: rateOver(3, 4),
   review: {
     pending: 3,
     deferred: 1,
@@ -873,5 +880,134 @@ describe("a row's link", () => {
 
     expect(rows[0]!.className).toBe(rows[1]!.className);
     expect(rows[0]!.getAttribute("style")).toBeNull();
+  });
+});
+
+describe("opening a row", () => {
+  const TWELVE_WEEKS: ActivityRow = {
+    ...BROKEN,
+    acceptRate: rateOver(
+      30,
+      48,
+      weeksOf({
+        9: { triaged: 4, rate: null },
+        10: { triaged: 5, rate: 0.8 },
+        11: { triaged: 7, rate: 0.5 },
+      })
+    ),
+  };
+  const line = () =>
+    screen.queryByRole("group", { name: "Accept rate by week" });
+  const opener = (name: string) =>
+    screen.findByRole("button", {
+      name: new RegExp(`${name}.*accept rate`, "i"),
+    });
+
+  it("draws no row pre-expanded", async () => {
+    open(fleet([TWELVE_WEEKS]));
+    await screen.findByRole("table", { name: "Scouts" });
+
+    expect(line()).toBeNull();
+  });
+
+  it("draws the Scout's weekly line with its headline when its row is clicked, and closes again", async () => {
+    open(fleet([TWELVE_WEEKS]));
+
+    const [row] = await tableRows();
+    fireEvent.click(within(row!).getByText("Broken by arXiv"));
+
+    expect(
+      within(line()!)
+        .getAllByRole("img")
+        .map((p) => p.getAttribute("aria-label"))
+    ).toEqual([
+      "week of 1 Jul: 80% of 5 triaged",
+      "week of 8 Jul: 50% of 7 triaged",
+    ]);
+    expect(screen.getByText("63% over 12 weeks · 48 triaged")).toBeDefined();
+
+    fireEvent.click(within(row!).getByText("Broken by arXiv"));
+    expect(line()).toBeNull();
+  });
+
+  it("opens from the accept rate's own button too, which says whether the row is open", async () => {
+    open(fleet([TWELVE_WEEKS]));
+
+    const button = await opener("Broken by arXiv");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(button);
+
+    // One click is one toggle: the click reaches the row as well as the button.
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(line()).not.toBeNull();
+  });
+
+  it("says why there is no line for a young Scout", async () => {
+    open(
+      fleet([
+        {
+          ...TWELVE_WEEKS,
+          acceptRate: rateOver(
+            2,
+            3,
+            weeksOf({ 11: { triaged: 3, rate: null } })
+          ),
+        },
+      ])
+    );
+
+    fireEvent.click(await opener("Broken by arXiv"));
+
+    expect(
+      screen.getByText(
+        "No week has 5 or more triaged items yet, so there is no line."
+      )
+    ).toBeDefined();
+  });
+
+  it("says why for a Scout whose rate cannot be said, and for one nobody has judged", async () => {
+    open(fleet([QUIET, RESTING]));
+
+    fireEvent.click(await opener("Quiet by design"));
+    fireEvent.click(await opener("Resting"));
+
+    expect(screen.getByText("Nothing triaged yet.")).toBeDefined();
+    expect(
+      screen.getAllByText(
+        "Most of this Scout's papers arrive without authors or venue."
+      )
+    ).toHaveLength(2);
+  });
+
+  it("opens the chosen row with Enter", async () => {
+    open(fleet([TWELVE_WEEKS]));
+    const group = await screen.findByRole("group", { name: "Scout rows" });
+    group.focus();
+    fireEvent.keyDown(group, { key: "j" });
+
+    fireEvent.keyDown(group, { key: "Enter" });
+
+    expect(line()).not.toBeNull();
+  });
+
+  it("keeps a row open when the table is re-sorted", async () => {
+    open(fleet([TWELVE_WEEKS, QUIET]));
+    fireEvent.click(await opener("Broken by arXiv"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scout" }));
+
+    expect(line()).not.toBeNull();
+  });
+
+  it("offers nothing to open on a file that will not parse", async () => {
+    open(fleet([TORN]));
+    await screen.findByRole("table", { name: "Scouts" });
+
+    const [row] = await tableRows();
+    fireEvent.click(within(row!).getByText("torn.yaml"));
+
+    expect(screen.queryByRole("button", { name: /accept rate/i })).toBeNull();
+    expect(line()).toBeNull();
   });
 });
