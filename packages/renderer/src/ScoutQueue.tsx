@@ -181,7 +181,10 @@ export function ScoutQueue({
         }
       : groups.data?.find((g) => g.id === selected);
   const runId = group?.runId ?? null;
-  const groupName = scouts.data?.scouts.find((s) => s.id === selected)?.name;
+  const groupName = [
+    ...(scouts.data?.scouts ?? []),
+    ...(scouts.data?.dropped ?? []),
+  ].find((s) => s.id === selected)?.name;
 
   // Skim: newest first as the core hands it, narrowed by the rail's choice
   // like Review is, with the 30-day tail only once asked for.
@@ -215,6 +218,15 @@ export function ScoutQueue({
       ? []
       : [{ id: q.id, question: q.question, status: q.status }]
   );
+  // A dropped Scout is not looking, so the rail does not list it. What it
+  // found stays in Review under its name (ADR 0042 decision 1), so while
+  // anything waits under it, or while it is the stack the researcher is in, it
+  // has an entry of its own beside the rail, marked.
+  const droppedScouts = scouts.data?.dropped ?? [];
+  const droppedStacks = droppedScouts.filter(
+    (d) => countFor(d.id) > 0 || d.id === selected
+  );
+  const selectedDropped = droppedScouts.find((d) => d.id === selected);
   const selectedScout = scouts.data?.scouts.find((s) => s.id === selected);
   const editing =
     form?.edit == null
@@ -230,6 +242,12 @@ export function ScoutQueue({
     lane === "skim" && line !== undefined ? `skim-line-${line.id}` : undefined
   );
 
+  // A pass is a session fact about one stack; another group's passes must not
+  // decide this one's order or its notice.
+  function choose(id: string | null) {
+    setSelected(id);
+    setPassed([]);
+  }
   function onPass(id: number) {
     setPassed((was) => [...was.filter((p) => p !== id), id]);
   }
@@ -337,12 +355,7 @@ export function ScoutQueue({
               id={`scout-rail-${row.id ?? "all"}`}
               className={styles.railRow}
               aria-current={row.id === selected ? "true" : undefined}
-              onClick={() => {
-                // A pass is a session fact about one stack; another group's
-                // passes must not decide this one's order or its notice.
-                setSelected(row.id);
-                setPassed([]);
-              }}
+              onClick={() => choose(row.id)}
             >
               <span>{row.name}</span>
               {/* A 0 beside a read that failed would read as all clear. */}
@@ -375,6 +388,36 @@ export function ScoutQueue({
           </li>
         ))}
       </ul>
+      {droppedStacks.length > 0 && (
+        <ul className={styles.scouts} aria-label="Dropped Scouts">
+          {droppedStacks.map((dropped) => (
+            <li key={dropped.id} className={styles.scout}>
+              <button
+                type="button"
+                id={`scout-rail-${dropped.id}`}
+                className={styles.railRow}
+                aria-current={dropped.id === selected ? "true" : undefined}
+                onClick={() => choose(dropped.id)}
+              >
+                <span>{dropped.name}</span>
+                {!queue.isError && (
+                  <span className={styles.count}>{countFor(dropped.id)}</span>
+                )}
+              </button>
+              <span className={styles.voice}>dropped</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {selectedDropped !== undefined && form === null && (
+        <div className={styles.scoutHeader}>
+          <h2 className={styles.scoutName}>{selectedDropped.name}</h2>
+          <p className={styles.voice}>
+            Dropped — it no longer runs; what it found waits here until you
+            triage it.
+          </p>
+        </div>
+      )}
       {selectedScout !== undefined && form === null && (
         <div className={styles.scoutHeader}>
           <h2 className={styles.scoutName}>{selectedScout.name}</h2>
@@ -652,7 +695,13 @@ function Proposal({
       tabIndex={0}
     >
       <p className={styles.why}>
-        {card.scouts.map((scout) => scout.name).join(" · ")}
+        {/* A dropped Scout's Proposals stay in Review under its name, marked, so
+            the stack says whose it was (ADR 0042 decision 1). */}
+        {card.scouts
+          .map((scout) =>
+            scout.dropped ? `${scout.name} (dropped)` : scout.name
+          )
+          .join(" · ")}
         {card.scouts.some((s) => s.assigned.length > 0) &&
           ` · assigned to ${card.scouts
             .flatMap((s) => s.assigned)
