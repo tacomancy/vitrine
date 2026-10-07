@@ -103,19 +103,23 @@ The app noticing a changed PDF on disk and reading its Annotations back in. Trig
 _Avoid_: Import, sync (sync moves files; ingest reads them)
 
 **Ingest run**:
-The PDFs of every Batch that closed inside one run window, ingested as one — or the named PDFs of one explicit ask, such as attaching a Source's PDF: one summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land back to back share one summary line.
+The PDFs ingested together: those of every Batch that closed inside one run window, or those of one ask that does not wait, such as attaching a Source's PDF or the read after a sweep. One summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land close together are a Burst.
 _Avoid_: Ingest event, batch (in UI copy)
+
+**Burst** (of Ingest runs):
+Runs that land within a few seconds of each other. They share one summary line, their counts added; a run that lands after the burst starts a line of its own.
+_Avoid_: Batch (that is the watcher's), group
 
 **Settled** (of a file):
 Quiet for long enough — no watcher events, two stats agreeing — that a sync client or Preview is judged to have finished writing it. Nothing is read or hashed before it settles.
 _Avoid_: Stable, debounced
 
 **Batch** (of the watcher):
-The files that settled together, applied to the Index as one transaction and announced as one change; it closes the moment its files settle, whatever their Kind. A PDF's Ingest waits a run window for stragglers beyond that, so one Ingest run can span several Batches.
+The files that settled together, applied to the Index as one transaction and announced as one change; it closes the moment its files settle, Markdown or PDF alike. A PDF's Ingest waits a run window for stragglers beyond that, so one Ingest run can span several Batches.
 _Avoid_: Debounce group, changeset
 
 **Run window**:
-How long the PDFs of a Batch wait for stragglers before they are ingested. It starts again with each Batch that names a PDF, and it is bounded, so a delivery that never goes quiet is still read in turn. Only Ingest has one: a Markdown Batch is applied the moment it closes. Not a Scout run's window, which is the dates that run covers.
+How long the PDFs of a Batch are held for stragglers before they are ingested — not a Scout run's window, which is the dates that run covers. It starts again with each change that names a PDF, but no PDF is held past a ceiling, so a delivery that never goes quiet is still read in turn.
 _Avoid_: Debounce, grace period
 
 **Own write**:
