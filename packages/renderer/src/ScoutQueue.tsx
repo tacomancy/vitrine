@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Card, Health } from "core";
 import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
+import { FirstSlot } from "./FirstSlot";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
@@ -9,6 +10,7 @@ import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
 import { CostLine, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
+import { WarningLine } from "./VaultStatusLines";
 
 /**
  * The Scout Queue's Review lane (#450; brief § Scout Queue; spec #447): a
@@ -138,6 +140,20 @@ export function ScoutQueue({
     })
   );
 
+  // A read the core could not answer (#526) is not an empty list: the first
+  // slot is *wrong* where the rows would begin and the reason is said once,
+  // on the footer channel (ADR 0033 decisions 2 and 3). Reads sharing a
+  // cause share a line. Skim's read only counts in Skim: it does not run in
+  // Review, and a failure it left behind there would be a reason for a stack
+  // it has nothing to do with.
+  const reasons = [
+    ...new Set(
+      [scouts, queue, groups, fleet, health, ...(lane === "skim" ? [skim] : [])]
+        .filter((read) => read.isError)
+        .map((read) => read.error.message)
+    ),
+  ];
+  const unread = reasons.length > 0;
   const everything = queue.data ?? [];
   const inGroup = everything.filter(
     (card) =>
@@ -309,6 +325,11 @@ export function ScoutQueue({
         </button>
       </header>
       <ul className={styles.scouts} aria-label="Scouts">
+        {scouts.isError && (
+          <li className={styles.scout}>
+            <FirstSlot voice="wrong" claim="" />
+          </li>
+        )}
         {railRows.map((row) => (
           <li key={row.id ?? "all"} className={styles.scout}>
             <button
@@ -324,7 +345,10 @@ export function ScoutQueue({
               }}
             >
               <span>{row.name}</span>
-              <span className={styles.count}>{countFor(row.id)}</span>
+              {/* A 0 beside a read that failed would read as all clear. */}
+              {!queue.isError && (
+                <span className={styles.count}>{countFor(row.id)}</span>
+              )}
             </button>
             {row.id !== null && (
               <button
@@ -487,9 +511,13 @@ export function ScoutQueue({
               </button>
             </p>
           )}
-          {lines.length === 0 && older.length === 0 && (
-            <SkimQuiet claim={fleet.data} />
-          )}
+          {lines.length === 0 &&
+            older.length === 0 &&
+            (unread ? (
+              <FirstSlot voice="wrong" claim="" />
+            ) : (
+              <SkimQuiet claim={fleet.data} />
+            ))}
           {line !== undefined && (
             <Proposal
               key={line.id}
@@ -505,10 +533,14 @@ export function ScoutQueue({
           )}
         </>
       )}
+      {form === null && lane === "review" && inGroup.length === 0 && unread && (
+        <FirstSlot voice="wrong" claim="" />
+      )}
       {form === null &&
         lane === "review" &&
         queue.isSuccess &&
-        inGroup.length === 0 && (
+        inGroup.length === 0 &&
+        !unread && (
           <ReviewQuiet
             scout={selected === null ? undefined : healthOf(selected)}
             claim={selected === null ? fleet.data : undefined}
@@ -535,6 +567,17 @@ export function ScoutQueue({
             </li>
           ))}
         </ol>
+      )}
+      {/* The footer channel, polite: a state the app is in, not a refusal of
+          something the user did (ADR 0033). */}
+      {unread && (
+        <footer className={styles.footer}>
+          {reasons.map((reason) => (
+            <WarningLine key={reason} label="not read">
+              {reason}
+            </WarningLine>
+          ))}
+        </footer>
       )}
     </section>
   );
