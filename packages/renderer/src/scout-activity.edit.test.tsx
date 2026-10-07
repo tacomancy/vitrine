@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ActivityRow, Health, ScoutActivity } from "core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, question, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
@@ -283,7 +283,7 @@ describe("the cadence menu", () => {
 
     fireEvent.click(await trigger());
 
-    expect(items().every((item) => !item.textContent!.includes("due"))).toBe(
+    expect(items().every((item) => !item.textContent.includes("due"))).toBe(
       true
     );
   });
@@ -440,7 +440,7 @@ describe("editing a Query and its Assigned Questions in the row", () => {
     const boxes = await panel.findAllByRole("checkbox");
     expect(
       boxes.map((box) => [
-        (box.closest("label") as HTMLElement).textContent!.trim(),
+        (box.closest("label") as HTMLElement).textContent.trim(),
         (box as HTMLInputElement).checked,
       ])
     ).toEqual([
@@ -876,6 +876,107 @@ describe("the keys for a row's acts", () => {
 
     expect(asked).toEqual([]);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("the edit form's own keys and focus", () => {
+  const list = () => screen.getByRole("group", { name: "Scout rows" });
+  const opened = async (more: Record<string, unknown> = {}) => {
+    open(() => fleet([scout()]), { "questions.list": QUESTIONS, ...more });
+    await tableRows();
+    fireEvent.keyDown(list(), { key: "j" });
+    fireEvent.keyDown(list(), { key: "e" });
+    const form = await screen.findByRole("form", {
+      name: "Edit Sleep and memory",
+    });
+    await within(form).findAllByRole("checkbox");
+    return within(form);
+  };
+  const editButton = () =>
+    screen.getByRole("button", { name: "Sleep and memory: edit" });
+
+  it("leaves a key pressed on the form's own buttons to the form", async () => {
+    const asked: unknown[] = [];
+    const panel = await opened({
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+    });
+
+    fireEvent.keyDown(panel.getByRole("button", { name: "Cancel" }), {
+      key: "p",
+    });
+    fireEvent.keyDown(panel.getByRole("button", { name: "Save" }), {
+      key: "c",
+    });
+
+    expect(asked).toEqual([]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("gives the keyboard back to the word that opened it on Cancel", async () => {
+    const panel = await opened();
+
+    fireEvent.click(panel.getByRole("button", { name: "Cancel" }));
+
+    expect(document.activeElement).toBe(editButton());
+  });
+
+  it("gives the keyboard back to the word that opened it on Escape", async () => {
+    const panel = await opened();
+
+    fireEvent.keyDown(panel.getByLabelText("Query"), { key: "Escape" });
+
+    expect(document.activeElement).toBe(editButton());
+  });
+
+  it("gives the keyboard back to the word that opened it after a save", async () => {
+    const panel = await opened({
+      "scouts.save": () => ({ id: "sleep", run: null }),
+    });
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("Saved.");
+    expect(document.activeElement).toBe(editButton());
+  });
+
+  it("sends one save while the first is on its way, whichever way it is asked for", async () => {
+    const asked: unknown[] = [];
+    let land!: (answer: unknown) => void;
+    const panel = await opened({
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        return new Promise((resolve) => (land = resolve));
+      },
+    });
+    const save = panel.getByRole<HTMLButtonElement>("button", { name: "Save" });
+
+    fireEvent.click(save);
+    await vi.waitFor(() => expect(save.disabled).toBe(true));
+    fireEvent.submit(
+      screen.getByRole("form", { name: "Edit Sleep and memory" })
+    );
+    fireEvent.submit(
+      screen.getByRole("form", { name: "Edit Sleep and memory" })
+    );
+
+    expect(asked).toHaveLength(1);
+    land({ id: "sleep", run: null });
+    await screen.findByText("Saved.");
+  });
+
+  it("offers no Question that has no id to write into the file", async () => {
+    const panel = await opened({
+      "questions.list": {
+        ...empty,
+        questions: [REPLAY, { ...SPINDLES, id: undefined }],
+      },
+    });
+
+    expect(
+      panel
+        .getAllByRole("checkbox")
+        .map((box) => box.closest("label")!.textContent)
+    ).toEqual([expect.stringContaining("Does replay consolidate?")]);
   });
 });
 

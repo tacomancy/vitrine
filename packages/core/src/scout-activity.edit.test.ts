@@ -53,7 +53,10 @@ async function opened(
   const empty = await readFile(join(fixtures, "arxiv", "empty.xml"), "utf8");
   const c = await core({
     now: () => new Date(at),
-    arxiv: { clock: virtualClock(), fetch: async () => new Response(empty) },
+    arxiv: {
+      clock: virtualClock(),
+      fetch: () => Promise.resolve(new Response(empty)),
+    },
   });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();

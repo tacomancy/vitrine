@@ -299,7 +299,8 @@
 /* The rate cell's button opens the row, for a keyboard and a screen reader:
    the cell's own type, so it weighs no more on one row than another. Its text
    wraps with the cell, as every cell that speaks in words does. */
-.open {
+.open,
+.menuButton {
   appearance: none;
   border: 0;
   padding: 0;
@@ -310,8 +311,17 @@
   text-align: left;
 }
 
-.open:hover {
+.open:hover,
+.menuButton:hover {
   color: var(--color-fg);
+}
+
+/* The cadence word opens a menu, which a word in a table does not say by
+   itself: a caret beside it does, drawn and not typed, so the cell still reads
+   as the cadence and nothing but the cadence. */
+.menuButton::after {
+  content: " ▾";
+  color: var(--color-fg-muted);
 }
 
 /* What a row can be told to do, in its first cell under how it is doing: quiet

@@ -41,7 +41,7 @@ async function opened(files: Record<string, string>) {
     now: () => new Date(at),
     arxiv: {
       clock: virtualClock(),
-      fetch: async () => new Response(empty),
+      fetch: () => Promise.resolve(new Response(empty)),
     },
   });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();

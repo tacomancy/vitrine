@@ -710,7 +710,7 @@ function Row({
           <button
             ref={cadenceButton}
             type="button"
-            className={styles.open}
+            className={styles.menuButton}
             aria-haspopup="menu"
             aria-expanded={choosing}
             aria-label={`${row.name}: cadence, ${row.cadence}`}
