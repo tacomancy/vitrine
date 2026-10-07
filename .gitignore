@@ -9,3 +9,7 @@ out/
 *.tsbuildinfo
 # pnpm deploy's staged core, electron-builder's input (packages/shell/stage/)
 stage/
+# BSD sed (macOS) reads the -e in `sed -i -e '…' file` as the backup suffix and
+# leaves `file-e`, the pre-edit file, beside the edit; merge resolutions
+# committed two (#534). Unanchored: a real *-e file or dir needs `git add -f`.
+*-e
