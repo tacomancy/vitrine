@@ -2,6 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import type { Fingerprint } from "./document-fingerprint.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import type { MatchedBy } from "./annotation-matcher.js";
 import type { AnnotationKind } from "./pdf-engine.js";
 
@@ -122,9 +123,30 @@ export async function writeSidecar(
   sourceId: string,
   sidecar: Sidecar
 ): Promise<void> {
-  await mkdir(join(vaultPath, FOLDER), { recursive: true });
-  await writeAtomically(
-    join(vaultPath, FOLDER, `${sourceId}.json`),
-    JSON.stringify(sidecar, null, 2) + "\n"
+  // Two steps, each in its own words: the cut takes the syscall with the path,
+  // so `EACCES: permission denied` alone cannot tell the folder's making from
+  // the file's write.
+  await mkdir(join(vaultPath, FOLDER), { recursive: true }).catch(
+    (cause: unknown) => {
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't create ${FOLDER}/: ${errorMessageWithoutPath(cause)}`
+      );
+    }
   );
+  const relativePath = `${FOLDER}/${sourceId}.json`;
+  try {
+    await writeAtomically(
+      join(vaultPath, relativePath),
+      JSON.stringify(sidecar, null, 2) + "\n"
+    );
+  } catch (cause) {
+    // Named vault-relative, never by the joined path, which would put back
+    // what the errno's cut takes out. The name is also what the reader needs:
+    // Node named a temp file nobody made (ADR 0028).
+    throw new VaultError(
+      "writeFailed",
+      `Couldn't write ${relativePath}: ${errorMessageWithoutPath(cause)}`
+    );
+  }
 }
