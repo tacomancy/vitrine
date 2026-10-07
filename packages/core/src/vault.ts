@@ -36,7 +36,6 @@ import {
 import { closeInterrupted, openQueue, QueueOpenError } from "./queue.js";
 import { splicePendingRevisions } from "./page-write.js";
 import {
-  effectiveSettleMs,
   pdfFolderOutside,
   SETTLE_MS,
   watchVault,
@@ -357,10 +356,10 @@ export function createVaultService({
     // (#553). Reads `ingest` when it fires, not now: it is set once the index
     // is open, and a change reported before then is the open-time pass's.
     const runWindow = createRunWindow({
-      settleMs: effectiveSettleMs(settleMs),
+      settleMs,
       windowMs: runWindowMs,
       ceilingMs: runCeilingMs,
-      run: (paths) => void runIngest(ingest, paths),
+      run: (paths) => void runIngest({ ingest, runWindow }, paths),
     });
     const opening = openIndex(absolute, {
       ...indexOptions,
@@ -445,29 +444,22 @@ export function createVaultService({
    * Ingest the named PDFs, or every Source's when none are named, and say
    * what landed. Never rejects: a failed run is the core's log, and the
    * files it did not take are found again by the next change or open.
+   *
+   * Reading every Source covers whatever the run window holds, so the hold is
+   * discarded here, where "every Source" is asked for: a caller that reads
+   * everything cannot forget to (#553).
    */
   async function runIngest(
-    ingest: Ingest | null,
+    o: Pick<Opened, "ingest" | "runWindow"> | null,
     paths: readonly string[] | null
   ): Promise<void> {
+    if (paths === null) o?.runWindow.discard();
     try {
-      const landed = await ingest?.run(paths);
+      const landed = await o?.ingest?.run(paths);
       if (landed) onIngest?.(landed);
     } catch (cause) {
       console.error(`vitrine-core: ingest failed: ${errorMessage(cause)}`);
     }
-  }
-
-  /**
-   * Ingest every Source's PDF, which is what a sweep ends with, and drop what
-   * the run window holds: reading everything covers it. Here, in the one place
-   * that reads everything, so a caller cannot forget to.
-   */
-  async function runIngestEverything(
-    o: Pick<Opened, "ingest" | "runWindow">
-  ): Promise<void> {
-    o.runWindow.drain();
-    await runIngest(o.ingest, null);
   }
 
   // Bumped by every install and by close, so an install still waiting on
@@ -574,7 +566,7 @@ export function createVaultService({
     // status reason rather than rejecting. Started before the status is
     // raised, so a reader woken by the event never sees the watcher back
     // and the index current with the catch-up still to come.
-    void o.index.sweep().then(() => runIngestEverything(o));
+    void o.index.sweep().then(() => runIngest(o, null));
     void checkPdfFolder(o);
     await raiseStatus();
   }
@@ -698,7 +690,7 @@ export function createVaultService({
     // is done", which is what the watch-then-sweep test writes on.
     // Then every Source's PDF is compared to its sidecar: one attached, or
     // one that changed while the app was closed, is not an event to wait for.
-    void index.sweep().then(() => runIngestEverything({ ingest, runWindow }));
+    void index.sweep().then(() => runIngest(o, null));
     void checkPdfFolder(o);
     onOpened?.();
   }
@@ -826,7 +818,7 @@ export function createVaultService({
     },
     ingest: async (paths) => {
       await restored;
-      await runIngest(opened?.ingest ?? null, paths);
+      await runIngest(opened, paths);
     },
     focused: async () => {
       await restored;

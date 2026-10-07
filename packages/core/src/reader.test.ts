@@ -275,7 +275,7 @@ describe("an evicted PDF", () => {
     const handle = await open(join(vault, "sources/pdf/rasch2013.pdf"), "w");
     await handle.truncate(4 * 1024 * 1024);
     await handle.close();
-    // A run window no test waits out: what this waits on must not wait for it (#553).
+    // A window no test waits out (`LONG_RUN_WINDOW_MS`, #553).
     const c = await core({ settleMs: 40, runWindowMs: LONG_RUN_WINDOW_MS });
     await c.mutate("vault.open", { path: vault });
     await c.indexed();

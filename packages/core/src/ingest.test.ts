@@ -23,7 +23,7 @@ import {
   type CoreOptions,
   NEXT_TIMEOUT_MS,
 } from "./test-core.js";
-import { effectiveSettleMs, FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
+import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
 afterEach(closeCores);
 
@@ -75,9 +75,14 @@ async function opened(
       await readFile(join(vault, ".vitrine/annotations/src-1.json"), "utf8")
     ) as Sidecar;
   /** Replace the PDF as Preview would on a return, and wait for the run it makes. */
-  const returned = async (bytes: Buffer, name = "rasch2013.pdf") => {
+  const returned = async (
+    bytes: Buffer,
+    name = "rasch2013.pdf",
+    timeoutMs?: number
+  ) => {
     await writeFile(join(vault, "sources/pdf", name), bytes);
-    return (await events.next("ingestLanded")).summary;
+    const options = timeoutMs === undefined ? undefined : { timeoutMs };
+    return (await events.next("ingestLanded", options)).summary;
   };
   return { vault, c, events, source, sidecar, returned };
 }
@@ -335,11 +340,16 @@ describe("a PDF returning alone", () => {
       const settleMs = 1000;
       const { returned } = await opened({}, { settleMs, ...options });
       const started = performance.now();
-      await returned(await pdf("annotated.pdf"));
-      // Settled, then held for the window: both at their floors.
-      expect(performance.now() - started).toBeGreaterThanOrEqual(
-        3 * effectiveSettleMs(settleMs)
+      // A settle window of a second takes about half the harness's bound, so
+      // this wait is given its own.
+      await returned(
+        await pdf("annotated.pdf"),
+        undefined,
+        2 * NEXT_TIMEOUT_MS
       );
+      // Settled, then held for the window: the settle window, and twice it
+      // (ADR 0013, update for #553).
+      expect(performance.now() - started).toBeGreaterThanOrEqual(3 * settleMs);
     }
   );
 });
@@ -615,7 +625,7 @@ describe("a batch of PDFs", () => {
   // of their own, where a window with no ceiling would read all fifty at the
   // end.
   it(
-    "is read in turns when the stream never goes quiet for longer than the ceiling",
+    "is read in turns when the stream keeps arriving for longer than the ceiling",
     async () => {
       const { events } = await deliveredFifty([10, 10, 10, 10], {
         gapMs: 350,

@@ -54,7 +54,7 @@ async function opened(options: CoreOptions = {}) {
     join(vault, PDF),
     await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
   );
-  // A run window no test waits out: what this waits on must not wait for it (#553).
+  // A window no test waits out (`LONG_RUN_WINDOW_MS`, #553).
   const c = await core({
     settleMs: 40,
     runWindowMs: LONG_RUN_WINDOW_MS,

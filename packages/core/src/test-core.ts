@@ -100,7 +100,7 @@ export type CoreOptions = Partial<
  * Well above what a probe takes when the machine is merely busy — a whole
  * open peaked at 134 ms across 244 opens under #397's stress loop (parallel
  * suites beside shell loops churning `/tmp`). And short enough that an open
- * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside 5 s. The production bound is not this number (ADR 0029, #272).
+ * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside the core project's test timeout (`vitest.config.ts`). The production bound is not this number (ADR 0029, #272).
  */
 const HARNESS_PROBE_TIMEOUT_MS = 1000;
 
@@ -297,7 +297,7 @@ const WIDEST_WAIT_MS = effectiveSettleMs(0) + 2 * effectiveSettleMs(0);
  *
  * Ten times the widest wait a watcher-driven event has (600 ms: the settle
  * window and then the run window, both at their floors), so it is a diagnostic
- * and not a new constraint — no wait that passes comes near it. It was 2 s, ten
+ * and not a new constraint — no wait that passes comes near it, except in a test that asks for a longer settle window than the harness's, as the floor tests in `ingest.test.ts` do, and passes its own bound. It was 2 s, ten
  * times the settle window alone, before the run window existed (#553). A test
  * that legitimately needs longer passes its own `timeoutMs`, as the timing
  * tests there pass their own budget to `it`.

@@ -23,6 +23,8 @@
  * hold ends then whatever is still arriving, and the next PDF opens a new one.
  */
 
+import { effectiveSettleMs } from "./vault-watcher.js";
+
 /** Quiet for this long after the last PDF named, and the held PDFs are read (§ Watcher and Ingest). */
 export const RUN_WINDOW_MS = 5000;
 
@@ -31,9 +33,10 @@ export const RUN_CEILING_MS = 60_000;
 
 export type RunWindowOptions = {
   /**
-   * The settle window the watcher actually uses, its own floor included. The
-   * window is never under twice it: the cap closes Batches about one settle
-   * window apart, and a window of one would race the next Batch and split the
+   * The settle window the watcher is asked for. The window is never under
+   * twice the one the watcher actually uses, its own floor included
+   * (`effectiveSettleMs`): the cap closes Batches about one settle window
+   * apart, and a window of one would race the next Batch and split the
    * delivery it exists to join. Enforced here, in the callee, because a
    * caller that had to remember it would one day hand in a shorter one.
    */
@@ -49,8 +52,8 @@ export type RunWindowOptions = {
 export type RunWindow = {
   /** A `vaultChanged` named these PDFs: hold them, and start the window again. */
   hold: (paths: readonly string[]) => void;
-  /** The caller is about to read every Source, which covers whatever is held: drop it. */
-  drain: () => void;
+  /** Every Source is about to be read, which covers whatever is held: forget it, unread. */
+  discard: () => void;
   /** The vault is going: nothing held will be read. */
   close: () => void;
 };
@@ -61,42 +64,39 @@ export function createRunWindow({
   ceilingMs,
   run,
 }: RunWindowOptions): RunWindow {
-  const window = Math.max(windowMs, 2 * settleMs);
-  const ceiling = Math.max(ceilingMs, window);
+  const effectiveWindowMs = Math.max(windowMs, 2 * effectiveSettleMs(settleMs));
+  const effectiveCeilingMs = Math.max(ceilingMs, effectiveWindowMs);
   const held = new Set<string>();
-  // The window, started again by every PDF named, and the ceiling, started by
-  // the first PDF of a hold and moved by nothing after it.
-  let quiet: NodeJS.Timeout | undefined;
-  let limit: NodeJS.Timeout | undefined;
+  // The window's timer, started again by every PDF named, and the ceiling's,
+  // started by the first PDF of a hold and moved by nothing after it.
+  let windowTimer: NodeJS.Timeout | undefined;
+  let ceilingTimer: NodeJS.Timeout | undefined;
 
-  const stop = () => {
-    clearTimeout(quiet);
-    clearTimeout(limit);
-    quiet = limit = undefined;
-  };
-  const drop = () => {
-    stop();
+  const forget = () => {
+    clearTimeout(windowTimer);
+    clearTimeout(ceilingTimer);
+    windowTimer = ceilingTimer = undefined;
     held.clear();
   };
   const release = () => {
     const paths = [...held];
-    drop();
+    forget();
     if (paths.length > 0) run(paths);
   };
 
   return {
     hold: (paths) => {
-      if (held.size === 0) {
-        limit = setTimeout(release, ceiling);
+      if (ceilingTimer === undefined) {
+        ceilingTimer = setTimeout(release, effectiveCeilingMs);
         // A pending timer must never be the reason the process stays up.
-        limit.unref();
+        ceilingTimer.unref();
       }
       for (const path of paths) held.add(path);
-      clearTimeout(quiet);
-      quiet = setTimeout(release, window);
-      quiet.unref();
+      clearTimeout(windowTimer);
+      windowTimer = setTimeout(release, effectiveWindowMs);
+      windowTimer.unref();
     },
-    drain: drop,
-    close: drop,
+    discard: forget,
+    close: forget,
   };
 }

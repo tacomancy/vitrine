@@ -57,7 +57,7 @@ async function opened(
     join(vault, PDF),
     await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
   );
-  // A run window no test waits out: what this waits on must not wait for it (#553).
+  // A window no test waits out (`LONG_RUN_WINDOW_MS`, #553).
   const c = await core({
     settleMs: 40,
     runWindowMs: LONG_RUN_WINDOW_MS,
@@ -359,15 +359,27 @@ describe("removing an annotation", () => {
   });
 
   it("does not come back as a question when the PDF returns", async () => {
-    const t = await opened(LINK);
+    // The harness's window, not a long one: this touches the PDF as a sync
+    // client would and waits for the Ingest that makes.
+    const t = await opened(LINK, { runWindowMs: 0 });
     const made = (await t.highlight([LINE_TWO])).result!.data;
     await t.remove(made.id, true);
+    const before = await readSidecar(t.vault, "src-1");
     const bytes = await readFile(join(t.vault, PDF));
     await writeFile(
       join(t.vault, PDF),
       Buffer.concat([bytes, Buffer.from("\n%touched\n")])
     );
-    await t.c.indexed();
+    // Waited for as the sidecar saying it read the new bytes. `indexed()` answers
+    // at once, before the PDF has settled, so this test used to read the sidecar
+    // before any Ingest had run, and could not have failed (#553).
+    await vi.waitFor(
+      async () => {
+        const after = await readSidecar(t.vault, "src-1");
+        expect(after!.file.hash).not.toBe(before!.file.hash);
+      },
+      { timeout: NEXT_TIMEOUT_MS }
+    );
     const sidecar = await readSidecar(t.vault, "src-1");
     expect(sidecar!.annotations).toHaveLength(1);
     expect(sidecar!.annotations[0]!.unmatched_since).toBeUndefined();
