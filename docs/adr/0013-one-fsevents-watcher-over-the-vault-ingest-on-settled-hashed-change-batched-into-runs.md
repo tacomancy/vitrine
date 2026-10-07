@@ -27,6 +27,8 @@ The brief makes Ingest something the file does to the app, never the user (`desi
 
 **Update 2026-09-21 (#189).** Pairing every file by hash needs a hash for every file, so decision 4's record now lives in `files` for a non-Markdown file too — beside the sidecar's, for a PDF, once beat 5 writes one. Decision 6's eviction test (`blocks === 0 && size > 0`) is applied at once to non-Markdown files, so the sweep never materialises an online-only file to hash it; an evicted file carries its path alone until its bytes are on disk. Markdown is always read. A consequence: a changed PDF raises `vaultChanged { changed }` from this ticket on, though nothing consumes it until Ingest.
 
+**Update 2026-10-07 (#553 grill).** Decision 5's run window was written down and not built: nothing held a PDF for stragglers, so a delivery the watcher cut — by its cap (#189), by a stalled loop (#554), or, at open, by the sweep's 250-file chunks — landed as several Ingest runs, and the footer showed only the last. The window is now Ingest's, not the watcher's: it sits where a `vaultChanged` that names a PDF would become a run, so it holds against every cut the watcher cannot see. It is *trailing* — every later `vaultChanged` that names a PDF, in `changed` or in `renamed`, starts the 5 s again — and *bounded*: a hold ends 60 s after the first PDF it holds, so a stream that never goes quiet is read in turns rather than starved. It always waits, so a lone PDF back from Preview reaches its Source about 7 s after the save instead of 2; asking for a PDF by name (attach, create, bring-down, locate, use-this-copy), the Reader's own writes and the run after a sweep are immediate. The footer's line sums runs that land within one fade of each other. A Markdown batch still closes at settle, as the 2026-09-20 update says; *Batch* now means the watcher's unit for every Kind, and an *Ingest run* can span several. `docs/architecture.md` § Watcher and Ingest, *The run window*.
+
 ## Considered options
 
 - **`@parcel/watcher`.** Rejected, decision 2: a native module for a distinction the pipeline discards.
@@ -36,6 +38,9 @@ The brief makes Ingest something the file does to the app, never the user (`desi
 - **Always hash, no stat shortcut.** Rejected, decision 4 — it materialises evicted files.
 - **An "expected writes" registry for own-write recognition.** Rejected: it has to be right about timing; the hash comparison does not.
 - **Ingest per file as it settles.** Rejected, decision 5.
+- **Wait only while the watcher has paths pending.** Rejected, decision 5's 2026-10-07 update: "pending" is the watcher's view, which is empty after a loop stall (#554) and between two large files a sync client delivers more than a settle window apart, so it splits the deliveries the window is for; what it saves is 5 s on a PDF nobody is watching.
+- **A trailing window with no ceiling; a fixed window from the first PDF.** Rejected, same update: the first lets a stream that never goes quiet for the window starve every other PDF's Ingest without a word, and the second still splits a delivery that outlasts it.
+- **Carrying a held footer line's `unmatched` into a later burst.** Rejected, same update: the count is a run's and nothing subtracts a resolution from it, so the line would sum stale counts; Loose Ends is the record of what is undecided.
 - **Materialise evicted PDFs proactively.** Rejected, decision 6.
 - **Ingest a conflict copy as a new Source; merge annotation sets automatically.** Both rejected, decision 7.
 - **`Q:` on first Ingest only.** Rejected, decision 8.
