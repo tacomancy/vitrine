@@ -117,10 +117,11 @@ export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
  * The Scout a Proposal is credited to: the one whose Appearance came first, by
  * run and then by the order the rows were written, since two runs can overlap
  * (a *run now* beside a scheduled check) and `rowid` alone would then credit
- * whichever finished writing first. A deferral's return, the Accept rate and
- * Scout Activity's volume all read it here, so a card is one Scout's in all
- * three and the figures beside each other cannot disagree (ADR 0042 decision
- * 10). `proposal` is the SQL column that names the Proposal, never a value.
+ * whichever finished writing first. A deferral's return, the Accept rate,
+ * Scout Activity's volume, a group's deferred count and the fleet's last new
+ * proposal all read it here, so a card is one Scout's in all of them and the
+ * figures beside each other cannot disagree (ADR 0042 decision 10). `proposal`
+ * is the SQL column that names the Proposal, never a value.
  */
 export const firstAppearanceScout = (proposal: string) =>
   `(SELECT scout_id FROM appearances WHERE proposal_id = ${proposal}
@@ -323,6 +324,13 @@ export type Group = {
   runId: number | null;
   /** How many of that run's Proposals are still pending. */
   runPending: number;
+  /**
+   * Deferred Proposals that wait on this Scout's next clean run, the one that
+   * brings them back (`returnDeferred`). For a Scout that is looking that is
+   * only a matter of time; for a dropped one it is never, until it is
+   * restored, and nothing else lists them (ADR 0042 decision 1).
+   */
+  deferred: number;
   /** Held Proposals, each with the file the vault already has: counted, never hidden (ADR 0039 decision 1). */
   held: Array<{ title: string; path: string }>;
 };
@@ -349,6 +357,15 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
               )
               .get(run.id) as { n: number }
           ).n;
+    const deferred = (
+      queue
+        .prepare(
+          `SELECT COUNT(*) AS n FROM proposals
+            WHERE state = 'deferred' AND lane = 'review'
+              AND ${firstAppearanceScout("proposals.id")} = ?`
+        )
+        .get(scout.id) as { n: number }
+    ).n;
     const held = queue
       .prepare(
         `SELECT DISTINCT p.id, p.title, p.stub_path FROM proposals p JOIN appearances a ON a.proposal_id = p.id
@@ -359,6 +376,7 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
       id: scout.id,
       runId: run?.id ?? null,
       runPending: pending,
+      deferred,
       held: held.map((h) => ({ title: h.title, path: h.stub_path })),
     };
   });

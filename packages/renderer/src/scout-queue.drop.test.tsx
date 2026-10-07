@@ -52,8 +52,8 @@ const answers = (
   "scouts.list": { scouts: [SLEEP], dropped: [BLOG], unreadable: [] },
   "scouts.queue": queue,
   "scouts.groups": [
-    { id: "sleep", runId: 3, runPending: 1, held: [] },
-    { id: "blog", runId: 5, runPending: 2, held: [] },
+    { id: "sleep", runId: 3, runPending: 1, deferred: 0, held: [] },
+    { id: "blog", runId: 5, runPending: 2, deferred: 0, held: [] },
   ],
   "scouts.health": { scouts: [] },
   "scouts.fleet": { claim: null, naming: [] },
@@ -97,6 +97,24 @@ describe("the Scout Queue — a dropped Scout", () => {
     expect(article.textContent).toContain("Blog ring (dropped)");
   });
 
+  it("marks its lines in Skim as it marks its cards in Review", async () => {
+    renderApp(
+      answers([], {
+        "scouts.skim": {
+          recent: [card(10, "A skim line", FROM_BLOG)],
+          older: [],
+        },
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+
+    const lines = await screen.findByRole("list", { name: "Skim" });
+
+    expect(within(lines).getAllByRole("button")[0]!.textContent).toContain(
+      "Blog ring (dropped)"
+    );
+  });
+
   it("keeps its stack under its own name, marked dropped and apart from the rail, for as long as anything waits under it", async () => {
     renderApp(answers(stack()));
     const dropped = await screen.findByRole("list", { name: "Dropped Scouts" });
@@ -110,7 +128,14 @@ describe("the Scout Queue — a dropped Scout", () => {
     expect(
       await screen.findByRole("heading", { name: "Blog ring" })
     ).toBeDefined();
-    expect(screen.getByText(/^Dropped — /)).toBeDefined();
+    // In the *not yet* Voice, in the words Scout Activity's dropped row uses,
+    // so one dropped Scout is never described in two sentences (ADR 0032).
+    expect(
+      screen
+        .getByText("dropped — it no longer runs; what it found stays in Review")
+        .closest("[data-voice]")
+        ?.getAttribute("data-voice")
+    ).toBe("not yet");
     expect(
       (await screen.findByRole("article")).getAttribute("aria-label")
     ).toBe("Link rot in lab blogs");
@@ -132,6 +157,31 @@ describe("the Scout Queue — a dropped Scout", () => {
 
     expect(await screen.findByText("Rejected 2 from this run.")).toBeDefined();
     expect(rejectRun).toHaveBeenCalledWith({ runId: 5 });
+  });
+
+  it("says what it deferred, which wait on a run it will not make, and says nothing of it when none were", async () => {
+    renderApp(answers(stack()));
+    fireEvent.click(await screen.findByRole("button", { name: /Blog ring/ }));
+    await screen.findByRole("heading", { name: "Blog ring" });
+    expect(screen.queryByText(/deferred/)).toBeNull();
+    cleanup();
+
+    renderApp(
+      answers(stack(), {
+        "scouts.groups": [
+          { id: "blog", runId: 5, runPending: 2, deferred: 2, held: [] },
+        ],
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Blog ring/ }));
+
+    // Nothing else lists them: only a clean run of its own brings a deferred
+    // card back, so a dropped Scout's wait is stated, not left invisible.
+    expect(
+      await screen.findByText(
+        "2 deferred — they come back with its next run, if it is restored"
+      )
+    ).toBeDefined();
   });
 
   it("has no stack of its own to list when nothing waits under it", async () => {
@@ -170,5 +220,26 @@ describe("the Scout Queue — a dropped Scout", () => {
     await vi.waitFor(() =>
       expect(screen.queryByRole("list", { name: "Dropped Scouts" })).toBeNull()
     );
+  });
+
+  it("is said as every Scout dropped, not as no Scouts yet, when none is left looking: in Review's quiet and Skim's", async () => {
+    renderApp(
+      answers([], {
+        "scouts.list": { scouts: [], dropped: [BLOG], unreadable: [] },
+      })
+    );
+
+    expect(
+      await screen.findByText(
+        "Every Scout is dropped, so nothing is being watched."
+      )
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Skim" }));
+    expect(
+      await screen.findByText(
+        "Every Scout is dropped, so nothing is being watched."
+      )
+    ).toBeDefined();
+    expect(screen.queryByText(/No Scouts yet/)).toBeNull();
   });
 });

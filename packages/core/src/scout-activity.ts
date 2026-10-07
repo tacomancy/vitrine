@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { readScouts, type DroppedScout, type Scout } from "./scout-file.js";
+import { readScouts, type Scout } from "./scout-file.js";
 import {
   ago,
   finishedRuns,
@@ -219,7 +219,7 @@ const byNeed = (a: ActivityRow, b: ActivityRow) =>
   labelOf(a).localeCompare(labelOf(b)) ||
   (a.kind === "scout" && b.kind === "scout" ? a.id.localeCompare(b.id) : 0);
 
-const droppedRows = (dropped: DroppedScout[]): DroppedRow[] =>
+const droppedRows = (dropped: Scout[]): DroppedRow[] =>
   dropped
     .map(({ id, name }) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

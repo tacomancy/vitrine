@@ -633,8 +633,9 @@ export function acceptProposal(
     // A dropped Scout's Proposals stay in Review until triaged, and accepting
     // one stamps the Questions that Scout was for like any other's would: its
     // file keeps them (ADR 0042 decision 1).
+    const everyScout = [...scouts, ...dropped];
     const assigned = involved.flatMap(
-      (id) => [...scouts, ...dropped].find((s) => s.id === id)?.assigned ?? []
+      (id) => everyScout.find((s) => s.id === id)?.assigned ?? []
     );
     const authors = JSON.parse(row.authors) as string[];
     const year = String(new Date(row.published).getUTCFullYear());

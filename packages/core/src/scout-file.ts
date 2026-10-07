@@ -37,9 +37,6 @@ export type Scout = {
   searchBackTo: Date | null;
 };
 
-/** A Scout the researcher retired: still a file, with everything it owns still where it was. */
-export type DroppedScout = Scout & { dropped: Date };
-
 /** A Scout file the app cannot use — it does not parse, or its bytes could not be read: its name, and one sentence naming what is wrong. */
 export type UnreadableScout = { file: string; sentence: string };
 
@@ -97,19 +94,18 @@ export async function listScoutsFolder(vaultPath: string): Promise<string[]> {
  * the ones that are looking; a dropped Scout (ADR 0042 decision 1) is in
  * `dropped` and never in `scouts`, so the scheduler, the Queue's rail and every
  * other list of Scouts skip it because the reader has not handed it to them —
- * not because each caller remembered to ask. The few places that must still
- * name a dropped Scout — its Proposals' cards, an accept that stamps its
- * origin, the line that lists the dropped — read `dropped` on purpose.
+ * not because each caller remembered to ask. Reading `dropped` is therefore
+ * always a choice: whoever names a dropped Scout, grep for it.
  */
 export async function readScouts(vaultPath: string): Promise<{
   scouts: Scout[];
-  dropped: DroppedScout[];
+  dropped: Scout[];
   unreadable: UnreadableScout[];
 }> {
   const folder = join(vaultPath, SCOUTS_FOLDER);
   const names = await listScoutsFolder(vaultPath);
   const scouts: Scout[] = [];
-  const dropped: DroppedScout[] = [];
+  const dropped: Scout[] = [];
   const unreadable: UnreadableScout[] = [];
   for (const file of names.filter(isScoutFile).sort()) {
     let text: string;
@@ -125,9 +121,8 @@ export async function readScouts(vaultPath: string): Promise<{
     }
     const read = readScout(scoutIdOf(file), text);
     if (!read.ok) unreadable.push(unreadableFile(file, read.problem));
-    else if (read.scout.dropped !== null) {
-      dropped.push({ ...read.scout, dropped: read.scout.dropped });
-    } else scouts.push(read.scout);
+    else if (read.scout.dropped !== null) dropped.push(read.scout);
+    else scouts.push(read.scout);
   }
   return { scouts, dropped, unreadable };
 }

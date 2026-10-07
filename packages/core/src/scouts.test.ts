@@ -872,7 +872,7 @@ describe("triage in Review", () => {
   it("names, per Scout, its newest clean run, how much of it is pending, and the papers the vault already held", async () => {
     const c = await opened(serving("normal"));
     expect(await c.groups()).toEqual([
-      { id: "sleep", runId: null, runPending: 0, held: [] },
+      { id: "sleep", runId: null, runPending: 0, deferred: 0, held: [] },
     ]);
     await writeFile(
       join(c.vault, "sources/mine.md"),
@@ -886,6 +886,7 @@ describe("triage in Review", () => {
         id: "sleep",
         runId: summary.runId,
         runPending: 1,
+        deferred: 0,
         held: [
           {
             title: "Probing the Overnight Benefit: Consolidation or Encoding?",

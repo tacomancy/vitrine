@@ -109,7 +109,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  const drops = useDrops();
+  const drops = useDrops(activity.dataUpdatedAt);
   const rows = sorted(activity.data?.rows ?? [], sort);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -180,7 +180,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         <NoRows
           failed={activity.isError}
           answered={activity.data !== undefined}
-          dropped={activity.data?.dropped.length ?? 0}
+          droppedCount={activity.data?.dropped.length ?? 0}
           onNewScout={onNewScout}
         />
       )}
@@ -241,6 +241,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           how a Scout comes back once its row has left. */}
       <DroppedLine
         dropped={activity.data?.dropped ?? []}
+        refused={drops.refused}
         onRestore={drops.onRestore}
       />
       {/* The footer channel, as every Dashboard draws it: only when there is
@@ -328,13 +329,13 @@ function SourceHealth({ fleet }: { fleet: FleetSource }) {
 function NoRows({
   failed,
   answered,
-  dropped,
+  droppedCount,
   onNewScout,
 }: {
   failed: boolean;
   answered: boolean;
   /** How many Scouts are dropped: a fleet that is all dropped has had Scouts, and *yet* would say it had not. */
-  dropped: number;
+  droppedCount: number;
   onNewScout: () => void;
 }) {
   if (failed) return <FirstSlot voice="wrong" claim="" />;
@@ -343,7 +344,7 @@ function NoRows({
     <FirstSlot
       voice="not yet"
       claim=""
-      fragment={dropped > 0 ? "no scouts watching" : "no scouts yet"}
+      fragment={droppedCount > 0 ? "no scouts watching" : "no scouts yet"}
       action={
         <button type="button" className={styles.action} onClick={onNewScout}>
           new scout
@@ -590,7 +591,7 @@ function Row({
   );
   // Dropped during this visit: the row keeps its place and says so, with the
   // way back, in place of figures nobody is reading any more.
-  if (drops.dropped.has(row.id)) {
+  if (drops.justDropped(row.id)) {
     return (
       <>
         <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>

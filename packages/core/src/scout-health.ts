@@ -371,25 +371,26 @@ export async function readFleetClaim(deps: {
     .map((h) => h.name);
   if (watching.length === 0) return { claim: null, naming: idle };
 
-  // What the claim vouches for is the Scouts that are looking: a dropped
-  // Scout's last run says nothing about whether the field is being watched, so
-  // neither its runs nor its finds are the Warrant's (ADR 0032; ADR 0042
-  // decision 1). The find is credited to the Scout of its first Appearance, as
-  // everywhere else.
-  const looking = scouts.map((s) => s.id);
-  const among = looking.map(() => "?").join(", ");
+  // What the claim vouches for is the Scouts the researcher has not dropped: a
+  // dropped Scout's last run says nothing about whether the field is being
+  // watched, so neither its runs nor its finds are the Warrant's (ADR 0032; ADR
+  // 0042 decision 1). A paused one is still among them: it ran, and said so.
+  // The find is credited to the Scout of its first Appearance, as everywhere
+  // else.
+  const undropped = scouts.map((s) => s.id);
+  const among = undropped.map(() => "?").join(", ");
   const newest = deps.queue
     .prepare(
       `SELECT MAX(finished) AS at FROM scout_runs
         WHERE outcome = 'ok' AND scout_id IN (${among})`
     )
-    .get(...looking) as { at: string | null };
+    .get(...undropped) as { at: string | null };
   const last = deps.queue
     .prepare(
       `SELECT MAX(first_seen) AS at FROM proposals
         WHERE state != 'held' AND ${firstAppearanceScout("proposals.id")} IN (${among})`
     )
-    .get(...looking) as { at: string | null };
+    .get(...undropped) as { at: string | null };
   const parts = [
     `${watching.length} ${watching.length === 1 ? "scout" : "scouts"} watching`,
     "all parsed cleanly",

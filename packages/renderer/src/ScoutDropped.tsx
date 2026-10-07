@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { DroppedRow } from "core";
 import { useId, useState } from "react";
 import styles from "./ScoutDropped.module.css";
+import { DROPPED } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 
 /**
@@ -11,13 +13,20 @@ import { useTRPC } from "./trpc";
  * and a slip is one click to take back. That is why a drop does not re-read the
  * table, as *mark deliberate* does not re-read Loose Ends (#266) — a re-read
  * would take the row and the undo with it.
+ *
+ * `readAt` is when the table was last read. A row is *just dropped* only while
+ * it is still the one read before the drop: any later read has the Scout's
+ * truth, which is no row if it is dropped and a plain row if someone restored
+ * it by hand in the file since, and neither is what the researcher dropped.
  */
-export function useDrops() {
+export function useDrops(readAt: number) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  // Which Scouts were dropped during this visit, by id. It is this visit's
-  // alone: the next read of the table has no row for them.
-  const [dropped, setDropped] = useState<ReadonlySet<string>>(new Set());
+  // Which Scouts were dropped during this visit, and the read each row was
+  // drawn from when it was.
+  const [dropped, setDropped] = useState<ReadonlyMap<string, number>>(
+    new Map()
+  );
   // What the core refused, on the row it was refused about: a drop or an undo
   // that did not land must not pass for one that did.
   const [refused, setRefused] = useState<Readonly<Record<string, string>>>({});
@@ -33,19 +42,13 @@ export function useDrops() {
     onError: (error: { message: string }, { scoutId }: { scoutId: string }) =>
       setRefused((was) => ({ ...was, [scoutId]: error.message })),
   };
-  const drop = useMutation(
-    trpc.scouts.drop.mutationOptions({
-      ...answers,
-      onSuccess: (_done, { scoutId }) =>
-        setDropped((was) => new Set(was).add(scoutId)),
-    })
-  );
+  const drop = useMutation(trpc.scouts.drop.mutationOptions(answers));
   const restore = useMutation(
     trpc.scouts.restore.mutationOptions({
       ...answers,
       onSuccess: (_done, { scoutId }) => {
         setDropped((was) => {
-          const rest = new Set(was);
+          const rest = new Map(was);
           rest.delete(scoutId);
           return rest;
         });
@@ -55,9 +58,18 @@ export function useDrops() {
     })
   );
   return {
-    dropped,
+    /** Dropped here, from the read the table still shows. */
+    justDropped: (scoutId: string) => dropped.get(scoutId) === readAt,
     refused,
-    onDrop: (scoutId: string) => drop.mutate({ scoutId }),
+    // Asked from the click, so `readAt` is the read the row was drawn from.
+    onDrop: (scoutId: string) =>
+      drop.mutate(
+        { scoutId },
+        {
+          onSuccess: () =>
+            setDropped((was) => new Map(was).set(scoutId, readAt)),
+        }
+      ),
     // The undo on a row dropped a moment ago and the *restore* on the line are
     // one act: the key cleared, whichever way the researcher came to it.
     onRestore: (scoutId: string) => restore.mutate({ scoutId }),
@@ -89,10 +101,6 @@ export function DropButton({
     </button>
   );
 }
-
-/** What a row says once its Scout is dropped: the one fact that is true of every dropped Scout. */
-export const DROPPED =
-  "dropped — it no longer runs; what it found stays in Review";
 
 /**
  * What a row says once its Scout is dropped, in place of its figures: what
@@ -142,9 +150,12 @@ export function DropRefused({ message }: { message: string }) {
  */
 export function DroppedLine({
   dropped,
+  refused,
   onRestore,
 }: {
-  dropped: Array<{ id: string; name: string }>;
+  dropped: DroppedRow[];
+  /** What the core refused of a restore, by Scout: said beside the name it was about, since the line is the only row a restore from it has. */
+  refused: Readonly<Record<string, string>>;
   onRestore: (scoutId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -174,6 +185,9 @@ export function DroppedLine({
               >
                 restore
               </button>
+              {refused[scout.id] !== undefined && (
+                <DropRefused message={refused[scout.id]!} />
+              )}
             </li>
           ))}
         </ul>

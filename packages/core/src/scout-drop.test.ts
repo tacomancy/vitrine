@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ScoutActivity } from "./scout-activity.js";
-import type { DroppedScout, Scout, UnreadableScout } from "./scout-file.js";
+import type { Scout, UnreadableScout } from "./scout-file.js";
 import type { FleetHealth } from "./scout-health.js";
 import type { Readings } from "./question-map.js";
 import type { Accepted, Card } from "./scouts.js";
@@ -41,7 +41,7 @@ async function opened(files: Record<string, string>) {
     listed: async () => {
       const read = await c.query<{
         scouts: Scout[];
-        dropped: DroppedScout[];
+        dropped: Scout[];
         unreadable: UnreadableScout[];
       }>("scouts.list");
       expect(read.error).toBeUndefined();
@@ -356,6 +356,38 @@ describe("a dropped Scout's Proposals", () => {
     expect(await f.cards()).toHaveLength(1);
   });
 
+  it("that were deferred are counted on its group, since only a run of its own brings one back and it will make none", async () => {
+    const f = await opened({ "sleep.yaml": arxivScout("Sleep and memory") });
+    f.seed("sleep");
+    f.seed("sleep");
+    f.seed("sleep");
+    const [first, second] = await f.cards();
+    await f.c.mutate("scouts.defer", { proposalId: first!.id });
+    await f.c.mutate("scouts.defer", { proposalId: second!.id });
+    expect((await f.groups())[0]).toMatchObject({ deferred: 2 });
+
+    await f.c.mutate("scouts.drop", { scoutId: "sleep" });
+
+    expect((await f.groups())[0]).toMatchObject({ id: "sleep", deferred: 2 });
+  });
+
+  it("that were deferred are credited to the Scout that found them first, since its next run is the one that brings them back", async () => {
+    const f = await opened({
+      "sleep.yaml": arxivScout("Sleep and memory"),
+      "other.yaml": arxivScout("Other"),
+    });
+    // Found by `other` first and by `sleep` after: it returns when `other` next runs clean.
+    f.seed("sleep", { firstBy: "other" });
+    const [card] = await f.cards();
+    await f.c.mutate("scouts.defer", { proposalId: card!.id });
+
+    const byScout = Object.fromEntries(
+      (await f.groups()).map((group) => [group.id, group.deferred])
+    );
+
+    expect(byScout).toEqual({ other: 1, sleep: 0 });
+  });
+
   it("can still be triaged one by one, as any other card can", async () => {
     const f = await opened({ "sleep.yaml": arxivScout("Sleep and memory") });
     f.seed("sleep");
@@ -452,9 +484,9 @@ describe("a `dropped` key written by hand", () => {
 });
 
 describe("the fleet's claim that Review is cleared", () => {
-  // A claim is warranted by what the Scouts that are looking did (ADR 0032):
-  // a retired Scout's last run is not evidence that the field is being watched.
-  it("rests on the Scouts that are looking: the newest run and the last find it names are theirs, not a dropped Scout's", async () => {
+  // A claim is warranted by what the Scouts that were not dropped did (ADR
+  // 0032): a retired Scout's last run is not evidence the field is being watched.
+  it("rests on the Scouts that are not dropped: the newest run and the last find it names are theirs, not a dropped Scout's", async () => {
     const f = await opened({
       "keep.yaml": arxivScout("Keep"),
       "gone.yaml": arxivScout("Gone"),

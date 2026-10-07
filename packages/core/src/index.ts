@@ -166,6 +166,7 @@ export type {
   AcceptRate,
   ActivityRow,
   Cost,
+  DroppedRow,
   FleetSource,
   ScoutActivity,
   ScoutRunCost,

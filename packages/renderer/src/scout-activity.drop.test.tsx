@@ -131,6 +131,28 @@ describe("Scout Activity — drop", () => {
     ).toBeNull();
   });
 
+  it("draws the Scout as a row again, not as dropped, when a later read finds it looking: a restore made outside the app", async () => {
+    let current = read([SLEEP, BLOG]);
+    const { stream } = open(() => current, {
+      "scouts.drop": () => {
+        current = read([BLOG], [{ id: "sleep", name: "Sleep and memory" }]);
+        return undefined;
+      },
+    });
+    const [first] = await tableRows();
+    fireEvent.click(dropOn(first!, "Sleep and memory"));
+    await screen.findByText(DROPPED);
+
+    // Someone takes `dropped` out of the file by hand: the next read has the
+    // Scout among those looking, and what the page drew of it was a moment ago's.
+    current = read([SLEEP, BLOG]);
+    stream.push({ type: "scoutFinished", scoutId: "blog", runId: 1 });
+
+    await vi.waitFor(() => expect(screen.queryByText(DROPPED)).toBeNull());
+    const rows = await tableRows();
+    expect(dropOn(rows[0]!, "Sleep and memory")).toBeDefined();
+  });
+
   it("takes a drop back with undo: the Scout is restored, and the table is read again so its row returns as the core now has it", async () => {
     let current = read([SLEEP, BLOG]);
     const drop = vi.fn<(input: unknown) => unknown>(() => {
@@ -301,5 +323,31 @@ describe("Scout Activity — the dropped line", () => {
     expect(screen.getByRole("button", { name: "2 dropped" })).toBeDefined();
     // A fleet to rebuild is one new Scout away, as an empty one is.
     expect(screen.getByRole("button", { name: "new scout" })).toBeDefined();
+  });
+
+  it("says so beside the name when a restore from the line is refused, and the way back stays", async () => {
+    const refusal =
+      "Couldn't read .vitrine/scouts/gone.yaml: ENOENT: no such file or directory";
+    open(read([BLOG], [SLEEPING, GONE]), {
+      "scouts.restore": () => {
+        throw new Error(refusal);
+      },
+    });
+    await tableRows();
+    fireEvent.click(screen.getByRole("button", { name: "2 dropped" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Gone: restore" }));
+
+    // A restore from the line has no row to speak on, so the line speaks, and
+    // only beside the name it was about (ADR 0033).
+    const names = screen.getByRole("list", { name: "Dropped Scouts" });
+    const [sleeping, gone] = within(names).getAllByRole("listitem");
+    expect((await within(gone!).findByRole("alert")).textContent).toContain(
+      refusal
+    );
+    expect(within(sleeping!).queryByRole("alert")).toBeNull();
+    expect(
+      within(gone!).getByRole("button", { name: "Gone: restore" })
+    ).toBeDefined();
   });
 });
