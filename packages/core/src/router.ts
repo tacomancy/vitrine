@@ -549,13 +549,11 @@ export const router = t.router({
     activity: t.procedure.query(async ({ ctx }) =>
       refusing(readActivity(await scoutDeps(ctx)))
     ),
-    // The per-run tokens and cost behind a row (ADR 0042 decision 6).
+    // The runs behind a row's *cost / run*, tokens and cost each (ADR 0042 decision 6).
     runCosts: t.procedure
       .input(z.object({ scoutId: z.string().min(1) }))
       .query(async ({ ctx, input }) =>
-        refusing(
-          scoutDeps(ctx).then((deps) => readRunCosts(deps.queue, input.scoutId))
-        )
+        readRunCosts(await scoutDeps(ctx), input.scoutId)
       ),
     // The scheduled check by name: what the hourly timer and a vault open
     // run, so a caller can ask for it at a moment of its choosing.

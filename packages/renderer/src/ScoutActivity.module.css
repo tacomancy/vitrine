@@ -59,11 +59,11 @@
 }
 
 .table thead th:nth-child(1) {
-  width: 20%;
+  width: 15%;
 }
 
 .table thead th:nth-child(2) {
-  width: 16%;
+  width: 20%;
 }
 
 .table thead th:nth-child(3) {
@@ -71,11 +71,23 @@
 }
 
 .table thead th:nth-child(4) {
-  width: 9%;
+  width: 10%;
 }
 
 .table thead th:nth-child(5) {
-  width: 14%;
+  width: 12%;
+}
+
+.table thead th:nth-child(6) {
+  width: 15%;
+}
+
+.table thead th:nth-child(7) {
+  width: 12%;
+}
+
+.table thead th:nth-child(8) {
+  width: 9%;
 }
 
 /* A column header that sorts: its text, in the header's own type, with the
@@ -164,6 +176,12 @@
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
+/* A row of one cell is both first and last: the rules above would leave it
+   square on the left. */
+.table tbody tr > .detail {
+  border-radius: var(--radius-md);
+}
+
 /* The Scout and, stacked beneath it, how it is doing: its Voice and Warrant,
    which the Queue's own component draws. */
 .who {
@@ -197,6 +215,18 @@
 .watching {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A cell that says something in words wraps, so a narrow column stacks what
+   it has to say and never prints over the cell beside it. */
+.table tbody td.wraps {
+  white-space: normal;
+}
+
+.parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* The row the keyboard is on, said by a lift in the ground and never by a

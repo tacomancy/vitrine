@@ -4,12 +4,18 @@ import {
   ago,
   finishedRuns,
   healthOf,
+  isNoKeyRun,
   unreadableHealth,
   type Health,
+  type RunRow,
 } from "./scout-health.js";
-import { acceptCounts, type AcceptCounts } from "./triage.js";
-import { NO_KEY } from "./watched.js";
+import {
+  acceptCounts,
+  firstAppearanceScout,
+  type AcceptCounts,
+} from "./triage.js";
 
+/** The window every figure that says *30 days* reads: a count of finds and the mean cost of a run (ADR 0042 decisions 6 and 10). */
 const THIRTY_DAYS_MS = 30 * 86_400_000;
 
 /**
@@ -29,13 +35,16 @@ export type Volume = {
 /**
  * *cost / run*: one figure, the mean over the trailing thirty days' runs that
  * called a model (ADR 0042 decision 6). A Scout with none has no figure to
- * give and says so — never `$0.00`, which would read as spend. `perRun` is
- * null when every such run was on a model the price table does not know: the
- * tokens are real and the dollars would be invented.
+ * give and says so — never `$0.00`, which would read as spend. A model the
+ * price table does not know is *unpriced*: the tokens are real and the dollars
+ * would be invented, so such a run is left out of the mean and counted beside
+ * it. `runs` is how many runs the mean rests on, as a rate says what it rests
+ * on.
  */
 export type Cost =
   | { kind: "no model call" }
-  | { kind: "cost"; perRun: number | null; runs: number; unpriced: number };
+  | { kind: "unpriced"; runs: number }
+  | { kind: "cost"; perRun: number; runs: number; unpriced: number };
 
 /** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
 const WINDOW_MS = 12 * 7 * 86_400_000;
@@ -195,103 +204,113 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
   };
 }
 
-/** The run `healthOf` answers *not yet* for (ADR 0040 decision 1): it fetched nothing, so it is not a time the Scout looked. */
-const looked = (run: {
-  error_kind: string | null;
-  error_message: string | null;
-}) => !(run.error_kind === "credentials" && run.error_message === NO_KEY);
+/**
+ * Finished runs that looked. A `no key` run fetched nothing (ADR 0040 decision
+ * 1), so it is neither a time the Scout looked nor a run in any count or mean
+ * (ADR 0042 decision 6).
+ */
+const lookedRuns = (queue: DatabaseSync, scoutId: string) =>
+  finishedRuns(queue, scoutId).filter((run) => !isNoKeyRun(run));
+
+type ModelRun = RunRow & { input_tokens: number };
+
+/**
+ * The runs a Scout's cost is read over, and the list behind its row: looked,
+ * finished in the trailing thirty days, and whose model call returned usage —
+ * so the list is exactly the runs the figure is over. Usage and not a model
+ * id: a rejected key names the model and spent nothing, while a failed
+ * extraction still spent its tokens (`record` in `scouts.ts` writes both).
+ * An arXiv run, a feed read and a page unchanged since the last look make no
+ * call and leave the tokens null.
+ */
+function modelRunsSince(
+  queue: DatabaseSync,
+  scoutId: string,
+  since: string
+): ModelRun[] {
+  return lookedRuns(queue, scoutId).filter(
+    (run): run is ModelRun => run.finished >= since && run.input_tokens !== null
+  );
+}
+
+const thirtyDaysBefore = (now: Date) =>
+  new Date(now.getTime() - THIRTY_DAYS_MS).toISOString();
 
 function volumes(queue: DatabaseSync, since: string): Map<string, Volume> {
-  // The first Appearance by run id then rowid, as `acceptCounts` reads it.
-  const found = queue
+  // A Proposal is only ever written together with its first Appearance
+  // (`arrive` in `scouts.ts`), so every row here is credited to a Scout.
+  const credited = queue
     .prepare(
-      `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = p.id
-                ORDER BY run_id, rowid LIMIT 1) AS scoutId,
-              p.state = 'held' AS held,
-              EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id
-                       AND a.scout_id <> (SELECT scout_id FROM appearances
-                                           WHERE proposal_id = p.id
-                                           ORDER BY run_id, rowid LIMIT 1)) AS elsewhere
-         FROM proposals p
-        WHERE p.first_seen >= ?`
+      `SELECT c.scoutId AS scoutId,
+              c.state = 'held' AS held,
+              EXISTS (SELECT 1 FROM appearances a
+                       WHERE a.proposal_id = c.id AND a.scout_id <> c.scoutId) AS elsewhere
+         FROM (SELECT p.id, p.state, ${firstAppearanceScout("p.id")} AS scoutId
+                 FROM proposals p WHERE p.first_seen >= ?) c`
     )
-    .all(since) as Array<{
-    scoutId: string | null;
-    held: number;
-    elsewhere: number;
-  }>;
+    .all(since) as Array<{ scoutId: string; held: number; elsewhere: number }>;
   const byScout = new Map<string, Volume>();
-  for (const f of found) {
-    if (f.scoutId === null) continue;
-    const v = byScout.get(f.scoutId) ?? {
+  for (const row of credited) {
+    const volume = byScout.get(row.scoutId) ?? {
       proposals: 0,
       held: 0,
       alsoFoundElsewhere: 0,
     };
-    if (f.held === 1) v.held += 1;
+    if (row.held === 1) volume.held += 1;
     else {
-      v.proposals += 1;
-      v.alsoFoundElsewhere += f.elsewhere;
+      volume.proposals += 1;
+      volume.alsoFoundElsewhere += row.elsewhere;
     }
-    byScout.set(f.scoutId, v);
+    byScout.set(row.scoutId, volume);
   }
   return byScout;
 }
 
-type SpentRow = { input_tokens: number | null; cost_usd: number | null };
-
-function costOf(runs: SpentRow[]): Cost {
-  const modelRuns = runs.filter((run) => run.input_tokens !== null);
-  if (modelRuns.length === 0) return { kind: "no model call" };
-  const priced = modelRuns.flatMap((run) =>
+function costOf(runs: ModelRun[]): Cost {
+  if (runs.length === 0) return { kind: "no model call" };
+  const priced = runs.flatMap((run) =>
     run.cost_usd === null ? [] : [run.cost_usd]
   );
+  if (priced.length === 0) return { kind: "unpriced", runs: runs.length };
   return {
     kind: "cost",
-    perRun:
-      priced.length === 0
-        ? null
-        : priced.reduce((sum, usd) => sum + usd, 0) / priced.length,
-    runs: modelRuns.length,
-    unpriced: modelRuns.length - priced.length,
+    perRun: priced.reduce((sum, usd) => sum + usd, 0) / priced.length,
+    runs: priced.length,
+    unpriced: runs.length - priced.length,
   };
 }
 
-/** Finished runs in the window that looked: a `no key` run fetched nothing and is no run (ADR 0042 decision 6). */
-function spentRuns(queue: DatabaseSync, scoutId: string, since: string) {
-  return finishedRuns(queue, scoutId).filter(
-    (run) => looked(run) && run.finished >= since
-  );
-}
-
-/** One run in the list behind a row; `tokens` null is a run that made no model call. */
+/** One run behind a row's figure: what its model call spent and, where the model is priced, what that cost. */
 export type ScoutRunCost = {
   runId: number;
   finished: string;
+  /** The phrase a row's *last run* uses, so one moment is never worded two ways. */
+  ago: string;
   model: string | null;
-  tokens: { input: number; output: number; cacheRead: number } | null;
+  tokens: { input: number; output: number; cacheRead: number };
+  /** Null for a model the price table does not know: a figure here would be invented. */
   costUsd: number | null;
 };
 
+/** The runs a row's *cost / run* is the mean of, newest first: the second read behind the row (ADR 0042 decision 6). */
 export function readRunCosts(
-  queue: DatabaseSync,
+  deps: { queue: DatabaseSync; now: () => Date },
   scoutId: string
 ): ScoutRunCost[] {
-  return finishedRuns(queue, scoutId)
-    .filter(looked)
+  const now = deps.now();
+  return modelRunsSince(deps.queue, scoutId, thirtyDaysBefore(now))
     .sort((a, b) => b.finished.localeCompare(a.finished) || b.id - a.id)
     .map((run) => ({
       runId: run.id,
       finished: run.finished,
+      ago: ago(now.getTime() - Date.parse(run.finished)),
       model: run.model,
-      tokens:
-        run.input_tokens === null
-          ? null
-          : {
-              input: run.input_tokens,
-              output: run.output_tokens ?? 0,
-              cacheRead: run.cache_read_tokens ?? 0,
-            },
+      tokens: {
+        input: run.input_tokens,
+        // Written with the input, from one usage: null only where it is.
+        output: run.output_tokens ?? 0,
+        cacheRead: run.cache_read_tokens ?? 0,
+      },
       costUsd: run.cost_usd,
     }));
 }
@@ -307,11 +326,11 @@ export async function readActivity(deps: {
     deps.queue,
     new Date(now.getTime() - WINDOW_MS).toISOString()
   );
-  const since = new Date(now.getTime() - THIRTY_DAYS_MS).toISOString();
-  const found = volumes(deps.queue, since);
+  const since = thirtyDaysBefore(now);
+  const volumeByScout = volumes(deps.queue, since);
   const rows = [
     ...scouts.map((scout): ActivityRow => {
-      const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
+      const newest = lookedRuns(deps.queue, scout.id).at(-1);
       return {
         kind: "scout",
         id: scout.id,
@@ -333,12 +352,12 @@ export async function readActivity(deps: {
           scout,
           counts.find((c) => c.scoutId === scout.id)
         ),
-        volume: found.get(scout.id) ?? {
+        volume: volumeByScout.get(scout.id) ?? {
           proposals: 0,
           held: 0,
           alsoFoundElsewhere: 0,
         },
-        cost: costOf(spentRuns(deps.queue, scout.id, since)),
+        cost: costOf(modelRunsSince(deps.queue, scout.id, since)),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({

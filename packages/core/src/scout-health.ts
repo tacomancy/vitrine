@@ -56,7 +56,7 @@ export const CADENCE_MS = {
 /** Runs a rate needs before it is quoted; a lucky run must not set an expectation. */
 export const BASELINE_RUNS = 3;
 
-type RunRow = {
+export type RunRow = {
   id: number;
   started: string;
   finished: string;

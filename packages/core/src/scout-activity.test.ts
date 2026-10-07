@@ -372,3 +372,17 @@ describe("scouts.activity — the fleet's source health", () => {
     });
   });
 });
+
+describe("scouts.activity — the cost of a Scout that has really run", () => {
+  it("is no model call for an arXiv Scout: a read of arXiv leaves no tokens, and a zero would have read as unpriced", async () => {
+    const f = await opened({
+      "sleep.yaml": scoutYaml("Sleep and memory", "all:sleep"),
+    });
+    f.serve["all:sleep"] = found;
+    await f.run("sleep");
+
+    expect((await f.activity()).rows[0]).toMatchObject({
+      cost: { kind: "no model call" },
+    });
+  });
+});

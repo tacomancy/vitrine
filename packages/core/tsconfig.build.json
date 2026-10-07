@@ -10,6 +10,7 @@
   "exclude": [
     "src/**/*.test.ts",
     "src/test-core.ts",
+    "src/scout-queue-seed.ts",
     "src/pdf-engine.trap.worker.ts"
   ]
 }

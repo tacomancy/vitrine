@@ -149,3 +149,26 @@ describe("scouts.activity — a Scout waiting on a key, in the fleet's source he
     });
   });
 });
+
+describe("scouts.activity — the cost of a page that needs a key", () => {
+  it("is the mean over the runs that called a model, and a page unchanged since the last look is not one", async () => {
+    const lab = await opened("sk-test");
+    await lab.run();
+    lab.advance(2 * HOUR);
+    await lab.run();
+
+    const { cost } = await lab.row().then((row) => {
+      if (row.kind !== "scout") throw new Error("not a Scout row");
+      return row;
+    });
+    expect(cost).toMatchObject({ kind: "cost", runs: 1, unpriced: 0 });
+    expect(cost.kind === "cost" ? cost.perRun : 0).toBeGreaterThan(0);
+  });
+
+  it("is no model call for a Scout whose only check was refused for want of a key", async () => {
+    const lab = await opened(null);
+    await lab.run();
+
+    expect(await lab.row()).toMatchObject({ cost: { kind: "no model call" } });
+  });
+});

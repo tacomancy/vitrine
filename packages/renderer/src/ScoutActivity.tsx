@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type {
   AcceptRate,
   ActivityRow,
@@ -16,11 +16,15 @@ import { VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
-type Column = "scout" | "watching" | "cadence" | "last run";
+type Column =
+  "scout" | "watching" | "cadence" | "last run" | "proposed" | "cost";
 type Sort = { column: Column; descending: boolean };
 
 /** Faster first: ascending reads *how often it looks*, which is not the alphabet. */
 const CADENCE_RANK = { daily: 0, weekly: 1, monthly: 2 } as const;
+
+/** The row header and its seven cells: what a row that spans the table, or the file that will not parse, must add up to. */
+const COLUMNS = 8;
 
 const keyOf = (row: ActivityRow) =>
   row.kind === "scout" ? `scout:${row.id}` : `file:${row.file}`;
@@ -44,6 +48,11 @@ function valueOf(row: ActivityRow, column: Column): string | number | null {
       return CADENCE_RANK[row.cadence];
     case "last run":
       return row.lastRun === null ? null : Date.parse(row.lastRun.finished);
+    case "proposed":
+      return row.volume.proposals;
+    // *No model call* and *unpriced* have no figure to put in order.
+    case "cost":
+      return row.cost.kind === "cost" ? row.cost.perRun : null;
   }
 }
 
@@ -91,6 +100,8 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         : { column, descending: false }
     );
   }
+
+  const headerProps = { sort, onSort };
 
   function onKeyDown(event: KeyboardEvent) {
     const target = event.target;
@@ -143,40 +154,25 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           <table className={styles.table} aria-label="Scouts">
             <thead>
               <tr>
-                {(
-                  [
-                    ["scout", "Scout"],
-                    ["watching", "Watching"],
-                    ["cadence", "Cadence"],
-                    ["last run", "Last run"],
-                  ] as const
-                ).map(([column, label]) => (
-                  <th
-                    key={column}
-                    scope="col"
-                    aria-sort={
-                      sort?.column !== column
-                        ? undefined
-                        : sort.descending
-                          ? "descending"
-                          : "ascending"
-                    }
-                  >
-                    <button
-                      type="button"
-                      className={styles.sort}
-                      onClick={() => onSort(column)}
-                    >
-                      {label}
-                    </button>
-                  </th>
-                ))}
+                <SortHeader column="scout" label="Scout" {...headerProps} />
+                <SortHeader
+                  column="watching"
+                  label="Watching"
+                  {...headerProps}
+                />
+                <SortHeader column="cadence" label="Cadence" {...headerProps} />
+                <SortHeader
+                  column="last run"
+                  label="Last run"
+                  {...headerProps}
+                />
                 <th scope="col">Accept rate</th>
-                <th scope="col">Found, 30 days</th>
-                <th scope="col">Cost / run</th>
-                <th scope="col">
-                  <span className={styles.srOnly}>Runs</span>
-                </th>
+                <SortHeader
+                  column="proposed"
+                  label="Proposed"
+                  {...headerProps}
+                />
+                <SortHeader column="cost" label="Cost / run" {...headerProps} />
                 <th scope="col">
                   <span className={styles.srOnly}>Queue</span>
                 </th>
@@ -209,6 +205,40 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
         </footer>
       )}
     </section>
+  );
+}
+
+/** A column header that sorts, its direction said by `aria-sort` and a glyph and never by colour. */
+function SortHeader({
+  column,
+  label,
+  sort,
+  onSort,
+}: {
+  column: Column;
+  label: string;
+  sort: Sort | null;
+  onSort: (column: Column) => void;
+}) {
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        sort?.column !== column
+          ? undefined
+          : sort.descending
+            ? "descending"
+            : "ascending"
+      }
+    >
+      <button
+        type="button"
+        className={styles.sort}
+        onClick={() => onSort(column)}
+      >
+        {label}
+      </button>
+    </th>
   );
 }
 
@@ -281,59 +311,85 @@ function rateWords(rate: AcceptRate): string {
   }
 }
 
-/** *5 new · 2 already in your vault · 1 also found elsewhere*: a part with nothing to say is left unsaid, and the count of new is always there (ADR 0042 decision 10). */
-function volumeWords(volume: Volume): string {
-  return [
-    `${volume.proposals} new`,
-    ...(volume.held > 0 ? [`${volume.held} already in your vault`] : []),
-    ...(volume.alsoFoundElsewhere > 0
-      ? [`${volume.alsoFoundElsewhere} also found elsewhere`]
-      : []),
-  ].join(" · ");
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const thousands = (n: number) => n.toLocaleString("en-US");
+
+/** A figure of several parts, one to a line: a narrow column stacks them, and none is ever printed over its neighbour. */
+function Parts({ of }: { of: string[] }) {
+  return (
+    <ul className={styles.parts}>
+      {of.map((part) => (
+        <li key={part}>{part}</li>
+      ))}
+    </ul>
+  );
 }
+
+/** What a Scout found over the thirty days, then a part for each thing worth knowing about it and none for a count of nothing (ADR 0042 decision 10). */
+const volumeParts = (volume: Volume): string[] => [
+  `${volume.proposals} / 30d`,
+  ...(volume.held > 0 ? [`${volume.held} already in your vault`] : []),
+  ...(volume.alsoFoundElsewhere > 0
+    ? [`${volume.alsoFoundElsewhere} also found elsewhere`]
+    : []),
+];
 
 /** Cents to the cent, and a smaller sum to the figure that shows it: a $0.0054 run is not `$0.01`. */
 const dollars = (usd: number) => `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
 
 /**
- * *no model call* is not `$0.00`: a read that costs nothing and a read that
- * cost nothing *measured* are different claims. A figure the price table
- * could not make says *unpriced*, and never a guess (ADR 0042 decision 6).
+ * *no model call* is not `$0.00`: a read that costs nothing and a spend of
+ * nothing are different claims. A model the price table does not know is
+ * *unpriced*, never a guess, and the runs a mean rests on are named as a
+ * rate's items are (ADR 0042 decision 6).
  */
-function costWords(cost: Cost): string {
-  if (cost.kind === "no model call") return "no model call";
-  if (cost.perRun === null) return "unpriced";
-  return `${dollars(cost.perRun)} / run${
-    cost.unpriced > 0 ? ` · ${cost.unpriced} unpriced` : ""
-  }`;
+function costParts(cost: Cost): string[] {
+  switch (cost.kind) {
+    case "no model call":
+      return ["no model call"];
+    case "unpriced":
+      return ["unpriced", plural(cost.runs, "run")];
+    case "cost":
+      return [
+        dollars(cost.perRun),
+        plural(cost.runs, "run"),
+        ...(cost.unpriced > 0 ? [`${cost.unpriced} unpriced`] : []),
+      ];
+  }
 }
 
-const tokensWords = (tokens: NonNullable<ScoutRunCost["tokens"]>) =>
-  `${tokens.input.toLocaleString("en-US")} in · ${tokens.output.toLocaleString("en-US")} out`;
+/** What one run spent, after when it was: its model, its tokens and, where the model is priced, what that cost. */
+const runParts = (run: ScoutRunCost): string[] => [
+  ...(run.model === null ? [] : [run.model]),
+  `${thousands(run.tokens.input)} in`,
+  `${thousands(run.tokens.output)} out`,
+  ...(run.tokens.cacheRead > 0
+    ? [`${thousands(run.tokens.cacheRead)} cached`]
+    : []),
+  run.costUsd === null ? "unpriced" : dollars(run.costUsd),
+];
 
-function runWords(run: ScoutRunCost): string {
-  if (run.tokens === null) return "no model call";
-  return `${tokensWords(run.tokens)} · ${run.costUsd === null ? "unpriced" : dollars(run.costUsd)}`;
-}
-
-/** Each run of a Scout, newest first as the core orders them; read only once the row is opened. */
+/** The runs the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
 function Runs({ scoutId, name }: { scoutId: string; name: string }) {
   const trpc = useTRPC();
   const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
-  if (runs.isError) return <p>{runs.error.message}</p>;
+  if (runs.isError) {
+    return <WarningLine label="not read">{runs.error.message}</WarningLine>;
+  }
   if (runs.data === undefined) return null;
-  if (runs.data.length === 0) return <p>No runs yet.</p>;
+  if (runs.data.length === 0) {
+    return (
+      <p className={styles.runs}>
+        No run in the last thirty days called a model.
+      </p>
+    );
+  }
   return (
     <ul className={styles.runs} aria-label={`${name} runs`}>
       {runs.data.map((run) => (
         <li key={run.runId}>
-          <time dateTime={run.finished}>
-            {new Date(run.finished).toLocaleString("en-US", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </time>{" "}
-          · {runWords(run)}
+          <time dateTime={run.finished}>{run.ago}</time>
+          {` · ${runParts(run).join(" · ")}`}
         </li>
       ))}
     </ul>
@@ -363,7 +419,7 @@ function Row({
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={8} />
+        <td colSpan={COLUMNS - 1} />
       </tr>
     );
   }
@@ -375,7 +431,7 @@ function Row({
     // No class carries how the Scout is doing: the Voice beside the name is
     // the whole of it, and a tint would be a threshold the app has no way to
     // defend (ADR 0042 decision 8).
-    <Fragment>
+    <>
       <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
         <th scope="row">
           <span className={styles.who}>
@@ -399,19 +455,25 @@ function Row({
             <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
           )}
         </td>
-        <td>{rateWords(row.acceptRate)}</td>
-        <td>{volumeWords(row.volume)}</td>
-        <td>{costWords(row.cost)}</td>
-        <td>
-          <button
-            type="button"
-            className={styles.link}
-            aria-expanded={showRuns}
-            aria-label={`${row.name}: ${showRuns ? "hide" : "show"} runs`}
-            onClick={() => setShowRuns((was) => !was)}
-          >
-            runs
-          </button>
+        <td className={styles.wraps}>{rateWords(row.acceptRate)}</td>
+        <td className={styles.wraps}>
+          <Parts of={volumeParts(row.volume)} />
+        </td>
+        <td className={styles.wraps}>
+          <Parts of={costParts(row.cost)} />
+          {/* A Scout that never called a model has no runs to list: the figure
+              already says so. */}
+          {row.cost.kind !== "no model call" && (
+            <button
+              type="button"
+              className={styles.link}
+              aria-expanded={showRuns}
+              aria-label={`${row.name}: each run`}
+              onClick={() => setShowRuns((was) => !was)}
+            >
+              each run
+            </button>
+          )}
         </td>
         <td>
           <a
@@ -427,13 +489,13 @@ function Row({
           </a>
         </td>
       </tr>
-      {showRuns && (
+      {showRuns && row.cost.kind !== "no model call" && (
         <tr>
-          <td colSpan={9}>
+          <td className={styles.detail} colSpan={COLUMNS}>
             <Runs scoutId={row.id} name={row.name} />
           </td>
         </tr>
       )}
-    </Fragment>
+    </>
   );
 }

@@ -113,6 +113,19 @@ export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
   });
 }
 
+/**
+ * The Scout a Proposal is credited to: the one whose Appearance came first, by
+ * run and then by the order the rows were written, since two runs can overlap
+ * (a *run now* beside a scheduled check) and `rowid` alone would then credit
+ * whichever finished writing first. A deferral's return, the Accept rate and
+ * Scout Activity's volume all read it here, so a card is one Scout's in all
+ * three and the figures beside each other cannot disagree (ADR 0042 decision
+ * 10). `proposal` is the SQL column that names the Proposal, never a value.
+ */
+export const firstAppearanceScout = (proposal: string) =>
+  `(SELECT scout_id FROM appearances WHERE proposal_id = ${proposal}
+     ORDER BY run_id, rowid LIMIT 1)`;
+
 /** Accepts and rejects that count toward each Scout's Accept rate (beat 9 reads this; ADR 0039 decisions 4 and 6). */
 export type AcceptCounts = {
   scoutId: string;
@@ -140,8 +153,7 @@ export type AcceptCounts = {
 export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
   return queue
     .prepare(
-      `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
-                ORDER BY run_id, rowid LIMIT 1) AS scoutId,
+      `SELECT ${firstAppearanceScout("t.proposal_id")} AS scoutId,
               SUM(t.action = 'accept') AS accepted,
               SUM(t.action = 'reject') AS rejected,
               SUM(p.authors = '[]') AS noAuthors,
@@ -233,8 +245,7 @@ export function returnDeferred(deps: ScoutDeps, scoutId: string): void {
     .prepare(
       `UPDATE proposals SET state = 'pending'
         WHERE state = 'deferred'
-          AND ? = (SELECT scout_id FROM appearances WHERE proposal_id = proposals.id
-                    ORDER BY run_id, rowid LIMIT 1)`
+          AND ? = ${firstAppearanceScout("proposals.id")}`
     )
     .run(scoutId);
 }
