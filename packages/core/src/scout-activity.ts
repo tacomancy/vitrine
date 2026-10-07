@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { coverage as mapCoverage } from "./question-map.js";
 import { readScouts, type Scout } from "./scout-file.js";
+import { dueUnder } from "./scout-schedule.js";
 import type { VaultIndex } from "./vault-index.js";
 import {
   ago,
@@ -134,6 +135,17 @@ export type ActivityRow =
         { kind: "arxiv"; query: string } | { kind: "watched"; url: string };
       cadence: Scout["cadence"];
       /**
+       * The cadences that would make this Scout due at the next check, which
+       * it is not now: what the cadence menu says before anything is chosen,
+       * so a change is never a surprise run (spec #511 story 55).
+       */
+      dueUnder: Array<Scout["cadence"]>;
+      /** What the row's edit writes back through `scouts.save` beside the Query it changes: the Questions it is Assigned to, and the Lane its finds start in. */
+      assigned: string[];
+      lane: Scout["lane"];
+      /** From the file, not from the Voice's words: it is what *pause* and *resume* turn on. */
+      paused: boolean;
+      /**
        * The newest check that looked, whatever came of it; null before the
        * first. A check refused for want of a key read nothing, so it is not
        * one: a Scout waiting on a key must not show a time it did not look
@@ -156,6 +168,9 @@ export type ActivityRow =
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
+
+/** A row that is a Scout, which is the one a row's acts are for: a file that will not parse has none. */
+export type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
 
 /**
  * The fleet's source health, counted by fault only (ADR 0042 decision 8, and
@@ -537,6 +552,10 @@ export async function readActivity(deps: {
             ? { kind: "watched", url: scout.source.url }
             : { kind: "arxiv", query: scout.query },
         cadence: scout.cadence,
+        dueUnder: dueUnder(deps.queue, scout, now),
+        assigned: scout.assigned,
+        lane: scout.lane,
+        paused: scout.paused,
         lastRun:
           newest === undefined
             ? null

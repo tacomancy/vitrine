@@ -18,7 +18,7 @@ import type { ScoutDraft } from "./ScoutForm";
 import { Reader } from "./Reader";
 import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
-import { pushRoute, SCOUTS, useRoute } from "./router";
+import { pushRoute, SCOUTS, scoutStack, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -213,6 +213,11 @@ function Workspace({ vault }: { vault: Vault }) {
                   ...(assigning === undefined ? {} : { assigning }),
                 });
                 pushRoute(SCOUTS);
+              }}
+              onEditOnForm={(scoutId) => {
+                // The same crossing, to this Scout's form on its own stack.
+                setScoutDraft({ edit: scoutId, values: null });
+                pushRoute(scoutStack(scoutId));
               }}
             />
           )}

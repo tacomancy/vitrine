@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Card, Health } from "core";
 import { useEffect, useRef, useState } from "react";
+import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
+import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
-import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
+import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -68,19 +70,7 @@ export function ScoutQueue({
   const run = useMutation(
     trpc.scouts.runNow.mutationOptions({
       onSuccess: (summary) => {
-        setSaid(
-          summary.outcome === "failed"
-            ? `This run failed: ${summary.errorKind}.`
-            : [
-                `${summary.new} new`,
-                ...(summary.held > 0
-                  ? [`${summary.held} already in your vault`]
-                  : []),
-                ...(summary.truncated > 0
-                  ? [`stopped at 500 — ${summary.truncated} more matched`]
-                  : []),
-              ].join(" · ")
-        );
+        setSaid(runWords(summary));
         void reread();
       },
       onError: (error) => setSaid(error.message),
@@ -212,13 +202,7 @@ export function ScoutQueue({
     health.data?.scouts.find((h) => h.id === id)?.lastCostUsd ?? null;
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
-  const questions: QuestionChoice[] = (
-    questionList.data?.questions ?? []
-  ).flatMap((q) =>
-    q.id === undefined
-      ? []
-      : [{ id: q.id, question: q.question, status: q.status }]
-  );
+  const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so the rail does not list it. What it
   // found stays in Review under its name (ADR 0042 decision 1), so while
   // anything waits under it, or while it is the stack the researcher is in, it

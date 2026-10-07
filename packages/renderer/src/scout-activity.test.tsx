@@ -87,6 +87,10 @@ const BROKEN: ActivityRow = {
   name: "Broken by arXiv",
   source: { kind: "arxiv", query: "all:broken" },
   cadence: "daily",
+  dueUnder: [],
+  assigned: [],
+  lane: "review",
+  paused: false,
   lastRun: { finished: "2026-09-30T09:00:00.000Z", ago: "3h ago" },
   health: {
     voice: "wrong",
@@ -110,6 +114,10 @@ const QUIET: ActivityRow = {
   name: "Quiet by design",
   source: { kind: "arxiv", query: "all:quiet" },
   cadence: "weekly",
+  dueUnder: [],
+  assigned: [],
+  lane: "review",
+  paused: false,
   lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "2h ago" },
   health: {
     voice: "claim",
@@ -133,6 +141,10 @@ const RESTING: ActivityRow = {
   name: "Resting",
   source: { kind: "watched", url: "https://lab.example/publications" },
   cadence: "monthly",
+  dueUnder: [],
+  assigned: [],
+  lane: "skim",
+  paused: true,
   lastRun: null,
   health: { voice: "not yet", sentence: "Paused — it is not looking." },
   acceptRate: {

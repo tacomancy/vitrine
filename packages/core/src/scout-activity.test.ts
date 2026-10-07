@@ -135,6 +135,11 @@ describe("scouts.activity — a row for each readable Scout", () => {
         name: "Sleep and memory",
         source: { kind: "arxiv", query: "all:sleep" },
         cadence: "daily",
+        // What a row's edit writes back, which `scout-activity.edit.test.ts` pins.
+        dueUnder: [],
+        assigned: [],
+        lane: "review",
+        paused: false,
         lastRun: null,
         health: { voice: "not yet", sentence: "It has not run yet." },
         acceptRate: { kind: "nothing triaged" },
