@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Card, Health } from "core";
 import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
+import { FirstSlot } from "./FirstSlot";
 import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
 import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
-import { FirstSlot } from "./FirstSlot";
 import { CostLine, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -143,12 +143,17 @@ export function ScoutQueue({
   // A read the core could not answer (#526) is not an empty list: the first
   // slot is *wrong* where the rows would begin and the reason is said once,
   // on the footer channel (ADR 0033 decisions 2 and 3). Reads sharing a
-  // cause share a line.
-  const failed = [scouts, queue, groups, fleet, health, skim]
-    .filter((read) => read.isError)
-    .map((read) => read.error.message);
-  const reasons = [...new Set(failed)];
-  const unknown = failed.length > 0;
+  // cause share a line. Skim's read only counts in Skim: it does not run in
+  // Review, and a failure it left behind there would be a reason for a stack
+  // it has nothing to do with.
+  const reasons = [
+    ...new Set(
+      [scouts, queue, groups, fleet, health, ...(lane === "skim" ? [skim] : [])]
+        .filter((read) => read.isError)
+        .map((read) => read.error.message)
+    ),
+  ];
+  const unread = reasons.length > 0;
   const everything = queue.data ?? [];
   const inGroup = everything.filter(
     (card) =>
@@ -340,6 +345,7 @@ export function ScoutQueue({
               }}
             >
               <span>{row.name}</span>
+              {/* A 0 beside a read that failed would read as all clear. */}
               {!queue.isError && (
                 <span className={styles.count}>{countFor(row.id)}</span>
               )}
@@ -507,7 +513,7 @@ export function ScoutQueue({
           )}
           {lines.length === 0 &&
             older.length === 0 &&
-            (unknown ? (
+            (unread ? (
               <FirstSlot voice="wrong" claim="" />
             ) : (
               <SkimQuiet claim={fleet.data} />
@@ -527,19 +533,19 @@ export function ScoutQueue({
           )}
         </>
       )}
+      {form === null && lane === "review" && inGroup.length === 0 && unread && (
+        <FirstSlot voice="wrong" claim="" />
+      )}
       {form === null &&
         lane === "review" &&
+        queue.isSuccess &&
         inGroup.length === 0 &&
-        (unknown ? (
-          <FirstSlot voice="wrong" claim="" />
-        ) : (
-          queue.isSuccess && (
-            <ReviewQuiet
-              scout={selected === null ? undefined : healthOf(selected)}
-              claim={selected === null ? fleet.data : undefined}
-            />
-          )
-        ))}
+        !unread && (
+          <ReviewQuiet
+            scout={selected === null ? undefined : healthOf(selected)}
+            claim={selected === null ? fleet.data : undefined}
+          />
+        )}
       {form === null && lane === "review" && card !== undefined && (
         <Proposal
           key={card.id}
@@ -564,7 +570,7 @@ export function ScoutQueue({
       )}
       {/* The footer channel, polite: a state the app is in, not a refusal of
           something the user did (ADR 0033). */}
-      {reasons.length > 0 && (
+      {unread && (
         <footer className={styles.footer}>
           {reasons.map((reason) => (
             <WarningLine key={reason} label="not read">

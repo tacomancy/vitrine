@@ -308,6 +308,6 @@ describe("Settings: a waiting list that could not be read (#527)", () => {
       "‖ not read — scouts unreadable"
     );
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.queryByRole("list", { name: /waiting/i })).toBeNull();
+    expect(screen.queryByText("Waiting", { selector: "dt" })).toBeNull();
   });
 });
