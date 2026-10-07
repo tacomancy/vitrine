@@ -9,24 +9,34 @@ import {
 } from "./scout-health.js";
 import {
   acceptCounts,
+  acceptSince,
   acceptWeeks,
-  noAcceptWeeks,
+  MIN_WEEK_ITEMS,
   type AcceptCounts,
   type AcceptWeek,
 } from "./triage.js";
 import { NO_KEY } from "./watched.js";
-
-/** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
-const WINDOW_MS = 12 * 7 * 86_400_000;
 
 /**
  * What a row says about how often its Scout's Review items are accepted. A
  * Scout nobody has judged is *nothing triaged yet*, never 0%: not having
  * judged is not having rejected. A rate that rests on fields the source
  * arrives without is *unavailable*, stated as why (ADR 0042 decision 3).
+ *
+ * The weekly line belongs to a rate that can be said: the weeks rest on the
+ * same items as the headline, so when the guard withholds one it withholds
+ * the other, and no surface has to remember to.
  */
 export type AcceptRate =
-  | { kind: "rate"; accepted: number; triaged: number; rate: number }
+  | {
+      kind: "rate";
+      accepted: number;
+      triaged: number;
+      rate: number;
+      /** Twelve weeks, oldest first; a week under `weekFloor` items is a gap (ADR 0042 decision 2). */
+      weeks: AcceptWeek[];
+      weekFloor: number;
+    }
   | { kind: "nothing triaged" }
   | { kind: "unavailable"; reason: string };
 
@@ -38,7 +48,8 @@ export type AcceptRate =
  */
 function acceptRateOf(
   scout: Scout,
-  counts: AcceptCounts | undefined
+  counts: AcceptCounts | undefined,
+  weeks: AcceptWeek[]
 ): AcceptRate {
   // `acceptCounts` groups only the rows it counts, so a Scout it names has at least one.
   if (counts === undefined) return { kind: "nothing triaged" };
@@ -57,6 +68,8 @@ function acceptRateOf(
   }
   return {
     kind: "rate",
+    weeks,
+    weekFloor: MIN_WEEK_ITEMS,
     accepted: counts.accepted,
     triaged,
     rate: counts.accepted / triaged,
@@ -90,8 +103,6 @@ export type ActivityRow =
       lastRun: { finished: string; ago: string } | null;
       health: Health;
       acceptRate: AcceptRate;
-      /** The line the row opens to: twelve weeks, a point only where a week rests on enough items (ADR 0042 decision 2). */
-      acceptWeeks: AcceptWeek[];
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
@@ -187,11 +198,7 @@ export async function readActivity(deps: {
 }): Promise<ScoutActivity> {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
-  const counts = acceptCounts(
-    deps.queue,
-    new Date(now.getTime() - WINDOW_MS).toISOString()
-  );
-  const weeks = acceptWeeks(deps.queue, now);
+  const counts = acceptCounts(deps.queue, acceptSince(now));
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
@@ -214,9 +221,9 @@ export async function readActivity(deps: {
         health: healthOf(deps.queue, scout, now),
         acceptRate: acceptRateOf(
           scout,
-          counts.find((c) => c.scoutId === scout.id)
+          counts.find((c) => c.scoutId === scout.id),
+          acceptWeeks(deps.queue, scout.id, now)
         ),
-        acceptWeeks: weeks.get(scout.id) ?? noAcceptWeeks(now),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({

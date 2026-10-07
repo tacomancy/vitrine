@@ -127,7 +127,7 @@ export type AcceptCounts = {
 const FIRST_SCOUT = `(SELECT scout_id FROM appearances WHERE proposal_id = t.proposal_id
                 ORDER BY run_id, rowid LIMIT 1)`;
 
-/** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Binds `since`. */
+/** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Reads `t` (triage) and `p` (proposals) and binds one `?`, the window's `since`. */
 const COUNTED = `t.action IN ('accept', 'reject')
           AND t.at >= ?
           AND p.lane = 'review'
@@ -173,64 +173,62 @@ export const MIN_WEEK_ITEMS = 5;
 const WEEK_MS = 7 * 86_400_000;
 const WEEKS = 12;
 
+/** Where the twelve weeks an Accept rate reads begin. The headline and the weekly line both start here, so they read the same rows. */
+export const acceptSince = (now: Date) =>
+  new Date(now.getTime() - WEEKS * WEEK_MS).toISOString();
+
 /** One week of a Scout's accept-rate line: `rate` is null for a gap, and `triaged` is what the week rests on either way. */
 export type AcceptWeek = {
-  /** ISO time the week begins; it ends a week later. */
+  /** ISO time the week begins, inclusive; it ends a week later, exclusive. */
   start: string;
   triaged: number;
   rate: number | null;
 };
 
 /**
- * The trailing twelve weeks per Scout, oldest first, the newest ending at
- * `now`. It reads the rows `acceptCounts` counts (one `COUNTED` filter), so a
- * point can never rest on an item the headline leaves out. A triage exactly
- * twelve weeks old falls in the oldest week, because `acceptCounts`' window
- * keeps it. Buckets are cut here and not in SQL so the week's edge is one
- * expression, the one `start` is printed from.
+ * One Scout's trailing twelve weeks, oldest first, the newest ending at
+ * `now`. The weeks roll with `now` rather than follow the calendar, as the
+ * headline's window does. It reads the rows `acceptCounts` counts (one
+ * `COUNTED` filter, one `acceptSince`), so a point can never rest on an item
+ * the headline leaves out. The buckets are cut here and not in SQL so the
+ * week's edge is one expression, the one `start` is printed from.
  */
 export function acceptWeeks(
   queue: DatabaseSync,
+  scoutId: string,
   now: Date
-): Map<string, AcceptWeek[]> {
+): AcceptWeek[] {
+  const since = acceptSince(now);
   const rows = queue
     .prepare(
-      `SELECT ${FIRST_SCOUT} AS scoutId, t.action AS action, t.at AS at
+      `SELECT t.action AS action, t.at AS at
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
-        WHERE ${COUNTED}`
+        WHERE ${COUNTED} AND ${FIRST_SCOUT} = ?`
     )
-    .all(new Date(now.getTime() - WEEKS * WEEK_MS).toISOString()) as Array<{
-    scoutId: string;
-    action: "accept" | "reject";
-    at: string;
-  }>;
-  const tallies = new Map<string, Tallies>();
+    .all(since, scoutId) as Array<{ action: "accept" | "reject"; at: string }>;
+  const from = Date.parse(since);
+  const weeks = Array.from({ length: WEEKS }, (_, i) => ({
+    start: new Date(from + i * WEEK_MS).toISOString(),
+    accepted: 0,
+    triaged: 0,
+  }));
   for (const row of rows) {
-    const age = Math.max(0, now.getTime() - Date.parse(row.at));
-    const week = WEEKS - 1 - Math.min(Math.floor(age / WEEK_MS), WEEKS - 1);
-    const weeks = tallies.get(row.scoutId) ?? blankTallies();
-    weeks[week]!.triaged += 1;
-    if (row.action === "accept") weeks[week]!.accepted += 1;
-    tallies.set(row.scoutId, weeks);
+    // Nothing bounds `at` above, so a row stamped after `now` is in the
+    // headline and has to be in a week: the newest, not one past the end.
+    // `COUNTED` already keeps everything below `since` out.
+    const week =
+      weeks[
+        Math.min(Math.floor((Date.parse(row.at) - from) / WEEK_MS), WEEKS - 1)
+      ]!;
+    week.triaged += 1;
+    if (row.action === "accept") week.accepted += 1;
   }
-  return new Map(
-    [...tallies].map(([scout, counts]) => [scout, weeksOf(now, counts)])
-  );
-}
-
-/** A Scout nobody has triaged for still has a line to draw: twelve gaps. */
-export const noAcceptWeeks = (now: Date) => weeksOf(now, blankTallies());
-
-type Tallies = Array<{ accepted: number; triaged: number }>;
-const blankTallies = (): Tallies =>
-  Array.from({ length: WEEKS }, () => ({ accepted: 0, triaged: 0 }));
-
-const weeksOf = (now: Date, counts: Tallies) =>
-  counts.map(({ accepted, triaged }, i): AcceptWeek => ({
-    start: new Date(now.getTime() - (WEEKS - i) * WEEK_MS).toISOString(),
+  return weeks.map(({ start, accepted, triaged }) => ({
+    start,
     triaged,
     rate: triaged >= MIN_WEEK_ITEMS ? accepted / triaged : null,
   }));
+}
 
 /**
  * *Reject this run*: one `reject` row per Proposal still pending that the

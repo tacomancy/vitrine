@@ -4,18 +4,48 @@
   margin: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
+}
+
+/* The scale's labels are HTML, so they keep their size when the plot narrows;
+   the left column is as tall as the plot and each label is placed in it by the
+   same scale the line is drawn with. */
+.plot {
+  flex: 1;
+  min-width: 0;
+  max-width: 34rem;
+  display: grid;
+  grid-template-columns: 3.5ch minmax(0, 1fr);
+  column-gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.yAxis {
+  position: relative;
+}
+
+.yLabel {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
 }
 
 .svg {
-  flex: 1;
-  min-width: 0;
-  max-width: 30rem;
+  width: 100%;
   height: auto;
+  display: block;
   overflow: visible;
 }
 
-.base {
+.xAxis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+}
+
+.grid {
   stroke: var(--color-line);
   stroke-width: 1;
 }
@@ -30,6 +60,12 @@
 
 .point {
   fill: var(--color-series-1);
+}
+
+/* Takes the pointer without painting anything. */
+.hit {
+  fill: none;
+  pointer-events: all;
 }
 
 .headline,

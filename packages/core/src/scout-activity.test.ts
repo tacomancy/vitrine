@@ -128,7 +128,7 @@ describe("scouts.activity — a row for each readable Scout", () => {
       "sleep.yaml": scoutYaml("Sleep and memory", "all:sleep"),
     });
 
-    expect((await f.activity()).rows).toMatchObject([
+    expect((await f.activity()).rows).toEqual([
       {
         kind: "scout",
         id: "sleep",

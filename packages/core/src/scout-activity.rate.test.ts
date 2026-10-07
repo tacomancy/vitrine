@@ -65,6 +65,15 @@ async function opened(scouts: Record<string, string>) {
           +retroactive
         ).lastInsertRowid
     );
+  const rateOf = async (scoutId: string) => {
+    const r = await c.query<ScoutActivity>("scouts.activity");
+    expect(r.error).toBeUndefined();
+    const row = r.result!.data.rows.find(
+      (row) => row.kind === "scout" && row.id === scoutId
+    );
+    if (row?.kind !== "scout") throw new Error("no such row");
+    return row.acceptRate;
+  };
   return {
     /** One Proposal this Scout placed, and what the researcher did with it. */
     seed(scout: string, s: Seed = {}) {
@@ -113,22 +122,12 @@ async function opened(scouts: Record<string, string>) {
       if (s.action !== undefined) log(s.action, batchRun);
       if (s.undone === true) log("undo");
     },
-    rate: async (scoutId: string) => {
-      const r = await c.query<ScoutActivity>("scouts.activity");
-      expect(r.error).toBeUndefined();
-      const row = r.result!.data.rows.find(
-        (row) => row.kind === "scout" && row.id === scoutId
-      );
-      if (row?.kind !== "scout") throw new Error("no such row");
-      return row.acceptRate;
-    },
+    rate: rateOf,
+    /** The line a row opens to; a rate that cannot be said has none, and that is a failure here. */
     series: async (scoutId: string) => {
-      const r = await c.query<ScoutActivity>("scouts.activity");
-      const row = r.result!.data.rows.find(
-        (row) => row.kind === "scout" && row.id === scoutId
-      );
-      if (row?.kind !== "scout") throw new Error("no such row");
-      return row.acceptWeeks;
+      const rate = await rateOf(scoutId);
+      if (rate.kind !== "rate") throw new Error(`no line: ${rate.kind}`);
+      return rate.weeks;
     },
     health: async (scoutId: string) => {
       const r = await c.query<ScoutActivity>("scouts.activity");
@@ -162,6 +161,9 @@ describe("a row's accept rate", () => {
       accepted: 3,
       triaged: 4,
       rate: 0.75,
+      // What the weeks hold is the next describe's; here the key set is pinned.
+      weeks: await f.series("s"),
+      weekFloor: 5,
     });
   });
 
@@ -324,15 +326,35 @@ describe("a row's weekly accept rate", () => {
     expect(weeks.at(-1)).toMatchObject({ triaged: 5, rate: 0.8 });
   });
 
-  it("is a gap, never a zero, for a week nothing was triaged", async () => {
+  it("is a gap, never a zero, for a week nothing was triaged, and a point for a week of five rejects", async () => {
     const f = await opened({ "s.yaml": arxivScout("s") });
-    f.seed("s", { action: "accept", ago: 3 });
+    times(5, () => f.seed("s", { action: "reject", ago: 3 }));
 
-    expect((await f.series("s"))[0]).toEqual({
-      start: daysAgo(84),
-      triaged: 0,
-      rate: null,
+    const weeks = await f.series("s");
+    expect(weeks[0]).toEqual({ start: daysAgo(84), triaged: 0, rate: null });
+    // A real 0 % rests on five items and is drawn; the empty week is not.
+    expect(weeks.at(-1)).toMatchObject({ triaged: 5, rate: 0 });
+  });
+
+  it("starts each week at its printed start, so an item stamped at that moment is in that week", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(5, () => f.seed("s", { action: "accept", ago: 7 }));
+    times(5, () => f.seed("s", { action: "accept", ago: 14 }));
+
+    const weeks = await f.series("s");
+    expect(weeks.at(-1)).toEqual({ start: daysAgo(7), triaged: 5, rate: 1 });
+    expect(weeks.at(-2)).toEqual({ start: daysAgo(14), triaged: 5, rate: 1 });
+  });
+
+  it("puts an item stamped after now in the newest week, where the headline counts it too", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(5, () => f.seed("s", { action: "accept", ago: -1 }));
+
+    expect((await f.series("s")).at(-1)).toMatchObject({
+      triaged: 5,
+      rate: 1,
     });
+    expect(await f.rate("s")).toMatchObject({ triaged: 5 });
   });
 
   it("counts what the headline counts: not a Retroactive reject, not an undone one, not a promoted accept", async () => {
@@ -348,11 +370,47 @@ describe("a row's weekly accept rate", () => {
     });
   });
 
+  it("credits the Scout whose Appearance came first, as the headline does", async () => {
+    const f = await opened({
+      "first.yaml": arxivScout("first"),
+      "echo.yaml": arxivScout("echo"),
+    });
+    times(5, () => f.seed("echo", { action: "accept", firstBy: "first" }));
+
+    expect((await f.series("first")).at(-1)).toMatchObject({ triaged: 5 });
+    expect(await f.rate("echo")).toEqual({ kind: "nothing triaged" });
+  });
+
   it("keeps a triage from exactly twelve weeks ago, as the headline does", async () => {
     const f = await opened({ "s.yaml": arxivScout("s") });
     times(5, () => f.seed("s", { action: "accept", ago: 84 }));
 
     expect((await f.series("s"))[0]).toMatchObject({ triaged: 5, rate: 1 });
     expect(await f.rate("s")).toMatchObject({ triaged: 5 });
+  });
+
+  it("adds up to the headline: the weeks and the rate rest on the same items", async () => {
+    const f = await opened({ "s.yaml": arxivScout("s") });
+    times(3, () => f.seed("s", { action: "accept", ago: 2 }));
+    times(4, () => f.seed("s", { action: "reject", ago: 9 }));
+    times(2, () => f.seed("s", { action: "accept", ago: 40 }));
+
+    const rate = await f.rate("s");
+    expect(rate).toMatchObject({ kind: "rate", triaged: 9 });
+    expect((await f.series("s")).reduce((n, w) => n + w.triaged, 0)).toBe(9);
+  });
+
+  it("is withheld with the headline when the rate cannot be said, and a Scout nobody has judged has none", async () => {
+    const f = await opened({
+      "bare.yaml": arxivScout("bare"),
+      "none.yaml": arxivScout("none"),
+    });
+    times(5, () => f.seed("bare", { action: "accept", authors: [] }));
+
+    expect(await f.rate("bare")).toEqual({
+      kind: "unavailable",
+      reason: "Most of this Scout's papers arrive without authors.",
+    });
+    expect(await f.rate("none")).toEqual({ kind: "nothing triaged" });
   });
 });

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useState, type KeyboardEvent } from "react";
+import { Fragment, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { AcceptRate, ActivityRow, FleetSource } from "core";
-import { AcceptLine } from "./charts/line";
+import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
@@ -74,8 +74,9 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // the Scout it was on.
   const [chosen, setChosen] = useState<string | null>(null);
   // Nothing starts open: *edit* and the line weigh the same on every row, so
-  // no row is singled out by being expanded (ADR 0042 decision 8).
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
+  // row's key, as the choice is, so a re-sort leaves a row open.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const rows = sorted(activity.data?.rows ?? [], sort);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -90,7 +91,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   }
 
   function toggle(key: string) {
-    setOpen((was) => {
+    setOpened((was) => {
       const next = new Set(was);
       if (!next.delete(key)) next.add(key);
       return next;
@@ -199,7 +200,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   row={row}
                   id={rowId(index)}
                   chosen={index === chosenIndex}
-                  open={open.has(keyOf(row))}
+                  open={opened.has(keyOf(row))}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
                 />
@@ -285,7 +286,7 @@ function NoRows({
 function rateWords(rate: AcceptRate): string {
   switch (rate.kind) {
     case "rate":
-      return `${Math.round(rate.rate * 100)}% · ${rate.triaged} triaged`;
+      return `${percent(rate.rate)} · ${rate.triaged} triaged`;
     case "nothing triaged":
       return "nothing triaged yet";
     case "unavailable":
@@ -328,12 +329,23 @@ function Row({
       ? `arXiv · ${row.source.query}`
       : row.source.url;
   const detail = `${id}-detail`;
+  // A click anywhere on the row opens it, as prototype 10's does. The link and
+  // the rate's own button act for themselves; the button is the one a keyboard
+  // or a screen reader reaches, so it toggles on its own click.
+  function onRowClick(event: MouseEvent) {
+    onChoose();
+    if (!(
+      event.target instanceof Element && event.target.closest("a, button")
+    )) {
+      onToggle();
+    }
+  }
   return (
     <Fragment>
       {/* No class carries how the Scout is doing: the Voice beside the name is
           the whole of it, and a tint would be a threshold the app has no way
           to defend (ADR 0042 decision 8). */}
-      <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+      <tr id={id} data-chosen={chosen || undefined} onClick={onRowClick}>
         <th scope="row">
           <span className={styles.who}>
             <span className={styles.name}>{row.name}</span>
@@ -385,7 +397,7 @@ function Row({
       {open && (
         <tr id={detail} className={styles.detail}>
           <td colSpan={6}>
-            <AcceptLine weeks={row.acceptWeeks} headline={row.acceptRate} />
+            <AcceptLine rate={row.acceptRate} />
           </td>
         </tr>
       )}
