@@ -48,11 +48,24 @@ const TORN: ActivityRow = {
   },
 };
 
+/** Nothing to say of coverage: every open Question has a Scout looking, and there is nothing to name. */
+const COVERED: ScoutActivity["coverageGaps"] = {
+  kind: "covered",
+  warrant: { questions: 0, scouts: 0 },
+  notLooking: [],
+};
+
 /** What the core reads: these rows, and these dropped. */
 const read = (
   rows: ActivityRow[],
   dropped: ScoutActivity["dropped"] = []
-): ScoutActivity => ({ rows, fleet: NO_FLEET, review: NO_REVIEW, dropped });
+): ScoutActivity => ({
+  rows,
+  fleet: NO_FLEET,
+  review: NO_REVIEW,
+  coverageGaps: COVERED,
+  dropped,
+});
 
 const open = (
   activity: unknown,
