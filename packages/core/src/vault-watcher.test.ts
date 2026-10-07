@@ -10,7 +10,13 @@ import { watch as fsWatch, type WatchListener } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Listing } from "./list.js";
-import { closeCores, core, tmp, type CoreOptions } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  heldEvents,
+  tmp,
+  type CoreOptions,
+} from "./test-core.js";
 import type { VaultChanged } from "./vault-index.js";
 import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
@@ -556,6 +562,194 @@ describe("two changes a moment apart are one Batch however FSEvents splits them"
     });
     stream.close();
   });
+});
+
+/** Blocks this thread, and with it the event loop, for `ms`. */
+const freeze = (ms: number) =>
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * How long after the first callback the loop freezes: after the watcher's
+ * hints for it have armed the settle timer, a few milliseconds, so that the
+ * freeze straddles the timer and not the hints.
+ */
+const FREEZE_AFTER_MS = 20;
+
+type Shape = {
+  /** How long the loop is blocked. */
+  freezeMs: number;
+  /** When the second callback comes due, relative to the thaw; before it when negative. */
+  lateMs: number;
+  /** How long the loop is busy when the second callback runs, before it hears anything. */
+  busyMs: number;
+};
+
+/**
+ * The OS's events for `early` and `late` (`heldEvents`), handed to the watcher
+ * as a freeze of the event loop gives them: `early` in one callback, the loop
+ * blocked `FREEZE_AFTER_MS` later, and `late` in a second callback that comes
+ * due `shape.lateMs` after the thaw — before it when negative, so that it runs
+ * on the thaw, after any timer that came due earlier. That is the order a real
+ * freeze resumes in: the settle timer is due, and what the OS delivered
+ * meanwhile is not yet heard (#554). The second callback is a timer set before
+ * the block, counted from the block's start, and not a `setImmediate`: the
+ * immediate runs in the same turn as the timer that blocked, *before* the
+ * settle timer that fell due meanwhile, and so never reproduces the split. The
+ * freeze is the input, not a wait: every wait here is still on the event
+ * stream. Answers when, by `Date.now()`, each step happened, so a shape that
+ * did not occur fails by name.
+ */
+async function stall(
+  os: ReturnType<typeof heldEvents>,
+  early: string[],
+  late: string[],
+  { freezeMs, lateMs, busyMs }: Shape
+) {
+  const hear = await os.named();
+  const at = { heard: 0, thawed: 0, lateHeard: 0 };
+  return new Promise<typeof at>((resolve) => {
+    at.heard = Date.now();
+    hear(early);
+    setTimeout(() => {
+      setTimeout(() => {
+        freeze(busyMs);
+        at.lateHeard = Date.now();
+        hear(late);
+        resolve(at);
+      }, freezeMs + lateMs);
+      freeze(freezeMs);
+      at.thawed = Date.now();
+    }, FREEZE_AFTER_MS);
+  });
+}
+
+/**
+ * Where, and how, the second callback lands against the thaw. The first is the
+ * order a real freeze gives and is what failed before #554; each of the others
+ * is a shape one rule of the fix is the only thing standing against (§ Watcher
+ * and Ingest, *A stall is not quiet*): the second pins the clock being read
+ * after the loop has heard what it holds, the third the extra latency a late
+ * timer waits. The rule left, a path pending from its event and not from its
+ * stat, is `vault-watcher.slow-stat.test.ts`'s, and the extra latency being
+ * given once is the next test's.
+ */
+const STALLS: Array<{ name: string } & Shape> = [
+  {
+    // The order of a real freeze: the thaw runs the settle timer, then the
+    // callback, which was due before it.
+    name: "a freeze twice the settle window, the second callback due just before the thaw",
+    freezeMs: 320,
+    lateMs: -10,
+    busyMs: 0,
+  },
+  {
+    // Late by under an FSEvents latency, so the settle timer is not suspected
+    // of having missed anything; the callback is slow to be heard, as a busy
+    // loop makes it, and a path heard after the Batch's oldest settled path
+    // was stamped cannot settle before the Batch's cap.
+    name: "a freeze just over the settle window, the second callback slow to be heard after the settle timer has run",
+    freezeMs: 210,
+    lateMs: -5,
+    busyMs: 15,
+  },
+  {
+    // Not delivered to the loop yet when it thaws: the OS has the events, the
+    // loop has not read them. Frozen long enough that the settle timer is
+    // late by far more than a latency, whatever the first stat cost.
+    name: "a freeze twice the settle window, the second callback not due until after the thaw",
+    freezeMs: 400,
+    lateMs: 25,
+    busyMs: 0,
+  },
+];
+
+describe("a freeze of the event loop across the settle window does not split what the OS delivered whole (#554)", () => {
+  for (const { name, ...shape } of STALLS) {
+    it(
+      `${name}: one vaultChanged naming all four`,
+      async () => {
+        const early = ["notes/A.md", "notes/B.md"];
+        const late = ["notes/C.md", "notes/D.md"];
+        const os = heldEvents([...early, ...late]);
+        const { vault, stream } = await watching(
+          { "notes/Seed.md": "seed\n" },
+          { watch: os.watch }
+        );
+        os.hold();
+        for (const file of ["A", "B", "C", "D"]) {
+          await writeFile(join(vault, "notes", `${file}.md`), `${file}\n`);
+        }
+        const at = await stall(os, early, late, shape);
+        // Said back: the freeze really straddled the settle window, and the
+        // second callback was heard after it fell due, not inside it.
+        expect(at.thawed - at.heard).toBeGreaterThan(SETTLE_MS);
+        expect(at.lateHeard - at.heard).toBeGreaterThan(SETTLE_MS);
+        expect(await stream.next("vaultChanged")).toEqual({
+          type: "vaultChanged",
+          changed: ["notes/A.md", "notes/B.md", "notes/C.md", "notes/D.md"],
+          removed: [],
+          renamed: [],
+        });
+        stream.close();
+      },
+      TIMING_TIMEOUT_MS
+    );
+  }
+
+  it(
+    "a timer late a second time is not made to wait a second time: what the OS delivers 45 ms after the second thaw is a Batch of its own",
+    async () => {
+      const os = heldEvents(["notes/A.md", "notes/B.md", "notes/C.md"]);
+      const { vault, stream } = await watching(
+        { "notes/Seed.md": "seed\n" },
+        { watch: os.watch }
+      );
+      os.hold();
+      for (const file of ["A", "B", "C"]) {
+        await writeFile(join(vault, "notes", `${file}.md`), `${file}\n`);
+      }
+      const hear = await os.named();
+
+      // The first freeze makes the settle timer late and so earns it one extra
+      // latency; the second begins just after, and makes that extra latency
+      // late in its turn. Given once, the watcher settles then. Given again,
+      // it would wait on, and the third file, which the OS delivers 45 ms after
+      // the second thaw — counted from the thaw and not from the block, so a
+      // block that overran moves nothing — would be heard before it settled,
+      // and ride in the first Batch. Timers that fall due together run in the
+      // order they fell due, so that file is heard before a second extra
+      // latency could end however loaded the machine is.
+      hear(["notes/A.md", "notes/B.md"]);
+      const thawed = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          setTimeout(() => {
+            freeze(150);
+            setTimeout(() => {
+              hear(["notes/C.md"]);
+              resolve();
+            }, 45);
+          }, 320 + 10);
+          freeze(320);
+        }, FREEZE_AFTER_MS);
+      });
+      await thawed;
+
+      expect(await stream.next("vaultChanged")).toEqual({
+        type: "vaultChanged",
+        changed: ["notes/A.md", "notes/B.md"],
+        removed: [],
+        renamed: [],
+      });
+      expect(await stream.next("vaultChanged")).toEqual({
+        type: "vaultChanged",
+        changed: ["notes/C.md"],
+        removed: [],
+        renamed: [],
+      });
+      stream.close();
+    },
+    TIMING_TIMEOUT_MS
+  );
 });
 
 describe("the two watches and the sweep", () => {
