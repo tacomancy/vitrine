@@ -94,14 +94,29 @@ export function DropButton({
 export const DROPPED =
   "dropped — it no longer runs; what it found stays in Review";
 
-/** The row's cells, in place of its figures: what happened, and the way back. */
-export function DroppedInPlace({ onUndo }: { onUndo: () => void }) {
+/**
+ * What a row says once its Scout is dropped, in place of its figures: what
+ * happened across the cells the figures filled, and the way back in the last
+ * one, where the row's other link to somewhere else sits.
+ */
+export function DroppedInPlace({
+  cells,
+  onUndo,
+}: {
+  /** How many cells follow the row header, so the row fills the width the figures did. */
+  cells: number;
+  onUndo: () => void;
+}) {
   return (
     <>
-      <span role="status">{DROPPED}</span>{" "}
-      <button type="button" className={styles.undo} onClick={onUndo}>
-        undo
-      </button>
+      <td colSpan={cells - 1}>
+        <span role="status">{DROPPED}</span>
+      </td>
+      <td>
+        <button type="button" className={styles.undo} onClick={onUndo}>
+          undo
+        </button>
+      </td>
     </>
   );
 }
@@ -150,7 +165,7 @@ export function DroppedLine({
         <ul id={list} className={styles.names} aria-label="Dropped Scouts">
           {dropped.map((scout) => (
             <li key={scout.id}>
-              <span>{scout.name}</span>{" "}
+              <span>{scout.name}</span> <span aria-hidden="true">·</span>{" "}
               <button
                 type="button"
                 className={styles.undo}

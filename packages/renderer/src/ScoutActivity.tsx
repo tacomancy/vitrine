@@ -599,9 +599,10 @@ function Row({
               <span className={styles.name}>{row.name}</span>
             </span>
           </th>
-          <td colSpan={COLUMNS - 1} className={styles.wraps}>
-            <DroppedInPlace onUndo={() => drops.onRestore(row.id)} />
-          </td>
+          <DroppedInPlace
+            cells={COLUMNS - 1}
+            onUndo={() => drops.onRestore(row.id)}
+          />
         </tr>
         {refused}
       </>
