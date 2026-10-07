@@ -7,6 +7,11 @@ import {
   unreadableHealth,
   type Health,
 } from "./scout-health.js";
+import {
+  NOTHING_WAITING,
+  reviewDepth,
+  type ReviewDepth,
+} from "./review-depth.js";
 import { acceptCounts, type AcceptCounts } from "./triage.js";
 import { NO_KEY } from "./watched.js";
 
@@ -84,6 +89,13 @@ export type ActivityRow =
       lastRun: { finished: string; ago: string } | null;
       health: Health;
       acceptRate: AcceptRate;
+      /**
+       * What waits in Review under this Scout's name: the stack the row links
+       * to in the Queue. Figures only; whether *nothing pending* may be said
+       * as a claim depends on the Voice beside it, which the page reads from
+       * `health` as the Queue does.
+       */
+      review: ReviewDepth;
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
@@ -106,7 +118,12 @@ export type FleetSource = {
   noKey: number;
 };
 
-export type ScoutActivity = { rows: ActivityRow[]; fleet: FleetSource };
+export type ScoutActivity = {
+  rows: ActivityRow[];
+  fleet: FleetSource;
+  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. */
+  review: ReviewDepth;
+};
 
 /**
  * Where a row sits by need (ADR 0042 decision 8): faults, then Scouts that are
@@ -183,6 +200,7 @@ export async function readActivity(deps: {
     deps.queue,
     new Date(now.getTime() - WINDOW_MS).toISOString()
   );
+  const depth = reviewDepth(deps.queue, now);
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
@@ -207,6 +225,7 @@ export async function readActivity(deps: {
           scout,
           counts.find((c) => c.scoutId === scout.id)
         ),
+        review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
       };
     }),
     ...unreadable.map((file): ActivityRow => ({
@@ -215,5 +234,5 @@ export async function readActivity(deps: {
       health: unreadableHealth(file),
     })),
   ].sort(byNeed);
-  return { rows, fleet: sourceHealth(rows) };
+  return { rows, fleet: sourceHealth(rows), review: depth.fleet };
 }

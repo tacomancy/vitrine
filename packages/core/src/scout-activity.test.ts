@@ -138,6 +138,12 @@ describe("scouts.activity — a row for each readable Scout", () => {
         lastRun: null,
         health: { voice: "not yet", sentence: "It has not run yet." },
         acceptRate: { kind: "nothing triaged" },
+        review: {
+          pending: 0,
+          deferred: 0,
+          median: null,
+          oldest: null,
+        },
       },
     ]);
   });
@@ -282,6 +288,7 @@ describe("scouts.activity — nothing to draw", () => {
         keyRejected: 0,
         noKey: 0,
       },
+      review: { pending: 0, deferred: 0, median: null, oldest: null },
     });
   });
 

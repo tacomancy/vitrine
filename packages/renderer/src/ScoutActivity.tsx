@@ -1,11 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type KeyboardEvent } from "react";
-import type { AcceptRate, ActivityRow, FleetSource } from "core";
+import { Fragment, useState, type KeyboardEvent } from "react";
+import type {
+  AcceptRate,
+  ActivityRow,
+  FleetSource,
+  Health,
+  ReviewDepth,
+} from "core";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
 import styles from "./ScoutActivity.module.css";
-import { VoiceLine } from "./ScoutVoice";
+import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -112,7 +118,10 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           Scout Activity
         </h1>
         {activity.data !== undefined && (
-          <SourceHealth fleet={activity.data.fleet} />
+          <div className={styles.facts}>
+            <SourceHealth fleet={activity.data.fleet} />
+            {rows.length > 0 && <FleetReview review={activity.data.review} />}
+          </div>
         )}
       </div>
       {rows.length === 0 && (
@@ -165,6 +174,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   </th>
                 ))}
                 <th scope="col">Accept rate</th>
+                <th scope="col">In Review</th>
                 <th scope="col">
                   <span className={styles.srOnly}>Queue</span>
                 </th>
@@ -258,15 +268,112 @@ function NoRows({
 }
 
 /** A rate says what it rests on; one that cannot be said says why, and nothing judged is not 0% (ADR 0042 decisions 2 and 3). */
-function rateWords(rate: AcceptRate): string {
-  switch (rate.kind) {
-    case "rate":
-      return `${Math.round(rate.rate * 100)}% · ${rate.triaged} triaged`;
-    case "nothing triaged":
-      return "nothing triaged yet";
-    case "unavailable":
-      return rate.reason;
-  }
+function RateCell({ rate }: { rate: AcceptRate }) {
+  return (
+    <td className={styles.wraps}>
+      {rate.kind === "rate" ? (
+        <Facts
+          facts={[`${Math.round(rate.rate * 100)}%`, `${rate.triaged} triaged`]}
+        />
+      ) : rate.kind === "nothing triaged" ? (
+        "nothing triaged yet"
+      ) : (
+        rate.reason
+      )}
+    </td>
+  );
+}
+
+/**
+ * One line of facts, each kept whole: a line wraps only between facts, never
+ * inside *median 3 days ago*, and the separator trails the fact before it so a
+ * wrap can never leave a dot on a line of its own.
+ */
+function Facts({ facts }: { facts: string[] }) {
+  return (
+    <>
+      {facts.map((fact, index) => (
+        <Fragment key={fact}>
+          {index > 0 && " "}
+          <span className={styles.fact}>
+            {index < facts.length - 1 ? `${fact} ·` : fact}
+          </span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/**
+ * What waits in Review, as neutral facts in plain words (ADR 0042 decision
+ * 7): the pending figure with its age, the median and the oldest. The ages
+ * sit with the pending ones because they describe them — a deferred row has
+ * no place in the stack — and nothing here carries a colour.
+ */
+const pendingFacts = (depth: ReviewDepth): string[] =>
+  depth.median === null || depth.oldest === null
+    ? []
+    : [
+        `${depth.pending} pending`,
+        `median ${depth.median.ago}`,
+        `oldest ${depth.oldest.ago}`,
+      ];
+
+const deferredFact = (depth: ReviewDepth): string[] =>
+  depth.deferred === 0 ? [] : [`${depth.deferred} deferred`];
+
+/**
+ * A Scout's stack. Deferred is its own line, apart from the headline, and is
+ * said whatever else is. With nothing pending the Scout speaks in its Voice as
+ * the Queue's empty state does (ADR 0032): a clean run claims *nothing
+ * pending*; a Scout that has not looked or whose check failed says nothing
+ * of the stack, because the Voice beside its name is already saying why, and
+ * a bare 0 under a broken Scout would read as a quiet field.
+ */
+function ReviewCell({ depth, health }: { depth: ReviewDepth; health: Health }) {
+  const pending =
+    depth.pending > 0
+      ? pendingFacts(depth)
+      : health.voice === "claim"
+        ? [NOTHING_PENDING]
+        : [];
+  return (
+    <td className={styles.wraps}>
+      {pending.length > 0 && (
+        <span className={styles.stack}>
+          <Facts facts={pending} />
+        </span>
+      )}
+      {depth.deferred > 0 && (
+        <span className={styles.stack}>
+          <Facts facts={deferredFact(depth)} />
+        </span>
+      )}
+    </td>
+  );
+}
+
+/**
+ * The fleet's stack, each Proposal counted once, and Skim named for what it
+ * is: a feed, which has no depth to count. A fleet with nothing pending says
+ * so in words; it makes no claim that the field is quiet, which only a
+ * warranted Voice may (ADR 0032 decision 8), so a fleet with a broken Scout is
+ * never reassured by a header.
+ */
+function FleetReview({ review }: { review: ReviewDepth }) {
+  const [first = "none pending", ...ages] = pendingFacts(review);
+  return (
+    <p className={styles.health} aria-label="Review depth">
+      <Facts
+        facts={[
+          `Review: ${first}`,
+          ...ages,
+          ...deferredFact(review),
+          "Skim is a feed and has no depth",
+        ]}
+      />
+    </p>
+  );
 }
 
 function Row({
@@ -291,7 +398,7 @@ function Row({
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={5} />
+        <td colSpan={6} />
       </tr>
     );
   }
@@ -326,7 +433,8 @@ function Row({
           <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
         )}
       </td>
-      <td>{rateWords(row.acceptRate)}</td>
+      <RateCell rate={row.acceptRate} />
+      <ReviewCell depth={row.review} health={row.health} />
       <td>
         <a
           href={`#/scouts?scout=${encodeURIComponent(row.id)}`}

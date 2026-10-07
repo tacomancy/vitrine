@@ -19,12 +19,14 @@ const NO_FLEET = {
   keyRejected: 0,
   noKey: 0,
 };
-const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET };
+const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET, review: NO_REVIEW };
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
   rows: ActivityRow[],
-  counts: Partial<typeof NO_FLEET> = {}
-): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts } });
+  counts: Partial<typeof NO_FLEET> = {},
+  review: ScoutActivity["review"] = NO_REVIEW
+): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts }, review });
 
 const answers = (
   activity: unknown,
@@ -61,6 +63,12 @@ const BROKEN: ActivityRow = {
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
   acceptRate: { kind: "rate", accepted: 3, triaged: 4, rate: 0.75 },
+  review: {
+    pending: 3,
+    deferred: 1,
+    median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
+    oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
+  },
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -81,6 +89,7 @@ const QUIET: ActivityRow = {
     },
   },
   acceptRate: { kind: "nothing triaged" },
+  review: NO_REVIEW,
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -94,6 +103,7 @@ const RESTING: ActivityRow = {
     kind: "unavailable",
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
+  review: { ...NO_REVIEW, deferred: 2 },
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -110,6 +120,99 @@ const tableRows = async () =>
   within(await screen.findByRole("table", { name: "Scouts" }))
     .getAllByRole("row")
     .slice(1);
+
+/** A row's In Review cell, as the lines it draws: its stack on one, what is deferred on another. */
+const reviewLines = (row: HTMLElement) =>
+  Array.from(within(row).getAllByRole("cell")[4]!.children).map(
+    (line) => line.textContent
+  );
+
+const HEADER_NOTE = "Skim is a feed and has no depth";
+
+describe("Scout Activity — Review depth and age", () => {
+  it("states a Scout's stack in neutral facts, with what is deferred apart on a line of its own", async () => {
+    open(fleet([BROKEN]));
+
+    const [row] = await tableRows();
+
+    expect(reviewLines(row!)).toEqual([
+      "3 pending · median 3 days ago · oldest 5 days ago",
+      "1 deferred",
+    ]);
+  });
+
+  it("lets a Scout whose last run was clean claim nothing pending in the Queue's own words, never as 0", async () => {
+    open(fleet([QUIET]));
+
+    const [row] = await tableRows();
+
+    expect(reviewLines(row!)).toEqual(["Nothing pending."]);
+  });
+
+  it("says nothing of the stack for a Scout that has not looked or whose check failed, leaving the Voice beside its name to speak", async () => {
+    open(
+      fleet([
+        { ...BROKEN, review: NO_REVIEW },
+        { ...RESTING, review: NO_REVIEW },
+      ])
+    );
+
+    const rows = await tableRows();
+
+    // An empty cell, not a 0 and not *nothing pending*: that would pass a
+    // broken Scout for a quiet field.
+    expect(rows.map(reviewLines)).toEqual([[], []]);
+    expect(rows[0]!.textContent).toContain("HTTP 503");
+    expect(rows[1]!.textContent).toContain("Paused");
+  });
+
+  it("still counts what is deferred when nothing is pending, whatever the Voice", async () => {
+    open(fleet([RESTING, { ...QUIET, review: { ...NO_REVIEW, deferred: 4 } }]));
+
+    const rows = await tableRows();
+
+    expect(rows.map(reviewLines)).toEqual([
+      ["2 deferred"],
+      ["Nothing pending.", "4 deferred"],
+    ]);
+  });
+
+  it("heads the fleet with the same facts, deferred apart, and names Skim a feed with no depth", async () => {
+    open(
+      fleet(
+        [BROKEN],
+        {},
+        {
+          pending: 3,
+          deferred: 1,
+          median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
+          oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
+        }
+      )
+    );
+
+    expect((await screen.findByLabelText("Review depth")).textContent).toBe(
+      `Review: 3 pending · median 3 days ago · oldest 5 days ago · 1 deferred · ${HEADER_NOTE}`
+    );
+  });
+
+  it("heads a fleet with nothing pending in words, not as a 0 and not as a claim, and still counts what is deferred", async () => {
+    open(fleet([QUIET], {}, { ...NO_REVIEW, deferred: 2 }));
+
+    expect((await screen.findByLabelText("Review depth")).textContent).toBe(
+      `Review: none pending · 2 deferred · ${HEADER_NOTE}`
+    );
+  });
+
+  it("draws no Review line for a vault with no Scouts, where there is no stack to describe", async () => {
+    open(NONE);
+
+    // Only once the read has answered is the absence a fact about the page.
+    await screen.findByText("no scouts yet");
+
+    expect(screen.queryByLabelText("Review depth")).toBeNull();
+  });
+});
 
 describe("Scout Activity", () => {
   it("opens at its Address, with the Sidebar entry among the Dashboards lit", async () => {
@@ -156,6 +259,7 @@ describe("the table", () => {
         "daily",
         "3h ago",
         "75% · 4 triaged",
+        "3 pending · median 3 days ago · oldest 5 days ago1 deferred",
         "queue",
       ],
       [
@@ -164,6 +268,7 @@ describe("the table", () => {
         "weekly",
         "2h ago",
         "nothing triaged yet",
+        "Nothing pending.",
         "queue",
       ],
       // A Scout that has never run says so, and a page is named by its address.
@@ -173,6 +278,7 @@ describe("the table", () => {
         "monthly",
         "not yet",
         "Most of this Scout's papers arrive without authors or venue.",
+        "2 deferred",
         "queue",
       ],
     ]);
@@ -294,6 +400,23 @@ describe("a vault with no Scouts", () => {
     ).toBeDefined();
     expect(screen.queryByText("no scouts yet")).toBeNull();
     expect(screen.queryByRole("button", { name: "new scout" })).toBeNull();
+  });
+
+  it("spans every column after its name, so a column added to the table never leaves that row ragged", async () => {
+    open(fleet([TORN, QUIET]));
+
+    const rows = await tableRows();
+    const columns = within(
+      screen.getByRole("table", { name: "Scouts" })
+    ).getAllByRole("columnheader").length;
+
+    const [torn, readable] = rows;
+    const spanned = (row: HTMLElement) =>
+      within(row)
+        .getAllByRole("cell")
+        .reduce((sum, cell) => sum + (cell as HTMLTableCellElement).colSpan, 1);
+    expect(spanned(torn!)).toBe(columns);
+    expect(spanned(readable!)).toBe(columns);
   });
 });
 
