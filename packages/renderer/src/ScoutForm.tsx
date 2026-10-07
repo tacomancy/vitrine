@@ -7,17 +7,10 @@ type Editable = Pick<
   "id" | "name" | "query" | "cadence" | "assigned" | "lane" | "source"
 >;
 import { useEffect, useRef, useState } from "react";
+import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { pushRoute, SETTINGS } from "./router";
-import { StatusGlyph } from "./StatusGlyph";
 import styles from "./ScoutQueue.module.css";
 import { useTRPC } from "./trpc";
-
-/** A Question the picker or the header can name: open ones are offered, others only when already assigned. */
-export type QuestionChoice = {
-  id: string;
-  question: string;
-  status: "open" | "promoted" | "answered" | "abandoned";
-};
 
 /**
  * What the form holds, kept by the window and not by the form: *Add a key*
@@ -104,13 +97,6 @@ export function ScoutForm({
   const tried = useMutation(trpc.scouts.tryQuery.mutationOptions());
   const triedPage = useMutation(trpc.scouts.tryWatched.mutationOptions());
 
-  // Open Questions only are offered (spec #447 story 5); one the Scout is
-  // already assigned to stays on the list even when it has closed, so the
-  // researcher can take it off and the file is never rewritten behind them.
-  const choices = questions.filter(
-    (q) => q.status === "open" || assigned.includes(q.id)
-  );
-  const unknown = assigned.filter((id) => !questions.some((q) => q.id === id));
   const ready = name.trim() !== "" && query.trim() !== "";
 
   function submit(event: React.FormEvent) {
@@ -274,38 +260,11 @@ export function ScoutForm({
           />
         </label>
       )}
-      <fieldset>
-        <legend>Assigned Questions</legend>
-        {choices.length === 0 && unknown.length === 0 && (
-          <p className={styles.line}>no open Questions</p>
-        )}
-        {choices.map((q) => (
-          <label key={q.id} className={styles.choice}>
-            <input
-              type="checkbox"
-              checked={assigned.includes(q.id)}
-              onChange={(e) =>
-                setAssigned((was) =>
-                  e.target.checked
-                    ? [...was, q.id]
-                    : was.filter((id) => id !== q.id)
-                )
-              }
-            />
-            <StatusGlyph status={q.status} /> {q.question}
-          </label>
-        ))}
-        {unknown.map((id) => (
-          <label key={id} className={styles.choice}>
-            <input
-              type="checkbox"
-              checked
-              onChange={() => setAssigned((was) => was.filter((a) => a !== id))}
-            />
-            {id}
-          </label>
-        ))}
-      </fieldset>
+      <AssignedQuestions
+        questions={questions}
+        assigned={assigned}
+        onChange={setAssigned}
+      />
       {said !== null && <p role="status">{said}</p>}
       <p className={styles.actions}>
         <button type="submit" disabled={!ready || save.isPending}>

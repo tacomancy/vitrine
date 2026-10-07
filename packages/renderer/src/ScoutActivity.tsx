@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Fragment,
+  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -22,6 +23,7 @@ import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
+import { ScoutEdit } from "./ScoutEdit";
 import styles from "./ScoutActivity.module.css";
 import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
@@ -125,7 +127,14 @@ function inPlace(rows: ActivityRow[], held: readonly string[] | null) {
  * drawn as the Queue's rail draws them (ADR 0032 decision 7); this file words
  * only its own labels and the empty fleet.
  */
-export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
+export function ScoutActivity({
+  onNewScout,
+  onEditOnForm,
+}: {
+  onNewScout: () => void;
+  /** The Queue holds the form, so a page's address is changed there: one gesture across two surfaces, as a new Scout's is. */
+  onEditOnForm: (scoutId: string) => void;
+}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const activity = useQuery(trpc.scouts.activity.queryOptions());
@@ -174,8 +183,10 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  // Which rows have their cadence menu open, held by key for the same reason.
+  // Which rows have their cadence menu open, or their edit, held by key for
+  // the same reason.
   const [choosing, setChoosing] = useState<ReadonlySet<string>>(new Set());
+  const [editing, setEditing] = useState<ReadonlySet<string>>(new Set());
   // Taken when a row is acted on and let go when a column is asked for, so the
   // table only ever re-sorts by need when the researcher arrives or asks.
   const [held, setHeld] = useState<readonly string[] | null>(null);
@@ -298,12 +309,21 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   chosen={index === chosenIndex}
                   open={opened.has(keyOf(row))}
                   choosing={choosing.has(keyOf(row))}
+                  editing={editing.has(keyOf(row))}
                   said={said.get(keyOf(row))}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
                   onToggleCadence={() =>
                     setChoosing((was) => toggled(was, keyOf(row)))
                   }
+                  onToggleEdit={() =>
+                    setEditing((was) => toggled(was, keyOf(row)))
+                  }
+                  onAct={hold}
+                  onSaved={(text) => say(keyOf(row), { refused: false, text })}
+                  onEditOnForm={() => {
+                    if (row.kind === "scout") onEditOnForm(row.id);
+                  }}
                   onPickCadence={(cadence) => {
                     if (row.kind !== "scout") return;
                     setChoosing((was) => toggled(was, keyOf(row)));
@@ -631,10 +651,15 @@ function Row({
   chosen,
   open,
   choosing,
+  editing,
   said,
   onToggle,
   onChoose,
   onToggleCadence,
+  onToggleEdit,
+  onAct,
+  onSaved,
+  onEditOnForm,
   onPickCadence,
   onPause,
 }: {
@@ -643,14 +668,20 @@ function Row({
   chosen: boolean;
   open: boolean;
   choosing: boolean;
+  editing: boolean;
   said: Said | undefined;
   onToggle: () => void;
   onChoose: () => void;
   onToggleCadence: () => void;
+  onToggleEdit: () => void;
+  onAct: () => void;
+  onSaved: (said: string) => void;
+  onEditOnForm: () => void;
   onPickCadence: (cadence: Scout["cadence"]) => void;
   onPause: () => void;
 }) {
   const [showRuns, setShowRuns] = useState(false);
+  const editButton = useRef<HTMLButtonElement>(null);
   if (row.kind === "unreadable") {
     // Nothing is known of a file that will not parse but its name and why, so
     // the columns that would say more are left empty rather than guessed at.
@@ -699,6 +730,17 @@ function Row({
                 row that is doing worst than on the one that is doing best
                 (ADR 0042 decision 8). */}
             <span className={styles.actions}>
+              <button
+                ref={editButton}
+                type="button"
+                className={styles.act}
+                aria-expanded={editing}
+                aria-controls={editing ? `${id}-edit` : undefined}
+                aria-label={`${row.name}: edit`}
+                onClick={onToggleEdit}
+              >
+                edit
+              </button>
               <button
                 type="button"
                 className={styles.act}
@@ -794,6 +836,23 @@ function Row({
               cadence={row.cadence}
               dueUnder={row.dueUnder}
               onPick={onPickCadence}
+            />
+          </td>
+        </tr>
+      )}
+      {editing && (
+        <tr id={`${id}-edit`}>
+          <td className={styles.detail} colSpan={COLUMNS}>
+            <ScoutEdit
+              row={row}
+              onAct={onAct}
+              onSaved={onSaved}
+              onEditOnForm={onEditOnForm}
+              onClose={() => {
+                onToggleEdit();
+                // The keyboard goes back to the word that opened it.
+                editButton.current?.focus();
+              }}
             />
           </td>
         </tr>

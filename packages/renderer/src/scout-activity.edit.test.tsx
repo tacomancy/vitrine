@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ActivityRow, Health, ScoutActivity } from "core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { empty, renderApp, vault } from "./fake-core";
+import { empty, question, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -380,5 +380,375 @@ describe("choosing a cadence", () => {
     expect(
       screen.getByRole("button", { name: "Sleep and memory: cadence, weekly" })
     ).toBeDefined();
+  });
+});
+
+// The researcher's Questions as the core lists them. A Scout is Assigned to the
+// open ones (spec #447 story 5), and one it is already Assigned to stays on
+// the list when it has closed, so the picker never rewrites the file behind
+// them.
+const REPLAY = question("Does replay consolidate?", "2026-09-01", {
+  id: "q-replay",
+});
+const SPINDLES = question("Do spindles carry it?", "2026-09-02", {
+  id: "q-spindles",
+});
+const SETTLED = question("Was it settled?", "2026-08-01", {
+  id: "q-settled",
+  status: "answered",
+});
+const QUESTIONS = { ...empty, questions: [REPLAY, SPINDLES, SETTLED] };
+
+describe("editing a Query and its Assigned Questions in the row", () => {
+  const form = () =>
+    screen.findByRole("form", { name: "Edit Sleep and memory" });
+  const edit = async () =>
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+
+  it("starts shut on every row, and opens on edit", async () => {
+    open(() => fleet([scout(), scout({ id: "other", name: "Other" })]), {
+      "questions.list": QUESTIONS,
+    });
+    await screen.findByRole("button", { name: "Sleep and memory: edit" });
+    expect(screen.queryByRole("form")).toBeNull();
+
+    await edit();
+
+    expect(await form()).toBeDefined();
+    expect(screen.getAllByRole("form")).toHaveLength(1);
+    expect(
+      screen
+        .getByRole("button", { name: "Sleep and memory: edit" })
+        .getAttribute("aria-expanded")
+    ).toBe("true");
+  });
+
+  it("holds the Scout's own Query, and the Questions it may be Assigned to with its own checked", async () => {
+    open(() => fleet([scout({ assigned: ["q-replay"] })]), {
+      "questions.list": QUESTIONS,
+    });
+
+    await edit();
+
+    const panel = within(await form());
+    expect(panel.getByLabelText<HTMLTextAreaElement>("Query").value).toBe(
+      "all:sleep"
+    );
+    // Open Questions are offered; one that is closed and not Assigned is not.
+    const boxes = await panel.findAllByRole("checkbox");
+    expect(
+      boxes.map((box) => [
+        (box.closest("label") as HTMLElement).textContent!.trim(),
+        (box as HTMLInputElement).checked,
+      ])
+    ).toEqual([
+      [expect.stringContaining("Does replay consolidate?"), true],
+      [expect.stringContaining("Do spindles carry it?"), false],
+    ]);
+  });
+
+  it("closes on the same word, and on Cancel, and on Escape, writing nothing", async () => {
+    const writes: unknown[] = [];
+    open(() => fleet([scout()]), {
+      "questions.list": QUESTIONS,
+      "scouts.save": (input: unknown) => {
+        writes.push(input);
+        return { id: "sleep", run: null };
+      },
+    });
+
+    await edit();
+    await edit();
+    expect(screen.queryByRole("form")).toBeNull();
+
+    await edit();
+    fireEvent.click(
+      within(await form()).getByRole("button", { name: "Cancel" })
+    );
+    expect(screen.queryByRole("form")).toBeNull();
+
+    await edit();
+    fireEvent.keyDown(within(await form()).getByLabelText("Query"), {
+      key: "Escape",
+    });
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(writes).toEqual([]);
+  });
+});
+
+describe("saving an edit from the row", () => {
+  /** What the core hands back from `scouts.save`: the id, and the run an edited Query set going. */
+  const saved = (run: object | null) => ({ id: "sleep", run });
+  const RAN = {
+    runId: 7,
+    outcome: "ok",
+    errorKind: null,
+    fetched: 4,
+    new: 3,
+    held: 1,
+    unverified: 0,
+    truncated: 0,
+  };
+
+  /** The row's edit open, the Query retyped, and Save pressed. */
+  const edited = async (
+    row: Partial<ScoutRow>,
+    answer: unknown,
+    query = "all:sleep AND all:rem"
+  ) => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout(row)]), {
+      "questions.list": QUESTIONS,
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        if (answer instanceof Error) throw answer;
+        return answer;
+      },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    const panel = within(
+      await screen.findByRole("form", { name: "Edit Sleep and memory" })
+    );
+    await panel.findAllByRole("checkbox");
+    fireEvent.change(panel.getByLabelText("Query"), {
+      target: { value: query },
+    });
+    return { asked, panel };
+  };
+
+  it("asks for the whole of what the Queue's form would write, from what the row carries, and nothing else", async () => {
+    const { asked, panel } = await edited(
+      { cadence: "monthly", lane: "skim", assigned: ["q-replay"] },
+      saved(RAN)
+    );
+    fireEvent.click(
+      await panel.findByRole("checkbox", { name: /Do spindles carry it/ })
+    );
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    await screen.findByRole("status");
+    expect(asked).toEqual([
+      {
+        id: "sleep",
+        name: "Sleep and memory",
+        watching: "arxiv",
+        query: "all:sleep AND all:rem",
+        cadence: "monthly",
+        assigned: ["q-replay", "q-spindles"],
+        lane: "skim",
+        searchBackTo: null,
+      },
+    ]);
+  });
+
+  it("says that the Scout ran at once, with what it found, and closes", async () => {
+    const { panel } = await edited({}, saved(RAN));
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Saved. It ran at once: 3 new · 1 already in your vault."
+    );
+    expect(screen.queryByRole("form")).toBeNull();
+  });
+
+  it("says a run that failed in the Queue's words, and leaves the why to the Voice beside the name", async () => {
+    const { panel } = await edited(
+      {},
+      saved({ ...RAN, outcome: "failed", errorKind: "network", new: 0 })
+    );
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Saved. It ran at once. This run failed: network."
+    );
+  });
+
+  it("says plainly that it saved and ran nothing when the Query did not change", async () => {
+    const { panel } = await edited({}, saved(null), "all:sleep");
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe("Saved.");
+  });
+
+  it("says that a paused Scout was saved and did not run", async () => {
+    const { panel } = await edited(
+      { paused: true, health: PAUSED },
+      saved(null)
+    );
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Saved. It is paused, so it did not run."
+    );
+  });
+
+  it("keeps the form open with the typing, and says why as an alert, when the core refuses", async () => {
+    const { panel } = await edited(
+      {},
+      new Error("A Scout needs a name and a Query.")
+    );
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "A Scout needs a name and a Query."
+    );
+    expect(panel.getByLabelText<HTMLTextAreaElement>("Query").value).toBe(
+      "all:sleep AND all:rem"
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("will not save a Query with nothing in it", async () => {
+    const { asked, panel } = await edited({}, saved(null), "   ");
+
+    const save = panel.getByRole<HTMLButtonElement>("button", { name: "Save" });
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(asked).toEqual([]);
+  });
+
+  // The picker is drawn once the Questions are read, but what a Scout is
+  // Assigned to is its own and goes back as it was whatever the list did.
+  it("keeps what the Scout is Assigned to when the Questions could not be read", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout({ assigned: ["q-replay"] })]), {
+      "questions.list": () => {
+        throw new Error("The index is not ready.");
+      },
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        return saved(null);
+      },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    const panel = within(
+      await screen.findByRole("form", { name: "Edit Sleep and memory" })
+    );
+
+    expect((await panel.findByRole("status")).textContent).toBe(
+      "‖ not read — The index is not ready."
+    );
+    expect(panel.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("Saved.");
+    expect(asked).toMatchObject([{ assigned: ["q-replay"] }]);
+  });
+});
+
+// A page's address is the one thing the row leaves to the form (ADR 0042
+// decision 5): changing it invalidates what the Scout's history rests on, which
+// is a deliberate act and its own decision. What it shares with an arXiv Scout
+// — the Questions it is Assigned to — is edited in the row all the same.
+describe("a Scout that watches a page", () => {
+  const LAB = "https://lab.example/publications";
+  const PAGE = scout({
+    id: "lab",
+    name: "Lab publications",
+    source: { kind: "watched", url: LAB },
+    cadence: "monthly",
+    lane: "skim",
+    assigned: ["q-replay"],
+  });
+  const panel = async () => {
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Lab publications: edit" })
+    );
+    return within(
+      await screen.findByRole("form", { name: "Edit Lab publications" })
+    );
+  };
+
+  it("offers no address field, and says the form is where it changes", async () => {
+    open(() => fleet([PAGE]), { "questions.list": QUESTIONS });
+
+    const edit = await panel();
+
+    expect(edit.queryByLabelText("Query")).toBeNull();
+    expect(edit.queryByLabelText("Address")).toBeNull();
+    expect(edit.getByText("Its address is changed on the form.")).toBeDefined();
+    // What it shares with every Scout is still the row's to edit.
+    expect(await edit.findAllByRole("checkbox")).toHaveLength(2);
+  });
+
+  it("saves its Assigned Questions through the same write, with the address it has", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([PAGE]), {
+      "questions.list": QUESTIONS,
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        return { id: "lab", run: null };
+      },
+    });
+    const edit = await panel();
+    fireEvent.click(
+      await edit.findByRole("checkbox", { name: /Do spindles carry it/ })
+    );
+
+    fireEvent.click(edit.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe("Saved.");
+    expect(asked).toEqual([
+      {
+        id: "lab",
+        name: "Lab publications",
+        watching: "watched",
+        query: LAB,
+        cadence: "monthly",
+        assigned: ["q-replay", "q-spindles"],
+        lane: "skim",
+        searchBackTo: null,
+      },
+    ]);
+  });
+
+  it("takes the researcher to this Scout's form in the Queue when they ask for it", async () => {
+    open(() => fleet([PAGE]), {
+      "questions.list": QUESTIONS,
+      "scouts.list": {
+        scouts: [
+          {
+            id: "lab",
+            name: "Lab publications",
+            source: { kind: "watched", url: LAB },
+            query: LAB,
+            cadence: "monthly",
+            assigned: ["q-replay"],
+            lane: "skim",
+            paused: false,
+            created: "2026-09-20T00:00:00.000Z",
+            searchBackTo: null,
+          },
+        ],
+        unreadable: [],
+      },
+      "scouts.queue": [],
+      "scouts.groups": [{ id: "lab", runId: null, runPending: 0, held: [] }],
+      "scouts.health": {
+        scouts: [{ id: "lab", health: LOOKING }],
+        unreadable: [],
+      },
+      "scouts.fleet": { claim: null, naming: [] },
+    });
+    const edit = await panel();
+
+    fireEvent.click(edit.getByRole("button", { name: "open the form" }));
+
+    expect(window.location.hash).toBe("#/scouts?scout=lab");
+    // The Queue's form, which is the one with an Address in it.
+    expect(await screen.findByLabelText("Address")).toBeDefined();
+    expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(LAB);
   });
 });
