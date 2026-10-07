@@ -58,6 +58,11 @@ const PAUSES = [
 const EDITS = [
   ...PAUSES.map((pause) => ({ ...pause, shows: { paused: true } })),
   { call: "scouts.save", input: EDITED_FORM, shows: { name: "Renamed" } },
+  {
+    call: "scouts.setCadence",
+    input: { scoutId: "sleep", cadence: "monthly" },
+    shows: { cadence: "monthly" },
+  },
 ];
 
 async function opened(files: Record<string, string>) {
@@ -197,6 +202,44 @@ describe("a pause and an edit of one Scout that overlap", () => {
 
       expect((await pause).error).toBeUndefined();
       expect((await edit).error).toBeUndefined();
+      expect((await listed()).scouts).toMatchObject([BOTH]);
+    }
+  );
+});
+
+// A row's cadence menu and its pause are two narrow writes of one file, made a
+// click apart on one row (#520): each reads the file and writes it back, so one
+// that began while the other was mid-write must still find the other's key.
+describe("a cadence change and a pause that overlap", () => {
+  const CADENCE = {
+    call: "scouts.setCadence",
+    input: { scoutId: "sleep", cadence: "monthly" },
+  };
+  const PAUSE = {
+    call: "scouts.setPaused",
+    input: { scoutId: "sleep", paused: true },
+  };
+  const BOTH = { id: "sleep", cadence: "monthly", paused: true };
+
+  it.each([
+    { first: CADENCE, second: PAUSE },
+    { first: PAUSE, second: CADENCE },
+  ])(
+    "keeps both keys when $first.call was already under way",
+    async ({ first, second }) => {
+      const { c, listed } = await opened({
+        [`${FOLDER}/sleep.yaml`]: scoutYaml,
+      });
+      const write = holdNextScoutWrite();
+      const under = c.mutate(first.call, first.input);
+      await write.reached;
+
+      const queued = c.mutate(second.call, second.input);
+      await allowToFinish(queued);
+      write.release();
+
+      expect((await under).error).toBeUndefined();
+      expect((await queued).error).toBeUndefined();
       expect((await listed()).scouts).toMatchObject([BOTH]);
     }
   );

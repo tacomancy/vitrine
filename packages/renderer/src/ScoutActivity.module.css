@@ -313,3 +313,69 @@
 .open:hover {
   color: var(--color-fg);
 }
+
+/* What a row can be told to do, in its first cell under how it is doing: quiet
+   words in the row's own type, the same on every row. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.act {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: none;
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+}
+
+.act:hover {
+  color: var(--color-fg);
+}
+
+/* What an act did, said under its row as a surface of its own: the row's type,
+   quiet, and wrapping with the line. */
+.table tbody tr > .note {
+  border-radius: var(--radius-md);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  white-space: normal;
+}
+
+.note p {
+  margin: 0;
+}
+
+/* A row's cadence menu: three choices in a line, the Scout's own marked by the
+   raised ground and by aria-checked, never by a colour that would say better. */
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.choice {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.choice:hover {
+  color: var(--color-fg);
+}
+
+.choice[aria-checked="true"] {
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+}

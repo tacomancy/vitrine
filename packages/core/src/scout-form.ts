@@ -15,6 +15,7 @@ import {
   type Scout,
 } from "./scout-file.js";
 import { faultSentence } from "./scout-health.js";
+import { dueUnder } from "./scout-schedule.js";
 import { runScout, type RunSummary, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
 
@@ -109,12 +110,17 @@ async function write(
     if (before === undefined) {
       throw new VaultError("refused", `There is no Scout named ${id}.`);
     }
-    if (before.scout.source.kind === "watched") {
-      // The form's Query is an arXiv Query; writing it over a page's address
-      // would quietly turn the Scout into something else.
+    // What a saved Scout watches is fixed. An arXiv Query written over a
+    // page's address would turn one Scout's history into another's, and a
+    // different address invalidates the page hash and the structure-change test
+    // that history rests on, which is its own decision (ADR 0042 decision 5):
+    // until it is made the address stays in the file. A Scout Activity row
+    // saves a page's Assigned Questions through here with the address it has.
+    const wasWatched = before.scout.source.kind === "watched";
+    if (wasWatched !== watched || (watched && query !== before.scout.query)) {
       throw new VaultError(
         "refused",
-        "A Scout that watches a web page is edited in its file for now."
+        "What a Scout watches is changed in its file for now."
       );
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
@@ -151,20 +157,20 @@ async function write(
 }
 
 /**
- * Pause or resume, for the Scout's header and Loose Ends' row alike (#453,
- * #533). It is queued with the form's saves and written whole, as they are: a
+ * A narrow write of one Scout's file: pause and resume, for the Scout's header,
+ * Loose Ends' row and Scout Activity's alike (#453, #533), and a row's cadence
+ * (#520). It is queued with the form's saves and written whole, as they are: a
  * second way to write the file would be a second way to lose an edit or leave
  * half of one. The document is edited rather than re-stringified so a
  * hand-written file keeps its comments and order (ADR 0009), and a file that
  * does not parse is refused, not rewritten — `readScouts` does not list it, so
  * there is no Scout to find — because the app would be guessing at its shape.
- *
- * There is no delete: a Scout owns the runs health reads (spec #447 story 25).
+ * `change` sets the keys the write owns and no others.
  */
-export function setPaused(
+function editScoutFile(
   deps: ScoutDeps,
   scoutId: string,
-  paused: boolean
+  change: (doc: Document, scout: Scout) => void
 ): Promise<void> {
   return saving(async () => {
     const { scouts } = await readScouts(deps.vaultPath);
@@ -177,10 +183,42 @@ export function setPaused(
       throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
     }
     const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
-    if (paused) doc.set("paused", true);
-    else doc.delete("paused");
+    change(doc, found.scout);
     await writeScoutFile(deps.vaultPath, found.file, String(doc));
   });
+}
+
+/**
+ * Pause or resume. There is no delete: a Scout owns the runs health reads
+ * (spec #447 story 25).
+ */
+export function setPaused(
+  deps: ScoutDeps,
+  scoutId: string,
+  paused: boolean
+): Promise<void> {
+  return editScoutFile(deps, scoutId, (doc) => {
+    if (paused) doc.set("paused", true);
+    else doc.delete("paused");
+  });
+}
+
+/**
+ * A row's cadence menu: the one key, and no other (ADR 0042 decision 5). It
+ * answers whether this change made the Scout due at the next check, read from
+ * the Scout as the file had it, so the row can say a run is coming.
+ */
+export async function setCadence(
+  deps: ScoutDeps,
+  scoutId: string,
+  cadence: Scout["cadence"]
+): Promise<{ dueAtNextCheck: boolean }> {
+  let dueAtNextCheck = false;
+  await editScoutFile(deps, scoutId, (doc, scout) => {
+    dueAtNextCheck = dueUnder(deps.queue, scout, deps.now()).includes(cadence);
+    doc.set("cadence", cadence);
+  });
+  return { dueAtNextCheck };
 }
 
 export type TriedQuery =

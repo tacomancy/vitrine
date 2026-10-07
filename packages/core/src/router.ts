@@ -65,7 +65,13 @@ import {
 import { readActivity, readRunCosts } from "./scout-activity.js";
 import { readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
-import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
+import {
+  saveScout,
+  setCadence,
+  setPaused,
+  tryPage,
+  tryQuery,
+} from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
@@ -581,6 +587,17 @@ export const router = t.router({
       .input(z.object({ scoutId: z.string().min(1), paused: z.boolean() }))
       .mutation(async ({ ctx, input }) =>
         refusing(setPaused(await scoutDeps(ctx), input.scoutId, input.paused))
+      ),
+    // A Scout Activity row's cadence menu (#520): the one key, as pause is.
+    setCadence: t.procedure
+      .input(
+        z.object({
+          scoutId: z.string().min(1),
+          cadence: z.enum(["daily", "weekly", "monthly"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(setCadence(await scoutDeps(ctx), input.scoutId, input.cadence))
       ),
     tryQuery: t.procedure
       .input(z.object({ query: z.string() }))

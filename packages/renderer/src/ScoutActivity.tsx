@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Fragment,
   useState,
@@ -13,9 +13,11 @@ import type {
   FleetSource,
   Health,
   ReviewDepth,
+  Scout,
   ScoutRunCost,
   Volume,
 } from "core";
+import { CadenceMenu } from "./CadenceMenu";
 import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
@@ -35,8 +37,25 @@ const CADENCE_RANK = { daily: 0, weekly: 1, monthly: 2 } as const;
 /** The row header and its seven cells: what a row that spans the table, or the file that will not parse, must add up to. */
 const COLUMNS = 8;
 
+/** The set with `key` in it if it was not, and out of it if it was. */
+function toggled(set: ReadonlySet<string>, key: string): ReadonlySet<string> {
+  const next = new Set(set);
+  if (!next.delete(key)) next.add(key);
+  return next;
+}
+
+const scoutKey = (id: string) => `scout:${id}`;
 const keyOf = (row: ActivityRow) =>
-  row.kind === "scout" ? `scout:${row.id}` : `file:${row.file}`;
+  row.kind === "scout" ? scoutKey(row.id) : `file:${row.file}`;
+
+/**
+ * What an act on a row did, said on the row it was about and left there: no
+ * row disappears from under the cursor, and what happened is not a toast that
+ * has gone by the time it is wanted (spec #511 story 58). A refusal is the
+ * user's act turned down and so an alert; anything else is the app saying where
+ * things now stand (ADR 0033 decision 1).
+ */
+type Said = { text: string; refused: boolean };
 
 /**
  * A column's value for a row, or null where the row has none to give — a file
@@ -83,6 +102,23 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
 }
 
 /**
+ * The rows in the order the researcher was looking at when they acted, so a
+ * Scout the act has just changed is not carried up or down the table by it: a
+ * pause makes a Scout one that is not looking, which the core's sort by need
+ * puts above those that are (spec #511 story 58). A row the order was not taken
+ * of — a Scout made since — follows the rest, in the order it came.
+ */
+function inPlace(rows: ActivityRow[], held: readonly string[] | null) {
+  if (held === null) return rows;
+  const place = new Map(held.map((key, index) => [key, index]));
+  return [...rows].sort(
+    (a, b) =>
+      (place.get(keyOf(a)) ?? held.length) -
+      (place.get(keyOf(b)) ?? held.length)
+  );
+}
+
+/**
  * Scout Activity (brief § Scout Activity, Prompt 10; ADR 0042): are the
  * Scouts earning their keep. One read, `scouts.activity`, says everything the
  * screen shows. A Scout's Voice, Warrant and fault sentence are the core's,
@@ -91,8 +127,45 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
  */
 export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const activity = useQuery(trpc.scouts.activity.queryOptions());
   const status = useVaultStatusLines();
+  // Parent-level, so a key on the chosen row can drive it as the row's button
+  // does; the row is the one thing in the window that re-reads from it.
+  const [said, setSaid] = useState<ReadonlyMap<string, Said>>(new Map());
+  function say(key: string, note: Said) {
+    setSaid((was) => new Map(was).set(key, note));
+  }
+  const changeCadence = useMutation(
+    trpc.scouts.setCadence.mutationOptions({
+      onSuccess: ({ dueAtNextCheck }, { scoutId, cadence }) => {
+        // Said from the write's own answer, which asked the scheduler: a row
+        // that said a run was coming would otherwise be guessing at it.
+        say(scoutKey(scoutId), {
+          refused: false,
+          text: `Cadence is now ${cadence}.${dueAtNextCheck ? " It is due at the next check." : ""}`,
+        });
+        void queryClient.invalidateQueries(trpc.scouts.pathFilter());
+      },
+      onError: (error, { scoutId }) =>
+        say(scoutKey(scoutId), { refused: true, text: error.message }),
+    })
+  );
+  const pause = useMutation(
+    trpc.scouts.setPaused.mutationOptions({
+      onSuccess: (_done, { scoutId, paused }) => {
+        say(scoutKey(scoutId), {
+          refused: false,
+          text: paused
+            ? "Paused. It will not run until you resume it."
+            : "Resumed. It runs again when it is due.",
+        });
+        void queryClient.invalidateQueries(trpc.scouts.pathFilter());
+      },
+      onError: (error, { scoutId }) =>
+        say(scoutKey(scoutId), { refused: true, text: error.message }),
+    })
+  );
   const [sort, setSort] = useState<Sort | null>(null);
   // Held by the row's key and not its place, so a re-sort leaves the choice on
   // the Scout it was on.
@@ -101,12 +174,22 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  const rows = sorted(activity.data?.rows ?? [], sort);
+  // Which rows have their cadence menu open, held by key for the same reason.
+  const [choosing, setChoosing] = useState<ReadonlySet<string>>(new Set());
+  // Taken when a row is acted on and let go when a column is asked for, so the
+  // table only ever re-sorts by need when the researcher arrives or asks.
+  const [held, setHeld] = useState<readonly string[] | null>(null);
+  const rows = inPlace(sorted(activity.data?.rows ?? [], sort), held);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
   useChosenInView(chosenId);
 
+  function hold() {
+    setHeld(rows.map(keyOf));
+  }
+
   function onSort(column: Column) {
+    setHeld(null);
     setSort((was) =>
       was?.column === column
         ? { column, descending: !was.descending }
@@ -117,11 +200,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   const headerProps = { sort, onSort };
 
   function toggle(key: string) {
-    setOpened((was) => {
-      const next = new Set(was);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
+    setOpened((was) => toggled(was, key));
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -218,8 +297,28 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   id={rowId(index)}
                   chosen={index === chosenIndex}
                   open={opened.has(keyOf(row))}
+                  choosing={choosing.has(keyOf(row))}
+                  said={said.get(keyOf(row))}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
+                  onToggleCadence={() =>
+                    setChoosing((was) => toggled(was, keyOf(row)))
+                  }
+                  onPickCadence={(cadence) => {
+                    if (row.kind !== "scout") return;
+                    setChoosing((was) => toggled(was, keyOf(row)));
+                    // The cadence it has is no change, and a write that did
+                    // nothing would only rewrite the file.
+                    if (cadence === row.cadence) return;
+                    hold();
+                    changeCadence.mutate({ scoutId: row.id, cadence });
+                  }}
+                  onPause={() => {
+                    if (row.kind === "scout") {
+                      hold();
+                      pause.mutate({ scoutId: row.id, paused: !row.paused });
+                    }
+                  }}
                 />
               ))}
             </tbody>
@@ -531,15 +630,25 @@ function Row({
   id,
   chosen,
   open,
+  choosing,
+  said,
   onToggle,
   onChoose,
+  onToggleCadence,
+  onPickCadence,
+  onPause,
 }: {
   row: ActivityRow;
   id: string;
   chosen: boolean;
   open: boolean;
+  choosing: boolean;
+  said: Said | undefined;
   onToggle: () => void;
   onChoose: () => void;
+  onToggleCadence: () => void;
+  onPickCadence: (cadence: Scout["cadence"]) => void;
+  onPause: () => void;
 }) {
   const [showRuns, setShowRuns] = useState(false);
   if (row.kind === "unreadable") {
@@ -586,6 +695,19 @@ function Row({
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
             <VoiceLine health={row.health} />
+            {/* The same buttons on every row, so *edit* weighs no more on the
+                row that is doing worst than on the one that is doing best
+                (ADR 0042 decision 8). */}
+            <span className={styles.actions}>
+              <button
+                type="button"
+                className={styles.act}
+                aria-label={`${row.name}: ${row.paused ? "resume" : "pause"}`}
+                onClick={onPause}
+              >
+                {row.paused ? "resume" : "pause"}
+              </button>
+            </span>
           </span>
         </th>
         {/* The column cuts a long Query to one line; the cut is only to the
@@ -593,7 +715,18 @@ function Row({
         <td className={styles.watching} title={watching}>
           {watching}
         </td>
-        <td>{row.cadence}</td>
+        <td>
+          <button
+            type="button"
+            className={styles.open}
+            aria-haspopup="menu"
+            aria-expanded={choosing}
+            aria-label={`${row.name}: cadence, ${row.cadence}`}
+            onClick={onToggleCadence}
+          >
+            {row.cadence}
+          </button>
+        </td>
         <td>
           {row.lastRun === null ? (
             "not yet"
@@ -646,6 +779,25 @@ function Row({
           </a>
         </ReviewCell>
       </tr>
+      {said !== undefined && (
+        <tr>
+          <td className={styles.note} colSpan={COLUMNS}>
+            <p role={said.refused ? "alert" : "status"}>{said.text}</p>
+          </td>
+        </tr>
+      )}
+      {choosing && (
+        <tr>
+          <td className={styles.detail} colSpan={COLUMNS}>
+            <CadenceMenu
+              name={row.name}
+              cadence={row.cadence}
+              dueUnder={row.dueUnder}
+              onPick={onPickCadence}
+            />
+          </td>
+        </tr>
+      )}
       {open && (
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { readScouts, type Scout } from "./scout-file.js";
+import { dueUnder } from "./scout-schedule.js";
 import {
   ago,
   finishedRuns,
@@ -130,6 +131,17 @@ export type ActivityRow =
       source:
         { kind: "arxiv"; query: string } | { kind: "watched"; url: string };
       cadence: Scout["cadence"];
+      /**
+       * The cadences that would make this Scout due at the next check, which
+       * it is not now: what the cadence menu says before anything is chosen,
+       * so a change is never a surprise run (spec #511 story 55).
+       */
+      dueUnder: Array<Scout["cadence"]>;
+      /** What the row's edit writes back through `scouts.save` beside the Query it changes: the Questions it is Assigned to, and the Lane its finds start in. */
+      assigned: string[];
+      lane: Scout["lane"];
+      /** From the file, not from the Voice's words: it is what *pause* and *resume* turn on. */
+      paused: boolean;
       /**
        * The newest check that looked, whatever came of it; null before the
        * first. A check refused for want of a key read nothing, so it is not
@@ -371,6 +383,10 @@ export async function readActivity(deps: {
             ? { kind: "watched", url: scout.source.url }
             : { kind: "arxiv", query: scout.query },
         cadence: scout.cadence,
+        dueUnder: dueUnder(deps.queue, scout, now),
+        assigned: scout.assigned,
+        lane: scout.lane,
+        paused: scout.paused,
         lastRun:
           newest === undefined
             ? null
