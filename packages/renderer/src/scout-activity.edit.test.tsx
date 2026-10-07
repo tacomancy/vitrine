@@ -752,3 +752,329 @@ describe("a Scout that watches a page", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(LAB);
   });
 });
+
+// Tuning is as quick as triaging (story 77): the table's keys choose a row and
+// the row's own act is one more key. They are the same keys j and k already
+// are: heard from the table, never from a field being typed in or a menu
+// being moved through, which have keys of their own.
+describe("the keys for a row's acts", () => {
+  const list = () => screen.getByRole("group", { name: "Scout rows" });
+  const press = (key: string) => fireEvent.keyDown(list(), { key });
+  /** The table with its first row chosen. */
+  const chosen = async (rows: ActivityRow[], more = {}) => {
+    open(() => fleet(rows), { "questions.list": QUESTIONS, ...more });
+    await tableRows();
+    press("j");
+  };
+
+  it("opens the chosen row's edit on e, with the keyboard in the Query", async () => {
+    await chosen([scout()]);
+
+    press("e");
+
+    const panel = await screen.findByRole("form", {
+      name: "Edit Sleep and memory",
+    });
+    expect(document.activeElement).toBe(within(panel).getByLabelText("Query"));
+  });
+
+  it("opens the chosen row's cadence menu on c, with the keyboard on the cadence it has", async () => {
+    await chosen([scout({ cadence: "weekly" })]);
+
+    press("c");
+
+    await screen.findByRole("menu", { name: "Sleep and memory: cadence" });
+    expect(document.activeElement?.textContent).toBe("weekly");
+  });
+
+  it("pauses the chosen row on p and resumes it on the next", async () => {
+    const asked: unknown[] = [];
+    let paused = false;
+    open(() => fleet([scout({ paused, health: paused ? PAUSED : LOOKING })]), {
+      "scouts.setPaused": (input: { paused: boolean }) => {
+        asked.push(input);
+        paused = input.paused;
+      },
+    });
+    await tableRows();
+    press("j");
+
+    press("p");
+    await screen.findByRole("button", { name: "Sleep and memory: resume" });
+    press("p");
+    await screen.findByRole("button", { name: "Sleep and memory: pause" });
+
+    expect(asked).toEqual([
+      { scoutId: "sleep", paused: true },
+      { scoutId: "sleep", paused: false },
+    ]);
+  });
+
+  it("acts on the row that is chosen and not on the first", async () => {
+    const asked: unknown[] = [];
+    await chosen([scout(), scout({ id: "other", name: "Other" })], {
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+    });
+    press("j");
+
+    press("p");
+
+    await screen.findByText("Paused. It will not run until you resume it.");
+    expect(asked).toEqual([{ scoutId: "other", paused: true }]);
+  });
+
+  it("does nothing while no row is chosen", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout()]), {
+      "questions.list": QUESTIONS,
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+    });
+    await tableRows();
+
+    press("e");
+    press("c");
+    press("p");
+
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(asked).toEqual([]);
+  });
+
+  it("does nothing for a file that will not parse, which has no Scout to act on", async () => {
+    await chosen([
+      {
+        kind: "unreadable",
+        file: "torn.yaml",
+        health: {
+          voice: "wrong",
+          kind: null,
+          sentence: "This file could not be read: line 2 is not valid YAML.",
+        },
+      },
+    ]);
+
+    press("e");
+    press("c");
+    press("p");
+
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("leaves a key typed in the edit form to the form", async () => {
+    const asked: unknown[] = [];
+    await chosen([scout()], {
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+    });
+    press("e");
+    const query = await screen.findByLabelText("Query");
+
+    fireEvent.keyDown(query, { key: "p" });
+    fireEvent.keyDown(query, { key: "c" });
+    fireEvent.keyDown(query, { key: "j" });
+
+    expect(asked).toEqual([]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("the cadence menu's own keys", () => {
+  const list = () => screen.getByRole("group", { name: "Scout rows" });
+  const active = () => {
+    const id = list().getAttribute("aria-activedescendant");
+    return id === null ? null : document.getElementById(id);
+  };
+  const items = () =>
+    within(
+      screen.getByRole("menu", { name: "Sleep and memory: cadence" })
+    ).getAllByRole("menuitemradio");
+
+  it("moves between the choices with the arrows, wrapping, and leaves the table's choice where it was", async () => {
+    open(() =>
+      fleet([scout({ cadence: "weekly" }), scout({ id: "o", name: "O" })])
+    );
+    const [first] = await tableRows();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Sleep and memory: cadence, weekly",
+      })
+    );
+    expect(active()).toBe(first);
+    const [daily, weekly, monthly] = items();
+    expect(document.activeElement).toBe(weekly);
+
+    fireEvent.keyDown(weekly!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(monthly);
+    fireEvent.keyDown(monthly!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(daily);
+    fireEvent.keyDown(daily!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(monthly);
+    fireEvent.keyDown(monthly!, { key: "Home" });
+    expect(document.activeElement).toBe(daily);
+    fireEvent.keyDown(daily!, { key: "End" });
+    expect(document.activeElement).toBe(monthly);
+
+    expect(active()).toBe(first);
+  });
+
+  it("closes on Escape and puts the keyboard back on the word that opened it", async () => {
+    open(() => fleet([scout({ cadence: "weekly" })]));
+    const trigger = await screen.findByRole("button", {
+      name: "Sleep and memory: cadence, weekly",
+    });
+    fireEvent.click(trigger);
+
+    fireEvent.keyDown(items()[1]!, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("puts the keyboard back on the word after a choice, too", async () => {
+    open(() => fleet([scout({ cadence: "weekly" })]), {
+      "scouts.setCadence": () => ({ dueAtNextCheck: false }),
+    });
+    const trigger = await screen.findByRole("button", {
+      name: "Sleep and memory: cadence, weekly",
+    });
+    fireEvent.click(trigger);
+
+    fireEvent.click(items()[0]!);
+
+    expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("a key held down", () => {
+  it("is one act and not one at every repeat, since each would write the file again", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+    });
+    await tableRows();
+    const list = screen.getByRole("group", { name: "Scout rows" });
+    fireEvent.keyDown(list, { key: "j" });
+
+    fireEvent.keyDown(list, { key: "p" });
+    fireEvent.keyDown(list, { key: "p", repeat: true });
+    fireEvent.keyDown(list, { key: "p", repeat: true });
+
+    await screen.findByText("Paused. It will not run until you resume it.");
+    expect(asked).toEqual([{ scoutId: "sleep", paused: true }]);
+  });
+});
+
+describe("a row's own buttons", () => {
+  it("are their own acts: none of them also opens the accept-rate line the row opens on a click", async () => {
+    open(() => fleet([scout()]), {
+      "questions.list": QUESTIONS,
+      "scouts.setPaused": () => undefined,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sleep and memory: cadence, weekly" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sleep and memory: pause" })
+    );
+
+    await screen.findByText("Paused. It will not run until you resume it.");
+    expect(
+      screen
+        .getByRole("button", { name: /Sleep and memory: accept rate/ })
+        .getAttribute("aria-expanded")
+    ).toBe("false");
+  });
+});
+
+// Whatever the act, and whatever the core would now say, the row it was on is
+// where the researcher saw it: the table is rearranged by their asking or by
+// their arriving and by nothing the table did on its own.
+describe("the order of the table after each kind of act", () => {
+  const FIRST = scout({ id: "a", name: "Alpha" });
+  const SECOND = scout({ id: "b", name: "Beta" });
+  const names = async () =>
+    (await tableRows()).flatMap((row) => {
+      const header = within(row).queryByRole("rowheader");
+      return header === null
+        ? []
+        : [header.querySelector("span > span")!.textContent];
+    });
+
+  const acts = [
+    {
+      act: "a pause",
+      answer: (done: () => void) => ({
+        "scouts.setPaused": () => void done(),
+      }),
+      perform: async () =>
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Beta: pause" })
+        ),
+      said: "Paused. It will not run until you resume it.",
+    },
+    {
+      act: "a cadence change",
+      answer: (done: () => void) => ({
+        "scouts.setCadence": () => {
+          done();
+          return { dueAtNextCheck: false };
+        },
+      }),
+      perform: async () => {
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "Beta: cadence, weekly",
+          })
+        );
+        fireEvent.click(screen.getByRole("menuitemradio", { name: "monthly" }));
+      },
+      said: "Cadence is now monthly.",
+    },
+    {
+      act: "a saved edit",
+      answer: (done: () => void) => ({
+        "questions.list": QUESTIONS,
+        "scouts.save": () => {
+          done();
+          return { id: "b", run: null };
+        },
+      }),
+      perform: async () => {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Beta: edit" })
+        );
+        const panel = within(
+          await screen.findByRole("form", { name: "Edit Beta" })
+        );
+        await panel.findAllByRole("checkbox");
+        fireEvent.click(panel.getByRole("button", { name: "Save" }));
+      },
+      said: "Saved.",
+    },
+  ];
+
+  it.each(acts)(
+    "holds the order after $act, though the core's next answer reverses it",
+    async ({ answer, perform, said }) => {
+      let reversed = false;
+      open(
+        () => fleet(reversed ? [SECOND, FIRST] : [FIRST, SECOND]),
+        answer(() => {
+          reversed = true;
+        })
+      );
+      expect(await names()).toEqual(["Alpha", "Beta"]);
+
+      await perform();
+      await screen.findByText(said);
+
+      expect(reversed).toBe(true);
+      expect(await names()).toEqual(["Alpha", "Beta"]);
+    }
+  );
+});
