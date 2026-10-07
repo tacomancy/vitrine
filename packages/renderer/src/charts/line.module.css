@@ -1,0 +1,77 @@
+/* The line's hue lives here and nowhere else: the component names a class and
+   this file binds it to a token, so the cascade gives it every theme (#141). */
+.figure {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+/* The scale's labels are HTML, so they keep their size when the plot narrows;
+   the left column is as tall as the plot and each label is placed in it by the
+   same scale the line is drawn with. */
+.plot {
+  flex: 1;
+  min-width: 0;
+  max-width: 34rem;
+  display: grid;
+  grid-template-columns: 3.5ch minmax(0, 1fr);
+  column-gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.yAxis {
+  position: relative;
+}
+
+.yLabel {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.xAxis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+}
+
+.grid {
+  stroke: var(--color-line);
+  stroke-width: 1;
+}
+
+.line {
+  fill: none;
+  stroke: var(--color-series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.point {
+  fill: var(--color-series-1);
+}
+
+/* Takes the pointer without painting anything. */
+.hit {
+  fill: none;
+  pointer-events: all;
+}
+
+.headline,
+.why {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
