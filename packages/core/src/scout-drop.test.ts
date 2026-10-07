@@ -425,7 +425,10 @@ describe("a dropped Scout's Proposals", () => {
 
   it("keep *Clocked but unquestioned* reading true: the stub is still counted, and its origin still names a Scout the app can find", async () => {
     // Assigned to no Question, so what it kept is a Skim-style find that no
-    // Question stands behind.
+    // Question stands behind. Today the reading derives from the stub's own
+    // frontmatter, which a drop never touches, so this is a tripwire: it goes
+    // red the day *Clocked but unquestioned* reads the Scout's file instead,
+    // as CONTEXT.md's wording suggests, and a dropped Scout would fall out.
     const f = await opened({ "sleep.yaml": arxivScout("Sleep and memory") });
     f.seed("sleep");
     const [card] = await f.cards();
