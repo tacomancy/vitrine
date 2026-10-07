@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { ANTHROPIC } from "./credentials.js";
+import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import { DEFAULT_MODEL } from "./model-provider.js";
 
 /**
@@ -37,10 +38,21 @@ export function createProviderSettings(
         return DEFAULT_MODEL;
       }
     },
-    setModel: (model) =>
-      writeAtomically(
-        file,
-        `${JSON.stringify({ [ANTHROPIC]: { model } }, null, 2)}\n`
-      ),
+    setModel: async (model) => {
+      try {
+        await writeAtomically(
+          file,
+          `${JSON.stringify({ [ANTHROPIC]: { model } }, null, 2)}\n`
+        );
+      } catch (cause) {
+        // What was being saved, and not where: the folder is the app's own
+        // state, with no vault to be relative to, and a reader can neither use
+        // its path nor act on it (ADR 0028).
+        throw new VaultError(
+          "writeFailed",
+          `Couldn't save the model: ${errorMessageWithoutPath(cause)}`
+        );
+      }
+    },
   };
 }

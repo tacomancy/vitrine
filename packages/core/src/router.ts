@@ -494,7 +494,9 @@ export const router = t.router({
       .query(async ({ ctx }) => ({ model: await ctx.providers.model() })),
     setModel: t.procedure
       .input(providerInput.extend({ model: z.string().trim().min(1) }))
-      .mutation(({ ctx, input }) => ctx.providers.setModel(input.model)),
+      .mutation(({ ctx, input }) =>
+        refusing(ctx.providers.setModel(input.model))
+      ),
   }),
   // The Scout Queue (beat 6, #448): a Scout is a file read as found, a run
   // turns what arXiv holds into Proposals, and accept is the one write.

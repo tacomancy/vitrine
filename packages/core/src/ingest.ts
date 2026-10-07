@@ -15,7 +15,7 @@ import {
   type SidecarAnnotation,
 } from "./annotation-sidecar.js";
 import { pageWords, sameDocument } from "./document-fingerprint.js";
-import { errorMessage } from "./errors.js";
+import { errorMessage, errorMessageWithoutPath } from "./errors.js";
 import { writeAtomically } from "./atomic-write.js";
 import type { Question } from "./question-types.js";
 import { HIGHLIGHT_RGB, type HighlightColour } from "./highlight-colour.js";
@@ -760,7 +760,16 @@ export function createIngest({
       );
     }
     // Temp file, then rename: a write that fails leaves the original as it was.
-    await writeAtomically(absolute, made.bytes);
+    try {
+      await writeAtomically(absolute, made.bytes);
+    } catch (cause) {
+      // The PDF by its vault-relative name: Node's errno named a temp file
+      // nobody made, under the machine's absolute path (ADR 0028).
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't write ${pdf}: ${errorMessageWithoutPath(cause)}`
+      );
+    }
     await index.refresh([pdf]);
   }
 
