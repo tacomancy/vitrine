@@ -74,6 +74,12 @@ const READS: Array<Call & { empty: unknown }> = [
         noKey: 0,
       },
       review: { pending: 0, deferred: 0, median: null, oldest: null },
+      // Nothing was asked and nothing was found, and the claim says how much.
+      coverageGaps: {
+        kind: "covered",
+        warrant: { questions: 0, scouts: 0 },
+        notLooking: [],
+      },
     },
   },
   { call: "scouts.groups", how: "query", empty: [] },

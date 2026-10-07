@@ -1,10 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
+import { coverage as mapCoverage } from "./question-map.js";
 import { readScouts, type Scout } from "./scout-file.js";
+import type { VaultIndex } from "./vault-index.js";
 import {
   ago,
   finishedRuns,
   healthOf,
   isNoKeyRun,
+  isWaitingOnKey,
   unreadableHealth,
   type Health,
   type RunRow,
@@ -172,11 +175,143 @@ export type FleetSource = {
   noKey: number;
 };
 
+/** Why a Scout that is Assigned to a Question is not looking at it. A *broken* Scout is not here: its fault surfaces on its own row, and it still covers (ADR 0042 decision 4). */
+export type NotLooking = {
+  id: string;
+  name: string;
+  reason: "paused" | "waiting on a key";
+};
+
+/** An open Map row no Scout is looking for (CONTEXT § Coverage gap). */
+export type CoverageGap = {
+  /** The row's own file, which is what identifies it: a Question may have no id. */
+  path: string;
+  question: string;
+  /**
+   * The id *brief a scout* Assigns. The originating Question's where a
+   * Research Question folds one in, since that is what the form lists; else the
+   * row's own, which the form shows as it stands. Null for a row with no id
+   * anywhere: no Scout can be Assigned to it, and it is a gap all the same.
+   */
+  assign: string | null;
+  /** The Question's age as the phrase a run uses; a neutral fact, absent where the file carries no date. */
+  age: string | null;
+  /** Scouts Assigned to it that are not looking; empty when none is Assigned at all. */
+  notLooking: NotLooking[];
+};
+
+/**
+ * Where the list is cut: the three the prototype's strip shows. It is a place
+ * to start, so the stated remainder keeps the cut from passing for the whole,
+ * and no total is ever given, so the list is never a debt (ADR 0042 decision 4).
+ */
+export const GAP_ROWS = 3;
+
+/**
+ * Open Map rows no Scout is looking for, or — with none — the claim that says
+ * so, warranted by what was checked (ADR 0032 decision 8): an empty block must
+ * never be mistaken for one that failed to load, or for one that skipped a
+ * Scout it should have named.
+ */
+export type CoverageGaps =
+  | { kind: "gaps"; shown: CoverageGap[]; notShown: number }
+  | {
+      kind: "covered";
+      /** What was checked: the Map's open rows, and the Scouts looking at them. Those not looking are named beside it, so the two never overlap. */
+      warrant: { questions: number; scouts: number };
+      notLooking: NotLooking[];
+    };
+
+/**
+ * ADR 0042 decision 4's three conditions, as the reason a Scout fails one, or
+ * null while it passes them all. A Scout that has not run yet passes: it is
+ * due at its next check, and a gap is a Question nothing is *Assigned* to look
+ * for, which is not the Queue's *has it looked yet*. (`readFleetClaim` names a
+ * never-run Scout too, for that other question.)
+ */
+function notLookingReason(
+  scout: Scout,
+  health: Health
+): NotLooking["reason"] | null {
+  if (scout.paused) return "paused";
+  // Not "any credentials fault": a rejected key is *wrong*, a Scout that tried
+  // and is broken, and a broken Scout still covers.
+  return isWaitingOnKey(health) ? "waiting on a key" : null;
+}
+
+/**
+ * Invert Assigned over the Question Map's rows (ADR 0042 decision 4), so a
+ * Research Question and the Question it came from are one entry (ADR 0041
+ * decision 6) and a Scout Assigned to either is looking at it.
+ *
+ * A Scout file that does not parse is not here: what it is Assigned to is not
+ * known, and it already stands in the table in the *wrong* Voice. The cost is
+ * that a Question only it covered may be listed as a gap, which sends the
+ * researcher to brief a Scout, never to believe a Question is watched.
+ */
+function coverageGaps(
+  index: VaultIndex,
+  scouts: Array<{ scout: Scout; health: Health }>,
+  now: Date
+): CoverageGaps {
+  const notLooking = new Map<string, NotLooking>();
+  for (const { scout, health } of scouts) {
+    const reason = notLookingReason(scout, health);
+    if (reason !== null) {
+      notLooking.set(scout.id, { id: scout.id, name: scout.name, reason });
+    }
+  }
+  // The Map's own order, newest first, and never re-ranked here: a gap's age is
+  // a fact to read and which to brief first is the researcher's call.
+  const { rows } = mapCoverage(index);
+  const gaps: CoverageGap[] = [];
+  for (const row of rows) {
+    // The folded Question's id first: it is the one the form can name.
+    const ids = [row.foldedId, row.id].filter((id) => id !== null);
+    const assigned = scouts.filter(({ scout }) =>
+      scout.assigned.some((id) => ids.includes(id))
+    );
+    const named = assigned.flatMap(({ scout }) => {
+      const reason = notLooking.get(scout.id);
+      return reason === undefined ? [] : [reason];
+    });
+    // Someone Assigned is looking. With nobody Assigned, `named` is empty too
+    // and the row is a gap that names no one.
+    if (named.length < assigned.length) continue;
+    gaps.push({
+      path: row.path,
+      question: row.question,
+      assign: ids[0] ?? null,
+      age:
+        row.captured === null || Number.isNaN(Date.parse(row.captured))
+          ? null
+          : ago(now.getTime() - Date.parse(row.captured)),
+      notLooking: named,
+    });
+  }
+  if (gaps.length > 0) {
+    return {
+      kind: "gaps",
+      shown: gaps.slice(0, GAP_ROWS),
+      notShown: Math.max(gaps.length - GAP_ROWS, 0),
+    };
+  }
+  return {
+    kind: "covered",
+    warrant: {
+      questions: rows.length,
+      scouts: scouts.length - notLooking.size,
+    },
+    notLooking: [...notLooking.values()],
+  };
+}
+
 export type ScoutActivity = {
   rows: ActivityRow[];
   fleet: FleetSource;
   /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. */
   review: ReviewDepth;
+  coverageGaps: CoverageGaps;
 };
 
 /**
@@ -231,9 +366,7 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
           h.kind === "model")
     ),
     keyRejected: count((h) => h.voice === "wrong" && h.kind === "credentials"),
-    // `kind: "credentials"` is set on a *not yet* Health only for a Scout
-    // waiting on a key (scout-health.ts), so it is the no-key test.
-    noKey: count((h) => h.voice === "not yet" && h.kind === "credentials"),
+    noKey: count(isWaitingOnKey),
   };
 }
 
@@ -350,6 +483,7 @@ export function readRunCosts(
 
 export async function readActivity(deps: {
   vaultPath: string;
+  index: VaultIndex;
   queue: DatabaseSync;
   now: () => Date;
 }): Promise<ScoutActivity> {
@@ -359,6 +493,9 @@ export async function readActivity(deps: {
   const depth = reviewDepth(deps.queue, now);
   const since = thirtyDaysBefore(now);
   const volumeByScout = volumes(deps.queue, since);
+  const healthByScout = new Map(
+    scouts.map((scout) => [scout.id, healthOf(deps.queue, scout, now)])
+  );
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = lookedRuns(deps.queue, scout.id).at(-1);
@@ -378,7 +515,7 @@ export async function readActivity(deps: {
                 finished: newest.finished,
                 ago: ago(now.getTime() - Date.parse(newest.finished)),
               },
-        health: healthOf(deps.queue, scout, now),
+        health: healthByScout.get(scout.id)!,
         acceptRate: acceptRateOf(
           scout,
           counts.find((c) => c.scoutId === scout.id),
@@ -399,5 +536,14 @@ export async function readActivity(deps: {
       health: unreadableHealth(file),
     })),
   ].sort(byNeed);
-  return { rows, fleet: sourceHealth(rows), review: depth.fleet };
+  return {
+    rows,
+    fleet: sourceHealth(rows),
+    review: depth.fleet,
+    coverageGaps: coverageGaps(
+      deps.index,
+      scouts.map((scout) => ({ scout, health: healthByScout.get(scout.id)! })),
+      now
+    ),
+  };
 }

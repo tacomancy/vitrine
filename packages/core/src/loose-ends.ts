@@ -23,7 +23,12 @@ import {
 } from "./pdf-plumbing.js";
 import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
 import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
-import { finishedRuns, healthOf, type RunErrorKind } from "./scout-health.js";
+import {
+  finishedRuns,
+  healthOf,
+  isWaitingOnKey,
+  type RunErrorKind,
+} from "./scout-health.js";
 import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -458,7 +463,7 @@ async function scoutRows(
     const path = `${SCOUTS_FOLDER}/${scout.id}.yaml`;
     // A Scout is one row however it failed, so each of these replaces the
     // generic failed-Scout row rather than sitting beside it.
-    if (health.voice === "not yet" && health.kind === "credentials") {
+    if (isWaitingOnKey(health)) {
       rows.push({
         kind: "blocked-on-credentials",
         subject: scout.id,
