@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import {
+  chmod,
   copyFile,
   cp,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -568,4 +570,22 @@ export function written(result: WriteResult) {
 export function refused(result: WriteResult) {
   if (result.written) throw new Error("expected a refusal");
   return result;
+}
+
+/**
+ * `act` with `path` at `mode`, and the mode it had put back whatever happens:
+ * a folder left shut is one the temp-dir cleanup cannot enter.
+ */
+export async function withMode<T>(
+  path: string,
+  mode: number,
+  act: () => Promise<T>
+): Promise<T> {
+  const before = (await stat(path)).mode & 0o7777;
+  await chmod(path, mode);
+  try {
+    return await act();
+  } finally {
+    await chmod(path, before);
+  }
 }

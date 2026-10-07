@@ -1,14 +1,7 @@
-import {
-  chmod,
-  mkdir,
-  stat,
-  symlink,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { closeCores, core, tmp, type Reply } from "./test-core.js";
+import { closeCores, core, tmp, withMode, type Reply } from "./test-core.js";
 
 // The Scout file writers refuse in words, not in Node's (#530). A step the
 // filesystem will not take used to leave `scouts.pause`, `scouts.setPaused`
@@ -72,24 +65,6 @@ async function opened(files: Record<string, string> = {}) {
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   return { vault, c };
-}
-
-/**
- * `act` with `path` at `mode`, and the mode it had put back whatever
- * happens: a folder left shut is one the temp-dir cleanup cannot enter.
- */
-async function withMode<T>(
-  path: string,
-  mode: number,
-  act: () => Promise<T>
-): Promise<T> {
-  const before = (await stat(path)).mode & 0o7777;
-  await chmod(path, mode);
-  try {
-    return await act();
-  } finally {
-    await chmod(path, before);
-  }
 }
 
 /**
