@@ -317,6 +317,15 @@ export const WIDEST_WAIT_MS = effectiveSettleMs(0) + effectiveRunWindowMs(0, 0);
 export const NEXT_TIMEOUT_MS = 5 * WIDEST_WAIT_MS;
 
 /**
+ * The budget for a test that returns several PDFs through the watcher (#553):
+ * each waits the settle window, then the run window, then the run, which is
+ * about 0.75 s at the floors on a quiet laptop, so four of them take 3 s of
+ * Vitest's 5 s default before a slower runner adds anything. ADR 0029 leaves the
+ * global default alone and allows a test its own budget.
+ */
+export const DELIVERY_TEST_BUDGET_MS = 15_000;
+
+/**
  * A run window no test waits out (#553): ten times the longest a `next()` waits.
  * A core built with it holds a returned PDF past the end of the test, so a test
  * that gives it one proves that what it waits on — a PDF asked for by name, a

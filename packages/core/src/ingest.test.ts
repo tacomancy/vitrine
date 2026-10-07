@@ -22,7 +22,7 @@ import {
   LONG_RUN_WINDOW_MS,
   type CoreOptions,
   NEXT_TIMEOUT_MS,
-  WIDEST_WAIT_MS,
+  DELIVERY_TEST_BUDGET_MS,
 } from "./test-core.js";
 import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
@@ -82,8 +82,8 @@ async function opened(
     timeoutMs?: number
   ) => {
     await writeFile(join(vault, "sources/pdf", name), bytes);
-    const options = timeoutMs === undefined ? undefined : { timeoutMs };
-    return (await events.next("ingestLanded", options)).summary;
+    const waitOptions = timeoutMs === undefined ? undefined : { timeoutMs };
+    return (await events.next("ingestLanded", waitOptions)).summary;
   };
   return { vault, c, events, source, sidecar, returned };
 }
@@ -341,8 +341,8 @@ describe("a PDF returning alone", () => {
       const settleMs = 1000;
       const { returned } = await opened({}, { settleMs, ...options });
       const started = performance.now();
-      // A settle window of a second takes about half the harness's bound, so
-      // this wait is given its own.
+      // A settle window of a second takes the whole of the harness's bound
+      // (3 s), so this wait is given its own.
       await returned(
         await pdf("annotated.pdf"),
         undefined,
@@ -431,8 +431,9 @@ const PDFS = 50;
 /**
  * How long a wait that scales with the machine may take before it is called
  * lost: 25 times what fifty PDFs take through the engine alone (about 0.4 s),
- * which beside three whole-suite runs overran the harness's 2 s
- * (`NEXT_TIMEOUT_MS`) and ran this test out (#550). A test gets three of them,
+ * which beside three whole-suite runs overran the harness's bound
+ * (`NEXT_TIMEOUT_MS`: 2 s then, 3 s since the run window, #553) and ran this
+ * test out (#550). A test gets three of them,
  * for the OS naming the PDFs, the landing and the rest, so a lost event is
  * named before Vitest's own bare timeout can fire. Nothing waits it out when
  * things go right.
@@ -753,24 +754,32 @@ describe("a note that begins Q:", () => {
   });
 
   it("never makes a second when the same PDF returns, and records the Question in the sidecar", async () => {
-    const { returned, c, events, sidecar, vault } = await opened();
+    const { returned, c, sidecar, vault } = await opened();
     await returned(await pdf("annotated-questions.pdf"));
     const first = await sidecar();
     expect(
       first.annotations.filter((a) => typeof a["question"] === "string")
     ).toHaveLength(3);
-    // The same bytes rewritten, as a sync client does: no change, no Question.
+    // The same annotations in different bytes, as a sync client's rewrite
+    // leaves them: Ingest reads the file again and must not spawn a second
+    // Question for any of them. (The same bytes would raise no change at all,
+    // so nothing would be read: "says nothing when the file has not changed"
+    // has that.) This test used to rewrite the same bytes and read the
+    // Questions right after `indexed()`, which answers before the PDF has
+    // settled, so it could not have failed (#553).
     await writeFile(
       join(vault, "sources/pdf/rasch2013.pdf"),
-      await pdf("annotated-questions.pdf")
+      Buffer.concat([
+        await pdf("annotated-questions.pdf"),
+        Buffer.from("\n%touched\n"),
+      ])
     );
-    // Nothing is read, so there is nothing to wait on but the time a run would
-    // take, twice over: the PDF settles, the run window goes quiet, and then the
-    // run. `indexed()` answers at once, before any of that, so this test used to
-    // read the Questions before an Ingest could have made a second (#553).
-    await expect(
-      events.next("ingestLanded", { timeoutMs: 2 * WIDEST_WAIT_MS })
-    ).rejects.toThrow();
+    // A clean re-read raises no summary: the run is the sidecar saying it read
+    // the new bytes, after the settle window and the run window.
+    await vi.waitFor(
+      async () => expect((await sidecar()).file.hash).not.toBe(first.file.hash),
+      { timeout: NEXT_TIMEOUT_MS }
+    );
     expect(await listed(c)).toHaveLength(3);
   });
 
@@ -790,22 +799,26 @@ describe("a note that begins Q:", () => {
     ).toHaveLength(1);
   });
 
-  it("makes no second Question when the PDF comes back changed, and leaves it alone when the prefix goes", async () => {
-    const { returned, c } = await opened();
-    await returned(await pdf("annotated-questions.pdf"));
-    await c.indexed();
-    const spawned = (await listed(c)).length;
-    // The prefix removed from the highlight's note, matched by its text.
-    await returned(await pdf("annotated.pdf"));
-    // And restored: the identity already spawned, so it does not again.
-    await returned(await pdf("annotated-questions.pdf"));
-    await c.indexed();
-    const cue = (await listed(c)).filter(
-      (q) => q.question === "Does the cue work without sleep?"
-    );
-    expect(cue).toHaveLength(1);
-    expect((await listed(c)).length).toBeGreaterThanOrEqual(spawned);
-  });
+  it(
+    "makes no second Question when the PDF comes back changed, and leaves it alone when the prefix goes",
+    async () => {
+      const { returned, c } = await opened();
+      await returned(await pdf("annotated-questions.pdf"));
+      await c.indexed();
+      const spawned = (await listed(c)).length;
+      // The prefix removed from the highlight's note, matched by its text.
+      await returned(await pdf("annotated.pdf"));
+      // And restored: the identity already spawned, so it does not again.
+      await returned(await pdf("annotated-questions.pdf"));
+      await c.indexed();
+      const cue = (await listed(c)).filter(
+        (q) => q.question === "Does the cue work without sleep?"
+      );
+      expect(cue).toHaveLength(1);
+      expect((await listed(c)).length).toBeGreaterThanOrEqual(spawned);
+    },
+    DELIVERY_TEST_BUDGET_MS
+  );
 });
 
 describe("the Q: prefix", () => {
