@@ -1189,6 +1189,31 @@ describe("a save that is on its way", () => {
   });
 });
 
+describe("reading the Questions a Scout may be Assigned to", () => {
+  // The page reads them for the edit and for nothing else, so a visit that
+  // never opens one never asks the index for every Question the vault holds.
+  it("waits for an edit to be opened", async () => {
+    let reads = 0;
+    open(() => fleet([scout()]), {
+      "questions.list": () => {
+        reads += 1;
+        return QUESTIONS;
+      },
+    });
+    const edit = await screen.findByRole("button", {
+      name: "Sleep and memory: edit",
+    });
+    // Give a read that nothing is waiting on the chance to start.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const before = reads;
+
+    fireEvent.click(edit);
+
+    await screen.findByRole("form", { name: "Edit Sleep and memory" });
+    await vi.waitFor(() => expect(reads).toBe(before + 1));
+  });
+});
+
 describe("the keys a row's controls answer to", () => {
   it("are announced on those controls", async () => {
     open(() => fleet([scout()]));

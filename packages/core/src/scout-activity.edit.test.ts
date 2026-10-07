@@ -294,6 +294,26 @@ describe("a save that leaves the Assigned Questions as they were", () => {
     expect(await f.file("sleep")).toBe(NONE_ASSIGNED("all:sleep AND all:rem"));
   });
 
+  // One Question for another leaves the list as long as it was: a comparison of
+  // lengths, or of the first item, would call it unchanged and lose the edit.
+  it("still writes them when one Question was swapped for another", async () => {
+    const f = await opened({ "sleep.yaml": FLOW("all:sleep") });
+    const [row] = await f.rows();
+
+    await f.c.mutate("scouts.save", {
+      id: row!.id,
+      name: row!.name,
+      watching: "arxiv",
+      query: "all:sleep",
+      cadence: row!.cadence,
+      assigned: ["rq2b7x9mk4", "q8d1c0aa11"],
+      lane: row!.lane,
+      searchBackTo: null,
+    });
+
+    expect((await f.rows())[0]!.assigned).toEqual(["rq2b7x9mk4", "q8d1c0aa11"]);
+  });
+
   it("still writes them when they did change", async () => {
     const f = await opened({ "sleep.yaml": FLOW("all:sleep") });
     const [row] = await f.rows();
