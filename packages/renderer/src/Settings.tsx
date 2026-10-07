@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { PdfFolder, Vault, Watching } from "core";
 import { useEffect } from "react";
-import { WhatItTalksTo } from "./Credentials";
+import { PROVIDER, WhatItTalksTo } from "./Credentials";
 import { voiceOf } from "./FirstSlot";
 import { hashOf, pushRoute, SETTINGS } from "./router";
 import { localTime } from "./rows";
@@ -9,7 +9,11 @@ import styles from "./Settings.module.css";
 import { formatDateTime } from "./time";
 import { useTRPC } from "./trpc";
 import { Wrong } from "./Wrong";
-import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
+import {
+  useVaultStatusLines,
+  WarningLine,
+  type VaultRead,
+} from "./VaultStatusLines";
 
 /**
  * Settings (`CONTEXT.md`; ADR 0025; prototype 13): how this vault is
@@ -32,6 +36,10 @@ export function Settings({
   // File ▸ Open Vault…'s does, and a cancel is null and changes nothing.
   const pick = useMutation(trpc.vault.pick.mutationOptions());
   const footer = useVaultStatusLines();
+  // The same query *What it talks to* draws its list from, so it is one read.
+  // A failure of it is not the list's to draw (nothing to draw), so it is said
+  // here, in the footer's words (#527; ADR 0033 decision 2).
+  const waiting = useQuery(trpc.credentials.waiting.queryOptions(PROVIDER));
 
   return (
     <section className={styles.settings} aria-labelledby="settings-title">
@@ -116,8 +124,13 @@ export function Settings({
           here and only stated above: two alarms for one fault are two
           places that can drift apart (ADR 0025 decision 7). A refused
           reveal is not the vault's state, so it has no line of its own. */}
-      {footer.hasLines && (
-        <footer className={styles.footer}>{footer.lines}</footer>
+      {(footer.hasLines || waiting.isError) && (
+        <footer className={styles.footer}>
+          {footer.lines}
+          {waiting.isError && (
+            <WarningLine label="not read">{waiting.error.message}</WarningLine>
+          )}
+        </footer>
       )}
     </section>
   );

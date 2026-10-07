@@ -290,3 +290,24 @@ describe("Settings: the Scouts waiting on the key (#468)", () => {
     ).toBeNull();
   });
 });
+
+describe("Settings: a waiting list that could not be read (#527)", () => {
+  it("says why on a polite footer line, and draws no list", async () => {
+    renderApp(
+      answers({
+        "credentials.waiting": () => {
+          throw new Error("scouts unreadable");
+        },
+      })
+    );
+    await talks();
+    const page = await screen.findByRole("region", { name: "Settings" });
+
+    const footer = await within(page).findByRole("contentinfo");
+    expect(within(footer).getByRole("status").textContent).toBe(
+      "‖ not read — scouts unreadable"
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Waiting", { selector: "dt" })).toBeNull();
+  });
+});
