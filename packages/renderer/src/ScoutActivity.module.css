@@ -278,8 +278,9 @@
   color: var(--color-fg-muted);
 }
 
-/* An action beside the first slot's fragment: a button wearing the quiet
-   clothes a resolution wears on Loose Ends. */
+/* An action beside the first slot's fragment, and *brief a scout* on a
+   coverage gap: a button wearing the quiet clothes a resolution wears on Loose
+   Ends. */
 .action {
   appearance: none;
   border: 0;
@@ -420,4 +421,56 @@
 /* A sentence in the edit, in the page's own type like the form around it. */
 .line {
   margin: 0;
+}
+
+/* Coverage gaps: a surface on the pane's ground, set off by its gutter and
+   never by a rule (ADR 0023 decision 1), and as quiet as the rows below it —
+   no tint, since a gap is worth knowing and not broken (ADR 0042 decisions 8 and 11). */
+.gaps {
+  flex: none;
+  margin: 0 var(--space-5) var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+/* The Dashboards' small caps heading, so the block is named as a column is. */
+.gapsTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-secondary);
+}
+
+.gapsClaim {
+  margin: 0;
+}
+
+.gapList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The Question takes the width it can; its facts and its act follow, and wrap
+   below it rather than squeeze it on a narrow window. */
+.gapList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+
+.gapQuestion {
+  flex: 1 1 20ch;
+  min-width: 0;
+  color: var(--color-fg);
 }

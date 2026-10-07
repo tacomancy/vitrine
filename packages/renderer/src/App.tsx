@@ -203,11 +203,15 @@ function Workspace({ vault }: { vault: Vault }) {
           {route.surface === "question-map" && <QuestionMap />}
           {route.surface === "scout-activity" && (
             <ScoutActivity
-              onNewScout={() => {
+              onNewScout={(assigning) => {
                 // The Queue holds the form, and the window holds what it is
                 // showing, so one gesture across two surfaces: a fresh draft,
                 // and the Queue it opens in.
-                setScoutDraft({ edit: null, values: null });
+                setScoutDraft({
+                  edit: null,
+                  values: null,
+                  ...(assigning === undefined ? {} : { assigning }),
+                });
                 pushRoute(SCOUTS);
               }}
               onEditOnForm={(scoutId) => {

@@ -408,6 +408,7 @@ export function ScoutQueue({
           values={form.values}
           onChange={(values) => setForm({ edit: form.edit, values })}
           questions={questions}
+          assigning={form.assigning}
           onDone={(saved) => {
             setForm(null);
             if (saved !== null) setSelected(saved);

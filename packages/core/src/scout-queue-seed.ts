@@ -41,8 +41,16 @@ export type Seed = {
   recordedLast?: boolean;
 };
 
-export async function openedWithQueue(scouts: Record<string, string>) {
+export async function openedWithQueue(
+  scouts: Record<string, string>,
+  /** Vault-relative files to write beside the fixture's own: Questions a suite needs. */
+  files: Record<string, string> = {}
+) {
   const vault = await fixtureCopy("obsidian-vault");
+  for (const [file, text] of Object.entries(files)) {
+    await mkdir(dirname(join(vault, file)), { recursive: true });
+    await writeFile(join(vault, file), text);
+  }
   for (const [file, text] of Object.entries(scouts)) {
     const path = join(vault, ".vitrine/scouts", file);
     await mkdir(dirname(path), { recursive: true });

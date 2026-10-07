@@ -1,5 +1,12 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { Cost, ScoutActivity, ActivityRow, ScoutRunCost } from "core";
+import type {
+  Cost,
+  CoverageGap,
+  CoverageGaps,
+  ScoutActivity,
+  ActivityRow,
+  ScoutRunCost,
+} from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   empty,
@@ -27,13 +34,29 @@ const NO_FLEET = {
   noKey: 0,
 };
 const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
-const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET, review: NO_REVIEW };
+const COVERED: ScoutActivity["coverageGaps"] = {
+  kind: "covered",
+  warrant: { questions: 0, scouts: 0 },
+  notLooking: [],
+};
+const NONE: ScoutActivity = {
+  rows: [],
+  fleet: NO_FLEET,
+  review: NO_REVIEW,
+  coverageGaps: COVERED,
+};
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
   rows: ActivityRow[],
   counts: Partial<typeof NO_FLEET> = {},
-  review: ScoutActivity["review"] = NO_REVIEW
-): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts }, review });
+  review: ScoutActivity["review"] = NO_REVIEW,
+  coverage: ScoutActivity["coverageGaps"] = COVERED
+): ScoutActivity => ({
+  rows,
+  fleet: { ...NO_FLEET, ...counts },
+  review,
+  coverageGaps: coverage,
+});
 
 const answers = (
   activity: unknown,
@@ -568,10 +591,15 @@ describe("a vault with no Scouts", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "new scout" }));
 
-    expect(
-      await screen.findByRole("form", { name: "New Scout" })
-    ).toBeDefined();
+    const form = await screen.findByRole("form", { name: "New Scout" });
     expect(window.location.hash).toBe("#/scouts");
+    // Nothing is Assigned: only *brief a scout* starts a Scout on a Question,
+    // and the click that opened this one is not an id.
+    expect(
+      within(form)
+        .queryAllByRole("checkbox")
+        .filter((box) => (box as HTMLInputElement).checked)
+    ).toEqual([]);
   });
 
   it("is not drawn for a fleet that holds only a file that will not parse: that file is a row", async () => {
@@ -1021,5 +1049,177 @@ describe("opening a row", () => {
 
     expect(screen.queryByRole("button", { name: /accept rate/i })).toBeNull();
     expect(line()).toBeNull();
+  });
+});
+
+describe("coverage gaps", () => {
+  const gap = (
+    question: string,
+    more: Partial<CoverageGap> = {}
+  ): CoverageGap => ({
+    path: `q/${question}.md`,
+    question,
+    assign: `id-${question}`,
+    age: "12 days ago",
+    notLooking: [],
+    ...more,
+  });
+  const gaps = (shown: CoverageGap[], notShown = 0): CoverageGaps => ({
+    kind: "gaps",
+    shown,
+    notShown,
+  });
+  const block = () => screen.findByRole("region", { name: "Coverage gaps" });
+  const withGaps = (coverage: CoverageGaps, more = {}) =>
+    open(fleet([QUIET], {}, NO_REVIEW, coverage), more);
+
+  it("lists each open Question nothing is looking for, with its age and the Scouts that are Assigned but not looking", async () => {
+    withGaps(
+      gaps([
+        gap("Nobody has this one?"),
+        gap("A paused Scout has this one?", {
+          notLooking: [{ id: "r", name: "Resting", reason: "paused" }],
+        }),
+      ])
+    );
+
+    const region = await block();
+
+    expect(within(region).getAllByRole("listitem")).toHaveLength(2);
+    expect(region.textContent).toContain("Nobody has this one?");
+    expect(region.textContent).toContain("12 days ago");
+    expect(region.textContent).toContain("Assigned: Resting (paused)");
+  });
+
+  it("is read before the rows, beneath the fleet's facts", async () => {
+    withGaps(gaps([gap("One?")]));
+
+    const region = await block();
+    const table = await screen.findByRole("table", { name: "Scouts" });
+
+    expect(
+      region.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("says how many are not shown when the list is cut, and gives no total", async () => {
+    withGaps(gaps([gap("One?")], 4));
+
+    const region = await block();
+
+    expect(region.textContent).toContain("4 more not shown");
+    // Neither a total nor the sum of what is shown and what is not (1 + 4).
+    expect(region.textContent).not.toMatch(/total|\b5\b/i);
+  });
+
+  it("says nothing of a cut when nothing was cut", async () => {
+    withGaps(gaps([gap("One?")]));
+
+    expect((await block()).textContent).not.toContain("not shown");
+  });
+
+  it("offers no act on a Question with no id, and says why", async () => {
+    withGaps(gaps([gap("Anonymous?", { assign: null })]));
+
+    const region = await block();
+
+    expect(within(region).queryByRole("button")).toBeNull();
+    expect(region.textContent).toContain("no id, so no Scout can be Assigned");
+  });
+
+  it("opens the new-Scout form with that Question Assigned and the form's other defaults unchanged", async () => {
+    withGaps(gaps([gap("Nobody has this one?"), gap("Nor this one?")]), {
+      "questions.list": {
+        ...empty,
+        questions: [
+          {
+            id: "id-Nobody has this one?",
+            question: "Nobody has this one?",
+            status: "open",
+            path: "a.md",
+          },
+          {
+            id: "id-Nor this one?",
+            question: "Nor this one?",
+            status: "open",
+            path: "b.md",
+          },
+        ],
+      },
+      "scouts.list": { scouts: [], unreadable: [] },
+      "scouts.queue": [],
+      "scouts.groups": [],
+      "scouts.fleet": { claim: null, naming: [] },
+      "scouts.health": { scouts: [], unreadable: [] },
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "brief a scout: Nobody has this one?",
+      })
+    );
+
+    const form = await screen.findByRole("form", { name: "New Scout" });
+    expect(window.location.hash).toBe("#/scouts");
+    // The form lists Questions once the Queue has read them.
+    await within(form).findByRole("checkbox", { name: /Nor this one/ });
+    const checked = within(form)
+      .getAllByRole("checkbox")
+      .map((box) => [
+        box.parentElement?.textContent,
+        (box as HTMLInputElement).checked,
+      ]);
+    expect(checked).toEqual([
+      [expect.stringContaining("Nobody has this one?"), true],
+      [expect.stringContaining("Nor this one?"), false],
+    ]);
+    expect(within(form).getByLabelText<HTMLInputElement>(/^name/i).value).toBe(
+      ""
+    );
+    expect(
+      within(form).getByLabelText<HTMLSelectElement>(/cadence/i).value
+    ).toBe("daily");
+    expect(
+      within(form).getByLabelText<HTMLSelectElement>(/starting lane/i).value
+    ).toBe("review");
+  });
+
+  it("with no gaps is a claim that names its Warrant and any Scout not looking", async () => {
+    withGaps({
+      kind: "covered",
+      warrant: { questions: 7, scouts: 5 },
+      notLooking: [{ id: "r", name: "Resting", reason: "paused" }],
+    });
+
+    const region = await block();
+
+    expect(region.textContent).toContain(
+      "Every open question has a Scout looking: 7 questions, 5 Scouts."
+    );
+    expect(region.textContent).toContain("Resting (paused) is not looking.");
+    expect(within(region).queryByRole("button")).toBeNull();
+  });
+
+  it("claims no Scout is looking at a Map with no open Question", async () => {
+    withGaps({
+      kind: "covered",
+      warrant: { questions: 0, scouts: 2 },
+      notLooking: [],
+    });
+
+    const region = await block();
+
+    expect(region.textContent).toContain("no open questions");
+    expect(region.textContent).not.toContain("Every open question");
+  });
+
+  it("is not drawn when the read failed: there is nothing it checked to claim", async () => {
+    open(() => {
+      throw new Error("the index is locked");
+    });
+
+    expect(await within(await page()).findByText("not known")).toBeDefined();
+
+    expect(screen.queryByRole("region", { name: "Coverage gaps" })).toBeNull();
   });
 });

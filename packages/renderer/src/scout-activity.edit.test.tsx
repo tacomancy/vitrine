@@ -60,6 +60,13 @@ const fleet = (rows: ActivityRow[]): ScoutActivity => ({
   rows,
   fleet: NO_FLEET,
   review: NO_REVIEW,
+  // Not what these tests are about: a block that claims, so it has no rows of
+  // its own to find among the table's.
+  coverageGaps: {
+    kind: "covered",
+    warrant: { questions: 0, scouts: 0 },
+    notLooking: [],
+  },
 });
 
 const open = (activity: unknown, more: Record<string, unknown> = {}) => {

@@ -28,7 +28,12 @@ export type FormValues = {
 };
 
 /** The form as the window keeps it: which Scout, or null for a new one, and what has been typed. */
-export type ScoutDraft = { edit: string | null; values: FormValues | null };
+export type ScoutDraft = {
+  edit: string | null;
+  values: FormValues | null;
+  /** A Question to start a new Scout Assigned to (*brief a scout* on a coverage gap); every other default is the form's own. Spent once the form has written its values. */
+  assigning?: string;
+};
 
 const DAY_MS = 24 * 3_600_000;
 /** The default *also search back to* (ADR 0016 decision 5), a day-granular date. */
@@ -46,6 +51,7 @@ export function ScoutForm({
   values,
   onChange,
   questions,
+  assigning,
   onDone,
 }: {
   /** The Scout being edited; absent for a new one. */
@@ -54,6 +60,8 @@ export function ScoutForm({
   values: FormValues | null;
   onChange: (values: FormValues) => void;
   questions: QuestionChoice[];
+  /** A Question a new Scout starts Assigned to. */
+  assigning?: string | undefined;
   onDone: (savedId: string | null) => void;
 }) {
   const trpc = useTRPC();
@@ -68,7 +76,9 @@ export function ScoutForm({
   );
   const [lane, setLane] = useState(values?.lane ?? scout?.lane ?? "review");
   const [assigned, setAssigned] = useState<string[]>(
-    values?.assigned ?? scout?.assigned ?? []
+    values?.assigned ??
+      scout?.assigned ??
+      (assigning === undefined ? [] : [assigning])
   );
   const [back, setBack] = useState(
     () =>
