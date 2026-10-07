@@ -99,20 +99,28 @@ One Annotation's list item in a Source's `## Annotations` section — the page, 
 _Avoid_: Annotation line (it is rarely one line), highlight block
 
 **Ingest**:
-The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed together is one Ingest run.
+The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed within one run window is one Ingest run.
 _Avoid_: Import, sync (sync moves files; ingest reads them)
 
 **Ingest run**:
-One batch of PDFs that settled together, ingested as one: one summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications.
+The PDFs ingested together — those of every Batch that closed inside one run window, or those read at once instead, as when a Source's PDF is attached or after the sweep at open or after a watcher failure — with one summary line, at most one panel and one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land close together are a Burst.
 _Avoid_: Ingest event, batch (in UI copy)
+
+**Burst** (of Ingest runs):
+Runs — and removals made in the Reader, which are reported the same way — that land before the previous one's line would have faded. They share one summary line, their counts added; one that lands after the burst starts a line of its own.
+_Avoid_: Batch (that is the watcher's), delivery (that is the PDFs arriving, which can land as several runs), group
 
 **Settled** (of a file):
 Quiet for long enough — no watcher events, two stats agreeing — that a sync client or Preview is judged to have finished writing it. Nothing is read or hashed before it settles.
 _Avoid_: Stable, debounced
 
 **Batch** (of the watcher):
-The files that settled together, applied to the Index as one transaction and announced as one change. For PDFs a Batch is also one Ingest run and waits a run window for stragglers; a Markdown Batch closes the moment its files settle.
+The files that settled together, applied to the Index as one transaction and announced as one change; it closes the moment its files settle, Markdown or PDF alike. A PDF's Ingest waits a run window for stragglers beyond that, so one Ingest run can span several Batches.
 _Avoid_: Debounce group, changeset
+
+**Run window**:
+How long the PDFs of a Batch are held for stragglers before they are ingested — not a Scout run's window, which is the dates that run covers. It starts again with each change that names a PDF, but no PDF is held past a ceiling, so a delivery that never goes quiet is still read in turn.
+_Avoid_: Debounce, grace period
 
 **Own write**:
 A change to a vault file the app made itself, recognised by the watcher because the file's hash is the one the app recorded when it wrote. Indexed at the moment of writing, so the watcher has nothing to do when it sees it.
