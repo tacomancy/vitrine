@@ -184,6 +184,25 @@ describe("the Scout Queue — a dropped Scout", () => {
     ).toBeDefined();
   });
 
+  it("says nothing of what a Scout that is still looking deferred, which comes back with its next run by itself", async () => {
+    renderApp(
+      answers(stack(), {
+        "scouts.groups": [
+          { id: "sleep", runId: 3, runPending: 1, deferred: 3, held: [] },
+          { id: "blog", runId: 5, runPending: 2, deferred: 0, held: [] },
+        ],
+      })
+    );
+    const scouts = await screen.findByRole("list", { name: "Scouts" });
+
+    fireEvent.click(
+      await within(scouts).findByRole("button", { name: /Sleep and memory/ })
+    );
+
+    await screen.findByRole("heading", { name: "Sleep and memory" });
+    expect(screen.queryByText(/deferred/)).toBeNull();
+  });
+
   it("has no stack of its own to list when nothing waits under it", async () => {
     renderApp(answers(stack().slice(0, 1)));
     await screen.findByRole("article");
