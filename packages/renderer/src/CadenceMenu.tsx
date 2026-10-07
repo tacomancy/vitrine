@@ -9,6 +9,22 @@ const CADENCES: ReadonlyArray<Scout["cadence"]> = [
   "monthly",
 ];
 
+/** Where a menu's own keys take the keyboard from `at` among `count` choices: the arrows wrap, Home and End go to the ends, any other key is not the menu's. */
+function moveTo(key: string, at: number, count: number): number | null {
+  switch (key) {
+    case "ArrowDown":
+      return (at + 1) % count;
+    case "ArrowUp":
+      return (at - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
+}
+
 /**
  * A row's cadence as a menu of the three it can be (spec #511 story 54): the
  * one you want is one choice away and never at the end of a cycle. Each choice
@@ -29,8 +45,6 @@ export function CadenceMenu({
   onPick: (cadence: Scout["cadence"]) => void;
   onClose: () => void;
 }) {
-  // A menu's own keys: the arrows move through it, wrapping, and Escape closes
-  // it. Choosing is the button's, which Enter and Space already are.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -42,17 +56,11 @@ export function CadenceMenu({
         "[role='menuitemradio']"
       ),
     ];
-    const at = choices.findIndex((choice) => choice === event.target);
-    const to =
-      event.key === "ArrowDown"
-        ? (at + 1) % choices.length
-        : event.key === "ArrowUp"
-          ? (at - 1 + choices.length) % choices.length
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? choices.length - 1
-              : null;
+    const to = moveTo(
+      event.key,
+      choices.findIndex((choice) => choice === event.target),
+      choices.length
+    );
     if (to === null) return;
     event.preventDefault();
     choices[to]?.focus();
@@ -71,7 +79,6 @@ export function CadenceMenu({
           type="button"
           role="menuitemradio"
           aria-checked={choice === cadence}
-          // The keyboard arrives on the cadence the Scout has, as a menu's does.
           autoFocus={choice === cadence}
           className={styles.choice}
           onClick={() => onPick(choice)}

@@ -169,6 +169,9 @@ export type ActivityRow =
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
 
+/** A row that is a Scout, which is the one a row's acts are for: a file that will not parse has none. */
+export type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
+
 /**
  * The fleet's source health, counted by fault only (ADR 0042 decision 8, and
  * the brief's *no badges*): *10 parsing cleanly · 1 not parsing · 1 no key*.

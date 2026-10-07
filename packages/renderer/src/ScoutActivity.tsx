@@ -18,16 +18,16 @@ import type {
   FleetSource,
   Health,
   ReviewDepth,
-  Scout,
   ScoutRunCost,
   Volume,
 } from "core";
+import { questionChoices } from "./AssignedQuestions";
 import { CadenceMenu } from "./CadenceMenu";
 import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
-import { scoutKey, toggled, useRowActs, type Said } from "./row-acts";
+import { scoutKey, toggled, useRowActs, type RowActs } from "./row-acts";
 import { ScoutEdit } from "./ScoutEdit";
 import styles from "./ScoutActivity.module.css";
 import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
@@ -98,7 +98,7 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
  * puts above those that are (spec #511 story 58). A row the order was not taken
  * of — a Scout made since — follows the rest, in the order it came.
  */
-function inPlace(rows: ActivityRow[], held: readonly string[] | null) {
+function inHeldOrder(rows: ActivityRow[], held: readonly string[] | null) {
   if (held === null) return rows;
   const place = new Map(held.map((key, index) => [key, index]));
   return [...rows].sort(
@@ -138,7 +138,7 @@ export function ScoutActivity({
   // Taken when a row is acted on and let go when a column is asked for, so the
   // table only ever re-sorts by need when the researcher arrives or asks.
   const [held, setHeld] = useState<readonly string[] | null>(null);
-  const rows = inPlace(sorted(activity.data?.rows ?? [], sort), held);
+  const rows = inHeldOrder(sorted(activity.data?.rows ?? [], sort), held);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
   useChosenInView(chosenId);
@@ -148,6 +148,16 @@ export function ScoutActivity({
   }
   // What a row can be told to do, shared by its buttons and by the keys.
   const acts = useRowActs(hold);
+  // The Questions a Scout may be Assigned to, read when an edit is first
+  // opened and kept. The page owns the read so that its failure is said on the
+  // footer with the others (ADR 0033 decision 2); the form says only what it
+  // does without them.
+  const editOpen = acts.editing.size > 0;
+  const questions = useQuery({
+    ...trpc.questions.list.queryOptions({ order: "newest" }),
+    enabled: editOpen,
+  });
+  const questionsUnread = editOpen && questions.isError;
 
   function onSort(column: Column) {
     setHeld(null);
@@ -280,26 +290,17 @@ export function ScoutActivity({
                   id={rowId(index)}
                   chosen={index === chosenIndex}
                   open={opened.has(keyOf(row))}
-                  choosing={acts.choosing.has(keyOf(row))}
-                  editing={acts.editing.has(keyOf(row))}
-                  said={acts.said.get(keyOf(row))}
+                  acts={acts}
+                  questions={{
+                    choices:
+                      questions.data === undefined
+                        ? null
+                        : questionChoices(questions.data),
+                    failed: questions.isError,
+                  }}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
-                  onToggleCadence={() => acts.toggleCadence(keyOf(row))}
-                  onToggleEdit={() => acts.toggleEdit(keyOf(row))}
-                  onAct={hold}
-                  onSaved={(text) =>
-                    acts.say(keyOf(row), { refused: false, text })
-                  }
-                  onEditOnForm={() => {
-                    if (row.kind === "scout") onEditOnForm(row.id);
-                  }}
-                  onPickCadence={(cadence) => {
-                    if (row.kind === "scout") acts.pickCadence(row, cadence);
-                  }}
-                  onPause={() => {
-                    if (row.kind === "scout") acts.pauseOrResume(row);
-                  }}
+                  onEditOnForm={onEditOnForm}
                 />
               ))}
             </tbody>
@@ -310,11 +311,16 @@ export function ScoutActivity({
           something to say, and polite — a state the app is in, not a refusal
           of something the user did (ADR 0033). The reason a read failed is
           said here and nowhere else. */}
-      {(status.hasLines || activity.isError) && (
+      {(status.hasLines || activity.isError || questionsUnread) && (
         <footer className={styles.footer}>
           {status.lines}
           {activity.isError && (
             <WarningLine label="not read">{activity.error.message}</WarningLine>
+          )}
+          {questionsUnread && (
+            <WarningLine label="not read">
+              {questions.error?.message}
+            </WarningLine>
           )}
         </footer>
       )}
@@ -708,35 +714,25 @@ function Row({
   id,
   chosen,
   open,
-  choosing,
-  editing,
-  said,
+  acts,
+  questions,
   onToggle,
   onChoose,
-  onToggleCadence,
-  onToggleEdit,
-  onAct,
-  onSaved,
   onEditOnForm,
-  onPickCadence,
-  onPause,
 }: {
   row: ActivityRow;
   id: string;
   chosen: boolean;
   open: boolean;
-  choosing: boolean;
-  editing: boolean;
-  said: Said | undefined;
+  acts: RowActs;
+  /** What the row's edit offers to Assign, once the page has read it. */
+  questions: {
+    choices: ReturnType<typeof questionChoices> | null;
+    failed: boolean;
+  };
   onToggle: () => void;
   onChoose: () => void;
-  onToggleCadence: () => void;
-  onToggleEdit: () => void;
-  onAct: () => void;
-  onSaved: (said: string) => void;
-  onEditOnForm: () => void;
-  onPickCadence: (cadence: Scout["cadence"]) => void;
-  onPause: () => void;
+  onEditOnForm: (scoutId: string) => void;
 }) {
   const [showRuns, setShowRuns] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -756,16 +752,21 @@ function Row({
       </tr>
     );
   }
+  const key = keyOf(row);
+  const editing = acts.editing.has(key);
+  const cadenceOpen = acts.cadenceOpen.has(key);
+  const said = acts.said.get(key);
   const watching =
     row.source.kind === "arxiv"
       ? `arXiv · ${row.source.query}`
       : row.source.url;
   const detail = `${id}-detail`;
   const rate = rateWords(row.acceptRate);
-  // A click anywhere on the row opens it, as prototype 10's does. The rate's
-  // own button is the control a keyboard or a screen reader reaches, so it
-  // toggles on its own click and the row leaves it alone. (The *queue* link
-  // needs no exception: it leaves the page.)
+  // A click anywhere on the row opens it, as prototype 10's does. A button in
+  // the row is an act of its own and the row leaves its click alone: the rate's
+  // opens the row for a keyboard or a screen reader, and *edit*, *pause* and
+  // the cadence word do what they say. (The *queue* link needs no exception:
+  // it leaves the page.)
   function onRowClick(event: MouseEvent) {
     onChoose();
     if (!(event.target instanceof Element && event.target.closest("button"))) {
@@ -795,16 +796,18 @@ function Row({
                 className={styles.act}
                 aria-expanded={editing}
                 aria-controls={editing ? `${id}-edit` : undefined}
+                aria-keyshortcuts="e"
                 aria-label={`${row.name}: edit`}
-                onClick={onToggleEdit}
+                onClick={() => acts.toggleEdit(key)}
               >
                 edit
               </button>
               <button
                 type="button"
                 className={styles.act}
+                aria-keyshortcuts="p"
                 aria-label={`${row.name}: ${row.paused ? "resume" : "pause"}`}
-                onClick={onPause}
+                onClick={() => acts.pauseOrResume(row)}
               >
                 {row.paused ? "resume" : "pause"}
               </button>
@@ -822,10 +825,11 @@ function Row({
             type="button"
             className={styles.menuButton}
             aria-haspopup="menu"
-            aria-expanded={choosing}
-            aria-controls={choosing ? `${id}-cadence` : undefined}
+            aria-expanded={cadenceOpen}
+            aria-controls={cadenceOpen ? `${id}-cadence` : undefined}
+            aria-keyshortcuts="c"
             aria-label={`${row.name}: cadence, ${row.cadence}`}
-            onClick={onToggleCadence}
+            onClick={() => acts.toggleCadence(key)}
           >
             {row.cadence}
           </button>
@@ -889,7 +893,7 @@ function Row({
           </td>
         </tr>
       )}
-      {choosing && (
+      {cadenceOpen && (
         <tr id={`${id}-cadence`}>
           <td className={styles.detail} colSpan={COLUMNS}>
             <CadenceMenu
@@ -897,12 +901,11 @@ function Row({
               cadence={row.cadence}
               dueUnder={row.dueUnder}
               onPick={(cadence) => {
-                onPickCadence(cadence);
-                // The keyboard goes back to the word that opened the menu.
+                acts.pickCadence(row, cadence);
                 cadenceButton.current?.focus();
               }}
               onClose={() => {
-                onToggleCadence();
+                acts.closeCadence(key);
                 cadenceButton.current?.focus();
               }}
             />
@@ -914,12 +917,12 @@ function Row({
           <td className={styles.detail} colSpan={COLUMNS}>
             <ScoutEdit
               row={row}
-              onAct={onAct}
-              onSaved={onSaved}
-              onEditOnForm={onEditOnForm}
+              questions={questions}
+              onAct={acts.hold}
+              onSaved={(text) => acts.say(key, { refused: false, text })}
+              onEditOnForm={() => onEditOnForm(row.id)}
               onClose={() => {
-                onToggleEdit();
-                // The keyboard goes back to the word that opened it.
+                acts.closeEdit(key);
                 editButton.current?.focus();
               }}
             />

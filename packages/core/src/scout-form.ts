@@ -110,12 +110,14 @@ async function write(
     if (before === undefined) {
       throw new VaultError("refused", `There is no Scout named ${id}.`);
     }
-    // What a saved Scout watches is fixed. An arXiv Query written over a
-    // page's address would turn one Scout's history into another's, and a
+    // What a saved Scout watches is fixed for now. An arXiv Query written over
+    // a page's address would turn one Scout's history into another's, and a
     // different address invalidates the page hash and the structure-change test
-    // that history rests on, which is its own decision (ADR 0042 decision 5):
-    // until it is made the address stays in the file. A Scout Activity row
-    // saves a page's Assigned Questions through here with the address it has.
+    // that history rests on. ADR 0042 decision 5 keeps that change on the form
+    // and leaves how it is made to a decision of its own; until then the
+    // address is changed in the file and a save that would change it is
+    // refused. A Scout Activity row saves a page's Assigned Questions through
+    // here with the address it has.
     const wasWatched = before.scout.source.kind === "watched";
     if (wasWatched !== watched || (watched && query !== before.scout.query)) {
       throw new VaultError(
@@ -128,7 +130,14 @@ async function write(
   }
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
-  doc.set("assigned", form.assigned);
+  // A list is a node `doc.set` replaces whole, so setting it to what it
+  // already was would drop a comment on it and the style it was written in,
+  // and add the key to a file that never had one: a save that did not change a
+  // key does not write it (ADR 0009). The scalars above keep their comments
+  // when set to what they were, so only the list needs the check.
+  if (before === undefined || !sameList(before.scout.assigned, form.assigned)) {
+    doc.set("assigned", form.assigned);
+  }
   if (!watched) {
     if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
     else doc.set("filter", { query });
@@ -143,7 +152,7 @@ async function write(
   await writeScoutFile(
     deps.vaultPath,
     before?.file ?? `${id}.yaml`,
-    String(doc)
+    scoutText(doc)
   );
 
   // A paused Scout is not looking: the edit is saved and the run waits for
@@ -155,6 +164,19 @@ async function write(
     !before.scout.paused;
   return { id, runAfter: edited };
 }
+
+const sameList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((item, at) => item === b[at]);
+
+/**
+ * A Scout's file as text, printed the way a person writes one. `yaml` folds a
+ * plain scalar longer than 80 columns onto a second line and pads a flow list
+ * (`[ a, b ]`) unless told not to: the same values in other bytes, so a write
+ * that never touched a long Query, or a list written `[a, b]`, would still
+ * reshape it (ADR 0009).
+ */
+const scoutText = (doc: Document) =>
+  doc.toString({ lineWidth: 0, flowCollectionPadding: false });
 
 /**
  * A narrow write of one Scout's file: pause and resume, for the Scout's header,
@@ -184,7 +206,7 @@ function editScoutFile(
     }
     const doc = parseDocument(await readScoutFile(deps.vaultPath, found.file));
     change(doc, found.scout);
-    await writeScoutFile(deps.vaultPath, found.file, String(doc));
+    await writeScoutFile(deps.vaultPath, found.file, scoutText(doc));
   });
 }
 
@@ -204,7 +226,8 @@ export function setPaused(
 }
 
 /**
- * A row's cadence menu: the one key, and no other (ADR 0042 decision 5). It
+ * A row's cadence menu: the one key, and no other (spec #511, *Implementation
+ * Decisions*). It
  * answers whether this change made the Scout due at the next check, read from
  * the Scout as the file had it, so the row can say a run is coming.
  */

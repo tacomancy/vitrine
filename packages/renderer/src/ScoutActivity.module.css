@@ -169,19 +169,31 @@
   margin-top: var(--space-1);
 }
 
-/* The link to the Scout's stack: a quiet word in the row's own type. */
-.link {
+/* The link to the Scout's stack, and what a row can be told to do: quiet words
+   that are buttons or links. A link sits in a cell and has its type; an act sits
+   in the first cell, which is not in the data type, so it says which to wear. */
+.link,
+.act {
   appearance: none;
   border: 0;
   padding: 0;
-  font: inherit;
   background: none;
   cursor: pointer;
   color: var(--color-fg-secondary);
   text-decoration: none;
 }
 
-.link:hover {
+.link {
+  font: inherit;
+}
+
+.act {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.link:hover,
+.act:hover {
   color: var(--color-fg);
 }
 
@@ -205,9 +217,11 @@
 /* A row of one cell is both first and last: the rules above would leave it
    square on the left. It is a surface of its own under its row, a gutter below
    it as every row is from the next (ADR 0023 decision 1), and what it holds
-   (the per-run list, the accept-rate line and the sentence that says why there
-   is none) wraps with it. */
-.table tbody tr > .detail {
+   (the per-run list, the accept-rate line, the sentence that says why there
+   is none, a row's menu and its edit, and the line that says what an act did)
+   wraps with it. */
+.table tbody tr > .detail,
+.table tbody tr > .note {
   border-radius: var(--radius-md);
   white-space: normal;
 }
@@ -334,28 +348,10 @@
   margin-top: var(--space-1);
 }
 
-.act {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  background: none;
-  cursor: pointer;
-  color: var(--color-fg-secondary);
-}
-
-.act:hover {
-  color: var(--color-fg);
-}
-
-/* What an act did, said under its row as a surface of its own: the row's type,
-   quiet, and wrapping with the line. */
+/* What an act did, said under its row: a surface of its own, one line tall. */
 .table tbody tr > .note {
-  border-radius: var(--radius-md);
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
-  white-space: normal;
 }
 
 .note p {

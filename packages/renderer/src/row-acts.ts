@@ -1,18 +1,25 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Scout } from "core";
-import type { ScoutRow } from "./ScoutEdit";
+import type { Scout, ScoutRow } from "core";
 import { useTRPC } from "./trpc";
 
-/** The set with `key` in it if it was not, and out of it if it was. */
-export function toggled(
+export const toggled = (
   set: ReadonlySet<string>,
   key: string
-): ReadonlySet<string> {
+): ReadonlySet<string> => {
   const next = new Set(set);
   if (!next.delete(key)) next.add(key);
   return next;
-}
+};
+
+const without = (
+  set: ReadonlySet<string>,
+  key: string
+): ReadonlySet<string> => {
+  const next = new Set(set);
+  next.delete(key);
+  return next;
+};
 
 export const scoutKey = (id: string) => `scout:${id}`;
 
@@ -25,6 +32,8 @@ export const scoutKey = (id: string) => `scout:${id}`;
  */
 export type Said = { text: string; refused: boolean };
 
+export type RowActs = ReturnType<typeof useRowActs>;
+
 /**
  * What a Scout Activity row can be told to do — pause or resume, change its
  * cadence, open its edit — in one place, so a button on the row and a key on
@@ -32,6 +41,10 @@ export type Said = { text: string; refused: boolean };
  * the core's (`scouts.setPaused`, `scouts.setCadence`); each says what it did
  * on the row it was about. `hold` is called as an act is sent, before the
  * read it changes comes back, so the table keeps the order it was showing.
+ *
+ * A form or a menu is closed by `close…` and never by toggling it: an act can
+ * finish after the researcher has already dismissed what it came from, and a
+ * toggle then would open it again.
  */
 export function useRowActs(hold: () => void) {
   const trpc = useTRPC();
@@ -39,7 +52,9 @@ export function useRowActs(hold: () => void) {
   const [said, setSaid] = useState<ReadonlyMap<string, Said>>(new Map());
   // Which rows have their cadence menu open, or their edit, held by the row's
   // key so a re-sort leaves them open.
-  const [choosing, setChoosing] = useState<ReadonlySet<string>>(new Set());
+  const [cadenceOpen, setCadenceOpen] = useState<ReadonlySet<string>>(
+    new Set()
+  );
   const [editing, setEditing] = useState<ReadonlySet<string>>(new Set());
 
   function say(key: string, note: Said) {
@@ -47,6 +62,10 @@ export function useRowActs(hold: () => void) {
   }
   const reread = () =>
     void queryClient.invalidateQueries(trpc.scouts.pathFilter());
+  const refused = (
+    error: { message: string },
+    { scoutId }: { scoutId: string }
+  ) => say(scoutKey(scoutId), { refused: true, text: error.message });
 
   const changeCadence = useMutation(
     trpc.scouts.setCadence.mutationOptions({
@@ -59,8 +78,7 @@ export function useRowActs(hold: () => void) {
         });
         reread();
       },
-      onError: (error, { scoutId }) =>
-        say(scoutKey(scoutId), { refused: true, text: error.message }),
+      onError: refused,
     })
   );
   const pause = useMutation(
@@ -74,25 +92,27 @@ export function useRowActs(hold: () => void) {
         });
         reread();
       },
-      onError: (error, { scoutId }) =>
-        say(scoutKey(scoutId), { refused: true, text: error.message }),
+      onError: refused,
     })
   );
 
   return {
     said,
-    choosing,
+    cadenceOpen,
     editing,
     say,
+    hold,
     toggleEdit: (key: string) => setEditing((was) => toggled(was, key)),
-    toggleCadence: (key: string) => setChoosing((was) => toggled(was, key)),
+    closeEdit: (key: string) => setEditing((was) => without(was, key)),
+    toggleCadence: (key: string) => setCadenceOpen((was) => toggled(was, key)),
+    closeCadence: (key: string) => setCadenceOpen((was) => without(was, key)),
     pauseOrResume(row: ScoutRow) {
       hold();
       pause.mutate({ scoutId: row.id, paused: !row.paused });
     },
-    /** The menu closes on a choice; the cadence the Scout has is no change, and a write that did nothing would only rewrite its file. */
+    /** The menu closes on a choice; the cadence the Scout already has is no change, and a write that did nothing would only rewrite its file. */
     pickCadence(row: ScoutRow, cadence: Scout["cadence"]) {
-      setChoosing((was) => toggled(was, scoutKey(row.id)));
+      setCadenceOpen((was) => without(was, scoutKey(row.id)));
       if (cadence === row.cadence) return;
       hold();
       changeCadence.mutate({ scoutId: row.id, cadence });

@@ -63,7 +63,7 @@ import {
   unread,
 } from "./question-map.js";
 import { readActivity, readRunCosts } from "./scout-activity.js";
-import { readScouts } from "./scout-file.js";
+import { CADENCES, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
@@ -574,7 +574,7 @@ export const router = t.router({
           name: z.string(),
           watching: z.enum(["arxiv", "watched"]).optional(),
           query: z.string(),
-          cadence: z.enum(["daily", "weekly", "monthly"]),
+          cadence: z.enum(CADENCES),
           assigned: z.array(z.string()),
           lane: z.enum(["review", "skim"]),
           searchBackTo: z.string().datetime().nullable(),
@@ -593,7 +593,7 @@ export const router = t.router({
       .input(
         z.object({
           scoutId: z.string().min(1),
-          cadence: z.enum(["daily", "weekly", "monthly"]),
+          cadence: z.enum(CADENCES),
         })
       )
       .mutation(async ({ ctx, input }) =>

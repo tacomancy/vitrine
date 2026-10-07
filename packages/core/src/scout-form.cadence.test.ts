@@ -5,8 +5,8 @@ import { closeCores, core, fixtures, tmp, virtualClock } from "./test-core.js";
 
 afterEach(closeCores);
 
-// Changing a Scout's cadence from its row on Scout Activity (#520; ADR 0042
-// decision 5) is one narrow write, as pause is: it sets the one key it owns and
+// Changing a Scout's cadence from its row on Scout Activity (#520; spec #511)
+// is one narrow write, as pause is: it sets the one key it owns and
 // nothing else, so a menu on a row can never undo an edit made beside it.
 // Driven through the router on a temp vault with an injected clock and arXiv
 // client, and what is asserted is what the researcher would find in the file
@@ -142,6 +142,46 @@ describe("a cadence change", () => {
 
     expect(reply.error).toBeDefined();
     expect(await file()).toBe(scoutYaml("weekly"));
+  });
+});
+
+// `yaml` folds a plain scalar longer than 80 columns onto a second line by
+// default: the same value in other bytes. A narrow write that did not touch the
+// Query must not reflow it, and a Query a researcher wrote on one line is
+// usually longer than that.
+describe("a narrow write of a Scout whose Query is long", () => {
+  const LONG =
+    "(cat:q-bio.NC OR cat:cs.LG) AND all:sleep AND all:consolidation AND (all:replay OR all:spindle)";
+  const file = (cadence: string) =>
+    [
+      "name: Sleep and memory",
+      `cadence: ${cadence}`,
+      "lane: review",
+      "created: 2026-09-20T00:00:00Z",
+      "filter:",
+      `  query: ${LONG}`,
+      "",
+    ].join("\n");
+
+  it("sets the cadence and leaves the Query on the one line it was written on", async () => {
+    const { c, file: read } = await opened({
+      [`${FOLDER}/sleep.yaml`]: file("weekly"),
+    });
+
+    await c.mutate("scouts.setCadence", { scoutId: "sleep", cadence: "daily" });
+
+    expect(await read()).toBe(file("daily"));
+  });
+
+  it("pauses and leaves the Query on the one line it was written on", async () => {
+    const { c, file: read } = await opened({
+      [`${FOLDER}/sleep.yaml`]: file("weekly"),
+    });
+
+    await c.mutate("scouts.setPaused", { scoutId: "sleep", paused: true });
+
+    // A pause is a key added at the end, as the pause tests have it.
+    expect(await read()).toBe(`${file("weekly")}paused: true\n`);
   });
 });
 

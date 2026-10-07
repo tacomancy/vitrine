@@ -57,7 +57,7 @@ const SCOUT_FILE = /\.ya?ml$/i;
 export const isScoutFile = (name: string) => SCOUT_FILE.test(name);
 export const scoutIdOf = (file: string) => file.replace(SCOUT_FILE, "");
 
-/** Shortest first: the order a cadence menu lists them in. */
+/** Shortest first, the order `dueUnder` names them in. The renderer takes types from `core` and no values, so its menu keeps a list of its own. */
 export const CADENCES = ["daily", "weekly", "monthly"] as const;
 const LANES = ["review", "skim"] as const;
 

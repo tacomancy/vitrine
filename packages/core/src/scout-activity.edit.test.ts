@@ -12,9 +12,9 @@ import {
 
 afterEach(closeCores);
 
-// What a row on Scout Activity needs in order to act (#520; ADR 0042 decision
-// 5): the fields its edit writes back through `scouts.save`, whether it is
-// paused, and which cadences would make it due at the next check. Driven
+// What a row on Scout Activity needs in order to act (#520; spec #511): the
+// fields its edit writes back through `scouts.save`, whether it is paused, and
+// which cadences would make it due at the next check. Driven
 // through the router on a temp vault with an injected clock and arXiv client;
 // what is asserted is what a row says, never how it came to.
 
@@ -231,6 +231,85 @@ describe("a Query edited from its row", () => {
       source: { kind: "arxiv", query: "all:sleep AND all:rem" },
       lastRun: { ago: "just now" },
     });
+  });
+});
+
+// What a hand-written file is owed by a save that did not change a key: the
+// key is not rewritten (ADR 0009). A list is a node the document replaces
+// whole when it is set, so setting it to what it already was would lose a
+// comment on it and the style it was written in, and would add the key to a
+// file that never had one.
+describe("a save that leaves the Assigned Questions as they were", () => {
+  const FLOW = (query: string) =>
+    [
+      "name: Sleep and memory",
+      "cadence: weekly",
+      "lane: skim",
+      "created: 2026-09-20T00:00:00Z",
+      "assigned: [rq2b7x9mk4, k7m2p9q4wx] # the two I am chasing",
+      "filter:",
+      `  query: ${query}`,
+      "",
+    ].join("\n");
+  const NONE_ASSIGNED = (query: string) =>
+    [
+      "name: Sleep and memory",
+      "cadence: weekly",
+      "lane: skim",
+      "created: 2026-09-20T00:00:00Z",
+      "filter:",
+      `  query: ${query}`,
+      "",
+    ].join("\n");
+
+  /** The row's own write, as the form would send it, with a new Query. */
+  async function saveQuery(f: Opened, query: string) {
+    const [row] = await f.rows();
+    const saved = await f.c.mutate("scouts.save", {
+      id: row!.id,
+      name: row!.name,
+      watching: row!.source.kind,
+      query,
+      cadence: row!.cadence,
+      assigned: row!.assigned,
+      lane: row!.lane,
+      searchBackTo: null,
+    });
+    expect(saved.error).toBeUndefined();
+  }
+
+  it("keeps a comment on the key and the style the list was written in", async () => {
+    const f = await opened({ "sleep.yaml": FLOW("all:sleep") });
+
+    await saveQuery(f, "all:sleep AND all:rem");
+
+    expect(await f.file("sleep")).toBe(FLOW("all:sleep AND all:rem"));
+  });
+
+  it("does not add the key to a file that never had one", async () => {
+    const f = await opened({ "sleep.yaml": NONE_ASSIGNED("all:sleep") });
+
+    await saveQuery(f, "all:sleep AND all:rem");
+
+    expect(await f.file("sleep")).toBe(NONE_ASSIGNED("all:sleep AND all:rem"));
+  });
+
+  it("still writes them when they did change", async () => {
+    const f = await opened({ "sleep.yaml": FLOW("all:sleep") });
+    const [row] = await f.rows();
+
+    await f.c.mutate("scouts.save", {
+      id: row!.id,
+      name: row!.name,
+      watching: "arxiv",
+      query: "all:sleep",
+      cadence: row!.cadence,
+      assigned: ["k7m2p9q4wx"],
+      lane: row!.lane,
+      searchBackTo: null,
+    });
+
+    expect((await f.rows())[0]!.assigned).toEqual(["k7m2p9q4wx"]);
   });
 });
 

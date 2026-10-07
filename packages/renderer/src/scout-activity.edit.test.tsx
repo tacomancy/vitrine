@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { ActivityRow, Health, ScoutActivity } from "core";
+import type { ActivityRow, Health, ScoutActivity, ScoutRow } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, question, renderApp, vault } from "./fake-core";
 
@@ -11,8 +11,6 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // pause and resume, and never leave the row. The core is faked at the router's
 // contract, so what is asserted is what a row draws from what the core says
 // and what it asks the core to write.
-
-type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
 const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
@@ -85,6 +83,15 @@ const tableRows = async () =>
   within(await screen.findByRole("table", { name: "Scouts" }))
     .getAllByRole("row")
     .slice(1);
+
+/** The Scouts' names in the order the table shows them; a row that says what happened has none. */
+const names = async () =>
+  (await tableRows()).flatMap((row) => {
+    const header = within(row).queryByRole("rowheader");
+    return header === null
+      ? []
+      : [header.querySelector("span > span")!.textContent];
+  });
 
 describe("pausing and resuming from the row", () => {
   it("pauses the Scout, and the row's Voice and its button follow the core's next answer", async () => {
@@ -192,14 +199,6 @@ describe("the order of the table after an act", () => {
   const byNeed = (rows: ScoutRow[]) =>
     [...rows].sort((a, b) => NEED[a.health.voice] - NEED[b.health.voice]);
 
-  const names = async () =>
-    (await tableRows()).flatMap((row) => {
-      const header = within(row).queryByRole("rowheader");
-      return header === null
-        ? []
-        : [header.querySelector("span > span")!.textContent];
-    });
-
   /** Three Scouts, the core's order for them, and a pause that changes it. */
   const withAPause = () => {
     let rows = [
@@ -262,13 +261,6 @@ describe("a Scout that arrives after an act", () => {
         rows = [NEW, ...rows];
       },
     });
-    const names = async () =>
-      (await tableRows()).flatMap((row) => {
-        const header = within(row).queryByRole("rowheader");
-        return header === null
-          ? []
-          : [header.querySelector("span > span")!.textContent];
-      });
     expect(await names()).toEqual(["Alpha", "Beta"]);
 
     fireEvent.click(
@@ -683,8 +675,10 @@ describe("saving an edit from the row", () => {
   });
 
   // The picker is drawn once the Questions are read, but what a Scout is
-  // Assigned to is its own and goes back as it was whatever the list did.
-  it("keeps what the Scout is Assigned to when the Questions could not be read", async () => {
+  // Assigned to is its own and goes back as it was whatever the list did. The
+  // reason a read failed is the footer's and nowhere else's (ADR 0033
+  // decision 2); the form says what it does without them.
+  it("keeps what the Scout is Assigned to when the Questions could not be read, and says why on the footer", async () => {
     const asked: unknown[] = [];
     open(() => fleet([scout({ assigned: ["q-replay"] })]), {
       "questions.list": () => {
@@ -702,14 +696,36 @@ describe("saving an edit from the row", () => {
       await screen.findByRole("form", { name: "Edit Sleep and memory" })
     );
 
-    expect((await panel.findByRole("status")).textContent).toBe(
+    const footer = within(await screen.findByRole("contentinfo"));
+    expect((await footer.findByRole("status")).textContent).toBe(
       "‖ not read — The index is not ready."
     );
+    expect(
+      await panel.findByText(/The Questions could not be read/)
+    ).toBeDefined();
     expect(panel.queryByRole("checkbox")).toBeNull();
+    expect(panel.queryByRole("status")).toBeNull();
     fireEvent.click(panel.getByRole("button", { name: "Save" }));
 
     await screen.findByText("Saved.");
     expect(asked).toMatchObject([{ assigned: ["q-replay"] }]);
+  });
+
+  it("takes the footer line away with the form, so a Questions read nobody is waiting on is not a warning that stays", async () => {
+    open(() => fleet([scout()]), {
+      "questions.list": () => {
+        throw new Error("The index is not ready.");
+      },
+    });
+    const edit = await screen.findByRole("button", {
+      name: "Sleep and memory: edit",
+    });
+    fireEvent.click(edit);
+    await screen.findByRole("contentinfo");
+
+    fireEvent.click(edit);
+
+    expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 });
 
@@ -1120,6 +1136,76 @@ describe("the cadence menu's own keys", () => {
   });
 });
 
+// A save that changes the Query runs the Scout before it answers, which can
+// take minutes, and the form can be put away meanwhile.
+describe("a save that is on its way", () => {
+  /** A form with its save held open until the test lets it land. */
+  const held = async () => {
+    let land!: (answer: unknown) => void;
+    open(() => fleet([scout(), scout({ id: "o", name: "Other" })]), {
+      "questions.list": QUESTIONS,
+      "scouts.save": () => new Promise((resolve) => (land = resolve)),
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    const form = await screen.findByRole("form", {
+      name: "Edit Sleep and memory",
+    });
+    const panel = within(form);
+    await panel.findAllByRole("checkbox");
+    const save = panel.getByRole<HTMLButtonElement>("button", { name: "Save" });
+    fireEvent.click(save);
+    await vi.waitFor(() => expect(save.disabled).toBe(true));
+    return { panel, land: (answer: unknown) => land(answer) };
+  };
+
+  it("says it is saving, as plain progress with no live region of its own", async () => {
+    const { panel, land } = await held();
+
+    const saying = panel.getByText("saving…");
+    expect(
+      saying.closest("[role=status], [role=alert], [aria-live]")
+    ).toBeNull();
+
+    land({ id: "sleep", run: null });
+    await screen.findByText("Saved.");
+    expect(screen.queryByText("saving…")).toBeNull();
+  });
+
+  it("is said on the row when the form has been put away, and opens nothing and takes no keyboard", async () => {
+    const { panel, land } = await held();
+    fireEvent.click(panel.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("form")).toBeNull();
+    // The researcher has gone on to another row's edit button.
+    const other = screen.getByRole("button", { name: "Other: edit" });
+    other.focus();
+
+    land({ id: "sleep", run: null });
+
+    expect(await screen.findByText("Saved.")).toBeDefined();
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(document.activeElement).toBe(other);
+  });
+});
+
+describe("the keys a row's controls answer to", () => {
+  it("are announced on those controls", async () => {
+    open(() => fleet([scout()]));
+
+    const keys = async (name: string) =>
+      (
+        await screen.findByRole("button", {
+          name: `Sleep and memory: ${name}`,
+        })
+      ).getAttribute("aria-keyshortcuts");
+
+    expect(await keys("edit")).toBe("e");
+    expect(await keys("pause")).toBe("p");
+    expect(await keys("cadence, weekly")).toBe("c");
+  });
+});
+
 describe("a key held down", () => {
   it("is one act and not one at every repeat, since each would write the file again", async () => {
     const asked: unknown[] = [];
@@ -1171,13 +1257,6 @@ describe("a row's own buttons", () => {
 describe("the order of the table after each kind of act", () => {
   const FIRST = scout({ id: "a", name: "Alpha" });
   const SECOND = scout({ id: "b", name: "Beta" });
-  const names = async () =>
-    (await tableRows()).flatMap((row) => {
-      const header = within(row).queryByRole("rowheader");
-      return header === null
-        ? []
-        : [header.querySelector("span > span")!.textContent];
-    });
 
   const acts = [
     {

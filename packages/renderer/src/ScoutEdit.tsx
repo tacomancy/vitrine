@@ -1,13 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import type { ActivityRow, RunSummary } from "core";
-import { AssignedQuestions, questionChoices } from "./AssignedQuestions";
+import type { RunSummary, ScoutRow } from "core";
+import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { runWords } from "./run-words";
 import styles from "./ScoutActivity.module.css";
 import { useTRPC } from "./trpc";
-import { WarningLine } from "./VaultStatusLines";
-
-export type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
 
 /**
  * A row's *edit*: the fields the Queue's form writes and that a Scout has —
@@ -18,15 +15,23 @@ export type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
  */
 export function ScoutEdit({
   row,
+  questions,
   onAct,
   onSaved,
   onEditOnForm,
   onClose,
 }: {
   row: ScoutRow;
+  /**
+   * The Questions a Scout may be Assigned to: `choices` is null until they
+   * have been read, and `failed` once a read has not answered. The page says
+   * why on its footer (ADR 0033 decision 2); the form says what it does
+   * without them.
+   */
+  questions: { choices: QuestionChoice[] | null; failed: boolean };
   /** Called as the save is sent, before anything it changes is read back: the table takes its order here. */
   onAct: () => void;
-  /** What the save did, for the row to say once the form has gone. */
+  /** What the save did, for the row to say whether or not the form is still there. */
   onSaved: (said: string) => void;
   /** The form is where a page's address is changed; this opens it on this Scout. */
   onEditOnForm: () => void;
@@ -34,26 +39,26 @@ export function ScoutEdit({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const questions = useQuery(
-    trpc.questions.list.queryOptions({ order: "newest" })
-  );
   // A page has no Query to edit here: its address is the form's (ADR 0042
   // decision 5), so the field is not offered rather than offered and refused.
-  const queryWas = row.source.kind === "arxiv" ? row.source.query : null;
-  const arxiv = queryWas !== null;
-  const [query, setQuery] = useState(queryWas ?? "");
+  const savedQuery = row.source.kind === "arxiv" ? row.source.query : null;
+  const arxiv = savedQuery !== null;
+  const [query, setQuery] = useState(savedQuery ?? "");
   const [assigned, setAssigned] = useState(row.assigned);
   // A refusal is the user's act turned down, so it is said here, where their
   // typing is, and the form stays open with it (ADR 0033 decision 1).
   const [refused, setRefused] = useState<string | null>(null);
+  // A save that changes the Query runs the Scout before it answers, which can
+  // take minutes, and Cancel, Escape and `e` stay live meanwhile. What a save
+  // did is said whether or not the form is still there; closing the form is
+  // `mutate`'s own callback below, which does not fire once the form has gone.
   const save = useMutation(
     trpc.scouts.save.mutationOptions({
       onSuccess: ({ run }) => {
         void queryClient.invalidateQueries(trpc.scouts.pathFilter());
         onSaved(
-          savedWords(run, arxiv && query.trim() !== queryWas, row.paused)
+          savedWords(run, arxiv && query.trim() !== savedQuery, row.paused)
         );
-        onClose();
       },
       onError: (error) => setRefused(error.message),
     })
@@ -72,16 +77,19 @@ export function ScoutEdit({
     // The whole of what the Queue's form writes, from what the row carries:
     // the form's save rewrites the name, cadence and Lane with the Query, so
     // sending less would not be the same write.
-    save.mutate({
-      id: row.id,
-      name: row.name,
-      watching: row.source.kind,
-      query: row.source.kind === "arxiv" ? query : row.source.url,
-      cadence: row.cadence,
-      assigned,
-      lane: row.lane,
-      searchBackTo: null,
-    });
+    save.mutate(
+      {
+        id: row.id,
+        name: row.name,
+        watching: row.source.kind,
+        query: row.source.kind === "arxiv" ? query : row.source.url,
+        cadence: row.cadence,
+        assigned,
+        lane: row.lane,
+        searchBackTo: null,
+      },
+      { onSuccess: onClose }
+    );
   }
 
   return (
@@ -110,17 +118,19 @@ export function ScoutEdit({
         </p>
       )}
       {/* Drawn once the Questions have been read: before that the Scout's own
-          would show as bare ids, and a list that failed would pass for one
-          with nothing to offer. What it is Assigned to is kept either way. */}
-      {questions.isError && (
-        <WarningLine label="not read">{questions.error.message}</WarningLine>
-      )}
-      {questions.data !== undefined && (
+          would show as bare ids. What it is Assigned to is kept either way. */}
+      {questions.choices !== null && (
         <AssignedQuestions
-          questions={questionChoices(questions.data)}
+          questions={questions.choices}
           assigned={assigned}
           onChange={setAssigned}
         />
+      )}
+      {questions.failed && (
+        <p className={styles.line}>
+          The Questions could not be read, so none are offered. What this Scout
+          is Assigned to is kept.
+        </p>
       )}
       {refused !== null && <p role="alert">{refused}</p>}
       <p className={styles.formActions}>
@@ -130,6 +140,8 @@ export function ScoutEdit({
         <button type="button" onClick={onClose}>
           Cancel
         </button>
+        {/* Progress, with no live region of its own (ADR 0033 decision 1). */}
+        {save.isPending && <span>saving…</span>}
       </p>
     </form>
   );

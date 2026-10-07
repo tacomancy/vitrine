@@ -227,11 +227,12 @@ describe("saving a Scout that watches a page", () => {
   });
 });
 
-// A saved page's address is the one thing the form does not change (ADR 0042
-// decision 5): a different page invalidates the hash and the structure-change
-// test its history rests on, which is its own decision. Everything else the
-// form owns — and so a Scout Activity row's Assigned Questions, which write
-// through this same `scouts.save` (#520) — is saved as it is for an arXiv Scout.
+// A saved page's address is the one thing a save does not change yet: ADR 0042
+// decision 5 keeps it on the form and leaves how it is changed to a decision of
+// its own, since a different page invalidates the hash and the
+// structure-change test its history rests on. Everything else the form owns —
+// and so a Scout Activity row's Assigned Questions, which write through this
+// same `scouts.save` (#520) — is saved as it is for an arXiv Scout.
 describe("editing a Scout that watches a page", () => {
   const raw = (c: Awaited<ReturnType<typeof opened>>, input: object) =>
     c.c.mutate("scouts.save", {
