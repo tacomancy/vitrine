@@ -1,4 +1,9 @@
 import {
+  watch as fsWatch,
+  type WatchEventType,
+  type WatchListener,
+} from "node:fs";
+import {
   chmod,
   mkdir,
   open,
@@ -10,6 +15,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { questionText } from "./ingest.js";
 import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
 afterEach(closeCores);
 
@@ -305,39 +311,174 @@ describe("a vault opened again", () => {
   });
 });
 
-describe("a batch of PDFs", () => {
-  it("is one run and one summary, and a run with nothing matched opens no panel", async () => {
-    const files: Record<string, string> = {};
-    for (let n = 1; n <= 50; n++) {
-      files[`sources/s${n}.md`] =
-        `---\nkind: source\nid: s${n}\ncitekey: s${n}\npdf: s${n}.pdf\n---\n`;
-    }
-    const vault = await vaultWith(files);
-    await mkdir(join(vault, "sources/pdf"), { recursive: true });
-    const base = await pdf("annotated-again.pdf");
-    const c = await core({ settleMs: 40 });
-    await c.mutate("vault.open", { path: vault });
-    await c.indexed();
-    const events = await c.events();
-    for (let n = 1; n <= 50; n++) {
-      // Distinct bytes: identical files that arrive together would pair as renames.
-      await writeFile(
-        join(vault, `sources/pdf/s${n}.pdf`),
-        Buffer.concat([base, Buffer.from(`\n%${n}\n`)])
-      );
-    }
-    const landed = await events.next("ingestLanded");
-    expect(landed.summary).toEqual({
-      new: 50,
-      questions: 0,
-      removed: 0,
-      unmatched: 0,
+// "Fifty PDFs settling together" (#419; spec #416 story 14) is about what the
+// watcher hears, so that is what these tests fix. They used to write the fifty
+// one after another and take FSEvents as it came, and that failed on CI as
+// `new: 17` and `new: 10` (#550). The watcher closes a Batch when nothing else
+// is pending, or when its oldest settled path has waited one more window
+// (`vault-watcher.ts`, #189), and the window is never under 200 ms whatever
+// `settleMs` asks, so a burst that outlasts it is two Batches or more. Under
+// load the fifty writes take that long: #550 traced a loop of 229 ms around one
+// `writeFile` of 90. The window's width is `vault-watcher.test.ts`'s to test,
+// not this file's.
+
+/** Fifty PDFs returning together, as spec #416 story 14 has it. */
+const PDFS = 50;
+
+/**
+ * How long a wait that scales with the machine may take before it is called
+ * lost: 25 times what fifty PDFs take through the engine alone (about 0.4 s),
+ * which beside three whole-suite runs overran the harness's 2 s
+ * (`NEXT_TIMEOUT_MS`) and ran this test out (#550). A test gets three of them,
+ * for the OS naming the PDFs, the landing and the rest, so a lost event is
+ * named before Vitest's own bare timeout can fire. Nothing waits it out when
+ * things go right.
+ */
+const BUDGET_MS = 10_000;
+
+/**
+ * The real `fs.watch`, except that from `hold()` on the OS's events for the
+ * PDFs are the helper's: the first for each file is kept until `deliver()`
+ * hands them to the watcher in the callbacks the test chooses. Real files, real
+ * stats and hashes, and the OS's own word that each PDF changed; only *when the
+ * watcher hears it* is taken out of the disk's hands. The duplicates FSEvents
+ * adds (fifty files came as 50 to 54 events) are dropped, as are stragglers
+ * after the delivery: the watcher stats the path whichever event named it. The
+ * same seam as `deferring()` in `vault-watcher.test.ts`, for the same reason:
+ * on a real machine it depends on what else is writing.
+ */
+function held() {
+  const kept = new Map<string, WatchEventType>();
+  let hear: WatchListener<string> | null = null;
+  let holding = false;
+  let wake: () => void = () => undefined;
+  const watch = ((
+    folder: string,
+    options: { recursive: boolean },
+    listener: WatchListener<string>
+  ) => {
+    hear = listener;
+    return fsWatch(folder, options, (kind, filename) => {
+      if (holding && filename?.startsWith("sources/pdf/")) {
+        if (!kept.has(filename)) kept.set(filename, kind);
+        wake();
+      } else {
+        listener(kind, filename);
+      }
     });
-    expect(landed.sources).toHaveLength(50);
-    await expect(
-      events.next("ingestLanded", { timeoutMs: 400 })
-    ).rejects.toThrow();
+  }) as typeof fsWatch;
+  return {
+    watch,
+    hold: () => {
+      holding = true;
+    },
+    /**
+     * Once the OS has named every PDF, hands the watcher all of them: the
+     * first `groups[0]` in one callback, each group after it one FSEvents
+     * latency later, and what is left in the last. Every callback is timed from
+     * now, not from the one before, so a loop that stalls delivers the ones it
+     * missed together and in order. Answers with the size of each callback it
+     * made.
+     */
+    deliver: async (groups: number[]) => {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `waited ${BUDGET_MS}ms for the OS to name ${PDFS} PDFs: it named ${kept.size}`
+              )
+            ),
+          BUDGET_MS
+        );
+        wake = () => {
+          if (kept.size < PDFS) return;
+          clearTimeout(timer);
+          resolve();
+        };
+        wake();
+      });
+      if (hear === null) throw new Error("the core started no watch");
+      const listener = hear;
+      const all = [...kept];
+      const calls: Array<Promise<number>> = [];
+      let from = 0;
+      for (const [n, size] of [...groups, all.length].entries()) {
+        const group = all.slice(from, from + size);
+        from += size;
+        calls.push(
+          new Promise((resolve) =>
+            setTimeout(() => {
+              for (const [filename, kind] of group) listener(kind, filename);
+              resolve(group.length);
+            }, n * FSEVENTS_LATENCY_MS)
+          )
+        );
+      }
+      return Promise.all(calls);
+    },
+  };
+}
+
+/**
+ * Fifty PDFs written one after another and heard in `groups`' callbacks: one
+ * run, one summary, and no second.
+ */
+async function expectOneRun(groups: number[]) {
+  const files: Record<string, string> = {};
+  for (let n = 1; n <= PDFS; n++) {
+    files[`sources/s${n}.md`] =
+      `---\nkind: source\nid: s${n}\ncitekey: s${n}\npdf: s${n}.pdf\n---\n`;
+  }
+  const vault = await vaultWith(files);
+  await mkdir(join(vault, "sources/pdf"), { recursive: true });
+  const base = await pdf("annotated-again.pdf");
+  const os = held();
+  const c = await core({ settleMs: 40, watch: os.watch });
+  await c.mutate("vault.open", { path: vault });
+  await c.indexed();
+  const events = await c.events();
+  os.hold();
+  for (let n = 1; n <= PDFS; n++) {
+    // Distinct bytes: identical files that arrive together would pair as renames.
+    await writeFile(
+      join(vault, `sources/pdf/s${n}.pdf`),
+      Buffer.concat([base, Buffer.from(`\n%${n}\n`)])
+    );
+  }
+  // Said back, so a helper that stopped waiting for the OS, or stopped cutting
+  // the burst, fails here by name.
+  const left = PDFS - groups.reduce((sum, size) => sum + size, 0);
+  expect(await os.deliver(groups)).toEqual([...groups, left]);
+  const landed = await events.next("ingestLanded", { timeoutMs: BUDGET_MS });
+  // One markup in the fixture, so a block to each PDF.
+  expect(landed.summary).toEqual({
+    new: PDFS,
+    questions: 0,
+    removed: 0,
+    unmatched: 0,
   });
+  expect(landed.sources).toHaveLength(PDFS);
+  await expect(
+    events.next("ingestLanded", { timeoutMs: 400 })
+  ).rejects.toThrow();
+}
+
+describe("a batch of PDFs", () => {
+  it(
+    "is one run and one summary, and a run with nothing matched opens no panel",
+    () => expectOneRun([]),
+    3 * BUDGET_MS
+  );
+
+  // Under load a burst reaches the watcher as two or three FSEvents callbacks a
+  // latency apart (#393 saw a pair of renames do it, #550's traces fifty PDFs).
+  // The window has to cover that.
+  it(
+    "is still one run when FSEvents reports the burst in three callbacks, one latency apart",
+    () => expectOneRun([10, 20]),
+    3 * BUDGET_MS
+  );
 });
 
 describe("a PDF that is not on this Mac yet", () => {
