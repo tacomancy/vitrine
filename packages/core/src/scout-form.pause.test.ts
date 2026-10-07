@@ -72,6 +72,7 @@ async function opened(files: Record<string, string>) {
   const listed = async () => {
     const read = await c.query<{
       scouts: Scout[];
+      dropped: Scout[];
       unreadable: UnreadableScout[];
     }>("scouts.list");
     expect(read.error).toBeUndefined();
@@ -314,6 +315,96 @@ describe("a pause", () => {
         kind: "refused",
       });
       expect(await file()).toBe(broken);
+    }
+  );
+});
+
+// A drop and a restore are edits of the Scout's file like a pause or a save
+// (#521; ADR 0042 decision 1): `scouts.drop` and `scouts.restore` are the only
+// writers of the key, and each takes the one path every edit takes. They are
+// asserted here, beside the rest, so a second way to write the file cannot
+// slip in unnoticed.
+describe("a drop and a restore", () => {
+  const dropped = `${scoutYaml}dropped: 2026-09-25T00:00:00Z\n`;
+  const DROP = { call: "scouts.drop", input: { scoutId: "sleep" } };
+  const RESTORE = { call: "scouts.restore", input: { scoutId: "sleep" } };
+  const BOTH = [
+    { ...DROP, file: scoutYaml },
+    { ...RESTORE, file: dropped },
+  ];
+
+  it("keep an edit that was already under way, and the edit is kept too", async () => {
+    const { c, listed } = await opened({ [`${FOLDER}/sleep.yaml`]: scoutYaml });
+    const write = holdNextScoutWrite();
+    const edit = c.mutate("scouts.save", EDITED_FORM);
+    await write.reached;
+
+    const drop = c.mutate(DROP.call, DROP.input);
+    await allowToFinish(drop);
+    write.release();
+
+    expect((await edit).error).toBeUndefined();
+    expect((await drop).error).toBeUndefined();
+    const read = await listed();
+    expect(read.scouts).toEqual([]);
+    expect(read.dropped).toMatchObject([
+      { id: "sleep", name: "Renamed", cadence: "weekly", lane: "skim" },
+    ]);
+  });
+
+  it.each(BOTH)(
+    "$call leaves the Scout file as it was, and still a Scout, when the disk cannot finish",
+    async ({ call, input, file: before }) => {
+      const { c, listed, file } = await opened({
+        [`${FOLDER}/sleep.yaml`]: before,
+      });
+      failNextScoutWrite();
+
+      const reply = await c.mutate(call, input);
+
+      expect(reply.result).toBeUndefined();
+      expect(reply.error?.data.kind).toBe("writeFailed");
+      const read = await listed();
+      expect(read.unreadable).toEqual([]);
+      expect([...read.scouts, ...read.dropped].map((s) => s.id)).toEqual([
+        "sleep",
+      ]);
+      expect(await file()).toBe(before);
+    }
+  );
+
+  // An edit replaces the file by rename, so a file the user made read-only is
+  // replaced all the same: only the folder's mode is asked of the filesystem.
+  describe.skipIf(process.getuid?.() === 0)("on a read-only file", () => {
+    it.each(BOTH)("$call changes it all the same", async (edit) => {
+      const { c, listed, path } = await opened({
+        [`${FOLDER}/sleep.yaml`]: edit.file,
+      });
+      await chmod(path(), 0o444);
+
+      const reply = await c.mutate(edit.call, edit.input);
+
+      expect(reply.error).toBeUndefined();
+      const read = await listed();
+      expect(read.scouts.length).toBe(edit.call === "scouts.restore" ? 1 : 0);
+      expect(read.dropped.length).toBe(edit.call === "scouts.drop" ? 1 : 0);
+    });
+  });
+
+  it.each(BOTH)(
+    "$call still finds a Scout with something beside it named like it",
+    async (edit) => {
+      const { c, vault, listed } = await opened({
+        [`${FOLDER}/sleep.yaml`]: edit.file,
+      });
+      await mkdir(join(vault, FOLDER, "sleep"));
+
+      const reply = await c.mutate(edit.call, edit.input);
+
+      expect(reply.error).toBeUndefined();
+      const read = await listed();
+      expect(read.scouts.length).toBe(edit.call === "scouts.restore" ? 1 : 0);
+      expect(read.dropped.length).toBe(edit.call === "scouts.drop" ? 1 : 0);
     }
   );
 });

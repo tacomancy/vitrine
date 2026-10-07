@@ -54,7 +54,11 @@ type Call = { call: string; how: "query" | "mutate"; input?: unknown };
 
 /** Every call that reads the Scouts, and what it answers when there are none. */
 const READS: Array<Call & { empty: unknown }> = [
-  { call: "scouts.list", how: "query", empty: { scouts: [], unreadable: [] } },
+  {
+    call: "scouts.list",
+    how: "query",
+    empty: { scouts: [], dropped: [], unreadable: [] },
+  },
   {
     call: "scouts.health",
     how: "query",
@@ -74,6 +78,13 @@ const READS: Array<Call & { empty: unknown }> = [
         noKey: 0,
       },
       review: { pending: 0, deferred: 0, median: null, oldest: null },
+      // Nothing was asked and nothing was found, and the claim says how much.
+      coverageGaps: {
+        kind: "covered",
+        warrant: { questions: 0, scouts: 0 },
+        notLooking: [],
+      },
+      dropped: [],
     },
   },
   { call: "scouts.groups", how: "query", empty: [] },
@@ -108,6 +119,8 @@ const ACTS: Call[] = [
     input: { scoutId: "sleep", paused: true },
   },
   { call: "scouts.save", how: "mutate", input: FORM },
+  { call: "scouts.drop", how: "mutate", input: { scoutId: "sleep" } },
+  { call: "scouts.restore", how: "mutate", input: { scoutId: "sleep" } },
 ];
 
 describe("a Scouts folder that cannot be listed", () => {

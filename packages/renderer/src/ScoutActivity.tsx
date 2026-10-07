@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Fragment,
+  useId,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -10,6 +11,9 @@ import type {
   AcceptRate,
   ActivityRow,
   Cost,
+  CoverageGap,
+  CoverageGaps,
+  NotLooking,
   FleetSource,
   Health,
   ReviewDepth,
@@ -21,6 +25,14 @@ import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
 import styles from "./ScoutActivity.module.css";
+import {
+  DropButton,
+  DropRefused,
+  DroppedInPlace,
+  DroppedLine,
+  useDrops,
+  type Drops,
+} from "./ScoutDropped";
 import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
@@ -89,7 +101,12 @@ function sorted(rows: ActivityRow[], sort: Sort | null): ActivityRow[] {
  * drawn as the Queue's rail draws them (ADR 0032 decision 7); this file words
  * only its own labels and the empty fleet.
  */
-export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
+export function ScoutActivity({
+  onNewScout,
+}: {
+  /** With a Question id, the form opens with it Assigned. */
+  onNewScout: (assigning?: string) => void;
+}) {
   const trpc = useTRPC();
   const activity = useQuery(trpc.scouts.activity.queryOptions());
   const status = useVaultStatusLines();
@@ -101,6 +118,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const drops = useDrops(activity.dataUpdatedAt);
   const rows = sorted(activity.data?.rows ?? [], sort);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -167,11 +185,20 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           </div>
         )}
       </div>
+      {/* Beneath the fleet's facts and above the rows, as prototype 10 sets it
+          in the header strip: the most actionable thing on the screen, so it is
+          read before the table and never pushed below it. */}
+      {activity.data !== undefined && (
+        <Gaps gaps={activity.data.coverageGaps} onBrief={onNewScout} />
+      )}
       {rows.length === 0 && (
         <NoRows
           failed={activity.isError}
           answered={activity.data !== undefined}
-          onNewScout={onNewScout}
+          droppedCount={activity.data?.dropped.length ?? 0}
+          // Not `onNewScout` itself: a click would hand its event over as the
+          // Question to Assign.
+          onNewScout={() => onNewScout()}
         />
       )}
       {rows.length > 0 && (
@@ -220,12 +247,20 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   open={opened.has(keyOf(row))}
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
+                  drops={drops}
                 />
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {/* After the rows, and still there when every Scout is dropped: it is
+          how a Scout comes back once its row has left. */}
+      <DroppedLine
+        dropped={activity.data?.dropped ?? []}
+        refused={drops.refused}
+        onRestore={drops.onRestore}
+      />
       {/* The footer channel, as every Dashboard draws it: only when there is
           something to say, and polite — a state the app is in, not a refusal
           of something the user did (ADR 0033). The reason a read failed is
@@ -237,6 +272,103 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
             <WarningLine label="not read">{activity.error.message}</WarningLine>
           )}
         </footer>
+      )}
+    </section>
+  );
+}
+
+const notLookingWords = (scouts: NotLooking[]) =>
+  scouts.map((s) => `${s.name} (${s.reason})`).join(", ");
+
+/**
+ * The claim a block with no gaps makes: said with what it checked, so it can
+ * never be mistaken for a block that failed to load, and with every Scout not
+ * looking named, so it can never reassure while one is idle (ADR 0032 decision
+ * 8). A Map with no open Questions has nothing to claim a Scout is looking at.
+ */
+function claimWords(claim: Extract<CoverageGaps, { kind: "covered" }>): string {
+  const { questions, scouts } = claim.warrant;
+  const checked =
+    questions === 0
+      ? "There are no open questions for a Scout to look for."
+      : `Every open question has a Scout looking: ${plural(questions, "question")}, ${plural(scouts, "Scout")}.`;
+  const idle = claim.notLooking;
+  return idle.length === 0
+    ? checked
+    : `${checked} ${notLookingWords(idle)} ${idle.length === 1 ? "is" : "are"} not looking.`;
+}
+
+/** One open Question nothing is looking for: its age, who is Assigned but not looking, and the one act that closes it. */
+function Gap({
+  gap,
+  onBrief,
+}: {
+  gap: CoverageGap;
+  onBrief: (assigning: string) => void;
+}) {
+  const { assign } = gap;
+  return (
+    <li>
+      <span className={styles.gapQuestion}>{gap.question}</span>
+      <span className={styles.health}>
+        <Facts
+          facts={[
+            ...(gap.age === null ? [] : [gap.age]),
+            ...(gap.notLooking.length === 0
+              ? []
+              : [`Assigned: ${notLookingWords(gap.notLooking)}`]),
+            // A Question without an id is still a gap, and the form has
+            // nothing to Assign it by.
+            ...(assign === null ? ["no id, so no Scout can be Assigned"] : []),
+          ]}
+        />
+      </span>
+      {assign !== null && (
+        <button
+          type="button"
+          className={styles.action}
+          aria-label={`brief a scout: ${gap.question}`}
+          onClick={() => onBrief(assign)}
+        >
+          brief a scout
+        </button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The open Questions no Scout is looking for (ADR 0042 decision 4). A list to
+ * start on, not a debt: it is cut at a length the core sets, with what is cut
+ * said, and no figure anywhere totals the gaps. Each row's age is a fact and
+ * the order is the Map's, so nothing here ranks the researcher's curiosity.
+ */
+function Gaps({
+  gaps,
+  onBrief,
+}: {
+  gaps: CoverageGaps;
+  onBrief: (assigning: string) => void;
+}) {
+  const title = useId();
+  return (
+    <section className={styles.gaps} aria-labelledby={title}>
+      <h2 id={title} className={styles.gapsTitle}>
+        Coverage gaps
+      </h2>
+      {gaps.kind === "covered" ? (
+        <p className={styles.gapsClaim}>{claimWords(gaps)}</p>
+      ) : (
+        <>
+          <ul className={styles.gapList}>
+            {gaps.shown.map((gap) => (
+              <Gap key={gap.path} gap={gap} onBrief={onBrief} />
+            ))}
+          </ul>
+          {gaps.notShown > 0 && (
+            <p className={styles.health}>{gaps.notShown} more not shown</p>
+          )}
+        </>
       )}
     </section>
   );
@@ -311,10 +443,13 @@ function SourceHealth({ fleet }: { fleet: FleetSource }) {
 function NoRows({
   failed,
   answered,
+  droppedCount,
   onNewScout,
 }: {
   failed: boolean;
   answered: boolean;
+  /** How many Scouts are dropped: a fleet that is all dropped has had Scouts, and *yet* would say it had not. */
+  droppedCount: number;
   onNewScout: () => void;
 }) {
   if (failed) return <FirstSlot voice="wrong" claim="" />;
@@ -323,7 +458,7 @@ function NoRows({
     <FirstSlot
       voice="not yet"
       claim=""
-      fragment="no scouts yet"
+      fragment={droppedCount > 0 ? "no scouts watching" : "no scouts yet"}
       action={
         <button type="button" className={styles.action} onClick={onNewScout}>
           new scout
@@ -533,6 +668,7 @@ function Row({
   open,
   onToggle,
   onChoose,
+  drops,
 }: {
   row: ActivityRow;
   id: string;
@@ -540,6 +676,7 @@ function Row({
   open: boolean;
   onToggle: () => void;
   onChoose: () => void;
+  drops: Drops;
 }) {
   const [showRuns, setShowRuns] = useState(false);
   if (row.kind === "unreadable") {
@@ -555,6 +692,35 @@ function Row({
         </th>
         <td colSpan={COLUMNS - 1} />
       </tr>
+    );
+  }
+  // What the core refused of a drop or an undo, on this row and nowhere else.
+  const refusal = drops.refused[row.id];
+  const refused = refusal !== undefined && (
+    <tr>
+      <td className={styles.detail} colSpan={COLUMNS}>
+        <DropRefused message={refusal} />
+      </td>
+    </tr>
+  );
+  // Dropped during this visit: the row keeps its place and says so, with the
+  // way back, in place of figures nobody is reading any more.
+  if (drops.justDropped(row.id)) {
+    return (
+      <>
+        <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+          <th scope="row">
+            <span className={styles.who}>
+              <span className={styles.name}>{row.name}</span>
+            </span>
+          </th>
+          <DroppedInPlace
+            cells={COLUMNS - 1}
+            onUndo={() => drops.onRestore(row.id)}
+          />
+        </tr>
+        {refused}
+      </>
     );
   }
   const watching =
@@ -586,6 +752,7 @@ function Row({
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
             <VoiceLine health={row.health} />
+            <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
           </span>
         </th>
         {/* The column cuts a long Query to one line; the cut is only to the
@@ -646,6 +813,7 @@ function Row({
           </a>
         </ReviewCell>
       </tr>
+      {refused}
       {open && (
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>

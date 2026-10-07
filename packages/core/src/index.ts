@@ -165,7 +165,11 @@ export type { AcceptWeek, Group } from "./triage.js";
 export type {
   AcceptRate,
   ActivityRow,
+  CoverageGap,
+  CoverageGaps,
+  NotLooking,
   Cost,
+  DroppedRow,
   FleetSource,
   ScoutActivity,
   ScoutRunCost,
