@@ -200,3 +200,27 @@ describe("questions.capture from the Reader, with no selection", () => {
     expect(reply.error).toBeDefined();
   });
 });
+
+describe("a Question made beside a PDF the run window is holding", () => {
+  // The Reader's writes never wait on the run window (#553): a PDF held for a
+  // window this test does not outlast must not delay the Question. The held PDF
+  // is another file in the folder, so the Reader's own is never the one in flight.
+  it("is made at once", async () => {
+    const { make, listed, c, vault } = await opened();
+    // Held once the watcher has settled it and the index has said so.
+    await writeFile(
+      join(vault, "sources/pdf/other.pdf"),
+      await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
+    );
+    await vi.waitFor(
+      () =>
+        expect(
+          c.changes.some((e) => e.changed.includes("sources/pdf/other.pdf"))
+        ).toBe(true),
+      { timeout: NEXT_TIMEOUT_MS }
+    );
+    const reply = await make();
+    expect(reply.error).toBeUndefined();
+    expect(await listed()).toHaveLength(1);
+  });
+});

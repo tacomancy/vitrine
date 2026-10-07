@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
+import { effectiveRunWindowMs } from "./run-window.js";
 import { effectiveSettleMs } from "./vault-watcher.js";
 import type { ArxivClock } from "./arxiv.js";
 import type { Host } from "./host.js";
@@ -100,7 +101,7 @@ export type CoreOptions = Partial<
  * Well above what a probe takes when the machine is merely busy — a whole
  * open peaked at 134 ms across 244 opens under #397's stress loop (parallel
  * suites beside shell loops churning `/tmp`). And short enough that an open
- * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside the core project's test timeout (`vitest.config.ts`). The production bound is not this number (ADR 0029, #272).
+ * and an `indexed()` behind it (`NEXT_TIMEOUT_MS`) still fit inside 5 s. The production bound is not this number (ADR 0029, #272).
  */
 const HARNESS_PROBE_TIMEOUT_MS = 1000;
 
@@ -283,24 +284,29 @@ export type EventStream = {
 
 /**
  * The widest wait a watcher-driven event legitimately has: a PDF settles, which
- * is the watcher's floor, and then Ingest holds it for the run window, which is
- * never under twice that (`run-window.ts`, #553).
+ * is the watcher's floor, and then Ingest holds it for the run window, at its
+ * floor (`run-window.ts`, #553).
  */
-const WIDEST_WAIT_MS = effectiveSettleMs(0) + 2 * effectiveSettleMs(0);
+export const WIDEST_WAIT_MS = effectiveSettleMs(0) + effectiveRunWindowMs(0, 0);
 
 /**
- * How long a `next()` waits before it says the event never came. Under the
- * core project's test timeout (`vitest.config.ts`) so this bound always wins
- * that race: a bare `Test timed out` says the test was slow, where a lost event
- * has to say which event was lost (#294, after #292 took an instrumented CI run
- * to tell the two apart).
+ * How long a `next()` waits before it says the event never came. Under
+ * Vitest's 5 s default so this bound always wins that race: a bare `Test timed
+ * out` says the test was slow, where a lost event has to say which event was
+ * lost (#294, after #292 took an instrumented CI run to tell the two apart). The
+ * default is left alone, deliberately (ADR 0029): raising it hangs a lost event
+ * longer and still fails it.
  *
- * Ten times the widest wait a watcher-driven event has (600 ms: the settle
- * window and then the run window, both at their floors), so it is a diagnostic
- * and not a new constraint — no wait that passes comes near it, except in a test that asks for a longer settle window than the harness's, as the floor tests in `ingest.test.ts` do, and passes its own bound. It was 2 s, ten
- * times the settle window alone, before the run window existed (#553). A test
- * that legitimately needs longer passes its own `timeoutMs`, as the timing
- * tests there pass their own budget to `it`.
+ * Five times the widest wait a watcher-driven event has (600 ms: the settle
+ * window and then the run window, both at their floors), so 3 s. It was 2 s, ten
+ * times the settle window alone, before the run window existed (#553). Ten times
+ * 600 ms would be 6 s, past that default, and an open and an `indexed()` ahead of
+ * it have to fit beside it. So it has less headroom than it had, and is still a
+ * diagnostic and not a new constraint: no wait that passes comes near it, except
+ * in a test that asks for a longer settle window than the harness's, as the
+ * floor tests in `ingest.test.ts` do, and passes its own bound. A test that
+ * legitimately needs longer passes its own `timeoutMs`, as the timing tests
+ * there pass their own budget to `it`.
  *
  * One wait it is deliberately *not* long enough for: a watcher-driven event on
  * a core built without `settleMs`, which is due at the production `SETTLE_MS`
@@ -308,7 +314,7 @@ const WIDEST_WAIT_MS = effectiveSettleMs(0) + 2 * effectiveSettleMs(0);
  * settle window, as every watcher suite does — no suite should be waiting out
  * a production timing constant anyway.
  */
-export const NEXT_TIMEOUT_MS = 10 * WIDEST_WAIT_MS;
+export const NEXT_TIMEOUT_MS = 5 * WIDEST_WAIT_MS;
 
 /**
  * A run window no test waits out (#553): ten times the longest a `next()` waits.

@@ -15,10 +15,5 @@ export default defineConfig({
     name: "core",
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // A returned PDF is read after the settle window and the run window (#553),
-    // so the harness's wait bound (`NEXT_TIMEOUT_MS`, 6 s) is past Vitest's 5 s
-    // default. A test timeout above it keeps that bound's diagnostic the one a
-    // lost event gets, rather than a bare `Test timed out`.
-    testTimeout: 15_000,
   },
 });

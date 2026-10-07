@@ -22,6 +22,7 @@ import {
   LONG_RUN_WINDOW_MS,
   type CoreOptions,
   NEXT_TIMEOUT_MS,
+  WIDEST_WAIT_MS,
 } from "./test-core.js";
 import { FSEVENTS_LATENCY_MS } from "./vault-watcher.js";
 
@@ -350,7 +351,9 @@ describe("a PDF returning alone", () => {
       // Settled, then held for the window: the settle window, and twice it
       // (ADR 0013, update for #553).
       expect(performance.now() - started).toBeGreaterThanOrEqual(3 * settleMs);
-    }
+    },
+    // Each takes about three seconds, and the harness's budget is Vitest's 5 s.
+    20_000
   );
 });
 
@@ -750,7 +753,7 @@ describe("a note that begins Q:", () => {
   });
 
   it("never makes a second when the same PDF returns, and records the Question in the sidecar", async () => {
-    const { returned, c, sidecar, vault } = await opened();
+    const { returned, c, events, sidecar, vault } = await opened();
     await returned(await pdf("annotated-questions.pdf"));
     const first = await sidecar();
     expect(
@@ -761,7 +764,13 @@ describe("a note that begins Q:", () => {
       join(vault, "sources/pdf/rasch2013.pdf"),
       await pdf("annotated-questions.pdf")
     );
-    await c.indexed();
+    // Nothing is read, so there is nothing to wait on but the time a run would
+    // take, twice over: the PDF settles, the run window goes quiet, and then the
+    // run. `indexed()` answers at once, before any of that, so this test used to
+    // read the Questions before an Ingest could have made a second (#553).
+    await expect(
+      events.next("ingestLanded", { timeoutMs: 2 * WIDEST_WAIT_MS })
+    ).rejects.toThrow();
     expect(await listed(c)).toHaveLength(3);
   });
 

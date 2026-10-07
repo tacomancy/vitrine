@@ -31,7 +31,7 @@ export const RUN_WINDOW_MS = 5000;
 /** No PDF is held longer than this after the first one in its hold, however steadily more arrive. */
 export const RUN_CEILING_MS = 60_000;
 
-export type RunWindowOptions = {
+type RunWindowOptions = {
   /**
    * The settle window the watcher is asked for. The window is never under
    * twice the one the watcher actually uses, its own floor included
@@ -49,6 +49,15 @@ export type RunWindowOptions = {
   run: (paths: string[]) => void;
 };
 
+/**
+ * The window actually used for the one asked for, which is never under twice
+ * the settle window the watcher actually uses (see `RunWindowOptions`). Its own
+ * export so that what the test harness waits for is read from this rule and not
+ * copied from it.
+ */
+export const effectiveRunWindowMs = (windowMs: number, settleMs: number) =>
+  Math.max(windowMs, 2 * effectiveSettleMs(settleMs));
+
 export type RunWindow = {
   /** A `vaultChanged` named these PDFs: hold them, and start the window again. */
   hold: (paths: readonly string[]) => void;
@@ -64,7 +73,7 @@ export function createRunWindow({
   ceilingMs,
   run,
 }: RunWindowOptions): RunWindow {
-  const effectiveWindowMs = Math.max(windowMs, 2 * effectiveSettleMs(settleMs));
+  const effectiveWindowMs = effectiveRunWindowMs(windowMs, settleMs);
   const effectiveCeilingMs = Math.max(ceilingMs, effectiveWindowMs);
   const held = new Set<string>();
   // The window's timer, started again by every PDF named, and the ceiling's,

@@ -385,3 +385,33 @@ describe("removing an annotation", () => {
     expect(sidecar!.annotations[0]!.unmatched_since).toBeUndefined();
   });
 });
+
+describe("a Reader write beside a PDF the run window is holding", () => {
+  // The Reader's writes never wait on the run window (#553): a PDF held for a
+  // window this test does not outlast must not delay a highlight, a recolour or
+  // a removal, nor the line a removal raises. The held PDF is another file in
+  // the folder, so the Reader's own is never the one in flight.
+  it("highlights, recolours and removes at once", async () => {
+    const t = await opened();
+    // Held once the watcher has settled it and the index has said so.
+    await writeFile(
+      join(t.vault, "sources/pdf/other.pdf"),
+      await readFile(join(fixtures, "pdf", "synthetic-body.pdf"))
+    );
+    await vi.waitFor(
+      () =>
+        expect(
+          t.c.changes.some((e) => e.changed.includes("sources/pdf/other.pdf"))
+        ).toBe(true),
+      { timeout: NEXT_TIMEOUT_MS }
+    );
+    const made = (await t.highlight([LINE_TWO], "first thought")).result!.data;
+    expect(
+      (await t.edit("amend", made.id, { colour: "blue" })).error
+    ).toBeUndefined();
+    const landed = t.events.next("ingestLanded");
+    const removed = await t.remove(made.id);
+    expect(removed.result!.data).toMatchObject({ outcome: "removed" });
+    expect((await landed).summary.removed).toBe(1);
+  });
+});
