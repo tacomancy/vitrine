@@ -222,7 +222,14 @@ describe("a row's cost", () => {
       failed: { kind: "credentials", message: "key rejected" },
     });
 
-    expect((await f.row("w")).cost).toMatchObject({ kind: "cost", runs: 1 });
+    // Exactly one run, none unpriced: a refused call would otherwise appear
+    // as an unpriced run with a model id and no tokens.
+    expect((await f.row("w")).cost).toEqual({
+      kind: "cost",
+      perRun: 0.02,
+      runs: 1,
+      unpriced: 0,
+    });
   });
 
   it("leaves a no key run out of the mean, whatever the row says it spent", async () => {
