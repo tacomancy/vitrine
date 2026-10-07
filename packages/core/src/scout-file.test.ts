@@ -113,6 +113,8 @@ const ACTS: Call[] = [
     input: { scoutId: "sleep", paused: true },
   },
   { call: "scouts.save", how: "mutate", input: FORM },
+  { call: "scouts.drop", how: "mutate", input: { scoutId: "sleep" } },
+  { call: "scouts.restore", how: "mutate", input: { scoutId: "sleep" } },
 ];
 
 describe("a Scouts folder that cannot be listed", () => {
