@@ -59,6 +59,10 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
   "scouts.groups": [
     { id: "sleep", runId: 3, runPending: queue.length, held: [] },
   ],
+  // Answered, so that a test with a read failing is the only one saying so.
+  "scouts.health": { scouts: [] },
+  "scouts.fleet": { claim: null, naming: [] },
+  "scouts.skim": { recent: [], older: [] },
   ...more,
 });
 
@@ -656,5 +660,93 @@ describe("the Scout Queue", () => {
       ).toBeDefined();
       expect(screen.queryByText(/watching/)).toBeNull();
     });
+  });
+});
+
+// #527: a Scout read the core could not answer (#526) is the *wrong* Voice
+// where the rows would begin, its reason said once on the footer channel
+// (ADR 0033 decisions 2 and 3), and never an empty stack or an empty fleet.
+describe("a Scout read that failed", () => {
+  const fail = (reason: string) => () => {
+    throw new Error(reason);
+  };
+
+  it.each([
+    "scouts.list",
+    "scouts.queue",
+    "scouts.groups",
+    "scouts.fleet",
+    "scouts.health",
+  ])(
+    "%s failing: the first slot is not known, the reason is a polite footer line, and nothing says there are no Scouts",
+    async (call) => {
+      renderApp(answers([], { [call]: fail(`${call} unreadable`) }));
+
+      const surface = await screen.findByRole("region", {
+        name: "Scout Queue",
+      });
+      // The Scouts failing is said by the rail as well as the stack.
+      await within(surface).findAllByText("not known");
+      const footer = within(surface).getByRole("contentinfo");
+      expect(within(footer).getByRole("status").textContent).toBe(
+        `‖ not read — ${call} unreadable`
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
+      // The reason is on the footer channel and nowhere else.
+      expect(
+        within(surface).getAllByText(new RegExp(`${call} unreadable`))
+      ).toHaveLength(1);
+      expect(surface.textContent).not.toMatch(
+        /No Scouts yet|Review cleared|Nothing pending|0 pending/
+      );
+    }
+  );
+
+  it("scouts.skim failing speaks in the wrong Voice in the Skim lane", async () => {
+    renderApp(answers([], { "scouts.skim": fail("skim unreadable") }));
+    const surface = await screen.findByRole("region", { name: "Scout Queue" });
+    fireEvent.click(within(surface).getByRole("button", { name: "Skim" }));
+
+    await within(surface).findByText("not known");
+    expect(
+      within(within(surface).getByRole("contentinfo")).getByRole("status")
+        .textContent
+    ).toBe("‖ not read — skim unreadable");
+    expect(surface.textContent).not.toMatch(/No Scouts yet|Skim is quiet/);
+  });
+
+  it("the rail says the Scouts are not known rather than showing All Scouts alone", async () => {
+    renderApp(answers([], { "scouts.list": fail("list unreadable") }));
+    const rail = await screen.findByRole("list", { name: "Scouts" });
+
+    expect(await within(rail).findByText("not known")).toBeDefined();
+  });
+
+  it("still shows the rows it has when another read failed", async () => {
+    renderApp(answers([card()], { "scouts.fleet": fail("fleet unreadable") }));
+
+    expect(
+      await screen.findByRole("article", {
+        name: "Slow Oscillations Reconsidered",
+      })
+    ).toBeDefined();
+    expect(
+      within(screen.getByRole("contentinfo")).getByRole("status").textContent
+    ).toBe("‖ not read — fleet unreadable");
+  });
+
+  it("says one reason once when several reads fail for it", async () => {
+    renderApp(
+      answers([], {
+        "scouts.list": fail("same cause"),
+        "scouts.queue": fail("same cause"),
+      })
+    );
+    const surface = await screen.findByRole("region", { name: "Scout Queue" });
+    await within(surface).findAllByText("not known");
+
+    expect(
+      within(within(surface).getByRole("contentinfo")).getAllByRole("status")
+    ).toHaveLength(1);
   });
 });

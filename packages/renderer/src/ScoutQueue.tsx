@@ -6,9 +6,11 @@ import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
 import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
+import { FirstSlot } from "./FirstSlot";
 import { CostLine, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
+import { WarningLine } from "./VaultStatusLines";
 
 /**
  * The Scout Queue's Review lane (#450; brief § Scout Queue; spec #447): a
@@ -138,6 +140,15 @@ export function ScoutQueue({
     })
   );
 
+  // A read the core could not answer (#526) is not an empty list: the first
+  // slot is *wrong* where the rows would begin and the reason is said once,
+  // on the footer channel (ADR 0033 decisions 2 and 3). Reads sharing a
+  // cause share a line.
+  const failed = [scouts, queue, groups, fleet, health, skim]
+    .filter((read) => read.isError)
+    .map((read) => read.error.message);
+  const reasons = [...new Set(failed)];
+  const unknown = failed.length > 0;
   const everything = queue.data ?? [];
   const inGroup = everything.filter(
     (card) =>
@@ -309,6 +320,11 @@ export function ScoutQueue({
         </button>
       </header>
       <ul className={styles.scouts} aria-label="Scouts">
+        {scouts.isError && (
+          <li className={styles.scout}>
+            <FirstSlot voice="wrong" claim="" />
+          </li>
+        )}
         {railRows.map((row) => (
           <li key={row.id ?? "all"} className={styles.scout}>
             <button
@@ -324,7 +340,9 @@ export function ScoutQueue({
               }}
             >
               <span>{row.name}</span>
-              <span className={styles.count}>{countFor(row.id)}</span>
+              {!queue.isError && (
+                <span className={styles.count}>{countFor(row.id)}</span>
+              )}
             </button>
             {row.id !== null && (
               <button
@@ -487,9 +505,13 @@ export function ScoutQueue({
               </button>
             </p>
           )}
-          {lines.length === 0 && older.length === 0 && (
-            <SkimQuiet claim={fleet.data} />
-          )}
+          {lines.length === 0 &&
+            older.length === 0 &&
+            (unknown ? (
+              <FirstSlot voice="wrong" claim="" />
+            ) : (
+              <SkimQuiet claim={fleet.data} />
+            ))}
           {line !== undefined && (
             <Proposal
               key={line.id}
@@ -507,13 +529,17 @@ export function ScoutQueue({
       )}
       {form === null &&
         lane === "review" &&
-        queue.isSuccess &&
-        inGroup.length === 0 && (
-          <ReviewQuiet
-            scout={selected === null ? undefined : healthOf(selected)}
-            claim={selected === null ? fleet.data : undefined}
-          />
-        )}
+        inGroup.length === 0 &&
+        (unknown ? (
+          <FirstSlot voice="wrong" claim="" />
+        ) : (
+          queue.isSuccess && (
+            <ReviewQuiet
+              scout={selected === null ? undefined : healthOf(selected)}
+              claim={selected === null ? fleet.data : undefined}
+            />
+          )
+        ))}
       {form === null && lane === "review" && card !== undefined && (
         <Proposal
           key={card.id}
@@ -535,6 +561,17 @@ export function ScoutQueue({
             </li>
           ))}
         </ol>
+      )}
+      {/* The footer channel, polite: a state the app is in, not a refusal of
+          something the user did (ADR 0033). */}
+      {reasons.length > 0 && (
+        <footer className={styles.footer}>
+          {reasons.map((reason) => (
+            <WarningLine key={reason} label="not read">
+              {reason}
+            </WarningLine>
+          ))}
+        </footer>
       )}
     </section>
   );

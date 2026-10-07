@@ -16,7 +16,7 @@ import { Wrong } from "./Wrong";
  * that is already there.
  */
 
-const PROVIDER = { provider: "anthropic" } as const;
+export const PROVIDER = { provider: "anthropic" } as const;
 
 export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
   const trpc = useTRPC();
