@@ -94,3 +94,7 @@ The spec grill for this beat closed seven cases the decisions above left open; *
 **Decision 9's accept has a guard.** A Proposal whose Source key the vault already holds is *held* rather than proposed, and the check is the accept function's own (ADR 0039 decision 1).
 
 **Decision 10's list of error kinds gains `interrupted`**, and decision 12's *Broken plumbing* row shows it with the others.
+
+## Update (2026-10-07, ADR 0043)
+
+**ADR 0043** narrows decision 3's *due*. For a Watched Scout the last completed run is the last one at its current page, so a Scout pointed at another page is due at the next check, whatever its cadence; an arXiv Scout is unchanged.
