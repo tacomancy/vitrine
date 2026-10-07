@@ -10,6 +10,33 @@ import {
 import { acceptCounts, type AcceptCounts } from "./triage.js";
 import { NO_KEY } from "./watched.js";
 
+const THIRTY_DAYS_MS = 30 * 86_400_000;
+
+/**
+ * What a Scout found in the trailing thirty days (ADR 0042 decision 10).
+ * Credited to the Scout of a Proposal's first Appearance, the credit
+ * `acceptCounts` uses, so volume and Accept rate cannot disagree. A Held
+ * Proposal is work the vault already had, so it is counted on its own and not
+ * as a find.
+ */
+export type Volume = {
+  proposals: number;
+  held: number;
+  /** Of `proposals`, how many another Scout also found — a Scout that only echoes another. */
+  alsoFoundElsewhere: number;
+};
+
+/**
+ * *cost / run*: one figure, the mean over the trailing thirty days' runs that
+ * called a model (ADR 0042 decision 6). A Scout with none has no figure to
+ * give and says so — never `$0.00`, which would read as spend. `perRun` is
+ * null when every such run was on a model the price table does not know: the
+ * tokens are real and the dollars would be invented.
+ */
+export type Cost =
+  | { kind: "no model call" }
+  | { kind: "cost"; perRun: number | null; runs: number; unpriced: number };
+
 /** The window the headline rate reads: twelve weeks, the one the weekly chart will draw (ADR 0042 decision 2). */
 const WINDOW_MS = 12 * 7 * 86_400_000;
 
@@ -84,6 +111,8 @@ export type ActivityRow =
       lastRun: { finished: string; ago: string } | null;
       health: Health;
       acceptRate: AcceptRate;
+      volume: Volume;
+      cost: Cost;
     }
   /** A Scout file that does not parse is still a row, by its file name: it is a Scout the researcher made, and a table that left it out would hide the one that needs a look (ADR 0039 decision 7). */
   | { kind: "unreadable"; file: string; health: Health };
@@ -172,6 +201,101 @@ const looked = (run: {
   error_message: string | null;
 }) => !(run.error_kind === "credentials" && run.error_message === NO_KEY);
 
+function volumes(queue: DatabaseSync, since: string): Map<string, Volume> {
+  // The first Appearance by run id then rowid, as `acceptCounts` reads it.
+  const found = queue
+    .prepare(
+      `SELECT (SELECT scout_id FROM appearances WHERE proposal_id = p.id
+                ORDER BY run_id, rowid LIMIT 1) AS scoutId,
+              p.state = 'held' AS held,
+              EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id
+                       AND a.scout_id <> (SELECT scout_id FROM appearances
+                                           WHERE proposal_id = p.id
+                                           ORDER BY run_id, rowid LIMIT 1)) AS elsewhere
+         FROM proposals p
+        WHERE p.first_seen >= ?`
+    )
+    .all(since) as Array<{
+    scoutId: string | null;
+    held: number;
+    elsewhere: number;
+  }>;
+  const byScout = new Map<string, Volume>();
+  for (const f of found) {
+    if (f.scoutId === null) continue;
+    const v = byScout.get(f.scoutId) ?? {
+      proposals: 0,
+      held: 0,
+      alsoFoundElsewhere: 0,
+    };
+    if (f.held === 1) v.held += 1;
+    else {
+      v.proposals += 1;
+      v.alsoFoundElsewhere += f.elsewhere;
+    }
+    byScout.set(f.scoutId, v);
+  }
+  return byScout;
+}
+
+type SpentRow = { input_tokens: number | null; cost_usd: number | null };
+
+function costOf(runs: SpentRow[]): Cost {
+  const modelRuns = runs.filter((run) => run.input_tokens !== null);
+  if (modelRuns.length === 0) return { kind: "no model call" };
+  const priced = modelRuns.flatMap((run) =>
+    run.cost_usd === null ? [] : [run.cost_usd]
+  );
+  return {
+    kind: "cost",
+    perRun:
+      priced.length === 0
+        ? null
+        : priced.reduce((sum, usd) => sum + usd, 0) / priced.length,
+    runs: modelRuns.length,
+    unpriced: modelRuns.length - priced.length,
+  };
+}
+
+/** Finished runs in the window that looked: a `no key` run fetched nothing and is no run (ADR 0042 decision 6). */
+function spentRuns(queue: DatabaseSync, scoutId: string, since: string) {
+  return finishedRuns(queue, scoutId).filter(
+    (run) => looked(run) && run.finished >= since
+  );
+}
+
+/** One run in the list behind a row; `tokens` null is a run that made no model call. */
+export type ScoutRunCost = {
+  runId: number;
+  finished: string;
+  model: string | null;
+  tokens: { input: number; output: number; cacheRead: number } | null;
+  costUsd: number | null;
+};
+
+export function readRunCosts(
+  queue: DatabaseSync,
+  scoutId: string
+): ScoutRunCost[] {
+  return finishedRuns(queue, scoutId)
+    .filter(looked)
+    .sort((a, b) => b.finished.localeCompare(a.finished) || b.id - a.id)
+    .map((run) => ({
+      runId: run.id,
+      finished: run.finished,
+      model: run.model,
+      tokens:
+        run.input_tokens === null
+          ? null
+          : {
+              input: run.input_tokens,
+              output: run.output_tokens ?? 0,
+              cacheRead: run.cache_read_tokens ?? 0,
+            },
+      costUsd: run.cost_usd,
+    }));
+}
+
 export async function readActivity(deps: {
   vaultPath: string;
   queue: DatabaseSync;
@@ -183,6 +307,8 @@ export async function readActivity(deps: {
     deps.queue,
     new Date(now.getTime() - WINDOW_MS).toISOString()
   );
+  const since = new Date(now.getTime() - THIRTY_DAYS_MS).toISOString();
+  const found = volumes(deps.queue, since);
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = finishedRuns(deps.queue, scout.id).filter(looked).at(-1);
@@ -207,6 +333,12 @@ export async function readActivity(deps: {
           scout,
           counts.find((c) => c.scoutId === scout.id)
         ),
+        volume: found.get(scout.id) ?? {
+          proposals: 0,
+          held: 0,
+          alsoFoundElsewhere: 0,
+        },
+        cost: costOf(spentRuns(deps.queue, scout.id, since)),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({

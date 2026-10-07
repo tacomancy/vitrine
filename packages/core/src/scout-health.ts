@@ -70,6 +70,10 @@ type RunRow = {
   new: number;
   query: string | null;
   cost_usd: number | null;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
 };
 
 /**

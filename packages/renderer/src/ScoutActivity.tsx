@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type KeyboardEvent } from "react";
-import type { AcceptRate, ActivityRow, FleetSource } from "core";
+import { Fragment, useState, type KeyboardEvent } from "react";
+import type {
+  AcceptRate,
+  ActivityRow,
+  Cost,
+  FleetSource,
+  ScoutRunCost,
+  Volume,
+} from "core";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
@@ -165,6 +172,11 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   </th>
                 ))}
                 <th scope="col">Accept rate</th>
+                <th scope="col">Found, 30 days</th>
+                <th scope="col">Cost / run</th>
+                <th scope="col">
+                  <span className={styles.srOnly}>Runs</span>
+                </th>
                 <th scope="col">
                   <span className={styles.srOnly}>Queue</span>
                 </th>
@@ -269,6 +281,65 @@ function rateWords(rate: AcceptRate): string {
   }
 }
 
+/** *5 new · 2 already in your vault · 1 also found elsewhere*: a part with nothing to say is left unsaid, and the count of new is always there (ADR 0042 decision 10). */
+function volumeWords(volume: Volume): string {
+  return [
+    `${volume.proposals} new`,
+    ...(volume.held > 0 ? [`${volume.held} already in your vault`] : []),
+    ...(volume.alsoFoundElsewhere > 0
+      ? [`${volume.alsoFoundElsewhere} also found elsewhere`]
+      : []),
+  ].join(" · ");
+}
+
+/** Cents to the cent, and a smaller sum to the figure that shows it: a $0.0054 run is not `$0.01`. */
+const dollars = (usd: number) => `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
+
+/**
+ * *no model call* is not `$0.00`: a read that costs nothing and a read that
+ * cost nothing *measured* are different claims. A figure the price table
+ * could not make says *unpriced*, and never a guess (ADR 0042 decision 6).
+ */
+function costWords(cost: Cost): string {
+  if (cost.kind === "no model call") return "no model call";
+  if (cost.perRun === null) return "unpriced";
+  return `${dollars(cost.perRun)} / run${
+    cost.unpriced > 0 ? ` · ${cost.unpriced} unpriced` : ""
+  }`;
+}
+
+const tokensWords = (tokens: NonNullable<ScoutRunCost["tokens"]>) =>
+  `${tokens.input.toLocaleString("en-US")} in · ${tokens.output.toLocaleString("en-US")} out`;
+
+function runWords(run: ScoutRunCost): string {
+  if (run.tokens === null) return "no model call";
+  return `${tokensWords(run.tokens)} · ${run.costUsd === null ? "unpriced" : dollars(run.costUsd)}`;
+}
+
+/** Each run of a Scout, newest first as the core orders them; read only once the row is opened. */
+function Runs({ scoutId, name }: { scoutId: string; name: string }) {
+  const trpc = useTRPC();
+  const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
+  if (runs.isError) return <p>{runs.error.message}</p>;
+  if (runs.data === undefined) return null;
+  if (runs.data.length === 0) return <p>No runs yet.</p>;
+  return (
+    <ul className={styles.runs} aria-label={`${name} runs`}>
+      {runs.data.map((run) => (
+        <li key={run.runId}>
+          <time dateTime={run.finished}>
+            {new Date(run.finished).toLocaleString("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </time>{" "}
+          · {runWords(run)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Row({
   row,
   id,
@@ -280,6 +351,7 @@ function Row({
   chosen: boolean;
   onChoose: () => void;
 }) {
+  const [showRuns, setShowRuns] = useState(false);
   if (row.kind === "unreadable") {
     // Nothing is known of a file that will not parse but its name and why, so
     // the columns that would say more are left empty rather than guessed at.
@@ -291,7 +363,7 @@ function Row({
             <VoiceLine health={row.health} />
           </span>
         </th>
-        <td colSpan={5} />
+        <td colSpan={8} />
       </tr>
     );
   }
@@ -303,43 +375,65 @@ function Row({
     // No class carries how the Scout is doing: the Voice beside the name is
     // the whole of it, and a tint would be a threshold the app has no way to
     // defend (ADR 0042 decision 8).
-    <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
-      <th scope="row">
-        <span className={styles.who}>
-          <span className={styles.name}>{row.name}</span>
-          {/* The Queue's own component on the core's own derivation, so a
+    <Fragment>
+      <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+        <th scope="row">
+          <span className={styles.who}>
+            <span className={styles.name}>{row.name}</span>
+            {/* The Queue's own component on the core's own derivation, so a
               Scout's Voice and Warrant are never worded here (ADR 0032
               decision 7). */}
-          <VoiceLine health={row.health} />
-        </span>
-      </th>
-      {/* The column cuts a long Query to one line; the cut is only to the
+            <VoiceLine health={row.health} />
+          </span>
+        </th>
+        {/* The column cuts a long Query to one line; the cut is only to the
           eye, and the whole of it is here for whoever hovers. */}
-      <td className={styles.watching} title={watching}>
-        {watching}
-      </td>
-      <td>{row.cadence}</td>
-      <td>
-        {row.lastRun === null ? (
-          "not yet"
-        ) : (
-          <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
-        )}
-      </td>
-      <td>{rateWords(row.acceptRate)}</td>
-      <td>
-        <a
-          href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
-          className={styles.link}
-          aria-label={`${row.name}: open its stack in the Queue`}
-          onClick={(event) => {
-            event.preventDefault();
-            pushRoute(scoutStack(row.id));
-          }}
-        >
-          queue
-        </a>
-      </td>
-    </tr>
+        <td className={styles.watching} title={watching}>
+          {watching}
+        </td>
+        <td>{row.cadence}</td>
+        <td>
+          {row.lastRun === null ? (
+            "not yet"
+          ) : (
+            <time dateTime={row.lastRun.finished}>{row.lastRun.ago}</time>
+          )}
+        </td>
+        <td>{rateWords(row.acceptRate)}</td>
+        <td>{volumeWords(row.volume)}</td>
+        <td>{costWords(row.cost)}</td>
+        <td>
+          <button
+            type="button"
+            className={styles.link}
+            aria-expanded={showRuns}
+            aria-label={`${row.name}: ${showRuns ? "hide" : "show"} runs`}
+            onClick={() => setShowRuns((was) => !was)}
+          >
+            runs
+          </button>
+        </td>
+        <td>
+          <a
+            href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
+            className={styles.link}
+            aria-label={`${row.name}: open its stack in the Queue`}
+            onClick={(event) => {
+              event.preventDefault();
+              pushRoute(scoutStack(row.id));
+            }}
+          >
+            queue
+          </a>
+        </td>
+      </tr>
+      {showRuns && (
+        <tr>
+          <td colSpan={9}>
+            <Runs scoutId={row.id} name={row.name} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
   );
 }

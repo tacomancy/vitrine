@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { ActivityRow, ScoutActivity } from "core";
+import type { ActivityRow, ScoutActivity, ScoutRunCost } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -61,6 +61,8 @@ const BROKEN: ActivityRow = {
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
   acceptRate: { kind: "rate", accepted: 3, triaged: 4, rate: 0.75 },
+  volume: { proposals: 12, held: 0, alsoFoundElsewhere: 0 },
+  cost: { kind: "no model call" },
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -81,6 +83,8 @@ const QUIET: ActivityRow = {
     },
   },
   acceptRate: { kind: "nothing triaged" },
+  volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+  cost: { kind: "no model call" },
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -94,6 +98,8 @@ const RESTING: ActivityRow = {
     kind: "unavailable",
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
+  volume: { proposals: 5, held: 2, alsoFoundElsewhere: 1 },
+  cost: { kind: "cost", perRun: 0.0312, runs: 3, unpriced: 0 },
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -156,6 +162,9 @@ describe("the table", () => {
         "daily",
         "3h ago",
         "75% · 4 triaged",
+        "12 new",
+        "no model call",
+        "runs",
         "queue",
       ],
       [
@@ -164,6 +173,9 @@ describe("the table", () => {
         "weekly",
         "2h ago",
         "nothing triaged yet",
+        "0 new",
+        "no model call",
+        "runs",
         "queue",
       ],
       // A Scout that has never run says so, and a page is named by its address.
@@ -173,9 +185,94 @@ describe("the table", () => {
         "monthly",
         "not yet",
         "Most of this Scout's papers arrive without authors or venue.",
+        "5 new · 2 already in your vault · 1 also found elsewhere",
+        "$0.03 / run",
+        "runs",
         "queue",
       ],
     ]);
+  });
+});
+
+describe("a row's cost", () => {
+  const costed = (
+    cost: ActivityRow extends infer R
+      ? R extends { cost: infer C }
+        ? C
+        : never
+      : never
+  ) => ({
+    ...QUIET,
+    cost,
+  });
+  const costCell = async () => {
+    const [row] = await tableRows();
+    return within(row!).getAllByRole("cell")[5]!.textContent;
+  };
+
+  it("says unpriced, never a figure, for a model that has no price", async () => {
+    open(fleet([costed({ kind: "cost", perRun: null, runs: 2, unpriced: 2 })]));
+
+    expect(await costCell()).toBe("unpriced");
+  });
+
+  it("says how many of the runs were unpriced beside a mean over the rest", async () => {
+    open(fleet([costed({ kind: "cost", perRun: 0.5, runs: 3, unpriced: 1 })]));
+
+    expect(await costCell()).toBe("$0.50 / run · 1 unpriced");
+  });
+});
+
+describe("the runs behind a row", () => {
+  const RUNS: ScoutRunCost[] = [
+    {
+      runId: 9,
+      finished: "2026-09-30T09:00:00.000Z",
+      model: "claude-sonnet-5-5",
+      tokens: { input: 1200, output: 300, cacheRead: 0 },
+      costUsd: 0.0054,
+    },
+    {
+      runId: 8,
+      finished: "2026-09-29T09:00:00.000Z",
+      model: "odd-model",
+      tokens: { input: 50, output: 5, cacheRead: 0 },
+      costUsd: null,
+    },
+    {
+      runId: 7,
+      finished: "2026-09-28T09:00:00.000Z",
+      model: null,
+      tokens: null,
+      costUsd: null,
+    },
+  ];
+
+  it("opens from the row, listing each run's tokens and cost as the core ordered them", async () => {
+    const asked = vi.fn((input: unknown) => {
+      void input;
+      return RUNS;
+    });
+    open(fleet([QUIET]), { "scouts.runCosts": asked });
+
+    expect(screen.queryByRole("list", { name: "Runs" })).toBeNull();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Quiet by design: show runs/ })
+    );
+
+    const list = await screen.findByRole("list", {
+      name: "Quiet by design runs",
+    });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      expect.stringMatching(/1,200 in · 300 out.*\$0\.0054/),
+      expect.stringMatching(/50 in · 5 out.*unpriced/),
+      expect.stringMatching(/no model call/),
+    ]);
+    expect(asked).toHaveBeenCalledWith({ scoutId: "quiet" });
   });
 });
 

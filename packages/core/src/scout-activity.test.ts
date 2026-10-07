@@ -138,6 +138,8 @@ describe("scouts.activity — a row for each readable Scout", () => {
         lastRun: null,
         health: { voice: "not yet", sentence: "It has not run yet." },
         acceptRate: { kind: "nothing triaged" },
+        volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+        cost: { kind: "no model call" },
       },
     ]);
   });
