@@ -68,6 +68,7 @@ import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
   setCadence,
+  setDropped,
   setPaused,
   tryPage,
   tryQuery,
@@ -598,6 +599,19 @@ export const router = t.router({
       )
       .mutation(async ({ ctx, input }) =>
         refusing(setCadence(await scoutDeps(ctx), input.scoutId, input.cadence))
+      ),
+    // Retire a Scout (ADR 0042 decision 1): a key in its file, nothing deleted.
+    drop: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(setDropped(await scoutDeps(ctx), input.scoutId, true))
+      ),
+    // Bring one back: it looks again at its next due check, and nothing it
+    // owns was touched while it was away (ADR 0042 decision 9).
+    restore: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(setDropped(await scoutDeps(ctx), input.scoutId, false))
       ),
     tryQuery: t.procedure
       .input(z.object({ query: z.string() }))

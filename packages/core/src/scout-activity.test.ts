@@ -298,6 +298,7 @@ describe("scouts.activity — nothing to draw", () => {
       review: { pending: 0, deferred: 0, median: null, oldest: null },
       // No Scout is looking, so the fixture's open Questions are all gaps.
       coverageGaps: expect.objectContaining({ kind: "gaps" }) as unknown,
+      dropped: [],
     });
   });
 

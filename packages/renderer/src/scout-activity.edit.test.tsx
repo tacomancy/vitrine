@@ -65,6 +65,7 @@ const fleet = (rows: ActivityRow[]): ScoutActivity => ({
     warrant: { questions: 0, scouts: 0 },
     notLooking: [],
   },
+  dropped: [],
 });
 
 const open = (activity: unknown, more: Record<string, unknown> = {}) => {
@@ -1211,6 +1212,37 @@ describe("reading the Questions a Scout may be Assigned to", () => {
 
     await screen.findByRole("form", { name: "Edit Sleep and memory" });
     await vi.waitFor(() => expect(reads).toBe(before + 1));
+  });
+});
+
+// A row dropped a moment ago stays on screen saying so, with *undo*: it has no
+// cadence, pause or edit to offer, and a key that reached the core for it would
+// be refused where nothing on the row could say so.
+describe("the keys on a row that has just been dropped", () => {
+  it("do nothing: the row's acts are not offered and not asked", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout()]), {
+      "questions.list": QUESTIONS,
+      "scouts.drop": () => undefined,
+      "scouts.setPaused": (input: unknown) => void asked.push(input),
+      "scouts.setCadence": (input: unknown) => void asked.push(input),
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: drop" })
+    );
+    await screen.findByRole("button", { name: "undo" });
+    const list = screen.getByRole("group", { name: "Scout rows" });
+    fireEvent.keyDown(list, { key: "j" });
+
+    fireEvent.keyDown(list, { key: "p" });
+    fireEvent.keyDown(list, { key: "c" });
+    fireEvent.keyDown(list, { key: "e" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(asked).toEqual([]);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

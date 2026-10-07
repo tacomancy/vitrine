@@ -190,11 +190,19 @@ export type FleetSource = {
   noKey: number;
 };
 
+/**
+ * A Scout the researcher retired (ADR 0042 decisions 1 and 9): not a row, since
+ * it is not looking, but named so the one line at the foot of the table can
+ * open to it and bring it back. Its figures are not here because nothing about
+ * it is being read; its runs and Proposals are where they were.
+ */
+export type DroppedRow = { id: string; name: string };
+
 /** Why a Scout that is Assigned to a Question is not looking at it. A *broken* Scout is not here: its fault surfaces on its own row, and it still covers (ADR 0042 decision 4). */
 export type NotLooking = {
   id: string;
   name: string;
-  reason: "paused" | "waiting on a key";
+  reason: "paused" | "waiting on a key" | "dropped";
 };
 
 /** An open Map row no Scout is looking for (CONTEXT § Coverage gap). */
@@ -259,6 +267,10 @@ function notLookingReason(
  * Research Question and the Question it came from are one entry (ADR 0041
  * decision 6) and a Scout Assigned to either is looking at it.
  *
+ * A dropped Scout covers nothing, but a Question it was Assigned to is a gap
+ * that names it, so the researcher sees what was lost; the claim of coverage
+ * does not name it, nor count it, since it is no longer part of the fleet.
+ *
  * A Scout file that does not parse is not here: what it is Assigned to is not
  * known, and it already stands in the table in the *wrong* Voice. The cost is
  * that a Question only it covered may be listed as a gap, which sends the
@@ -267,6 +279,7 @@ function notLookingReason(
 function coverageGaps(
   index: VaultIndex,
   scouts: Array<{ scout: Scout; health: Health }>,
+  dropped: Scout[],
   now: Date
 ): CoverageGaps {
   const notLooking = new Map<string, NotLooking>();
@@ -276,6 +289,15 @@ function coverageGaps(
       notLooking.set(scout.id, { id: scout.id, name: scout.name, reason });
     }
   }
+  // Not in `notLooking`: that is what the claim names, and a dropped Scout is
+  // not the fleet's to name.
+  const retired = new Map(
+    dropped.map(({ id, name }) => [
+      id,
+      { id, name, reason: "dropped" } satisfies NotLooking,
+    ])
+  );
+  const everyScout = [...scouts.map(({ scout }) => scout), ...dropped];
   // The Map's own order, newest first, and never re-ranked here: a gap's age is
   // a fact to read and which to brief first is the researcher's call.
   const { rows } = mapCoverage(index);
@@ -283,11 +305,11 @@ function coverageGaps(
   for (const row of rows) {
     // The folded Question's id first: it is the one the form can name.
     const ids = [row.foldedId, row.id].filter((id) => id !== null);
-    const assigned = scouts.filter(({ scout }) =>
+    const assigned = everyScout.filter((scout) =>
       scout.assigned.some((id) => ids.includes(id))
     );
-    const named = assigned.flatMap(({ scout }) => {
-      const reason = notLooking.get(scout.id);
+    const named = assigned.flatMap((scout) => {
+      const reason = notLooking.get(scout.id) ?? retired.get(scout.id);
       return reason === undefined ? [] : [reason];
     });
     // Someone Assigned is looking. With nobody Assigned, `named` is empty too
@@ -324,9 +346,11 @@ function coverageGaps(
 export type ScoutActivity = {
   rows: ActivityRow[];
   fleet: FleetSource;
-  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. */
+  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. A dropped Scout's Proposals stay in Review, so they are in it. */
   review: ReviewDepth;
   coverageGaps: CoverageGaps;
+  /** The dropped, by name; empty when none, which is when the page draws no line at all. */
+  dropped: DroppedRow[];
 };
 
 /**
@@ -358,6 +382,11 @@ const byNeed = (a: ActivityRow, b: ActivityRow) =>
   rateOf(a) - rateOf(b) ||
   labelOf(a).localeCompare(labelOf(b)) ||
   (a.kind === "scout" && b.kind === "scout" ? a.id.localeCompare(b.id) : 0);
+
+const droppedRows = (dropped: Scout[]): DroppedRow[] =>
+  dropped
+    .map(({ id, name }) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
 function sourceHealth(rows: ActivityRow[]): FleetSource {
   const count = (keep: (health: Health) => boolean) =>
@@ -502,7 +531,7 @@ export async function readActivity(deps: {
   queue: DatabaseSync;
   now: () => Date;
 }): Promise<ScoutActivity> {
-  const { scouts, unreadable } = await readScouts(deps.vaultPath);
+  const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
   const depth = reviewDepth(deps.queue, now);
@@ -562,7 +591,9 @@ export async function readActivity(deps: {
     coverageGaps: coverageGaps(
       deps.index,
       scouts.map((scout) => ({ scout, health: healthByScout.get(scout.id)! })),
+      dropped,
       now
     ),
+    dropped: droppedRows(dropped),
   };
 }

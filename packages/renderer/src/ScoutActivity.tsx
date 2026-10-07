@@ -30,6 +30,14 @@ import { pushRoute, scoutStack } from "./router";
 import { scoutKey, toggled, useRowActs, type RowActs } from "./row-acts";
 import { ScoutEdit } from "./ScoutEdit";
 import styles from "./ScoutActivity.module.css";
+import {
+  DropButton,
+  DropRefused,
+  DroppedInPlace,
+  DroppedLine,
+  useDrops,
+  type Drops,
+} from "./ScoutDropped";
 import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
@@ -138,6 +146,7 @@ export function ScoutActivity({
   // Taken when a row is acted on and let go when a column is asked for, so the
   // table only ever re-sorts by need when the researcher arrives or asks.
   const [held, setHeld] = useState<readonly string[] | null>(null);
+  const drops = useDrops(activity.dataUpdatedAt);
   const rows = inHeldOrder(sorted(activity.data?.rows ?? [], sort), held);
   const chosenIndex = rows.findIndex((row) => keyOf(row) === chosen);
   const chosenId = chosenIndex === -1 ? undefined : rowId(chosenIndex);
@@ -197,10 +206,11 @@ export function ScoutActivity({
       return;
     }
     // The chosen row's own acts, one key each, on a Scout and never on a file
-    // that will not parse. Held down, a key would write the file again at every
-    // repeat, so only the press is an act.
+    // that will not parse, nor on a row dropped a moment ago, which offers
+    // none. Held down, a key would write the file again at every repeat, so
+    // only the press is an act.
     if (event.key === "e" || event.key === "c" || event.key === "p") {
-      if (row?.kind !== "scout") return;
+      if (row?.kind !== "scout" || drops.justDropped(row.id)) return;
       event.preventDefault();
       if (event.repeat) return;
       if (event.key === "e") acts.toggleEdit(keyOf(row));
@@ -241,6 +251,7 @@ export function ScoutActivity({
         <NoRows
           failed={activity.isError}
           answered={activity.data !== undefined}
+          droppedCount={activity.data?.dropped.length ?? 0}
           // Not `onNewScout` itself: a click would hand its event over as the
           // Question to Assign.
           onNewScout={() => onNewScout()}
@@ -301,12 +312,20 @@ export function ScoutActivity({
                   onToggle={() => toggle(keyOf(row))}
                   onChoose={() => setChosen(keyOf(row))}
                   onEditOnForm={onEditOnForm}
+                  drops={drops}
                 />
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {/* After the rows, and still there when every Scout is dropped: it is
+          how a Scout comes back once its row has left. */}
+      <DroppedLine
+        dropped={activity.data?.dropped ?? []}
+        refused={drops.refused}
+        onRestore={drops.onRestore}
+      />
       {/* The footer channel, as every Dashboard draws it: only when there is
           something to say, and polite — a state the app is in, not a refusal
           of something the user did (ADR 0033). The reason a read failed is
@@ -494,10 +513,13 @@ function SourceHealth({ fleet }: { fleet: FleetSource }) {
 function NoRows({
   failed,
   answered,
+  droppedCount,
   onNewScout,
 }: {
   failed: boolean;
   answered: boolean;
+  /** How many Scouts are dropped: a fleet that is all dropped has had Scouts, and *yet* would say it had not. */
+  droppedCount: number;
   onNewScout: () => void;
 }) {
   if (failed) return <FirstSlot voice="wrong" claim="" />;
@@ -506,7 +528,7 @@ function NoRows({
     <FirstSlot
       voice="not yet"
       claim=""
-      fragment="no scouts yet"
+      fragment={droppedCount > 0 ? "no scouts watching" : "no scouts yet"}
       action={
         <button type="button" className={styles.action} onClick={onNewScout}>
           new scout
@@ -719,6 +741,7 @@ function Row({
   onToggle,
   onChoose,
   onEditOnForm,
+  drops,
 }: {
   row: ActivityRow;
   id: string;
@@ -733,6 +756,7 @@ function Row({
   onToggle: () => void;
   onChoose: () => void;
   onEditOnForm: (scoutId: string) => void;
+  drops: Drops;
 }) {
   const [showRuns, setShowRuns] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -756,6 +780,35 @@ function Row({
   const editing = acts.editing.has(key);
   const cadenceOpen = acts.cadenceOpen.has(key);
   const said = acts.said.get(key);
+  // What the core refused of a drop or an undo, on this row and nowhere else.
+  const refusal = drops.refused[row.id];
+  const refused = refusal !== undefined && (
+    <tr>
+      <td className={styles.detail} colSpan={COLUMNS}>
+        <DropRefused message={refusal} />
+      </td>
+    </tr>
+  );
+  // Dropped during this visit: the row keeps its place and says so, with the
+  // way back, in place of figures nobody is reading any more.
+  if (drops.justDropped(row.id)) {
+    return (
+      <>
+        <tr id={id} data-chosen={chosen || undefined} onClick={onChoose}>
+          <th scope="row">
+            <span className={styles.who}>
+              <span className={styles.name}>{row.name}</span>
+            </span>
+          </th>
+          <DroppedInPlace
+            cells={COLUMNS - 1}
+            onUndo={() => drops.onRestore(row.id)}
+          />
+        </tr>
+        {refused}
+      </>
+    );
+  }
   const watching =
     row.source.kind === "arxiv"
       ? `arXiv · ${row.source.query}`
@@ -811,6 +864,7 @@ function Row({
               >
                 {row.paused ? "resume" : "pause"}
               </button>
+              <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
             </span>
           </span>
         </th>
@@ -886,6 +940,7 @@ function Row({
           </a>
         </ReviewCell>
       </tr>
+      {refused}
       {said !== undefined && (
         <tr>
           <td className={styles.note} colSpan={COLUMNS}>

@@ -170,6 +170,7 @@ export type {
   CoverageGaps,
   NotLooking,
   Cost,
+  DroppedRow,
   FleetSource,
   ScoutActivity,
   ScoutRunCost,

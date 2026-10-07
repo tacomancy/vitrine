@@ -45,6 +45,15 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
 export const NOTHING_PENDING = "Nothing pending.";
 
 /**
+ * A Scout the researcher dropped, said once for the Queue's header and Scout
+ * Activity's dropped row so one Scout is never described in two sentences. It
+ * is the *not yet* Voice: a fragment, no full stop, and the reason it is not
+ * looking (ADR 0032 decision 3; ADR 0042 decision 1).
+ */
+export const DROPPED =
+  "dropped — it no longer runs; what it found stays in Review";
+
+/**
  * The last run's cost, on the header and nowhere else (ADR 0040 decision 6):
  * the visibility is the guard, so there is no cap and no running total. A
  * run that cost nothing draws nothing.

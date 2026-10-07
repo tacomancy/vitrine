@@ -9,7 +9,7 @@ import { hashOf } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
-import { CostLine, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
+import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -168,10 +168,14 @@ export function ScoutQueue({
           ],
           runId: null,
           runPending: 0,
+          deferred: 0,
         }
       : groups.data?.find((g) => g.id === selected);
   const runId = group?.runId ?? null;
-  const groupName = scouts.data?.scouts.find((s) => s.id === selected)?.name;
+  const groupName = [
+    ...(scouts.data?.scouts ?? []),
+    ...(scouts.data?.dropped ?? []),
+  ].find((s) => s.id === selected)?.name;
 
   // Skim: newest first as the core hands it, narrowed by the rail's choice
   // like Review is, with the 30-day tail only once asked for.
@@ -199,6 +203,15 @@ export function ScoutQueue({
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
   const questions = questionChoices(questionList.data);
+  // A dropped Scout is not looking, so the rail does not list it. What it
+  // found stays in Review under its name (ADR 0042 decision 1), so while
+  // anything waits under it, or while it is the stack the researcher is in, it
+  // has an entry of its own beside the rail, marked.
+  const droppedScouts = scouts.data?.dropped ?? [];
+  const droppedStacks = droppedScouts.filter(
+    (d) => countFor(d.id) > 0 || d.id === selected
+  );
+  const selectedDropped = droppedScouts.find((d) => d.id === selected);
   const selectedScout = scouts.data?.scouts.find((s) => s.id === selected);
   const editing =
     form?.edit == null
@@ -214,6 +227,12 @@ export function ScoutQueue({
     lane === "skim" && line !== undefined ? `skim-line-${line.id}` : undefined
   );
 
+  // A pass is a session fact about one stack; another group's passes must not
+  // decide this one's order or its notice.
+  function choose(id: string | null) {
+    setSelected(id);
+    setPassed([]);
+  }
   function onPass(id: number) {
     setPassed((was) => [...was.filter((p) => p !== id), id]);
   }
@@ -321,12 +340,7 @@ export function ScoutQueue({
               id={`scout-rail-${row.id ?? "all"}`}
               className={styles.railRow}
               aria-current={row.id === selected ? "true" : undefined}
-              onClick={() => {
-                // A pass is a session fact about one stack; another group's
-                // passes must not decide this one's order or its notice.
-                setSelected(row.id);
-                setPassed([]);
-              }}
+              onClick={() => choose(row.id)}
             >
               <span>{row.name}</span>
               {/* A 0 beside a read that failed would read as all clear. */}
@@ -359,6 +373,33 @@ export function ScoutQueue({
           </li>
         ))}
       </ul>
+      {droppedStacks.length > 0 && (
+        <ul className={styles.scouts} aria-label="Dropped Scouts">
+          {droppedStacks.map((dropped) => (
+            <li key={dropped.id} className={styles.scout}>
+              <button
+                type="button"
+                id={`scout-rail-${dropped.id}`}
+                className={styles.railRow}
+                aria-current={dropped.id === selected ? "true" : undefined}
+                onClick={() => choose(dropped.id)}
+              >
+                <span>{dropped.name}</span>
+                {!queue.isError && (
+                  <span className={styles.count}>{countFor(dropped.id)}</span>
+                )}
+              </button>
+              <span className={styles.voice}>dropped</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {selectedDropped !== undefined && form === null && (
+        <div className={styles.scoutHeader}>
+          <h2 className={styles.scoutName}>{selectedDropped.name}</h2>
+          <VoiceLine health={{ voice: "not yet", sentence: DROPPED }} />
+        </div>
+      )}
       {selectedScout !== undefined && form === null && (
         <div className={styles.scoutHeader}>
           <h2 className={styles.scoutName}>{selectedScout.name}</h2>
@@ -436,6 +477,16 @@ export function ScoutQueue({
               </ul>
             </div>
           )}
+          {/* A deferred card comes back with its Scout's next clean run, which a
+              dropped Scout does not make, and nothing else lists the card:
+              said here so it is not left invisible (ADR 0042 decision 1). A
+              Scout that is looking brings its own back. */}
+          {selectedDropped !== undefined && (group.deferred ?? 0) > 0 && (
+            <p className={styles.line}>
+              {group.deferred} deferred — they come back with its next run, if
+              it is restored
+            </p>
+          )}
           {runId !== null && group.runPending > 0 && (
             <button
               type="button"
@@ -481,9 +532,7 @@ export function ScoutQueue({
                     onClick={() => setLineChosen(l.id)}
                   >
                     <span>{l.title}</span>
-                    <span className={styles.count}>
-                      {l.scouts.map((s) => s.name).join(" · ")}
-                    </span>
+                    <span className={styles.count}>{whose(l.scouts)}</span>
                   </button>
                 </li>
               ))}
@@ -501,7 +550,7 @@ export function ScoutQueue({
             (unread ? (
               <FirstSlot voice="wrong" claim="" />
             ) : (
-              <SkimQuiet claim={fleet.data} />
+              <SkimQuiet claim={fleet.data} dropped={droppedScouts.length} />
             ))}
           {line !== undefined && (
             <Proposal
@@ -529,6 +578,7 @@ export function ScoutQueue({
           <ReviewQuiet
             scout={selected === null ? undefined : healthOf(selected)}
             claim={selected === null ? fleet.data : undefined}
+            dropped={droppedScouts.length}
           />
         )}
       {form === null && lane === "review" && card !== undefined && (
@@ -567,6 +617,16 @@ export function ScoutQueue({
     </section>
   );
 }
+
+/**
+ * Whose a card or a line is. A dropped Scout's Proposals stay in Review and in
+ * Skim under its name, marked, so the stack says whose it was (ADR 0042
+ * decision 1).
+ */
+const whose = (scouts: Card["scouts"]) =>
+  scouts
+    .map((scout) => (scout.dropped ? `${scout.name} (dropped)` : scout.name))
+    .join(" · ");
 
 /** The card in hand. It takes the keyboard when it arrives, so a key acts on what is on screen. */
 function Proposal({
@@ -637,7 +697,7 @@ function Proposal({
       tabIndex={0}
     >
       <p className={styles.why}>
-        {card.scouts.map((scout) => scout.name).join(" · ")}
+        {whose(card.scouts)}
         {card.scouts.some((s) => s.assigned.length > 0) &&
           ` · assigned to ${card.scouts
             .flatMap((s) => s.assigned)
@@ -699,14 +759,26 @@ function Field({ label, value }: { label: string; value: string | null }) {
 }
 
 /**
+ * What a lane says when no Scout is looking and none is named as needing a look.
+ * A fleet whose Scouts are all dropped has had Scouts, and *yet* would say it
+ * had not (ADR 0042 decision 1).
+ */
+const nobodyWatching = (dropped: number) =>
+  dropped > 0
+    ? "Every Scout is dropped, so nothing is being watched."
+    : "No Scouts yet, so nothing is being watched.";
+
+/**
  * Skim's quiet, warranted the way Review's is: from the whole fleet, and not
  * at all while a Scout is broken — then the broken one is named instead, so
  * an empty feed never reads as a quiet field when it is not (ADR 0032).
  */
 function SkimQuiet({
   claim,
+  dropped,
 }: {
   claim: { claim: string | null; naming: string[] } | undefined;
+  dropped: number;
 }) {
   if (claim === undefined) return null;
   return (
@@ -715,7 +787,7 @@ function SkimQuiet({
         ? `Skim is quiet — ${claim.claim}.`
         : claim.naming.length > 0
           ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} ${claim.naming.length === 1 ? "needs" : "need"} a look.`
-          : "No Scouts yet, so nothing is being watched."}
+          : nobodyWatching(dropped)}
     </p>
   );
 }
@@ -731,9 +803,11 @@ function SkimQuiet({
 function ReviewQuiet({
   scout,
   claim,
+  dropped,
 }: {
   scout: Health | undefined;
   claim: { claim: string | null; naming: string[] } | undefined;
+  dropped: number;
 }) {
   if (scout !== undefined) {
     return scout.voice === "claim" ? (
@@ -747,7 +821,7 @@ function ReviewQuiet({
         ? `Review cleared — ${claim.claim}.`
         : claim.naming.length > 0
           ? `Nothing here, and no claim that the field is quiet: ${claim.naming.join(", ")} ${claim.naming.length === 1 ? "needs" : "need"} a look.`
-          : "No Scouts yet, so nothing is being watched."}
+          : nobodyWatching(dropped)}
     </p>
   );
 }

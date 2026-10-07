@@ -44,6 +44,7 @@ const NONE: ScoutActivity = {
   fleet: NO_FLEET,
   review: NO_REVIEW,
   coverageGaps: COVERED,
+  dropped: [],
 };
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
@@ -56,6 +57,7 @@ const fleet = (
   fleet: { ...NO_FLEET, ...counts },
   review,
   coverageGaps: coverage,
+  dropped: [],
 });
 
 const answers = (

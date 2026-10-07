@@ -39,6 +39,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
           name: "Is it consolidation?",
         },
       ],
+      dropped: false,
     },
   ],
   retroactive: false,
@@ -210,7 +211,14 @@ describe("the Scout Queue", () => {
           card({
             id: 9,
             title: "Elsewhere",
-            scouts: [{ id: "other", name: "Other watch", assigned: [] }],
+            scouts: [
+              {
+                id: "other",
+                name: "Other watch",
+                assigned: [],
+                dropped: false,
+              },
+            ],
           }),
         ])
       );
@@ -241,7 +249,14 @@ describe("the Scout Queue", () => {
             card({
               id: 9,
               title: "Elsewhere",
-              scouts: [{ id: "other", name: "Other watch", assigned: [] }],
+              scouts: [
+                {
+                  id: "other",
+                  name: "Other watch",
+                  assigned: [],
+                  dropped: false,
+                },
+              ],
             }),
           ],
           {
