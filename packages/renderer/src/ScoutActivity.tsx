@@ -1,10 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  Fragment,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import type {
   AcceptRate,
   ActivityRow,
   Cost,
   FleetSource,
+  Health,
+  ReviewDepth,
   ScoutRunCost,
   Volume,
 } from "core";
@@ -13,7 +21,7 @@ import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
 import { pushRoute, scoutStack } from "./router";
 import styles from "./ScoutActivity.module.css";
-import { VoiceLine } from "./ScoutVoice";
+import { NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines, WarningLine } from "./VaultStatusLines";
 
@@ -153,7 +161,10 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
           Scout Activity
         </h1>
         {activity.data !== undefined && (
-          <SourceHealth fleet={activity.data.fleet} />
+          <div className={styles.facts}>
+            <SourceHealth fleet={activity.data.fleet} />
+            {rows.length > 0 && <FleetReview review={activity.data.review} />}
+          </div>
         )}
       </div>
       {rows.length === 0 && (
@@ -196,9 +207,7 @@ export function ScoutActivity({ onNewScout }: { onNewScout: () => void }) {
                   {...headerProps}
                 />
                 <SortHeader column="cost" label="Cost / run" {...headerProps} />
-                <th scope="col">
-                  <span className={styles.srOnly}>Queue</span>
-                </th>
+                <th scope="col">In Review</th>
               </tr>
             </thead>
             <tbody>
@@ -334,6 +343,102 @@ function rateWords(rate: AcceptRate): string {
     case "unavailable":
       return rate.reason;
   }
+}
+
+/**
+ * One line of facts, each kept whole: a line wraps only between facts, never
+ * inside *median 3 days ago*, and the separator trails the fact before it so a
+ * wrap can never leave a dot on a line of its own.
+ */
+function Facts({ facts }: { facts: string[] }) {
+  return (
+    <>
+      {facts.map((fact, index) => (
+        <Fragment key={fact}>
+          {index > 0 && " "}
+          <span className={styles.fact}>
+            {index < facts.length - 1 ? `${fact} ·` : fact}
+          </span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/**
+ * What waits in Review, as neutral facts in plain words (ADR 0042 decision
+ * 7): the pending figure with its age, the median and the oldest. The ages
+ * sit with the pending ones because they describe them — a deferred row has
+ * no place in the stack — and nothing here carries a colour.
+ */
+const pendingFacts = (depth: ReviewDepth): string[] =>
+  depth.median === null || depth.oldest === null
+    ? []
+    : [
+        `${depth.pending} pending`,
+        `median ${depth.median.ago}`,
+        `oldest ${depth.oldest.ago}`,
+      ];
+
+const deferredFact = (depth: ReviewDepth): string[] =>
+  depth.deferred === 0 ? [] : [`${depth.deferred} deferred`];
+
+/**
+ * A Scout's stack, and the link that opens it in the Queue: the figure and the
+ * stack it counts are one hop apart, so they share a cell. Deferred is counted
+ * apart, after the pending figure and its ages, and is said whatever else is.
+ * With nothing pending the Scout speaks in its Voice as the Queue's empty state
+ * does (ADR 0032): a clean run claims *nothing pending*; a Scout that has not
+ * looked or whose check failed says nothing of the stack, because the Voice
+ * beside its name is already saying why, and a bare 0 under a broken Scout
+ * would read as a quiet field.
+ */
+function ReviewCell({
+  depth,
+  health,
+  children,
+}: {
+  depth: ReviewDepth;
+  health: Health;
+  children: ReactNode;
+}) {
+  const parts = [
+    ...(depth.pending > 0
+      ? pendingFacts(depth)
+      : health.voice === "claim"
+        ? [NOTHING_PENDING]
+        : []),
+    ...deferredFact(depth),
+  ];
+  return (
+    <td className={styles.wraps}>
+      {parts.length > 0 && <Parts of={parts} />}
+      <span className={styles.toQueue}>{children}</span>
+    </td>
+  );
+}
+
+/**
+ * The fleet's stack, each Proposal counted once, and Skim named for what it
+ * is: a feed, which has no depth to count. A fleet with nothing pending says
+ * so in words; it makes no claim that the field is quiet, which only a
+ * warranted Voice may (ADR 0032 decision 8), so a fleet with a broken Scout is
+ * never reassured by a header.
+ */
+function FleetReview({ review }: { review: ReviewDepth }) {
+  const [first = "none pending", ...ages] = pendingFacts(review);
+  return (
+    <p className={styles.health} aria-label="Review depth">
+      <Facts
+        facts={[
+          `Review: ${first}`,
+          ...ages,
+          ...deferredFact(review),
+          "Skim is a feed and has no depth",
+        ]}
+      />
+    </p>
+  );
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -527,7 +632,7 @@ function Row({
             </button>
           )}
         </td>
-        <td>
+        <ReviewCell depth={row.review} health={row.health}>
           <a
             href={`#/scouts?scout=${encodeURIComponent(row.id)}`}
             className={styles.link}
@@ -539,7 +644,7 @@ function Row({
           >
             queue
           </a>
-        </td>
+        </ReviewCell>
       </tr>
       {open && (
         <tr id={detail}>

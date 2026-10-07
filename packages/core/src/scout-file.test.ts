@@ -73,6 +73,7 @@ const READS: Array<Call & { empty: unknown }> = [
         keyRejected: 0,
         noKey: 0,
       },
+      review: { pending: 0, deferred: 0, median: null, oldest: null },
     },
   },
   { call: "scouts.groups", how: "query", empty: [] },

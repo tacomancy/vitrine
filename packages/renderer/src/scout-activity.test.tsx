@@ -26,12 +26,14 @@ const NO_FLEET = {
   keyRejected: 0,
   noKey: 0,
 };
-const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET };
+const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NONE: ScoutActivity = { rows: [], fleet: NO_FLEET, review: NO_REVIEW };
 /** The core's read of these rows: the rows as handed over, and the fleet's counts. */
 const fleet = (
   rows: ActivityRow[],
-  counts: Partial<typeof NO_FLEET> = {}
-): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts } });
+  counts: Partial<typeof NO_FLEET> = {},
+  review: ScoutActivity["review"] = NO_REVIEW
+): ScoutActivity => ({ rows, fleet: { ...NO_FLEET, ...counts }, review });
 
 const answers = (
   activity: unknown,
@@ -68,6 +70,12 @@ const BROKEN: ActivityRow = {
       "arXiv answered with an error (HTTP 503), so nothing was checked.",
   },
   acceptRate: rateOver(3, 4),
+  review: {
+    pending: 3,
+    deferred: 1,
+    median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
+    oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
+  },
   volume: { proposals: 12, held: 0, alsoFoundElsewhere: 0 },
   cost: { kind: "no model call" },
 };
@@ -90,6 +98,7 @@ const QUIET: ActivityRow = {
     },
   },
   acceptRate: { kind: "nothing triaged" },
+  review: NO_REVIEW,
   volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
   cost: { kind: "no model call" },
 };
@@ -105,6 +114,7 @@ const RESTING: ActivityRow = {
     kind: "unavailable",
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
+  review: { ...NO_REVIEW, deferred: 2 },
   volume: { proposals: 5, held: 2, alsoFoundElsewhere: 1 },
   cost: { kind: "cost", perRun: 0.0312, runs: 3, unpriced: 0 },
 };
@@ -131,6 +141,119 @@ const tableRows = async () =>
   within(await screen.findByRole("table", { name: "Scouts" }))
     .getAllByRole("row")
     .slice(1);
+
+/** A row's In Review cell, the last: the stack's parts, one to a line, and below them the link that opens that stack in the Queue. */
+const reviewCell = (row: HTMLElement) => within(row).getAllByRole("cell")[6]!;
+const reviewParts = (row: HTMLElement) =>
+  within(reviewCell(row))
+    .queryAllByRole("listitem")
+    .map((part) => part.textContent);
+
+const HEADER_NOTE = "Skim is a feed and has no depth";
+
+describe("Scout Activity — Review depth and age", () => {
+  it("states a Scout's stack in neutral facts, the ages beside the pending figure and what is deferred apart after them", async () => {
+    open(fleet([BROKEN]));
+
+    const [row] = await tableRows();
+
+    expect(reviewParts(row!)).toEqual([
+      "3 pending",
+      "median 3 days ago",
+      "oldest 5 days ago",
+      "1 deferred",
+    ]);
+  });
+
+  it("lets a Scout whose last run was clean claim nothing pending in the Queue's own words, never as 0", async () => {
+    open(fleet([QUIET]));
+
+    const [row] = await tableRows();
+
+    expect(reviewParts(row!)).toEqual(["Nothing pending."]);
+  });
+
+  it("says nothing of the stack for a Scout that has not looked or whose check failed, leaving the Voice beside its name to speak", async () => {
+    open(
+      fleet([
+        { ...BROKEN, review: NO_REVIEW },
+        { ...RESTING, review: NO_REVIEW },
+      ])
+    );
+
+    const rows = await tableRows();
+
+    // An empty cell, not a 0 and not *nothing pending*: that would pass a
+    // broken Scout for a quiet field.
+    expect(rows.map(reviewParts)).toEqual([[], []]);
+    expect(rows[0]!.textContent).toContain("HTTP 503");
+    expect(rows[1]!.textContent).toContain("Paused");
+  });
+
+  it("still counts what is deferred when nothing is pending, whatever the Voice", async () => {
+    open(fleet([RESTING, { ...QUIET, review: { ...NO_REVIEW, deferred: 4 } }]));
+
+    const rows = await tableRows();
+
+    expect(rows.map(reviewParts)).toEqual([
+      ["2 deferred"],
+      ["Nothing pending.", "4 deferred"],
+    ]);
+  });
+
+  it("keeps the link to a Scout's stack in the same cell, below the figures, and on a Scout with none", async () => {
+    open(fleet([BROKEN, { ...RESTING, review: NO_REVIEW }]));
+
+    const [broken, resting] = await tableRows();
+
+    for (const [row, name] of [
+      [broken!, "Broken by arXiv"],
+      [resting!, "Resting"],
+    ] as const) {
+      expect(
+        within(reviewCell(row)).getByRole("link", {
+          name: `${name}: open its stack in the Queue`,
+        }).textContent
+      ).toBe("queue");
+    }
+  });
+
+  it("heads the fleet with the same facts, deferred apart, and names Skim a feed with no depth", async () => {
+    open(
+      fleet(
+        [BROKEN],
+        {},
+        {
+          pending: 3,
+          deferred: 1,
+          median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
+          oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
+        }
+      )
+    );
+
+    expect((await screen.findByLabelText("Review depth")).textContent).toBe(
+      `Review: 3 pending · median 3 days ago · oldest 5 days ago · 1 deferred · ${HEADER_NOTE}`
+    );
+  });
+
+  it("heads a fleet with nothing pending in words, not as a 0 and not as a claim, and still counts what is deferred", async () => {
+    open(fleet([QUIET], {}, { ...NO_REVIEW, deferred: 2 }));
+
+    expect((await screen.findByLabelText("Review depth")).textContent).toBe(
+      `Review: none pending · 2 deferred · ${HEADER_NOTE}`
+    );
+  });
+
+  it("draws no Review line for a vault with no Scouts, where there is no stack to describe", async () => {
+    open(NONE);
+
+    // Only once the read has answered is the absence a fact about the page.
+    await screen.findByText("no scouts yet");
+
+    expect(screen.queryByLabelText("Review depth")).toBeNull();
+  });
+});
 
 describe("Scout Activity", () => {
   it("opens at its Address, with the Sidebar entry among the Dashboards lit", async () => {
@@ -177,7 +300,7 @@ describe("the table", () => {
         "75% · 4 triaged",
         ["12 / 30d"],
         ["no model call"],
-        "queue",
+        ["3 pending", "median 3 days ago", "oldest 5 days ago", "1 deferred"],
       ],
       [
         expect.stringContaining("Quiet by design"),
@@ -187,7 +310,7 @@ describe("the table", () => {
         "nothing triaged yet",
         ["0 / 30d"],
         ["no model call"],
-        "queue",
+        ["Nothing pending."],
       ],
       // A Scout that has never run says so, and a page is named by its address.
       [
@@ -198,7 +321,7 @@ describe("the table", () => {
         "Most of this Scout's papers arrive without authors or venue.",
         ["5 / 30d", "2 already in your vault", "1 also found elsewhere"],
         ["$0.03", "3 runs"],
-        "queue",
+        ["2 deferred"],
       ],
     ]);
   });
@@ -452,6 +575,23 @@ describe("a vault with no Scouts", () => {
     ).toBeDefined();
     expect(screen.queryByText("no scouts yet")).toBeNull();
     expect(screen.queryByRole("button", { name: "new scout" })).toBeNull();
+  });
+
+  it("spans every column after its name, so a column added to the table never leaves that row ragged", async () => {
+    open(fleet([TORN, QUIET]));
+
+    const rows = await tableRows();
+    const columns = within(
+      screen.getByRole("table", { name: "Scouts" })
+    ).getAllByRole("columnheader").length;
+
+    const [torn, readable] = rows;
+    const spanned = (row: HTMLElement) =>
+      within(row)
+        .getAllByRole("cell")
+        .reduce((sum, cell) => sum + (cell as HTMLTableCellElement).colSpan, 1);
+    expect(spanned(torn!)).toBe(columns);
+    expect(spanned(readable!)).toBe(columns);
   });
 });
 

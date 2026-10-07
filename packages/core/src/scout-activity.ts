@@ -10,6 +10,11 @@ import {
   type RunRow,
 } from "./scout-health.js";
 import {
+  NOTHING_WAITING,
+  reviewDepth,
+  type ReviewDepth,
+} from "./review-depth.js";
+import {
   acceptCounts,
   acceptSince,
   acceptWeeks,
@@ -136,6 +141,13 @@ export type ActivityRow =
       lastRun: { finished: string; ago: string } | null;
       health: Health;
       acceptRate: AcceptRate;
+      /**
+       * What waits in Review under this Scout's name: the stack the row links
+       * to in the Queue. Figures only; whether *nothing pending* may be said
+       * as a claim depends on the Voice beside it, which the page reads from
+       * `health` as the Queue does.
+       */
+      review: ReviewDepth;
       volume: Volume;
       cost: Cost;
     }
@@ -160,7 +172,12 @@ export type FleetSource = {
   noKey: number;
 };
 
-export type ScoutActivity = { rows: ActivityRow[]; fleet: FleetSource };
+export type ScoutActivity = {
+  rows: ActivityRow[];
+  fleet: FleetSource;
+  /** Review depth fleet-wide, each Proposal once: `reviewDepth`'s own result, which Home (beat 12) reads rather than summing the rows. */
+  review: ReviewDepth;
+};
 
 /**
  * Where a row sits by need (ADR 0042 decision 8): faults, then Scouts that are
@@ -339,6 +356,7 @@ export async function readActivity(deps: {
   const { scouts, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
+  const depth = reviewDepth(deps.queue, now);
   const since = thirtyDaysBefore(now);
   const volumeByScout = volumes(deps.queue, since);
   const rows = [
@@ -366,6 +384,7 @@ export async function readActivity(deps: {
           counts.find((c) => c.scoutId === scout.id),
           acceptWeeks(deps.queue, scout.id, now)
         ),
+        review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
         volume: volumeByScout.get(scout.id) ?? {
           proposals: 0,
           held: 0,
@@ -380,5 +399,5 @@ export async function readActivity(deps: {
       health: unreadableHealth(file),
     })),
   ].sort(byNeed);
-  return { rows, fleet: sourceHealth(rows) };
+  return { rows, fleet: sourceHealth(rows), review: depth.fleet };
 }

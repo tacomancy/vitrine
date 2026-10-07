@@ -171,6 +171,7 @@ export type {
   ScoutRunCost,
   Volume,
 } from "./scout-activity.js";
+export type { ReviewDepth, StackAge } from "./review-depth.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";
 export type { TriedPage, TriedQuery } from "./scout-form.js";
 export type { Health, Warrant } from "./scout-health.js";

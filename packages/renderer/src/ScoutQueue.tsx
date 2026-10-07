@@ -7,7 +7,7 @@ import { classifyLink, refusal } from "./link-rule";
 import { hashOf } from "./router";
 import styles from "./ScoutQueue.module.css";
 import { ScoutForm, type QuestionChoice, type ScoutDraft } from "./ScoutForm";
-import { CostLine, VoiceLine } from "./ScoutVoice";
+import { CostLine, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -752,7 +752,7 @@ function ReviewQuiet({
 }) {
   if (scout !== undefined) {
     return scout.voice === "claim" ? (
-      <p className={styles.line}>Nothing pending.</p>
+      <p className={styles.line}>{NOTHING_PENDING}</p>
     ) : null;
   }
   if (claim === undefined) return null;

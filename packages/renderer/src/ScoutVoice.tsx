@@ -38,6 +38,13 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
 }
 
 /**
+ * An empty Review stack, said as a claim (ADR 0032): only a Scout whose last
+ * run was clean may say it, and the Queue's empty state and Scout Activity's
+ * row use these words so one Scout is never described in two sentences.
+ */
+export const NOTHING_PENDING = "Nothing pending.";
+
+/**
  * The last run's cost, on the header and nowhere else (ADR 0040 decision 6):
  * the visibility is the guard, so there is no cap and no running total. A
  * run that cost nothing draws nothing.
