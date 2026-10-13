@@ -33,6 +33,7 @@ const scout = (id: string, name: string): ScoutRow => ({
   assigned: [],
   lane: "review",
   paused: false,
+  lastWindow: null,
   lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "2h ago" },
   health: { voice: "claim", warrant: null },
   acceptRate: { kind: "nothing triaged" },

@@ -14,7 +14,7 @@ import {
   writeScoutFile,
   type Scout,
 } from "./scout-file.js";
-import { faultSentence } from "./scout-health.js";
+import { faultSentence, lastWindow } from "./scout-health.js";
 import { dueUnder } from "./scout-schedule.js";
 import { runScout, type RunSummary, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
@@ -300,6 +300,70 @@ export async function tryQuery(
     };
   } catch (cause) {
     // A bug here must not be worded as an arXiv fault.
+    if (!(cause instanceof ArxivError)) throw cause;
+    return {
+      outcome: "failed",
+      sentence: faultSentence(cause.kind, cause.message, false),
+    };
+  }
+}
+
+export type TriedWindow =
+  | {
+      outcome: "found";
+      /** `totalResults` for the edited Query over the window. */
+      would: number;
+      /** What the last completed run fetched over the same window. */
+      fetched: number;
+      from: string;
+      to: string;
+    }
+  | { outcome: "failed"; sentence: string };
+
+/**
+ * *Try over the last run's window* (ADR 0042 decision 5): the edited Query
+ * over the window of the last completed run, so an edit's effect is seen
+ * before it is saved. It writes nothing. A comparison that could not be made
+ * is the Scout's own fault sentence and carries no figures, so it can never
+ * read as *no difference*.
+ */
+export async function tryWindow(
+  deps: ScoutDeps,
+  scoutId: string,
+  query: string
+): Promise<TriedWindow> {
+  if (query.trim() === "") {
+    throw new VaultError("refused", "There is no Query to try.");
+  }
+  const { scouts } = await readScouts(deps.vaultPath);
+  const scout = scouts.find((s) => s.id === scoutId);
+  if (scout === undefined) {
+    throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
+  }
+  if (scout.source.kind !== "arxiv") {
+    throw new VaultError("refused", "Only an arXiv Scout has a Query to try.");
+  }
+  const window = lastWindow(deps.queue, scoutId);
+  if (window === null) {
+    throw new VaultError(
+      "refused",
+      "This Scout has not completed a run, so there is no window to try over."
+    );
+  }
+  try {
+    const found = await deps.arxiv.search(
+      query.trim(),
+      { from: new Date(window.from), to: new Date(window.to) },
+      { limit: 1 }
+    );
+    return {
+      outcome: "found",
+      would: found.total,
+      fetched: window.fetched,
+      from: window.from,
+      to: window.to,
+    };
+  } catch (cause) {
     if (!(cause instanceof ArxivError)) throw cause;
     return {
       outcome: "failed",

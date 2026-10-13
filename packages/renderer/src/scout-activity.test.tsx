@@ -91,6 +91,7 @@ const BROKEN: ActivityRow = {
   assigned: [],
   lane: "review",
   paused: false,
+  lastWindow: null,
   lastRun: { finished: "2026-09-30T09:00:00.000Z", ago: "3h ago" },
   health: {
     voice: "wrong",
@@ -118,6 +119,7 @@ const QUIET: ActivityRow = {
   assigned: [],
   lane: "review",
   paused: false,
+  lastWindow: null,
   lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "2h ago" },
   health: {
     voice: "claim",
@@ -145,6 +147,7 @@ const RESTING: ActivityRow = {
   assigned: [],
   lane: "skim",
   paused: true,
+  lastWindow: null,
   lastRun: null,
   health: { voice: "not yet", sentence: "Paused — it is not looking." },
   acceptRate: {

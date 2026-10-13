@@ -178,7 +178,7 @@ export type {
 } from "./scout-activity.js";
 export type { ReviewDepth, StackAge } from "./review-depth.js";
 export type { Scout, UnreadableScout } from "./scout-file.js";
-export type { TriedPage, TriedQuery } from "./scout-form.js";
+export type { TriedPage, TriedQuery, TriedWindow } from "./scout-form.js";
 export type { Health, Warrant } from "./scout-health.js";
 export type { KeyStatus, KeyTest } from "./credentials.js";
 export { MAP_COLUMNS, MAP_ROWS } from "./question-map.js";
