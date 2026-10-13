@@ -94,7 +94,12 @@ export function finishedRuns(queue: DatabaseSync, scoutId: string): RunRow[] {
 /** A completed run's window and what it fetched: what *try over the last run's window* compares against (ADR 0042 decision 5). */
 export type RunWindow = { from: string; to: string; fetched: number };
 
-/** The newest run that completed; a failed run read nothing to compare with. */
+/**
+ * The newest run that completed. A failed run read nothing to compare with, so
+ * when the newest one failed this falls back to the last good one: its window
+ * can be older than the Scout's last attempt, and the figure beside it is what
+ * that run fetched, so the two are always about the same window.
+ */
 export function lastWindow(
   queue: DatabaseSync,
   scoutId: string
