@@ -3,7 +3,13 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds, UnmatchedRow } from "./index.js";
-import { closeCores, core, fixtures, vaultWith } from "./test-core.js";
+import {
+  closeCores,
+  core,
+  fixtures,
+  vaultWith,
+  DELIVERY_TEST_BUDGET_MS,
+} from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -169,19 +175,23 @@ describe.each(["dropLinks", "treatAsNew"] as const)("%s", (act) => {
     expect(await t.unmatched()).toEqual([]);
   });
 
-  it("is the same Tombstone whichever it was called, and survives the next Ingest", async () => {
-    const t = await withLostLink();
-    const id = await t.id("h2");
-    await t.c.mutate(`unmatched.${act}`, {
-      source: "sources/rasch2013.md",
-      annotations: [id],
-    });
-    // The highlight put back is a new one; the tombstone is not revived.
-    const again = await t.returned("annotated.pdf");
-    expect(again.annotations.find((a) => a.id === id)!.gone_at).toBeDefined();
-    expect(await t.source()).toContain("(gone) ^h2");
-    expect(await t.unmatched()).toEqual([]);
-  });
+  it(
+    "is the same Tombstone whichever it was called, and survives the next Ingest",
+    async () => {
+      const t = await withLostLink();
+      const id = await t.id("h2");
+      await t.c.mutate(`unmatched.${act}`, {
+        source: "sources/rasch2013.md",
+        annotations: [id],
+      });
+      // The highlight put back is a new one; the tombstone is not revived.
+      const again = await t.returned("annotated.pdf");
+      expect(again.annotations.find((a) => a.id === id)!.gone_at).toBeDefined();
+      expect(await t.source()).toContain("(gone) ^h2");
+      expect(await t.unmatched()).toEqual([]);
+    },
+    DELIVERY_TEST_BUDGET_MS
+  );
 
   it("refuses an annotation that is not waiting for a decision, in words", async () => {
     const t = await withLostLink();

@@ -34,3 +34,7 @@ Beat 9 (#176) is the Scout Activity dashboard (`design-brief.md` § Scout Activi
 - **−** With no threshold, a bad brief is found by reading the top of the sort, not by being flagged. If that proves too quiet, the remedy is an explicit threshold ADR, not a tint.
 - **−** The weekly series is gappy for a low-volume Scout, which is true.
 - The spec carries: the `dropped` key and its readers (scheduler, rail, `scouts.list`), the weekly accept-rate series and the Retroactive-batch exclusion, the corrected missing-field guard, the coverage-gap derivation, per-run cost totals, queue depth and age, the sorted table with in-place edit, cadence and pause, drop with its undo and restore line, the line chart in `charts/` (D3 scales, class-name colours, #141), and — as a separable ticket — the arXiv dry run.
+
+## Update (2026-10-07, ADR 0043)
+
+Decision 5's last sentence is resolved by **ADR 0043**: a changed page is the same Scout pointed at another page, `page_hash` needs no invalidation (it is a hash of the reduced text, compared only within a page), and the structure-change test reads within the page. The address stays on the form, for a reason this ADR did not give: *try* exists only there.
