@@ -139,7 +139,7 @@ A stat-only pass over files comparing size and modification time to what the app
 _Avoid_: Poll, rescan, full scan
 
 **PDF folder check**:
-Asking whether the PDF folder resolves to a folder the app can read, and what it holds. Reads no file and compares none to a record, so it is not a Sweep; a folder that does not resolve is a fault, sounded in the footer as *papers not arriving*.
+Asking whether the PDF folder resolves to a folder the app can read, and what it holds. Reads no content and compares no file to a record; a folder that does not resolve is a fault, sounded in the footer as *papers not arriving*.
 _Avoid_: Sweep (which compares files to what the app recorded), scan
 
 **Evicted** (of a PDF):
