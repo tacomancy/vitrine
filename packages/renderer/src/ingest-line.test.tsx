@@ -1,4 +1,4 @@
-import { act, cleanup, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import type { CoreEvent, IngestSummary, VaultStatus } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearIngest, INGEST_FADE_MS } from "./ingest-line";
@@ -142,7 +142,9 @@ describe("the Ingest summary line across a burst", () => {
     const line = await screen.findByText(LINE(both));
     tick(INGEST_FADE_MS * 10);
     expect(screen.queryByText(LINE(both))).not.toBeNull();
-    expect(line.closest("button")).not.toBeNull();
+    // The panel opens from the summed line, not only from the first run's.
+    fireEvent.click(line.closest("button")!);
+    await screen.findByRole("dialog", { name: "Could not be re-matched" });
   });
 
   it("replaces a line after the burst, one with something to decide included", async () => {
