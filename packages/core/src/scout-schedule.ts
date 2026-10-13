@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { readScouts, type Scout } from "./scout-file.js";
+import { CADENCES, readScouts, type Scout } from "./scout-file.js";
 import { CADENCE_MS, finishedRuns } from "./scout-health.js";
 import { runScout, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
@@ -58,6 +58,26 @@ export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
     );
   }
   return true;
+}
+
+/**
+ * The cadences that would make a Scout due at the next check although it is not
+ * due now: the one fact a cadence menu owes before it is chosen, so a change is
+ * never a surprise run (spec #511 story 55). Asked of `isDue` itself rather
+ * than worked out again from elapsed time, because what makes a Scout due is
+ * more than its clean runs — a failed one, an edited Query and a run in flight
+ * all move it — and a second reading of that would drift from the first. A
+ * Scout already due is not made due by a change, so it names none; a paused one
+ * is due under no cadence. The row lists these and the write asks whether its
+ * choice is among them, so the menu and the write cannot disagree.
+ */
+export function dueUnder(
+  queue: DatabaseSync,
+  scout: Scout,
+  now: Date
+): Array<Scout["cadence"]> {
+  if (isDue(queue, scout, now)) return [];
+  return CADENCES.filter((cadence) => isDue(queue, { ...scout, cadence }, now));
 }
 
 // A check is a read of what is due followed by runs that take minutes on one

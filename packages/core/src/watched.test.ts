@@ -1057,6 +1057,40 @@ describe("a Scout waiting on a key", () => {
     expect(ran.map((r) => r.scout_id)).toEqual(["lab", "other", "lab"]);
   });
 
+  it("leaves a dropped Scout alone, and does not name it among those waiting", async () => {
+    const lab = await opened({
+      key: null,
+      scouts: {
+        "lab.yaml": SCOUT,
+        "other.yaml": SCOUT.replace("Sleep Lab", "Other Lab"),
+      },
+      page: () => ({ body: PAGE }),
+    });
+    await lab.run("lab");
+    await lab.run("other");
+    expect(
+      (await lab.c.mutate("scouts.drop", { scoutId: "other" })).error
+    ).toBeUndefined();
+    const waiting = async () =>
+      (
+        await lab.c.query<Array<{ id: string }>>("credentials.waiting", {
+          provider: "anthropic",
+        })
+      ).result!.data.map((w) => w.id);
+    expect(await waiting()).toEqual(["lab"]);
+    lab.serve(() => ({ body: "", status: 503 }));
+
+    await lab.c.mutate("credentials.set", {
+      provider: "anthropic",
+      key: "sk-new",
+    });
+
+    const ran = lab.rows<{ scout_id: string }>(
+      "SELECT scout_id FROM scout_runs ORDER BY id"
+    );
+    expect(ran.map((r) => r.scout_id)).toEqual(["lab", "other", "lab"]);
+  });
+
   it("is named, with why, by credentials.waiting — a rejected key too", async () => {
     const lab = await opened({
       key: null,

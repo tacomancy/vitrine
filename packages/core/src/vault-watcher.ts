@@ -63,6 +63,14 @@ export const FSEVENTS_LATENCY_MS = 50;
  */
 const MIN_SETTLE_MS = 4 * FSEVENTS_LATENCY_MS;
 
+/**
+ * The settle window a watcher actually uses for the one asked for: what the
+ * run window is a multiple of (`run-window.ts`), so both read the floor from
+ * here and neither can disagree with the watcher about it.
+ */
+export const effectiveSettleMs = (requested: number) =>
+  Math.max(requested, MIN_SETTLE_MS);
+
 /** The one folder whose symlink is followed, so an iCloud or Dropbox PDF folder is watched. */
 const PDF_FOLDER = "sources/pdf";
 
@@ -160,7 +168,7 @@ export async function watchVault(
     probeTimeoutMs = PROBE_TIMEOUT_MS,
   }: WatcherOptions
 ): Promise<Watcher> {
-  const settleMs = Math.max(requestedSettleMs, MIN_SETTLE_MS);
+  const settleMs = effectiveSettleMs(requestedSettleMs);
   const pending = new Map<string, Pending>();
   /** Settled and waiting for the batch to close: path → when it settled (its stamp). */
   const settled = new Map<string, number>();

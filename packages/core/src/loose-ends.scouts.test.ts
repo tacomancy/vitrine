@@ -111,6 +111,24 @@ describe("looseEnds.rows — a failed Scout", () => {
     expect(kinds(await ends(), "failed-scout")).toEqual([]);
   });
 
+  it("is gone once the Scout is dropped, and nothing takes its place: a Scout the researcher retired is not broken plumbing", async () => {
+    const { c, ends } = await opened(fails, {
+      ".vitrine/scouts/sleep.yaml": scoutYaml(),
+    });
+    await c.mutate("scouts.runNow", { scoutId: "sleep" });
+    expect(kinds(await ends(), "failed-scout")).toHaveLength(1);
+
+    const dropped = await c.mutate("scouts.drop", { scoutId: "sleep" });
+
+    expect(dropped.error).toBeUndefined();
+    const left = (await ends()).groups.flatMap((g) =>
+      g.rows.map((r) => r.kind)
+    );
+    expect(left).not.toContainEqual(
+      expect.stringMatching(/scout|credentials|structure/)
+    );
+  });
+
   it("is not a row for a Scout that has not failed", async () => {
     const { ends } = await opened(fails, {
       ".vitrine/scouts/sleep.yaml": scoutYaml(),

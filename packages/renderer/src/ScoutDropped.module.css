@@ -1,0 +1,81 @@
+/* *drop* on a row: a quiet word in the row's own type, as the *queue* link is.
+   A pane's controls take their weight from the row, never from a verdict on it
+   (ADR 0042 decision 8). */
+.drop {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: none;
+  cursor: pointer;
+  color: var(--color-fg-muted);
+  text-align: left;
+}
+
+.drop:hover {
+  color: var(--color-fg);
+}
+
+/* *undo*, beside what happened: the same quiet word. */
+.undo {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+}
+
+.undo:hover {
+  color: var(--color-fg);
+}
+
+/* A refusal, on the row it was about: the page's voice for a failure at the
+   row's scale, the brass mark Loose Ends gives one. */
+.refused {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+}
+
+.glyph {
+  color: var(--color-accent);
+}
+
+/* One line at the foot of the table, the footer's own quiet type: a count that
+   opens, and a name beside each way back. */
+.line {
+  flex: none;
+  padding: var(--space-1) var(--space-5) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.count {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.count:hover {
+  color: var(--color-fg);
+}
+
+.names {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-fg-secondary);
+}

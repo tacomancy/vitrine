@@ -125,6 +125,7 @@ describe("saving a Scout from the form", () => {
         assigned: ["rq2b7x9mk4"],
         lane: "skim",
         paused: false,
+        dropped: null,
         created: NOW.toISOString(),
         searchBackTo: "2026-07-02T00:00:00.000Z",
         source: { kind: "arxiv" },

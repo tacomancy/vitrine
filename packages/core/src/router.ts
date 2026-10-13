@@ -63,9 +63,16 @@ import {
   unread,
 } from "./question-map.js";
 import { readActivity, readRunCosts } from "./scout-activity.js";
-import { readScouts } from "./scout-file.js";
+import { CADENCES, readScouts } from "./scout-file.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
-import { saveScout, setPaused, tryPage, tryQuery } from "./scout-form.js";
+import {
+  saveScout,
+  setCadence,
+  setDropped,
+  setPaused,
+  tryPage,
+  tryQuery,
+} from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
@@ -568,7 +575,7 @@ export const router = t.router({
           name: z.string(),
           watching: z.enum(["arxiv", "watched"]).optional(),
           query: z.string(),
-          cadence: z.enum(["daily", "weekly", "monthly"]),
+          cadence: z.enum(CADENCES),
           assigned: z.array(z.string()),
           lane: z.enum(["review", "skim"]),
           searchBackTo: z.string().datetime().nullable(),
@@ -581,6 +588,30 @@ export const router = t.router({
       .input(z.object({ scoutId: z.string().min(1), paused: z.boolean() }))
       .mutation(async ({ ctx, input }) =>
         refusing(setPaused(await scoutDeps(ctx), input.scoutId, input.paused))
+      ),
+    // A Scout Activity row's cadence menu (#520): the one key, as pause is.
+    setCadence: t.procedure
+      .input(
+        z.object({
+          scoutId: z.string().min(1),
+          cadence: z.enum(CADENCES),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(setCadence(await scoutDeps(ctx), input.scoutId, input.cadence))
+      ),
+    // Retire a Scout (ADR 0042 decision 1): a key in its file, nothing deleted.
+    drop: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(setDropped(await scoutDeps(ctx), input.scoutId, true))
+      ),
+    // Bring one back: it looks again at its next due check, and nothing it
+    // owns was touched while it was away (ADR 0042 decision 9).
+    restore: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(setDropped(await scoutDeps(ctx), input.scoutId, false))
       ),
     tryQuery: t.procedure
       .input(z.object({ query: z.string() }))

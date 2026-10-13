@@ -80,6 +80,7 @@ export async function openedWithQueue(
   return {
     c,
     db,
+    vault,
     /** One Proposal this Scout placed, and what the researcher did with it. */
     seed: (scout: string, s: Seed = {}) => {
       n += 1;

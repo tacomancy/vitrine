@@ -227,6 +227,100 @@ describe("saving a Scout that watches a page", () => {
   });
 });
 
+// A saved page's address is the one thing a save does not change yet: ADR 0042
+// decision 5 keeps it on the form and leaves how it is changed to a decision of
+// its own, since a different page invalidates the hash and the
+// structure-change test its history rests on. Everything else the form owns —
+// and so a Scout Activity row's Assigned Questions, which write through this
+// same `scouts.save` (#520) — is saved as it is for an arXiv Scout.
+describe("editing a Scout that watches a page", () => {
+  const raw = (c: Awaited<ReturnType<typeof opened>>, input: object) =>
+    c.c.mutate("scouts.save", {
+      name: "Sleep Lab",
+      watching: "watched",
+      query: LAB,
+      cadence: "weekly",
+      assigned: [],
+      lane: "review",
+      searchBackTo: null,
+      ...input,
+    });
+
+  it("saves its Assigned Questions, name, cadence and lane, leaves the address and the history as they were, and runs nothing", async () => {
+    const c = await opened();
+    const { id } = await c.save({});
+
+    await c.save({
+      id,
+      name: "Sleep Lab, renamed",
+      cadence: "monthly",
+      lane: "skim",
+      assigned: ["rq2b7x9mk4"],
+    });
+
+    expect((await c.list())[0]).toMatchObject({
+      id,
+      name: "Sleep Lab, renamed",
+      cadence: "monthly",
+      lane: "skim",
+      assigned: ["rq2b7x9mk4"],
+      source: { kind: "watched", url: LAB },
+    });
+    // Saving never runs a page's Scout (ADR 0040 decision 5), and a changed
+    // Assigned Question is not a changed page.
+    expect(c.written().runs.n).toBe(0);
+    expect(c.extractions()).toBe(0);
+    expect(await c.file(id)).not.toContain("filter");
+  });
+
+  it("refuses a different address, in words that say where it is changed, and writes nothing", async () => {
+    const c = await opened();
+    const { id } = await c.save({});
+    const before = await c.file(id);
+
+    const reply = await raw(c, { id, query: "https://other.example/papers" });
+
+    expect(reply.error?.message).toBe(
+      "What a Scout watches is changed in its file for now."
+    );
+    expect(reply.error?.data).toMatchObject({
+      code: "BAD_REQUEST",
+      kind: "refused",
+    });
+    expect(await c.file(id)).toBe(before);
+  });
+
+  // An arXiv Query written over a page's address would quietly turn one
+  // Scout's history into another's.
+  it("refuses to be saved as an arXiv Scout, and writes nothing", async () => {
+    const c = await opened();
+    const { id } = await c.save({});
+    const before = await c.file(id);
+
+    const reply = await raw(c, { id, watching: "arxiv", query: "all:sleep" });
+
+    expect(reply.error?.message).toBe(
+      "What a Scout watches is changed in its file for now."
+    );
+    expect(await c.file(id)).toBe(before);
+  });
+
+  // The rule is one way round as much as the other: a page's address saved
+  // over an arXiv Scout would skip its Query write and say nothing of it.
+  it("keeps an arXiv Scout from being saved as one that watches a page, and writes nothing", async () => {
+    const c = await opened();
+    const { id } = await c.save({ watching: "arxiv", query: "all:sleep" });
+    const before = await c.file(id);
+
+    const reply = await raw(c, { id, watching: "watched", query: LAB });
+
+    expect(reply.error?.message).toBe(
+      "What a Scout watches is changed in its file for now."
+    );
+    expect(await c.file(id)).toBe(before);
+  });
+});
+
 describe("trying a page", () => {
   it("shows what a model read: the total, five titles, verified and dropped, and what it cost", async () => {
     const c = await opened({

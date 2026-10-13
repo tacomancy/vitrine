@@ -99,20 +99,28 @@ One Annotation's list item in a Source's `## Annotations` section — the page, 
 _Avoid_: Annotation line (it is rarely one line), highlight block
 
 **Ingest**:
-The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed together is one Ingest run.
+The app noticing a changed PDF on disk and reading its Annotations back in. Triggered by the file, never by the user. Yields new Annotations, new Questions (from the `Q:` convention), Removed Annotations, and Unmatched Annotations. Every PDF that changed within one run window is one Ingest run.
 _Avoid_: Import, sync (sync moves files; ingest reads them)
 
 **Ingest run**:
-One batch of PDFs that settled together, ingested as one: one summary line, at most one panel, one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications.
+The PDFs ingested together — those of every Batch that closed inside one run window, or those read at once instead, as when a Source's PDF is attached or after the sweep at open or after a watcher failure — with one summary line, at most one panel and one record in App state. Fifty PDFs returning from the iPad are one run, not fifty notifications; runs that still land close together are a Burst.
 _Avoid_: Ingest event, batch (in UI copy)
+
+**Burst** (of Ingest runs):
+Runs — and removals made in the Reader, which are reported the same way — that land before the previous one's line would have faded. They share one summary line, their counts added; one that lands after the burst starts a line of its own.
+_Avoid_: Batch (that is the watcher's), delivery (that is the PDFs arriving, which can land as several runs), group
 
 **Settled** (of a file):
 Quiet for long enough — no watcher events, two stats agreeing — that a sync client or Preview is judged to have finished writing it. Nothing is read or hashed before it settles.
 _Avoid_: Stable, debounced
 
 **Batch** (of the watcher):
-The files that settled together, applied to the Index as one transaction and announced as one change. For PDFs a Batch is also one Ingest run and waits a run window for stragglers; a Markdown Batch closes the moment its files settle.
+The files that settled together, applied to the Index as one transaction and announced as one change; it closes the moment its files settle, Markdown or PDF alike. A PDF's Ingest waits a run window for stragglers beyond that, so one Ingest run can span several Batches.
 _Avoid_: Debounce group, changeset
+
+**Run window**:
+How long the PDFs of a Batch are held for stragglers before they are ingested — not a Scout run's window, which is the dates that run covers. It starts again with each change that names a PDF, but no PDF is held past a ceiling, so a delivery that never goes quiet is still read in turn.
+_Avoid_: Debounce, grace period
 
 **Own write**:
 A change to a vault file the app made itself, recognised by the watcher because the file's hash is the one the app recorded when it wrote. Indexed at the moment of writing, so the watcher has nothing to do when it sees it.
@@ -343,7 +351,7 @@ The open Questions a Scout is run on behalf of. Stamped on every Proposal's Orig
 _Avoid_: Briefed on, matched (implies a score), linked (that is Related), watching (that is the source relation)
 
 **Due** (of a Scout):
-Its cadence has elapsed since its last completed run — one that finished without failing. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. A failed run does not complete: a network or HTTP failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt, since asking again sooner gets the same answer. *Run now*, or editing the Query, runs it whether or not it is due.
+Its cadence has elapsed since its last completed run — one that finished without failing. Runs happen only while the app is open — at vault open and on a periodic check — so a missed day is folded into the next run's window rather than lost. A failed run does not complete: a network or HTTP failure leaves the Scout due at the next check, while a rate-limited or unreadable answer waits a full cadence from the attempt, since asking again sooner gets the same answer. *Run now*, or editing an arXiv Query, runs it whether or not it is due; a Watched source's Scout is never run on save, and one pointed at another page is due at the next check, since no run has read that page. Shortening a cadence below the time since the last completed run makes a Scout due at the next check, which Scout Activity says before the choice is made, so that changing a cadence is never a surprise run.
 _Avoid_: Scheduled, overdue, late
 
 **Query**:
@@ -351,7 +359,7 @@ A hand-written search string, in the Structured source's own syntax, that a Scou
 _Avoid_: Prompt, search
 
 **Watched source**:
-One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that, and the page is never sent to a model; otherwise it needs an Extraction. Never crawled: one page and the feed it advertises, no link-following. Has no Filter until Tags exist; its Scout is made on the same form as an arXiv Scout and is first run at its first due check, never on save.
+One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that, and the page is never sent to a model; otherwise it needs an Extraction. Never crawled: one page and the feed it advertises, no link-following. Has no Filter until Tags exist; its Scout is made on the same form as an arXiv Scout and is first run at its first due check, never on save. Its URL can be changed on the form (the field is labelled *Address*, which is not an Address, the router's): the same Scout is then pointed at another page (ADR 0043).
 _Avoid_: Site, crawl target, scrape
 
 **Feed**:
@@ -392,7 +400,7 @@ _Avoid_: Candidate, suggestion, result, message, proposed Source
 Which Scout found it, which Questions that Scout is Assigned to, and whether it came from a Retroactive search. Carried onto the Source stub on acceptance.
 
 **Retroactive** (of a Proposal or a stub):
-Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run. Shown as such so the batch can be triaged or rejected together.
+Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run at that page. Shown as such so the batch can be triaged or rejected together.
 _Avoid_: Backfill, historical, catch-up
 
 **Appearance**:
@@ -431,11 +439,11 @@ An open Map row with no Scout looking for it: none of the Scouts Assigned to it 
 _Avoid_: Unbriefed (the brief's word — a Scout has no brief), uncovered (Coverage is Material, not Scouts)
 
 **Source health**:
-Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), interrupted (the app closed before the run finished), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs, never stored on the Scout, and said in one sentence per error kind that every surface renders verbatim (ADR 0032). *Broken* means the most recent run did not succeed, and takes the *wrong* Voice. A Scout that has not looked — never run, Paused, or Blocked on credentials — takes *not yet*, and a Quiet field takes *claim*. Fields arriving systematically empty is not a health state: the items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed.
+Per Scout: last successful run, last new item, and the last error and its kind — network, HTTP status, rate-limited, parse (the response lacked what was expected; an API's structure change), interrupted (the app closed before the run finished), credentials (no key, or the key rejected), model (the Provider failed or refused), or extraction (the items came back unverified, or none came back from a page that still lists what it listed before — a page's structure change). Derived from the Scout's runs — a Watched source's, the ones that read the page it is pointed at (ADR 0043) — never stored on the Scout, and said in one sentence per error kind that every surface renders verbatim (ADR 0032). *Broken* means the most recent run did not succeed, and takes the *wrong* Voice. A Scout that has not looked — never run, not yet run at the page it is pointed at, Paused, or Blocked on credentials — takes *not yet*, and a Quiet field takes *claim*. Fields arriving systematically empty is not a health state: the items verify, so the run is `ok`, and it is the Accept rate that says why it cannot be computed.
 _Avoid_: Status (of a Scout), failing (say broken), stale (only for a last successful run that is old, never for a partial Extraction)
 
 **Quiet field**:
-A Scout that ran, parsed cleanly and found nothing — the state a broken Scout must never be mistakable for (`CLAUDE.md` § Invariants). Said as a Claim rather than shown as a zero, warranted by three facts: when it last ran, that the run parsed cleanly, and what this source usually yields (ADR 0032). The third is what tells a source that is genuinely quiet from a reliably productive one gone unusually quiet, so no threshold judges it.
+A Scout that ran, parsed cleanly and found nothing — the state a broken Scout must never be mistakable for (`CLAUDE.md` § Invariants). Said as a Claim rather than shown as a zero, warranted by three facts: when it last ran, that the run parsed cleanly, and what this source usually yields (ADR 0032). The third is what tells a source that is genuinely quiet from a reliably productive one gone unusually quiet, so no threshold judges it. For a Watched source all three are read from the runs at the page it is pointed at, so for a Scout pointed at another page the rate starts again at *no baseline yet* (ADR 0043).
 _Avoid_: Empty run, no results, zero new, silent (a Scout that has not looked is *not yet*, not quiet)
 
 **Mute**:

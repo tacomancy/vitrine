@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
 import type { Health } from "./scout-health.js";
 import type { Card, RunSummary } from "./scouts.js";
@@ -14,7 +14,10 @@ import {
   virtualClock,
 } from "./test-core.js";
 
-afterEach(closeCores);
+afterEach(() => {
+  vi.restoreAllMocks();
+  return closeCores();
+});
 
 // Beat 6's second slice (#449): Scouts run when due, and each says how it is
 // doing in one of three voices. Driven through the router with an injected
@@ -29,7 +32,12 @@ const atom = (name: string) =>
   readFile(join(fixtures, "arxiv", `${name}.xml`), "utf8");
 
 const scoutYaml = (
-  over: { cadence?: string; query?: string; paused?: boolean } = {}
+  over: {
+    cadence?: string;
+    query?: string;
+    paused?: boolean;
+    dropped?: boolean;
+  } = {}
 ) =>
   [
     "name: Sleep and memory",
@@ -37,6 +45,7 @@ const scoutYaml = (
     "lane: review",
     "created: 2026-09-20T00:00:00Z",
     ...(over.paused ? ["paused: true"] : []),
+    ...(over.dropped ? ["dropped: 2026-09-25T00:00:00Z"] : []),
     "filter:",
     `  query: ${over.query ?? "all:sleep"}`,
     "",
@@ -206,6 +215,57 @@ describe("when a Scout is due", () => {
     });
     const c = await f.start();
 
+    expect(await f.check(c)).toEqual(["sleep"]);
+  });
+
+  it("is never for a dropped Scout, even one that has never run and so would be due at once", async () => {
+    // A check that tried a dropped Scout would fail on it and say so in the
+    // core's log, so a silent log is how the scheduler's own skip is seen.
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = await fleet(serving("empty"), {
+      "sleep.yaml": scoutYaml(),
+      "gone.yaml": scoutYaml({ dropped: true, query: "all:gone" }),
+    });
+    const c = await f.start();
+
+    expect(await f.check(c)).toEqual(["sleep"]);
+    expect(log).not.toHaveBeenCalled();
+
+    // Not asked of arXiv either: a Scout that did not run left no request.
+    expect(
+      f.requests.map((url) => url.searchParams.get("search_query"))
+    ).toEqual([expect.stringContaining("all:sleep")]);
+    expect(
+      f.rows<{ scout_id: string }>("SELECT scout_id FROM scout_runs")
+    ).toEqual([{ scout_id: "sleep" }]);
+  });
+
+  it("is not run by *Run now* either: nothing runs a dropped Scout, so it asks arXiv nothing and leaves no run", async () => {
+    const f = await fleet(serving("empty"), {
+      "sleep.yaml": scoutYaml({ dropped: true }),
+    });
+    const c = await f.start();
+
+    const reply = await c.mutate("scouts.runNow", { scoutId: "sleep" });
+
+    expect(reply.error?.message).toBe("There is no Scout named sleep.");
+    expect(f.requests).toEqual([]);
+    expect(f.rows("SELECT * FROM scout_runs")).toEqual([]);
+  });
+
+  it("is never for a dropped Scout whose cadence has long elapsed, until it is restored; then at the next check, and not at the restore itself", async () => {
+    const f = await fleet(serving("empty"), {
+      "sleep.yaml": scoutYaml({ dropped: true }),
+    });
+    f.seed({ started: f.at - 3 * DAY });
+    const c = await f.start();
+
+    expect(await f.check(c)).toEqual([]);
+
+    expect(
+      (await c.mutate("scouts.restore", { scoutId: "sleep" })).error
+    ).toBeUndefined();
+    expect(f.requests).toEqual([]);
     expect(await f.check(c)).toEqual(["sleep"]);
   });
 

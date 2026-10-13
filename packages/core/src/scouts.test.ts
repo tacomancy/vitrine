@@ -149,6 +149,7 @@ describe("a hand-written Scout", () => {
         assigned: [QUESTION],
         lane: "review",
         paused: false,
+        dropped: null,
         created: "2026-09-20T00:00:00.000Z",
         searchBackTo: null,
         source: { kind: "arxiv" },
@@ -278,6 +279,7 @@ describe("Run now", () => {
             name: "Is the overnight retention benefit attributable to consolidation, or to encoding strength at learning?",
           },
         ],
+        dropped: false,
       },
     ]);
   });
@@ -870,7 +872,7 @@ describe("triage in Review", () => {
   it("names, per Scout, its newest clean run, how much of it is pending, and the papers the vault already held", async () => {
     const c = await opened(serving("normal"));
     expect(await c.groups()).toEqual([
-      { id: "sleep", runId: null, runPending: 0, held: [] },
+      { id: "sleep", runId: null, runPending: 0, deferred: 0, held: [] },
     ]);
     await writeFile(
       join(c.vault, "sources/mine.md"),
@@ -884,6 +886,7 @@ describe("triage in Review", () => {
         id: "sleep",
         runId: summary.runId,
         runPending: 1,
+        deferred: 0,
         held: [
           {
             title: "Probing the Overnight Benefit: Consolidation or Encoding?",
