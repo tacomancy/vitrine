@@ -391,12 +391,19 @@ export function createVaultService({
         // would wait on the chunk that is waiting on this listener.
         // What the world did to a PDF already held lands before what it did to
         // the rest, so a rename-then-change of one file holds the new name.
-        runWindow.move(
-          event.renamed.filter(
-            ({ from, to }) => isPdfInFolder(from) && isPdfInFolder(to)
-          )
+        const pdfRenames = event.renamed.filter(
+          ({ from, to }) => isPdfInFolder(from) || isPdfInFolder(to)
         );
-        runWindow.drop(event.removed.filter(isPdfInFolder));
+        runWindow.move(pdfRenames.filter(({ to }) => isPdfInFolder(to)));
+        // Moved out of the PDF folder: no longer a PDF to read, as if deleted.
+        runWindow.drop(
+          [
+            ...event.removed,
+            ...pdfRenames
+              .filter(({ to }) => !isPdfInFolder(to))
+              .map(({ from }) => from),
+          ].filter(isPdfInFolder)
+        );
         const changedPdfs = event.changed.filter(isPdfInFolder);
         if (changedPdfs.length > 0) runWindow.hold(changedPdfs);
         await indexOptions?.onChanged?.(event);

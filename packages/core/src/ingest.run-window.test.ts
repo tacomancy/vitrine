@@ -14,6 +14,8 @@ const WINDOW_MS = 2000;
 /** Past the window, the settle that comes before it, and a margin; nothing lands in this. */
 const QUIET_MS = WINDOW_MS + 1500;
 const TEST_MS = 20_000;
+/** The markups and notes in `annotated.pdf`: a block to each. */
+const ANNOTATED_BLOCKS = 6;
 
 const pdf = (name: string) => readFile(join(fixtures, "pdf", name));
 const source = (name: string) =>
@@ -69,7 +71,7 @@ describe("a PDF renamed inside the run window", () => {
       const landed = await events.next("ingestLanded", {
         timeoutMs: 2 * QUIET_MS,
       });
-      expect(landed.summary.new).toBe(6);
+      expect(landed.summary.new).toBe(ANNOTATED_BLOCKS);
       const note = await readFile(join(vault, "sources/a.md"), "utf8");
       expect(note).toContain("pdf: b.pdf");
       expect(note).toMatch(/\^h\d+/);
@@ -114,7 +116,7 @@ describe("a vault switched inside the run window", () => {
       const landed = await events.next("ingestLanded", {
         timeoutMs: QUIET_MS,
       });
-      expect(landed.summary.new).toBe(6);
+      expect(landed.summary.new).toBe(ANNOTATED_BLOCKS);
       expect(await hasBlocks(first, "a")).toBe(true);
     },
     TEST_MS
@@ -135,7 +137,7 @@ describe("a quit inside the run window", () => {
       const later = await again.events();
       await again.mutate("vault.open", { path: vault });
       const landed = await later.next("ingestLanded", { timeoutMs: QUIET_MS });
-      expect(landed.summary.new).toBe(6);
+      expect(landed.summary.new).toBe(ANNOTATED_BLOCKS);
     },
     TEST_MS
   );
