@@ -105,13 +105,13 @@ describe("the timers", () => {
     vi.useFakeTimers();
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     const real = globalThis.setTimeout;
-    const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
-      ...args: Parameters<typeof setTimeout>
-    ) => {
-      const timer = real(...args);
-      timers.push(timer);
-      return timer;
-    }) as typeof setTimeout);
+    const spy = vi
+      .spyOn(globalThis, "setTimeout")
+      .mockImplementation((...args: Parameters<typeof setTimeout>) => {
+        const timer = real(...args);
+        timers.push(timer);
+        return timer;
+      });
     const w = createRunWindow({
       settleMs: SETTLE,
       windowMs: 0,
