@@ -57,9 +57,7 @@ describe("a linked PDF folder at open", () => {
       "sources/a.md": SOURCE("a.pdf"),
     });
     await writeFile(join(folder, "a.pdf"), await annotated());
-    const { c } = await open(vault);
-    const events = await c.events();
-    void events;
+    await open(vault);
     await vi.waitFor(
       async () => expect(await noteOf(vault)).toMatch(/\^h\d+/),
       { timeout: 4000, interval: 25 }

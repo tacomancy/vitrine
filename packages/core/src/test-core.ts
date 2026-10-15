@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp, type AppOptions } from "./app.js";
+import { PDF_FOLDER } from "./pdf-folder.js";
 import { effectiveRunWindowMs } from "./run-window.js";
 import { effectiveSettleMs } from "./vault-watcher.js";
 import type { ArxivClock } from "./arxiv.js";
@@ -163,8 +164,11 @@ export function deafWatch(vault: string) {
   ) =>
     fsWatch(folder, options, (kind, filename) => {
       const name = filename?.toString() ?? "";
-      const pdfFolder = folder !== vault || name.startsWith("sources/pdf");
-      if (!(deaf && pdfFolder)) listener(kind, filename);
+      const underPdfFolder =
+        name === PDF_FOLDER || name.startsWith(`${PDF_FOLDER}/`);
+      // Any event on the link's own watch is the PDF folder's.
+      const pdfFolderEvent = folder !== vault || underPdfFolder;
+      if (!(deaf && pdfFolderEvent)) listener(kind, filename);
     })) as typeof fsWatch;
   return {
     watch,
