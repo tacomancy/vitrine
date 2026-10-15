@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CriterionRead, SavedAnswer } from "core";
 import { useEffect, useRef, useState } from "react";
 import styles from "./Hypothesis.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import rq from "./ResearchQuestion.module.css";
 import { useTRPC } from "./trpc";
 
@@ -34,11 +35,14 @@ export function OverrideForm({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [why, setWhy] = useState("");
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // A refused Override is the user's act turned down, so it is an alert, said
+  // beside the why they typed with the form still open (ADR 0033 decision 1
+  // and its 2026-10-15 Update). Its look is the form's register: `rq.refusal`.
+  const refusal = useRefusal();
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => field.current?.focus(), []);
   const refused = (detail: string) =>
-    setRefusal(`could not record the override: ${detail}`);
+    refusal.say(`could not record the override: ${detail}`);
   const record = useMutation(
     trpc.hypotheses.override.mutationOptions({
       onSuccess: (result: SavedAnswer) => {
@@ -52,6 +56,7 @@ export function OverrideForm({
   const ready = why.trim() !== "";
   const submit = () => {
     if (!ready || record.isPending) return;
+    refusal.forget();
     record.mutate({ path, why, basedOn: hash });
   };
   // The core's `nameOf`, repeated (the renderer imports only types): it is
@@ -122,11 +127,7 @@ export function OverrideForm({
           the page will read supported · overrides inconclusive
         </span>
       </div>
-      {refusal !== null && (
-        <p role="status" className={rq.refusal}>
-          {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={rq.refusal} />
     </form>
   );
 }

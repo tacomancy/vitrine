@@ -244,7 +244,7 @@ describe("the form", () => {
     expect(override).not.toHaveBeenCalled();
   });
 
-  it("keeps the why and says so when the core refuses", async () => {
+  it("keeps the why and says so in an alert, not a status, when the core refuses", async () => {
     const override = vi.fn(() => {
       throw new Error(
         "An override is already live; it stands until something it judged changes, and a new one needs a new why."
@@ -259,10 +259,71 @@ describe("the form", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "override and record" })
     );
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /could not record the override: .*already live/
+    );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(
-      await screen.findByText(/could not record the override: .*already live/)
+      screen.getByRole("form", { name: "Override the derived state" })
     ).toBeTruthy();
     expect((why as HTMLTextAreaElement).value).toBe("kept");
+  });
+
+  it("says a refusal answered as written: false the same way", async () => {
+    const override = vi.fn(() => ({
+      written: false,
+      detail: "the page changed on disk",
+    }));
+    open(() => page(), { "hypotheses.override": override });
+    fireEvent.click(
+      within(await stateRegion()).getByRole("button", { name: OFFER })
+    );
+    const why = screen.getByRole("textbox", { name: "Why you are overriding" });
+    fireEvent.change(why, { target: { value: "kept" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "override and record" })
+    );
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "could not record the override: the page changed on disk"
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect((why as HTMLTextAreaElement).value).toBe("kept");
+  });
+
+  it("is gone while the retry is in flight, and the same sentence refused again is a new element", async () => {
+    let refuse: (error: Error) => void = () => undefined;
+    let attempts = 0;
+    const override = vi.fn(() => {
+      // The first answer is given at once; the second is held past a
+      // macrotask so the in-flight state is on screen.
+      if (attempts++ === 0) throw new Error("already live");
+      return new Promise((_, reject) => (refuse = reject));
+    });
+    open(() => page(), { "hypotheses.override": override });
+    fireEvent.click(
+      within(await stateRegion()).getByRole("button", { name: OFFER })
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Why you are overriding" }),
+      { target: { value: "kept" } }
+    );
+    const record = () =>
+      screen.getByRole("button", { name: "override and record" });
+    fireEvent.click(record());
+    const first = await screen.findByRole("alert");
+
+    fireEvent.click(record());
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+    refuse(new Error("already live"));
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(
+      "could not record the override: already live"
+    );
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 });
 
