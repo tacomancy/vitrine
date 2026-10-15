@@ -863,7 +863,7 @@ describe("changed on disk, inside the section", () => {
     const { related, field } = await dirty(save, () => page);
     fireEvent.keyDown(field, { key: "Enter", metaKey: true });
 
-    const line = await within(related).findByRole("status");
+    const line = await within(related).findByRole("alert");
     expect(line.textContent).toContain("changed on disk");
     // Autosave is suspended while the line is up: a blur must not keep
     // asking a question that has been answered with a refusal.
@@ -885,7 +885,7 @@ describe("changed on disk, inside the section", () => {
       was: DISK,
     });
     await waitFor(() =>
-      expect(within(related).queryByRole("status")).toBeNull()
+      expect(within(related).queryByRole("alert")).toBeNull()
     );
   });
 
@@ -894,14 +894,14 @@ describe("changed on disk, inside the section", () => {
     const save = vi.fn(() => CONFLICT);
     const { related, field } = await dirty(save, () => page);
     fireEvent.keyDown(field, { key: "Enter", metaKey: true });
-    await within(related).findByRole("status");
+    await within(related).findByRole("alert");
 
     page = withRelated({ ...RELATED, text: DISK }, "xyz");
     fireEvent.click(
       within(related).getByRole("button", { name: "take the disk copy" })
     );
     await waitFor(() => expect(field.value).toBe(DISK));
-    expect(within(related).queryByRole("status")).toBeNull();
+    expect(within(related).queryByRole("alert")).toBeNull();
     // The typing is gone, so the blur that follows has nothing to save.
     fireEvent.blur(field);
     await new Promise((r) => setTimeout(r, 10));
@@ -944,7 +944,7 @@ describe("changed on disk, inside the section", () => {
         was: RELATED.text,
       })
     );
-    expect(within(related).queryByRole("status")).toBeNull();
+    expect(within(related).queryByRole("alert")).toBeNull();
   });
 
   it("the working answer takes the same line, with the same two actions", async () => {
@@ -972,7 +972,7 @@ describe("changed on disk, inside the section", () => {
     });
     fireEvent.change(box, { target: { value: "Probably not." } });
     fireEvent.blur(box);
-    const line = await within(answer).findByRole("status");
+    const line = await within(answer).findByRole("alert");
     expect(line.textContent).toContain("changed on disk");
     fireEvent.blur(box);
     await new Promise((r) => setTimeout(r, 10));
@@ -996,7 +996,7 @@ describe("changed on disk, inside the section", () => {
       was: "Obsidian wrote this.",
     });
     await waitFor(() =>
-      expect(within(answer).queryByRole("status")).toBeNull()
+      expect(within(answer).queryByRole("alert")).toBeNull()
     );
   });
 
@@ -1051,7 +1051,7 @@ describe("changed on disk, inside the section", () => {
       basedOn: "abc",
       was: "Probably both.",
     });
-    expect(within(answer).queryByRole("status")).toBeNull();
+    expect(within(answer).queryByRole("alert")).toBeNull();
   });
 
   it("keep mine over a file that can no longer be read says why and keeps the typing", async () => {
@@ -1059,7 +1059,7 @@ describe("changed on disk, inside the section", () => {
     const save = vi.fn(() => CONFLICT);
     const { related, field } = await dirty(save, () => page);
     fireEvent.keyDown(field, { key: "Enter", metaKey: true });
-    await within(related).findByRole("status");
+    await within(related).findByRole("alert");
 
     // `changedAndUnreapplyable` covers a file that is gone as well as a
     // section that moved; *keep mine* has nothing to save over.
@@ -1092,7 +1092,7 @@ describe("changed on disk, inside the section", () => {
     });
     fireEvent.change(box, { target: { value: "Probably not." } });
     fireEvent.blur(box);
-    await within(answer).findByRole("status");
+    await within(answer).findByRole("alert");
     page = {
       ...fresh,
       hash: "xyz",
@@ -1105,7 +1105,7 @@ describe("changed on disk, inside the section", () => {
       within(answer).getByRole("button", { name: "take the disk copy" })
     );
     await waitFor(() => expect(box.value).toBe("Obsidian wrote this."));
-    expect(within(answer).queryByRole("status")).toBeNull();
+    expect(within(answer).queryByRole("alert")).toBeNull();
     expect(save).toHaveBeenCalledTimes(1);
   });
 });
@@ -1831,5 +1831,113 @@ describe("a refusal on the page is said again each time", () => {
     await within(related).findByRole("alert");
     fireEvent.keyDown(field, { key: "Escape" });
     expect(within(related).queryByRole("alert")).toBeNull();
+  });
+});
+
+// A refused Position save is an alert (#586; ADR 0033 decisions 1, 5–6 and
+// its 2026-10-15 Update): said again each time it is refused, forgotten as
+// the next save begins and by esc, the typing kept.
+describe("a refused Position save is an alert", () => {
+  const REFUSED = {
+    written: false,
+    reason: "unreadable",
+    detail: "missing from the vault",
+  };
+
+  async function typing(save: unknown) {
+    open(
+      () => ({
+        ...fresh,
+        sections: {
+          ...fresh.sections,
+          workingAnswer: { present: true, text: "Probably both." },
+        },
+      }),
+      { "researchQuestions.saveWorkingAnswer": save }
+    );
+    const box = await within(await region()).findByRole<HTMLTextAreaElement>(
+      "textbox",
+      { name: "Working answer" }
+    );
+    fireEvent.change(box, { target: { value: "Probably not." } });
+    return box;
+  }
+
+  it.each([
+    ["blur", (box: HTMLElement) => fireEvent.blur(box)],
+    [
+      "⌘↵",
+      (box: HTMLElement) =>
+        fireEvent.keyDown(box, { key: "Enter", metaKey: true }),
+    ],
+    [
+      "⌥↵",
+      (box: HTMLElement) =>
+        fireEvent.keyDown(box, { key: "Enter", altKey: true }),
+    ],
+  ])("on %s: an alert with the core's sentence, nothing in status, the typing kept", async (_, act) => {
+    const box = await typing(() => REFUSED);
+    act(box);
+    const line = await screen.findByRole("alert");
+    expect(line.textContent).toBe("not saved — missing from the vault");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(box.value).toBe("Probably not.");
+  });
+
+  it("a refusal repeated is a new node, and nothing is on screen while the retry is in flight", async () => {
+    let release: (answer: unknown) => void = () => undefined;
+    let held = false;
+    const save = vi.fn(() =>
+      held
+        ? new Promise((resolve) => {
+            release = resolve;
+          })
+        : REFUSED
+    );
+    const box = await typing(save);
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    const first = await screen.findByRole("alert");
+
+    held = true;
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    release(REFUSED);
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(second).not.toBe(first);
+    expect(document.contains(first)).toBe(false);
+  });
+
+  it("esc reverts the typing and forgets the refusal", async () => {
+    const box = await typing(() => REFUSED);
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    await screen.findByRole("alert");
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(box.value).toBe("Probably both.");
+  });
+
+  it("changed on disk: the sentence is the alert, the two choices sit outside it and follow it in tab order", async () => {
+    const box = await typing(() => ({
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: "the section changed on disk",
+    }));
+    fireEvent.blur(box);
+    const line = await screen.findByRole("alert");
+    expect(line.textContent).toBe("changed on disk");
+    const keep = screen.getByRole("button", { name: "keep mine" });
+    const take = screen.getByRole("button", { name: "take the disk copy" });
+    expect(line.contains(keep)).toBe(false);
+    expect(line.contains(take)).toBe(false);
+    expect(
+      line.compareDocumentPosition(keep) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      keep.compareDocumentPosition(take) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });

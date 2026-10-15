@@ -11,6 +11,7 @@ import {
   type Base,
   type EditedPosition,
 } from "./page-procedures";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./ResearchQuestion.module.css";
 import { WhyLine } from "./WhyLine";
 
@@ -72,7 +73,9 @@ export function PositionField({
   useEffect(() => {
     typing.current = draft;
   }, [draft]);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // An alert, said again each time it is refused (ADR 0033 decisions 1, 5–6);
+  // forgotten as the next save begins and by esc.
+  const refusal = useRefusal();
   // Up while the *changed on disk* line is: autosave is suspended until
   // one of its two actions is chosen (#215).
   const [conflict, setConflict] = useState(false);
@@ -98,10 +101,10 @@ export function PositionField({
     onSuccess: async (result, { text: saved, basedOn }) => {
       if (!result.written) {
         if (result.reason === "changedAndUnreapplyable") setConflict(true);
-        else setRefusal(`not saved — ${result.detail}`);
+        else refusal.say(`not saved — ${result.detail}`);
         return;
       }
-      setRefusal(null);
+      refusal.forget();
       setConflict(false);
       await procedures.reread(position.kind, path);
       // Typing that went on past the save is kept; the field shows the
@@ -115,7 +118,7 @@ export function PositionField({
           : current
       );
     },
-    onError: (error) => setRefusal(`not saved — ${error.message}`),
+    onError: (error) => refusal.say(`not saved — ${error.message}`),
   });
 
   /**
@@ -126,6 +129,7 @@ export function PositionField({
    */
   const send = (typed: string, on: Base, explain = false) => {
     inFlight.current = true;
+    refusal.forget();
     save.mutate(
       { path, text: typed, basedOn: on.hash, was: on.text },
       {
@@ -165,6 +169,7 @@ export function PositionField({
       commit(true);
     } else if (event.key === "Escape") {
       event.preventDefault();
+      refusal.forget();
       setDraft(null);
       setBase(null);
       onDone?.();
@@ -176,9 +181,10 @@ export function PositionField({
   };
   // *Keep mine*: the disk copy read afresh, then the typing saved over it.
   const keepMine = async () => {
+    refusal.forget();
     const disk = await procedures.diskCopy(path, position);
     setConflict(false);
-    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
+    if (!disk.read) return refusal.say(`not saved — ${disk.reason}`);
     if (draft === null) return;
     setBase(disk.base);
     send(draft, disk.base);
@@ -187,11 +193,12 @@ export function PositionField({
   // The read is also what puts that file in the page's cache — `text`
   // arrives as a prop, and a field showing the file is one with no draft.
   const takeTheDiskCopy = async () => {
+    refusal.forget();
     const disk = await procedures.diskCopy(path, position);
     setConflict(false);
     // Nothing to take: the typing stays rather than being dropped for a
     // copy that could not be read.
-    if (!disk.read) return setRefusal(`not saved — ${disk.reason}`);
+    if (!disk.read) return refusal.say(`not saved — ${disk.reason}`);
     setDraft(null);
     setBase(null);
   };
@@ -240,11 +247,7 @@ export function PositionField({
           takeTheDiskCopy={() => void takeTheDiskCopy()}
         />
       )}
-      {refusal !== null && (
-        <p role="status" className={styles.refusal}>
-          {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
     </>
   );
 }
@@ -266,8 +269,11 @@ export function ChangedOnDisk({
   takeTheDiskCopy: () => void;
 }) {
   return (
-    <p role="status" className={styles.conflict}>
-      <span>changed on disk</span>
+    <p className={styles.conflict}>
+      {/* The sentence alone is the alert: an alert holds text and takes no
+          focus, so the two choices sit outside the live region, beside it
+          (ADR 0033 Update, decision 7). */}
+      <span role="alert">changed on disk</span>
       <button type="button" className={styles.edit} onClick={keepMine}>
         keep mine
       </button>

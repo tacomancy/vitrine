@@ -229,9 +229,10 @@ describe("⌥↵ in the working answer", () => {
     fireEvent.change(line, { target: { value: "Cordi's funnel plot." } });
     fireEvent.keyDown(line, { key: "Enter" });
 
-    expect(
-      await screen.findByText(/no revision in ## Position history is stamped/)
-    ).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /^not explained — no revision in ## Position history is stamped/
+    );
+    expect(screen.queryByRole("status")).toBeNull();
     expect((line as HTMLInputElement).value).toBe("Cordi's funnel plot.");
   });
 
@@ -307,7 +308,10 @@ describe("[[ inside the why line", () => {
     const picker = await screen.findByRole("dialog", { name: /why/i });
     fireEvent.click(await within(picker).findByText("cordi2021"));
 
-    expect(await screen.findByText(/no link written/)).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /^no link written/
+    );
+    expect(screen.queryByRole("status")).toBeNull();
     // A guess in the middle of the user's sentence would be worse than the
     // line saying nothing was written.
     expect(line.value).toBe("Mostly bias. [[");

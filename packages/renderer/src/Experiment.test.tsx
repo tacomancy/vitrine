@@ -256,6 +256,23 @@ describe("the page of a run designed but not yet run", () => {
     );
   });
 
+  it("a refused Purpose save is an alert with the core's sentence, and the typing stays", async () => {
+    open(() => planned, {
+      "experiments.saveSection": () => {
+        throw new Error("EACCES");
+      },
+    });
+    await region();
+    const purpose = await screen.findByRole("textbox", { name: "Purpose" });
+    fireEvent.change(purpose, { target: { value: "Typed." } });
+    fireEvent.blur(purpose);
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "not saved — EACCES"
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect((purpose as HTMLTextAreaElement).value).toBe("Typed.");
+  });
+
   it("saves where it ran as the user's own label: value lines", async () => {
     const saved: unknown[] = [];
     open(() => planned, {
