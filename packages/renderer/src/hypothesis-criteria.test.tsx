@@ -589,8 +589,8 @@ describe("a refused write to a criterion", () => {
     procedure: string;
     sentence: string;
     pages: CriterionRead[];
-    start: () => Promise<void>;
-    act: () => Promise<void>;
+    start: () => Promise<void> | void;
+    act: () => Promise<void> | void;
   }> = [
     {
       name: "add",
@@ -606,7 +606,7 @@ describe("a refused write to a criterion", () => {
         });
         fireEvent.click(screen.getByRole("radio", { name: "diagnostic" }));
       },
-      act: async () => {
+      act: () => {
         fireEvent.click(screen.getByRole("button", { name: "add" }));
       },
     },
@@ -615,7 +615,7 @@ describe("a refused write to a criterion", () => {
       procedure: "hypotheses.setCriterionField",
       sentence: `could not record it: ${detail}`,
       pages: [criterion()],
-      start: async () => undefined,
+      start: () => undefined,
       act: async () => {
         fireEvent.click(await radio("Outcome", "inconclusive"));
       },
@@ -625,7 +625,7 @@ describe("a refused write to a criterion", () => {
       procedure: "hypotheses.setCriterionField",
       sentence: `could not record it: ${detail}`,
       pages: [criterion()],
-      start: async () => undefined,
+      start: () => undefined,
       act: async () => {
         fireEvent.click(await radio("Relationship", "falsifying"));
       },
@@ -652,7 +652,7 @@ describe("a refused write to a criterion", () => {
       procedure: "hypotheses.deleteCriterion",
       sentence: `could not delete the criterion: ${detail}`,
       pages: [criterion()],
-      start: async () => undefined,
+      start: () => undefined,
       act: async () => {
         fireEvent.click(
           within(await card("C1")).getByRole("button", { name: "delete" })
