@@ -367,19 +367,6 @@ describe("a refused address on a Proposal card", () => {
     expect(second).not.toBe(first);
   });
 
-  it("is forgotten by another act key on the same card", async () => {
-    renderApp(answers([fileCard(), card({ id: 8, title: "Another" })]));
-    const article = await cardInHand();
-    fireEvent.keyDown(article, { key: "o" });
-    await screen.findByRole("alert");
-
-    fireEvent.keyDown(article, { key: "p" });
-
-    // Pass moves to another card, which brings its own; the same-card case is
-    // the Skim lane, where a key that does nothing to the card still forgets.
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-  });
-
   it("is forgotten by an act key that stays on the card", async () => {
     renderApp(answers([fileCard()], { "scouts.accept": refuse }));
     const article = await cardInHand();

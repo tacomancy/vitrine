@@ -72,6 +72,7 @@ export function ScoutQueue({
   // An act's options: a refusal is forgotten as the next act begins, so one
   // left on screen is never read as the answer to the retry (decision 6).
   const acts = {
+    // Returns undefined: the mutation options type will not take a void context.
     onMutate: () => {
       refusal.forget();
       return undefined;
@@ -138,11 +139,7 @@ export function ScoutQueue({
     ...trpc.scouts.defer.mutationOptions(),
     ...acts,
   });
-  const undo = useMutation(
-    trpc.scouts.undo.mutationOptions({
-      ...acts,
-    })
-  );
+  const undo = useMutation(trpc.scouts.undo.mutationOptions(acts));
   const rejectRun = useMutation(
     trpc.scouts.rejectRun.mutationOptions({
       onSuccess: ({ rejected }) => {
@@ -705,7 +702,8 @@ function Proposal({
     } else if (key === "o") {
       event.preventDefault();
       // Looking records nothing; a link the rule refuses says which scheme it
-      // had instead of doing nothing (§ Invariants, no silent failures).
+      // had instead of doing nothing (§ Invariants, no silent failures), as an
+      // alert because it answers the user's own `O` (ADR 0033 decision 5).
       if (link.kind === "refused") refusal.say(linkRefusal(link.scheme));
       else window.open(link.href, "_blank", "noopener,noreferrer");
     }
