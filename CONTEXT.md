@@ -479,6 +479,10 @@ _Avoid_: State, tone, empty state, zero state
 What a Claim rests on, shown in the slot where a row otherwise carries its Provenance. Only the *claim* Voice has one: the other two assert nothing about the world, so they have nothing to prove (ADR 0032). A row asserting that nothing is there with an empty Warrant is unfinished, which is what makes the distinction survive a careless render.
 _Avoid_: Evidence (that is a Hypothesis's), proof, justification (that is an Override's), caveat
 
+**Refusal**:
+What the app says when it will not do something the user just did — a save, a keypress, a click — and why, beside the act it answers. Where a state the app is in is announced politely, a Refusal is announced at once (ADR 0033).
+_Avoid_: Error, failure, toast, alert (that is the role it is announced with)
+
 **Settings**:
 The screen that says how this vault is arranged: where the vault is, where the PDFs are, and what the app talks to. Every line on it is a fact with a referent outside the app, checkable against the world; it holds no preference — no value whose only effect is on the app's own behaviour — so there are no themes, no sync toggle, no account, and no home for a default that belongs to the object it governs. Not one of the eight Surfaces and not a Dashboard: those are the work and readings of it, this is the arrangement they sit in. Has an Address (`#/settings`) and opens with ⌘,; unreachable from First run (ADR 0025).
 _Avoid_: Preferences, options, configuration, admin
