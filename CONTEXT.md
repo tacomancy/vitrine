@@ -480,7 +480,7 @@ What a Claim rests on, shown in the slot where a row otherwise carries its Prove
 _Avoid_: Evidence (that is a Hypothesis's), proof, justification (that is an Override's), caveat
 
 **Refusal**:
-What the app says when it will not do something the user just did — a save, a key, a link — and why, beside the act it answers. Where a Voice is a state and is announced politely, a Refusal is announced at once, drawn quietly and never red, and forgotten when the next act begins (ADR 0033).
+What the app says when it will not do something the user just did — a save, a keypress, a click — and why, beside the act it answers. Where a state the app is in is announced politely, a Refusal is announced at once (ADR 0033).
 _Avoid_: Error, failure, toast, alert (that is the role it is announced with)
 
 **Settings**:
