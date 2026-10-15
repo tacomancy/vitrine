@@ -14,6 +14,11 @@ export default async (page) => {
     foot
   );
   expect(
+    text.includes("stray.pdf"),
+    "Loose Ends rendered, its rows kept",
+    text
+  );
+  expect(
     !text.includes("PDF missing"),
     "Loose Ends has no PDF missing row",
     text

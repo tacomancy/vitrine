@@ -43,9 +43,10 @@ const scratch = mkdtempSync(join(tmpdir(), "vitrine-linked-folder-demo-"));
 const fixtures = join(repo, "packages/core/fixtures");
 
 // The vault, a sync folder beside it holding the Source's PDF and a stray one,
-// (the fixture's own rasch2013.pdf is a placeholder with nothing to read, so
-// annotated.pdf stands in under its name), and `sources/pdf` made a link to that folder. born2010 is removed: its PDF
-// really is absent, and its row would stand beside the one this shows.
+// and `sources/pdf` made a link to that folder. The fixture's own
+// rasch2013.pdf is a placeholder with nothing to read, so annotated.pdf stands
+// in under its name. born2010 is removed: its PDF really is absent, and its
+// row would stand beside the one this shows.
 function makeVault(name) {
   const vault = join(scratch, name, "vault");
   const sync = join(scratch, name, "sync");
@@ -62,7 +63,7 @@ function makeVault(name) {
   return { vault, sync, support: join(scratch, name, "support") };
 }
 
-const launch = (checkout, png, drive, { vault, support }, after) =>
+const launch = (checkout, png, drive, { vault, support }, settleMs) =>
   new Promise((done, fail) => {
     const child = spawn(
       "node",
@@ -77,7 +78,7 @@ const launch = (checkout, png, drive, { vault, support }, after) =>
         "--drive",
         join(here, "linked-folder-demo", drive),
         "--after",
-        String(after),
+        String(settleMs),
       ],
       {
         stdio: "inherit",
@@ -103,10 +104,10 @@ try {
       makeVault("before"),
       5000
     );
-  const v = makeVault("after");
-  await launch(repo, "2-after.png", "after.mjs", v, 5000);
-  rmSync(v.sync, { recursive: true });
-  await launch(repo, "3-fault.png", "fault.mjs", v, 6000);
+  const afterVault = makeVault("after");
+  await launch(repo, "2-after.png", "after.mjs", afterVault, 5000);
+  rmSync(afterVault.sync, { recursive: true });
+  await launch(repo, "3-fault.png", "fault.mjs", afterVault, 6000);
   console.log(`scratch: ${scratch}`);
 } finally {
   if (!process.env.KEEP) rmSync(scratch, { recursive: true, force: true });
