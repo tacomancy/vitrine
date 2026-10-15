@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 import {
+  watch as fsWatch,
+  type WatchEventType,
+  type WatchListener,
+} from "node:fs";
+import {
   chmod,
   copyFile,
   cp,
@@ -72,6 +77,71 @@ export const urlOf = (input: string | URL | Request): URL =>
 
 export async function tmp(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), `vitrine-${prefix}-`));
+}
+
+/** How long the OS may take to name the files a test wrote, before it is called lost. */
+const NAMING_MS = 5000;
+
+/**
+ * The real `fs.watch`, except that from `hold()` on the OS's events for `names`
+ * are the test's to hand over: the first for each is kept, and the duplicates
+ * FSEvents adds are dropped (the watcher stats the path whichever event named
+ * it). `named()` resolves once the OS has named every one, with a `hear` that
+ * gives the watcher the events for the files it is asked for. Real files, real
+ * stats; only *when the watcher hears each* is taken out of the disk's hands —
+ * the seam `deferring()` and `held()` use, in `vault-watcher.test.ts` and
+ * `ingest.test.ts`, for their own cases.
+ */
+export function heldEvents(names: string[]) {
+  const kept = new Map<string, WatchEventType>();
+  let listening: WatchListener<string> | null = null;
+  let holding = false;
+  let wake: () => void = () => undefined;
+  const watch = ((
+    folder: string,
+    options: { recursive: boolean },
+    listener: WatchListener<string>
+  ) => {
+    listening = listener;
+    return fsWatch(folder, options, (kind, filename) => {
+      if (holding && filename !== null && names.includes(filename)) {
+        if (!kept.has(filename)) kept.set(filename, kind);
+        wake();
+      } else {
+        listener(kind, filename);
+      }
+    });
+  }) as typeof fsWatch;
+  return {
+    watch,
+    hold: () => {
+      holding = true;
+    },
+    named: async (): Promise<(files: string[]) => void> => {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `waited ${NAMING_MS}ms for the OS to name ${names.length} files: it named ${kept.size}`
+              )
+            ),
+          NAMING_MS
+        );
+        wake = () => {
+          if (kept.size < names.length) return;
+          clearTimeout(timer);
+          resolve();
+        };
+        wake();
+      });
+      const listener = listening;
+      if (listener === null) throw new Error("the core started no watch");
+      return (files) => {
+        for (const file of files) listener(kept.get(file)!, file);
+      };
+    },
+  };
 }
 
 /** What a tRPC reply looks like on the wire, as far as a test needs. */
