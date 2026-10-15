@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnnotationControls } from "./AnnotationControls";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { ConnectionsPanel, ticksOf, type Tick } from "./Connections";
-import { classifyLink, refusal } from "./link-rule";
+import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { HighlightBar } from "./HighlightBar";
 import { PdfDocument, type PageSelection } from "./pdf-document";
@@ -163,7 +163,7 @@ function Header({ source }: { source: Readable }) {
               type="button"
               className={styles.notLink}
               aria-label={`not a link: ${source.url}`}
-              onClick={() => setSaid(refusal(link.scheme))}
+              onClick={() => setSaid(linkRefusal(link.scheme))}
             >
               {source.url}
             </button>

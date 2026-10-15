@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
-import { classifyLink, refusal } from "./link-rule";
+import { classifyLink, refusal as linkRefusal } from "./link-rule";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { hashOf } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
@@ -54,7 +55,29 @@ export function ScoutQueue({
   // key* leaves for Settings, and this surface unmounts on the way.
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
+  // The one line holds the latest thing that happened, of two kinds that are
+  // heard differently: what was done is `said`, a polite status; what the core
+  // turned down is `refusal`, an alert (ADR 0033 decision 1 and its 2026-10-15
+  // Update). Saying one forgets the other, so the line never holds both.
   const [said, setSaid] = useState<string | null>(null);
+  const refusal = useRefusal();
+  const acknowledge = (words: string) => {
+    refusal.forget();
+    setSaid(words);
+  };
+  const refuse = (error: { message: string }) => {
+    setSaid(null);
+    refusal.say(error.message);
+  };
+  // An act's options: a refusal is forgotten as the next act begins, so one
+  // left on screen is never read as the answer to the retry (decision 6).
+  const acts = {
+    onMutate: () => {
+      refusal.forget();
+      return undefined;
+    },
+    onError: refuse,
+  };
   const [selected, setSelected] = useState<string | null>(scout ?? null);
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
@@ -70,29 +93,29 @@ export function ScoutQueue({
   const run = useMutation(
     trpc.scouts.runNow.mutationOptions({
       onSuccess: (summary) => {
-        setSaid(runWords(summary));
+        acknowledge(runWords(summary));
         void reread();
       },
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
   const accept = useMutation(
     trpc.scouts.accept.mutationOptions({
       onSuccess: (accepted) => {
-        setSaid(
+        acknowledge(
           accepted.held
             ? `Already in your vault: ${accepted.path}`
             : `Accepted into ${accepted.path}`
         );
         void reread();
       },
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
   const pause = useMutation(
     trpc.scouts.setPaused.mutationOptions({
       onSuccess: () => void reread(),
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
   const promote = useMutation(
@@ -101,32 +124,32 @@ export function ScoutQueue({
         const title = skim.data?.recent
           .concat(skim.data.older)
           .find((l) => l.id === proposalId)?.title;
-        setSaid(`Sent “${title ?? "that line"}” to Review.`);
+        acknowledge(`Sent “${title ?? "that line"}” to Review.`);
         void reread();
       },
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
   const reject = useMutation({
     ...trpc.scouts.reject.mutationOptions(),
-    onError: (error) => setSaid(error.message),
+    ...acts,
   });
   const defer = useMutation({
     ...trpc.scouts.defer.mutationOptions(),
-    onError: (error) => setSaid(error.message),
+    ...acts,
   });
   const undo = useMutation(
     trpc.scouts.undo.mutationOptions({
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
   const rejectRun = useMutation(
     trpc.scouts.rejectRun.mutationOptions({
       onSuccess: ({ rejected }) => {
-        setSaid(`Rejected ${rejected} from this run.`);
+        acknowledge(`Rejected ${rejected} from this run.`);
         void reread();
       },
-      onError: (error) => setSaid(error.message),
+      ...acts,
     })
   );
 
@@ -247,7 +270,7 @@ export function ScoutQueue({
       {
         onSuccess: () => {
           setUndoable((was) => [...was, { id, title, action: kind }]);
-          setSaid(
+          acknowledge(
             kind === "rejected"
               ? `Rejected “${title}”.`
               : `Deferred “${title}” until the next run.`
@@ -265,7 +288,7 @@ export function ScoutQueue({
       {
         onSuccess: () => {
           setUndoable((was) => was.slice(0, -1));
-          setSaid(`Put “${last.title}” back.`);
+          acknowledge(`Put “${last.title}” back.`);
           void reread();
         },
       }
@@ -504,6 +527,9 @@ export function ScoutQueue({
           {said}
         </p>
       )}
+      {/* Quiet to look at, an alert to hear: a refusal of the user's own act
+          (ADR 0033 decision 5). */}
+      <RefusalLine refusal={refusal} className={styles.line} />
       {last !== undefined && (
         <p className={styles.line}>
           <button type="button" onClick={onUndo}>
@@ -648,7 +674,10 @@ function Proposal({
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => ref.current?.focus(), []);
-  const [refused, setRefused] = useState<string | null>(null);
+  // An address the link rule refuses is the user's own `O` or click turned
+  // down, so it is an alert, heard again on each press and forgotten as the
+  // next act key is pressed on this card (ADR 0033 decisions 5–6).
+  const refusal = useRefusal();
   const link = classifyLink(card.url);
 
   function onKeyDown(event: globalThis.KeyboardEvent) {
@@ -671,12 +700,13 @@ function Proposal({
     )[key as "a"];
     if (act !== undefined) {
       event.preventDefault();
+      refusal.forget();
       act();
     } else if (key === "o") {
       event.preventDefault();
       // Looking records nothing; a link the rule refuses says which scheme it
       // had instead of doing nothing (§ Invariants, no silent failures).
-      if (link.kind === "refused") setRefused(refusal(link.scheme));
+      if (link.kind === "refused") refusal.say(linkRefusal(link.scheme));
       else window.open(link.href, "_blank", "noopener,noreferrer");
     }
   }
@@ -718,7 +748,7 @@ function Proposal({
               type="button"
               className={styles.notLink}
               aria-label={`not a link: ${card.url}`}
-              onClick={() => setRefused(refusal(link.scheme))}
+              onClick={() => refusal.say(linkRefusal(link.scheme))}
             >
               {card.url}
             </button>
@@ -729,7 +759,7 @@ function Proposal({
           )}
         </dd>
       </dl>
-      {refused !== null && <p role="status">{refused}</p>}
+      <RefusalLine refusal={refusal} />
       <p className={styles.abstract}>{card.abstract}</p>
       <p className={styles.actions}>
         {lane === "skim" ? (
