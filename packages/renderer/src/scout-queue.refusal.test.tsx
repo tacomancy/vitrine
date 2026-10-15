@@ -206,6 +206,27 @@ describe("a refused act in the Scout Queue", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("is replaced by the acknowledgment of an act that was still in flight when it was said", async () => {
+    const accepting = held();
+    renderApp(
+      answers([card()], {
+        "scouts.accept": () => accepting.promise,
+        "scouts.setPaused": refuse,
+      })
+    );
+    fireEvent.keyDown(await cardInHand(), { key: "a" });
+    await chooseScout();
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    await screen.findByRole("alert");
+
+    accepting.settle({ ok: { path: "sources/x.md", held: false } });
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Accepted into sources/x.md"
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("is a status when the Run now ran and failed: the failure is the Scout's own voice", async () => {
     renderApp(
       answers([], {
