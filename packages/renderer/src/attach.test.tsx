@@ -271,9 +271,43 @@ describe("attaching a source", () => {
     const form = await chooseSource();
     fireEvent.click(within(form).getByRole("radio", { name: "supporting" }));
     fireEvent.click(within(form).getByRole("button", { name: /attach/i }));
-    expect((await screen.findByRole("status")).textContent).toContain(
+    expect((await screen.findByRole("alert")).textContent).toContain(
       "the file changed underneath"
     );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  // #587 (ADR 0033 decisions 5–6): gone while the retry is in flight, and the
+  // same sentence refused again is a new element, so it is heard again.
+  it("forgets a refused attach as the retry begins, and says the same sentence again as a new element", async () => {
+    let refuse: (answer: unknown) => void = () => undefined;
+    let attempts = 0;
+    const refused = {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: "the file changed underneath",
+    };
+    open(page([], []), {
+      "researchQuestions.attachSource": () =>
+        attempts++ === 0
+          ? refused
+          : new Promise((resolve) => (refuse = resolve)),
+    });
+    const form = await chooseSource();
+    fireEvent.click(within(form).getByRole("radio", { name: "supporting" }));
+    fireEvent.click(within(form).getByRole("button", { name: /attach/i }));
+    const first = await screen.findByRole("alert");
+
+    fireEvent.click(within(form).getByRole("button", { name: /attach/i }));
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+    refuse(refused);
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 });
 
