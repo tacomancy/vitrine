@@ -215,12 +215,42 @@ describe("a stub made by hand", () => {
       key: "Enter",
     });
 
-    expect((await within(form).findByRole("status")).textContent).toMatch(
+    expect((await within(form).findByRole("alert")).textContent).toMatch(
       /read-only/i
     );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(
       within(form).getByRole<HTMLInputElement>("textbox", { name: /title/i })
         .value
     ).toBe("Sleep deprivation and memory");
+  });
+
+  // #587 (ADR 0033 decisions 5–6): gone while the retry is in flight, and the
+  // same sentence refused again is a new element, so it is heard again.
+  it("forgets a refusal as the retry begins, and says the same sentence again as a new element", async () => {
+    let refuse: (error: Error) => void = () => undefined;
+    let attempts = 0;
+    open({
+      "sources.createStub": () => {
+        if (attempts++ === 0) throw new Error("sources/ is read-only");
+        return new Promise((_, reject) => (refuse = reject));
+      },
+    });
+    const form = await stubForm();
+    const title = within(form).getByRole("textbox", { name: /title/i });
+    fireEvent.change(title, { target: { value: "Sleep deprivation" } });
+    fireEvent.keyDown(title, { key: "Enter" });
+    const first = await within(form).findByRole("alert");
+
+    fireEvent.keyDown(title, { key: "Enter" });
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+    refuse(new Error("sources/ is read-only"));
+    const second = await within(form).findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 });
