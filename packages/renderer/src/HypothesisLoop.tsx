@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Loop } from "core";
-import { useState } from "react";
 import styles from "./Hypothesis.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import rq from "./ResearchQuestion.module.css";
 import { MONTHS } from "./rows";
 import { useTRPC } from "./trpc";
@@ -32,11 +32,13 @@ export function LoopLine({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // A refused close is the user's act turned down, so it is an alert (ADR 0033
+  // decision 1 and its 2026-10-15 Update), forgotten as the next attempt
+  // begins. Its look is the line's own register: `rq.refusal`, unchanged.
+  const refusal = useRefusal();
   const close = useMutation(
     trpc.hypotheses.closeLoop.mutationOptions({
       onSuccess: () => {
-        setRefusal(null);
         void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
         // The parent's own surfaces read the line too: the Inbox row says
         // *answered — <result>*, a Research Question lists it.
@@ -46,7 +48,7 @@ export function LoopLine({
         );
       },
       onError: (error) =>
-        setRefusal(`could not close the loop: ${error.message}`),
+        refusal.say(`could not close the loop: ${error.message}`),
     })
   );
   const offer = (label: string) => (
@@ -54,7 +56,10 @@ export function LoopLine({
       type="button"
       className={`${rq.edit} ${styles.offer}`}
       disabled={close.isPending}
-      onClick={() => close.mutate({ path, basedOn: hash })}
+      onClick={() => {
+        refusal.forget();
+        close.mutate({ path, basedOn: hash });
+      }}
     >
       {label}
     </button>
@@ -99,16 +104,12 @@ export function LoopLine({
             )}
           </>
         ))}
-      {refusal !== null && (
-        <p role="status" className={rq.refusal}>
-          {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={rq.refusal} />
     </section>
   );
 }
 
-/** Why the act is not offered, in the core's words, in the offer's quiet voice. */
+/** Why the act is not offered, in the core's words, in the offer's register. */
 function NotYet({ refusal }: { refusal: string }) {
   return <p className={styles.offerNote}>not closable yet — {refusal}</p>;
 }

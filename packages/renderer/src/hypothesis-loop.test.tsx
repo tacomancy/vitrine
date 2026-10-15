@@ -187,7 +187,7 @@ describe("closing the loop", () => {
     await waitFor(() => expect(closeLoop).toHaveBeenCalled());
   });
 
-  it("shows the core's refusal as a line on the page", async () => {
+  it("shows the core's refusal as an alert on the page, not a status", async () => {
     const closeLoop = vi.fn(() => {
       throw new Error(
         "questions/Does the reanalysis shrink the pooled effect.md changed on disk"
@@ -202,11 +202,41 @@ describe("closing the loop", () => {
     const loop = await loopRegion();
     fireEvent.click(within(loop).getByRole("button"));
 
-    expect(
-      await within(loop).findByText(
-        /could not close the loop: .*changed on disk/
-      )
-    ).toBeTruthy();
+    expect((await within(loop).findByRole("alert")).textContent).toMatch(
+      /could not close the loop: .*changed on disk/
+    );
+    expect(within(loop).queryByRole("status")).toBeNull();
+  });
+
+  it("is gone while the retry is in flight, and the same sentence refused again is a new element", async () => {
+    const sentence = "questions/Q.md changed on disk";
+    let refuse: (error: Error) => void = () => undefined;
+    let attempts = 0;
+    const closeLoop = vi.fn(() => {
+      // The first answer is given at once; the second is held past a
+      // macrotask so the in-flight state is on screen.
+      if (attempts++ === 0) throw new Error(sentence);
+      return new Promise((_, reject) => (refuse = reject));
+    });
+    open(
+      () =>
+        page({ status: "open", parent, refusal: null, result: "falsified" }),
+      { "hypotheses.closeLoop": closeLoop }
+    );
+    const loop = await loopRegion();
+    fireEvent.click(within(loop).getByRole("button"));
+    const first = await within(loop).findByRole("alert");
+
+    fireEvent.click(within(loop).getByRole("button"));
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(within(loop).queryByRole("alert")).toBeNull();
+    refuse(new Error(sentence));
+    const second = await within(loop).findByRole("alert");
+    expect(second.textContent).toBe(`could not close the loop: ${sentence}`);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 });
 
