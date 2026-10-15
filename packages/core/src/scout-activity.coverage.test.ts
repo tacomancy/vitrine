@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
+import type { LooseEnds } from "./loose-ends.js";
 import { GAP_ROWS, type ScoutActivity } from "./scout-activity.js";
 import {
   arxivScout,
@@ -64,6 +65,12 @@ async function opened(
   const { c, db } = await openedWithQueue(scouts, files);
   return {
     db,
+    /** What Loose Ends lists for this vault, to be read beside the gaps. */
+    looseEnds: async () => {
+      const r = await c.query<LooseEnds>("looseEnds.rows");
+      expect(r.error).toBeUndefined();
+      return r.result!.data;
+    },
     coverage: async () => {
       const r = await c.query<ScoutActivity>("scouts.activity");
       expect(r.error).toBeUndefined();
@@ -81,6 +88,22 @@ async function opened(
 }
 
 describe("scouts.activity — coverage gaps", () => {
+  // Story 76 (#511): a gap is worth knowing and not broken, so it must never
+  // be listed twice by also becoming a Loose Ends row.
+  it("adds no Loose Ends row for a gap", async () => {
+    const f = await opened(
+      { "looking.yaml": withAssigned(arxivScout("looking"), FIXTURE_IDS) },
+      { "q/none.md": question("q-none", "Nobody assigned?") }
+    );
+    expect((await f.gaps()).shown.map((g) => g.question)).toContain(
+      "Nobody assigned?"
+    );
+
+    expect(JSON.stringify(await f.looseEnds())).not.toContain(
+      "Nobody assigned?"
+    );
+  });
+
   it("is a gap when no Scout is Assigned, or its only Scout is paused or waiting on a key — and not when its only Scout is broken", async () => {
     const f = await opened(
       {
