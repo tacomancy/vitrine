@@ -80,8 +80,10 @@ async function focusAndWait(
   await stream.next("vaultStatus");
 }
 
-const quiet = (stream: EventStream, type: "vaultChanged" | "ingestLanded") =>
-  expect(stream.next(type, { timeoutMs: QUIET_MS })).rejects.toThrow();
+const quiet = (
+  stream: EventStream,
+  type: "vaultChanged" | "ingestLanded" | "vaultStatus"
+) => expect(stream.next(type, { timeoutMs: QUIET_MS })).rejects.toThrow();
 
 describe("a PDF the watcher never heard, on focus", () => {
   it("is read in a plain folder: one run, one summary", async () => {
