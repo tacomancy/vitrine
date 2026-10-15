@@ -47,6 +47,14 @@ type RunWindowOptions = {
   ceilingMs: number;
   /** Reads the held PDFs as one Ingest run. */
   run: (paths: string[]) => void;
+  /**
+   * Whether the vault this window belongs to is the open one. Asked when a
+   * hold fires, so that a hold outliving its vault reads nothing and says
+   * nothing whichever teardown path ran — or forgot to call `close()`. The
+   * guard is here and not in each caller because a caller that had to
+   * remember it would one day not (#561).
+   */
+  isOpen: () => boolean;
 };
 
 /**
@@ -61,6 +69,15 @@ export const effectiveRunWindowMs = (windowMs: number, settleMs: number) =>
 export type RunWindow = {
   /** A `vaultChanged` named these PDFs: hold them, and start the window again. */
   hold: (paths: readonly string[]) => void;
+  /**
+   * Held PDFs were renamed: the path moves, because a run is asked for by path
+   * and matched against each Source's current `pdf:`, which follows the file
+   * (a run for the old name would find no Source). Starts the window again, so
+   * the run comes after the Source has followed.
+   */
+  move: (pairs: ReadonlyArray<{ from: string; to: string }>) => void;
+  /** Held PDFs were deleted: the *PDF missing* row they already are, and no run. */
+  drop: (paths: readonly string[]) => void;
   /** Every Source is about to be read, which covers whatever is held: forget it, unread. */
   discard: () => void;
   /** The vault is going: nothing held will be read. */
@@ -72,6 +89,7 @@ export function createRunWindow({
   windowMs,
   ceilingMs,
   run,
+  isOpen,
 }: RunWindowOptions): RunWindow {
   const effectiveWindowMs = effectiveRunWindowMs(windowMs, settleMs);
   const effectiveCeilingMs = Math.max(ceilingMs, effectiveWindowMs);
@@ -90,7 +108,12 @@ export function createRunWindow({
   const release = () => {
     const paths = [...held];
     forget();
-    if (paths.length > 0) run(paths);
+    if (paths.length > 0 && isOpen()) run(paths);
+  };
+  const restart = () => {
+    clearTimeout(windowTimer);
+    windowTimer = setTimeout(release, effectiveWindowMs);
+    windowTimer.unref();
   };
 
   return {
@@ -101,9 +124,21 @@ export function createRunWindow({
         ceilingTimer.unref();
       }
       for (const path of paths) held.add(path);
-      clearTimeout(windowTimer);
-      windowTimer = setTimeout(release, effectiveWindowMs);
-      windowTimer.unref();
+      restart();
+    },
+    move: (pairs) => {
+      let moved = false;
+      for (const { from, to } of pairs) {
+        if (!held.delete(from)) continue;
+        held.add(to);
+        moved = true;
+      }
+      if (moved) restart();
+    },
+    drop: (paths) => {
+      for (const path of paths) held.delete(path);
+      // Nothing left to wait for: no run, and no timer left behind for one.
+      if (held.size === 0) forget();
     },
     discard: forget,
     close: forget,
