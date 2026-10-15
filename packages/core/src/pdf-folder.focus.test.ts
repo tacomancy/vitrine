@@ -36,10 +36,17 @@ const plain = (files: Record<string, string> = {}) =>
 
 async function opened(
   vault: string,
-  opts: Parameters<typeof core>[0] = {}
+  opts: Parameters<typeof core>[0] = {},
+  watching = true
 ): Promise<{ c: Awaited<ReturnType<typeof core>> }> {
   const c = await core({ settleMs: 40, ...opts });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
+  // The open's own sweep is over before the test writes anything: a PDF it
+  // found would be read then, and the focus would have nothing left to find.
+  if (watching) {
+    await c.indexed();
+    return { c };
+  }
   // A vault that is not watching is never current: its walk is done instead.
   await vi.waitFor(
     async () =>
@@ -222,18 +229,14 @@ describe("what a focus does not read", () => {
   it("reads no Source whose sidecar is behind its PDF: no run for every Source follows", async () => {
     const vault = await plain({ "sources/a.md": SOURCE("a", "src-a") });
     await writeFile(join(vault, "sources/pdf/a.pdf"), await annotated());
-    const { c } = await opened(vault);
-    // The open read it; take the sidecar away so a run for every Source would read it again.
-    await vi.waitFor(
-      async () =>
-        expect(
-          await readFile(join(vault, ".vitrine/annotations/src-a.json"), "utf8")
-        ).toBeTruthy(),
-      { timeout: 4000, interval: 25 }
-    );
+    const c = await core({ settleMs: 40 });
+    const stream = await c.events();
+    await c.mutate("vault.open", { path: vault });
+    // The open's own run is done before the sidecar goes, or it would write it back.
+    await stream.next("ingestLanded");
+    await drain(stream);
     const sidecar = join(vault, ".vitrine/annotations/src-a.json");
     await rm(sidecar);
-    const stream = await c.events();
     await focusAndWait(c, stream);
     await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
     // Read on the file and not on an event: a run would write the sidecar back.
@@ -265,11 +268,15 @@ describe("when the sweep does not run, or runs anyway", () => {
 
   it("still sweeps when the vault is not watching", async () => {
     const vault = await plain({});
-    const { c } = await opened(vault, {
-      watch: () => {
-        throw new Error("EMFILE: too many open files");
+    const { c } = await opened(
+      vault,
+      {
+        watch: () => {
+          throw new Error("EMFILE: too many open files");
+        },
       },
-    });
+      false
+    );
     const stream = await c.events();
     await writeFile(join(vault, "sources/pdf/late.pdf"), PDF);
     await focusAndWait(c, stream);
