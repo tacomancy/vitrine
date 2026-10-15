@@ -1,4 +1,11 @@
-import { mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
