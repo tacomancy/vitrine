@@ -10,6 +10,8 @@ import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
+import { PDF_FOLDER } from "./pdf-folder.js";
+import { pdfFolderOutside } from "./vault-watcher.js";
 import type { PositionChange } from "./pending-revisions.js";
 import { answeredBy, readQuestion } from "./question-kind.js";
 import {
@@ -348,9 +350,13 @@ const staging = (path: string) => `\0${path}`;
 
 /**
  * Every non-dot entry under a folder of the vault (the whole vault by
- * default), never through a symlink, with the stat the sweep compares. A
- * folder that cannot be listed is reported as an unreadable path rather
- * than skipped.
+ * default), never through a symlink but one, with the stat the sweep
+ * compares. The one is `sources/pdf` when it leads outside the vault
+ * (ADR 0013 decision 15), asked of the same `pdfFolderOutside` the watcher
+ * asks, so the two cannot disagree about which folder is the PDF folder. A
+ * walk that starts at or below that folder never reaches the link, so reads
+ * through it as before. A folder that cannot be listed is reported as an
+ * unreadable path rather than skipped.
  */
 async function walk(
   root: string,
@@ -374,9 +380,13 @@ async function walk(
       return;
     }
     for (const entry of listed) {
-      if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+      if (entry.name.startsWith(".")) continue;
       const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
-      if (entry.isDirectory()) {
+      if (entry.isSymbolicLink()) {
+        if (path === PDF_FOLDER && (await pdfFolderOutside(root)) !== null) {
+          await visit(path);
+        }
+      } else if (entry.isDirectory()) {
         await visit(path);
       } else if (entry.isFile()) {
         let s;

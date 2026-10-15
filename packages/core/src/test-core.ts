@@ -13,6 +13,7 @@ import {
   readdir,
   readFile,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -142,6 +143,55 @@ export function heldEvents(names: string[]) {
       };
     },
   };
+}
+
+/**
+ * The real `fs.watch` until `deafen()`, after which the watcher hears nothing
+ * from the PDF folder: events under `sources/pdf` on the watch over `vault`,
+ * and everything on the watch over the link's real path, are dropped. Real
+ * files, real stats; only *whether the watcher hears the folder* is the
+ * test's, so a PDF that arrived while the app was deaf is one only a sweep can
+ * find (#572). The probe on the vault's own watch still gets through, so a
+ * watcher started after `deafen()` still proves live.
+ */
+export function deafWatch(vault: string) {
+  let deaf = false;
+  const watch = ((
+    folder: string,
+    options: { recursive: boolean },
+    listener: WatchListener<string>
+  ) =>
+    fsWatch(folder, options, (kind, filename) => {
+      const name = filename?.toString() ?? "";
+      const pdfFolder = folder !== vault || name.startsWith("sources/pdf");
+      if (!(deaf && pdfFolder)) listener(kind, filename);
+    })) as typeof fsWatch;
+  return {
+    watch,
+    deafen: () => {
+      deaf = true;
+    },
+  };
+}
+
+/**
+ * A vault whose `sources/pdf` is a real link to a folder outside it, both
+ * written with `files` (vault-relative, `sources/pdf/…` going to the folder).
+ * Answers with the vault and the folder, so a test can write to it later.
+ */
+export async function linkedPdfVault(
+  files: Record<string, string> = {}
+): Promise<{ vault: string; folder: string }> {
+  const vault = await tmp("linked-vault");
+  const folder = await tmp("linked-pdfs");
+  await mkdir(join(vault, "sources"), { recursive: true });
+  await symlink(folder, join(vault, "sources/pdf"));
+  // Through the link, so each file lands in the folder and the vault shows it.
+  for (const [name, content] of Object.entries(files)) {
+    await mkdir(join(vault, name, ".."), { recursive: true });
+    await writeFile(join(vault, name), content);
+  }
+  return { vault, folder };
 }
 
 /** What a tRPC reply looks like on the wire, as far as a test needs. */
