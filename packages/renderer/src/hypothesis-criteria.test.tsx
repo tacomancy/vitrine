@@ -546,3 +546,156 @@ describe("the history of a criterion deleted after evidence", () => {
     expect(within(loud).getByRole("button", { name: "+ why" })).toBeTruthy();
   });
 });
+
+// #588 (ADR 0033 decisions 1, 5–6): a refused Criterion write is the user's
+// act turned down, so it is an alert, forgotten as the next act begins, and a
+// new element each time it is said.
+describe("a refused write to a criterion", () => {
+  const detail = "no criterion carries ^c1";
+  const refusal = {
+    written: false,
+    reason: "changedAndUnreapplyable",
+    detail,
+    revision: null,
+  };
+  // The first answer is given at once; the second is held past a macrotask so
+  // the in-flight state is on screen, then released with the same refusal.
+  const answers = () => {
+    let calls = 0;
+    let release: () => void = () => undefined;
+    return {
+      calls: () => calls,
+      release: () => release(),
+      answer: () => {
+        if (calls++ === 0) return refusal;
+        return new Promise((resolve) => (release = () => resolve(refusal)));
+      },
+    };
+  };
+  const radio = async (group: string, name: string) =>
+    within(
+      within(await card("C1")).getByRole("radiogroup", { name: group })
+    ).getByRole("radio", { name });
+  const reword = async (text: string) => {
+    const box = within(await card("C1")).getByRole("textbox", {
+      name: "Criterion C1",
+    });
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.keyDown(box, { key: "Enter" });
+  };
+
+  const acts: Array<{
+    name: string;
+    procedure: string;
+    sentence: string;
+    pages: CriterionRead[];
+    start: () => Promise<void> | void;
+    act: () => Promise<void> | void;
+  }> = [
+    {
+      name: "add",
+      procedure: "hypotheses.addCriterion",
+      sentence: `could not add the criterion: ${detail}`,
+      pages: [],
+      start: async () => {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "+ criterion" })
+        );
+        fireEvent.change(screen.getByRole("textbox", { name: "Criterion" }), {
+          target: { value: "Kept" },
+        });
+        fireEvent.click(screen.getByRole("radio", { name: "diagnostic" }));
+      },
+      act: () => {
+        fireEvent.click(screen.getByRole("button", { name: "add" }));
+      },
+    },
+    {
+      name: "set an Outcome",
+      procedure: "hypotheses.setCriterionField",
+      sentence: `could not record it: ${detail}`,
+      pages: [criterion()],
+      start: () => undefined,
+      act: async () => {
+        fireEvent.click(await radio("Outcome", "inconclusive"));
+      },
+    },
+    {
+      name: "set a Relationship",
+      procedure: "hypotheses.setCriterionField",
+      sentence: `could not record it: ${detail}`,
+      pages: [criterion()],
+      start: () => undefined,
+      act: async () => {
+        fireEvent.click(await radio("Relationship", "falsifying"));
+      },
+    },
+    {
+      name: "reword",
+      procedure: "hypotheses.editCriterion",
+      sentence: `could not save the criterion: ${detail}`,
+      pages: [criterion()],
+      start: async () => {
+        fireEvent.click(
+          within(await card("C1")).getByRole("button", { name: "edit" })
+        );
+      },
+      // The field stays settled after a refusal until its text changes (seen,
+      // not changed here), so each attempt types a different text.
+      act: (() => {
+        let n = 0;
+        return () => reword(`A new wording ${n++}`);
+      })(),
+    },
+    {
+      name: "delete",
+      procedure: "hypotheses.deleteCriterion",
+      sentence: `could not delete the criterion: ${detail}`,
+      pages: [criterion()],
+      start: () => undefined,
+      act: async () => {
+        fireEvent.click(
+          within(await card("C1")).getByRole("button", { name: "delete" })
+        );
+      },
+    },
+  ];
+
+  it.each(acts)(
+    "$name: says the sentence in an alert, not a status, and is gone while the retry is in flight, then a new element when refused again",
+    async ({ procedure, sentence, pages, start, act }) => {
+      const core = answers();
+      open(() => page(pages), { [procedure]: core.answer });
+      await start();
+
+      await act();
+      const first = await screen.findByRole("alert");
+      expect(first.textContent).toBe(sentence);
+      expect(screen.queryByRole("status")).toBeNull();
+
+      await act();
+      await waitFor(() => expect(core.calls()).toBe(2));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(screen.queryByRole("alert")).toBeNull();
+      core.release();
+      const second = await screen.findByRole("alert");
+      expect(second.textContent).toBe(sentence);
+      expect(first.isConnected).toBe(false);
+      expect(second).not.toBe(first);
+    }
+  );
+
+  it("keeps the typing of a refused reword in the open field", async () => {
+    open(() => page(), { "hypotheses.editCriterion": () => refusal });
+    fireEvent.click(
+      within(await card("C1")).getByRole("button", { name: "edit" })
+    );
+    await reword("Kept wording");
+    await screen.findByRole("alert");
+    expect(
+      within(await card("C1")).getByRole<HTMLInputElement>("textbox", {
+        name: "Criterion C1",
+      }).value
+    ).toBe("Kept wording");
+  });
+});

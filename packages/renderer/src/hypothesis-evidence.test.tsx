@@ -278,11 +278,42 @@ describe("attach evidence, from a Criterion", () => {
     fireEvent.change(find, { target: { value: "shuffle-labels" } });
     await within(picker).findByRole("button", { name: /new experiment/ });
     fireEvent.keyDown(find, { key: "Enter" });
-    expect((await within(card).findByRole("status")).textContent).toContain(
+    expect((await within(card).findByRole("alert")).textContent).toContain(
       "already in the vault"
     );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(
       screen.queryByRole("textbox", { name: /What this run shows/ })
     ).toBeNull();
+  });
+
+  // #588: the refusal is forgotten as *attach evidence* is chosen again, and
+  // the same sentence refused again is a new element (ADR 0033 decision 6).
+  it("forgets a made-run refusal when attach evidence is chosen again, and says the same one anew", async () => {
+    const words = "An Experiment named shuffle-labels is already in the vault.";
+    open({
+      "experiments.create": () => {
+        throw new Error(words);
+      },
+    });
+    const refuseOnce = async () => {
+      const { find, picker } = await openAttach();
+      fireEvent.change(find, { target: { value: "shuffle-labels" } });
+      await within(picker).findByRole("button", { name: /new experiment/ });
+      fireEvent.keyDown(find, { key: "Enter" });
+    };
+    await refuseOnce();
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe(`could not make the run: ${words}`);
+
+    const { find, picker } = await openAttach();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.change(find, { target: { value: "shuffle-labels" } });
+    await within(picker).findByRole("button", { name: /new experiment/ });
+    fireEvent.keyDown(find, { key: "Enter" });
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 });
