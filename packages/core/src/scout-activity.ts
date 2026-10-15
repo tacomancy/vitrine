@@ -9,9 +9,11 @@ import {
   healthOf,
   isNoKeyRun,
   isWaitingOnKey,
+  lastWindow,
   unreadableHealth,
   type Health,
   type RunRow,
+  type RunWindow,
 } from "./scout-health.js";
 import {
   NOTHING_WAITING,
@@ -145,6 +147,13 @@ export type ActivityRow =
       lane: Scout["lane"];
       /** From the file, not from the Voice's words: it is what *pause* and *resume* turn on. */
       paused: boolean;
+      /**
+       * What *try over the last run's window* sends the edited Query over, and
+       * the count it sets beside it. Null for a Watched Scout, which never
+       * offers it, and for an arXiv Scout with no completed run, which has
+       * nothing to try over (ADR 0042 decision 5).
+       */
+      lastWindow: RunWindow | null;
       /**
        * The newest check that looked, whatever came of it; null before the
        * first. A check refused for want of a key read nothing, so it is not
@@ -556,6 +565,10 @@ export async function readActivity(deps: {
         assigned: scout.assigned,
         lane: scout.lane,
         paused: scout.paused,
+        lastWindow:
+          scout.source.kind === "arxiv"
+            ? lastWindow(deps.queue, scout.id)
+            : null,
         lastRun:
           newest === undefined
             ? null

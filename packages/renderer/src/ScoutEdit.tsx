@@ -63,6 +63,10 @@ export function ScoutEdit({
       onError: (error) => setRefused(error.message),
     })
   );
+  // *Try over the last run's window* writes nothing. A result is about the text
+  // it was sent with, so it is dropped when the text changes.
+  const tried = useMutation(trpc.scouts.tryWindow.mutationOptions());
+  const result = tried.data;
   const ready = !arxiv || query.trim() !== "";
 
   function onKeyDown(event: KeyboardEvent) {
@@ -106,7 +110,10 @@ export function ScoutEdit({
             rows={2}
             autoFocus
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              tried.reset();
+            }}
           />
         </label>
       ) : (
@@ -116,6 +123,36 @@ export function ScoutEdit({
             open the form
           </button>
         </p>
+      )}
+      {arxiv && (
+        <div className={styles.line}>
+          {row.lastWindow === null ? (
+            <p className={styles.line}>
+              It has no completed run to try over yet.
+            </p>
+          ) : (
+            <button
+              type="button"
+              disabled={!ready || tried.isPending}
+              onClick={() => tried.mutate({ scoutId: row.id, query })}
+            >
+              Try over the last run&apos;s window
+            </button>
+          )}
+          {tried.isPending && <span> trying…</span>}
+          {tried.isError && <span role="alert">{tried.error.message}</span>}
+          {result?.outcome === "found" && (
+            <p role="status" className={styles.line}>
+              Over the last run&apos;s window this Query matches {result.would};
+              that run fetched {result.fetched}.
+            </p>
+          )}
+          {result?.outcome === "failed" && (
+            <p role="alert" className={styles.line}>
+              {result.sentence}
+            </p>
+          )}
+        </div>
       )}
       {/* Drawn once the Questions have been read: before that the Scout's own
           would show as bare ids. What it is Assigned to is kept either way. */}

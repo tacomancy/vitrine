@@ -45,6 +45,7 @@ const scout = (over: Partial<ScoutRow> = {}): ScoutRow => ({
   assigned: [],
   lane: "review",
   paused: false,
+  lastWindow: null,
   lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "2h ago" },
   health: LOOKING,
   acceptRate: { kind: "nothing triaged" },

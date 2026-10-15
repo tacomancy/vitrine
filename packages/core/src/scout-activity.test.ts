@@ -140,6 +140,7 @@ describe("scouts.activity — a row for each readable Scout", () => {
         assigned: [],
         lane: "review",
         paused: false,
+        lastWindow: null,
         lastRun: null,
         health: { voice: "not yet", sentence: "It has not run yet." },
         acceptRate: { kind: "nothing triaged" },

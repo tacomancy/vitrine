@@ -72,6 +72,7 @@ import {
   setPaused,
   tryPage,
   tryQuery,
+  tryWindow,
 } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
 import {
@@ -617,6 +618,13 @@ export const router = t.router({
       .input(z.object({ query: z.string() }))
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
+    // *Try over the last run's window*: a mutation like `tryQuery`, since it
+    // spends a request, and it writes nothing (ADR 0042 decision 5).
+    tryWindow: t.procedure
+      .input(z.object({ scoutId: z.string().min(1), query: z.string() }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(tryWindow(await scoutDeps(ctx), input.scoutId, input.query))
       ),
     // *Try* for a page: a mutation like `tryQuery`, since it spends a request
     // and perhaps a model call, and writes nothing.
