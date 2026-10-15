@@ -20,3 +20,16 @@ ADR 0032 decision 11 named the drift in the shipped Inbox: a failed listing carr
 
 - The eight refusal sites keep `role="alert"`; the Inbox's triage refusal is pinned by `promote.test.tsx`. Loose Ends' failed read and its *problems* lines are states and move to `status` in #346.
 - `docs/architecture.md` § Index, Status carries the footer wording prototype 12 drew.
+
+## Update (2026-10-15, #581)
+
+Decision 1 was applied to the eleven `alert` sites and the `status` ones were not swept. A sweep of every `role="status"` in the renderer (#581) found nineteen that carried a refusal of the user's own act — a save, a key, a click, a dropped file — two of them under a comment calling the line *quiet*. Decisions 1–4 stand; these say how they are applied.
+
+5. **Quiet is how a line looks; `alert` is how it is heard.** A refusal is drawn quietly — small type, never red — and announced as an `alert`, as the Inbox's triage refusal already is. A comment that says a refusal speaks "in the footer's quiet voice" names the register and never made the line polite; decision 2 sends a *state's* reason to the footer, not a refusal's. *Voice* stays the three of ADR 0032.
+6. **A refusal is forgotten when the next act begins, and each one is a new element.** A line that outlives its act reads as the answer to the retry, and the same sentence set into the element already on screen changes nothing a screen reader hears, so a second identical refusal would be silent. The Inbox, `ScoutEdit` and `ScoutDropped` already forget at the start of an act.
+7. **An `alert` holds text.** It does not take focus, and a message that wants an answer is a dialog. *Changed on disk* offers two choices and is not a modal (ADR 0015 decision 5), so its sentence is the `alert` and *keep mine* and *take the disk copy* sit beside it.
+8. **What stays `status`, so nobody "fixes" it.** A line nothing the user did caused: the Reader's undelivered PDF, a page that would not draw, a reading place that could not be saved. A fact about where a followed link landed — the Inbox's unresolved Address, the Reader's *no highlight to arrive on* — which is closer to decision 1's failed listing than to its link the picker could not make. And what was done: an acknowledgment is `status`, and so is a Run now that ran and failed, since the run was carried out and its failure is the Scout's own *wrong* Voice (ADR 0032 decision 7). The Queue's one line carries both kinds and chooses its role per message, as Scout Activity's rows do.
+
+Rejected: flipping each site's role in place, because a role every caller must choose by hand is how nineteen lines came to disagree with a decision that was written down — the role and decision 6 live in one module (`docs/architecture.md` § Research Question view and triage); and `alert` for ⌘↵ but `status` for a save by blur, because one line would have two roles for one act, and the user who tabbed away has moved on, which is decision 1's own reason to interrupt.
+
+Every test that named `status` for a refusal names `alert`, the negative ones (*no `status` line*) with them, which would otherwise pass without testing anything. Decided here and built by the tickets of #581.
