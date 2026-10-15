@@ -148,14 +148,17 @@ export function heldEvents(names: string[]) {
 
 /**
  * The real `fs.watch` until `deafen()`, after which the watcher hears nothing
- * from the PDF folder: events under `sources/pdf` on the watch over `vault`,
+ * from the PDF folder (or, with `hears: "nothing"`, from anything): events under `sources/pdf` on the watch over `vault`,
  * and everything on the watch over the link's real path, are dropped. Real
  * files, real stats; only *whether the watcher hears the folder* is the
  * test's, so a PDF that arrived while the app was deaf is one only a sweep can
  * find (#572). The probe on the vault's own watch still gets through, so a
  * watcher started after `deafen()` still proves live.
  */
-export function deafWatch(vault: string) {
+export function deafWatch(
+  vault: string,
+  hears: "markdown" | "nothing" = "markdown"
+) {
   let deaf = false;
   const watch = ((
     folder: string,
@@ -167,7 +170,8 @@ export function deafWatch(vault: string) {
       const underPdfFolder =
         name === PDF_FOLDER || name.startsWith(`${PDF_FOLDER}/`);
       // Any event on the link's own watch is the PDF folder's.
-      const pdfFolderEvent = folder !== vault || underPdfFolder;
+      const pdfFolderEvent =
+        hears === "nothing" || folder !== vault || underPdfFolder;
       if (!(deaf && pdfFolderEvent)) listener(kind, filename);
     })) as typeof fsWatch;
   return {

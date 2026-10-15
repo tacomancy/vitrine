@@ -627,8 +627,12 @@ export function createVaultService({
    * watch left on a target the link no longer leads to is harmless: every
    * hint is stat-ed through the vault's own `sources/pdf/…`, so nothing of
    * the old target's can reach the index.
+   *
+   * Answers whether the folder is in order — no fault found, and nothing
+   * that kept the check from running — which is what the focus sweep waits
+   * on: it must never walk a folder that does not resolve.
    */
-  async function checkPdfFolder(o: Opened): Promise<void> {
+  async function checkPdfFolder(o: Opened): Promise<boolean> {
     let folder: PdfFolder;
     let follows: string | null;
     try {
@@ -640,9 +644,9 @@ export function createVaultService({
       console.error(
         `vitrine-core: the PDF folder could not be checked: ${errorMessage(cause)}`
       );
-      return;
+      return false;
     }
-    if (overtaken(o)) return;
+    if (overtaken(o)) return false;
     const fault = folder.exists ? folder.fault : null;
     if (
       follows !== null &&
@@ -655,9 +659,10 @@ export function createVaultService({
       o.reopening = true;
       void raiseStatus();
       await watchAndSweep(o, o.retried);
-      if (overtaken(o)) return;
+      if (overtaken(o)) return false;
     }
     onPdfFolder?.(fault);
+    return fault === null;
   }
 
   /**
@@ -840,9 +845,25 @@ export function createVaultService({
       await restored;
       if (opened === null) return;
       opened.days.record(localDay(now()));
-      // The sweep over the PDF folder on focus (`CONTEXT.md`, Sweep): the
-      // researcher comes back from fixing the link in Finder (#379).
-      void checkPdfFolder(opened);
+      const o = opened;
+      // Two things happen on focus and they are not the same (`CONTEXT.md`):
+      // the PDF folder check (#379), which only looks at whether the folder
+      // resolves, and the focus sweep (ADR 0013 decision 3; #565), which
+      // compares its files to the index. The sweep is the catch-up for what
+      // the watcher never heard — and a dropped event is neither an event nor
+      // an error, so nothing but a trigger of its own can repair it. It runs
+      // only when the check found the folder in order: swept while the link
+      // is broken, every PDF the index holds under it would read as deleted.
+      void (async () => {
+        try {
+          if (await checkPdfFolder(o)) await o.index.refresh([PDF_FOLDER]);
+        } catch (cause) {
+          // The next focus is the retry.
+          console.error(
+            `vitrine-core: the focus sweep failed: ${errorMessage(cause)}`
+          );
+        }
+      })();
     },
     close: async () => {
       // The restore first, as every other orderly method does: a quit that
