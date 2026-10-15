@@ -1,5 +1,4 @@
 import { open as openFile, readFile, rm, writeFile } from "node:fs/promises";
-import { watch as fsWatch, type WatchListener } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LooseEnds } from "./loose-ends.js";
@@ -30,36 +29,37 @@ const ANNOTATED_BLOCKS = 6;
 /** Long enough for an event that should have come; a quiet check waits this. */
 const QUIET_MS = 1500;
 
+type Core = Awaited<ReturnType<typeof core>>;
+
 /** A plain vault with a `sources/pdf` to write into, as a researcher's has. */
-const plain = (files: Record<string, string> = {}) =>
+const plainVault = (files: Record<string, string> = {}) =>
   vaultWith({ "sources/pdf/.keep": "", ...files });
 
-async function opened(
-  vault: string,
-  opts: Parameters<typeof core>[0] = {},
-  watching = true
-): Promise<{ c: Awaited<ReturnType<typeof core>> }> {
+async function opened(vault: string, opts: Parameters<typeof core>[0] = {}) {
   const c = await core({ settleMs: 40, ...opts });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
-  // The open's own sweep is over before the test writes anything: a PDF it
-  // found would be read then, and the focus would have nothing left to find.
-  if (watching) {
-    await c.indexed();
-    return { c };
-  }
-  // A vault that is not watching is never current: its walk is done instead.
-  await vi.waitFor(
-    async () =>
-      expect(
-        (await c.query<{ indexing: unknown }>("vault.status")).result!.data
-          .indexing
-      ).toBeNull(),
-    { timeout: 4000, interval: 25 }
-  );
-  return { c };
+  return c;
 }
 
-async function kinds(c: Awaited<ReturnType<typeof core>>) {
+/**
+ * Open, wait for the open's own sweep, and go deaf. A PDF the open found would
+ * be read then, and the focus would have nothing left to find.
+ */
+async function deafOpened(
+  vault: string,
+  hears: Parameters<typeof deafWatch>[1] = "markdown"
+) {
+  const deaf = deafWatch(vault, hears);
+  const c = await opened(vault, { watch: deaf.watch });
+  await c.indexed();
+  const stream = await c.events();
+  return { c, stream, deafen: deaf.deafen };
+}
+
+/** Past the time a watcher that could hear would have taken to say so. */
+const heardByNobody = () => new Promise((resolve) => setTimeout(resolve, 300));
+
+async function kinds(c: Core) {
   const r = await c.query<LooseEnds>("looseEnds.rows");
   return r.result!.data.groups.flatMap((g) =>
     g.rows.map((row) => `${row.kind} ${row.path ?? row.subject}`)
@@ -78,30 +78,25 @@ async function drain(stream: EventStream) {
 }
 
 /** Focus, then wait for the status the sweep raises: what it did is settled after it. */
-async function focusAndWait(
-  c: Awaited<ReturnType<typeof core>>,
-  stream: EventStream
-) {
+async function focusAndWait(c: Core, stream: EventStream) {
   await drain(stream);
   await c.focused();
   await stream.next("vaultStatus");
 }
 
-const quiet = (
+const expectQuiet = (
   stream: EventStream,
   type: "vaultChanged" | "ingestLanded" | "vaultStatus"
 ) => expect(stream.next(type, { timeoutMs: QUIET_MS })).rejects.toThrow();
 
 describe("a PDF the watcher never heard, on focus", () => {
   it("is read in a plain folder: one run, one summary", async () => {
-    const vault = await plain({ "sources/a.md": SOURCE("a") });
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
-    const stream = await c.events();
-    deaf.deafen();
+    const vault = await plainVault({ "sources/a.md": SOURCE("a") });
+    const { c, stream, deafen } = await deafOpened(vault);
+    deafen();
     await writeFile(join(vault, "sources/pdf/a.pdf"), await annotated());
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await quiet(stream, "ingestLanded");
+    await heardByNobody();
+    await expectQuiet(stream, "ingestLanded");
 
     await drain(stream);
     await c.focused();
@@ -110,7 +105,7 @@ describe("a PDF the watcher never heard, on focus", () => {
     });
     expect(landed.summary.new).toBe(ANNOTATED_BLOCKS);
     expect(landed.sources).toEqual(["sources/a.md"]);
-    await quiet(stream, "ingestLanded");
+    await expectQuiet(stream, "ingestLanded");
     stream.close();
   });
 
@@ -118,12 +113,10 @@ describe("a PDF the watcher never heard, on focus", () => {
     const { vault, folder } = await linkedPdfVault({
       "sources/a.md": SOURCE("a"),
     });
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
-    const stream = await c.events();
-    deaf.deafen();
+    const { c, stream, deafen } = await deafOpened(vault);
+    deafen();
     await writeFile(join(folder, "a.pdf"), await annotated());
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await heardByNobody();
 
     await drain(stream);
     await c.focused();
@@ -135,11 +128,9 @@ describe("a PDF the watcher never heard, on focus", () => {
   });
 
   it("is a no-Source row when no Source names it", async () => {
-    const vault = await plain({});
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
-    const stream = await c.events();
-    deaf.deafen();
+    const vault = await plainVault({});
+    const { c, stream, deafen } = await deafOpened(vault);
+    deafen();
     await writeFile(join(vault, "sources/pdf/stray.pdf"), PDF);
     await focusAndWait(c, stream);
     expect(await kinds(c)).toEqual(["no-source sources/pdf/stray.pdf"]);
@@ -147,15 +138,13 @@ describe("a PDF the watcher never heard, on focus", () => {
   });
 
   it("is PDF missing when it was deleted", async () => {
-    const vault = await plain({
+    const vault = await plainVault({
       "sources/a.md": SOURCE("a"),
       "sources/pdf/a.pdf": PDF,
     });
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
+    const { c, stream, deafen } = await deafOpened(vault);
     expect(await kinds(c)).toEqual([]);
-    const stream = await c.events();
-    deaf.deafen();
+    deafen();
     await rm(join(vault, "sources/pdf/a.pdf"));
     await focusAndWait(c, stream);
     expect(await kinds(c)).toEqual(["pdf-missing sources/a.md"]);
@@ -165,15 +154,16 @@ describe("a PDF the watcher never heard, on focus", () => {
 
 describe("a focus that finds nothing", () => {
   it("raises no vaultChanged and no ingestLanded, and leaves the vault current", async () => {
-    const vault = await plain({
+    const vault = await plainVault({
       "sources/a.md": SOURCE("a"),
       "sources/pdf/a.pdf": PDF,
     });
-    const { c } = await opened(vault);
+    const c = await opened(vault);
+    await c.indexed();
     const stream = await c.events();
     await focusAndWait(c, stream);
-    await quiet(stream, "vaultChanged");
-    await quiet(stream, "ingestLanded");
+    await expectQuiet(stream, "vaultChanged");
+    await expectQuiet(stream, "ingestLanded");
     const status = await c.query<{ current: { ok: boolean } }>("vault.status");
     expect(status.result!.data.current.ok).toBe(true);
     stream.close();
@@ -182,11 +172,9 @@ describe("a focus that finds nothing", () => {
 
 describe("what a focus does not read", () => {
   it("leaves an Evicted PDF alone until its bytes are on disk", async () => {
-    const vault = await plain({});
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
-    const stream = await c.events();
-    deaf.deafen();
+    const vault = await plainVault({});
+    const { c, stream, deafen } = await deafOpened(vault);
+    deafen();
     const path = join(vault, "sources/pdf/online-only.pdf");
     // Allocated size far under its length: the placeholder a sync client leaves.
     const handle = await openFile(path, "w");
@@ -202,20 +190,10 @@ describe("what a focus does not read", () => {
   });
 
   it("does not apply a Markdown file changed while the watcher was deaf", async () => {
-    const vault = await plain({});
-    // Deaf to everything, unlike `deafWatch`, which leaves the Markdown heard.
-    let deaf = false;
-    const watch = ((
-      folder: string,
-      options: { recursive: boolean },
-      listener: WatchListener<string>
-    ) =>
-      fsWatch(folder, options, (kind, name) => {
-        if (!deaf) listener(kind, name);
-      })) as typeof fsWatch;
-    const { c } = await opened(vault, { watch });
-    const stream = await c.events();
-    deaf = true;
+    const vault = await plainVault({});
+    // Deaf to Markdown too, which `deafWatch` leaves heard by default.
+    const { c, stream, deafen } = await deafOpened(vault, "nothing");
+    deafen();
     // A Source naming a PDF that is not there: applied, it is a PDF missing row.
     await writeFile(join(vault, "sources/b.md"), SOURCE("b"));
     await focusAndWait(c, stream);
@@ -227,7 +205,7 @@ describe("what a focus does not read", () => {
   });
 
   it("reads no Source whose sidecar is behind its PDF: no run for every Source follows", async () => {
-    const vault = await plain({ "sources/a.md": SOURCE("a", "src-a") });
+    const vault = await plainVault({ "sources/a.md": SOURCE("a", "src-a") });
     await writeFile(join(vault, "sources/pdf/a.pdf"), await annotated());
     const c = await core({ settleMs: 40 });
     const stream = await c.events();
@@ -251,31 +229,34 @@ describe("when the sweep does not run, or runs anyway", () => {
       "sources/a.md": SOURCE("a"),
     });
     await writeFile(join(folder, "a.pdf"), PDF);
-    const deaf = deafWatch(vault);
-    const { c } = await opened(vault, { watch: deaf.watch });
+    const { c, stream, deafen } = await deafOpened(vault);
     expect(await kinds(c)).toEqual([]);
-    const stream = await c.events();
-    deaf.deafen();
+    deafen();
     await rm(folder, { recursive: true });
     await drain(stream);
     await c.focused();
     // The fault is raised, and nothing after it swept the folder.
     expect((await stream.next("pdfFolder")).fault).not.toBeNull();
-    await quiet(stream, "vaultStatus");
+    await expectQuiet(stream, "vaultStatus");
     expect(await kinds(c)).not.toContain("pdf-missing sources/a.md");
     stream.close();
   });
 
   it("still sweeps when the vault is not watching", async () => {
-    const vault = await plain({});
-    const { c } = await opened(
-      vault,
-      {
-        watch: () => {
-          throw new Error("EMFILE: too many open files");
-        },
+    const vault = await plainVault({});
+    const c = await opened(vault, {
+      watch: () => {
+        throw new Error("EMFILE: too many open files");
       },
-      false
+    });
+    // Never current while not watching: the open's walk being done is the wait.
+    await vi.waitFor(
+      async () =>
+        expect(
+          (await c.query<{ indexing: unknown }>("vault.status")).result!.data
+            .indexing
+        ).toBeNull(),
+      { timeout: 4000, interval: 25 }
     );
     const stream = await c.events();
     await writeFile(join(vault, "sources/pdf/late.pdf"), PDF);
