@@ -8,14 +8,23 @@ import { useSyncExternalStore } from "react";
  * lives outside the query cache, which every reconnect invalidates and would
  * refetch into nothing.
  *
- * A clean run (nothing could not be re-matched) fades on its own, since a
- * line that stayed would teach the eye to skip the footer; one with
- * something left to decide stays until the vault is switched, because the
- * panel it will open from is where that decision is made.
+ * Runs that land less than one fade apart are one burst and one line, their
+ * counts added (`docs/architecture.md` § Annotation identity, *Ingest summary
+ * line*). A line with nothing left to decide fades from the last landing; one
+ * with something to decide arms no fade and stays until the vault is
+ * switched or a later burst replaces it, because the panel it opens is where
+ * that decision is made.
+ *
+ * A landing after the burst replaces the line even when that line still had
+ * something to decide: the count is a run's and nothing subtracts a
+ * resolution from it, so carrying it forward would sum stale counts. Loose
+ * Ends, read from the sidecars, is the record of what is undecided.
  */
 export const INGEST_FADE_MS = 8000;
 
 let current: IngestSummary | null = null;
+/** When the last landing was; the only thing that says whether a burst is on. */
+let lastLanding: number | null = null;
 let fade: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 
@@ -24,17 +33,32 @@ function set(next: IngestSummary | null) {
   for (const listen of listeners) listen();
 }
 
-/** A run landed: show its line, and let it go if it left nothing to decide. */
+/** A run landed: add it to the burst it falls in, or start a line of its own. */
 export function announceIngest(summary: IngestSummary): void {
+  const now = Date.now();
+  const inBurst =
+    current !== null &&
+    lastLanding !== null &&
+    now - lastLanding < INGEST_FADE_MS;
+  const next: IngestSummary =
+    inBurst && current !== null
+      ? {
+          new: current.new + summary.new,
+          questions: current.questions + summary.questions,
+          removed: current.removed + summary.removed,
+          unmatched: current.unmatched + summary.unmatched,
+        }
+      : summary;
+  lastLanding = now;
   clearTimeout(fade);
-  set(summary);
-  if (summary.unmatched === 0)
-    fade = setTimeout(() => set(null), INGEST_FADE_MS);
+  set(next);
+  if (next.unmatched === 0) fade = setTimeout(() => set(null), INGEST_FADE_MS);
 }
 
 /** Another vault is open; the last one's summary is not about it. */
 export function clearIngest(): void {
   clearTimeout(fade);
+  lastLanding = null;
   panel = false;
   set(null);
 }
