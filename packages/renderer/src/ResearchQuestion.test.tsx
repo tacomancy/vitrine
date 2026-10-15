@@ -1923,6 +1923,45 @@ describe("a refused Position save is an alert", () => {
     );
   });
 
+  it.each(["keep mine", "take the disk copy"])(
+    "%s over a disk copy that cannot be read is an alert, and the typing stays",
+    async (choice) => {
+      let readable = true;
+      open(
+        () =>
+          readable
+            ? {
+                ...fresh,
+                sections: {
+                  ...fresh.sections,
+                  workingAnswer: { present: true, text: "Probably both." },
+                },
+              }
+            : { readable: false, path: PATH, reason: "missing from the vault" },
+        {
+          "researchQuestions.saveWorkingAnswer": () => ({
+            written: false,
+            reason: "changedAndUnreapplyable",
+            detail: "the section changed on disk",
+          }),
+        }
+      );
+      const box = await within(await region()).findByRole<HTMLTextAreaElement>(
+        "textbox",
+        { name: "Working answer" }
+      );
+      fireEvent.change(box, { target: { value: "Probably not." } });
+      fireEvent.blur(box);
+      await screen.findByRole("button", { name: choice });
+      readable = false;
+      fireEvent.click(screen.getByRole("button", { name: choice }));
+      await waitFor(() =>
+        expect(screen.getByRole("alert").textContent).toMatch(/^not saved — /)
+      );
+      expect(box.value).toBe("Probably not.");
+    }
+  );
+
   it("esc reverts the typing and forgets the refusal", async () => {
     const box = await typing(() => REFUSED);
     fireEvent.keyDown(box, { key: "Enter", metaKey: true });
