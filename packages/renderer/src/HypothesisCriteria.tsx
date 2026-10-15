@@ -17,6 +17,7 @@ import { AttachRun } from "./AttachEvidence";
 import styles from "./Hypothesis.module.css";
 import { Lines, Outline } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
+import { RefusalLine, useRefusal, type Refusal } from "./refusal-line";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
 
@@ -112,40 +113,46 @@ const OUTCOMES: Outcome[] = ["met", "not met", "inconclusive"];
  * One criterion write: the page re-read when it lands (the own write's
  * `vaultChanged` would do the same, a moment later), or the refusal kept
  * for a line in `verb`'s words — *could not record it* says what did not
- * happen where *could not save* would not.
+ * happen where *could not save* would not. The last refusal is forgotten as
+ * the next attempt begins, so nothing is on screen while a retry is in
+ * flight and a repeat of the same sentence is heard again (ADR 0033
+ * decisions 5–6).
  */
 function useCriterionWrite(verb: string, onWritten?: () => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const refusal = useRefusal();
   return {
     refusal,
-    clear: () => setRefusal(null),
+    clear: refusal.forget,
     options: {
+      onMutate: refusal.forget,
       onSuccess: (result: SavedAnswer) => {
         if (result.written) {
-          setRefusal(null);
           void queryClient.invalidateQueries(trpc.hypotheses.page.pathFilter());
           onWritten?.();
         } else {
           // The detail is the sentence; the reason is the protocol's word.
-          setRefusal(`could not ${verb}: ${result.detail}`);
+          refusal.say(`could not ${verb}: ${result.detail}`);
         }
       },
       onError: (error: { message: string }) =>
-        setRefusal(`could not ${verb}: ${error.message}`),
+        refusal.say(`could not ${verb}: ${error.message}`),
     },
   };
 }
 
-/** A refusal line, in the footer's quiet voice, where the write was asked for. */
-function Refusal({ refusal }: { refusal: string | null }) {
-  if (refusal === null) return null;
-  return (
-    <p role="status" className={rq.refusal}>
-      {refusal}
-    </p>
-  );
+/**
+ * A refusal line, where the write was asked for. It is an alert because it is
+ * the user's act turned down, not a state the app is in (ADR 0033 decision 1
+ * and its 2026-10-15 Update); its look stays the footer's register.
+ */
+function CriterionRefusal({
+  refusal,
+}: {
+  refusal: Pick<Refusal, "words" | "count">;
+}) {
+  return <RefusalLine refusal={refusal} className={rq.refusal} />;
 }
 
 /**
@@ -188,7 +195,7 @@ function Card({
   const [relabel, setRelabel] = useState<Relationship | null>(null);
   // *attach evidence* open (#371), and a run it could not make.
   const [attaching, setAttaching] = useState(false);
-  const [unmade, setUnmade] = useState<string | null>(null);
+  const unmade = useRefusal();
   const write = useCriterionWrite("record it");
   const rewording = useCriterionWrite("save the criterion", () =>
     setEditing(null)
@@ -325,7 +332,7 @@ function Card({
             type="button"
             className={rq.edit}
             onClick={() => {
-              setUnmade(null);
+              unmade.forget();
               setAttaching(true);
             }}
           >
@@ -353,15 +360,15 @@ function Card({
           )}
         </span>
       </div>
-      <Refusal refusal={write.refusal} />
-      <Refusal refusal={rewording.refusal} />
-      <Refusal refusal={deleting.refusal} />
-      <Refusal refusal={unmade} />
+      <CriterionRefusal refusal={write.refusal} />
+      <CriterionRefusal refusal={rewording.refusal} />
+      <CriterionRefusal refusal={deleting.refusal} />
+      <CriterionRefusal refusal={unmade} />
       {attaching && (
         <AttachRun
           hypothesis={{ path, claim, hash }}
           criterion={criterion}
-          onRefused={setUnmade}
+          onRefused={unmade.say}
           onClose={() => setAttaching(false)}
         />
       )}
@@ -665,7 +672,7 @@ function AddCriterion({
           add
         </button>
       </div>
-      <Refusal refusal={adding.refusal} />
+      <CriterionRefusal refusal={adding.refusal} />
     </form>
   );
 }
