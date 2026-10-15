@@ -200,10 +200,9 @@ describe("the claim, edited in place", () => {
     const box = await claimField();
     fireEvent.change(box, { target: { value: "" } });
     fireEvent.blur(box);
-    const line = await within(await region()).findByText(
-      /not saved — The claim is empty/
-    );
-    expect(line.getAttribute("role")).toBe("status");
+    const line = await within(await region()).findByRole("alert");
+    expect(line.textContent).toMatch(/not saved — The claim is empty/);
+    expect(within(await region()).queryByRole("status")).toBeNull();
     expect((box as HTMLTextAreaElement).value).toBe("");
   });
 

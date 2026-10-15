@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Picker } from "./Picker";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { usePageProcedures, type HistoriedKind } from "./page-procedures";
 import { useTRPC } from "./trpc";
 import styles from "./WhyLine.module.css";
@@ -53,7 +54,8 @@ export function WhyLine({
   const queryClient = useQueryClient();
   const procedures = usePageProcedures();
   const [text, setText] = useState("");
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // An alert, said again each time (ADR 0033 decisions 1, 5–6).
+  const refusal = useRefusal();
   // Where inside the line the picker was opened: the offset just past the
   // `[[` the user typed, so the link the core composes replaces those two
   // characters along with the space it needs.
@@ -99,13 +101,13 @@ export function WhyLine({
       if (!result.written) {
         // The typing stays: a why that could not be written is worth
         // more in the field than in the reason it failed for.
-        setRefusal(`not explained — ${result.detail}`);
+        refusal.say(`not explained — ${result.detail}`);
         return;
       }
       await procedures.reread(kind, path);
       onClose();
     },
-    onError: (error) => setRefusal(`not explained — ${error.message}`),
+    onError: (error) => refusal.say(`not explained — ${error.message}`),
   });
 
   const write = () => {
@@ -114,6 +116,7 @@ export function WhyLine({
     // it is simply not explained.
     if (why === "") return onClose();
     if (explain.isPending) return;
+    refusal.forget();
     explain.mutate({ path, at, field, why, basedOn });
   };
 
@@ -146,7 +149,7 @@ export function WhyLine({
       // sentence is the user's, and a guess in the middle of it is worse
       // than a line saying the link could not be written.
       setBracket(null);
-      setRefusal(`no link written — ${(error as Error).message}`);
+      refusal.say(`no link written — ${(error as Error).message}`);
       return;
     }
     setText(text.slice(0, opened - 2) + link + text.slice(opened));
@@ -188,11 +191,7 @@ export function WhyLine({
           onClose={() => setBracket(null)}
         />
       )}
-      {refusal !== null && (
-        <p role="status" className={styles.refusal}>
-          {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
     </div>
   );
 }
