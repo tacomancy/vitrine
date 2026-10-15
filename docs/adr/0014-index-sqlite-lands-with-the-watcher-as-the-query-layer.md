@@ -21,6 +21,8 @@ Three accepted ADRs already assume an index without ever deciding it: ADR 0006 d
 
 **Update 2026-09-20 (beat 1b grill).** Decision 8's "only writer" is the index *module*, not the watcher batch: the app's own writes index themselves synchronously through the same module before the RPC returns, recording the hash that makes ADR 0013 decision 4's own-write no-op correct. Otherwise a captured Question would never reach the index — the watcher, recognising the app's hash, does nothing. Decision 2's pending-Revision rationale is deferred with the mechanism: beat 1b ships the `positionsOf` seam with no Kind registered, and beat 2 registers the first. Decision 7's "Markdown only" is about content: every non-dot file gets a `files` row so embeds and links to non-Markdown targets resolve. Decision 8's "one transaction per batch" is one per *chunk* of a batch: a batch over the chunk size commits in chunks, each raising `vaultChanged`, because outlining and `node:sqlite` are synchronous and a sync client delivering hundreds of files must not stall the core; the rebuild uses the same path. `vault.outline(path)` is assembled from the index, not a fresh outline. Details in `docs/architecture.md` § Index.
 
+**Update 2026-10-07 (#565 and #564 grill).** Decision 11's "no unrecovered error or overflow": an overflow is never reported to the app (ADR 0013, update of the same date), so *current* waits on an unrecovered error alone. `docs/architecture.md` § Index, `current()`.
+
 ## Considered options
 
 - **In-memory index rebuilt at open.** Rejected, decision 1.
