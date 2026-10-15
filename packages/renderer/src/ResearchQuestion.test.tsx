@@ -643,7 +643,7 @@ describe("open threads", () => {
         name: "Have not read Cordi & Rasch 2021.",
       })
     );
-    const line = await within(threads).findByRole("status");
+    const line = await within(threads).findByRole("alert");
     expect(line.textContent).toContain("could not save");
     expect(line.textContent).toContain("no open thread reads");
     expect(
@@ -804,7 +804,7 @@ describe("the Edited sections as plain text fields", () => {
     });
     fireEvent.change(field, { target: { value: "- [[Nowhere]]" } });
     fireEvent.keyDown(field, { key: "Enter", metaKey: true });
-    const line = await within(related).findByRole("status");
+    const line = await within(related).findByRole("alert");
     expect(line.textContent).toContain(
       "could not save: verificationFailed — the file is no longer there"
     );
@@ -1066,10 +1066,11 @@ describe("changed on disk, inside the section", () => {
     page = { readable: false, path: PATH, reason: "missing from the vault" };
     fireEvent.click(within(related).getByRole("button", { name: "keep mine" }));
     await waitFor(() =>
-      expect(screen.getByRole("status").textContent).toContain(
+      expect(screen.getByRole("alert").textContent).toContain(
         "missing from the vault"
       )
     );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(save).toHaveBeenCalledTimes(1);
   });
 
@@ -1542,7 +1543,7 @@ describe("resolving, abandoning, and reopening", () => {
       await within(view).findByRole("button", { name: "resolve" })
     );
 
-    const line = await within(view).findByRole("status");
+    const line = await within(view).findByRole("alert");
     // The half that did not happen is what the line names: the page *was*
     // resolved, so "could not resolve" would be a lie about the other half.
     expect(line.textContent).toBe(
@@ -1569,7 +1570,7 @@ describe("resolving, abandoning, and reopening", () => {
       await within(view).findByRole("button", { name: "resolve" })
     );
 
-    const line = await within(view).findByRole("status");
+    const line = await within(view).findByRole("alert");
     expect(line.textContent).toBe(
       "could not resolve: changedAndUnreapplyable — the file is no longer there"
     );
@@ -1723,7 +1724,7 @@ describe("sharpening into a Hypothesis", () => {
     fireEvent.change(claimInput(view), { target: { value: CLAIM } });
     fireEvent.keyDown(claimInput(view), { key: "Enter" });
 
-    const line = await within(view).findByRole("status");
+    const line = await within(view).findByRole("alert");
     expect(line.textContent).toBe(
       "could not promote to hypothesis: Couldn't write questions/Does slow-wave density predict recall gain (RQ).md: EACCES"
     );
@@ -1739,5 +1740,96 @@ describe("sharpening into a Hypothesis", () => {
     expect(
       within(view).queryByRole("button", { name: "promote to hypothesis" })
     ).toBeNull();
+  });
+});
+
+// A refusal is an `alert` and is heard again (ADR 0033 decision 1 and its
+// 2026-10-15 Update, decisions 5–6; spec #581): the same sentence refused a
+// second time is a new element, and nothing is said while the retry is out.
+describe("a refusal on the page is said again each time", () => {
+  const REFUSED = {
+    written: false,
+    reason: "changedAndUnreapplyable",
+    detail: 'no open thread reads "Have not read Cordi & Rasch 2021."',
+  };
+
+  const tickTwiceRefused = async () => {
+    // The second answer is held past a macrotask, so the retry is observably
+    // in flight; an answer given at once can reach React in the same render.
+    let release: (() => void) | undefined;
+    let calls = 0;
+    open(() => withThreads(THREADS), {
+      "researchQuestions.tickThread": () => {
+        calls += 1;
+        if (calls === 1) return REFUSED;
+        return new Promise((resolve) => {
+          release = () => resolve(REFUSED);
+        });
+      },
+    });
+    const threads = await within(await region()).findByRole("region", {
+      name: "Open threads",
+    });
+    const box = () =>
+      within(threads).getByRole("checkbox", {
+        name: "Have not read Cordi & Rasch 2021.",
+      });
+    fireEvent.click(box());
+    const first = await within(threads).findByRole("alert");
+    return { threads, box, first, release: () => release?.() };
+  };
+
+  it("a repeat of the same refusal is a new element, and nothing is said while it is in flight", async () => {
+    const { threads, box, first, release } = await tickTwiceRefused();
+    fireEvent.click(box());
+    await waitFor(() => expect(first.isConnected).toBe(false));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(within(threads).queryByRole("alert")).toBeNull();
+    expect(within(threads).queryByRole("status")).toBeNull();
+    release();
+    const second = await within(threads).findByRole("alert");
+    expect(second).not.toBe(first);
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+  });
+
+  it("a refused reopen is an alert, not a status", async () => {
+    open(() => ANSWERED, {
+      "researchQuestions.reopen": () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: "the file is no longer there",
+      }),
+    });
+    const view = await region();
+    fireEvent.click(
+      await within(view).findByRole("button", { name: "reopen" })
+    );
+    expect((await within(view).findByRole("alert")).textContent).toBe(
+      "could not reopen: changedAndUnreapplyable — the file is no longer there"
+    );
+    expect(within(view).queryByRole("status")).toBeNull();
+  });
+
+  it("esc on an Edited section forgets the refusal along with the typing", async () => {
+    open(() => withRelated(RELATED), {
+      "researchQuestions.saveSection": () => ({
+        written: false,
+        reason: "verificationFailed",
+        detail: "the file is no longer there",
+      }),
+    });
+    const related = await within(await region()).findByRole("region", {
+      name: "Related questions",
+    });
+    fireEvent.click(within(related).getByRole("button", { name: "edit" }));
+    const field = within(related).getByRole("textbox", {
+      name: "Related questions",
+    });
+    fireEvent.change(field, { target: { value: "- [[Nowhere]]" } });
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    await within(related).findByRole("alert");
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(within(related).queryByRole("alert")).toBeNull();
   });
 });

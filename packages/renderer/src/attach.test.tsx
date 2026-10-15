@@ -469,9 +469,29 @@ describe("moving and detaching a source", () => {
         name: /move to opposing/i,
       })
     );
-    expect((await screen.findByRole("status")).textContent).toContain(
+    expect((await screen.findByRole("alert")).textContent).toContain(
       'no supporting source reads "[[rasch2013]]"'
     );
+  });
+
+  it("shows a refused detach as an alert in the column", async () => {
+    const holder = { current: page([], [sourceLine("wamsley2019", "")]) };
+    openHolding(holder, {
+      "researchQuestions.detachSource": () => ({
+        written: false,
+        reason: "changedAndUnreapplyable",
+        detail: "the file changed underneath",
+      }),
+    });
+    fireEvent.click(
+      within(await column("Opposing sources")).getByRole("button", {
+        name: /detach/i,
+      })
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "could not detach the source"
+    );
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("offers neither verb on a line under the heading that is not a source", async () => {

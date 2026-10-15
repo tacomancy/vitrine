@@ -22,6 +22,11 @@ import { AttachSource } from "./AttachSource";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { addressOf } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
+import {
+  RefusalLine,
+  useRefusal,
+  type Refusal as RefusalState,
+} from "./refusal-line";
 import type { Base, DiskCopy } from "./page-procedures";
 import { ChangedOnDisk, PositionField } from "./PositionField";
 import styles from "./ResearchQuestion.module.css";
@@ -368,6 +373,7 @@ function Resolving({
           );
         }
       },
+      onMutate: resolving.clear,
       onError: resolving.fail,
     })
   );
@@ -377,6 +383,7 @@ function Resolving({
         reopening.settle(result);
         rereadRow();
       },
+      onMutate: reopening.clear,
       onError: reopening.fail,
     })
   );
@@ -391,6 +398,7 @@ function Resolving({
         );
         pushRoute({ surface: "hypothesis", path: landed });
       },
+      onMutate: sharpening.clear,
       onError: sharpening.fail,
     })
   );
@@ -705,12 +713,14 @@ function Sources({
   const detaching = usePageWrite("detach the source");
   const move = useMutation(
     trpc.researchQuestions.moveSource.mutationOptions({
+      onMutate: moving.clear,
       onSuccess: moving.settle,
       onError: moving.fail,
     })
   );
   const detach = useMutation(
     trpc.researchQuestions.detachSource.mutationOptions({
+      onMutate: detaching.clear,
       onSuccess: detaching.settle,
       onError: detaching.fail,
     })
@@ -801,16 +811,16 @@ function useDiskCopy(
 function usePageWrite(verb: string, onConflict?: () => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const refusal = useRefusal();
   const reread = () =>
     void queryClient.invalidateQueries(
       trpc.researchQuestions.page.pathFilter()
     );
   const refused = (detail: string) =>
-    setRefusal(`could not ${verb}: ${detail}`);
+    refusal.say(`could not ${verb}: ${detail}`);
   const settle = (result: WriteResult) => {
     if (result.written) {
-      setRefusal(null);
+      refusal.forget();
       reread();
     } else if (
       result.reason === "changedAndUnreapplyable" &&
@@ -820,7 +830,7 @@ function usePageWrite(verb: string, onConflict?: () => void) {
       // field save reaches it only by landing on its own section, so the
       // caller that has a field shows the *changed on disk* line instead
       // of the plain one; a tick has no field and keeps the plain one.
-      setRefusal(null);
+      refusal.forget();
       onConflict();
     } else refused(`${result.reason} — ${result.detail}`);
   };
@@ -828,8 +838,9 @@ function usePageWrite(verb: string, onConflict?: () => void) {
     refusal,
     settle,
     /** A line in the caller's own words, for what `verb` would say wrong. */
-    say: setRefusal,
-    clear: () => setRefusal(null),
+    say: refusal.say,
+    /** As the next act begins: a line left from the last try is not the answer to this one. */
+    clear: refusal.forget,
     fail: (error: { message: string }) => refused(error.message),
   };
 }
@@ -861,7 +872,7 @@ function Editable({
   // Up while the *changed on disk* line is: autosave is suspended until
   // one of its two actions is chosen (#215).
   const [conflict, setConflict] = useState(false);
-  const { refusal, settle, fail } = usePageWrite("save", () =>
+  const { refusal, settle, fail, clear } = usePageWrite("save", () =>
     setConflict(true)
   );
   const refuse = (message: string) => fail({ message });
@@ -876,6 +887,7 @@ function Editable({
   const editing = draft !== null;
 
   const close = () => {
+    clear();
     setDraft(null);
     setConflict(false);
   };
@@ -885,6 +897,7 @@ function Editable({
         settle(result);
         if (result.written) close();
       },
+      onMutate: clear,
       onError: fail,
     })
   );
@@ -902,6 +915,7 @@ function Editable({
   };
   // *Keep mine*: the disk copy read afresh, then the typing saved over it.
   const keepMine = async () => {
+    clear();
     const disk = await diskCopy(name);
     setConflict(false);
     if (!disk.read) return refuse(disk.reason);
@@ -912,6 +926,7 @@ function Editable({
   // *Take the disk copy*: the typing replaced by what the file holds, the
   // field left open on it. A copy that could not be read replaces nothing.
   const takeTheDiskCopy = async () => {
+    clear();
     const disk = await diskCopy(name);
     setConflict(false);
     if (!disk.read) return refuse(disk.reason);
@@ -984,27 +999,29 @@ function Editable({
   );
 }
 
-/** A refusal line, in the footer's quiet voice, where the write was asked for. */
+/**
+ * A refusal line, in the footer's register, where the write was asked for. An
+ * `alert` because the user's own act was refused and must be heard at once,
+ * and a new element each time it is said (ADR 0033 decision 1 and its
+ * 2026-10-15 Update, decisions 5–6).
+ */
 function Refusal({
   refusal,
   className,
 }: {
-  refusal: string | null;
+  refusal: Pick<RefusalState, "words" | "count">;
   /** What the line needs where it sits; the kicker's own row is one. */
   className?: string | undefined;
 }) {
-  if (refusal === null) return null;
   return (
-    <p
-      role="status"
+    <RefusalLine
+      refusal={refusal}
       className={
         className === undefined
           ? styles.refusal
           : `${styles.refusal} ${className}`
       }
-    >
-      {refusal}
-    </p>
+    />
   );
 }
 
@@ -1024,9 +1041,10 @@ function Threads({
   empty: string;
 }) {
   const trpc = useTRPC();
-  const { refusal, settle, fail } = usePageWrite("save");
+  const { refusal, settle, fail, clear } = usePageWrite("save");
   const tick = useMutation(
     trpc.researchQuestions.tickThread.mutationOptions({
+      onMutate: clear,
       onSuccess: settle,
       onError: fail,
     })
