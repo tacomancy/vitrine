@@ -30,7 +30,9 @@ import { errorMessage, errorMessageWithoutPath } from "./errors.js";
  * `watchVault` rejects when the watch could not be brought up live — the
  * probe could not be written, or went unanswered past its bound — and that
  * `onError` is called once, after the watcher has closed itself, when a watch
- * that was live has died — FSEvents reporting an error or overflow. Nothing
+ * that was live has died — FSEvents reporting an error. An overflow is not
+ * one: libuv discards the dropped-events flags, so a lost event is neither an
+ * event nor an error, and only the focus sweep (ADR 0013, #565) repairs it. Nothing
  * more will be delivered, and the caller decides whether to reopen (#190).
  */
 
