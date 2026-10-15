@@ -102,7 +102,7 @@ function NewStub({
   });
   // A refused write is the user's act turned down, so it is an alert, said in
   // the form with the typing still in it (ADR 0033 decision 1 and its
-  // 2026-10-15 Update). Its look is the footer's register: a reason, never red.
+  // 2026-10-15 Update).
   const refusal = useRefusal();
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -246,9 +246,7 @@ function SideAndNote({
   const queryClient = useQueryClient();
   const [side, setSide] = useState<Side | null>(null);
   const [note, setNote] = useState("");
-  // A refused write is the user's act turned down, so it is an alert, said in
-  // the form with the typing still in it (ADR 0033 decision 1 and its
-  // 2026-10-15 Update). Its look is the footer's register: a reason, never red.
+  // An alert for the same reason as the stub form's (ADR 0033 decision 1).
   const refusal = useRefusal();
   const firstRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
