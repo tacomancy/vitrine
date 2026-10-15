@@ -231,10 +231,13 @@ describe("what a focus does not read", () => {
         ).toBeTruthy(),
       { timeout: 4000, interval: 25 }
     );
-    await rm(join(vault, ".vitrine/annotations/src-a.json"));
+    const sidecar = join(vault, ".vitrine/annotations/src-a.json");
+    await rm(sidecar);
     const stream = await c.events();
     await focusAndWait(c, stream);
-    await quiet(stream, "ingestLanded");
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+    // Read on the file and not on an event: a run would write the sidecar back.
+    await expect(readFile(sidecar)).rejects.toThrow(/ENOENT/);
     stream.close();
   });
 });
