@@ -1,7 +1,6 @@
 // Shared by the drives (docs/agents/run.md). The launching script puts the
 // scratch vault and the PDF it copies in the environment.
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 
 export const vault = () => process.env.DEMO_VAULT;
 export const count = () => Number(process.env.DEMO_COUNT ?? 50);
@@ -53,8 +52,6 @@ export const waitForQuiet = (page) =>
 
 export const blocks = (note) =>
   (readFileSync(note, "utf8").match(/^- p\.\d+ · /gm) ?? []).length;
-
-export { join };
 
 /** Milliseconds since the launching script spawned this app, for tuning --after. */
 export const sinceLaunch = () => Date.now() - Number(process.env.DEMO_T0);

@@ -40,7 +40,7 @@ for (let i = 1; i <= count; i++)
 const standin = await startStandin();
 // Async, not execFileSync: the stand-in lives in this process and a blocked
 // event loop would leave the app's requests unanswered.
-const launch = (png, drive, after, env = {}) =>
+const launch = (png, drive, after) =>
   new Promise((done, fail) => {
     const t0 = Date.now();
     const child = spawn(
@@ -68,7 +68,6 @@ const launch = (png, drive, after, env = {}) =>
           DEMO_COUNT: String(count),
           DEMO_PDF: join(pdfs, "annotated.pdf"),
           DEMO_PDF_RETURNED: join(pdfs, "annotated-questions.pdf"),
-          ...env,
         },
       }
     );
@@ -106,6 +105,6 @@ try {
   await launch("3-pair.png", "pair.mjs", 4500);
   console.log(`scratch vault: ${vault}`);
 } finally {
-  standin.close?.();
+  standin.close();
   if (!process.env.KEEP) rmSync(scratch, { recursive: true, force: true });
 }

@@ -23,6 +23,6 @@ export default async (page) => {
   console.log(`LAUNCH CLOCK: ${sinceLaunch()} ms`);
   console.log(`LONE PDF: ${await footerLine(page)} after ${took} ms`);
   // 7 s plus the page's polling; under 5 s means the window did not wait.
-  if (took < 6000 || took > 12000)
+  if (took < 6500 || took > 9000)
     throw new Error(`expected about 7 s, took ${took} ms`);
 };

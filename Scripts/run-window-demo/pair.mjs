@@ -42,6 +42,15 @@ export default async (page) => {
     blocks(join(vault(), `sources/${k}.md`))
   );
   console.log(`BLOCKS IN THE TWO STUBS: ${held}`);
-  if (held.filter((n) => n > 0).length !== 2 || seen.length < 1)
+  if (
+    held.filter((n) => n > 0).length !== 2 ||
+    seen.length < 1 ||
+    // A burst adds the second landing to the first: the count only grows.
+    seen.some(
+      (x, i) =>
+        i > 0 &&
+        Number(x.line.split(" ")[0]) <= Number(seen[i - 1].line.split(" ")[0])
+    )
+  )
     throw new Error("expected both stubs to hold blocks and a footer line");
 };
