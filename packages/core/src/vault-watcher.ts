@@ -14,8 +14,10 @@ import { errorMessage, errorMessageWithoutPath } from "./errors.js";
  * the time its oldest settled path has waited one more window. A rename is
  * two events, and inotify delivers them a moment apart where FSEvents
  * coalesces them; closing at the tick the first fell due split the pair
- * (#189). What the batch means for the index is `vault-index.ts`'s
- * `refresh`; nothing here reads a file's content.
+ * (#189). A stall of the event loop is not quiet either, and what the watcher
+ * does about one is `docs/architecture.md` § Watcher and Ingest (#554). What
+ * the batch means for the index is `vault-index.ts`'s `refresh`; nothing here
+ * reads a file's content.
  *
  * `watchVault` resolves only once the watch is *live*. libuv brings its
  * FSEvents stream up on another thread after `fs.watch` returns — and tears
@@ -40,7 +42,9 @@ export const SETTLE_MS = 2000;
  * is created with `NoDefer`, so the first change goes out at once and any that
  * follow inside the latency are held for the next callback: two renames a
  * millisecond apart can reach the listener 50 ms apart — measured exactly
- * that while `fseventsd` was busy (#393).
+ * that while `fseventsd` was busy (#393). It is also how late a settle timer
+ * may run before the loop is taken to have been away, and how long a timer
+ * that was late waits for the callbacks it missed (#554).
  */
 export const FSEVENTS_LATENCY_MS = 50;
 
@@ -112,6 +116,13 @@ export type Watcher = {
 /** What two stats must agree on: `null` is a path that is not there. */
 type StatKey = { size: number; mtime: number } | null;
 
+/**
+ * Heard and not yet settled. `stat` is the first of the two stats that must
+ * agree and is `undefined` until it comes back: a path is pending from the
+ * moment its event is heard, not from the moment its first stat returns (#554).
+ */
+type Pending = { stat: StatKey | undefined; dueAt: number };
+
 const statKey = async (path: string): Promise<StatKey> => {
   try {
     const s = await stat(path);
@@ -158,17 +169,26 @@ export async function watchVault(
   }: WatcherOptions
 ): Promise<Watcher> {
   const settleMs = effectiveSettleMs(requestedSettleMs);
-  const pending = new Map<string, { stat: StatKey; dueAt: number }>();
-  /** Settled and waiting for the batch to close: path → when it settled. */
+  const pending = new Map<string, Pending>();
+  /** Settled and waiting for the batch to close: path → when it settled (its stamp). */
   const settled = new Map<string, number>();
   let timer: NodeJS.Timeout | null = null;
   let closed = false;
+  /** When the armed timer was meant to run: how late it ran is how long the loop was away. */
+  let armedFor = 0;
+  /** The armed timer is the extra latency a late one was given, and is not given another. */
+  let deferred = false;
 
-  /** When the batch must close even if something is still pending. */
+  /** When the batch must close even if something is still pending: its cap, one window past its oldest stamp. */
   const closeBy = () => {
     let oldest = Infinity;
     for (const at of settled.values()) oldest = Math.min(oldest, at);
     return oldest + settleMs;
+  };
+
+  const arm = (delay: number) => {
+    armedFor = Date.now() + delay;
+    timer = setTimeout(() => void fire(), delay);
   };
 
   const schedule = () => {
@@ -177,11 +197,32 @@ export async function watchVault(
     let earliest = closeBy();
     for (const { dueAt } of pending.values())
       earliest = Math.min(earliest, dueAt);
-    timer = setTimeout(() => void fire(), Math.max(0, earliest - Date.now()));
+    arm(Math.max(0, earliest - Date.now()));
   };
 
   const fire = async () => {
     timer = null;
+    // A timer that runs more than a latency late was late because the loop was
+    // away: a freeze (a swap storm, a suspended process) or a long turn. What
+    // the OS delivered meanwhile is read only now, after this timer, so
+    // "nothing else is pending" is no evidence of quiet. FSEvents hands events
+    // over within a latency of their happening, so a latency is how long the
+    // rest takes to arrive. Settle nothing meanwhile: a path stamped settled
+    // now starts `closeBy()`, and what arrives after the stamp cannot settle
+    // before it. Once, so a loop that is always late still lands its Batches
+    // (#554).
+    if (!deferred && Date.now() - armedFor > FSEVENTS_LATENCY_MS) {
+      deferred = true;
+      arm(FSEVENTS_LATENCY_MS);
+      return;
+    }
+    deferred = false;
+    // Hear what libuv already holds before the clock is read: a timer and the
+    // FSEvents callbacks that fell due with it run timer first, and an
+    // immediate runs after the phase that delivers them. The stamp taken below
+    // starts `closeBy()`, and a path heard after it settles a window after its
+    // own event, which is after `closeBy()`, so the Batch would close around it.
+    await new Promise<void>((resolve) => setImmediate(resolve));
     const now = Date.now();
     const due = [...pending].filter(([, record]) => record.dueAt <= now);
     await Promise.all(
@@ -190,7 +231,8 @@ export async function watchVault(
         // An event landed while the stat was in flight: that path has a new
         // record and a new due time, and this pass has nothing to say about it.
         if (pending.get(path) !== record) return;
-        if (sameStat(fresh, record.stat)) {
+        // No first stat yet means nothing to agree with: it starts afresh.
+        if (record.stat !== undefined && sameStat(fresh, record.stat)) {
           pending.delete(path);
           settled.set(path, now);
         } else {
@@ -214,12 +256,18 @@ export async function watchVault(
 
   const hint = async (path: string) => {
     if (closed || isDotEntry(path)) return;
-    const fresh = await statKey(join(root, path));
-    if (closed) return;
-    // A path that had settled is being written again: it waits afresh.
+    // Pending before the stat, not after: a path between its event and its
+    // stat was in neither map, and a `fire` that ran then closed a Batch
+    // without it (#554). A path that had settled is being written again: it
+    // waits afresh.
+    const record: Pending = { stat: undefined, dueAt: Date.now() + settleMs };
     settled.delete(path);
-    pending.set(path, { stat: fresh, dueAt: Date.now() + settleMs });
+    pending.set(path, record);
     schedule();
+    const first = await statKey(join(root, path));
+    // A newer event, or `fire`, has since replaced the record: the stat that
+    // counts is that record's own.
+    if (pending.get(path) === record) record.stat = first;
   };
 
   let probed: (() => void) | null = null;
