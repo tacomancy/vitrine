@@ -23,12 +23,13 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startStandin } from "./scout-activity-demo/standin.mjs";
+import { expect } from "./scout-activity-demo/helpers.mjs";
 import { fleetVault } from "./scout-activity-demo/vault.mjs";
-import { DatabaseSync } from "node:sqlite";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "..");
@@ -111,15 +112,12 @@ const verdicts = () =>
     `SELECT COUNT(*) AS n FROM triage t JOIN appearances a ON a.proposal_id = t.proposal_id
      WHERE a.scout_id = 'stale-topic' AND t.at > datetime('now', '-1 hour')`
   )[0].n;
-const check = (ok, what) => {
-  if (!ok) throw new Error(`demo expectation failed: ${what}`);
-};
 
 try {
   await launch("1-fleet.png", "table.mjs");
   await launch("2-poor-scout.png", "poor.mjs");
   await launch("3a-try-edited-query.png", "fix-try.mjs");
-  check(
+  expect(
     standin.requests.some((q) => q.includes("cat:q-bio.NC")),
     "the dry run asked the stand-in, not the real arXiv"
   );
@@ -128,25 +126,25 @@ try {
 
   const before = JSON.stringify(staleStack());
   await launch("5a-dropped-in-place.png", "drop.mjs");
-  check(
+  expect(
     readFileSync(
       join(vault, ".vitrine/scouts/stale-topic.yaml"),
       "utf8"
     ).includes("dropped:"),
     "the Scout's file records the retirement"
   );
-  check(JSON.stringify(staleStack()) === before, "a drop moved a Proposal");
-  check(verdicts() === 0, "a drop wrote a verdict into the triage log");
+  expect(JSON.stringify(staleStack()) === before, "a drop moved a Proposal");
+  expect(verdicts() === 0, "a drop wrote a verdict into the triage log");
   await launch("5b-dropped-stays-in-review.png", "dropped-stays.mjs");
   await launch("5c-restored.png", "restore.mjs");
-  check(
+  expect(
     !readFileSync(
       join(vault, ".vitrine/scouts/stale-topic.yaml"),
       "utf8"
     ).includes("dropped:"),
     "a restore leaves the Scout retired"
   );
-  check(JSON.stringify(staleStack()) === before, "a restore moved a Proposal");
+  expect(JSON.stringify(staleStack()) === before, "a restore moved a Proposal");
 
   await launch("6-brief-a-scout.png", "gap.mjs");
   console.log(`stand-in saw ${standin.requests.length} requests`);

@@ -19,14 +19,11 @@ export default async (page) => {
     "its stack is still in the Queue under its name"
   );
   expect(!text.includes("nothing waiting"), "its Proposals are still waiting");
-  expect(
-    !(
-      await page.eval(
-        "document.querySelector('ul[aria-label=\"Scouts\"]')?.innerText ?? ''"
-      )
-    ).includes("Stale topic"),
-    "the rail does not list a Scout that is not looking"
+  const rail = await page.eval(
+    "document.querySelector('ul[aria-label=\"Scouts\"]')?.innerText ?? null"
   );
+  expect(rail !== null, "the rail is on the screen to be read");
+  expect(!rail.includes("Stale topic"), "the rail lists only Scouts that look");
   console.log(
     `QUEUE: ${(await page.eval("document.querySelector('[aria-label=\"Scout Queue\"]').innerText")).replace(/\s+/g, " ").slice(0, 500)}`
   );

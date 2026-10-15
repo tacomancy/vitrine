@@ -34,7 +34,7 @@ export const names = (page) =>
     "[...document.querySelectorAll('table[aria-label=\"Scouts\"] tbody th')].map(th=>th.innerText.split('\\n')[0].trim())"
   );
 
-export const byLabel = (label) =>
+const byLabel = (label) =>
   `[...document.querySelectorAll('[aria-label]')].find(e=>e.getAttribute('aria-label')===${JSON.stringify(label)})`;
 
 export const click = (page, label) => page.eval(`${byLabel(label)}.click()`);

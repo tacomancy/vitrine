@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 
-export const QUESTIONS = {
+const QUESTIONS = {
   sleep: { id: "qsleep0001", text: "Does sleep consolidate or only protect?" },
   replay: { id: "qreplay002", text: "What does replay add to recall?" },
   dreams: { id: "qdreams003", text: "Do dreams carry anything forward?" },
@@ -51,7 +51,7 @@ const yaml = (name, extra) =>
  * since the last clean run, chosen so only the Scouts meant to run at launch
  * are due.
  */
-export const FLEET = [
+const FLEET = [
   {
     id: "sleep-consolidation",
     name: "Sleep and consolidation",
@@ -70,7 +70,7 @@ export const FLEET = [
     rate: 6,
     lastRun: 5,
     pending: 3,
-    // Finds that Sleep and consolidation found first.
+    // Two of its finds were first made by Sleep and consolidation.
     echoes: "sleep-consolidation",
   },
   {
@@ -126,7 +126,7 @@ export const FLEET = [
     rate: null,
     lastRun: 6,
     pending: 0,
-    // Three clean runs that found nothing: the Warrant's evidence.
+    // Clean runs that found nothing, before the last: the Warrant's evidence.
     quietRuns: 4,
   },
   {
@@ -179,6 +179,10 @@ export const FLEET = [
 ];
 
 const iso = (ms) => new Date(ms).toISOString();
+
+// The drives read these figures back off the screen (10%, 30%, "fetched 40",
+// twelve rows): change a Scout's `rate`, `fetched` or the count here and the
+// drives that name them must change with it.
 
 /** The fixture vault with the fleet's files written, and the queue made and seeded. */
 export async function fleetVault(fixture, vault, core, origin) {
@@ -286,10 +290,10 @@ export async function fleetVault(fixture, vault, core, origin) {
     if (s.echoes) {
       // A find the other Scout made first: its Appearance lands under the
       // echoing Scout's own run, after the original.
-      const origin = FLEET.find((f) => f.id === s.echoes);
-      const echoRun = run(origin, 2 * DAY);
+      const first = FLEET.find((f) => f.id === s.echoes);
+      const echoRun = run(first, 2 * DAY);
       for (let n = 0; n < 2; n++) {
-        const id = proposal(origin, echoRun, { state: "pending", agoDays: 2 });
+        const id = proposal(first, echoRun, { state: "pending", agoDays: 2 });
         db.prepare(
           "INSERT INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, 'https://example.test/q')"
         ).run(id, last, s.id, iso(now - DAY));

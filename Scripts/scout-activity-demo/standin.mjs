@@ -17,7 +17,7 @@ const revised = feed("revised"); // one result
 const empty = feed("empty"); // none
 
 /** What a Query is answered with, by a word in it. */
-export function answer(query) {
+function answer(query) {
   if (query.includes("broken")) return { status: 503, body: "Unavailable" };
   if (query.includes("quiet")) return { status: 200, body: empty };
   // A Query narrowed by category matches less than the same words bare:

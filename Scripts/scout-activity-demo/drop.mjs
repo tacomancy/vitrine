@@ -14,5 +14,17 @@ export default async (page) => {
     !(await present(page, "Stale topic: drop")),
     "the row's own actions have gone"
   );
+  // Story 64: a slip is taken back from the row, which is whole again.
+  await page.eval(
+    "[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='undo').click()"
+  );
+  await page.wait(
+    "!!document.querySelector('[aria-label=\"Stale topic: drop\"]')",
+    10000
+  );
+  // The undo is still being written when its button reappears.
+  await page.sleep(2500);
+  await click(page, "Stale topic: drop");
+  await page.wait("document.body.innerText.includes('no longer runs')", 10000);
   console.log("DROPPED: row stays, says it no longer runs, offers undo");
 };

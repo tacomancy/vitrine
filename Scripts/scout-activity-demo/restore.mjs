@@ -1,5 +1,5 @@
-// 6. Restored from the dropped line: it is back in the table with its history.
-import { click, expect, names, openActivity } from "./helpers.mjs";
+// 5c. Restored from the dropped line: it is back in the table with its history.
+import { click, expect, names, openActivity, rowText } from "./helpers.mjs";
 export default async (page) => {
   await openActivity(page, 11);
   await page.eval(
@@ -20,9 +20,7 @@ export default async (page) => {
     )),
     "the dropped line is gone with nothing dropped"
   );
-  const row = await page.eval(
-    "[...document.querySelectorAll('table[aria-label=\"Scouts\"] tbody tr')].find(r=>r.querySelector('th')?.innerText.startsWith('Stale topic')).innerText"
-  );
+  const row = await rowText(page, "Stale topic");
   console.log(`RESTORED: ${row.replace(/\s+/g, " ")}`);
   expect(
     row.includes("30%") && row.includes("3 pending"),
