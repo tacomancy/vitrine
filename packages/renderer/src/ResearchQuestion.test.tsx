@@ -995,9 +995,7 @@ describe("changed on disk, inside the section", () => {
       basedOn: "xyz",
       was: "Obsidian wrote this.",
     });
-    await waitFor(() =>
-      expect(within(answer).queryByRole("alert")).toBeNull()
-    );
+    await waitFor(() => expect(within(answer).queryByRole("alert")).toBeNull());
   });
 
   it("the working answer keeps what it opened on too: an edit to another section under a dirty field raises no line", async () => {
@@ -1875,14 +1873,17 @@ describe("a refused Position save is an alert", () => {
       (box: HTMLElement) =>
         fireEvent.keyDown(box, { key: "Enter", altKey: true }),
     ],
-  ])("on %s: an alert with the core's sentence, nothing in status, the typing kept", async (_, act) => {
-    const box = await typing(() => REFUSED);
-    act(box);
-    const line = await screen.findByRole("alert");
-    expect(line.textContent).toBe("not saved — missing from the vault");
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(box.value).toBe("Probably not.");
-  });
+  ])(
+    "on %s: an alert with the core's sentence, nothing in status, the typing kept",
+    async (_, act) => {
+      const box = await typing(() => REFUSED);
+      act(box);
+      const line = await screen.findByRole("alert");
+      expect(line.textContent).toBe("not saved — missing from the vault");
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(box.value).toBe("Probably not.");
+    }
+  );
 
   it("a refusal repeated is a new node, and nothing is on screen while the retry is in flight", async () => {
     let release: (answer: unknown) => void = () => undefined;
@@ -1909,6 +1910,17 @@ describe("a refused Position save is an alert", () => {
     expect(second.textContent).toBe(first.textContent);
     expect(second).not.toBe(first);
     expect(document.contains(first)).toBe(false);
+  });
+
+  it("a refusal answered at once and identical to the last is still a new node", async () => {
+    const box = await typing(() => REFUSED);
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    const first = await screen.findByRole("alert");
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(document.contains(first)).toBe(false));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      first.textContent
+    );
   });
 
   it("esc reverts the typing and forgets the refusal", async () => {

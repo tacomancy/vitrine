@@ -236,6 +236,39 @@ describe("⌥↵ in the working answer", () => {
     expect((line as HTMLInputElement).value).toBe("Cordi's funnel plot.");
   });
 
+  it("a why refused again is heard again: the first alert is replaced, and none is up while the retry is in flight", async () => {
+    let release: (answer: unknown) => void = () => undefined;
+    let held = false;
+    const refused = {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: "no revision stamped",
+    };
+    open(() => page("Probably both.", []), {
+      "researchQuestions.explainRevision": () =>
+        held
+          ? new Promise((resolve) => {
+              release = resolve;
+            })
+          : refused,
+    });
+    await saveWithAWhy();
+    const line = await whyField();
+    fireEvent.change(line, { target: { value: "Cordi's funnel plot." } });
+    fireEvent.keyDown(line, { key: "Enter" });
+    const first = await screen.findByRole("alert");
+
+    held = true;
+    fireEvent.keyDown(line, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    release(refused);
+    const second = await screen.findByRole("alert");
+    expect(second).not.toBe(first);
+    expect(document.contains(first)).toBe(false);
+  });
+
   it("opens no line when there was nothing to save: there is no Revision to explain", async () => {
     const save = vi.fn(() => saved);
     open(() => page("Probably both.", []), {
