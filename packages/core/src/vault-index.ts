@@ -10,7 +10,7 @@ import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
-import { PDF_FOLDER } from "./pdf-folder.js";
+import { PDF_FOLDER, readPdfFault } from "./pdf-folder.js";
 import { pdfFolderOutside } from "./vault-watcher.js";
 import type { PositionChange } from "./pending-revisions.js";
 import { answeredBy, readQuestion } from "./question-kind.js";
@@ -1175,6 +1175,31 @@ function createIndex(
     }
   };
 
+  /**
+   * While the PDF folder is at fault, what a walk or a stat found under it
+   * says nothing about its files: the silence of a folder is not evidence that
+   * they are gone (ADR 0013 decision 14's Tombstone rule), and removing the
+   * rows would turn one fault, the footer's *papers not arriving*, into a
+   * *PDF missing* row for every Source. So its rows are neither removed nor
+   * read again; they are compared once the folder resolves. An absent folder
+   * is no fault (`readPdfFault`), and its rows go as any file's do.
+   *
+   * Asked after the walk or the stat, never before: a folder that breaks
+   * mid-walk then shows as a fault and not as an emptied folder.
+   */
+  const keepingPdfFolder = async (plan: {
+    work: string[];
+    removed: string[];
+  }) => {
+    if ((await readPdfFault(vaultPath)) === null) return plan;
+    const kept = (path: string) =>
+      path === PDF_FOLDER || path.startsWith(`${PDF_FOLDER}/`);
+    return {
+      work: plan.work.filter((path) => !kept(path)),
+      removed: plan.removed.filter((path) => !kept(path)),
+    };
+  };
+
   const allKnown = () =>
     db
       .prepare(
@@ -1185,7 +1210,10 @@ function createIndex(
   async function runSweep(): Promise<void> {
     const { entries, unlistable } = await walk(vaultPath);
     if (closed) return;
-    const { work, removed } = reconcile(entries, allKnown());
+    const { work, removed } = await keepingPdfFolder(
+      reconcile(entries, allKnown())
+    );
+    if (closed) return;
     // A sweep with nothing to apply shows no progress: the catch-up after a
     // recovered watcher fault, on a quiet vault, must leave no trace.
     const total = work.length + removed.length;
@@ -1249,7 +1277,11 @@ function createIndex(
       }
     }
     if (closed) return;
-    await applyChunked(reconcile(entries, [...known.values()]), entries);
+    // No `closed` check after the await: applyChunked checks between chunks.
+    await applyChunked(
+      await keepingPdfFolder(reconcile(entries, [...known.values()])),
+      entries
+    );
   }
 
   // The sweep and every batch write one after another: a batch that ran
