@@ -12,6 +12,7 @@ import styles from "./AttachSource.module.css";
 import { useRestoreFocus } from "./focus";
 import { ATTACHABLE } from "./kinds";
 import { Picker } from "./Picker";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
 
 /**
@@ -99,7 +100,10 @@ function NewStub({
     year: "",
     url: "",
   });
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // A refused write is the user's act turned down, so it is an alert, said in
+  // the form with the typing still in it (ADR 0033 decision 1 and its
+  // 2026-10-15 Update).
+  const refusal = useRefusal();
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     titleRef.current?.focus();
@@ -117,14 +121,15 @@ function NewStub({
           title: fields.title,
           pdf: false,
         }),
-      // A refused write is a line in the form, with the typing still in it.
-      onError: (error) => setRefusal(error.message),
+      onError: (error) =>
+        refusal.say(`could not make the stub: ${error.message}`),
     })
   );
 
   const ready = fields.title.trim() !== "";
   const submit = () => {
     if (!ready || create.isPending) return;
+    refusal.forget();
     create.mutate(fields);
   };
   const field = (key: keyof typeof fields) => ({
@@ -216,11 +221,7 @@ function NewStub({
             : "a title is what names the paper"}
         </span>
       </div>
-      {refusal !== null && (
-        <p role="status" className={styles.refusal}>
-          could not make the stub: {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
     </div>
   );
 }
@@ -245,7 +246,8 @@ function SideAndNote({
   const queryClient = useQueryClient();
   const [side, setSide] = useState<Side | null>(null);
   const [note, setNote] = useState("");
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // An alert for the same reason as the stub form's (ADR 0033 decision 1).
+  const refusal = useRefusal();
   const firstRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     firstRef.current?.focus();
@@ -257,7 +259,7 @@ function SideAndNote({
         // A refused write is a line in the form, with the typing still in
         // it — never a dialog that closes as if it had landed.
         if (!result.written) {
-          setRefusal(`${result.reason} — ${result.detail}`);
+          refusal.say(`could not attach: ${result.reason} — ${result.detail}`);
           return;
         }
         void queryClient.invalidateQueries(
@@ -265,12 +267,13 @@ function SideAndNote({
         );
         onDone();
       },
-      onError: (error) => setRefusal(error.message),
+      onError: (error) => refusal.say(`could not attach: ${error.message}`),
     })
   );
 
   const submit = () => {
     if (side === null || attach.isPending) return;
+    refusal.forget();
     attach.mutate({ path, target: chosen.path, side, note, basedOn: hash });
   };
 
@@ -342,11 +345,7 @@ function SideAndNote({
             : `lands in ${side} sources`}
         </span>
       </div>
-      {refusal !== null && (
-        <p role="status" className={styles.refusal}>
-          could not attach: {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
     </div>
   );
 }

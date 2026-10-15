@@ -135,7 +135,7 @@
   cursor: default;
 }
 
-/* A refused write, in the footer's voice: a reason, never red. */
+/* A refused write, in the footer's register: a reason, never red. */
 .refusal {
   margin: 0;
   font-family: var(--font-mono);
