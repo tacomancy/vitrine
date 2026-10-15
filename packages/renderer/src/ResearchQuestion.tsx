@@ -839,7 +839,7 @@ function usePageWrite(verb: string, onConflict?: () => void) {
     settle,
     /** A line in the caller's own words, for what `verb` would say wrong. */
     say: refusal.say,
-    /** As the write begins: a line left from the last try is not the answer to this one. */
+    /** As the next act begins: a line left from the last try is not the answer to this one. */
     clear: refusal.forget,
     fail: (error: { message: string }) => refused(error.message),
   };

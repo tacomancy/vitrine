@@ -1070,6 +1070,7 @@ describe("changed on disk, inside the section", () => {
         "missing from the vault"
       )
     );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(save).toHaveBeenCalledTimes(1);
   });
 
