@@ -487,6 +487,114 @@ describe("the form", () => {
   });
 });
 
+// #583 (ADR 0033 decisions 5–6): a Save the core refuses is the user's act
+// turned down, so it is an alert, gone when the retry begins, and a new
+// element each time it is said.
+describe("a refused Save", () => {
+  const refusedWords = "A Scout named Sleep and memory already exists.";
+  const type = (label: string, value: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  const fill = () => {
+    type("Name", "New one");
+    type("Query", "all:sleep");
+  };
+  const save = () => screen.getByRole("button", { name: "Save" });
+
+  it("says the core's sentence in an alert, not a status, and keeps the form with the typing", async () => {
+    renderApp(
+      answers({
+        "scouts.save": () => {
+          throw new Error(refusedWords);
+        },
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+    fill();
+
+    fireEvent.click(save());
+
+    expect((await screen.findByRole("alert")).textContent).toBe(refusedWords);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("form", { name: "New Scout" })).toBeDefined();
+    expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
+      "New one"
+    );
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Query").value).toBe(
+      "all:sleep"
+    );
+  });
+
+  it("says it on an edit too, with the edit's typing kept", async () => {
+    renderApp(
+      answers({
+        "scouts.save": () => {
+          throw new Error(refusedWords);
+        },
+      })
+    );
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await screen.findByRole("form", { name: "Edit Sleep and memory" });
+    type("Query", "all:sleep AND all:rem");
+
+    fireEvent.click(save());
+
+    expect((await screen.findByRole("alert")).textContent).toBe(refusedWords);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Query").value).toBe(
+      "all:sleep AND all:rem"
+    );
+  });
+
+  it("is gone while the second Save is in flight, and the same sentence refused again is a new element", async () => {
+    let refuse: (error: Error) => void = () => undefined;
+    let attempts = 0;
+    renderApp(
+      answers({
+        "scouts.save": () => {
+          // The first answer is given at once; the second is held past a
+          // macrotask so the in-flight state is on screen.
+          if (attempts++ === 0) throw new Error(refusedWords);
+          return new Promise((_, reject) => (refuse = reject));
+        },
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+    fill();
+    fireEvent.click(save());
+    const first = await screen.findByRole("alert");
+
+    fireEvent.click(save());
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+    refuse(new Error(refusedWords));
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(refusedWords);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
+  });
+
+  it("closes the form and shows no refusal when the Save lands", async () => {
+    renderApp(answers({ "scouts.save": () => ({ id: "new-one", run: null }) }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+    fill();
+
+    fireEvent.click(save());
+
+    await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("the form, watching a page", () => {
   const open = async (more: Record<string, unknown> = {}) => {
     renderApp(answers(more));

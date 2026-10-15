@@ -8,6 +8,7 @@ type Editable = Pick<
 >;
 import { useEffect, useRef, useState } from "react";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { pushRoute, SETTINGS } from "./router";
 import styles from "./ScoutQueue.module.css";
 import { useTRPC } from "./trpc";
@@ -91,7 +92,10 @@ export function ScoutForm({
     [name, watching, query, cadence, lane, assigned, back]
   );
   const page = watching === "watched";
-  const [said, setSaid] = useState<string | null>(null);
+  // A refused Save is the user's act turned down, so it is an alert, said where
+  // their typing is with the form still open (ADR 0033 decision 1 and its
+  // 2026-10-15 Update). Its look is the form's own register: no class, unstyled.
+  const refusal = useRefusal();
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => nameRef.current?.focus(), []);
 
@@ -101,7 +105,7 @@ export function ScoutForm({
         void queryClient.invalidateQueries(trpc.scouts.pathFilter());
         onDone(id);
       },
-      onError: (error) => setSaid(error.message),
+      onError: (error) => refusal.say(error.message),
     })
   );
   const tried = useMutation(trpc.scouts.tryQuery.mutationOptions());
@@ -112,6 +116,7 @@ export function ScoutForm({
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!ready || save.isPending) return;
+    refusal.forget();
     save.mutate({
       ...(scout === undefined ? {} : { id: scout.id }),
       name,
@@ -275,7 +280,7 @@ export function ScoutForm({
         assigned={assigned}
         onChange={setAssigned}
       />
-      {said !== null && <p role="status">{said}</p>}
+      <RefusalLine refusal={refusal} />
       <p className={styles.actions}>
         <button type="submit" disabled={!ready || save.isPending}>
           Save
