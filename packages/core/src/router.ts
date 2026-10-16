@@ -54,6 +54,12 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { attention, lexiconOf } from "./lexicon.js";
+import {
+  excludeTerm,
+  readEdits,
+  restoreTerm,
+  seedTerm,
+} from "./lexicon-edits.js";
 import { looseEnds } from "./loose-ends.js";
 import {
   candidateLinks,
@@ -337,6 +343,9 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
 
 /** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
 const providerInput = z.object({ provider: z.literal(ANTHROPIC) });
+
+/** A Term edit: the Tag as written, and the Term as typed. */
+const termInput = z.object({ tag: z.string().min(1), term: z.string() });
 
 export const router = t.router({
   health: t.procedure.query(() => ({ ok: true as const })),
@@ -1456,8 +1465,12 @@ export const router = t.router({
     attention: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const { index } = await requireVault(ctx);
-        return attention(index, input?.depth);
+        const { vault, index } = await requireVault(ctx);
+        return attention(
+          index,
+          input?.depth,
+          await refusing(readEdits(vault.path))
+        );
       }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {
@@ -1471,7 +1484,8 @@ export const router = t.router({
         return readings(index, input?.depth);
       }),
   }),
-  // A Tag's Lexicon (§ Lexicon), derived from the Index on every read.
+  // A Tag's Lexicon (§ Lexicon): derived from the Index on every read, with
+  // the user's Seeds and Exclusions from `lexicon.json` applied (#652).
   lexicon: t.router({
     get: t.procedure
       .input(
@@ -1481,9 +1495,29 @@ export const router = t.router({
         })
       )
       .query(async ({ ctx, input }) => {
-        const { index } = await requireVault(ctx);
-        return lexiconOf(index, input.tag, input.depth);
+        const { vault, index } = await requireVault(ctx);
+        return lexiconOf(
+          index,
+          input.tag,
+          input.depth,
+          await refusing(readEdits(vault.path))
+        );
       }),
+    // Each edit belongs to the Tag as written (ADR 0045 decision 3); the
+    // queue and every refusal live in the store, not here.
+    seed: t.procedure.input(termInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      await refusing(seedTerm(vault.path, input.tag, input.term));
+    }),
+    exclude: t.procedure.input(termInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      await refusing(excludeTerm(vault.path, input.tag, input.term));
+    }),
+    // The way back from either: a Seed removed, an Exclusion lifted.
+    restore: t.procedure.input(termInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      await refusing(restoreTerm(vault.path, input.tag, input.term));
+    }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
   // plus `dismissals.json`, and *mark deliberate* and its undo are the only

@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { AttentionTag, LexiconView } from "core";
 import { FirstSlot } from "./FirstSlot";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./AttentionPanel.module.css";
 import { useTRPC } from "./trpc";
 
@@ -10,8 +11,10 @@ import { useTRPC } from "./trpc";
  * from the matrix with an *as of* of its own, since it describes the papers
  * held and not the Questions' Material. Until a later ticket measures
  * anything it lists the Tags at the page's depth and opens each Tag's
- * Lexicon beside the list, read-only (ADR 0018): the Terms in use, where
- * each came from, the ones below the cut and the query they compile to.
+ * Lexicon beside the list (ADR 0018): the Terms in use, where each came
+ * from, the ones below the cut and the query they compile to, with the two
+ * edits the user has — Seed a Term by typing it, Exclude a derived one — each
+ * undoable and each belonging to the Tag as written (ADR 0045 decision 3).
  *
  * It sits behind the page's own gate, so it never claims anything of a vault
  * that has not been read in full.
@@ -112,7 +115,7 @@ function TagButton({
   );
 }
 
-/** One Tag's Lexicon, read from the Index on every open: nothing here is stored. */
+/** One Tag's Lexicon, read on every open: the Terms are derived, only the edits are stored. */
 function Editor({ tag, depth }: { tag: string; depth: number | undefined }) {
   const trpc = useTRPC();
   const lexicon = useQuery(
@@ -132,6 +135,40 @@ function Editor({ tag, depth }: { tag: string; depth: number | undefined }) {
 }
 
 function LexiconEditor({ view }: { view: LexiconView }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  // An alert on the control, since a refused Seed is a refused act (ADR 0033).
+  const refusal = useRefusal();
+  const [typed, setTyped] = useState("");
+
+  const settled = () => {
+    void queryClient.invalidateQueries(trpc.lexicon.get.pathFilter());
+    void queryClient.invalidateQueries(trpc.questionMap.attention.pathFilter());
+  };
+  const onError = (error: { message: string }) => refusal.say(error.message);
+  const seed = useMutation(
+    trpc.lexicon.seed.mutationOptions({
+      onSuccess: () => {
+        setTyped("");
+        settled();
+      },
+      onError,
+    })
+  );
+  const exclude = useMutation(
+    trpc.lexicon.exclude.mutationOptions({ onSuccess: settled, onError })
+  );
+  const restore = useMutation(
+    trpc.lexicon.restore.mutationOptions({ onSuccess: settled, onError })
+  );
+  const edit = (
+    act: { mutate: (input: { tag: string; term: string }) => void },
+    term: string
+  ) => {
+    refusal.forget();
+    act.mutate({ tag: view.tag, term });
+  };
+
   return (
     <section className={styles.editor} aria-label={`Lexicon: ${view.display}`}>
       <h3 className={styles.editorTitle}>{view.display}</h3>
@@ -140,7 +177,7 @@ function LexiconEditor({ view }: { view: LexiconView }) {
       </p>
       {view.reason !== null ? (
         <p className={styles.stated}>
-          unplaced — {REASON[view.reason]}; nothing to measure yet
+          unplaced — {REASON[view.reason]}; seed a term to place it
         </p>
       ) : (
         <>
@@ -150,6 +187,25 @@ function LexiconEditor({ view }: { view: LexiconView }) {
                 <li key={t.term} className={styles.term}>
                   <span>{t.term}</span>
                   <span className={styles.origin}>{t.origin}</span>
+                  {t.origin === "seeded" ? (
+                    <button
+                      type="button"
+                      className={styles.edit}
+                      aria-label={`Remove ${t.term}`}
+                      onClick={() => edit(restore, t.term)}
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.edit}
+                      aria-label={`Exclude ${t.term}`}
+                      onClick={() => edit(exclude, t.term)}
+                    >
+                      Exclude
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -164,6 +220,45 @@ function LexiconEditor({ view }: { view: LexiconView }) {
           )}
         </>
       )}
+      {view.excluded.length > 0 && (
+        <ul className={styles.terms} aria-label="Excluded">
+          {view.excluded.map((term) => (
+            <li key={term} className={styles.term}>
+              <span>{term}</span>
+              <span className={styles.origin}>excluded</span>
+              <button
+                type="button"
+                className={styles.edit}
+                aria-label={`Restore ${term}`}
+                onClick={() => edit(restore, term)}
+              >
+                Restore
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className={styles.seed}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (seed.isPending) return;
+          edit(seed, typed);
+        }}
+      >
+        <input
+          type="text"
+          className={styles.seedBox}
+          aria-label="Seed a term"
+          placeholder="Seed a term"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+        />
+        <button type="submit" className={styles.edit}>
+          Seed
+        </button>
+      </form>
+      <RefusalLine refusal={refusal} className={styles.refusal} />
     </section>
   );
 }
