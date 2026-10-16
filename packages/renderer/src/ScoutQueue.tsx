@@ -770,6 +770,7 @@ function Proposal({
             .map((q) => q.name ?? q.id)
             .join(", ")}`}
         {card.retroactive && " · retroactive"}
+        {/* The Questions signal is the *assigned to* clause above. */}
         {card.signals
           .filter((signal) => signal.kind !== "questions")
           .map((signal) => ` · ${signalWords(signal)}`)

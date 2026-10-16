@@ -489,11 +489,11 @@ export async function readQueue(
   if (sort === "newest") return cards;
   // `readCards` is newest first and Array#sort is stable, so the final
   // tie-break (newest) is the order already there.
-  return cards.sort((a, b) => compare(b, a));
+  return cards.sort((a, b) => byRank(b, a));
 }
 
-/** Signals as the tuple Rank compares: accepted-work authors, Corroboration, Assigned Questions. */
-function tuple(card: Card): [number, number, number] {
+/** The order of this tuple is the precedence of Rank (ADR 0044 decision 2): accepted-work authors, then Corroboration, then Assigned Questions. */
+function rankTuple(card: Card): [number, number, number] {
   let authors = 0;
   let scouts = 0;
   let questions = 0;
@@ -505,8 +505,9 @@ function tuple(card: Card): [number, number, number] {
   return [authors, scouts, questions];
 }
 
-function compare(a: Card, b: Card): number {
-  const [x, y] = [tuple(a), tuple(b)];
+/** Ascending by Rank; the caller flips the arguments for best-first. */
+function byRank(a: Card, b: Card): number {
+  const [x, y] = [rankTuple(a), rankTuple(b)];
   for (let i = 0; i < x.length; i++) {
     if (x[i] !== y[i]) return x[i]! - y[i]!;
   }
@@ -631,6 +632,7 @@ function acceptedAuthors(index: VaultIndex): Set<string> {
     const found = (JSON.parse(row.value) as Record<string, unknown> | null)?.[
       "authors"
     ];
+    // A hand-edited file may hold anything; it simply adds no author.
     if (!Array.isArray(found)) continue;
     for (const name of found) {
       if (typeof name === "string") names.add(authorKey(name));
