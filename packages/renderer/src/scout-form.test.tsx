@@ -953,3 +953,120 @@ describe("empty stacks, in the three voices", () => {
     expect(screen.queryByText("Review cleared.")).toBeNull();
   });
 });
+
+// ADR 0033 decision 12 (#625): the form's Try answers the click as the edit
+// form's Try does. A failure is an alert, a result a status, and `trying…` has
+// no live region (progress, decision 1).
+describe("the form's Try, announced", () => {
+  const open = async (more: Record<string, unknown>, watched = false) => {
+    renderApp(answers(more));
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+    if (watched) {
+      fireEvent.change(screen.getByLabelText("Watching"), {
+        target: { value: "watched" },
+      });
+    }
+    fireEvent.change(screen.getByLabelText(watched ? "Address" : "Query"), {
+      target: { value: watched ? "https://lab.example/" : "all:sleep" },
+    });
+  };
+  const tryIt = () =>
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+  const sentence = "The page could not be read.";
+
+  it.each([false, true])(
+    "says a mutation's error in an alert (watched: %s)",
+    async (watched) => {
+      await open(
+        {
+          [watched ? "scouts.tryWatched" : "scouts.tryQuery"]: () => {
+            throw new Error("core down");
+          },
+        },
+        watched
+      );
+      tryIt();
+      expect((await screen.findByRole("alert")).textContent).toBe("core down");
+      expect(screen.queryByRole("status")).toBeNull();
+    }
+  );
+
+  it.each([false, true])(
+    "says a failed outcome in an alert (watched: %s)",
+    async (watched) => {
+      await open(
+        {
+          [watched ? "scouts.tryWatched" : "scouts.tryQuery"]: {
+            outcome: "failed",
+            sentence,
+          },
+        },
+        watched
+      );
+      tryIt();
+      expect((await screen.findByRole("alert")).textContent).toBe(sentence);
+      expect(screen.queryByRole("status")).toBeNull();
+    }
+  );
+
+  it("says a Query result in a status", async () => {
+    await open({
+      "scouts.tryQuery": { outcome: "found", total: 2, titles: ["A", "B"] },
+    });
+    tryIt();
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toContain("2 results across all of arXiv");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says a page result in a status", async () => {
+    await open(
+      {
+        "scouts.tryWatched": {
+          outcome: "found",
+          via: "feed",
+          total: 14,
+          titles: ["A"],
+        },
+      },
+      true
+    );
+    tryIt();
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toContain("14 found");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says no key in an alert, with the way to Settings inside it", async () => {
+    await open(
+      {
+        "scouts.tryWatched": { outcome: "no-key", sentence: "No model key." },
+      },
+      true
+    );
+    tryIt();
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("No model key.");
+    expect(
+      within(alert).getByRole("button", { name: "Add a key" })
+    ).toBeDefined();
+  });
+
+  it("forgets the last answer as the next Try begins, and has no live region while it waits", async () => {
+    let calls = 0;
+    await open({
+      "scouts.tryQuery": async () => {
+        if (calls++ === 0) throw new Error("core down");
+        await new Promise(() => {});
+      },
+    });
+    tryIt();
+    await screen.findByRole("alert");
+    tryIt();
+    await screen.findByText("trying…");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("trying…").closest("[role]")).toBeNull();
+  });
+});

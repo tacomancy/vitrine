@@ -215,6 +215,16 @@ describe("attach as evidence, from the Experiment page", () => {
     fireEvent.keyDown(note, { key: "Enter" });
     expect(asked).toEqual([]);
     expect(form.textContent).toContain("the note is required");
+    // A refusal of the key, so an alert, and a new element each time (ADR 0033).
+    expect(within(form).getByRole("alert").textContent).toBe(
+      "the note is required — it is what makes a run Evidence"
+    );
+    const first = within(form).getByRole("alert");
+    fireEvent.keyDown(note, { key: "Enter" });
+    expect(within(form).getAllByRole("alert")).toHaveLength(1);
+    expect(within(form).getByRole("alert")).not.toBe(first);
+    // The standing hint stays, silent.
+    expect(form.textContent).toContain("records no Outcome");
 
     fireEvent.change(note, {
       target: { value: "d = 0.41 — the effect did not move" },
