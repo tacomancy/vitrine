@@ -214,10 +214,18 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
         ),
       };
     }
-    const lastClean = ok.at(-1);
-    // Only known when a clean run recorded the Query it asked: a run from
-    // before the column, or no clean run at all, claims no edit.
-    const edited = lastClean?.query != null && lastClean.query !== scout.query;
+    // Only known when a clean run recorded what it asked: a run from before
+    // the column, or no clean run at all, claims no edit. A page Scout's
+    // memory of the edit is its last clean run on *any* page, and only a first
+    // look at this one is an edit's fault; a page already read cleanly has
+    // failed on its own (ADR 0043 d.4).
+    const lastClean = finishedRuns(queue, scout.id)
+      .filter((r) => r.outcome === "ok")
+      .at(-1);
+    const edited =
+      lastClean?.query != null &&
+      lastClean.query !== scout.query &&
+      (scout.source.kind !== "watched" || ok.length === 0);
     return {
       voice: "wrong",
       kind,
@@ -250,12 +258,34 @@ export function unreadableHealth(file: UnreadableScout): Health {
   return { voice: "wrong", kind: null, sentence: file.sentence };
 }
 
+/** The faults a page can cause; a missing or rejected key, a model fault or a closed app say nothing about the edit. */
+const PAGE_FAULTS: ReadonlySet<RunErrorKind> = new Set([
+  "network",
+  "http",
+  "parse",
+  "extraction",
+]);
+
 /** One sentence per kind; the surfaces render it and never reword it. */
 export function faultSentence(
   kind: RunErrorKind,
   message: string | null,
   queryEdited: boolean,
   source: Scout["source"]["kind"] = "arxiv"
+): string {
+  const sentence = baseFaultSentence(kind, message, queryEdited, source);
+  // arXiv's `parse` sentence carries its own clause for a Query; a page's
+  // clause is the same words, added to every fault the page can have caused.
+  return source === "watched" && queryEdited && PAGE_FAULTS.has(kind)
+    ? `${sentence} Its page changed since it last ran cleanly.`
+    : sentence;
+}
+
+function baseFaultSentence(
+  kind: RunErrorKind,
+  message: string | null,
+  queryEdited: boolean,
+  source: Scout["source"]["kind"]
 ): string {
   if (
     source === "watched" &&

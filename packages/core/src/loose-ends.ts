@@ -24,7 +24,7 @@ import {
 import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
 import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
 import {
-  finishedRuns,
+  finishedRunsAtPage,
   healthOf,
   isWaitingOnKey,
   type RunErrorKind,
@@ -488,11 +488,12 @@ async function scoutRows(
       continue;
     }
     // Only a page that once yielded items can be said to have *changed*;
-    // with no such run there is nothing to compare against.
+    // with no such run at this page there is nothing to compare against, and a
+    // page the Scout was pointed at is not judged by the old one (ADR 0043 d.6).
     if (
       health.kind === "extraction" &&
       scout.source.kind === "watched" &&
-      finishedRuns(queue, scout.id).some(
+      finishedRunsAtPage(queue, scout).some(
         (r) => r.outcome === "ok" && r.fetched > 0
       )
     ) {
