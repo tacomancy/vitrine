@@ -181,6 +181,34 @@ describe("Settings: what it talks to", () => {
     expect(section.textContent).not.toContain(KEY);
   });
 
+  it("says the last act's refusal: a refused remove replaces a refused store", async () => {
+    renderApp(
+      answers({
+        "credentials.status": { state: "present" },
+        "credentials.set": () => {
+          throw new Error("The Keychain could not be used: it may be locked.");
+        },
+        "credentials.delete": () => {
+          throw new Error("The key could not be removed.");
+        },
+      })
+    );
+    const section = await talks();
+    fireEvent.change(await within(section).findByLabelText("Key"), {
+      target: { value: KEY },
+    });
+    fireEvent.click(within(section).getByRole("button", { name: "Replace" }));
+    expect((await within(section).findByRole("alert")).textContent).toContain(
+      "Keychain"
+    );
+    fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
+    await vi.waitFor(() =>
+      expect(within(section).getByRole("alert").textContent).toBe(
+        "The key could not be removed."
+      )
+    );
+  });
+
   describe("test", () => {
     const tested = async (result: unknown, status = "present") => {
       renderApp(

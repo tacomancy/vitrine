@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KeyStatus, KeyTest } from "core";
 import { useEffect, useRef, useState } from "react";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./Settings.module.css";
 import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
@@ -26,6 +27,13 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
   const waiting = useQuery(trpc.credentials.waiting.queryOptions(PROVIDER));
   const [typed, setTyped] = useState("");
   const [modelEdit, setModelEdit] = useState<string | null>(null);
+  // One line for the three writes: it is the last act's, so a refused store
+  // does not stay on screen over a later refused remove.
+  const refusal = useRefusal();
+  const refused = {
+    onMutate: refusal.forget,
+    onError: (error: { message: string }) => refusal.say(error.message),
+  };
 
   // Storing a key, or a test that passes, starts the Scouts waiting on it, so
   // who is waiting has changed too.
@@ -50,6 +58,7 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
   };
   const set = useMutation(
     trpc.credentials.set.mutationOptions({
+      ...refused,
       onSuccess: () => {
         setTyped("");
         keyChanged();
@@ -57,10 +66,14 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
     })
   );
   const remove = useMutation(
-    trpc.credentials.delete.mutationOptions({ onSuccess: keyChanged })
+    trpc.credentials.delete.mutationOptions({
+      ...refused,
+      onSuccess: keyChanged,
+    })
   );
   const saveModel = useMutation(
     trpc.credentials.setModel.mutationOptions({
+      ...refused,
       onSuccess: () => {
         setModelEdit(null);
         void queryClient.invalidateQueries({
@@ -81,7 +94,6 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
   const present = state?.state === "present";
   const rejected = present && test.data?.result === "rejected";
   const modelText = modelEdit ?? model.data?.model ?? "";
-  const refusal = set.error ?? remove.error ?? saveModel.error;
 
   return (
     <section
@@ -229,11 +241,7 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
           <dd className={styles.value}>api.anthropic.com — nowhere else</dd>
         </div>
       </dl>
-      {refusal && (
-        <span className={styles.refusal} role="alert">
-          {refusal.message}
-        </span>
-      )}
+      <RefusalLine refusal={refusal} as="span" className={styles.refusal} />
       <p className={styles.paragraph}>
         Held in the macOS Keychain. Never shown back, never written to the
         vault, sent only to the address above.

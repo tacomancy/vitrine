@@ -3,6 +3,7 @@ import { createTRPCClient, TRPCClientError, type TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AcceptRate, AcceptWeek, AppRouter, CoreEvent } from "core";
+import type { ReactNode } from "react";
 import { vi } from "vitest";
 import { App } from "./App";
 import { TRPCProvider } from "./trpc";
@@ -83,7 +84,11 @@ function fakeLink(
       });
 }
 
-export function renderApp(answers: Record<string, Answer>) {
+/** `ui` is the whole app unless a test is after one hook or component alone. */
+export function renderApp(
+  answers: Record<string, Answer>,
+  ui: ReactNode = <App />
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -106,7 +111,7 @@ export function renderApp(answers: Record<string, Answer>) {
   const rendered = render(
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <App />
+        {ui}
       </TRPCProvider>
     </QueryClientProvider>
   );

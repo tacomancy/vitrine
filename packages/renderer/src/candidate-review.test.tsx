@@ -209,6 +209,20 @@ describe("the candidate review", () => {
     expect(within(await listbox()).getAllByRole("option")).toHaveLength(3);
   });
 
+  it("forgets a refused accept as the next act, a pass, begins", async () => {
+    open(
+      QUESTIONS,
+      vi.fn(() => {
+        throw new Error("q/Many.md is not readable.");
+      })
+    );
+    await listbox();
+    key("A");
+    expect((await panel()).textContent).toContain("q/Many.md is not readable.");
+    key("P");
+    expect(within(await panel()).queryByRole("alert")).toBeNull();
+  });
+
   it("says so as a Claim when no Question has a candidate", async () => {
     open([]);
     const view = await panel();

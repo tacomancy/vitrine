@@ -137,6 +137,7 @@ export function CandidateReview({
   }
   function pass() {
     if (focused === undefined) return;
+    setRefused(null);
     setPassed((was) => [
       ...was.filter((p) => p !== focused.path),
       focused.path,
