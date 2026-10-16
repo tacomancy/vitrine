@@ -526,7 +526,7 @@ A local date on which the vault was opened, or its window brought to the front, 
 _Avoid_: Active day, calendar day (it is not one)
 
 **Coverage**:
-How much Material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question — and only if the link resolves. Inferred connections never count; they are offered as Candidate links.
+How much Material attaches to a Question (rows) or a Tag (columns) in the Question Map's coverage matrix. Not a Tag's papers: a tagged paper nothing points at counts for the Lexicon and the scatter, and for nothing here. Explicit means a human made the link: a Question's Related, a source attached to a Research Question, or a Source stub accepted from a Scout Assigned to the Question — and only if the link resolves. Inferred connections never count; they are offered as Candidate links.
 
 **Material** (of a Question):
 A Source or Source stub explicitly attached to a Question, or one of its highlights. A highlight takes its Source's Tags, and a highlight and its own Source count once. Coverage is a count of distinct Material: a cell is the Material attached to a Question that carries a Tag, a row's weight is its distinct Material, a column's weight is the distinct Material carrying the Tag across the rows shown — never a sum of cells, which would count a paper with three Tags three times.
@@ -575,17 +575,25 @@ A Term the user typed into a Tag's Lexicon. Always included, whatever derivation
 _Avoid_: Manual keyword, override (that is Seeds and Exclusions together), pin
 
 **Excluded** (of a Term):
-Removed from a Tag's Lexicon by the user and never derived back for that Tag. Recorded, never forgotten by the next recompute.
+Removed from a Tag's Lexicon by the user and never derived back for that Tag. Recorded, never forgotten by the next recompute. Belongs to the Tag as written and to no other: a parent's Seeds and Exclusions are not its children's, and a child's are not its parent's.
 _Avoid_: Deleted, blocked, muted (a Scout Queue word)
 
 **Tag's papers**:
-The Sources and Source stubs that vote for a Tag's Lexicon: those carrying the Tag, plus those explicitly attached to a Question carrying it. The same set as the Tag's Coverage and as its point on the attention scatter. A parent's papers are the union of its descendants'.
+The Sources and Source stubs that vote for a Tag's Lexicon: those carrying the Tag, plus those explicitly attached to a Question carrying it. The same set as its point and size on the attention scatter — *not* the same as its column in the coverage matrix, which counts only Material attached to open Map rows. A parent's papers are the union of its descendants'.
 _Avoid_: Corpus, training set, accept history (that is how the set grows, not what it is)
 
 **Unplaced** (of a Tag):
-Too few of its papers have text behind them to derive a Lexicon, and it has no Seed. Shown as such on the scatter, never as low attention; still counted toward its parent.
+Cannot be placed on the scatter, for one of two reasons the chip names: too few of its papers have text behind them to derive a Lexicon and it has no Seed, or the field's index holds too few works for its Lexicon to give a growth rate that is more than noise. Shown as such on the scatter, never as low attention; still counted toward its parent.
 _Avoid_: Low, empty, unmeasured
 
 **Re-measure pending** (of a Tag):
 Its Lexicon has changed since field attention was last measured, so the point shows what was measured, marked as such, until the next sync. Distinct from unplaced and from low.
 _Avoid_: Stale (a Scout health word), dirty, out of date
+
+**Measurement** (of a Tag):
+What one sync learned about a Tag's field: the compiled query it was made with, the field's publication count for each of the last 24 complete months, and when. Growth is read from it, never stored beside it. Kept after an Index rebuild, since re-fetching spends the field source's budget.
+_Avoid_: Reading (a Question Map word), sample, snapshot
+
+**Not yet measured** (of a Tag):
+Placeable, with a Lexicon, but no sync has measured it. Distinct from unplaced (cannot be measured), from re-measure pending (measured, now out of date) and from low. Before the first *Sync now* in a vault, every Tag is in this state and the panel says nothing has been synced.
+_Avoid_: Pending (re-measure pending is a different state), unsynced
