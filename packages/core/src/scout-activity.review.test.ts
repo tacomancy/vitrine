@@ -125,7 +125,13 @@ describe("scouts.activity — Review depth", () => {
 
     const a = await f.activity();
 
-    const none = { pending: 0, deferred: 0, median: null, oldest: null };
+    const none = {
+      pending: 0,
+      pastWindow: 0,
+      deferred: 0,
+      median: null,
+      oldest: null,
+    };
     expect(rowOf(a, "alpha").review).toEqual(none);
     expect(a.review).toEqual(none);
   });

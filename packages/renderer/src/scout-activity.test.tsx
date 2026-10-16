@@ -33,7 +33,13 @@ const NO_FLEET = {
   keyRejected: 0,
   noKey: 0,
 };
-const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NO_REVIEW = {
+  pending: 0,
+  pastWindow: 0,
+  deferred: 0,
+  median: null,
+  oldest: null,
+};
 const COVERED: ScoutActivity["coverageGaps"] = {
   kind: "covered",
   warrant: { questions: 0, scouts: 0 },
@@ -103,6 +109,7 @@ const BROKEN: ActivityRow = {
   review: {
     pending: 3,
     deferred: 1,
+    pastWindow: 0,
     median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
     oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
   },
@@ -266,6 +273,7 @@ describe("Scout Activity — Review depth and age", () => {
         {
           pending: 3,
           deferred: 1,
+          pastWindow: 0,
           median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
           oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
         }
