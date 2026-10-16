@@ -230,13 +230,17 @@ export function ScoutForm({
             Try
           </button>{" "}
           {tried.isPending && <span>trying…</span>}
-          {tried.isError && <span>{tried.error.message}</span>}
-          {result?.outcome === "failed" && <span>{result.sentence}</span>}
+          {tried.isError && <span role="alert">{tried.error.message}</span>}
+          {result?.outcome === "failed" && (
+            <span role="alert">{result.sentence}</span>
+          )}
           {result?.outcome === "found" && result.total === 0 && (
-            <span>0 results across all of arXiv for this query</span>
+            <span role="status">
+              0 results across all of arXiv for this query
+            </span>
           )}
           {result?.outcome === "found" && result.total > 0 && (
-            <span>
+            <span role="status">
               {result.total} results across all of arXiv
               <ol aria-label="First results">
                 {result.titles.map((title, i) => (
@@ -257,7 +261,9 @@ export function ScoutForm({
             Try
           </button>{" "}
           {triedPage.isPending && <span>trying…</span>}
-          {triedPage.isError && <span>{triedPage.error.message}</span>}
+          {triedPage.isError && (
+            <span role="alert">{triedPage.error.message}</span>
+          )}
           {pageResult !== undefined && <PageResult result={pageResult} />}
         </p>
       )}
@@ -313,10 +319,12 @@ export function ScoutForm({
 
 /** What *try* learned about a page, in the words the Scout would use for it. */
 function PageResult({ result }: { result: TriedPage }) {
-  if (result.outcome === "failed") return <span>{result.sentence}</span>;
+  if (result.outcome === "failed") {
+    return <span role="alert">{result.sentence}</span>;
+  }
   if (result.outcome === "no-key") {
     return (
-      <span>
+      <span role="alert">
         {result.sentence}{" "}
         {/* The form is kept by the window, so back returns to it as left. */}
         <button type="button" onClick={() => pushRoute(SETTINGS)}>
@@ -326,7 +334,7 @@ function PageResult({ result }: { result: TriedPage }) {
     );
   }
   return (
-    <span>
+    <span role="status">
       {result.via === "feed"
         ? `${result.total} found · a feed was found · no model call`
         : `${result.total} found · ${result.verified} verified · ${result.dropped} dropped`}
