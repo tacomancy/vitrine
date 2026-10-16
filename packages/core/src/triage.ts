@@ -52,6 +52,9 @@ export function rejectProposal(deps: ScoutDeps, proposalId: number): void {
   decide(deps, proposalId, "reject", "rejected");
 }
 
+/** How many standing defers drop a card to Skim (ADR 0044 decision 8). */
+const DEFERS_BEFORE_DEMOTE = 3;
+
 /**
  * `D`: out of the stack until that Scout's next run finishes `ok` (see
  * `returnDeferred`). The third defer that stands drops the card to Skim
@@ -76,8 +79,6 @@ export function deferProposal(deps: ScoutDeps, proposalId: number): void {
   });
 }
 
-const DEFERS_BEFORE_DEMOTE = 3;
-
 /**
  * Defers that have not been taken back. An `undo` compensates the act before
  * it, so replaying the log in order and popping on `undo` leaves exactly the
@@ -91,6 +92,9 @@ function standingDefers(queue: DatabaseSync, proposalId: number): number {
   for (const { action } of log) {
     if (action === "defer" || action === "reject") acts.push(action);
     else if (action === "undo") acts.pop();
+    // A hand promotion is a fresh start: the researcher has looked again, so
+    // the one defer after it must not demote a card that was already dropped once.
+    else if (action === "promote") acts.length = 0;
   }
   return acts.filter((a) => a === "defer").length;
 }

@@ -611,7 +611,10 @@ async function readCards(
       WHERE a.proposal_id = ? ORDER BY a.run_id`
   );
   const lastMove = queue.prepare(
-    "SELECT action FROM triage WHERE proposal_id = ? AND action IN ('promote', 'demote', 'raise') ORDER BY rowid DESC LIMIT 1"
+    "SELECT action, at FROM triage WHERE proposal_id = ? AND action IN ('promote', 'demote', 'raise') ORDER BY rowid DESC LIMIT 1"
+  );
+  const raiseBy = queue.prepare(
+    "SELECT scout_id FROM appearances WHERE proposal_id = ? AND seen_at = ? LIMIT 1"
   );
   return rows.map((row) => {
     const appearances = seen.all(row.id) as Array<{

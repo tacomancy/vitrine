@@ -107,6 +107,18 @@ describe("demote", () => {
     expect(card).toMatchObject({ id: d.id, moved: null });
   });
 
+  it("starts the count again after a hand promotion", async () => {
+    const d = await demotable();
+    await d.defers(3);
+    await d.act("promote");
+
+    await d.defers(2);
+    expect(d.rows().filter((a) => a === "demote")).toHaveLength(1);
+
+    await d.act("defer");
+    expect(d.rows().filter((a) => a === "demote")).toHaveLength(2);
+  });
+
   it("is taken back by undoing the defer that caused it", async () => {
     const d = await demotable();
     await d.defers(2);
