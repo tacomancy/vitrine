@@ -1,5 +1,5 @@
 import { normalisePhrase } from "./lexicon-phrases.js";
-import { compileOpenAlexQuery } from "./openalex.js";
+import { compileOpenAlexQuery, type OpenAlexErrorKind } from "./openalex.js";
 import {
   yearCounts,
   type Measurement,
@@ -75,10 +75,7 @@ export type Attention = {
 export type SyncResult = {
   measured: number;
   /** A Tag whose measuring failed keeps its last Measurement and is named here. */
-  failed: Array<{
-    tag: string;
-    kind: "network" | "http" | "rate_limited" | "parse";
-  }>;
+  failed: Array<{ tag: string; kind: OpenAlexErrorKind }>;
   /** Tags still to measure after a rate limit stopped the sync. */
   waiting: number;
 };
@@ -89,6 +86,7 @@ export type LexiconView = {
   depth: number;
   papers: number;
   withText: number;
+  /** Enough papers, and the field not too thin to measure. */
   placed: boolean;
   reason: "few-papers" | "few-in-field" | null;
   /** What the field measured at, for a Tag judged on it. */

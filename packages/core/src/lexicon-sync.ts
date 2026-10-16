@@ -48,8 +48,7 @@ export async function syncLexicons(deps: {
 }): Promise<SyncResult> {
   const { index, vaultPath, client, now } = deps;
   const first = await readMeasurements(vaultPath);
-  if (first.problem !== null)
-    throw new VaultError("writeFailed", first.problem);
+  if (first.problem !== null) throw new VaultError("unreadable", first.problem);
   if (first.measurements.consentedAt === null) {
     if (!deps.confirm) {
       throw new VaultError(

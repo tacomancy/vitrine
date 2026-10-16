@@ -276,7 +276,7 @@ const noVault = () =>
   new TRPCError({ code: "PRECONDITION_FAILED", message: "No vault is open." });
 
 /**
- * The stored Measurements, or the BAD_REQUEST that says the file cannot be
+ * The stored Measurements, or the INTERNAL_SERVER_ERROR that says the file cannot be
  * read: an unreadable store read as empty would ask for consent again.
  */
 async function measurementsOf(vaultPath: string): Promise<Measurements> {

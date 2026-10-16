@@ -8,8 +8,7 @@ import { useTRPC } from "./trpc";
 /**
  * The Question Map's second panel (ADR 0045; brief § Panel 2), kept apart
  * from the matrix with an *as of* of its own, since it describes the papers
- * held and not the Questions' Material. Until a later ticket measures
- * anything it lists the Tags at the page's depth and opens each Tag's
+ * held and not the Questions' Material. It lists the Tags at the page's depth and opens each Tag's
  * Lexicon beside the list (ADR 0018): the Terms in use, where each came
  * from, the ones below the cut and the query they compile to. *Sync now*
  * measures them against OpenAlex; its first press asks in a line here, since
