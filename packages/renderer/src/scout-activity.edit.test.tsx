@@ -180,6 +180,138 @@ describe("a row says what happened", () => {
   });
 });
 
+// A row's note is keyed by the row, so the repeat rule of ADR 0033 decision 6
+// cannot be `useRefusal`'s single slot: each said note carries a count of its
+// own, and a refusal is forgotten as the next act on that row begins (#624).
+describe("a row's note is announced each time it is said", () => {
+  const pauseButton = () =>
+    screen.findByRole("button", { name: "Sleep and memory: pause" });
+
+  it("is a new element when a refusal identical to the last is said again", async () => {
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": () => {
+        throw new Error("There is no Scout named sleep.");
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    const first = await screen.findByRole("alert");
+    fireEvent.click(await pauseButton());
+
+    // The first is forgotten as the retry begins, and the second is said anew.
+    await vi.waitFor(() => expect(first.isConnected).toBe(false));
+    const second = await screen.findByRole("alert");
+    expect(second).not.toBe(first);
+    expect(second.textContent).toBe(first.textContent);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("is gone while the retry is in flight", async () => {
+    let release: (() => void) | undefined;
+    let calls = 0;
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": () => {
+        calls += 1;
+        if (calls === 1) throw new Error("There is no Scout named sleep.");
+        return new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    await screen.findByRole("alert");
+    fireEvent.click(await pauseButton());
+
+    await vi.waitFor(() => expect(calls).toBe(2));
+    expect(screen.queryByRole("alert")).toBeNull();
+    release?.();
+  });
+
+  it("is gone while a cadence change is in flight after a refusal of a pause", async () => {
+    let calls = 0;
+    open(() => fleet([scout({ cadence: "weekly" })]), {
+      "scouts.setPaused": () => {
+        throw new Error("There is no Scout named sleep.");
+      },
+      "scouts.setCadence": () => {
+        calls += 1;
+        return new Promise(() => undefined);
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    await screen.findByRole("alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sleep and memory: cadence, weekly" })
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("menu", { name: "Sleep and memory: cadence" })
+      ).getByRole("menuitemradio", { name: /^daily/ })
+    );
+
+    await vi.waitFor(() => expect(calls).toBe(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("is gone when the row's edit is opened", async () => {
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": () => {
+        throw new Error("There is no Scout named sleep.");
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    await screen.findByRole("alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sleep and memory: edit" })
+    );
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps a success note until it is replaced, an act beginning not clearing it", async () => {
+    let calls = 0;
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": () => {
+        calls += 1;
+        if (calls === 1) return undefined;
+        return new Promise(() => undefined);
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    const note = await screen.findByRole("status");
+    fireEvent.click(await pauseButton());
+
+    await vi.waitFor(() => expect(calls).toBe(2));
+    expect(note.isConnected).toBe(true);
+    expect(note.textContent).toBe(
+      "Paused. It will not run until you resume it."
+    );
+  });
+
+  it("is a new element when a success replaces a refusal, so the role change is announced", async () => {
+    let calls = 0;
+    open(() => fleet([scout()]), {
+      "scouts.setPaused": () => {
+        calls += 1;
+        if (calls === 1) throw new Error("There is no Scout named sleep.");
+        return undefined;
+      },
+    });
+
+    fireEvent.click(await pauseButton());
+    const refusal = await screen.findByRole("alert");
+    fireEvent.click(await pauseButton());
+
+    const success = await screen.findByRole("status");
+    expect(success).not.toBe(refusal);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 // The core sorts every read by need (ADR 0042 decision 8), so a Scout that has
 // just been paused is, on the next read, one that is not looking and belongs
 // above those that are. The row an act was on must not be moved by it (spec
