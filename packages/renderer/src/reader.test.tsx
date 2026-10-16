@@ -625,10 +625,11 @@ describe("Connections", () => {
     });
     await screen.findByTestId("paper");
     fireEvent.keyDown(window, { key: ";", metaKey: true });
-    expect(await screen.findByRole("alert")).toHaveProperty(
+    expect(await screen.findByRole("status")).toHaveProperty(
       "textContent",
       "index is unreadable"
     );
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText(/Nothing points/)).toBeNull();
   });
 });

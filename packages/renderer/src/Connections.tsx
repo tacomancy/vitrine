@@ -130,7 +130,7 @@ export function ConnectionsPanel({
     <aside className={styles.margin} aria-label="Connections">
       {/* A read that failed must never read as a paper nothing points at. */}
       {error !== null && (
-        <p className={styles.line} role="alert">
+        <p className={styles.line} role="status">
           {error}
         </p>
       )}

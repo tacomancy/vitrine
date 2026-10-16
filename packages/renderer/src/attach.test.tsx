@@ -133,6 +133,19 @@ async function chooseSource(name = "rasch2013") {
 }
 
 describe("attaching a source", () => {
+  it("says a failed candidate read as a status line, never an alert or an empty list", async () => {
+    open(page([], []), {
+      "picker.candidates": () => {
+        throw new Error("the candidates are unreadable");
+      },
+    });
+    const picker = await attachFrom(await region());
+    expect((await within(picker).findByRole("status")).textContent).toBe(
+      "the candidates are unreadable"
+    );
+    expect(within(picker).queryByRole("alert")).toBeNull();
+  });
+
   it("opens the picker over Sources and stubs from any focus on the page", async () => {
     const candidates = vi.fn(matching);
     open(page([], []), { "picker.candidates": candidates });
