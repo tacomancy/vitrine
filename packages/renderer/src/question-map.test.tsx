@@ -1,5 +1,12 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import type { Coverage, Matrix, OriginRow, Origins } from "core";
+import type {
+  Attention,
+  Coverage,
+  LexiconView,
+  Matrix,
+  OriginRow,
+  Origins,
+} from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -34,6 +41,15 @@ const MATRIX: Matrix = {
   totals: { rows: 0, columns: 0 },
 };
 
+const NO_ATTENTION: Attention = {
+  depth: 1,
+  deepest: 1,
+  sources: 0,
+  asOf: null,
+  synced: false,
+  tags: [],
+};
+
 const open = (more: Record<string, unknown> = {}) => {
   window.location.hash = "#/question-map";
   return renderApp({
@@ -45,12 +61,13 @@ const open = (more: Record<string, unknown> = {}) => {
     "questionMap.readings": NO_READINGS,
     "questionMap.matrix": MATRIX,
     "questionMap.unread": NO_UNREAD,
+    "questionMap.attention": NO_ATTENTION,
     ...more,
   });
 };
 
 const page = () => screen.findByRole("region", { name: "Question Map" });
-const SLOTS = ["matrix", "readings", "origins", "review"];
+const SLOTS = ["matrix", "readings", "origins", "review", "attention"];
 const slots = (view: HTMLElement) =>
   SLOTS.filter((name) => view.querySelector(`[data-slot="${name}"]`) !== null);
 
@@ -650,5 +667,200 @@ describe("the short pages", () => {
     const view = await page();
     await vi.waitFor(() => expect(slots(view)).toEqual(SLOTS));
     expect(view.textContent).not.toMatch(/no columns|No open questions/);
+  });
+});
+
+// The Attention panel (#651; ADR 0045, ADR 0018): the Question Map's second
+// panel, apart from the matrix, with the Lexicon editor open beside its list,
+// read-only. Nothing is measured yet, so every placeable Tag is *not yet
+// measured* and the panel says nothing has been synced.
+
+const tag = (
+  name: string,
+  papers: number,
+  placed = true
+): Attention["tags"][number] => ({
+  tag: name,
+  display: name,
+  papers,
+  withText: placed ? papers : 1,
+  state: placed ? "not yet measured" : "unplaced",
+  reason: placed ? null : "few-papers",
+});
+
+const ATTENTION: Attention = {
+  ...NO_ATTENTION,
+  sources: 7,
+  tags: [tag("ml/probing", 5), tag("sleep", 2, false)],
+};
+
+const LEXICON: LexiconView = {
+  tag: "ml/probing",
+  display: "ml/probing",
+  depth: 1,
+  papers: 5,
+  withText: 5,
+  placed: true,
+  reason: null,
+  terms: [
+    { term: "residual stream", origin: "derived" },
+    { term: "mechanistic interpretability", origin: "author keyword" },
+  ],
+  notUsed: [{ term: "linear probe", origin: "derived" }],
+  query:
+    'filter=title_and_abstract.search:("residual stream" OR "mechanistic interpretability")',
+};
+
+const attentionSlot = async () => {
+  const view = await page();
+  await vi.waitFor(() =>
+    expect(view.querySelector('[data-slot="attention"]')).not.toBeNull()
+  );
+  return view.querySelector('[data-slot="attention"]') as HTMLElement;
+};
+
+describe("the Attention panel", () => {
+  it("is its own panel with an as-of line that says nothing has been synced, and says it counts papers held", async () => {
+    open({ "questionMap.attention": ATTENTION });
+    const panel = await attentionSlot();
+    await within(panel).findByRole("heading", { name: "Attention" });
+    expect(within(panel).getByText(/nothing synced/)).toBeDefined();
+    expect(
+      within(panel).getByText(
+        /counts papers held, not papers attached to questions/
+      )
+    ).toBeDefined();
+    // Apart from the matrix, not inside it.
+    const view = await page();
+    expect(view.querySelector('[data-slot="matrix"]')!.contains(panel)).toBe(
+      false
+    );
+  });
+
+  it("lists the Tags with their paper counts, and marks each placeable one not yet measured and each thin one unplaced with its reason", async () => {
+    open({ "questionMap.attention": ATTENTION });
+    const panel = await attentionSlot();
+    const probing = await within(panel).findByRole("button", {
+      name: /ml\/probing/,
+    });
+    expect(probing.textContent).toContain("5 papers");
+    expect(probing.textContent).toContain("not yet measured");
+    const sleep = within(panel).getByRole("button", { name: /sleep/ });
+    expect(sleep.textContent).toContain("2 papers");
+    expect(sleep.textContent).toContain("unplaced");
+    expect(sleep.textContent).toContain("too few papers with text");
+  });
+
+  it("opens the Lexicon beside the list: the Terms with where each came from, the not used line, the paper count and the query verbatim", async () => {
+    const asked: unknown[] = [];
+    open({
+      "questionMap.attention": ATTENTION,
+      "lexicon.get": (input: unknown) => {
+        asked.push(input);
+        return LEXICON;
+      },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /ml\/probing/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: ml\/probing/,
+    });
+    const terms = within(editor).getByRole("list", { name: "Terms in use" });
+    expect(
+      within(terms)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual([
+      "residual streamderived",
+      "mechanistic interpretabilityauthor keyword",
+    ]);
+    expect(within(editor).getByText(/not used/).textContent).toContain(
+      "linear probe"
+    );
+    expect(within(editor).getByText(/5 papers/)).toBeDefined();
+    expect(within(editor).getByText(LEXICON.query!).tagName).toBe("CODE");
+    expect(asked.at(-1)).toEqual({ tag: "ml/probing" });
+  });
+
+  it("shows an unplaced Tag's editor with no Terms and no query, and the reason", async () => {
+    open({
+      "questionMap.attention": ATTENTION,
+      "lexicon.get": {
+        ...LEXICON,
+        tag: "sleep",
+        display: "sleep",
+        papers: 2,
+        withText: 1,
+        placed: false,
+        reason: "few-papers",
+        terms: [],
+        notUsed: [],
+        query: null,
+      },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /sleep/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: sleep/,
+    });
+    expect(within(editor).getByText(/too few papers with text/)).toBeDefined();
+    expect(
+      within(editor).queryByRole("list", { name: "Terms in use" })
+    ).toBeNull();
+    expect(within(editor).queryByText(/filter=/)).toBeNull();
+  });
+
+  it("asks at the page's depth, and the editor at that depth too", async () => {
+    const asked: unknown[] = [];
+    const lexicon: unknown[] = [];
+    open({
+      ...attached(),
+      "questionMap.matrix": { ...shaped([1, 2], [1, 2]), depth: 2, deepest: 2 },
+      "questionMap.attention": (input: unknown) => {
+        asked.push(input);
+        return ATTENTION;
+      },
+      "lexicon.get": (input: unknown) => {
+        lexicon.push(input);
+        return LEXICON;
+      },
+    });
+    const view = await page();
+    const group = await within(view).findByRole("group", { name: "Depth" });
+    fireEvent.click(within(group).getByRole("button", { name: "1" }));
+    await vi.waitFor(() => expect(asked.at(-1)).toEqual({ depth: 1 }));
+    fireEvent.click(
+      await within(view).findByRole("button", { name: /ml\/probing/ })
+    );
+    await vi.waitFor(() =>
+      expect(lexicon.at(-1)).toEqual({ tag: "ml/probing", depth: 1 })
+    );
+  });
+
+  it("says there are no tags to place as a Claim with a Warrant", async () => {
+    open({ "questionMap.attention": { ...NO_ATTENTION, sources: 4 } });
+    const panel = await attentionSlot();
+    await within(panel).findByText("No tags to place.");
+    expect(
+      within(panel).getByText("read 4 of 4 sources · just now")
+    ).toBeDefined();
+  });
+
+  it("says not yet, and draws no panel, while the vault is still being read", async () => {
+    open({
+      "questionMap.attention": ATTENTION,
+      "vault.status": {
+        indexing: { done: 3, total: 10 },
+        watching: { ok: true },
+        current: { ok: false, reason: "a sweep has not completed" },
+      },
+    });
+    const view = await page();
+    await within(view).findByText(/reading the vault/);
+    expect(view.querySelector('[data-slot="attention"]')).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { basename, join, posix } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { displayName, matchKey } from "./display-name.js";
 import { errorMessage, errorMessageWithoutPath } from "./errors.js";
+import { abstractOf, phrasesOf } from "./lexicon-phrases.js";
 import { PDF_FOLDER, readPdfFault } from "./pdf-folder.js";
 import { pdfFolderOutside } from "./vault-watcher.js";
 import type { PositionChange } from "./pending-revisions.js";
@@ -40,9 +41,10 @@ import {
  * Display name columns the Global command matches on (#301). 5: the
  * Hypothesis's Position rows (#333). 6: a Hypothesis's Display name, read
  * from its claim Position (#340). 7: a Question's `answeredBy`, its newest
- * write-back line's link and result (#338).
+ * write-back line's link and result (#338). 8: the `phrases` table the
+ * Lexicon is derived from (#651).
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -184,6 +186,8 @@ CREATE TABLE tags (path TEXT NOT NULL, canonical TEXT, written TEXT NOT NULL, so
 CREATE TABLE fields_inline (path TEXT NOT NULL, block TEXT, key TEXT NOT NULL, value TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, value_start INTEGER NOT NULL, value_end INTEGER NOT NULL);
 CREATE TABLE positions (path TEXT NOT NULL, field TEXT NOT NULL, text TEXT NOT NULL, hash TEXT NOT NULL);
 CREATE TABLE list_items (path TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL);
+-- 1–3-word phrases of a Source's or stub's title and abstract (§ Lexicon).
+CREATE TABLE phrases (path TEXT NOT NULL, phrase TEXT NOT NULL, count INTEGER NOT NULL);
 CREATE INDEX files_lpath ON files (lpath);
 CREATE INDEX files_lname ON files (lname);
 CREATE INDEX files_lstem ON files (lstem);
@@ -199,6 +203,7 @@ CREATE INDEX tags_path ON tags (path);
 CREATE INDEX tags_canonical ON tags (canonical);
 CREATE INDEX fields_inline_path ON fields_inline (path);
 CREATE INDEX positions_path ON positions (path);
+CREATE INDEX phrases_path ON phrases (path);
 CREATE INDEX list_items_path ON list_items (path);
 `;
 
@@ -214,6 +219,7 @@ const TABLES = [
   "fields_inline",
   "positions",
   "list_items",
+  "phrases",
 ];
 
 /** The database file and the WAL siblings `index.sqlite*` covers. */
@@ -504,6 +510,9 @@ function createIndex(
   );
   const insertPosition = db.prepare(
     "INSERT INTO positions (path, field, text, hash) VALUES (?, ?, ?, ?)"
+  );
+  const insertPhrase = db.prepare(
+    "INSERT INTO phrases (path, phrase, count) VALUES (?, ?, ?)"
   );
   const insertListItem = db.prepare(
     "INSERT INTO list_items (path, start, end) VALUES (?, ?, ?)"
@@ -914,6 +923,15 @@ function createIndex(
     }
     for (const p of positions) {
       insertPosition.run(path, p.field, p.text, sha256(p.text));
+    }
+    // Body text is not otherwise stored, so the Lexicon's phrases are taken
+    // here, in the same transaction as the rest (§ Lexicon).
+    if (read.kind === "source" || read.kind === "source-stub") {
+      const title = typeof fm["title"] === "string" ? fm["title"] : "";
+      const body = content.slice(front?.range.end ?? 0);
+      for (const [phrase, count] of phrasesOf(title, abstractOf(body))) {
+        insertPhrase.run(path, phrase, count);
+      }
     }
   };
 
