@@ -272,9 +272,11 @@ describe("typing narrows the list, and each row says why it is here", () => {
         throw new Error("the index is not answering");
       },
     });
-    expect((await within(dialog).findByRole("alert")).textContent).toContain(
+    const failed = await within(dialog).findByText(
       "the index is not answering"
     );
+    expect(failed.getAttribute("role")).toBe("status");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
     // The screens are still reachable and still listed — but counting them
     // as the whole answer would say the vault holds four things. The
     // capture is there as always, and is not one of them.
@@ -984,6 +986,30 @@ describe("what ↵ writes", () => {
     press(dialog, "Enter");
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(capture).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR 0033 decision 9: the listing is a state, the refused capture is the
+  // researcher's own act turned down, and both can stand at once.
+  it("keeps the refused capture an alert beside a failed listing that is a status", async () => {
+    const dialog = await openCommand({
+      "globalCommand.destinations": () => {
+        throw new Error("the index is not answering");
+      },
+      "questions.capture": () => {
+        throw new Error("Related questions is missing");
+      },
+    });
+    type(dialog, "Does the effect survive a nap?");
+    await settled(dialog, 0);
+    press(dialog, "Enter");
+    expect((await within(dialog).findByRole("alert")).textContent).toContain(
+      "Related questions is missing"
+    );
+    expect(
+      within(dialog)
+        .getByText("the index is not answering")
+        .getAttribute("role")
+    ).toBe("status");
   });
 
   it("keeps the overlay open and says why when the write fails", async () => {

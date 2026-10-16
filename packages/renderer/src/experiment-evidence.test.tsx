@@ -142,6 +142,29 @@ async function openAttach() {
   return { page, dialog, list };
 }
 
+describe("attach as evidence, when its listing cannot be read", () => {
+  it("says so as a status line, never an alert", async () => {
+    open(() => complete, {
+      "experiments.criteria": () => {
+        throw new Error("the Criteria are unreadable");
+      },
+    });
+    const page = await region();
+    const button = within(page).getByRole("button", {
+      name: "attach as evidence",
+    });
+    button.focus();
+    fireEvent.click(button);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Attach as evidence",
+    });
+    expect((await within(dialog).findByRole("status")).textContent).toBe(
+      "the Criteria are unreadable"
+    );
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("attach as evidence, from the Experiment page", () => {
   it("lists every Hypothesis's Criteria, grouped by Hypothesis, falsifying first", async () => {
     open(() => complete);

@@ -9,7 +9,7 @@ import {
   type RunFacts,
   type WatchedDeps,
 } from "./watched.js";
-import type { RunErrorKind } from "./scout-health.js";
+import { finishedRunsAtPage, type RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
 import type { Events } from "./events.js";
 import { readScouts, scoutIdOf, type Scout } from "./scout-file.js";
@@ -53,6 +53,17 @@ export type RunSummary = {
 
 const iso = (date: Date) => date.toISOString();
 
+/** A clean run that asked the Scout's current page; a run from before the column (no page) is taken as belonging, as in `finishedRunsAtPage`. */
+function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
+  return (
+    queue
+      .prepare(
+        "SELECT 1 FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND (query IS NULL OR query = ?) LIMIT 1"
+      )
+      .get(scout.id, scout.query) !== undefined
+  );
+}
+
 /**
  * Run one Scout now, due or not (*Run now*). The window opens where the last
  * *clean* run's closed — a failed run never advances it, so the next attempt
@@ -86,7 +97,13 @@ export async function runScout(
       : scout.searchBackTo !== null && scout.searchBackTo < scout.created
         ? scout.searchBackTo
         : scout.created;
-  const retroactive = last === undefined && (watched || from < scout.created);
+  // A page's first look is the first run *at that page* (ADR 0043 d.3): a
+  // Scout pointed elsewhere has runs, none here, and what it finds is as new
+  // to the researcher as a first Scout's. Pointed back at a page it has read,
+  // those runs count again, so that is no first look.
+  const retroactive = watched
+    ? !hasCleanRunAtPage(queue, scout)
+    : last === undefined && from < scout.created;
   const runId = Number(
     queue
       .prepare(
@@ -187,19 +204,20 @@ export async function waitingOnKey(deps: {
   queue: DatabaseSync;
 }): Promise<WaitingScout[]> {
   const { scouts } = await readScouts(deps.vaultPath);
-  const newest = deps.queue.prepare(
-    "SELECT finished, error_kind, error_message FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
+  const newestRow = deps.queue.prepare(
+    "SELECT finished FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
   );
   return scouts.flatMap((scout) => {
     if (scout.paused || scout.source.kind !== "watched") return [];
-    const run = newest.get(scout.id) as
-      | {
-          finished: string | null;
-          error_kind: string | null;
-          error_message: string | null;
-        }
-      | undefined;
-    return run?.finished != null && run.error_kind === "credentials"
+    // A newest run still going is its own answer to being due. Past that, only a run
+    // at the page the Scout watches now can leave it waiting: one refused at
+    // the old page says nothing of the new one, whose first look is still to
+    // come (ADR 0043 d.2) — so this agrees with the Voice.
+    const newest = newestRow.get(scout.id) as
+      { finished: string | null } | undefined;
+    if (newest !== undefined && newest.finished === null) return [];
+    const run = finishedRunsAtPage(deps.queue, scout).at(-1);
+    return run?.error_kind === "credentials"
       ? [{ id: scout.id, name: scout.name, message: run.error_message ?? "" }]
       : [];
   });

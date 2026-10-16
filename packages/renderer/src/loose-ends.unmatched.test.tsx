@@ -267,6 +267,33 @@ describe("the panel", () => {
     sources: [],
   });
 
+  it("says so as a status line, not an alert, and never as an empty panel", async () => {
+    const { stream } = renderApp(
+      answers({
+        "looseEnds.rows": () => {
+          throw new Error("the index is unreadable");
+        },
+      })
+    );
+    await screen.findByRole("region", { name: "Question Inbox" });
+    act(() => stream.push(landed(1)));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "1 new · 0 questions · 0 removed · 1 could not be re-matched",
+      })
+    );
+    const panel = await screen.findByRole("dialog", {
+      name: "Could not be re-matched",
+    });
+    expect((await within(panel).findByRole("status")).textContent).toBe(
+      "the index is unreadable"
+    );
+    expect(within(panel).queryByRole("alert")).toBeNull();
+    expect(
+      within(panel).queryByText("Nothing is waiting for a decision.")
+    ).toBeNull();
+  });
+
   it("opens from the footer line when something could not be re-matched, over the same rows", async () => {
     const { stream } = renderApp(answers());
     await screen.findByRole("region", { name: "Question Inbox" });
