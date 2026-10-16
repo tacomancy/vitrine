@@ -944,7 +944,9 @@ function Row({
       {said !== undefined && (
         <tr>
           <td className={styles.note} colSpan={COLUMNS}>
-            <p role={said.refused ? "alert" : "status"}>{said.text}</p>
+            <p key={said.count} role={said.refused ? "alert" : "status"}>
+              {said.text}
+            </p>
           </td>
         </tr>
       )}
