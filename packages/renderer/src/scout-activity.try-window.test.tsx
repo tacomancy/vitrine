@@ -12,7 +12,13 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // it asks the core to send.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
-const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NO_REVIEW = {
+  pending: 0,
+  pastWindow: 0,
+  deferred: 0,
+  median: null,
+  oldest: null,
+};
 const WINDOW = {
   from: "2026-09-23T10:00:00.000Z",
   to: "2026-09-30T10:00:00.000Z",
