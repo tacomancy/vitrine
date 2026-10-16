@@ -189,7 +189,7 @@ export async function readWatched(
     const extracted = await deps.models.extract({ key, model, page: text });
     facts.usage = extracted.usage;
     facts.costUsd = costUsd(model, extracted.usage);
-    return verify(extracted.items, text, facts, queue, scout.id);
+    return verify(extracted.items, text, facts, queue, scout);
   } catch (cause) {
     if (cause instanceof ModelError) {
       const spent = cause.usage ?? null;
@@ -218,7 +218,7 @@ function verify(
   text: string,
   facts: RunFacts,
   queue: DatabaseSync,
-  scoutId: string
+  scout: { id: string; url: string }
 ): Read {
   const flat = squash(text);
   const kept: Arrival[] = [];
@@ -248,16 +248,21 @@ function verify(
   if (returned.length === 0) {
     // Nothing came back. Whether that is a quiet page, a miss, or a redesign
     // is told by whether last time's papers are still on it; with no last
-    // time there is nothing to compare against and it says only that.
+    // time there is nothing to compare against and it says only that. Last
+    // time is read at this page only: a page the Scout was pointed at has no
+    // memory of its own until it adds a paper (the page predicate is
+    // `finishedRunsAtPage`'s, in SQL; a run with no recorded page is taken as this one), and an empty read of it is *no
+    // listing found*, never *its structure changed* (ADR 0043 d.6).
     const before = (
       queue
         .prepare(
           `SELECT DISTINCT p.title FROM appearances a JOIN proposals p ON p.id = a.proposal_id
             WHERE a.run_id = (
               SELECT a2.run_id FROM appearances a2 JOIN scout_runs r ON r.id = a2.run_id
-               WHERE r.scout_id = ? AND r.outcome = 'ok' ORDER BY a2.run_id DESC LIMIT 1)`
+               WHERE r.scout_id = ? AND r.outcome = 'ok' AND (r.query IS NULL OR r.query = ?)
+               ORDER BY a2.run_id DESC LIMIT 1)`
         )
-        .all(scoutId) as Array<{ title: string }>
+        .all(scout.id, scout.url) as Array<{ title: string }>
     ).map((row) => squash(row.title));
     if (before.length === 0) {
       throw new WatchedError("extraction", NO_LISTING, facts);
