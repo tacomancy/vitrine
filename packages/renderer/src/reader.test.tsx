@@ -753,6 +753,21 @@ describe("changing an annotation you made", () => {
     expect(within(h2).queryByRole("status")).toBeNull();
   });
 
+  it("forgets a refused change as a removal begins, and says nothing while it is in flight", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": () => {
+        throw new Error("The PDF changed while that was being done.");
+      },
+      "sources.removeAnnotation": () => new Promise(() => {}),
+    });
+    const h2 = await item("h2");
+    fireEvent.click(within(h2).getByRole("button", { name: "green" }));
+    await within(h2).findByRole("alert");
+    fireEvent.click(within(h2).getByRole("button", { name: "Remove" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(within(h2).queryByRole("alert")).toBeNull();
+  });
+
   it("a refused removal is not shadowed by an earlier refused change, and a new act forgets it", async () => {
     await open(source(), `#/source/${PATH}`, {
       "sources.amend": () => {
