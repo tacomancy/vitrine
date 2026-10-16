@@ -102,7 +102,7 @@
   color: var(--color-fg);
 }
 
-/* A refusal, under the line it answers, in the footer's voice: a reason, never red. */
+/* A refusal, under the line it answers, in the footer's register: a reason, never red. */
 .refusal {
   margin: 0;
   font-family: var(--font-mono);
