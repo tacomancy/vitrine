@@ -9,7 +9,7 @@ import {
   type RunFacts,
   type WatchedDeps,
 } from "./watched.js";
-import type { RunErrorKind } from "./scout-health.js";
+import { finishedRunsAtPage, type RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
 import type { Events } from "./events.js";
 import { readScouts, scoutIdOf, type Scout } from "./scout-file.js";
@@ -204,19 +204,20 @@ export async function waitingOnKey(deps: {
   queue: DatabaseSync;
 }): Promise<WaitingScout[]> {
   const { scouts } = await readScouts(deps.vaultPath);
-  const newest = deps.queue.prepare(
-    "SELECT finished, error_kind, error_message FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
+  const newestRow = deps.queue.prepare(
+    "SELECT finished FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
   );
   return scouts.flatMap((scout) => {
     if (scout.paused || scout.source.kind !== "watched") return [];
-    const run = newest.get(scout.id) as
-      | {
-          finished: string | null;
-          error_kind: string | null;
-          error_message: string | null;
-        }
-      | undefined;
-    return run?.finished != null && run.error_kind === "credentials"
+    // A newest run still going is its own answer to being due. Past that, only a run
+    // at the page the Scout watches now can leave it waiting: one refused at
+    // the old page says nothing of the new one, whose first look is still to
+    // come (ADR 0043 d.2) — so this agrees with the Voice.
+    const newest = newestRow.get(scout.id) as
+      { finished: string | null } | undefined;
+    if (newest !== undefined && newest.finished === null) return [];
+    const run = finishedRunsAtPage(deps.queue, scout).at(-1);
+    return run?.error_kind === "credentials"
       ? [{ id: scout.id, name: scout.name, message: run.error_message ?? "" }]
       : [];
   });
