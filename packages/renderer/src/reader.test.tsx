@@ -623,10 +623,14 @@ describe("highlighting a selection", () => {
     await screen.findByTestId("paper");
     act(() => opened.props!.onSelect(selection));
     const bar = await screen.findByRole("form", { name: /highlight/i });
+    fireEvent.change(within(bar).getByLabelText("Margin note"), {
+      target: { value: "keep me" },
+    });
     fireEvent.click(within(bar).getByRole("button", { name: "Highlight" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "There is no text under that selection."
     );
+    expect(within(bar).getByLabelText("Margin note").value).toBe("keep me");
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("form", { name: /highlight/i })).toBeTruthy();
   });
@@ -751,6 +755,62 @@ describe("changing an annotation you made", () => {
       "The PDF changed while that was being done."
     );
     expect(within(h2).queryByRole("status")).toBeNull();
+  });
+
+  it("says a refused note edit and keeps the typing, and a repeat is a new alert", async () => {
+    let answer = (): Promise<never> =>
+      Promise.reject(new Error("The PDF changed while that was being done."));
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": () => answer(),
+    });
+    const h1 = await item("h1");
+    fireEvent.click(within(h1).getByRole("button", { name: "Edit note" }));
+    fireEvent.change(within(h1).getByLabelText("Margin note"), {
+      target: { value: "now doubtful" },
+    });
+    const save = () =>
+      fireEvent.click(within(h1).getByRole("button", { name: "Save note" }));
+    save();
+    const first = await within(h1).findByRole("alert");
+    expect(within(h1).getByLabelText("Margin note").value).toBe("now doubtful");
+    let release!: () => void;
+    answer = () =>
+      new Promise<never>((_, reject) => {
+        release = () =>
+          reject(new Error("The PDF changed while that was being done."));
+      });
+    save();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(within(h1).queryByRole("alert")).toBeNull();
+    release();
+    const second = await within(h1).findByRole("alert");
+    expect(second).not.toBe(first);
+    expect(first.isConnected).toBe(false);
+  });
+
+  it("says a refused confirmed removal as an alert", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.removeAnnotation": (input: { confirmed: boolean }) => {
+        if (!input.confirmed)
+          return { outcome: "confirm", links: [{ path: "n.md", title: "N" }] };
+        throw new Error("The PDF is not on this Mac yet.");
+      },
+    });
+    const h1 = await item("h1");
+    fireEvent.click(within(h1).getByRole("button", { name: "Remove" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove it",
+      })
+    );
+    await waitFor(() =>
+      expect(
+        within(h1)
+          .getAllByRole("alert")
+          .map((a) => a.textContent)
+      ).toContain("The PDF is not on this Mac yet.")
+    );
+    expect(within(h1).queryByRole("status")).toBeNull();
   });
 
   it("forgets a refused change as a removal begins, and says nothing while it is in flight", async () => {
