@@ -292,23 +292,38 @@ describe("a row's note is announced each time it is said", () => {
     );
   });
 
-  it("is a new element when a success replaces a refusal, so the role change is announced", async () => {
+  it("is a new element when a refusal replaces a success, so the role change is announced", async () => {
     let calls = 0;
     open(() => fleet([scout()]), {
       "scouts.setPaused": () => {
         calls += 1;
-        if (calls === 1) throw new Error("There is no Scout named sleep.");
+        if (calls === 2) throw new Error("There is no Scout named sleep.");
         return undefined;
       },
     });
 
     fireEvent.click(await pauseButton());
-    const refusal = await screen.findByRole("alert");
+    const success = await screen.findByRole("status");
     fireEvent.click(await pauseButton());
 
-    const success = await screen.findByRole("status");
-    expect(success).not.toBe(refusal);
-    expect(screen.queryByRole("alert")).toBeNull();
+    // A success is not forgotten as the act begins, so only the count makes
+    // the refusal a node of its own rather than the old one with a new role.
+    const refusal = await screen.findByRole("alert");
+    expect(refusal).not.toBe(success);
+    expect(success.isConnected).toBe(false);
+  });
+
+  it("is a new element when a success is said again in the same words", async () => {
+    open(() => fleet([scout()]), { "scouts.setPaused": () => undefined });
+
+    fireEvent.click(await pauseButton());
+    const first = await screen.findByRole("status");
+    fireEvent.click(await pauseButton());
+
+    await vi.waitFor(() => expect(first.isConnected).toBe(false));
+    expect((await screen.findByRole("status")).textContent).toBe(
+      first.textContent
+    );
   });
 });
 
