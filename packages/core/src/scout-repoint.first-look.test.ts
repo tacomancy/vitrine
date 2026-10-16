@@ -155,6 +155,15 @@ async function opened() {
       if (row?.kind !== "scout") throw new Error("no row");
       return row.acceptRate;
     },
+    /** Rewrites history the way a vault from before the column has it. */
+    forgetPages: () => {
+      const handle = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
+      try {
+        handle.exec("UPDATE scout_runs SET query = NULL");
+      } finally {
+        handle.close();
+      }
+    },
     retroactive: () =>
       sql<Array<{ retroactive: number }>>(
         "SELECT retroactive FROM scout_runs ORDER BY id"
@@ -167,7 +176,7 @@ describe("the first look at a new page", () => {
     const lab = await opened();
     lab.pages["/publications"] = { body: html(1) };
     lab.pages["/moved"] = { body: html(2, 3) };
-    const [firstRun] = [await lab.run()];
+    const firstRun = await lab.run();
     await lab.accept((await lab.cards())[0]!.id);
     expect(firstRun.new).toBe(1);
     expect(await lab.rate()).toMatchObject({ accepted: 1, triaged: 1 });
@@ -268,5 +277,33 @@ describe("the first look at a new page", () => {
     await lab.pointAt(A);
     await lab.run();
     expect(lab.retroactive()).toEqual([true, true, false]);
+  });
+
+  it("stays a first look until a run has read the page: a mistyped address, then the right one", async () => {
+    const lab = await opened();
+    lab.pages["/publications"] = { body: html(1) };
+    await lab.run();
+    await lab.pointAt(B);
+    lab.wait();
+    expect((await lab.run()).outcome).not.toBe("ok");
+
+    lab.pages["/moved"] = { body: html(2) };
+    lab.wait();
+    await lab.run();
+
+    expect(lab.retroactive()).toEqual([true, true, true]);
+  });
+
+  it("takes a run from before the page was recorded as belonging, never as an edit", async () => {
+    const lab = await opened();
+    lab.pages["/publications"] = { body: html(1) };
+    await lab.run();
+    lab.forgetPages();
+    lab.wait();
+
+    const again = await lab.run();
+
+    expect(again.fetched).toBe(0);
+    expect(lab.retroactive()).toEqual([true, false]);
   });
 });
