@@ -187,16 +187,18 @@ export async function waitingOnKey(deps: {
   queue: DatabaseSync;
 }): Promise<WaitingScout[]> {
   const { scouts } = await readScouts(deps.vaultPath);
-  const inFlight = deps.queue.prepare(
-    "SELECT 1 FROM scout_runs WHERE scout_id = ? AND finished IS NULL"
+  const newestRow = deps.queue.prepare(
+    "SELECT finished FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
   );
   return scouts.flatMap((scout) => {
     if (scout.paused || scout.source.kind !== "watched") return [];
-    // A run still going is its own answer to being due. Past that, only a run
+    // A newest run still going is its own answer to being due. Past that, only a run
     // at the page the Scout watches now can leave it waiting: one refused at
     // the old page says nothing of the new one, whose first look is still to
     // come (ADR 0043 d.2) — so this agrees with the Voice.
-    if (inFlight.get(scout.id) !== undefined) return [];
+    const newest = newestRow.get(scout.id) as
+      { finished: string | null } | undefined;
+    if (newest !== undefined && newest.finished === null) return [];
     const run = finishedRunsAtPage(deps.queue, scout).at(-1);
     return run?.error_kind === "credentials"
       ? [{ id: scout.id, name: scout.name, message: run.error_message ?? "" }]
