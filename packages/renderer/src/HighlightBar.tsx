@@ -3,6 +3,7 @@ import { useState } from "react";
 import { HIGHLIGHT_COLOURS, type HighlightColour } from "./highlight-colour";
 import type { PageSelection } from "./pdf-document";
 import styles from "./Reader.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
 
 /**
@@ -27,6 +28,10 @@ export function HighlightBar({
   const queryClient = useQueryClient();
   const [colour, setColour] = useState<HighlightColour>("yellow");
   const [note, setNote] = useState("");
+  // A refused highlight is the user's act turned down, so it is an alert
+  // (ADR 0033 decision 1 and its 2026-10-15 Update), forgotten as the next
+  // attempt begins. Its look is the bar's register: `barSaid`, unchanged.
+  const refusal = useRefusal();
   const make = useMutation(
     trpc.sources.highlight.mutationOptions({
       onSuccess: async () => {
@@ -37,6 +42,7 @@ export function HighlightBar({
         window.getSelection()?.removeAllRanges();
         onDone();
       },
+      onError: (error) => refusal.say(error.message),
     })
   );
   return (
@@ -45,6 +51,7 @@ export function HighlightBar({
       aria-label="Highlight the selection"
       onSubmit={(event) => {
         event.preventDefault();
+        refusal.forget();
         make.mutate({
           path,
           page: selection.page,
@@ -84,11 +91,7 @@ export function HighlightBar({
       >
         Highlight
       </button>
-      {make.isError && (
-        <p className={styles.barSaid} role="status">
-          {make.error.message}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.barSaid} />
     </form>
   );
 }

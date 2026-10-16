@@ -624,10 +624,39 @@ describe("highlighting a selection", () => {
     act(() => opened.props!.onSelect(selection));
     const bar = await screen.findByRole("form", { name: /highlight/i });
     fireEvent.click(within(bar).getByRole("button", { name: "Highlight" }));
-    expect((await screen.findByRole("status")).textContent).toBe(
+    expect((await screen.findByRole("alert")).textContent).toBe(
       "There is no text under that selection."
     );
+    expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("form", { name: /highlight/i })).toBeTruthy();
+  });
+
+  it("says a repeated refusal again, as a new alert, and nothing while the retry is in flight", async () => {
+    let answer = (): Promise<never> =>
+      Promise.reject(new Error("There is no text under that selection."));
+    await open(source(), `#/source/${PATH}`, {
+      "sources.highlight": () => answer(),
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onSelect(selection));
+    const bar = await screen.findByRole("form", { name: /highlight/i });
+    const go = () =>
+      fireEvent.click(within(bar).getByRole("button", { name: "Highlight" }));
+    go();
+    const first = await screen.findByRole("alert");
+    let release!: () => void;
+    answer = () =>
+      new Promise<never>((_, reject) => {
+        release = () =>
+          reject(new Error("There is no text under that selection."));
+      });
+    go();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole("alert")).toBeNull();
+    release();
+    const second = await screen.findByRole("alert");
+    expect(second).not.toBe(first);
+    expect(first.isConnected).toBe(false);
   });
 
   it("goes away when the selection is let go of, and on Escape", async () => {
@@ -718,9 +747,31 @@ describe("changing an annotation you made", () => {
     });
     const h2 = await item("h2");
     fireEvent.click(within(h2).getByRole("button", { name: "green" }));
-    expect((await within(h2).findByRole("status")).textContent).toBe(
+    expect((await within(h2).findByRole("alert")).textContent).toBe(
       "The PDF changed while that was being done."
     );
+    expect(within(h2).queryByRole("status")).toBeNull();
+  });
+
+  it("a refused removal is not shadowed by an earlier refused change, and a new act forgets it", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.amend": () => {
+        throw new Error("The PDF changed while that was being done.");
+      },
+      "sources.removeAnnotation": () => {
+        throw new Error("The PDF is not on this Mac yet.");
+      },
+    });
+    const h2 = await item("h2");
+    fireEvent.click(within(h2).getByRole("button", { name: "green" }));
+    await within(h2).findByRole("alert");
+    fireEvent.click(within(h2).getByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(within(h2).getByRole("alert").textContent).toBe(
+        "The PDF is not on this Mac yet."
+      )
+    );
+    expect(within(h2).getAllByRole("alert")).toHaveLength(1);
   });
 
   it("offers no control on a note or a shape — only markup can be recoloured or re-noted", async () => {
@@ -820,9 +871,10 @@ describe("removing an annotation", () => {
     });
     const h2 = await item("h2");
     fireEvent.click(within(h2).getByRole("button", { name: "Remove" }));
-    expect((await within(h2).findByRole("status")).textContent).toBe(
+    expect((await within(h2).findByRole("alert")).textContent).toBe(
       "The PDF is not on this Mac yet."
     );
+    expect(within(h2).queryByRole("status")).toBeNull();
   });
 });
 

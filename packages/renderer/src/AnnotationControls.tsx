@@ -7,6 +7,7 @@ import {
   type HighlightColour,
 } from "./highlight-colour";
 import styles from "./Reader.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
 
 /** The kinds whose colour and note the Reader can change; a sticky note has neither. */
@@ -33,6 +34,10 @@ export function AnnotationControls({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
+  // One refusal for both mutations: a refused recolour must not outlive, or
+  // shadow, the next act's. Forgotten as any act begins; an alert (ADR 0033
+  // decision 1 and its 2026-10-15 Update) in the margin's register: `barSaid`.
+  const refusal = useRefusal();
   const changed = () =>
     Promise.all([
       queryClient.invalidateQueries(trpc.sources.page.pathFilter()),
@@ -44,6 +49,7 @@ export function AnnotationControls({
         setEditing(null);
         await changed();
       },
+      onError: (error) => refusal.say(error.message),
     })
   );
   const remove = useMutation(
@@ -53,11 +59,11 @@ export function AnnotationControls({
       onSuccess: (result) => {
         if (result.outcome !== "confirm") void changed();
       },
+      onError: (error) => refusal.say(error.message),
     })
   );
   const asking = remove.data?.outcome === "confirm" ? remove.data : null;
   const isMarkup = MARKUP.has(annotation.kind);
-  const said = amend.error?.message ?? remove.error?.message ?? null;
 
   return (
     <div className={styles.controls}>
@@ -71,13 +77,14 @@ export function AnnotationControls({
               aria-label={name}
               aria-pressed={snapColour(annotation.color) === name}
               disabled={amend.isPending}
-              onClick={() =>
+              onClick={() => {
+                refusal.forget();
                 amend.mutate({
                   path,
                   annotation: annotation.id,
                   colour: name,
-                })
-              }
+                });
+              }}
             />
           ))}
         </div>
@@ -87,6 +94,7 @@ export function AnnotationControls({
           className={styles.controlsRow}
           onSubmit={(event) => {
             event.preventDefault();
+            refusal.forget();
             amend.mutate({
               path,
               annotation: annotation.id,
@@ -131,13 +139,14 @@ export function AnnotationControls({
             type="button"
             className={styles.barAction}
             disabled={remove.isPending}
-            onClick={() =>
+            onClick={() => {
+              refusal.forget();
               remove.mutate({
                 path,
                 annotation: annotation.id,
                 confirmed: false,
-              })
-            }
+              });
+            }}
           >
             Remove
           </button>
@@ -162,13 +171,14 @@ export function AnnotationControls({
             <button
               type="button"
               className={styles.barAction}
-              onClick={() =>
+              onClick={() => {
+                refusal.forget();
                 remove.mutate({
                   path,
                   annotation: annotation.id,
                   confirmed: true,
-                })
-              }
+                });
+              }}
             >
               Remove it
             </button>
@@ -182,11 +192,7 @@ export function AnnotationControls({
           </div>
         </div>
       )}
-      {said !== null && (
-        <p className={styles.barSaid} role="status">
-          {said}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.barSaid} />
     </div>
   );
 }
