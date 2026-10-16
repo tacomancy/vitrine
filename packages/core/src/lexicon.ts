@@ -1,3 +1,4 @@
+import { NO_EDITS, type LexiconEdits } from "./lexicon-edits.js";
 import { normalisePhrase } from "./lexicon-phrases.js";
 import { rollUp, tagDisplays, threadMaterial } from "./question-map.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -20,7 +21,7 @@ export const KEYWORD_WEIGHT = 2;
 /** How much of the *not used* line the editor is handed. */
 export const NOT_USED_SHOWN = 20;
 
-export type TermOrigin = "derived" | "author keyword";
+export type TermOrigin = "derived" | "author keyword" | "seeded";
 export type Term = { term: string; origin: TermOrigin };
 
 export type AttentionTag = {
@@ -58,6 +59,8 @@ export type LexiconView = {
   reason: "few-papers" | null;
   terms: Term[];
   notUsed: Term[];
+  /** Terms the user Excluded for this Tag, so each can be restored. */
+  excluded: string[];
   /** The OpenAlex query the Terms compile to, verbatim; null when there is nothing to compile. */
   query: string | null;
 };
@@ -68,7 +71,9 @@ type Paper = {
   keywords: Set<string>;
 };
 
-const isPlaced = (withText: number) => withText >= PLACED_PAPERS;
+/** A Seed is the user's claim about what the Tag means, so it places a Tag at any paper count (ADR 0045). */
+const isPlaced = (withText: number, seeded: boolean) =>
+  seeded || withText >= PLACED_PAPERS;
 
 const PAPER_KINDS = "('source', 'source-stub')";
 const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -153,7 +158,11 @@ function papersByTag(
   return byTag;
 }
 
-export function attention(index: VaultIndex, requested?: number): Attention {
+export function attention(
+  index: VaultIndex,
+  requested?: number,
+  edits: LexiconEdits = {}
+): Attention {
   const { depth, deepest } = depthFor(index, requested);
   const papers = readPapers(index);
   const displays = tagDisplays(index);
@@ -162,7 +171,7 @@ export function attention(index: VaultIndex, requested?: number): Attention {
       const withText = [...held].filter(
         (p) => papers.get(p)!.text.size > 0
       ).length;
-      const placed = isPlaced(withText);
+      const placed = isPlaced(withText, (edits[tag]?.seeds.length ?? 0) > 0);
       return {
         tag,
         display: displays.get(tag) ?? tag,
@@ -197,8 +206,10 @@ export function attention(index: VaultIndex, requested?: number): Attention {
 export function lexiconOf(
   index: VaultIndex,
   tag: string,
-  requested?: number
+  requested?: number,
+  edits: LexiconEdits = {}
 ): LexiconView {
+  const { seeds, excluded } = edits[tag] ?? NO_EDITS;
   const { depth } = depthFor(index, requested);
   const papers = readPapers(index);
   const held = [...(papersByTag(index, depth, papers).get(tag) ?? [])].map(
@@ -212,13 +223,14 @@ export function lexiconOf(
     papers: held.length,
     withText,
   };
-  if (!isPlaced(withText)) {
+  if (!isPlaced(withText, seeds.length > 0)) {
     return {
       ...base,
       placed: false,
       reason: "few-papers",
       terms: [],
       notUsed: [],
+      excluded: [...excluded],
       query: null,
     };
   }
@@ -237,6 +249,8 @@ export function lexiconOf(
   }
   const scored: Array<Term & { score: number }> = [];
   for (const term of candidates) {
+    // An Excluded Term is never derived back, and a Seed is already in use.
+    if (excluded.includes(term) || seeds.includes(term)) continue;
     const inTag = held.filter((p) => holds(p, term)).length;
     const authored = held.some((p) => p.keywords.has(term));
     if (inTag < PHRASE_FLOOR && !authored) continue;
@@ -249,11 +263,18 @@ export function lexiconOf(
     });
   }
   scored.sort((a, b) => b.score - a.score || byName(a.term, b.term));
-  const inUse = scored
+  // Seeds sit at the top and always stay in use, so a later derivation can
+  // never push the user's own claim below the cut; derived Terms fill what
+  // is left of K.
+  const derived = scored
     .filter((t) => t.score > 0)
-    .slice(0, LEXICON_TERMS)
+    .slice(0, Math.max(0, LEXICON_TERMS - seeds.length))
     .map(({ term, origin }): Term => ({ term, origin }));
-  const used = new Set(inUse.map((t) => t.term));
+  const inUse: Term[] = [
+    ...seeds.map((term): Term => ({ term, origin: "seeded" })),
+    ...derived,
+  ];
+  const used = new Set(derived.map((t) => t.term));
   return {
     ...base,
     placed: true,
@@ -263,6 +284,7 @@ export function lexiconOf(
       .filter((t) => !used.has(t.term))
       .slice(0, NOT_USED_SHOWN)
       .map(({ term, origin }): Term => ({ term, origin })),
+    excluded: [...excluded],
     query:
       inUse.length === 0
         ? null
