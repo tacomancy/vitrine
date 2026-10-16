@@ -416,14 +416,40 @@ A Proposal whose Source key is already a Source or Source stub in the vault — 
 _Avoid_: Duplicate, skipped, filtered
 
 **Lane**:
-Where a Proposal sits for attention: *Review* (a queue; accept/reject is meaningful) or *Skim* (a feed; scrolling past is the interaction, items age out). Set by the Scout as a prior, then promoted or demoted by ranking — or promoted by hand, since Lanes govern attention, not capability.
+Where a Proposal sits for attention: *Review* (a queue; accept/reject is meaningful) or *Skim* (a feed; scrolling past is the interaction, items age out). Set by the Scout as a prior, then moved by a *raise* or a *demote* (below) — or promoted by hand, since Lanes govern attention, not capability.
 
 **Triage** (of a Proposal):
-Acting on a Proposal from the Queue: *accept* (writes a Source stub), *reject* (kept, never proposed again, no longer shown), *defer* (returns with that Scout's next completed run), or *promote* (Skim to Review). *Pass* moves on and records nothing; the card goes to the bottom of the session's stack. Every triage act is recorded with its time; Accept rate is read from that record. *Reject* and *defer* can be undone while the card is still in the session's stack; *accept* cannot, because it wrote a file (ADR 0039).
+Acting on a Proposal from the Queue: *accept* (writes a Source stub), *reject* (kept, never proposed again, no longer shown), *defer* (returns with that Scout's next completed run), or *promote* (Skim to Review, by hand). *Pass* moves on and records nothing; the card goes to the bottom of the session's stack. Every triage act is recorded with its time; Accept rate is read from that record. *Reject* and *defer* can be undone while the card is still in the session's stack; *accept* cannot, because it wrote a file (ADR 0039).
 _Avoid_: Archive, dismiss, snooze (for defer), delete
 
 **Corroboration**:
-The same work surfacing from several Scouts, merged into one Proposal that keeps every appearance. A ranking signal; a merged card lands in the highest Lane any component reached.
+The same work surfacing from several Scouts, merged into one Proposal that keeps every appearance. A ranking signal, counted as the number of distinct Scouts that found the work; a merged card lands in the highest Lane any component reached, which is what a *raise* is (ADR 0044).
+
+**Rank** (of a Proposal):
+Where a Review card sits in the default sort, read from the record at the moment of reading and never stored. An ordered comparison with no weights: how many of its authors have accepted work in the vault, then its Corroboration, then how many Questions it is Assigned to, then newest. A sort and never a filter — nothing is hidden by it, and with no history every signal is zero and the order is newest-first. The card's *why this is here* names the signals that fired and says nothing when none did (ADR 0044).
+_Avoid_: Score, relevance, match (a Scout's *assigned to* is not a match)
+
+**Counterweight slot**:
+One place in a Scout group's Review stack, second from the top and labelled *outside the usual*, for a Proposal found by two or more Scouts none of whose authors has accepted work in the vault. It is never filled with a Proposal that does not qualify, and it is exempt from the Cap. Active once the Scout has enough triage for Accept rate to be read (ADR 0044).
+
+**Cap** (of a Scout):
+An optional top-N by Rank that a Scout lets into the stack from each run. The rest are kept, not rejected: the group says *N below your cap*, and *show them* releases them. Does nothing before the Scout has enough triage to rank by, and the form says so (ADR 0044).
+_Avoid_: Limit, ceiling (the Ceiling is the technical per-run safety stop, ADR 0016 d.11)
+
+**Digest** (of a Scout's Review):
+The foot of the stack where Review Proposals older than the Scout's aging window collapse into one line, expandable. They stay pending and stay counted in Review depth; aging decides nothing for the researcher and moves no Lane (ADR 0044).
+_Avoid_: Archive, expired
+
+**Mute rule**:
+A vault-wide author, venue or keyword rule that moves matching pending Proposals, in either Lane, to the muted view. Stored as a rule and applied when read, so adding one catches what is already pending, and deleting one returns it. A muted Proposal counts nowhere — not Review depth, not Rank, not Corroboration, not a Cap — except as *N muted*, and writes no triage row. Muted is not rejected: nothing is permanent and nothing is deleted (ADR 0044).
+_Avoid_: Block, filter, auto-reject
+
+**Raise / Demote**:
+The two Lane moves the core makes and records as triage rows. *Raise*: a Skim Proposal that a second Scout also finds moves to Review, because Corroboration crosses Lanes; excluded from Accept rate like a hand promotion. *Demote*: a Review Proposal deferred a third time, with no undo cancelling any, moves to Skim, where it can still be promoted by hand (ADR 0044).
+_Avoid_: Auto-promote, downgrade
+
+**Bulk act**:
+One gesture that rejects or defers every pending Review card in the group on screen. Each Proposal gets its own triage row, all carrying one bulk id, so the whole act undoes as a unit. Rejected rows count toward Accept rate like any reject (ADR 0044).
 
 **Accept rate**:
 Per Scout, accepted over triaged Review-lane Proposals. Skim items are never rejected and carry no signal. Only a Proposal the Scout itself placed in Review counts: one the researcher promoted from Skim by hand and then accepted writes a stub like any other, but says something about the researcher's choosing, not about the Scout's brief. A *reject this run* on a Retroactive run is not counted either: clearing a backward search nobody wanted says nothing about the brief. Drawn over time as one point per week, and only for a week with enough triaged Review items to judge; a thinner week is a gap, never a zero.
