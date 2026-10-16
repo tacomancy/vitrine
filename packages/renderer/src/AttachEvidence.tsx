@@ -283,7 +283,6 @@ function Note({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
-  const [blank, setBlank] = useState(false);
   // A refused attach is the user's act turned down, so it is an alert (ADR 0033
   // decision 1 and its 2026-10-15 Update), said beside the note that stays and
   // forgotten as the next attempt begins. Its look is the form's: `form.refusal`.
@@ -318,7 +317,9 @@ function Note({
   const ready = note.trim() !== "";
   const submit = () => {
     if (!ready) {
-      setBlank(true);
+      // ↵ on a blank note is the user's act turned down: said, and said again
+      // if it is pressed again (ADR 0033 decision 12).
+      refusal.say("the note is required — it is what makes a run Evidence");
       return;
     }
     if (attach.isPending) return;
@@ -369,7 +370,7 @@ function Note({
           value={note}
           onChange={(event) => {
             setNote(event.target.value);
-            setBlank(false);
+            refusal.forget();
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -389,9 +390,7 @@ function Note({
           attach
         </button>
         <span className={form.hint}>
-          {blank
-            ? "the note is required — it is what makes a run Evidence"
-            : "records no Outcome; judging the criterion stays its own act"}
+          records no Outcome; judging the criterion stays its own act
         </span>
       </div>
       <RefusalLine refusal={refusal} className={form.refusal} />
