@@ -165,6 +165,7 @@ export function ScoutForm({
         <select
           value={watching}
           disabled={scout !== undefined}
+          aria-describedby={scout === undefined ? undefined : "watching-fixed"}
           onChange={(e) => {
             setWatching(e.target.value as FormValues["watching"]);
             tried.reset();
@@ -175,6 +176,12 @@ export function ScoutForm({
           <option value="watched">a web page</option>
         </select>
       </label>
+      {scout !== undefined && (
+        <small id="watching-fixed">
+          A Scout keeps its kind of source. To watch {page ? "arXiv" : "a page"}{" "}
+          instead, make a new Scout.
+        </small>
+      )}
       {!page && (
         <label>
           Query
@@ -196,12 +203,22 @@ export function ScoutForm({
             type="url"
             value={query}
             placeholder="https://"
+            aria-describedby={
+              scout === undefined ? undefined : "address-change"
+            }
             onChange={(e) => {
               setQuery(e.target.value);
               triedPage.reset();
             }}
           />
         </label>
+      )}
+      {page && scout !== undefined && (
+        <small id="address-change">
+          Changing the page points this Scout at another one: the next check
+          reads it as a first look, and everything it lists arrives as
+          Retroactive. Its Proposals, stubs and Accept rate go on.
+        </small>
       )}
       {!page && (
         <p className={styles.try}>

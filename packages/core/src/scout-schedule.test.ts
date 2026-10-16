@@ -51,13 +51,15 @@ const scoutYaml = (
     "",
   ].join("\n");
 
+const LAB = "https://lab.example/publications";
+
 // The only kind of Scout that can be refused for want of a key (ADR 0040).
 const watchedYaml = (name: string) =>
   [
     `name: ${name}`,
     "source:",
     "  kind: watched",
-    "  url: https://lab.example/publications",
+    `  url: ${LAB}`,
     "cadence: daily",
     "lane: review",
     "created: 2026-09-20T00:00:00Z",
@@ -674,6 +676,9 @@ describe("a no-key run", () => {
     outcome: "failed",
     kind: "credentials",
     message: "no key",
+    // A page's runs record the page they asked, which is how they are told
+    // from a run at another page (ADR 0043).
+    query: LAB,
   } as const;
   // Before a Scout's first clean read there is nothing to be after, so the
   // row is Retroactive, as a real one is.
@@ -701,6 +706,7 @@ describe("a no-key run", () => {
         started: at,
         from: at,
         new: found,
+        query: LAB,
         retroactive: daysAgo === 8,
       });
     }
@@ -708,7 +714,7 @@ describe("a no-key run", () => {
   // The key is stored again and the Scout reads at once; nothing new.
   const readQuietly = (f: Fleet, scout: string) => {
     const at = f.at - 3 * HOUR;
-    f.seed({ scout, started: at, from: at });
+    f.seed({ scout, started: at, from: at, query: LAB });
   };
 
   it("leaves a Scout whose only runs were refused not yet, with why, and with no Warrant or baseline", async () => {

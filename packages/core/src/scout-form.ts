@@ -110,23 +110,24 @@ async function write(
     if (before === undefined) {
       throw new VaultError("refused", `There is no Scout named ${id}.`);
     }
-    // What a saved Scout watches is fixed for now. An arXiv Query written over
-    // a page's address would turn one Scout's history into another's, and a
-    // different address invalidates the page hash and the structure-change test
-    // that history rests on. ADR 0042 decision 5 keeps that change on the form
-    // and leaves how it is made to a decision of its own; until then the
-    // address is changed in the file and a save that would change it is
-    // refused. A Scout Activity row saves a page's Assigned Questions through
-    // here with the address it has.
+    // A saved Scout keeps its kind of source: the file's keys differ in shape
+    // (`filter.query` and a date window against `source.url`), so a flip would
+    // turn one Scout's history into another's. A changed page is the same
+    // Scout pointed elsewhere (ADR 0043 d.1) and is written below. A Scout
+    // Activity row saves a page's Assigned Questions through here with the
+    // address it has.
     const wasWatched = before.scout.source.kind === "watched";
-    if (wasWatched !== watched || (watched && query !== before.scout.query)) {
+    if (wasWatched !== watched) {
       throw new VaultError(
         "refused",
-        "What a Scout watches is changed in its file for now."
+        `A Scout keeps its kind of source. To watch ${watched ? "a page" : "arXiv"} instead, make a new Scout.`
       );
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
     doc.set("name", name);
+    // `doc.set` keeps the comment on a scalar set to what it was, so an
+    // unchanged URL writes the same bytes; a changed one is the only edit.
+    if (watched) doc.setIn(["source", "url"], query);
   }
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
@@ -158,8 +159,10 @@ async function write(
   // A paused Scout is not looking: the edit is saved and the run waits for
   // *resume* — pausing is how a researcher retires one, and an edit must
   // not quietly undo it.
+  // A page is never run by a save: its first read may spend (ADR 0040 d.5).
   const edited =
     before !== undefined &&
+    !watched &&
     before.scout.query !== query &&
     !before.scout.paused;
   return { id, runAfter: edited };
