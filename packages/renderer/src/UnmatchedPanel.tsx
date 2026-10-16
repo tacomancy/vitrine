@@ -51,7 +51,7 @@ function Panel() {
       </header>
       <div className={styles.body}>
         {ends.isError && (
-          <p className={styles.empty} role="alert">
+          <p className={styles.empty} role="status">
             {ends.error.message}
           </p>
         )}
