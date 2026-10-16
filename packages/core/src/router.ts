@@ -581,6 +581,10 @@ export const router = t.router({
           assigned: z.array(z.string()),
           lane: z.enum(["review", "skim"]),
           searchBackTo: z.string().datetime().nullable(),
+          // Queue behaviour as typed; parsed and refused by name in the core.
+          cap: z.string().nullable().optional(),
+          reviewDays: z.string().nullable().optional(),
+          skimDays: z.string().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) =>

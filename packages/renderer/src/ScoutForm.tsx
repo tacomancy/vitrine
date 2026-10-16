@@ -4,8 +4,27 @@ import type { Scout, TriedPage } from "core";
 /** What the form edits of a Scout, as the wire carries it (dates arrive as strings). */
 type Editable = Pick<
   Scout,
-  "id" | "name" | "query" | "cadence" | "assigned" | "lane" | "source"
+  | "id"
+  | "name"
+  | "query"
+  | "cadence"
+  | "assigned"
+  | "lane"
+  | "source"
+  | "cap"
+  | "reviewDays"
+  | "skimDays"
 >;
+
+/** The core's defaults (`DEFAULT_REVIEW_DAYS`, `DEFAULT_SKIM_DAYS`): the renderer takes types from `core` and no values. */
+const REVIEW_DAYS_DEFAULT = "14";
+const SKIM_DAYS_DEFAULT = "30";
+
+/** A number of the file as the form's text: a default is left empty (shown as the placeholder) so a save never writes it back. */
+const queueText = (value: number | null | undefined, standard?: string) =>
+  value === null || value === undefined || String(value) === standard
+    ? ""
+    : String(value);
 import { useEffect, useRef, useState } from "react";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { RefusalLine, useRefusal } from "./refusal-line";
@@ -26,6 +45,9 @@ export type FormValues = {
   lane: Scout["lane"];
   assigned: string[];
   back: string;
+  cap: string;
+  reviewDays: string;
+  skimDays: string;
 };
 
 /** The form as the window keeps it: which Scout, or null for a new one, and what has been typed. */
@@ -86,10 +108,45 @@ export function ScoutForm({
       values?.back ??
       new Date(Date.now() - BACK_DAYS * DAY_MS).toISOString().slice(0, 10)
   );
+  const opening = {
+    cap: queueText(scout?.cap),
+    reviewDays: queueText(scout?.reviewDays, REVIEW_DAYS_DEFAULT),
+    skimDays: queueText(scout?.skimDays, SKIM_DAYS_DEFAULT),
+  };
+  const [cap, setCap] = useState(values?.cap ?? opening.cap);
+  const [reviewDays, setReviewDays] = useState(
+    values?.reviewDays ?? opening.reviewDays
+  );
+  const [skimDays, setSkimDays] = useState(
+    values?.skimDays ?? opening.skimDays
+  );
   useEffect(
-    () => onChange({ name, watching, query, cadence, lane, assigned, back }),
+    () =>
+      onChange({
+        name,
+        watching,
+        query,
+        cadence,
+        lane,
+        assigned,
+        back,
+        cap,
+        reviewDays,
+        skimDays,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `onChange` is new each render
-    [name, watching, query, cadence, lane, assigned, back]
+    [
+      name,
+      watching,
+      query,
+      cadence,
+      lane,
+      assigned,
+      back,
+      cap,
+      reviewDays,
+      skimDays,
+    ]
   );
   const page = watching === "watched";
   // A refused Save is the user's act turned down, so it is an alert, said where
@@ -130,6 +187,15 @@ export function ScoutForm({
         scout === undefined && !page && back !== ""
           ? new Date(`${back}T00:00:00Z`).toISOString()
           : null,
+      // Only what was touched: the core leaves a key alone it is not told
+      // about, and an emptied field (null) takes its key away.
+      ...(cap === opening.cap ? {} : { cap: cap.trim() === "" ? null : cap }),
+      ...(reviewDays === opening.reviewDays
+        ? {}
+        : { reviewDays: reviewDays.trim() === "" ? null : reviewDays }),
+      ...(skimDays === opening.skimDays
+        ? {}
+        : { skimDays: skimDays.trim() === "" ? null : skimDays }),
     });
   }
 
@@ -303,6 +369,40 @@ export function ScoutForm({
         assigned={assigned}
         onChange={setAssigned}
       />
+      <fieldset className={styles.queueBehaviour}>
+        <legend>Queue behaviour</legend>
+        <label>
+          Cap
+          <input
+            inputMode="numeric"
+            value={cap}
+            placeholder="none"
+            onChange={(e) => setCap(e.target.value)}
+          />
+        </label>
+        <small>
+          A Cap is not active until this Scout has enough triage behind it to
+          rank by; until then it keeps everything.
+        </small>
+        <label>
+          Review days
+          <input
+            inputMode="numeric"
+            value={reviewDays}
+            placeholder={REVIEW_DAYS_DEFAULT}
+            onChange={(e) => setReviewDays(e.target.value)}
+          />
+        </label>
+        <label>
+          Skim days
+          <input
+            inputMode="numeric"
+            value={skimDays}
+            placeholder={SKIM_DAYS_DEFAULT}
+            onChange={(e) => setSkimDays(e.target.value)}
+          />
+        </label>
+      </fieldset>
       <RefusalLine refusal={refusal} />
       <p className={styles.actions}>
         <button type="submit" disabled={!ready || save.isPending}>
