@@ -7,6 +7,7 @@ import { useChosenInView } from "./chosen";
 import { useRestoreFocus } from "./focus";
 import { Picker } from "./Picker";
 import picker from "./Picker.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
 
 type Group = CriteriaToAttach["groups"][number];
@@ -283,7 +284,10 @@ function Note({
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [blank, setBlank] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // A refused attach is the user's act turned down, so it is an alert (ADR 0033
+  // decision 1 and its 2026-10-15 Update), said beside the note that stays and
+  // forgotten as the next attempt begins. Its look is the form's: `form.refusal`.
+  const refusal = useRefusal();
   const noteRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     noteRef.current?.focus();
@@ -294,7 +298,7 @@ function Note({
     trpc.experiments.attachEvidence.mutationOptions({
       onSuccess: (result) => {
         if (!result.written) {
-          setRefusal(`${result.reason} — ${result.detail}`);
+          refusal.say(`could not attach: ${result.reason} — ${result.detail}`);
           return;
         }
         // The line is read back from the Hypothesis on both pages.
@@ -307,7 +311,7 @@ function Note({
         );
         onDone();
       },
-      onError: (error) => setRefusal(error.message),
+      onError: (error) => refusal.say(`could not attach: ${error.message}`),
     })
   );
 
@@ -318,6 +322,7 @@ function Note({
       return;
     }
     if (attach.isPending) return;
+    refusal.forget();
     attach.mutate({
       hypothesis: group.path,
       criterion: criterion.id,
@@ -389,11 +394,7 @@ function Note({
             : "records no Outcome; judging the criterion stays its own act"}
         </span>
       </div>
-      {refusal !== null && (
-        <p role="status" className={form.refusal}>
-          could not attach: {refusal}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={form.refusal} />
     </div>
   );
 }
