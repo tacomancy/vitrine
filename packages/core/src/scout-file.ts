@@ -53,15 +53,16 @@ export const QUEUE_KEYS = {
   skimDays: "skim_days",
 } as const;
 
+/** The sentence naming a bad value, the same in the rail and in the form's refusal. */
+export const queueNumberProblem = (key: string) =>
+  `${key} is not a whole number of 1 or more`;
+
 /**
  * The one definition of a good Queue behaviour number, for the file and for
  * the form's text alike: a whole number of 1 or more. A value outside it is
  * named, never read as the default, so a typo cannot pass for "no cap" or
  * quietly put *show older* back at 30 days (ADR 0044 d.11; ADR 0039 d.7).
  */
-export const queueNumberProblem = (key: string) =>
-  `${key} is not a whole number of 1 or more`;
-
 export function parseQueueNumber(value: unknown): number | null {
   const n =
     typeof value === "string" && /^\d+$/.test(value.trim())
@@ -303,9 +304,9 @@ function readScout(id: string, text: string): Read {
       dropped,
       created,
       searchBackTo,
-      cap: queue["cap"] ?? null,
-      reviewDays: queue["review_days"] ?? DEFAULT_REVIEW_DAYS,
-      skimDays: queue["skim_days"] ?? DEFAULT_SKIM_DAYS,
+      cap: queue[QUEUE_KEYS.cap] ?? null,
+      reviewDays: queue[QUEUE_KEYS.reviewDays] ?? DEFAULT_REVIEW_DAYS,
+      skimDays: queue[QUEUE_KEYS.skimDays] ?? DEFAULT_SKIM_DAYS,
     },
   };
 }

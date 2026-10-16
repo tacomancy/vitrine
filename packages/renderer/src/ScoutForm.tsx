@@ -369,7 +369,7 @@ export function ScoutForm({
         assigned={assigned}
         onChange={setAssigned}
       />
-      <fieldset>
+      <fieldset className={styles.queueBehaviour}>
         <legend>Queue behaviour</legend>
         <label>
           Cap

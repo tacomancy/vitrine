@@ -490,8 +490,9 @@ export async function readSkim(
   );
   // The Scout that placed the line (its first Appearance) owns its cutoff; a
   // line whose Scout is gone from the vault gets the default.
+  const now = deps.now().getTime();
   const cutoffOf = (line: Card) =>
-    deps.now().getTime() -
+    now -
     (skimDays.get(line.scouts[0]?.id ?? "") ?? DEFAULT_SKIM_DAYS) * 86_400_000;
   const stamps = new Map(
     (
