@@ -767,6 +767,11 @@ export type CandidateLink = {
   /** The Tags the paper shares with the Question, sorted: what the offer rests on. */
   shared: string[];
   /**
+   * The Lexicon Terms the paper holds, for a keyword-overlap candidate that
+   * shares no Tag (ADR 0045); empty for a paper offered on its Tags.
+   */
+  terms: string[];
+  /**
    * The dismissal that rejects this pair, for `looseEnds.dismiss` and its
    * undo: the Question's `id` and a row kind naming this paper alone, so one
    * rejection never silences another paper for the same Question.
@@ -781,7 +786,7 @@ export type CandidateQuestion = {
   id: string | null;
   question: string;
   captured: string | null;
-  /** Ranked: most shared Tags first, then the paper's file recency. */
+  /** Ranked: shared-Tag papers first (most Tags, then recency), then keyword ones (most Terms, then recency). */
   candidates: CandidateLink[];
 };
 
@@ -800,7 +805,8 @@ export type CandidateQuestion = {
  */
 export async function candidateLinks(
   index: VaultIndex,
-  vaultPath: string
+  vaultPath: string,
+  overlap: (tags: Iterable<string>) => Map<string, string[]>
 ): Promise<CandidateQuestion[]> {
   // A file that does not parse silences nothing (it is reported where it is
   // written to, not here): an offer left standing is the safe side of that.
@@ -833,17 +839,28 @@ export async function candidateLinks(
     // The Question's id, so a rename in Obsidian keeps its rejections; a
     // Question without one falls back to its path, as every dismissal does.
     const subject = row.id ?? row.path;
+    const overlapping = overlap(mine);
     const found = papers.flatMap((paper) => {
       if (dismissed(dismissals, subject, rejectionKind(paper))) return [];
       const shared = [...(tagsOf.get(paper.path) ?? [])]
         .filter((tag) => mine.has(tag))
         .sort(byName);
-      return shared.length === 0 ? [] : [{ paper, shared }];
+      // A paper sharing a Tag is offered on it alone: its Terms would only
+      // be a second reason for a candidate already ranked above them.
+      const terms =
+        shared.length === 0 ? (overlapping.get(paper.path) ?? []) : [];
+      return shared.length === 0 && terms.length === 0
+        ? []
+        : [{ paper, shared, terms }];
     });
     if (found.length === 0) continue;
+    // Every shared-Tag candidate outranks every keyword one (ADR 0045), so
+    // the two kinds sort apart before either's own measure.
     found.sort(
       (a, b) =>
+        Number(b.shared.length > 0) - Number(a.shared.length > 0) ||
         b.shared.length - a.shared.length ||
+        b.terms.length - a.terms.length ||
         (b.paper.mtime ?? 0) - (a.paper.mtime ?? 0) ||
         byName(a.paper.path, b.paper.path)
     );
@@ -853,11 +870,12 @@ export async function candidateLinks(
       id: row.id,
       question: row.question,
       captured: row.captured,
-      candidates: found.map(({ paper, shared }) => ({
+      candidates: found.map(({ paper, shared, terms }) => ({
         path: paper.path,
         kind: paper.kind,
         display: paper.display ?? paper.path,
         shared,
+        terms,
         rejection: { subject, kind: rejectionKind(paper) },
       })),
     });

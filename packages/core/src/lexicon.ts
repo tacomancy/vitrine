@@ -201,13 +201,28 @@ export function lexiconOf(
 ): LexiconView {
   const { depth } = depthFor(index, requested);
   const papers = readPapers(index);
-  const held = [...(papersByTag(index, depth, papers).get(tag) ?? [])].map(
-    (path) => papers.get(path)!
+  return lexiconAmong(
+    papers,
+    papersByTag(index, depth, papers),
+    tagDisplays(index),
+    tag,
+    depth
   );
+}
+
+/** One Tag's Lexicon over papers and Tag sets the caller has already read. */
+function lexiconAmong(
+  papers: ReadonlyMap<string, Paper>,
+  byTag: ReadonlyMap<string, ReadonlySet<string>>,
+  displays: ReadonlyMap<string, string>,
+  tag: string,
+  depth: number
+): LexiconView {
+  const held = [...(byTag.get(tag) ?? [])].map((path) => papers.get(path)!);
   const withText = held.filter((p) => p.text.size > 0).length;
   const base = {
     tag,
-    display: tagDisplays(index).get(tag) ?? tag,
+    display: displays.get(tag) ?? tag,
     depth,
     papers: held.length,
     withText,
@@ -267,5 +282,54 @@ export function lexiconOf(
       inUse.length === 0
         ? null
         : `filter=title_and_abstract.search:(${inUse.map((t) => `"${t.term}"`).join(" OR ")})`,
+  };
+}
+
+/**
+ * Keyword overlap for Candidate links (ADR 0041 decision 9, ADR 0045): reads
+ * the vault once, then answers, for a row's Tags as written, which papers
+ * hold at least two distinct Terms *of one Tag's Lexicon* and which Terms.
+ * Two Terms of one Lexicon, not one each from two, because a single phrase
+ * is as likely to be a coincidence as a topic; a paper that shares a Tag is
+ * the shared-Tag path's, so its Terms are not asked for here.
+ */
+export const KEYWORD_OVERLAP_TERMS = 2;
+
+export function keywordOverlap(index: VaultIndex) {
+  const papers = readPapers(index);
+  const displays = tagDisplays(index);
+  const byDepth = new Map<number, Map<string, Set<string>>>();
+  const lexicons = new Map<string, Set<string>>();
+  const termsOf = (tag: string) => {
+    const depth = tag.split("/").length;
+    let byTag = byDepth.get(depth);
+    if (byTag === undefined) {
+      byTag = papersByTag(index, depth, papers);
+      byDepth.set(depth, byTag);
+    }
+    let terms = lexicons.get(tag);
+    if (terms === undefined) {
+      const view = lexiconAmong(papers, byTag, displays, tag, depth);
+      terms = new Set(view.terms.map((t) => t.term));
+      lexicons.set(tag, terms);
+    }
+    return terms;
+  };
+  /** paper path → the Terms it holds, for the Tags of one row. */
+  return (rowTags: Iterable<string>): Map<string, string[]> => {
+    const matched = new Map<string, Set<string>>();
+    for (const tag of rowTags) {
+      const terms = termsOf(tag);
+      for (const [path, paper] of papers) {
+        const held = [...terms].filter((t) => paper.text.has(t));
+        if (held.length < KEYWORD_OVERLAP_TERMS) continue;
+        const soFar = matched.get(path) ?? new Set<string>();
+        for (const t of held) soFar.add(t);
+        matched.set(path, soFar);
+      }
+    }
+    return new Map(
+      [...matched].map(([path, terms]) => [path, [...terms].sort(byName)])
+    );
   };
 }

@@ -254,3 +254,152 @@ describe("rejecting a candidate", () => {
     ]);
   });
 });
+
+// Keyword-overlap candidates (#654; ADR 0045, ADR 0041 decision 9): a paper
+// sharing no Tag with the row, whose text holds two distinct Terms of one
+// Lexicon of a Tag the row carries.
+
+const abstractPaper = (name: string, tags: string[], abstract: string) => `---
+kind: source
+citekey: ${name}
+title: ${name}
+tags: [${tags.join(", ")}]
+---
+${abstract
+  .split(". ")
+  .map((s) => `> ${s}`)
+  .join("\n")}
+`;
+
+// Three papers whose abstracts recur on "residual stream" and "linear
+// probe" make those Terms of the Tag; an untagged filler keeps them rare.
+const PROBING = {
+  "s/z.md": abstractPaper("z", [], "Rats sleep deeply."),
+  "s/a.md": abstractPaper(
+    "a",
+    ["probing"],
+    "The residual stream carries features. A linear probe reads alpha."
+  ),
+  "s/b.md": abstractPaper(
+    "b",
+    ["probing"],
+    "The residual stream is sparse. A linear probe reads beta."
+  ),
+  "s/c.md": abstractPaper(
+    "c",
+    ["probing"],
+    "The residual stream grows. A linear probe reads gamma."
+  ),
+};
+const BOTH = "The residual stream feeds a linear probe.";
+
+// Exactly two Terms ("residual", "stream"): every other word is the paper's
+// own, so a paper holding one of them holds exactly one Term. (Overlapping
+// phrases such as "residual stream" would make a single mention several.)
+const TWO_WORDS = {
+  "s/z.md": PROBING["s/z.md"],
+  "s/a.md": abstractPaper("a", ["probing"], "Residual alpha. Stream beta."),
+  "s/b.md": abstractPaper("b", ["probing"], "Residual gamma. Stream delta."),
+  "s/c.md": abstractPaper("c", ["probing"], "Residual epsilon. Stream zeta."),
+};
+
+const byPath = (q: CandidateQuestion, path: string) =>
+  q.candidates.find((p) => p.path === path);
+
+describe("questionMap.candidates — keyword overlap", () => {
+  it("offers a paper with two distinct Terms and not one with a single Term, naming the Terms", async () => {
+    const { read } = await review({
+      ...TWO_WORDS,
+      "q/Q.md": question("Q", { tags: ["probing"] }),
+      "s/both.md": abstractPaper("both", [], "Residual and stream."),
+      "s/one.md": abstractPaper("one", [], "Residual only."),
+    });
+    const [q] = await read();
+    expect(byPath(q!, "s/one.md")).toBeUndefined();
+    expect(byPath(q!, "s/both.md")!.terms).toEqual(["residual", "stream"]);
+    expect(byPath(q!, "s/both.md")!.shared).toEqual([]);
+  });
+
+  it("never offers a paper sharing a Tag as a keyword match: it keeps its Tags and has no Terms", async () => {
+    const { read } = await review({
+      ...PROBING,
+      "q/Q.md": question("Q", { tags: ["probing"] }),
+    });
+    const [q] = await read();
+    expect(papersOf(q!).sort()).toEqual(["s/a.md", "s/b.md", "s/c.md"]);
+    for (const c of q!.candidates) {
+      expect(c.shared).toEqual(["probing"]);
+      expect(c.terms).toEqual([]);
+    }
+  });
+
+  it("ranks every shared-Tag candidate above a keyword one, however new the keyword paper", async () => {
+    const { read } = await review(
+      {
+        ...PROBING,
+        "q/Q.md": question("Q", { tags: ["probing"] }),
+        "s/both.md": abstractPaper("both", [], BOTH),
+      },
+      { "s/a.md": 1, "s/b.md": 2, "s/c.md": 3, "s/both.md": 99 }
+    );
+    expect(papersOf((await read())[0]!)).toEqual([
+      "s/c.md",
+      "s/b.md",
+      "s/a.md",
+      "s/both.md",
+    ]);
+  });
+
+  it("needs both Terms from one Tag's Lexicon, not one from each of two", async () => {
+    const { read } = await review({
+      ...TWO_WORDS,
+      "s/d.md": abstractPaper("d", ["sleep"], "Slow kappa. Wave lambda."),
+      "s/e.md": abstractPaper("e", ["sleep"], "Slow mu. Wave nu."),
+      "s/f.md": abstractPaper("f", ["sleep"], "Slow xi. Wave pi."),
+      "q/Q.md": question("Q", { tags: ["probing", "sleep"] }),
+      // "residual" is probing's Term, "slow" is sleep's: two, but not of one.
+      "s/split.md": abstractPaper("split", [], "Residual slow."),
+    });
+    expect(byPath((await read())[0]!, "s/split.md")).toBeUndefined();
+  });
+
+  it("offers nothing for a Question whose Tags are too thin to have a Lexicon", async () => {
+    const { read } = await review({
+      "q/Q.md": question("Q", { tags: ["probing"] }),
+      "s/a.md": abstractPaper("a", ["probing"], BOTH),
+      "s/both.md": abstractPaper("both", [], BOTH),
+    });
+    expect(papersOf((await read())[0]!)).toEqual(["s/a.md"]);
+  });
+
+  it("never offers a rejected keyword pair, and undo brings it back", async () => {
+    const { c, read } = await review({
+      ...PROBING,
+      "q/Q.md": question("Q", { tags: ["probing"] }),
+      "s/both.md": abstractPaper("both", [], BOTH),
+    });
+    const rejection = byPath((await read())[0]!, "s/both.md")!.rejection;
+    await c.mutate("looseEnds.dismiss", rejection);
+    expect(byPath((await read())[0]!, "s/both.md")).toBeUndefined();
+    await c.mutate("looseEnds.undismiss", rejection);
+    expect(byPath((await read())[0]!, "s/both.md")).toBeDefined();
+  });
+
+  it("accepting writes Related only, and the linked paper is never offered again", async () => {
+    const { c, vault, read } = await review({
+      ...PROBING,
+      "q/Q.md": question("Q", { tags: ["probing"] }),
+      "s/both.md": abstractPaper("both", [], BOTH),
+    });
+    const reply = await c.mutate("questions.link", {
+      path: "q/Q.md",
+      target: "s/both.md",
+    });
+    expect(reply.error).toBeUndefined();
+    const written = await readFile(join(vault, "q/Q.md"), "utf8");
+    expect(written).toMatch(/related:\n\s+- "?\[\[both\]\]"?/);
+    expect(written).not.toMatch(/supporting|opposing/i);
+    await c.indexed();
+    expect(await read()).toEqual([]);
+  });
+});
