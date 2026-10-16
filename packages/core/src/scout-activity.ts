@@ -24,6 +24,7 @@ import {
   acceptCounts,
   acceptSince,
   acceptWeeks,
+  pageChangeIn,
   firstAppearanceScout,
   MIN_WEEK_ITEMS,
   type AcceptCounts,
@@ -80,6 +81,8 @@ export type AcceptRate =
       /** Twelve weeks, oldest first; a week under `weekFloor` items is a gap (ADR 0042 decision 2). */
       weeks: AcceptWeek[];
       weekFloor: number;
+      /** Set when the runs inside the weeks asked more than one page: when it last changed (ADR 0043 decision 8). */
+      pageChange: { at: string } | null;
     }
   | { kind: "nothing triaged" }
   | { kind: "unavailable"; reason: string };
@@ -93,7 +96,8 @@ export type AcceptRate =
 function acceptRateOf(
   scout: Scout,
   counts: AcceptCounts | undefined,
-  weeks: AcceptWeek[]
+  weeks: AcceptWeek[],
+  pageChange: { at: string } | null
 ): AcceptRate {
   // `acceptCounts` groups only the rows it counts, so a Scout it names has at least one.
   if (counts === undefined) return { kind: "nothing triaged" };
@@ -114,6 +118,7 @@ function acceptRateOf(
     kind: "rate",
     weeks,
     weekFloor: MIN_WEEK_ITEMS,
+    pageChange,
     accepted: counts.accepted,
     triaged,
     rate: counts.accepted / triaged,
@@ -580,7 +585,8 @@ export async function readActivity(deps: {
         acceptRate: acceptRateOf(
           scout,
           counts.find((c) => c.scoutId === scout.id),
-          acceptWeeks(deps.queue, scout.id, now)
+          acceptWeeks(deps.queue, scout.id, now),
+          pageChangeIn(deps.queue, scout, now)
         ),
         review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
         volume: volumeByScout.get(scout.id) ?? {
