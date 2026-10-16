@@ -80,7 +80,10 @@ export function useCapture(): Capture {
       const trimmed = text.trim();
       if (trimmed === "" || writing.current) return;
       writing.current = true;
+      // The line is the last attempt's: the procedure not being called must
+      // not keep a refusal from an earlier one on screen.
       if (selection && provenance.context === "reading") {
+        capture.reset();
         fromSelection.mutate(
           {
             path: provenance.source,
@@ -92,6 +95,7 @@ export function useCapture(): Capture {
         );
         return;
       }
+      fromSelection.reset();
       capture.mutate(
         { text: trimmed, provenance },
         { onSuccess: onWritten, onSettled: settled }
