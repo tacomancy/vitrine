@@ -246,6 +246,44 @@ describe("attach evidence, from a Criterion", () => {
     );
   });
 
+  it("keeps the note and says why in an alert when the attach is refused, then says the same sentence again as a new element", async () => {
+    let refuse: (answer: unknown) => void = () => undefined;
+    let attempts = 0;
+    const refused = {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: "no criterion carries ^c2",
+    };
+    open({
+      "experiments.attachEvidence": () =>
+        attempts++ === 0
+          ? refused
+          : new Promise((resolve) => (refuse = resolve)),
+    });
+    const { find, picker } = await openAttach();
+    await within(picker).findByRole("option", { name: /sweep-7/ });
+    fireEvent.keyDown(find, { key: "Enter" });
+    const form = await noteFor("sweep-7");
+    const note = within(form).getByRole("textbox");
+    fireEvent.change(note, { target: { value: "did not move" } });
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+    const first = await within(form).findByRole("alert");
+    expect(first.textContent).toContain("no criterion carries ^c2");
+    expect(within(form).queryByRole("status")).toBeNull();
+    expect((note as HTMLInputElement).value).toBe("did not move");
+
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(within(form).queryByRole("alert")).toBeNull();
+    refuse(refused);
+    const second = await within(form).findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
+  });
+
   it("leaving the note attaches nothing, with the keyboard back on the criterion", async () => {
     const asked: unknown[] = [];
     open({
