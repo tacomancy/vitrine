@@ -388,7 +388,7 @@ function Command({
         {/* A read that failed must never read as an empty vault, and a
             write that failed must never look like one that landed. */}
         {listing.isError && (
-          <p className={styles.message} role="alert">
+          <p className={styles.message} role="status">
             {listing.error.message}
           </p>
         )}
