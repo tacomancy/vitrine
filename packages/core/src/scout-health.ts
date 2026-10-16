@@ -446,7 +446,7 @@ export async function readFleetClaim(deps: {
       scouts
         .flatMap((s) => finishedRunsAtPage(deps.queue, s))
         .filter((run) => run.outcome === "ok")
-        .map((run) => run.finished!)
+        .map((run) => run.finished)
         .sort()
         .at(-1) ?? null,
   };
