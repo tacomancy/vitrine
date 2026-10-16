@@ -125,4 +125,43 @@ describe("the accept-rate line", () => {
     expect(screen.getByText("Most papers lack authors.")).toBeDefined();
     expect(points()).toHaveLength(0);
   });
+
+  describe("when the weeks span more than one page", () => {
+    const span = rateOver(4, 5, weeksOf({ 11: { triaged: 5, rate: 0.8 } }), {
+      at: "2026-07-08T09:00:00.000Z",
+    });
+
+    it("says in one plain sentence when the page last changed and that the line spans more than one", () => {
+      render(<AcceptLine rate={span} />);
+
+      expect(
+        screen.getByText(
+          "The page last changed on 8 Jul, so this line spans more than one page."
+        )
+      ).toBeDefined();
+    });
+
+    it("says nothing when the weeks held one page", () => {
+      render(
+        <AcceptLine
+          rate={rateOver(4, 5, weeksOf({ 11: { triaged: 5, rate: 0.8 } }))}
+        />
+      );
+
+      expect(screen.queryByText(/spans more than one page/)).toBeNull();
+    });
+
+    it("carries no colour, mark or emphasis of its own, and leaves the headline as it was", () => {
+      render(<AcceptLine rate={span} />);
+
+      const sentence = screen.getByText(/spans more than one page/);
+      expect(sentence.getAttribute("style")).toBeNull();
+      expect(sentence.querySelector("*")).toBeNull();
+      // The same class as the headline: one voice, so nothing marks it out.
+      expect(sentence.className).toBe(
+        screen.getByText(/over 12 weeks/).className
+      );
+      expect(screen.getByText("80% over 12 weeks · 5 triaged")).toBeDefined();
+    });
+  });
 });

@@ -151,7 +151,8 @@ export const weeksOf = (
 export const rateOver = (
   accepted: number,
   triaged: number,
-  weeks: AcceptWeek[] = weeksOf()
+  weeks: AcceptWeek[] = weeksOf(),
+  pageChange: { at: string } | null = null
 ): AcceptRate => ({
   kind: "rate",
   accepted,
@@ -159,6 +160,7 @@ export const rateOver = (
   rate: accepted / triaged,
   weeks,
   weekFloor: 5,
+  pageChange,
 });
 
 export const question = (

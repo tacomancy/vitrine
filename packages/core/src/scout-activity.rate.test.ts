@@ -65,6 +65,7 @@ describe("a row's accept rate", () => {
       // What the weeks hold is the next describe's; here the key set is pinned.
       weeks: await f.series("s"),
       weekFloor: 5,
+      pageChange: null,
     });
   });
 
