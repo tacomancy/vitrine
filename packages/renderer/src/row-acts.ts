@@ -92,6 +92,9 @@ export function useRowActs(hold: () => void) {
 
   const changeCadence = useMutation(
     trpc.scouts.setCadence.mutationOptions({
+      // In the mutation, not at each caller, so a new way to send the write
+      // cannot leave a refusal standing as the answer to it.
+      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
       onSuccess: ({ dueAtNextCheck }, { scoutId, cadence }) => {
         // Said from the write's own answer, which asked the scheduler: a row
         // that said a run was coming would otherwise be guessing at it.
@@ -106,6 +109,7 @@ export function useRowActs(hold: () => void) {
   );
   const pause = useMutation(
     trpc.scouts.setPaused.mutationOptions({
+      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
       onSuccess: (_done, { scoutId, paused }) => {
         say(scoutKey(scoutId), {
           refused: false,
@@ -126,7 +130,7 @@ export function useRowActs(hold: () => void) {
     say,
     hold,
     toggleEdit: (key: string) => {
-      forgetRefusal(key);
+      if (!editing.has(key)) forgetRefusal(key);
       setEditing((was) => toggled(was, key));
     },
     closeEdit: (key: string) => setEditing((was) => without(was, key)),
@@ -134,7 +138,6 @@ export function useRowActs(hold: () => void) {
     closeCadence: (key: string) => setCadenceOpen((was) => without(was, key)),
     pauseOrResume(row: ScoutRow) {
       hold();
-      forgetRefusal(scoutKey(row.id));
       pause.mutate({ scoutId: row.id, paused: !row.paused });
     },
     /** The menu closes on a choice; the cadence the Scout already has is no change, and a write that did nothing would only rewrite its file. */
@@ -142,7 +145,6 @@ export function useRowActs(hold: () => void) {
       setCadenceOpen((was) => without(was, scoutKey(row.id)));
       if (cadence === row.cadence) return;
       hold();
-      forgetRefusal(scoutKey(row.id));
       changeCadence.mutate({ scoutId: row.id, cadence });
     },
   };
