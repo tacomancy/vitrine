@@ -227,12 +227,9 @@ describe("saving a Scout that watches a page", () => {
   });
 });
 
-// A saved page's address is the one thing a save does not change yet: ADR 0042
-// decision 5 keeps it on the form and leaves how it is changed to a decision of
-// its own, since a different page invalidates the hash and the
-// structure-change test its history rests on. Everything else the form owns —
-// and so a Scout Activity row's Assigned Questions, which write through this
-// same `scouts.save` (#520) — is saved as it is for an arXiv Scout.
+// What the form owns, a Scout Activity row's Assigned Questions included —
+// they write through this same `scouts.save` (#520) — is saved as it is for an
+// arXiv Scout. Pointing the Scout at another page is scout-form.repoint.test.ts.
 describe("editing a Scout that watches a page", () => {
   const raw = (c: Awaited<ReturnType<typeof opened>>, input: object) =>
     c.c.mutate("scouts.save", {
@@ -273,23 +270,6 @@ describe("editing a Scout that watches a page", () => {
     expect(await c.file(id)).not.toContain("filter");
   });
 
-  it("refuses a different address, in words that say where it is changed, and writes nothing", async () => {
-    const c = await opened();
-    const { id } = await c.save({});
-    const before = await c.file(id);
-
-    const reply = await raw(c, { id, query: "https://other.example/papers" });
-
-    expect(reply.error?.message).toBe(
-      "What a Scout watches is changed in its file for now."
-    );
-    expect(reply.error?.data).toMatchObject({
-      code: "BAD_REQUEST",
-      kind: "refused",
-    });
-    expect(await c.file(id)).toBe(before);
-  });
-
   // An arXiv Query written over a page's address would quietly turn one
   // Scout's history into another's.
   it("refuses to be saved as an arXiv Scout, and writes nothing", async () => {
@@ -300,7 +280,7 @@ describe("editing a Scout that watches a page", () => {
     const reply = await raw(c, { id, watching: "arxiv", query: "all:sleep" });
 
     expect(reply.error?.message).toBe(
-      "What a Scout watches is changed in its file for now."
+      "A Scout keeps its kind of source. To watch arXiv instead, make a new Scout."
     );
     expect(await c.file(id)).toBe(before);
   });
@@ -315,7 +295,7 @@ describe("editing a Scout that watches a page", () => {
     const reply = await raw(c, { id, watching: "watched", query: LAB });
 
     expect(reply.error?.message).toBe(
-      "What a Scout watches is changed in its file for now."
+      "A Scout keeps its kind of source. To watch a page instead, make a new Scout."
     );
     expect(await c.file(id)).toBe(before);
   });

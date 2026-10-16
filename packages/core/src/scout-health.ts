@@ -91,6 +91,26 @@ export function finishedRuns(queue: DatabaseSync, scoutId: string): RunRow[] {
     .all(scoutId) as RunRow[];
 }
 
+/**
+ * Finished runs that asked the Scout's current page, oldest first (ADR 0043
+ * decisions 2 and 3). A figure that says something about the page reads these;
+ * a figure that records what the Scout did reads `finishedRuns`. A run belongs
+ * when the page it recorded is the Scout's URL, or recorded none — a run from
+ * before the column, which must never be taken for an edit. An arXiv Scout's
+ * runs all belong: its Query is a Filter on one source and its date window
+ * carries over an edit. Nothing marks the change in the file or on the rows;
+ * pointing a Scout back at a page it has read takes that page's runs again.
+ */
+export function finishedRunsAtPage(
+  queue: DatabaseSync,
+  scout: Scout
+): RunRow[] {
+  const runs = finishedRuns(queue, scout.id);
+  return scout.source.kind === "watched"
+    ? runs.filter((run) => run.query === null || run.query === scout.query)
+    : runs;
+}
+
 /** A completed run's window and what it fetched: what *try over the last run's window* compares against (ADR 0042 decision 5). */
 export type RunWindow = { from: string; to: string; fetched: number };
 
@@ -145,7 +165,8 @@ export function isWaitingOnKey(
 }
 
 export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
-  const runs = finishedRuns(queue, scout.id);
+  // A claim about the page rests on the runs that read it (ADR 0043 d.2).
+  const runs = finishedRunsAtPage(queue, scout);
   // Before `wrong`: a paused Scout is not looking, so a retired Scout does
   // not keep nagging about a failure its researcher has already answered
   // (Loose Ends offers *pause* as the way out of a broken one).
@@ -158,13 +179,18 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   const newest = runs.at(-1);
   if (newest === undefined) {
     // Saving a page's Scout runs nothing (ADR 0040 d.5), and the header
-    // says why rather than leaving it to look idle.
+    // says why rather than leaving it to look idle. A Scout with runs, none
+    // at this page, was pointed elsewhere: it says the page is unread, never
+    // that it parsed one (ADR 0043 d.4).
+    if (scout.source.kind !== "watched") {
+      return { voice: "not yet", sentence: "It has not run yet." };
+    }
     return {
       voice: "not yet",
       sentence:
-        scout.source.kind === "watched"
+        finishedRuns(queue, scout.id).length === 0
           ? "Not yet — first check due now."
-          : "It has not run yet.",
+          : "Not yet — this page has not been read; first check due now.",
     };
   }
   // What the baseline rests on: runs that read the field and parsed it. A *no
