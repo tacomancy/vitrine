@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CADENCES, readScouts, type Scout } from "./scout-file.js";
-import { CADENCE_MS, finishedRuns } from "./scout-health.js";
+import { CADENCE_MS, finishedRunsAtPage } from "./scout-health.js";
 import { runScout, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
 
@@ -30,7 +30,9 @@ export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
   // answer to being due; asking again would search the same window twice.
   if (allRuns !== undefined && allRuns.finished === null) return false;
 
-  const runs = finishedRuns(queue, scout.id);
+  // A page the Scout has not read is a first look, due at the next check
+  // whatever the cadence (ADR 0043 d.4).
+  const runs = finishedRunsAtPage(queue, scout);
   const newest = runs.at(-1);
   if (newest === undefined) return true;
   const cadence = CADENCE_MS[scout.cadence];

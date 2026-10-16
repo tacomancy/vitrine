@@ -757,6 +757,108 @@ describe("the form, watching a page", () => {
   });
 });
 
+// #614 (ADR 0043): a saved page Scout's Address is the field it was made with,
+// and the form says what changing it does. The core's tests own what a save
+// writes; these own the copy and the payload.
+describe("the form, editing a Scout that watches a page", () => {
+  const LAB = "https://lab.example/publications";
+  const MOVED = "https://lab.example/moved";
+  const edit = async (kind: "watched" | "arxiv", more = {}) => {
+    const saves: Array<Record<string, unknown>> = [];
+    renderApp(
+      answers({
+        "scouts.list": {
+          scouts: [
+            kind === "watched"
+              ? scout({ source: { kind: "watched", url: LAB }, query: LAB })
+              : scout(),
+          ],
+          unreadable: [],
+        },
+        "scouts.save": (input: Record<string, unknown>) => {
+          saves.push(input);
+          return { id: "sleep", run: null };
+        },
+        ...more,
+      })
+    );
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await screen.findByRole("form", { name: "Edit Sleep and memory" });
+    return saves;
+  };
+
+  it("keeps the Address editable and says what changing it does", async () => {
+    await edit("watched");
+
+    const address = screen.getByLabelText<HTMLInputElement>("Address");
+    expect(address.disabled).toBe(false);
+    expect(address.value).toBe(LAB);
+    expect(
+      screen.getByText(
+        "Changing the page points this Scout at another one: the next check reads it as a first look, and everything it lists arrives as Retroactive. Its Proposals, stubs and Accept rate go on."
+      )
+    ).toBeDefined();
+  });
+
+  it("says why Watching is disabled, and that a different kind of source is a new Scout", async () => {
+    await edit("watched");
+
+    expect(screen.getByLabelText<HTMLSelectElement>("Watching").disabled).toBe(
+      true
+    );
+    expect(
+      screen.getByText(
+        "A Scout keeps its kind of source. To watch arXiv instead, make a new Scout."
+      )
+    ).toBeDefined();
+  });
+
+  it("names a page as the other kind on an arXiv Scout, and has no page sentence", async () => {
+    await edit("arxiv");
+
+    expect(
+      screen.getByText(
+        "A Scout keeps its kind of source. To watch a page instead, make a new Scout."
+      )
+    ).toBeDefined();
+    expect(screen.queryByText(/points this Scout at another one/)).toBeNull();
+  });
+
+  it("sends the new address with the Scout's id", async () => {
+    const saves = await edit("watched");
+
+    fireEvent.change(screen.getByLabelText("Address"), {
+      target: { value: MOVED },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toMatchObject({
+      id: "sleep",
+      watching: "watched",
+      query: MOVED,
+      searchBackTo: null,
+    });
+  });
+
+  it("says nothing about a page on a new Scout", async () => {
+    renderApp(answers());
+    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await screen.findByRole("form", { name: "New Scout" });
+    fireEvent.change(screen.getByLabelText("Watching"), {
+      target: { value: "watched" },
+    });
+
+    expect(screen.queryByText(/points this Scout at another one/)).toBeNull();
+    expect(screen.queryByText(/keeps its kind of source/)).toBeNull();
+  });
+});
+
 describe("empty stacks, in the three voices", () => {
   it("says not yet when there are no Scouts, and claims nothing", async () => {
     renderApp(
