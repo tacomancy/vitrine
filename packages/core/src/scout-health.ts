@@ -441,15 +441,13 @@ export async function readFleetClaim(deps: {
   const among = undropped.map(() => "?").join(", ");
   // The newest run is read at the page each Scout watches now: a run at a page
   // since left would vouch for a page nobody reads (ADR 0043 d.2).
-  const newest = {
-    at:
-      scouts
-        .flatMap((s) => finishedRunsAtPage(deps.queue, s))
-        .filter((run) => run.outcome === "ok")
-        .map((run) => run.finished)
-        .sort()
-        .at(-1) ?? null,
-  };
+  const newestAt =
+    scouts
+      .flatMap((s) => finishedRunsAtPage(deps.queue, s))
+      .filter((run) => run.outcome === "ok")
+      .map((run) => run.finished)
+      .sort()
+      .at(-1) ?? null;
   const last = deps.queue
     .prepare(
       `SELECT MAX(first_seen) AS at FROM proposals
@@ -459,9 +457,9 @@ export async function readFleetClaim(deps: {
   const parts = [
     `${watching.length} ${watching.length === 1 ? "scout" : "scouts"} watching`,
     "all parsed cleanly",
-    newest.at === null
+    newestAt === null
       ? "no run yet"
-      : `newest run ${ago(now.getTime() - Date.parse(newest.at))}`,
+      : `newest run ${ago(now.getTime() - Date.parse(newestAt))}`,
     last.at === null
       ? "no proposal yet"
       : `last new proposal ${new Date(last.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`,
