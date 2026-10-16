@@ -152,6 +152,9 @@ describe("a hand-written Scout", () => {
         dropped: null,
         created: "2026-09-20T00:00:00.000Z",
         searchBackTo: null,
+        cap: null,
+        reviewDays: 14,
+        skimDays: 30,
         source: { kind: "arxiv" },
       },
     ]);

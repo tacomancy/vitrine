@@ -12,7 +12,12 @@ import {
 import { finishedRunsAtPage, type RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
 import type { Events } from "./events.js";
-import { readScouts, scoutIdOf, type Scout } from "./scout-file.js";
+import {
+  DEFAULT_SKIM_DAYS,
+  readScouts,
+  scoutIdOf,
+  type Scout,
+} from "./scout-file.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
@@ -514,11 +519,10 @@ function byRank(a: Card, b: Card): number {
   return 0;
 }
 
-/** Skim lines older than this sit behind *show older*; nothing is deleted (ADR 0016 decision 6). */
-const SKIM_DAYS = 30;
-
 /**
- * Skim: `lane = skim`, newest first, split at 30 days. A promoted line has
+ * Skim: `lane = skim`, newest first, split at the Scout's `skim_days` (30 when
+ * the file does not say) — older lines sit behind *show older* and nothing is
+ * deleted (ADR 0016 decision 6; ADR 0044 d.11). A promoted line has
  * left for Review (its lane is rewritten), and an accepted one is a stub, so
  * what remains is only what the researcher has not touched.
  */
@@ -526,7 +530,16 @@ export async function readSkim(
   deps: ScoutDeps
 ): Promise<{ recent: Card[]; older: Card[] }> {
   const lines = await readCards(deps, "skim");
-  const cutoff = deps.now().getTime() - SKIM_DAYS * 86_400_000;
+  const { scouts, dropped } = await readScouts(deps.vaultPath);
+  const skimDays = new Map(
+    [...scouts, ...dropped].map((s) => [s.id, s.skimDays])
+  );
+  // The Scout that placed the line (its first Appearance) owns its cutoff; a
+  // line whose Scout is gone from the vault gets the default.
+  const now = deps.now().getTime();
+  const cutoffOf = (line: Card) =>
+    now -
+    (skimDays.get(line.scouts[0]?.id ?? "") ?? DEFAULT_SKIM_DAYS) * 86_400_000;
   const stamps = new Map(
     (
       deps.queue
@@ -534,7 +547,7 @@ export async function readSkim(
         .all() as Array<{ id: number; first_seen: string }>
     ).map((row) => [row.id, Date.parse(row.first_seen)])
   );
-  const isOlder = (line: Card) => (stamps.get(line.id) ?? 0) < cutoff;
+  const isOlder = (line: Card) => (stamps.get(line.id) ?? 0) < cutoffOf(line);
   return {
     recent: lines.filter((line) => !isOlder(line)),
     older: lines.filter(isOlder),

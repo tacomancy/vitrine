@@ -1071,3 +1071,97 @@ describe("the form's Try, announced", () => {
     expect(screen.getByText("trying…").closest("[role]")).toBeNull();
   });
 });
+
+// #641 (spec #639, ADR 0044 d.11): *Queue behaviour* on the form. The core
+// parses and refuses by name; the renderer sends the typed text, leaves a field
+// alone that the researcher did not touch, and says a Cap is not yet active.
+describe("the form's Queue behaviour", () => {
+  const type = (label: string, value: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  const editing = async (
+    rest: Record<string, unknown>,
+    save: (input: Record<string, unknown>) => unknown = () => ({
+      id: "sleep",
+      run: null,
+    })
+  ) => {
+    renderApp(
+      answers({
+        "scouts.list": { scouts: [scout(rest)], unreadable: [] },
+        "scouts.save": save,
+      })
+    );
+    fireEvent.click(
+      await within(await rail()).findByRole("button", {
+        name: /Sleep and memory/,
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await screen.findByRole("form", { name: "Edit Sleep and memory" });
+  };
+
+  it("is a group on the form, and says a Cap is not yet active", async () => {
+    await editing({});
+
+    const group = screen.getByRole("group", { name: "Queue behaviour" });
+    expect(within(group).getByLabelText("Cap")).toBeDefined();
+    expect(within(group).getByLabelText("Review days")).toBeDefined();
+    expect(within(group).getByLabelText("Skim days")).toBeDefined();
+    expect(group.textContent).toMatch(
+      /A Cap is not active until this Scout has enough triage/
+    );
+  });
+
+  it("shows the file's values, and sends only what was changed", async () => {
+    const saves: Array<Record<string, unknown>> = [];
+    await editing({ cap: 25, reviewDays: 7, skimDays: 30 }, (input) => {
+      saves.push(input);
+      return { id: "sleep", run: null };
+    });
+    expect(screen.getByLabelText<HTMLInputElement>("Cap").value).toBe("25");
+    expect(screen.getByLabelText<HTMLInputElement>("Review days").value).toBe(
+      "7"
+    );
+    // A default is shown as the placeholder, not written back as a value.
+    expect(screen.getByLabelText<HTMLInputElement>("Skim days").value).toBe("");
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Skim days").placeholder
+    ).toBe("30");
+    type("Review days", "10");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toMatchObject({ reviewDays: "10" });
+    expect(saves[0]).not.toHaveProperty("cap");
+    expect(saves[0]).not.toHaveProperty("skimDays");
+  });
+
+  it("sends an emptied field as null, so the key goes", async () => {
+    const saves: Array<Record<string, unknown>> = [];
+    await editing({ cap: 25 }, (input) => {
+      saves.push(input);
+      return { id: "sleep", run: null };
+    });
+    type("Cap", "");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toMatchObject({ cap: null });
+  });
+
+  it("says the core's refusal of a bad value, naming it, with the form kept", async () => {
+    await editing({}, () => {
+      throw new Error("cap is not a whole number of 1 or more.");
+    });
+    type("Cap", "-3");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "cap is not a whole number of 1 or more."
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Cap").value).toBe("-3");
+  });
+});

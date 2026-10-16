@@ -7,6 +7,9 @@ import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
   isScoutFile,
   listScoutsFolder,
+  parseQueueNumber,
+  queueNumberProblem,
+  QUEUE_KEYS,
   readScouts,
   readScoutFile,
   scoutIdOf,
@@ -42,6 +45,15 @@ export type ScoutForm = {
   lane: Scout["lane"];
   /** *Also search back to*, for a new Scout only: an existing Scout's window is never moved by an edit. */
   searchBackTo: string | null;
+  /**
+   * *Queue behaviour*, as the text the form holds. Absent leaves the file's
+   * key alone (a Scout Activity row saves without them); empty or null takes
+   * the key away, which is the default; anything else must be a whole number
+   * of 1 or more or the save is refused by the field's file name.
+   */
+  cap?: string | null | undefined;
+  reviewDays?: string | null | undefined;
+  skimDays?: string | null | undefined;
 };
 
 // Every edit of a Scout's file reads it and writes it back: a save picks a free
@@ -84,6 +96,7 @@ async function write(
   if (watched && !WEB_ADDRESS.test(query)) {
     throw new VaultError("refused", ADDRESS_REFUSAL);
   }
+  const queueEdits = queueBehaviour(form);
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
   const { scouts } = await readScouts(deps.vaultPath);
   const names = await listScoutsFolder(deps.vaultPath);
@@ -139,6 +152,10 @@ async function write(
   if (before === undefined || !sameList(before.scout.assigned, form.assigned)) {
     doc.set("assigned", form.assigned);
   }
+  for (const [key, value] of queueEdits) {
+    if (value === null) doc.delete(key);
+    else doc.set(key, value);
+  }
   if (!watched) {
     if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
     else doc.set("filter", { query });
@@ -166,6 +183,28 @@ async function write(
     before.scout.query !== query &&
     !before.scout.paused;
   return { id, runAfter: edited };
+}
+
+/**
+ * What the form's Queue behaviour text says to do to each key, checked before
+ * anything is written so a bad value refuses the whole save and names itself.
+ */
+function queueBehaviour(form: ScoutForm): Array<[string, number | null]> {
+  const edits: Array<[string, number | null]> = [];
+  for (const [field, key] of Object.entries(QUEUE_KEYS)) {
+    const text = form[field as keyof typeof QUEUE_KEYS];
+    if (text === undefined) continue;
+    if (text === null || text.trim() === "") {
+      edits.push([key, null]);
+      continue;
+    }
+    const n = parseQueueNumber(text);
+    if (n === null) {
+      throw new VaultError("refused", `${queueNumberProblem(key)}.`);
+    }
+    edits.push([key, n]);
+  }
+  return edits;
 }
 
 const sameList = (a: readonly string[], b: readonly string[]) =>
