@@ -68,6 +68,8 @@ type Paper = {
   keywords: Set<string>;
 };
 
+const isPlaced = (withText: number) => withText >= PLACED_PAPERS;
+
 const PAPER_KINDS = "('source', 'source-stub')";
 const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -160,7 +162,7 @@ export function attention(index: VaultIndex, requested?: number): Attention {
       const withText = [...held].filter(
         (p) => papers.get(p)!.text.size > 0
       ).length;
-      const placed = withText >= PLACED_PAPERS;
+      const placed = isPlaced(withText);
       return {
         tag,
         display: displays.get(tag) ?? tag,
@@ -172,6 +174,9 @@ export function attention(index: VaultIndex, requested?: number): Attention {
     }
   );
   tags.sort((a, b) => b.papers - a.papers || byName(a.tag, b.tag));
+  // No measurement store exists yet (a later ticket), so nothing is dated
+  // and every placeable Tag is *not yet measured*; these literals become
+  // derived values when it lands, not facts to keep.
   return {
     depth,
     deepest,
@@ -207,7 +212,7 @@ export function lexiconOf(
     papers: held.length,
     withText,
   };
-  if (withText < PLACED_PAPERS) {
+  if (!isPlaced(withText)) {
     return {
       ...base,
       placed: false,
@@ -220,6 +225,8 @@ export function lexiconOf(
 
   const holds = (paper: Paper, phrase: string) =>
     paper.text.has(phrase) || paper.keywords.has(phrase);
+  // Papers with no phrases at all (no title, no abstract) cannot hold any
+  // phrase, so they stay out of the rarity denominator.
   const everyPaper = [...papers.values()].filter(
     (p) => p.text.size > 0 || p.keywords.size > 0
   );
