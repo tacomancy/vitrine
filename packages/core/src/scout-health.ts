@@ -439,12 +439,17 @@ export async function readFleetClaim(deps: {
   // else.
   const undropped = scouts.map((s) => s.id);
   const among = undropped.map(() => "?").join(", ");
-  const newest = deps.queue
-    .prepare(
-      `SELECT MAX(finished) AS at FROM scout_runs
-        WHERE outcome = 'ok' AND scout_id IN (${among})`
-    )
-    .get(...undropped) as { at: string | null };
+  // The newest run is read at the page each Scout watches now: a run at a page
+  // since left would vouch for a page nobody reads (ADR 0043 d.2).
+  const newest = {
+    at:
+      scouts
+        .flatMap((s) => finishedRunsAtPage(deps.queue, s))
+        .filter((run) => run.outcome === "ok")
+        .map((run) => run.finished!)
+        .sort()
+        .at(-1) ?? null,
+  };
   const last = deps.queue
     .prepare(
       `SELECT MAX(first_seen) AS at FROM proposals
