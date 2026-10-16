@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Matrix as MatrixData } from "core";
+import { AttentionPanel } from "./AttentionPanel";
 import { CandidateReview } from "./CandidateReview";
 import { Matrix } from "./charts/matrix";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -142,6 +143,11 @@ export function QuestionMap() {
           </div>
           <div data-slot="review">
             <CandidateReview request={request} />
+          </div>
+          {/* The second panel, after the first's slots and never inside
+              the matrix's (ADR 0045). */}
+          <div data-slot="attention">
+            <AttentionPanel depth={depth} />
           </div>
         </div>
       )}
