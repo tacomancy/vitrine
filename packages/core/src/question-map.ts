@@ -847,18 +847,15 @@ export async function candidateLinks(
         .sort(byName);
       // A paper sharing a Tag is offered on it alone: its Terms would only
       // be a second reason for a candidate already ranked above them.
-      const terms =
-        shared.length === 0 ? (overlapping.get(paper.path) ?? []) : [];
-      return shared.length === 0 && terms.length === 0
-        ? []
-        : [{ paper, shared, terms }];
+      if (shared.length > 0) return [{ paper, shared, terms: [] }];
+      const terms = overlapping.get(paper.path) ?? [];
+      return terms.length === 0 ? [] : [{ paper, shared, terms }];
     });
     if (found.length === 0) continue;
-    // Every shared-Tag candidate outranks every keyword one (ADR 0045), so
-    // the two kinds sort apart before either's own measure.
+    // Every shared-Tag candidate outranks every keyword one (ADR 0045): a
+    // keyword one has no shared Tags, so the first key alone separates them.
     found.sort(
       (a, b) =>
-        Number(b.shared.length > 0) - Number(a.shared.length > 0) ||
         b.shared.length - a.shared.length ||
         b.terms.length - a.terms.length ||
         (b.paper.mtime ?? 0) - (a.paper.mtime ?? 0) ||

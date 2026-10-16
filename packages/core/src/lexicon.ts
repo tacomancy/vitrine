@@ -286,15 +286,18 @@ function lexiconAmong(
 }
 
 /**
+ * Two Terms of one Lexicon, not one each from two: a single phrase is as
+ * likely to be coincidence as topic.
+ */
+const KEYWORD_OVERLAP_TERMS = 2;
+
+/**
  * Keyword overlap for Candidate links (ADR 0041 decision 9, ADR 0045): reads
  * the vault once, then answers, for a row's Tags as written, which papers
- * hold at least two distinct Terms *of one Tag's Lexicon* and which Terms.
- * Two Terms of one Lexicon, not one each from two, because a single phrase
- * is as likely to be a coincidence as a topic; a paper that shares a Tag is
- * the shared-Tag path's, so its Terms are not asked for here.
+ * hold at least `KEYWORD_OVERLAP_TERMS` Terms in use of one of those Tags'
+ * Lexicons, and which Terms. It does not know which papers share a Tag with
+ * the row; the caller drops those, so a paper is never offered twice.
  */
-export const KEYWORD_OVERLAP_TERMS = 2;
-
 export function keywordOverlap(index: VaultIndex) {
   const papers = readPapers(index);
   const displays = tagDisplays(index);
