@@ -40,6 +40,7 @@ const card = (
   lane: "review",
   scouts: [{ ...by, assigned: [] }],
   retroactive: false,
+  signals: [],
 });
 const FROM_SLEEP = { id: "sleep", name: "Sleep and memory", dropped: false };
 const FROM_BLOG = { id: "blog", name: "Blog ring", dropped: true };

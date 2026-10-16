@@ -207,7 +207,7 @@ async function opened(
       return r.result!.data;
     },
     cards: async () => {
-      const r = await c.query<Card[]>("scouts.queue");
+      const r = await c.query<Card[]>("scouts.queue", { sort: "newest" });
       expect(r.error).toBeUndefined();
       return r.result!.data;
     },

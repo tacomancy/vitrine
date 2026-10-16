@@ -61,7 +61,7 @@ async function opened(files: Record<string, string>) {
     },
     /** The Review stack, as the Queue draws it. */
     cards: async () => {
-      const read = await c.query<Card[]>("scouts.queue");
+      const read = await c.query<Card[]>("scouts.queue", { sort: "newest" });
       expect(read.error).toBeUndefined();
       return read.result!.data;
     },

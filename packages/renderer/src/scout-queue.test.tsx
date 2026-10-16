@@ -43,6 +43,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
     },
   ],
   retroactive: false,
+  signals: [],
   ...rest,
 });
 
@@ -94,6 +95,64 @@ describe("the Scout Queue", () => {
     });
     // arXiv never supplies keywords: the row is not drawn, not shown missing.
     expect(fields).not.toHaveProperty("keywords");
+  });
+
+  it("names the Rank signals that fired and says nothing for a card with none", async () => {
+    renderApp(
+      answers([
+        card({
+          signals: [
+            { kind: "authors", names: ["Ana van der Meer"] },
+            { kind: "corroboration", scouts: 2 },
+          ],
+        }),
+        card({ id: 8, title: "Another", signals: [] }),
+      ])
+    );
+
+    const ranked = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+
+    expect(ranked.textContent).toContain(
+      "by Ana van der Meer, whose work you have accepted"
+    );
+    expect(ranked.textContent).toContain("found by 2 Scouts");
+    fireEvent.keyDown(ranked, { key: "p" });
+    const plain = await screen.findByRole("article", { name: "Another" });
+    expect(plain.textContent).not.toMatch(/accepted|found by/);
+  });
+
+  it("asks for Rank, switches to Newest on request, and keeps the choice for the session", async () => {
+    const queue = vi.fn<(input: unknown) => Card[]>(() => [card()]);
+    const first = renderApp(answers([], { "scouts.queue": queue }));
+    await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    const sort = screen.getByRole("group", { name: "Sort" });
+    expect(
+      within(sort)
+        .getByRole("button", { name: "Rank" })
+        .getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(queue).toHaveBeenLastCalledWith({ sort: "rank" });
+
+    fireEvent.click(within(sort).getByRole("button", { name: "Newest" }));
+    await waitFor(() =>
+      expect(queue).toHaveBeenLastCalledWith({ sort: "newest" })
+    );
+
+    first.unmount();
+    renderApp(answers([], { "scouts.queue": queue }));
+    await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    expect(queue).toHaveBeenLastCalledWith({ sort: "newest" });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Sort" })).getByRole("button", {
+        name: "Rank",
+      })
+    );
   });
 
   it("accepts the card with A and reads the Queue again", async () => {

@@ -33,6 +33,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
     { id: "sleep", name: "Sleep and memory", assigned: [], dropped: false },
   ],
   retroactive: false,
+  signals: [],
   ...rest,
 });
 

@@ -527,9 +527,13 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(setPaused(await scoutDeps(ctx), input.scoutId, true))
       ),
-    queue: t.procedure.query(async ({ ctx }) =>
-      refusing(readQueue(await scoutDeps(ctx)))
-    ),
+    queue: t.procedure
+      .input(
+        z.object({ sort: z.enum(["rank", "newest"]).optional() }).optional()
+      )
+      .query(async ({ ctx, input }) =>
+        refusing(readQueue(await scoutDeps(ctx), input?.sort))
+      ),
     // Skim: the quiet lane, split at 30 days; *to Review* is the one act on it.
     skim: t.procedure.query(async ({ ctx }) =>
       refusing(readSkim(await scoutDeps(ctx)))
