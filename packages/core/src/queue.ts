@@ -34,8 +34,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 6: what a model-read run spent and saw — model, tokens, cost, the page's
  *    hash and length, how many cards failed verification — and the error
  *    kinds `credentials`, `model` and `extraction` (#464).
+ * 7: the triage actions `demote` and `raise`, Lane moves the researcher did
+ *    not make by hand (#643).
  */
-export const QUEUE_SCHEMA_VERSION = 6;
+export const QUEUE_SCHEMA_VERSION = 7;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -166,6 +168,24 @@ ALTER TABLE scout_runs_new RENAME TO scout_runs;
 CREATE INDEX scout_runs_scout ON scout_runs (scout_id);
 `;
 
+// A CHECK cannot be altered, so widening `action` rebuilds the log. Copied in
+// `rowid` order and with the default rowid alias left to be reassigned
+// densely in that order: "an undo after this act" is read off `rowid`, so the
+// order must come through unchanged. Foreign keys are off for migrations
+// (`openQueue`).
+const TRIAGE_LANE_MOVES = `
+CREATE TABLE triage_new (
+  proposal_id INTEGER NOT NULL REFERENCES proposals (id),
+  action TEXT NOT NULL CHECK (action IN ('accept', 'reject', 'defer', 'promote', 'undo', 'demote', 'raise')),
+  at TEXT NOT NULL,
+  batch INTEGER REFERENCES scout_runs (id)
+);
+INSERT INTO triage_new (proposal_id, action, at, batch)
+  SELECT proposal_id, action, at, batch FROM triage ORDER BY rowid;
+DROP TABLE triage;
+ALTER TABLE triage_new RENAME TO triage;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -179,6 +199,7 @@ const MIGRATIONS: readonly string[] = [
   SCOUTS,
   SCOUT_RUN_QUERY,
   SCOUT_RUN_MODEL,
+  TRIAGE_LANE_MOVES,
 ];
 
 /**

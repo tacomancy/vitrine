@@ -52,16 +52,60 @@ export function rejectProposal(deps: ScoutDeps, proposalId: number): void {
   decide(deps, proposalId, "reject", "rejected");
 }
 
-/** `D`: out of the stack until that Scout's next run finishes `ok` (see `returnDeferred`). */
+/** How many standing defers drop a card to Skim (ADR 0044 decision 8). */
+const DEFERS_BEFORE_DEMOTE = 3;
+
+/**
+ * `D`: out of the stack until that Scout's next run finishes `ok` (see
+ * `returnDeferred`). The third defer that stands drops the card to Skim
+ * instead (ADR 0044 decision 8): a card the researcher keeps putting off is
+ * not owed attention, and Skim is still one `T` from Review.
+ */
 export function deferProposal(deps: ScoutDeps, proposalId: number): void {
-  decide(deps, proposalId, "defer", "deferred");
+  decide(deps, proposalId, "defer", "deferred", () => {
+    if (standingDefers(deps.queue, proposalId) < DEFERS_BEFORE_DEMOTE) return;
+    // Pending, not deferred: it is in Skim now, and a deferral would hide it
+    // there until a run brought it back.
+    deps.queue
+      .prepare(
+        "UPDATE proposals SET lane = 'skim', state = 'pending' WHERE id = ?"
+      )
+      .run(proposalId);
+    deps.queue
+      .prepare(
+        "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'demote', ?)"
+      )
+      .run(proposalId, stamp(deps));
+  });
+}
+
+/**
+ * Defers that have not been taken back. An `undo` compensates the act before
+ * it, so replaying the log in order and popping on `undo` leaves exactly the
+ * acts still standing; a slip the researcher undid is not one of the three.
+ */
+function standingDefers(queue: DatabaseSync, proposalId: number): number {
+  const acts: string[] = [];
+  const log = queue
+    .prepare("SELECT action FROM triage WHERE proposal_id = ? ORDER BY rowid")
+    .all(proposalId) as Array<{ action: string }>;
+  for (const { action } of log) {
+    if (action === "defer" || action === "reject") acts.push(action);
+    else if (action === "undo") acts.pop();
+    // A hand promotion is a fresh start: the researcher has looked again, so
+    // the one defer after it must not demote a card that was already dropped once.
+    else if (action === "promote") acts.length = 0;
+  }
+  return acts.filter((a) => a === "defer").length;
 }
 
 function decide(
   deps: ScoutDeps,
   proposalId: number,
   action: "reject" | "defer",
-  state: "rejected" | "deferred"
+  state: "rejected" | "deferred",
+  /** Runs inside the act's own transaction, so a move it makes is never half-written. */
+  also: () => void = () => undefined
 ): void {
   const { queue } = deps;
   // Only a card in the stack can be decided: a held or accepted Proposal was
@@ -81,6 +125,7 @@ function decide(
     queue
       .prepare("INSERT INTO triage (proposal_id, action, at) VALUES (?, ?, ?)")
       .run(proposalId, action, stamp(deps));
+    also();
   });
 }
 
@@ -137,14 +182,14 @@ export type AcceptCounts = {
   noVenue: number;
 };
 
-/** Which triage rows count toward an Accept rate, for the headline and the weekly line alike. Reads `t` (triage) and `p` (proposals) and binds one `?`, the window's `since`. */
+/** Which triage rows count toward an Accept rate (a `promote` or a `raise` leaves the Proposal out: the Scout did not place it, ADR 0044 decision 8), for the headline and the weekly line alike. Reads `t` (triage) and `p` (proposals) and binds one `?`, the window's `since`. */
 const COUNTED = `t.action IN ('accept', 'reject')
           AND t.at >= ?
           AND p.lane = 'review'
           AND NOT EXISTS (SELECT 1 FROM scout_runs r WHERE r.id = t.batch
                            AND r.retroactive = 1)
           AND NOT EXISTS (SELECT 1 FROM triage x WHERE x.proposal_id = t.proposal_id
-                           AND x.action = 'promote')
+                           AND x.action IN ('promote', 'raise'))
           AND NOT EXISTS (SELECT 1 FROM triage u WHERE u.proposal_id = t.proposal_id
                            AND u.action = 'undo' AND u.rowid > t.rowid)`;
 
@@ -283,13 +328,26 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
 export function undoTriage(deps: ScoutDeps, proposalId: number): void {
   const { queue } = deps;
   const state = stateOf(deps, proposalId);
-  if (state !== "rejected" && state !== "deferred") {
+  // The defer that dropped a card to Skim is still the last thing done to it,
+  // and taking it back must bring the card back to where it was.
+  const demoted =
+    state === "pending" &&
+    (
+      queue
+        .prepare(
+          "SELECT action FROM triage WHERE proposal_id = ? ORDER BY rowid DESC LIMIT 1"
+        )
+        .get(proposalId) as { action: string } | undefined
+    )?.action === "demote";
+  if (state !== "rejected" && state !== "deferred" && !demoted) {
     throw new VaultError("refused", "There is nothing to undo for that card.");
   }
   inTransaction(queue, () => {
     queue
-      .prepare("UPDATE proposals SET state = 'pending' WHERE id = ?")
-      .run(proposalId);
+      .prepare(
+        "UPDATE proposals SET state = 'pending', lane = CASE WHEN ? THEN 'review' ELSE lane END WHERE id = ?"
+      )
+      .run(demoted ? 1 : 0, proposalId);
     queue
       .prepare(
         "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'undo', ?)"
