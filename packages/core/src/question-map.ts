@@ -212,6 +212,27 @@ function materialOf(
   return found;
 }
 
+/**
+ * Every thread of any Status with the Material it reaches, by the same edges
+ * the Map's rows use. The Tag's papers (ADR 0045 decision 8) is wider than
+ * Coverage: a paper nothing on the open Map points at is still held.
+ */
+export function threadMaterial(
+  index: VaultIndex
+): Array<{ path: string; reached: string[] }> {
+  const frontmatter = new Map<string, Frontmatter>();
+  for (const row of index.select<{ path: string; value: string }>(
+    `SELECT path, value FROM frontmatter WHERE path IN
+       (SELECT path FROM files WHERE kind IN ('question', 'research-question', 'source-stub'))`
+  )) {
+    frontmatter.set(row.path, JSON.parse(row.value) as Frontmatter);
+  }
+  return mapRows(index, frontmatter, false).map((row) => ({
+    path: row.path,
+    reached: materialOf(index, row, frontmatter).map((item) => item.path),
+  }));
+}
+
 const recency = (row: MapRow) =>
   Math.max(
     row.captured === null ? 0 : Date.parse(row.captured) || 0,
@@ -228,7 +249,8 @@ const recency = (row: MapRow) =>
  */
 function mapRows(
   index: VaultIndex,
-  frontmatter: Map<string, Frontmatter>
+  frontmatter: Map<string, Frontmatter>,
+  openOnly = true
 ): MapRow[] {
   const kinds = new Map(
     index
@@ -256,7 +278,7 @@ function mapRows(
         foldedId = asString(frontmatter.get(from)?.["id"]) ?? null;
       }
     }
-    if (page.status !== "open") continue;
+    if (openOnly && page.status !== "open") continue;
     pages.push({
       kind: "research-question",
       path,
@@ -272,14 +294,14 @@ function mapRows(
 
   const questions: MapRow[] = [];
   for (const [path, kind] of kinds) {
-    if (kind !== "question" || folded.has(path)) continue;
+    if (kind !== "question" || (openOnly && folded.has(path))) continue;
     let read;
     try {
       read = readQuestion(frontmatter.get(path) ?? {});
     } catch {
       continue;
     }
-    if (read === null || read.status !== "open") continue;
+    if (read === null || (openOnly && read.status !== "open")) continue;
     questions.push({
       kind: "question",
       path,
@@ -552,7 +574,7 @@ export function origins(index: VaultIndex, all = false): Origins {
   };
 }
 
-function tagDisplays(index: VaultIndex): Map<string, string> {
+export function tagDisplays(index: VaultIndex): Map<string, string> {
   const displays = new Map<string, string>();
   const walk = (nodes: TagNode[]) => {
     for (const node of nodes) {

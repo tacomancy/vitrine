@@ -53,6 +53,7 @@ import {
 } from "./experiment.js";
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
+import { attention, lexiconOf } from "./lexicon.js";
 import { looseEnds } from "./loose-ends.js";
 import {
   candidateLinks,
@@ -1446,6 +1447,14 @@ export const router = t.router({
         const { index } = await requireVault(ctx);
         return matrix(coverage(index, input?.depth));
       }),
+    // The Attention panel's list (#651): Tags at the depth with the papers
+    // held, never the matrix's Coverage.
+    attention: t.procedure
+      .input(z.object({ depth: z.number().int().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return attention(index, input?.depth);
+      }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
@@ -1456,6 +1465,20 @@ export const router = t.router({
       .query(async ({ ctx, input }) => {
         const { index } = await requireVault(ctx);
         return readings(index, input?.depth);
+      }),
+  }),
+  // A Tag's Lexicon (§ Lexicon), derived from the Index on every read.
+  lexicon: t.router({
+    get: t.procedure
+      .input(
+        z.object({
+          tag: z.string().min(1),
+          depth: z.number().int().optional(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return lexiconOf(index, input.tag, input.depth);
       }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries

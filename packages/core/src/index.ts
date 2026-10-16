@@ -188,3 +188,4 @@ export type { TriedPage, TriedQuery, TriedWindow } from "./scout-form.js";
 export type { Health, Warrant } from "./scout-health.js";
 export type { KeyStatus, KeyTest } from "./credentials.js";
 export { MAP_COLUMNS, MAP_ROWS } from "./question-map.js";
+export type { Attention, AttentionTag, LexiconView, Term } from "./lexicon.js";
