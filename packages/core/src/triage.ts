@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { VaultError } from "./errors.js";
-import { readScouts } from "./scout-file.js";
+import { readScouts, type Scout } from "./scout-file.js";
 
 /**
  * What the researcher does to a Proposal in Review besides accept (ADR 0016
@@ -380,4 +380,36 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
       held: held.map((h) => ({ title: h.title, path: h.stub_path })),
     };
   });
+}
+
+/**
+ * When the page last changed, if the runs inside the weekly line's twelve
+ * weeks asked more than one (ADR 0043 decision 8): the first run at the page
+ * the Scout reads now, after a run at another. Derived from each run's
+ * recorded `query`, so nothing is stored and the Queue and the file cannot
+ * disagree about it. A run with no recorded page predates the column and is
+ * never taken for an edit; an arXiv Scout's Query is a Filter on one source,
+ * so it has no page change. The line's figures do not read this.
+ */
+export function pageChangeIn(
+  queue: DatabaseSync,
+  scout: Scout,
+  now: Date
+): { at: string } | null {
+  if (scout.source.kind !== "watched") return null;
+  const runs = queue
+    .prepare(
+      `SELECT finished, query FROM scout_runs
+        WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL AND finished >= ?
+        ORDER BY id`
+    )
+    .all(scout.id, acceptSince(now)) as Array<{
+    finished: string;
+    query: string;
+  }>;
+  let at: string | null = null;
+  for (let i = 1; i < runs.length; i++) {
+    if (runs[i]!.query !== runs[i - 1]!.query) at = runs[i]!.finished;
+  }
+  return at === null ? null : { at };
 }

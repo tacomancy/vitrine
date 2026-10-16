@@ -118,6 +118,13 @@ export function AcceptLine({ rate }: { rate: AcceptRate }) {
       </div>
       <figcaption className={styles.headline}>
         {`${percent(rate.rate)} over ${weeks.length} weeks · ${rate.triaged} triaged`}
+        {/* A fact about the weeks, not a verdict on the Scout: same voice as
+            the headline, no mark and no colour (ADR 0043 decision 8). */}
+        {rate.pageChange !== null && (
+          <p className={styles.headline}>
+            {`The page last changed on ${shortDate(rate.pageChange.at)}, so this line spans more than one page.`}
+          </p>
+        )}
       </figcaption>
     </figure>
   );
