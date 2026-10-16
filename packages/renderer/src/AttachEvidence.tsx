@@ -195,7 +195,7 @@ function CriterionList({
       </div>
       {/* A read that failed must never read as a vault with no claims. */}
       {listing.isError && (
-        <p className={picker.message} role="alert">
+        <p className={picker.message} role="status">
           {listing.error.message}
         </p>
       )}

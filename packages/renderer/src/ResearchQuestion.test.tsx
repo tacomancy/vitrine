@@ -398,7 +398,9 @@ describe("the page under external change", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("shows a path the core refuses as an alert, never a quiet line", async () => {
+  // A read the core refused is a state the researcher did not cause: polite,
+  // but still a line, never a quiet page (#622; ADR 0033 decision 9).
+  it("shows a path the core refuses as a status line, never a quiet page", async () => {
     window.location.hash = "#/research-question/notes/plan.txt";
     renderApp({
       ...answers,
@@ -406,10 +408,11 @@ describe("the page under external change", () => {
         throw new Error("notes/plan.txt is not a Markdown file.");
       },
     });
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain(
+    const line = await screen.findByRole("status");
+    expect(line.textContent).toContain(
       "notes/plan.txt is not a Markdown file."
     );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

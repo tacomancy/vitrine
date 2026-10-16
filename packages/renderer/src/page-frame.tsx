@@ -96,7 +96,7 @@ export function FrameLines({
     <>
       {/* A refused read is a failure, not an absence: it must not read as a quiet page. */}
       {error !== null && (
-        <p className={styles.refused} role="alert">
+        <p className={styles.refused} role="status">
           {error.message}
         </p>
       )}
