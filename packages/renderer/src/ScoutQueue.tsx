@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Card, Health } from "core";
+import type { Card, Health, QueueSort, RankSignal } from "core";
 import { useEffect, useRef, useState } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
@@ -14,6 +14,25 @@ import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
+
+// Review's sort lasts the session and no longer: held outside the component
+// because leaving the surface unmounts it (ADR 0044 decision 2).
+const sessionSort = (() => {
+  let sort: QueueSort = "rank";
+  return { get: () => sort, set: (next: QueueSort) => void (sort = next) };
+})();
+
+/** A fired Rank signal in words; a card with none says nothing (ADR 0044). */
+function signalWords(signal: RankSignal): string {
+  switch (signal.kind) {
+    case "authors":
+      return `by ${signal.names.join(", ")}, whose work you have accepted`;
+    case "corroboration":
+      return `found by ${signal.scouts} Scouts`;
+    case "questions":
+      return `assigned to ${signal.count} ${signal.count === 1 ? "Question" : "Questions"}`;
+  }
+}
 
 /**
  * The Scout Queue's Review lane (#450; brief § Scout Queue; spec #447): a
@@ -39,7 +58,12 @@ export function ScoutQueue({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const scouts = useQuery(trpc.scouts.list.queryOptions());
-  const queue = useQuery(trpc.scouts.queue.queryOptions());
+  const [sort, setSortState] = useState<QueueSort>(sessionSort.get);
+  const setSort = (next: QueueSort) => {
+    sessionSort.set(next);
+    setSortState(next);
+  };
+  const queue = useQuery(trpc.scouts.queue.queryOptions({ sort }));
   const groups = useQuery(trpc.scouts.groups.queryOptions());
   const [lane, setLane] = useState<"review" | "skim">("review");
   const skim = useQuery({
@@ -337,6 +361,20 @@ export function ScoutQueue({
             </button>
           ))}
         </span>
+        {lane === "review" && (
+          <span role="group" aria-label="Sort" className={styles.lanes}>
+            {(["rank", "newest"] as const).map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={sort === name}
+                onClick={() => setSort(name)}
+              >
+                {name === "rank" ? "Rank" : "Newest"}
+              </button>
+            ))}
+          </span>
+        )}
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
@@ -732,6 +770,11 @@ function Proposal({
             .map((q) => q.name ?? q.id)
             .join(", ")}`}
         {card.retroactive && " · retroactive"}
+        {/* The Questions signal is the *assigned to* clause above. */}
+        {card.signals
+          .filter((signal) => signal.kind !== "questions")
+          .map((signal) => ` · ${signalWords(signal)}`)
+          .join("")}
       </p>
       <h2 className={styles.cardTitle}>{card.title}</h2>
       <dl className={styles.fields}>

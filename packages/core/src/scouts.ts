@@ -451,7 +451,20 @@ export type Card = {
     dropped: boolean;
   }>;
   retroactive: boolean;
+  /**
+   * The Rank signals that fired for this card, and nothing for one that had
+   * none (ADR 0044 decision 2). Review only; Skim is not ranked.
+   */
+  signals: RankSignal[];
 };
+
+export type RankSignal =
+  | { kind: "authors"; names: string[] }
+  | { kind: "corroboration"; scouts: number }
+  | { kind: "questions"; count: number };
+
+/** Review's sort: Rank by default, or `newest` for the order the stack has always had. */
+export type QueueSort = "rank" | "newest";
 
 type ProposalRow = {
   id: number;
@@ -468,9 +481,42 @@ type ProposalRow = {
   stub_path: string | null;
 };
 
-/** Review's pending Proposals, newest first seen first: the stack, one card in hand and the rest behind it. */
-export function readQueue(deps: ScoutDeps): Promise<Card[]> {
-  return readCards(deps, "review");
+/**
+ * Review's pending Proposals: the stack, one card in hand and the rest behind
+ * it. Ranked by default; `newest` is first seen first. The sort reorders and
+ * never filters, so nothing a sort puts last is out of reach (ADR 0044).
+ */
+export async function readQueue(
+  deps: ScoutDeps,
+  sort: QueueSort = "rank"
+): Promise<Card[]> {
+  const cards = await readCards(deps, "review");
+  if (sort === "newest") return cards;
+  // `readCards` is newest first and Array#sort is stable, so the final
+  // tie-break (newest) is the order already there.
+  return cards.sort((a, b) => byRank(b, a));
+}
+
+/** The order of this tuple is the precedence of Rank (ADR 0044 decision 2): accepted-work authors, then Corroboration, then Assigned Questions. */
+function rankTuple(card: Card): [number, number, number] {
+  let authors = 0;
+  let scouts = 0;
+  let questions = 0;
+  for (const signal of card.signals) {
+    if (signal.kind === "authors") authors = signal.names.length;
+    else if (signal.kind === "corroboration") scouts = signal.scouts;
+    else questions = signal.count;
+  }
+  return [authors, scouts, questions];
+}
+
+/** Ascending by Rank; the caller flips the arguments for best-first. */
+function byRank(a: Card, b: Card): number {
+  const [x, y] = [rankTuple(a), rankTuple(b)];
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] !== y[i]) return x[i]! - y[i]!;
+  }
+  return 0;
 }
 
 /**
@@ -517,6 +563,8 @@ async function readCards(
   // A dropped Scout is not in `scouts` and the rail does not list it, but its
   // Proposals stay in Review under its name, so the card has to know it.
   const byId = new Map([...scouts, ...dropped].map((s) => [s.id, s]));
+  // Only Review is ranked, so only Review reads the vault's accepted authors.
+  const accepted = lane === "review" ? acceptedAuthors(index) : null;
   const rows = queue
     .prepare(
       "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
@@ -533,10 +581,26 @@ async function readCards(
       retroactive: number;
     }>;
     const scoutIds = [...new Set(appearances.map((a) => a.scout_id))];
+    const authors = JSON.parse(row.authors) as string[];
+    const questions = new Set(
+      scoutIds.flatMap((id) => byId.get(id)?.assigned ?? [])
+    );
+    const signals: RankSignal[] = [];
+    if (accepted !== null) {
+      const known = authors.filter((name) => accepted.has(authorKey(name)));
+      if (known.length > 0) signals.push({ kind: "authors", names: known });
+      if (scoutIds.length > 1) {
+        signals.push({ kind: "corroboration", scouts: scoutIds.length });
+      }
+      if (questions.size > 0) {
+        signals.push({ kind: "questions", count: questions.size });
+      }
+    }
     return {
+      signals,
       id: row.id,
       title: row.title,
-      authors: JSON.parse(row.authors) as string[],
+      authors,
       published: row.published,
       venue: row.venue,
       abstract: row.abstract,
@@ -562,6 +626,32 @@ async function readCards(
       retroactive: appearances[0]?.retroactive === 1,
     };
   });
+}
+
+const authorKey = (name: string) => name.trim().toLowerCase();
+
+/**
+ * Authors with accepted work: every author on a Source or a stub, so a paper
+ * the researcher attached by hand counts as much as one a Scout earned. A
+ * reject writes no file, so it is never here — it is about a paper, not its
+ * author (ADR 0044 decision 2).
+ */
+function acceptedAuthors(index: VaultIndex): Set<string> {
+  const names = new Set<string>();
+  for (const row of index.select<{ value: string }>(
+    `SELECT fm.value FROM files f JOIN frontmatter fm USING (path)
+      WHERE f.kind IN ('source', 'source-stub')`
+  )) {
+    const found = (JSON.parse(row.value) as Record<string, unknown> | null)?.[
+      "authors"
+    ];
+    // A hand-edited file may hold anything; it simply adds no author.
+    if (!Array.isArray(found)) continue;
+    for (const name of found) {
+      if (typeof name === "string") names.add(authorKey(name));
+    }
+  }
+  return names;
 }
 
 function questionFile(

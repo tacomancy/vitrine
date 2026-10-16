@@ -470,7 +470,8 @@ describe("a check", () => {
     expect(runs[1]!.window_from).toBe(lastClean);
     expect(runs[2]!.window_from).toBe(lastClean);
     // The overlap is harmless: identity by arxiv_id means one card per paper.
-    const cards = (await c.query<Card[]>("scouts.queue")).result!.data;
+    const cards = (await c.query<Card[]>("scouts.queue", { sort: "newest" }))
+      .result!.data;
     expect(new Set(cards.map((x) => x.id)).size).toBe(cards.length);
     expect(cards).toHaveLength(2);
   });

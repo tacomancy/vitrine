@@ -325,6 +325,7 @@ describe("the form", () => {
           lane: "review",
           scouts: [{ id: "sleep", name: "Sleep and memory", assigned: [] }],
           retroactive: false,
+          signals: [],
         },
       ],
     });
