@@ -116,8 +116,8 @@ function termOf(typed: string): string {
   throw new VaultError(
     "refused",
     wordCount(typed) === 0
-      ? "A Seed can't be empty."
-      : `A Seed is at most ${MAX_PHRASE_WORDS} words.`
+      ? "A Term can't be empty."
+      : `A Term is at most ${MAX_PHRASE_WORDS} words.`
   );
 }
 

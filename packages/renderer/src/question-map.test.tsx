@@ -971,14 +971,14 @@ describe("the Lexicon editor's edits", () => {
   it("says a refused Seed as an alert on the control, with the core's reason, and keeps what was typed", async () => {
     const { editor } = await opened({
       "lexicon.seed": () => {
-        throw new Error("A Seed can't be empty.");
+        throw new Error("A Term can't be empty.");
       },
     });
     const box = within(editor).getByRole("textbox", { name: "Seed a term" });
     fireEvent.change(box, { target: { value: "  " } });
     fireEvent.click(within(editor).getByRole("button", { name: "Seed" }));
     const alert = await within(editor).findByRole("alert");
-    expect(alert.textContent).toContain("A Seed can't be empty.");
+    expect(alert.textContent).toContain("A Term can't be empty.");
     expect((box as HTMLInputElement).value).toBe("  ");
   });
 
