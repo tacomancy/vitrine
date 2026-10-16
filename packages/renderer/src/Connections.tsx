@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { KIND, markOf, routeOf } from "./kinds";
 import styles from "./Reader.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { pushRoute } from "./router";
 
 /**
@@ -69,7 +70,10 @@ export function ConnectionsPanel({
 }) {
   const listRef = useRef<HTMLUListElement>(null);
   const [chosen, setChosen] = useState(0);
-  const [said, setSaid] = useState<string | null>(null);
+  // A Connection with no page is the user's act turned down, so its line is an
+  // alert (ADR 0033 decision 1 and its 2026-10-15 Update), said at once from
+  // the key or click; its look is the line's register.
+  const refusal = useRefusal();
   const rows = connections ?? [];
   const at = Math.min(chosen, Math.max(rows.length - 1, 0));
   const chosenId = rows.length === 0 ? undefined : `${CONNECTION_ID}${at}`;
@@ -80,7 +84,7 @@ export function ConnectionsPanel({
   // A choice made is a message answered: the last click's words do not outlive it.
   function choose(i: number) {
     setChosen(i);
-    setSaid(null);
+    refusal.forget();
   }
 
   function open(c: Connection) {
@@ -90,7 +94,7 @@ export function ConnectionsPanel({
       return;
     }
     // Named, not linked, and the click says so rather than doing nothing.
-    setSaid(
+    refusal.say(
       `${c.name} has no page in Vitrine to open: it is the file ${c.path}.`
     );
   }
@@ -133,11 +137,7 @@ export function ConnectionsPanel({
       {error === null && connections?.length === 0 && (
         <p className={styles.line}>Nothing points at this paper yet.</p>
       )}
-      {said !== null && (
-        <p className={styles.line} role="status">
-          {said}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.line} />
       <ul
         ref={listRef}
         className={styles.notes}
