@@ -88,8 +88,8 @@ describe("the weekly line's page change", () => {
   it("says nothing while the page the Scout now reads has not been read, rather than date an older change", async () => {
     const f = await opened({ "w.yaml": watchedScout("w") });
     f.judged("w");
-    f.runAt("w", 40, "https://lab.example/first");
-    f.runAt("w", 20, LAB);
+    f.runAt("w", 40, MOVED);
+    f.runAt("w", 20, "https://lab.example/older");
 
     expect(await pageChange(f, "w")).toBeNull();
   });
