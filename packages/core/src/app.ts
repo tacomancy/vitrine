@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
 import { pdfBytes } from "./reader.js";
 import { createArxivClient, type ArxivOptions } from "./arxiv.js";
+import { createOpenAlexClient, type OpenAlexOptions } from "./openalex.js";
 import { createMemoryCredentialStore } from "./credentials.js";
 import { createAnthropicProvider } from "./model-provider.js";
 import { createProviderSettings } from "./providers.js";
@@ -72,6 +73,8 @@ export type AppOptions = {
   author?: string;
   /** The arXiv client's `fetch`, clock and endpoint; tests and the demo's stand-in server replace them, nothing else does. */
   arxiv?: Partial<ArxivOptions>;
+  /** The OpenAlex client's `fetch`, clock and endpoint, replaced the same way; the real API is never reached by a test or a demo. */
+  openalex?: Partial<OpenAlexOptions>;
   /**
    * What reading a page needs — its `fetch`, the `ModelProvider`, the
    * `CredentialStore` — replaced by tests and the demo's stand-ins. Absent,
@@ -128,6 +131,7 @@ export function createApp({
   pdfWorker,
   author,
   arxiv,
+  openalex,
   watched,
   scoutCheckMs = HOURLY_MS,
 }: AppOptions): App {
@@ -257,6 +261,17 @@ export function createApp({
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       },
       ...(arxiv?.endpoint === undefined ? {} : { endpoint: arxiv.endpoint }),
+    }),
+    openalex: createOpenAlexClient({
+      fetch: openalex?.fetch ?? fetch,
+      clock: openalex?.clock ?? {
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      },
+      ...(openalex?.endpoint === undefined
+        ? {}
+        : { endpoint: openalex.endpoint }),
+      ...(openalex?.maxUrl === undefined ? {} : { maxUrl: openalex.maxUrl }),
     }),
     watched: {
       fetch: watched?.fetch ?? fetch,

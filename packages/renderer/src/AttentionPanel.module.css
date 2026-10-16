@@ -130,3 +130,44 @@
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
+
+/* Sync now and its confirm: quiet text buttons, sapphire only on hover/focus
+   as the rest of the panel's controls; the confirm is a line in the panel,
+   not a floating layer. */
+.sync {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.sync:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.sync:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  font-size: var(--text-xs);
+}
+
+.confirm .sync {
+  margin-left: 0;
+  background: var(--color-bg-raised);
+}
