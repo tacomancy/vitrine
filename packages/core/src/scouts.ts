@@ -53,6 +53,17 @@ export type RunSummary = {
 
 const iso = (date: Date) => date.toISOString();
 
+/** A clean run that asked the Scout's current page; a run from before the column (no page) is taken as belonging, as in `finishedRunsAtPage`. */
+function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
+  return (
+    queue
+      .prepare(
+        "SELECT 1 FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND (query IS NULL OR query = ?) LIMIT 1"
+      )
+      .get(scout.id, scout.query) !== undefined
+  );
+}
+
 /**
  * Run one Scout now, due or not (*Run now*). The window opens where the last
  * *clean* run's closed — a failed run never advances it, so the next attempt
@@ -86,7 +97,13 @@ export async function runScout(
       : scout.searchBackTo !== null && scout.searchBackTo < scout.created
         ? scout.searchBackTo
         : scout.created;
-  const retroactive = last === undefined && (watched || from < scout.created);
+  // A page's first look is the first run *at that page* (ADR 0043 d.3): a
+  // Scout pointed elsewhere has runs, none here, and what it finds is as new
+  // to the researcher as a first Scout's. Pointed back at a page it has read,
+  // those runs count again, so that is no first look.
+  const retroactive = watched
+    ? !hasCleanRunAtPage(queue, scout)
+    : last === undefined && from < scout.created;
   const runId = Number(
     queue
       .prepare(

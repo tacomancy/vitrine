@@ -165,12 +165,14 @@ export async function readWatched(
 
   // A page that has not changed since the last clean look costs nothing: the
   // hash is of the reduced text, so a re-served page with a new timestamp in
-  // its chrome is the same page.
+  // its chrome is the same page. Only runs at this page vouch for it: a
+  // changed page is read once even when its text hashes as the old one's
+  // (ADR 0043 d.3); a run from before the column recorded no page and counts.
   const last = queue
     .prepare(
-      "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL ORDER BY id DESC LIMIT 1"
+      "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
     )
-    .get(scout.id) as { page_hash: string } | undefined;
+    .get(scout.id, scout.url) as { page_hash: string } | undefined;
   if (last?.page_hash === facts.pageHash) {
     return { items: [], moreMatched: 0, fetched: 0, facts };
   }
