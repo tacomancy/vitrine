@@ -407,6 +407,11 @@ export function pageChangeIn(
     finished: string;
     query: string;
   }>;
+  // A re-point nothing has read yet has no date: the change is the edit, which
+  // is stored nowhere, and the Voice already says the page is unread. Dating
+  // it by the last change between runs would name an older one.
+  if (runs.at(-1)?.query !== scout.query) return null;
+  // Last write wins, so A, B, A is dated by the return to A, not the first move.
   let at: string | null = null;
   for (let i = 1; i < runs.length; i++) {
     if (runs[i]!.query !== runs[i - 1]!.query) at = runs[i]!.finished;

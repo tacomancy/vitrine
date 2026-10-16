@@ -14,7 +14,7 @@ afterEach(closeCores);
 // the runs inside its twelve weeks (ADR 0043 decision 8; #612). Nothing is
 // stored: the fact is each run's recorded `query`.
 
-const LAB = "https://lab.example/lab";
+const LAB = "https://lab.example/w";
 const MOVED = "https://lab.example/moved";
 
 async function opened(scouts: Record<string, string>) {
@@ -58,9 +58,9 @@ describe("the weekly line's page change", () => {
   it("is the first run at the page the Scout reads now, when the weeks hold two pages", async () => {
     const f = await opened({ "w.yaml": watchedScout("w") });
     f.judged("w");
-    f.runAt("w", 40, LAB);
-    f.runAt("w", 20, MOVED);
-    f.runAt("w", 10, MOVED);
+    f.runAt("w", 40, MOVED);
+    f.runAt("w", 20, LAB);
+    f.runAt("w", 10, LAB);
 
     expect(await pageChange(f, "w")).toEqual({ at: daysAgo(20) });
   });
@@ -78,9 +78,18 @@ describe("the weekly line's page change", () => {
   it("is null when the runs inside the weeks all asked one page, even if an older run asked another", async () => {
     const f = await opened({ "w.yaml": watchedScout("w") });
     f.judged("w");
-    f.runAt("w", 200, LAB);
-    f.runAt("w", 20, MOVED);
-    f.runAt("w", 10, MOVED);
+    f.runAt("w", 200, MOVED);
+    f.runAt("w", 20, LAB);
+    f.runAt("w", 10, LAB);
+
+    expect(await pageChange(f, "w")).toBeNull();
+  });
+
+  it("says nothing while the page the Scout now reads has not been read, rather than date an older change", async () => {
+    const f = await opened({ "w.yaml": watchedScout("w") });
+    f.judged("w");
+    f.runAt("w", 40, "https://lab.example/first");
+    f.runAt("w", 20, LAB);
 
     expect(await pageChange(f, "w")).toBeNull();
   });
@@ -107,8 +116,8 @@ describe("the weekly line's page change", () => {
     const f = await opened({ "w.yaml": watchedScout("w") });
     f.judged("w");
     const before = await f.rate("w");
-    f.runAt("w", 40, LAB);
-    f.runAt("w", 10, MOVED);
+    f.runAt("w", 40, MOVED);
+    f.runAt("w", 10, LAB);
     const after = await f.rate("w");
 
     expect({ ...after, pageChange: null }).toEqual({
