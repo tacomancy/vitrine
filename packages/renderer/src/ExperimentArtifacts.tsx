@@ -9,6 +9,7 @@ import type {
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import styles from "./Experiment.module.css";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import { Outline, Section } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
 import { useTRPC } from "./trpc";
@@ -47,7 +48,11 @@ export function Artifacts({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [said, setSaid] = useState<string | null>(null);
+  // Every refusal here, and the copy that landed without its line, is the
+  // user'"'"'s act turned down or half done, so it is an alert, forgotten as the
+  // next act begins (ADR 0033 decision 1 and its 2026-10-15 Update). The
+  // caption is kept as before.
+  const refusal = useRefusal();
   // The in-folder file waiting for its caption, by its name in the folder.
   const [showing, setShowing] = useState<string | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -77,23 +82,24 @@ export function Artifacts({
   const choose = () => {
     if (busy.current) return;
     busy.current = true;
+    refusal.forget();
     pick.mutate(undefined, {
       onSuccess: ({ source }) => {
         if (source === null) {
           addRef.current?.focus();
           return;
         }
-        setSaid(null);
         onAdding(source);
       },
       onError: (error) =>
-        setSaid(`could not open the chooser: ${error.message}`),
+        refusal.say(`could not open the chooser: ${error.message}`),
       onSettled: release,
     });
   };
   const addAs = (source: string, as: ArtifactAs, text: string) => {
     if (busy.current) return;
     busy.current = true;
+    refusal.forget();
     add.mutate(
       { path, source, as, caption: text },
       {
@@ -101,18 +107,18 @@ export function Artifacts({
           // The copy lands before the line: a refused line still means a
           // file in the folder, so the caption line closes either way —
           // adding again would copy a second one.
-          setSaid(
-            result.written
-              ? null
-              : `${result.file} is in the run's folder, but its line could not be written: ${result.detail}`
-          );
+          if (!result.written) {
+            refusal.say(
+              `${result.file} is in the run's folder, but its line could not be written: ${result.detail}`
+            );
+          }
           done();
           void queryClient.invalidateQueries(
             trpc.experiments.page.queryFilter({ path })
           );
         },
         // Refused before anything was copied: the caption is kept to try again.
-        onError: (error) => setSaid(`could not add it: ${error.message}`),
+        onError: (error) => refusal.say(`could not add it: ${error.message}`),
         onSettled: release,
       }
     );
@@ -120,13 +126,14 @@ export function Artifacts({
   const showHere = (file: string, text: string) => {
     if (busy.current) return;
     busy.current = true;
+    refusal.forget();
     show.mutate(
       { path, file, caption: text },
       {
         onSuccess: (result) => {
-          setSaid(
-            result.written ? null : `could not show it: ${result.detail}`
-          );
+          if (!result.written) {
+            refusal.say(`could not show it: ${result.detail}`);
+          }
           setShowing(null);
           addRef.current?.focus();
           void queryClient.invalidateQueries(
@@ -134,7 +141,7 @@ export function Artifacts({
           );
         },
         // The caption is kept to try again, as a refused copy's is.
-        onError: (error) => setSaid(`could not show it: ${error.message}`),
+        onError: (error) => refusal.say(`could not show it: ${error.message}`),
         onSettled: release,
       }
     );
@@ -163,16 +170,12 @@ export function Artifacts({
           onSubmit={(as, text) => addAs(adding, as, text)}
           onDiscard={done}
           onRefused={(message) => {
-            setSaid(`could not add it: ${message}`);
+            refusal.say(`could not add it: ${message}`);
             done();
           }}
         />
       )}
-      {said !== null && (
-        <p role="status" className={styles.refusal}>
-          {said}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
       {section.items.length === 0 && section.inFolder.length === 0
         ? adding === null && (
             <Outline>
@@ -206,7 +209,7 @@ export function Artifacts({
                     className={rq.edit}
                     onClick={(event) => {
                       showRef.current = event.currentTarget;
-                      setSaid(null);
+                      refusal.forget();
                       setShowing(item.file);
                     }}
                   >

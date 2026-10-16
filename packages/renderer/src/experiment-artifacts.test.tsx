@@ -123,6 +123,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** An answer held until the test settles it: a macrotask is the only way the in-flight state is on screen. */
+function held() {
+  let settle: (outcome: { ok: unknown } | { error: Error }) => void = () => {};
+  const promise = new Promise((resolve, reject) => {
+    settle = (outcome) =>
+      "ok" in outcome ? resolve(outcome.ok) : reject(outcome.error);
+  });
+  return { promise, settle };
+}
+const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+
 function open(page: () => ExperimentPage, more: Record<string, unknown> = {}) {
   window.location.hash = HASH;
   return renderApp({ ...answers, "experiments.page": page, ...more });
@@ -334,7 +345,7 @@ describe("adding an Artifact", () => {
     fireEvent.change(caption, { target: { value: "A plot." } });
     fireEvent.keyDown(caption, { key: "Enter" });
 
-    const said = await within(section).findByRole("status");
+    const said = await within(section).findByRole("alert");
     expect(said.textContent).toBe(
       "plot (2).png is in the run's folder, but its line could not be written: the file could not be read"
     );
@@ -358,7 +369,7 @@ describe("adding an Artifact", () => {
     fireEvent.change(caption, { target: { value: "Gone." } });
     fireEvent.keyDown(caption, { key: "Enter" });
 
-    const said = await within(section).findByRole("status");
+    const said = await within(section).findByRole("alert");
     expect(said.textContent).toBe(
       "could not add it: gone.png is not a file that can be read."
     );
@@ -623,7 +634,7 @@ describe("stored or linked, proposed by size", () => {
       "/Users/r/gone.pt"
     );
 
-    const said = await within(section).findByRole("status");
+    const said = await within(section).findByRole("alert");
     expect(said.textContent).toBe(
       "could not add it: gone.pt is not a file that can be read."
     );
@@ -669,5 +680,131 @@ describe("stored or linked, proposed by size", () => {
       ])
     );
     expect(dropped).toEqual([]);
+  });
+});
+
+// #591 (ADR 0033 decisions 5–8, spec #581): a refused add is the user's act
+// turned down, so it is an alert, forgotten as the next act begins, and a
+// repeat of the same sentence is heard again as a new element.
+describe("a refused Artifact add", () => {
+  const refused = "That could not be done: the vault is read-only.";
+  const refuse = () => {
+    throw new Error(refused);
+  };
+  const addButton = (section: HTMLElement) =>
+    within(section).getByRole("button", { name: "+ artifact" });
+
+  it("a refused chooser is an alert, and no status stands in its place", async () => {
+    open(() => pageWith([]), { "experiments.pickArtifact": refuse });
+    const section = await artifacts();
+    fireEvent.click(addButton(section));
+
+    expect((await within(section).findByRole("alert")).textContent).toBe(
+      `could not open the chooser: ${refused}`
+    );
+    expect(within(section).queryByRole("status")).toBeNull();
+  });
+
+  it("a chooser refused twice with the same sentence is a new alert, with nothing said while it is in flight", async () => {
+    const second = held();
+    let asked = 0;
+    open(() => pageWith([]), {
+      "experiments.pickArtifact": () =>
+        asked++ === 0 ? refuse() : second.promise,
+    });
+    const section = await artifacts();
+    fireEvent.click(addButton(section));
+    const first = await within(section).findByRole("alert");
+
+    fireEvent.click(addButton(section));
+    await flush();
+    expect(within(section).queryByRole("alert")).toBeNull();
+    second.settle({ error: new Error(refused) });
+
+    const again = await within(section).findByRole("alert");
+    expect(again.textContent).toBe(first.textContent);
+    expect(again).not.toBe(first);
+    expect(document.contains(first)).toBe(false);
+  });
+
+  it("a copy refused twice with the same sentence is a new alert, with the caption kept and nothing said while it is in flight", async () => {
+    const second = held();
+    let asked = 0;
+    open(() => pageWith([]), {
+      "experiments.pickArtifact": () => ({ source: "/Users/r/gone.png" }),
+      "experiments.addArtifact": () =>
+        asked++ === 0 ? refuse() : second.promise,
+    });
+    const section = await artifacts();
+    fireEvent.click(addButton(section));
+    const caption = await within(section).findByRole<HTMLInputElement>(
+      "textbox",
+      { name: "Caption" }
+    );
+    fireEvent.change(caption, { target: { value: "Gone." } });
+    fireEvent.keyDown(caption, { key: "Enter" });
+    const first = await within(section).findByRole("alert");
+    expect(within(section).queryByRole("status")).toBeNull();
+
+    fireEvent.keyDown(caption, { key: "Enter" });
+    await flush();
+    expect(within(section).queryByRole("alert")).toBeNull();
+    second.settle({ error: new Error(refused) });
+
+    const again = await within(section).findByRole("alert");
+    expect(again.textContent).toBe(`could not add it: ${refused}`);
+    expect(document.contains(first)).toBe(false);
+    expect(caption.value).toBe("Gone.");
+  });
+
+  it("a line that could not be written is forgotten as the next act begins", async () => {
+    const next = held();
+    let picked = 0;
+    open(() => pageWith([]), {
+      "experiments.pickArtifact": () =>
+        picked++ === 0 ? { source: "/Users/r/plot.png" } : next.promise,
+      "experiments.addArtifact": () => ({
+        written: false,
+        reason: "unreadable",
+        detail: "the file could not be read",
+        file: "plot.png",
+      }),
+    });
+    const section = await artifacts();
+    fireEvent.click(addButton(section));
+    const caption = await within(section).findByRole("textbox", {
+      name: "Caption",
+    });
+    fireEvent.change(caption, { target: { value: "A plot." } });
+    fireEvent.keyDown(caption, { key: "Enter" });
+    await within(section).findByRole("alert");
+    expect(within(section).queryByRole("status")).toBeNull();
+
+    fireEvent.click(addButton(section));
+    await flush();
+
+    expect(within(section).queryByRole("alert")).toBeNull();
+    next.settle({ ok: { source: null } });
+  });
+
+  it("a file that cannot be looked at is forgotten as the next act begins", async () => {
+    const next = held();
+    let picked = 0;
+    open(() => pageWith([]), {
+      "experiments.pickArtifact": () =>
+        picked++ === 0 ? { source: "/Users/r/gone.pt" } : next.promise,
+      "experiments.inspectArtifact": refuse,
+    });
+    const section = await artifacts();
+    fireEvent.click(addButton(section));
+    expect((await within(section).findByRole("alert")).textContent).toBe(
+      `could not add it: ${refused}`
+    );
+
+    fireEvent.click(addButton(section));
+    await flush();
+
+    expect(within(section).queryByRole("alert")).toBeNull();
+    next.settle({ ok: { source: null } });
   });
 });

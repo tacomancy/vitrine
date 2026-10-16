@@ -244,9 +244,10 @@ describe("in the folder, not on the page", () => {
     fireEvent.change(caption, { target: { value: "Loss." } });
     fireEvent.keyDown(caption, { key: "Enter" });
 
-    await within(section).findByText(
+    expect((await within(section).findByRole("alert")).textContent).toBe(
       "could not show it: loss.png is already on the page."
     );
+    expect(within(section).queryByRole("status")).toBeNull();
     expect(
       within(section).getByRole<HTMLInputElement>("textbox", {
         name: "Caption",
