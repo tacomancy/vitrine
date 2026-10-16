@@ -236,7 +236,7 @@ describe("attach as evidence, from the Experiment page", () => {
     );
   });
 
-  it("keeps the note and says why when the write is refused", async () => {
+  it("keeps the note and says why, in an alert, when the write is refused", async () => {
     open(() => complete, {
       "experiments.attachEvidence": () => ({
         written: false,
@@ -253,10 +253,51 @@ describe("attach as evidence, from the Experiment page", () => {
     const note = within(form).getByRole("textbox");
     fireEvent.change(note, { target: { value: "did not move" } });
     fireEvent.click(within(form).getByRole("button", { name: "attach" }));
-    expect((await within(form).findByRole("status")).textContent).toContain(
+    expect((await within(form).findByRole("alert")).textContent).toContain(
       "no criterion carries ^c2"
     );
+    expect(within(form).queryByRole("status")).toBeNull();
     expect((note as HTMLInputElement).value).toBe("did not move");
+  });
+
+  // #590 (ADR 0033 decisions 5–6): gone while the retry is in flight, and the
+  // same sentence refused again is a new element, so it is heard again.
+  it("forgets a refused attach as the retry begins, and says the same sentence again as a new element", async () => {
+    let refuse: (answer: unknown) => void = () => undefined;
+    let attempts = 0;
+    const refused = {
+      written: false,
+      reason: "changedAndUnreapplyable",
+      detail: "no criterion carries ^c2",
+    };
+    open(() => complete, {
+      "experiments.attachEvidence": () =>
+        attempts++ === 0
+          ? refused
+          : new Promise((resolve) => (refuse = resolve)),
+    });
+    const { list } = await openAttach();
+    fireEvent.keyDown(list, { key: "j" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    const form = await screen.findByRole("dialog", {
+      name: "Evidence for F2",
+    });
+    fireEvent.change(within(form).getByRole("textbox"), {
+      target: { value: "did not move" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+    const first = await within(form).findByRole("alert");
+
+    fireEvent.click(within(form).getByRole("button", { name: "attach" }));
+
+    await waitFor(() => expect(attempts).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(within(form).queryByRole("alert")).toBeNull();
+    refuse(refused);
+    const second = await within(form).findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
   });
 
   it("leaves on esc, with the keyboard back where it was", async () => {

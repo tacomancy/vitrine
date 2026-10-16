@@ -21,6 +21,7 @@ import {
   Section,
   sectionId,
 } from "./ResearchQuestion";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import rq from "./ResearchQuestion.module.css";
 import { localDate } from "./rows";
 import { useTRPC } from "./trpc";
@@ -323,23 +324,25 @@ function StatusChips({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // A refused chip is the user's act turned down, so it is an alert (ADR 0033
+  // decision 1 and its 2026-10-15 Update), forgotten as the next attempt
+  // begins. Its look is the kicker's register: `rq.inKicker`, unchanged.
+  const refusal = useRefusal();
   // One group per page mounted, whatever else the window holds.
   const group = useId();
   const set = useMutation(
     trpc.experiments.setStatus.mutationOptions({
       onSuccess: (result) => {
         if (!result.written) {
-          setRefusal(`could not set the status: ${result.detail}`);
+          refusal.say(`could not set the status: ${result.detail}`);
           return;
         }
-        setRefusal(null);
         void queryClient.invalidateQueries(
           trpc.experiments.page.queryFilter({ path })
         );
       },
       onError: (error) =>
-        setRefusal(`could not set the status: ${error.message}`),
+        refusal.say(`could not set the status: ${error.message}`),
     })
   );
   return (
@@ -352,9 +355,10 @@ function StatusChips({
               name={group}
               value={value}
               checked={status === value}
-              onChange={() =>
-                set.mutate({ path, status: value, basedOn: hash })
-              }
+              onChange={() => {
+                refusal.forget();
+                set.mutate({ path, status: value, basedOn: hash });
+              }}
             />
             {value}
           </label>
@@ -366,11 +370,7 @@ function StatusChips({
       {unreadable !== null && (
         <span className={styles.caption}>status unreadable: {unreadable}</span>
       )}
-      {refusal !== null && (
-        <span role="status" className={rq.inKicker}>
-          {refusal}
-        </span>
-      )}
+      <RefusalLine refusal={refusal} as="span" className={rq.inKicker} />
     </>
   );
 }
