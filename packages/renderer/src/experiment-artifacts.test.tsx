@@ -757,6 +757,29 @@ describe("a refused Artifact add", () => {
     expect(caption.value).toBe("Gone.");
   });
 
+  it("the same unreadable file dropped twice is a new alert each time: no act of ours stands between the two", async () => {
+    open(() => pageWith([]), { "experiments.inspectArtifact": refuse });
+    const page = await screen.findByRole("region", { name: "Experiment view" });
+    const section = await artifacts();
+    const file = new File(["x"], "gone.pt");
+    const drop = () => {
+      fireEvent.dragOver(page, {
+        dataTransfer: { files: [file], types: ["Files"] },
+      });
+      fireEvent.drop(page, {
+        dataTransfer: { files: [file], types: ["Files"] },
+      });
+    };
+
+    drop();
+    const first = await within(section).findByRole("alert");
+    drop();
+    await waitFor(() => expect(document.contains(first)).toBe(false));
+
+    const again = await within(section).findByRole("alert");
+    expect(again.textContent).toBe(first.textContent);
+  });
+
   it("a line that could not be written is forgotten as the next act begins", async () => {
     const next = held();
     let picked = 0;
