@@ -250,7 +250,8 @@ function verify(
     // is told by whether last time's papers are still on it; with no last
     // time there is nothing to compare against and it says only that. Last
     // time is read at this page only: a page the Scout was pointed at has no
-    // memory of its own until it adds a paper, and an empty read of it is *no
+    // memory of its own until it adds a paper (the page predicate is
+    // `finishedRunsAtPage`'s, in SQL; a run with no recorded page is taken as this one), and an empty read of it is *no
     // listing found*, never *its structure changed* (ADR 0043 d.6).
     const before = (
       queue

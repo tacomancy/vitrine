@@ -274,8 +274,9 @@ export function faultSentence(
   source: Scout["source"]["kind"] = "arxiv"
 ): string {
   const sentence = baseFaultSentence(kind, message, queryEdited, source);
-  // arXiv's `parse` sentence carries its own clause for a Query; a page's
-  // clause is the same words, added to every fault the page can have caused.
+  // arXiv's `parse` sentence carries its own clause for a Query. A page can
+  // fail in several kinds and its sentences are built by early returns, so
+  // the clause is added here once rather than threaded through each.
   return source === "watched" && queryEdited && PAGE_FAULTS.has(kind)
     ? `${sentence} Its page changed since it last ran cleanly.`
     : sentence;

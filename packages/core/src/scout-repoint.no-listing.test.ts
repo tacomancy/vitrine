@@ -119,42 +119,35 @@ created: 2026-09-20T00:00:00Z
     expect(r.error).toBeUndefined();
     return r.result!.data;
   };
+  const save = (query: string) =>
+    ok("mutate", "scouts.save", {
+      id: "lab",
+      name: "Sleep Lab",
+      watching: "watched",
+      query,
+      cadence: "weekly",
+      assigned: [],
+      lane: "review",
+      searchBackTo: null,
+    });
   return {
     answer: (next: Extraction | Error) => (answer = next),
-    back: () =>
-      ok("mutate", "scouts.save", {
-        id: "lab",
-        name: "Sleep Lab",
-        watching: "watched",
-        query: OLD,
-        cadence: "weekly",
-        assigned: [],
-        lane: "review",
-        searchBackTo: null,
-      }),
     breakOldPage: () => delete pages["/publications"],
     breakNewPage: () => delete pages["/moved"],
     redesignNewPage: async () =>
       (pages["/moved"] = await fixture("lab-page-redesigned.html")),
     run: () => ok("mutate", "scouts.runNow", { scoutId: "lab" }),
-    repoint: () =>
-      ok("mutate", "scouts.save", {
-        id: "lab",
-        name: "Sleep Lab",
-        watching: "watched",
-        query: NEW,
-        cadence: "weekly",
-        assigned: [],
-        lane: "review",
-        searchBackTo: null,
-      }),
+    repoint: () => save(NEW),
+    back: () => save(OLD),
     health: async () =>
       (
         await ok<{ scouts: Array<{ id: string; health: Health }> }>(
           "query",
           "scouts.health"
         )
-      ).scouts.find((s) => s.id === "lab")!.health,
+      ).scouts.find((s) => s.id === "lab")!.health as Health & {
+        sentence: string;
+      },
     rows: async () =>
       (
         await ok<{
@@ -164,15 +157,6 @@ created: 2026-09-20T00:00:00Z
         .flatMap((g) => g.rows)
         .filter((r) => r.subject === "lab")
         .map((r) => r.kind),
-    lastError: async () =>
-      (
-        await ok<{ scouts: Array<{ id: string; health: Health }> }>(
-          "query",
-          "scouts.health"
-        )
-      ).scouts.find((s) => s.id === "lab")!.health as Health & {
-        sentence: string;
-      },
   };
 }
 
@@ -185,7 +169,7 @@ describe("a Scout pointed at a page that lists nothing", () => {
 
     await lab.run();
 
-    expect(await lab.lastError()).toMatchObject({
+    expect(await lab.health()).toMatchObject({
       voice: "wrong",
       sentence: `The model found no papers listed on this page.${CLAUSE}`,
     });
@@ -202,7 +186,7 @@ describe("a Scout pointed at a page that lists nothing", () => {
     lab.answer(NONE);
     await lab.run();
 
-    expect(await lab.lastError()).toMatchObject({
+    expect(await lab.health()).toMatchObject({
       sentence: expect.stringContaining("its structure changed") as string,
     });
     expect(await lab.rows()).toEqual(["structure-change"]);
@@ -218,7 +202,7 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
-    const { sentence } = await lab.lastError();
+    const { sentence } = await lab.health();
     expect(sentence).toMatch(/HTTP 500/);
     expect(sentence.endsWith(CLAUSE)).toBe(true);
   });
@@ -231,7 +215,7 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
-    expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(true);
+    expect((await lab.health()).sentence.endsWith(CLAUSE)).toBe(true);
   });
 
   it("does not for a rejected key", async () => {
@@ -242,7 +226,7 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
-    expect((await lab.lastError()).sentence).toBe(
+    expect((await lab.health()).sentence).toBe(
       "The model provider refused the stored key, so nothing was checked."
     );
   });
@@ -254,7 +238,7 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
-    expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(false);
+    expect((await lab.health()).sentence.endsWith(CLAUSE)).toBe(false);
   });
 
   it("does not once the new page has been read cleanly", async () => {
@@ -267,7 +251,7 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
-    expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(false);
+    expect((await lab.health()).sentence.endsWith(CLAUSE)).toBe(false);
   });
 
   it("does not for a page it read cleanly before, pointed back at", async () => {
@@ -283,6 +267,6 @@ describe("a failed first look at a changed page", () => {
 
     // The last clean run on any page read the other one, but this page has a
     // history of its own: its fault is its own, not the edit's.
-    expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(false);
+    expect((await lab.health()).sentence.endsWith(CLAUSE)).toBe(false);
   });
 });
