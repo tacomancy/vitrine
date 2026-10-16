@@ -41,6 +41,7 @@ const card = (
   scouts: [{ ...by, assigned: [] }],
   retroactive: false,
   signals: [],
+  moved: null,
 });
 const FROM_SLEEP = { id: "sleep", name: "Sleep and memory", dropped: false };
 const FROM_BLOG = { id: "blog", name: "Blog ring", dropped: true };
