@@ -131,7 +131,7 @@ export function Picker({
       </div>
       {/* A read that failed must never read as an empty vault. */}
       {listing.isError && (
-        <p className={styles.message} role="alert">
+        <p className={styles.message} role="status">
           {listing.error.message}
         </p>
       )}
