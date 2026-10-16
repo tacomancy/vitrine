@@ -8,6 +8,7 @@ import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { HighlightBar } from "./HighlightBar";
 import { PdfDocument, type PageSelection } from "./pdf-document";
+import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./Reader.module.css";
 import rq from "./ResearchQuestion.module.css";
 import { usePublishReading } from "./reading";
@@ -144,7 +145,10 @@ export function Reader({
 
 /** The Source's own fields, and its link — the one thing here written by someone else. */
 function Header({ source }: { source: Readable }) {
-  const [said, setSaid] = useState<string | null>(null);
+  // A click on a refused address is the user's act turned down, so the line is
+  // an alert (ADR 0033 decision 1 and its 2026-10-15 Update); the same click
+  // again is a new element and is heard again. Its look is the line's register.
+  const refusal = useRefusal();
   const link = source.url === null ? null : classifyLink(source.url);
   return (
     <header className={styles.header}>
@@ -163,7 +167,7 @@ function Header({ source }: { source: Readable }) {
               type="button"
               className={styles.notLink}
               aria-label={`not a link: ${source.url}`}
-              onClick={() => setSaid(linkRefusal(link.scheme))}
+              onClick={() => refusal.say(linkRefusal(link.scheme))}
             >
               {source.url}
             </button>
@@ -179,11 +183,7 @@ function Header({ source }: { source: Readable }) {
           )}
         </p>
       )}
-      {said !== null && (
-        <p className={styles.line} role="status">
-          {said}
-        </p>
-      )}
+      <RefusalLine refusal={refusal} className={styles.line} />
     </header>
   );
 }

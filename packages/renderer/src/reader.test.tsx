@@ -209,6 +209,8 @@ describe("arriving", () => {
     expect(
       await screen.findByText(/no highlight h9 to arrive on/)
     ).toBeDefined();
+    expect(screen.getByRole("status").textContent).toMatch(/no highlight h9/);
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(opened.props!.start).toEqual({ page: 1, offset: 0 });
   });
 
@@ -293,6 +295,35 @@ describe("an evicted PDF", () => {
   });
 });
 
+describe("the lines nothing the user did caused", () => {
+  it("say an unsaved reading place politely, not as an alert", async () => {
+    await open(source(), `#/source/${PATH}`, {
+      "sources.readingPosition": () => {
+        throw new Error("disk full");
+      },
+    });
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onMove({ page: 2, offset: 0.5 }));
+    const line = await screen.findByText(
+      "Where you stopped could not be saved."
+    );
+    expect(line.getAttribute("role")).toBe("status");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("say a paper that could not be shown politely, not as an alert", async () => {
+    await open(source());
+    await screen.findByTestId("paper");
+    act(() => opened.props!.onFailed("the file is damaged"));
+    const line = await screen.findByText(/could not be shown because/);
+    expect(line.getAttribute("role")).toBe("status");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // The page that would not draw is pdf.js's own failure and jsdom cannot
+  // reach it without drawing a canvas; it is not covered here.
+});
+
 describe("an evicted PDF the sync folder has not delivered", () => {
   it("says so instead of saying it is still coming", async () => {
     await open(source({ evicted: true }), `#/source/${PATH}`, {
@@ -300,6 +331,9 @@ describe("an evicted PDF the sync folder has not delivered", () => {
     });
     expect(await screen.findByText(/has not delivered it/)).toBeDefined();
     expect(screen.queryByText(/Bringing the PDF down/)).toBeNull();
+    // Nothing the user did caused it: polite, not an alert (ADR 0033 Update, decision 8).
+    expect(screen.getByRole("status")).toBeDefined();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 
@@ -328,12 +362,27 @@ describe("a Source's own link", () => {
       expect(screen.queryByRole("link", { name: url })).toBeNull();
       expect(notLink.getAttribute("href")).toBeNull();
       fireEvent.click(notLink);
-      expect(await screen.findByRole("status")).toHaveProperty(
+      expect(await screen.findByRole("alert")).toHaveProperty(
         "textContent",
         `Vitrine will not follow ${scheme} links.`
       );
+      expect(screen.queryByRole("status")).toBeNull();
     }
   );
+
+  it("says it again, as a new element, when the same refused address is clicked twice", async () => {
+    await open(source({ url: "file:///Users/me/secret.pdf" }));
+    const notLink = await screen.findByRole("button", {
+      name: "not a link: file:///Users/me/secret.pdf",
+    });
+    fireEvent.click(notLink);
+    const first = await screen.findByRole("alert");
+    fireEvent.click(notLink);
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe(first.textContent);
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
+  });
 });
 
 describe("notes and quotes", () => {
@@ -540,10 +589,27 @@ describe("Connections", () => {
     await openPanel();
     fireEvent.click(options()[0]!);
     expect(window.location.hash).toBe(`#/source/${PATH}`);
-    expect(await screen.findByRole("status")).toHaveProperty(
+    expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
       "idea has no page in Vitrine to open: it is the file notes/idea.md."
     );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("says it on Enter too, says it again as a new element, and drops it when another is chosen", async () => {
+    const { list } = await openPanel();
+    fireEvent.keyDown(list, { key: "Enter" });
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe(
+      "idea has no page in Vitrine to open: it is the file notes/idea.md."
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    fireEvent.keyDown(list, { key: "Enter" });
+    const second = await screen.findByRole("alert");
+    expect(first.isConnected).toBe(false);
+    expect(second).not.toBe(first);
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("says what it is when nothing points at this paper, and never that it is loading", async () => {
