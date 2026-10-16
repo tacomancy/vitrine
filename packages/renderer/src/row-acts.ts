@@ -32,6 +32,14 @@ export const scoutKey = (id: string) => `scout:${id}`;
  */
 export type Said = { text: string; refused: boolean };
 
+/**
+ * A said note with its count: how many notes this row has had. The element is
+ * keyed on it, so a note identical to the last, or one that flips between
+ * `alert` and `status`, is a new node and is announced; setting new text or a
+ * new role into the node already on screen would not be (ADR 0033 decision 6).
+ */
+export type SaidNote = Said & { count: number };
+
 export type RowActs = ReturnType<typeof useRowActs>;
 
 /**
@@ -49,7 +57,7 @@ export type RowActs = ReturnType<typeof useRowActs>;
 export function useRowActs(hold: () => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [said, setSaid] = useState<ReadonlyMap<string, Said>>(new Map());
+  const [said, setSaid] = useState<ReadonlyMap<string, SaidNote>>(new Map());
   // Which rows have their cadence menu open, or their edit, held by the row's
   // key so a re-sort leaves them open.
   const [cadenceOpen, setCadenceOpen] = useState<ReadonlySet<string>>(
@@ -58,7 +66,22 @@ export function useRowActs(hold: () => void) {
   const [editing, setEditing] = useState<ReadonlySet<string>>(new Set());
 
   function say(key: string, note: Said) {
-    setSaid((was) => new Map(was).set(key, note));
+    setSaid((was) =>
+      new Map(was).set(key, { ...note, count: (was.get(key)?.count ?? 0) + 1 })
+    );
+  }
+  /**
+   * Forget a row's refusal as the next act on it begins, so it is not read as
+   * the answer to the retry. A success note is not forgotten: it stays until
+   * replaced (spec #511 story 58).
+   */
+  function forgetRefusal(key: string) {
+    setSaid((was) => {
+      if (!was.get(key)?.refused) return was;
+      const next = new Map(was);
+      next.delete(key);
+      return next;
+    });
   }
   const reread = () =>
     void queryClient.invalidateQueries(trpc.scouts.pathFilter());
@@ -69,6 +92,9 @@ export function useRowActs(hold: () => void) {
 
   const changeCadence = useMutation(
     trpc.scouts.setCadence.mutationOptions({
+      // In the mutation, not at each caller, so a new way to send the write
+      // cannot leave a refusal standing as the answer to it.
+      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
       onSuccess: ({ dueAtNextCheck }, { scoutId, cadence }) => {
         // Said from the write's own answer, which asked the scheduler: a row
         // that said a run was coming would otherwise be guessing at it.
@@ -83,6 +109,7 @@ export function useRowActs(hold: () => void) {
   );
   const pause = useMutation(
     trpc.scouts.setPaused.mutationOptions({
+      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
       onSuccess: (_done, { scoutId, paused }) => {
         say(scoutKey(scoutId), {
           refused: false,
@@ -102,7 +129,10 @@ export function useRowActs(hold: () => void) {
     editing,
     say,
     hold,
-    toggleEdit: (key: string) => setEditing((was) => toggled(was, key)),
+    toggleEdit: (key: string) => {
+      if (!editing.has(key)) forgetRefusal(key);
+      setEditing((was) => toggled(was, key));
+    },
     closeEdit: (key: string) => setEditing((was) => without(was, key)),
     toggleCadence: (key: string) => setCadenceOpen((was) => toggled(was, key)),
     closeCadence: (key: string) => setCadenceOpen((was) => without(was, key)),
