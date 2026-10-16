@@ -49,7 +49,7 @@ export function Artifacts({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   // Every refusal here, and the copy that landed without its line, is the
-  // user'"'"'s act turned down or half done, so it is an alert, forgotten as the
+  // user's act turned down or half done, so it is an alert, forgotten as the
   // next act begins (ADR 0033 decision 1 and its 2026-10-15 Update). The
   // caption is kept as before.
   const refusal = useRefusal();
