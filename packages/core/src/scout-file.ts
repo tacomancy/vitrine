@@ -35,7 +35,40 @@ export type Scout = {
   created: Date;
   /** *Also search back to* (ADR 0016 decision 5): the first run opens its window here and its finds are Retroactive. */
   searchBackTo: Date | null;
+  /** Queue behaviour (ADR 0044 d.11). Most Proposals a run keeps in Review, or null for no cap; read by the Caps ticket, stored and validated here. */
+  cap: number | null;
+  /** Days before a pending Review item collapses into the digest. */
+  reviewDays: number;
+  /** Days before a Skim line sits behind *show older*. */
+  skimDays: number;
 };
+
+export const DEFAULT_REVIEW_DAYS = 14;
+export const DEFAULT_SKIM_DAYS = 30;
+
+/** The file's key for each Queue behaviour field, which is the name a refusal gives it. */
+export const QUEUE_KEYS = {
+  cap: "cap",
+  reviewDays: "review_days",
+  skimDays: "skim_days",
+} as const;
+
+/**
+ * The one definition of a good Queue behaviour number, for the file and for
+ * the form's text alike: a whole number of 1 or more. A value outside it is
+ * named, never read as the default, so a typo cannot pass for "no cap" or
+ * quietly put *show older* back at 30 days (ADR 0044 d.11; ADR 0039 d.7).
+ */
+export const queueNumberProblem = (key: string) =>
+  `${key} is not a whole number of 1 or more`;
+
+export function parseQueueNumber(value: unknown): number | null {
+  const n =
+    typeof value === "string" && /^\d+$/.test(value.trim())
+      ? Number(value.trim())
+      : value;
+  return typeof n === "number" && Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
 
 /** A Scout file the app cannot use — it does not parse, or its bytes could not be read: its name, and one sentence naming what is wrong. */
 export type UnreadableScout = { file: string; sentence: string };
@@ -244,6 +277,15 @@ function readScout(id: string, text: string): Read {
   if (retired !== undefined && dropped === null) {
     return { ok: false, problem: "dropped is not a date" };
   }
+  const queue: Record<string, number | undefined> = {};
+  for (const key of Object.values(QUEUE_KEYS)) {
+    const given = file[key];
+    if (given === undefined || given === null) continue;
+    // The file holds numbers; text such as "7" is the form's, not a hand edit's.
+    const n = typeof given === "number" ? parseQueueNumber(given) : null;
+    if (n === null) return { ok: false, problem: queueNumberProblem(key) };
+    queue[key] = n;
+  }
   return {
     ok: true,
     scout: {
@@ -261,6 +303,9 @@ function readScout(id: string, text: string): Read {
       dropped,
       created,
       searchBackTo,
+      cap: queue["cap"] ?? null,
+      reviewDays: queue["review_days"] ?? DEFAULT_REVIEW_DAYS,
+      skimDays: queue["skim_days"] ?? DEFAULT_SKIM_DAYS,
     },
   };
 }
