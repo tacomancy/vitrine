@@ -98,3 +98,7 @@ The spec grill for this beat closed seven cases the decisions above left open; *
 ## Update (2026-10-07, ADR 0043)
 
 **ADR 0043** narrows decision 3's *due*. For a Watched Scout the last completed run is the last one at its current page, so a Scout pointed at another page is due at the next check, whatever its cadence; an arXiv Scout is unchanged.
+
+## Update (2026-10-16, #183)
+
+**ADR 0044** discharges the half of decision 6's Wait list that needed accept history: ranking signals and rank sort, the counterweight slot, Lane moves (a recorded *demote* and *raise*, not a score), Review aging (as a digest, not a demotion), muting, per-Scout Caps and bulk-defer, plus group by Question. What still waits: topic-cluster grouping, keyword-overlap ranking and Corroboration through the Lexicon (beat 10). Title merging is struck from the list: `source_key` already merges on arXiv id, DOI and url (ADR 0018).
