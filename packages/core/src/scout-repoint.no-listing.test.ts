@@ -121,6 +121,18 @@ created: 2026-09-20T00:00:00Z
   };
   return {
     answer: (next: Extraction | Error) => (answer = next),
+    back: () =>
+      ok("mutate", "scouts.save", {
+        id: "lab",
+        name: "Sleep Lab",
+        watching: "watched",
+        query: OLD,
+        cadence: "weekly",
+        assigned: [],
+        lane: "review",
+        searchBackTo: null,
+      }),
+    breakOldPage: () => delete pages["/publications"],
     breakNewPage: () => delete pages["/moved"],
     redesignNewPage: async () =>
       (pages["/moved"] = await fixture("lab-page-redesigned.html")),
@@ -255,6 +267,22 @@ describe("a failed first look at a changed page", () => {
 
     await lab.run();
 
+    expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(false);
+  });
+
+  it("does not for a page it read cleanly before, pointed back at", async () => {
+    const lab = await opened();
+    await lab.run();
+    await lab.repoint();
+    lab.answer(FRESH);
+    await lab.run();
+    await lab.back();
+    lab.breakOldPage();
+
+    await lab.run();
+
+    // The last clean run on any page read the other one, but this page has a
+    // history of its own: its fault is its own, not the edit's.
     expect((await lab.lastError()).sentence.endsWith(CLAUSE)).toBe(false);
   });
 });
