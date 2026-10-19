@@ -111,6 +111,13 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         </div>
       )}
       <SyncLine sync={sync} />
+      {/* Derived from what is stored, so a sync that failed or ran out of
+          budget leaves its Tags counted here and never looks like a quiet field. */}
+      {attention.data.synced && attention.data.due > 0 && !sync.isPending && (
+        <p className={styles.stated} role="status">
+          {plural(attention.data.due, "tag", "tags")} waiting to be measured
+        </p>
+      )}
       <p className={styles.stated}>
         counts papers held, not papers attached to questions
       </p>
@@ -240,6 +247,7 @@ function TagButton({
           : tag.reason === null
             ? tag.state
             : `${tag.state} · ${REASON[tag.reason]}`}
+        {tag.pending && " · re-measure pending"}
       </span>
     </button>
   );
@@ -309,6 +317,12 @@ function LexiconEditor({ view }: { view: LexiconView }) {
         <p className={styles.stated}>
           field: {plural(view.counts.last12, "work", "works")} in the last 12
           months, {view.counts.prior12} in the 12 before
+        </p>
+      )}
+      {view.pending && (
+        <p className={styles.stated}>
+          re-measure pending — the point shown was measured with an earlier
+          query; the next sync re-measures it
         </p>
       )}
       {view.reason === "few-papers" ? (

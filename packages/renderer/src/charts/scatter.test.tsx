@@ -19,6 +19,8 @@ const point = (tag: string, papers: number, growth: number): AttentionTag => ({
   growth,
   counts: { last12: 100, prior12: 100 },
   measuredAt: "2026-10-16T09:00:00.000Z",
+  pending: false,
+  query: 'filter=title_and_abstract.search:("a")',
 });
 
 const TAGS = [
@@ -149,5 +151,25 @@ describe("the attention scatter", () => {
       expect(el.getAttribute("fill")).toBeNull();
       expect(el.getAttribute("stroke")).toBeNull();
     }
+  });
+});
+
+describe("the attention scatter — re-measure pending", () => {
+  it("keeps the old point, and names it pending in its label and beside its name, not by outline alone", () => {
+    render(
+      <Scatter
+        tags={[{ ...point("old", 3, 0.5), pending: true }, point("new", 4, 1)]}
+        crossing={null}
+        onChoose={() => {}}
+      />
+    );
+    const old = screen.getByRole("option", { name: /^old:/ });
+    expect(old.getAttribute("aria-label")).toBe(
+      "old: 3 papers, growth +50%, re-measure pending"
+    );
+    expect(old.textContent).toContain("re-measure pending");
+    const fresh = screen.getByRole("option", { name: /^new:/ });
+    expect(fresh.getAttribute("aria-label")).not.toContain("pending");
+    expect(fresh.textContent).not.toContain("pending");
   });
 });
