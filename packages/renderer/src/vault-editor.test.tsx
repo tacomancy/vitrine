@@ -89,6 +89,13 @@ describe("opening a file", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("opens an Address with spaces and non-ASCII in it", async () => {
+    const read = vi.fn(() => FILE("x\n"));
+    open({ "vault.read": read }, "#/vault/notes/caf%C3%A9%20au%20lait.md");
+    await editor();
+    expect(read).toHaveBeenCalledWith({ path: "notes/café au lait.md" });
+  });
+
   it("opens from a tree row, the Address following the choice", async () => {
     open({
       "vault.read": (input: { path: string }) =>
@@ -97,11 +104,15 @@ describe("opening a file", () => {
     fireEvent.click(await screen.findByRole("treeitem", { name: "Idea" }));
     expect(textOf(await editor())).toBe("idea text\n");
     expect(window.location.hash).toBe("#/vault/notes/Idea.md");
+    const view = document.querySelector(".cm-editor");
+    expect(view).not.toBeNull();
     fireEvent.click(screen.getByRole("treeitem", { name: "plain" }));
     await waitFor(async () =>
       expect(textOf(await editor())).toBe("plain text\n")
     );
     expect(window.location.hash).toBe("#/vault/plain.md");
+    // The one view carries the change: choosing a file never rebuilds it.
+    expect(document.querySelector(".cm-editor")).toBe(view);
     // Back returns to the file before: the router is the only reader.
     window.history.back();
     await waitFor(async () =>

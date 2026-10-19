@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { TreeFile } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
@@ -25,7 +30,7 @@ export function VaultSurface({ path }: { path: string | undefined }) {
         {path === undefined ? (
           <p className={styles.quiet}>Choose a file from the tree.</p>
         ) : (
-          <OpenFile key={path} path={path} />
+          <OpenFile path={path} />
         )}
       </div>
     </section>
@@ -51,6 +56,9 @@ function OpenFile({ path }: { path: string }) {
   const file = useQuery({
     ...trpc.vault.read.queryOptions({ path }),
     retry: false,
+    // The previous file's text stays in the one editor until the next
+    // arrives, so choosing a file never rebuilds the view.
+    placeholderData: keepPreviousData,
   });
   const failure = file.error?.message;
   useEffect(() => {
@@ -64,17 +72,22 @@ function OpenFile({ path }: { path: string }) {
     });
   }, [failure, path]);
   if (file.data === undefined) return null;
-  const words = wordsIn(file.data.text);
+  // While the next file loads the editor still holds the last one, so the
+  // header, which names `path`, says nothing rather than the old file's facts.
+  const loaded = file.isPlaceholderData ? null : file.data;
+  const words = loaded === null ? 0 : wordsIn(loaded.text);
   return (
     <>
       <header className={styles.fileHeader}>
         <h1 className={styles.path}>{path}</h1>
-        <span className={styles.meta}>
-          edited {edited(file.data.mtime)} · {words}{" "}
-          {words === 1 ? "word" : "words"}
-        </span>
+        {loaded !== null && (
+          <span className={styles.meta}>
+            edited {edited(loaded.mtime)} · {words}{" "}
+            {words === 1 ? "word" : "words"}
+          </span>
+        )}
       </header>
-      <VaultEditor file={path} text={file.data.text} />
+      <VaultEditor text={file.data.text} />
     </>
   );
 }

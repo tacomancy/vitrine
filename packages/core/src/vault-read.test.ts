@@ -81,4 +81,12 @@ describe("vault.read", () => {
     const pdf = await c.query("vault.read", { path: "sources/pdf/p.pdf" });
     expect(pdf.error).toBeDefined();
   });
+
+  it("says a file that is not there without the machine's path", async () => {
+    const { c, path } = await opened({ "a.md": "x\n" });
+    const reply = await c.query("vault.read", { path: "gone.md" });
+    expect(reply.error).toBeDefined();
+    expect(JSON.stringify(reply.error)).toContain("gone.md");
+    expect(JSON.stringify(reply.error)).not.toContain(path);
+  });
 });

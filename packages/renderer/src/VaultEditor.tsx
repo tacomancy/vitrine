@@ -13,7 +13,7 @@ import styles from "./Vault.module.css";
  * file's CRLF and BOM are the core's to restore around a save, so nothing
  * here needs `lineSeparator` yet.
  */
-export function VaultEditor({ file, text }: { file: string; text: string }) {
+export function VaultEditor({ text }: { text: string }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
 
@@ -54,9 +54,7 @@ export function VaultEditor({ file, text }: { file: string; text: string }) {
     current.dispatch({
       changes: { from: 0, to: current.state.doc.length, insert: text },
     });
-    // `file` is a dependency so two files with the same text still reset the
-    // scroll and selection the way a different file would.
-  }, [file, text]);
+  }, [text]);
 
   return <div ref={host} className={styles.cm} />;
 }
