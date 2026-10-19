@@ -99,6 +99,19 @@ describe("groups by Question", () => {
     ]);
   });
 
+  it.each(["defer", "accept"])(
+    "drops a card from every group on %s",
+    async (act) => {
+      const q = await opened({ "a.yaml": scout("a", ["q1", "q2"]) });
+      q.seed("a");
+      const [only] = q.ids();
+
+      await q.c.mutate(`scouts.${act}`, { proposalId: only });
+
+      expect(await q.groups()).toEqual([]);
+    }
+  );
+
   it("leaves Skim out, as the stack does", async () => {
     const q = await opened({ "a.yaml": scout("a", ["q1"]) });
     q.seed("a", { lane: "skim" });

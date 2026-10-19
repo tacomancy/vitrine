@@ -15,10 +15,11 @@ import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
 
+// Not a slug, so it cannot be a real Question's id.
+const UNASSIGNED = "(unassigned)";
+
 // Review's sort lasts the session and no longer: held outside the component
 // because leaving the surface unmounts it (ADR 0044 decision 2).
-const UNASSIGNED = "unassigned";
-
 const sessionSort = (() => {
   let sort: QueueSort = "rank";
   return { get: () => sort, set: (next: QueueSort) => void (sort = next) };
@@ -123,7 +124,7 @@ export function ScoutQueue({
   };
   const [selected, setSelected] = useState<string | null>(scout ?? null);
   // The Question group on screen: a Question id, `UNASSIGNED`, or null for all.
-  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+  const [pickedQuestion, setSelectedQuestion] = useState<string | null>(null);
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.
@@ -239,6 +240,14 @@ export function ScoutQueue({
   const unread = reasons.length > 0;
   const everything = queue.data ?? [];
   const questionRows = questionGroups.data ?? [];
+  // A group that empties (its last card acted on) leaves the rail, so the
+  // choice falls back to all rather than pointing at a row that is gone.
+  const selectedQuestion = questionRows.some(
+    (g) => (g.question?.id ?? UNASSIGNED) === pickedQuestion
+  )
+    ? pickedQuestion
+    : null;
+  const noneChosen = (byQuestion ? selectedQuestion : selected) === null;
   const questionKey = (g: { question: { id: string } | null }) =>
     g.question?.id ?? UNASSIGNED;
   // The cards of the Question group on screen; a paper in several Questions is
@@ -781,10 +790,7 @@ export function ScoutQueue({
       {form === null && lane === "review" && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
-          {(byQuestion ? selectedQuestion : selected) === null
-            ? "here"
-            : "in this group"}
-          ; they come round again.
+          {noneChosen ? "here" : "in this group"}; they come round again.
         </p>
       )}
       {form === null && lane === "skim" && (
@@ -849,11 +855,7 @@ export function ScoutQueue({
             scout={
               byQuestion || selected === null ? undefined : healthOf(selected)
             }
-            claim={
-              (byQuestion ? selectedQuestion : selected) === null
-                ? fleet.data
-                : undefined
-            }
+            claim={noneChosen ? fleet.data : undefined}
             dropped={droppedScouts.length}
           />
         )}
