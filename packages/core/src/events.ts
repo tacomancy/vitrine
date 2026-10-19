@@ -28,8 +28,9 @@ export type CoreEvent =
   // A Scout's run ended, however it ended (ADR 0016 decision 13): the run row
   // carries the outcome, and what shows it re-reads on this.
   | { type: "scoutFinished"; scoutId: string; runId: number }
-  // The sync a synced vault runs when it opens ended (#656): the Attention
-  // panel re-reads what it measured, or what it left waiting.
+  // A Lexicon sync moved (#656, #657): a Tag settled or the sync ended, so
+  // the Attention panel re-reads what it measured, what it left waiting and
+  // how far along it is.
   | { type: "lexiconSynced" };
 
 export type Events = {

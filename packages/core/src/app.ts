@@ -250,14 +250,14 @@ export function createApp({
     try {
       const opened = await vault.opened();
       if (opened === null) return;
-      const result = await syncWhenOpened({
+      await syncWhenOpened({
         indexed: () => opened.index.sweep(),
         index: opened.index,
         vaultPath: opened.vault.path,
         client: context.openalex,
         now: context.now(),
+        onProgress: () => events.emit({ type: "lexiconSynced" }),
       });
-      if (result !== null) events.emit({ type: "lexiconSynced" });
     } catch (cause) {
       // The panel's *waiting* count still says what was left undone.
       console.error(

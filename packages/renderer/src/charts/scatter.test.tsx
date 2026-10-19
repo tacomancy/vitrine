@@ -21,6 +21,7 @@ const point = (tag: string, papers: number, growth: number): AttentionTag => ({
   measuredAt: "2026-10-16T09:00:00.000Z",
   pending: false,
   query: 'filter=title_and_abstract.search:("a")',
+  failure: null,
 });
 
 const TAGS = [
