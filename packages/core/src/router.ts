@@ -62,7 +62,11 @@ import {
   seedTerm,
 } from "./lexicon-edits.js";
 import { syncLexicons } from "./lexicon-sync.js";
-import { readMeasurements, type Measurements } from "./measurements.js";
+import {
+  readMeasurements,
+  recordViewedDepth,
+  type Measurements,
+} from "./measurements.js";
 import { looseEnds } from "./loose-ends.js";
 import {
   candidateLinks,
@@ -1510,12 +1514,20 @@ export const router = t.router({
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
-        return attention(
+        const view = attention(
           index,
           await measurementsOf(vault.path),
           input?.depth,
-          await refusing(readEdits(vault.path))
+          await refusing(readEdits(vault.path)),
+          ctx.now()
         );
+        // A depth other than the default, once viewed, is measured by every
+        // sync after (ADR 0045 decision 2). Only the number is kept, and it
+        // sends nothing: a vault that never synced makes no request.
+        if (view.depth !== view.deepest) {
+          await refusing(recordViewedDepth(vault.path, view.depth));
+        }
+        return view;
       }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {

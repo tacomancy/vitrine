@@ -28,11 +28,20 @@ export type Measurement = {
 export type Measurements = {
   /** When *Sync now* was first confirmed; null while the vault has never synced (ADR 0045 decision 4). */
   consentedAt: string | null;
+  /**
+   * The non-default depths the page has been viewed at, so a sync measures
+   * them too (ADR 0045 decision 2): queued once viewed, then kept.
+   */
+  depths: number[];
   measurements: Measurement[];
 };
 
 const FILE = ".vitrine/measurements.json";
-const NONE: Measurements = { consentedAt: null, measurements: [] };
+export const NONE: Measurements = {
+  consentedAt: null,
+  depths: [],
+  measurements: [],
+};
 
 export type ReadMeasurements = {
   measurements: Measurements;
@@ -60,8 +69,15 @@ export async function readMeasurements(
     const consentedAt =
       typeof parsed.consentedAt === "string" ? parsed.consentedAt : null;
     const list = Array.isArray(parsed.measurements) ? parsed.measurements : [];
+    const depths = Array.isArray(parsed.depths)
+      ? parsed.depths.filter((d) => Number.isInteger(d) && d >= 1)
+      : [];
     return {
-      measurements: { consentedAt, measurements: list.filter(wellFormed) },
+      measurements: {
+        consentedAt,
+        depths,
+        measurements: list.filter(wellFormed),
+      },
       problem: null,
     };
   } catch (cause) {
@@ -95,6 +111,18 @@ const serially = serialised();
 export function recordConsent(vaultPath: string, at: string): Promise<void> {
   return change(vaultPath, (m) =>
     m.consentedAt === null ? { ...m, consentedAt: at } : null
+  );
+}
+
+/** Remember that the page was viewed at this depth; a depth already kept writes nothing. */
+export function recordViewedDepth(
+  vaultPath: string,
+  depth: number
+): Promise<void> {
+  return change(vaultPath, (m) =>
+    m.depths.includes(depth)
+      ? null
+      : { ...m, depths: [...m.depths, depth].sort((a, b) => a - b) }
   );
 }
 
