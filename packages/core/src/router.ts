@@ -55,6 +55,7 @@ import {
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
 import { attention, keywordOverlap, lexiconOf } from "./lexicon.js";
+import { readPrintedKeywords } from "./lexicon-printed.js";
 import {
   excludeTerm,
   readEdits,
@@ -1555,7 +1556,12 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       // Seeds and Exclusions are part of what a Tag is, here as in the editor.
       const edits = await refusing(readEdits(vault.path));
-      return candidateLinks(index, vault.path, keywordOverlap(index, edits));
+      const printed = await readPrintedKeywords(vault.path, index);
+      return candidateLinks(
+        index,
+        vault.path,
+        keywordOverlap(index, edits, printed)
+      );
     }),
     matrix: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
@@ -1574,7 +1580,8 @@ export const router = t.router({
           await measurementsOf(vault.path),
           input?.depth,
           await refusing(readEdits(vault.path)),
-          ctx.now()
+          ctx.now(),
+          await readPrintedKeywords(vault.path, index)
         );
         // The default depth is the deepest (`depthFor`), as the sync's is.
         // A depth other than the default, once viewed, is measured by every
@@ -1614,7 +1621,8 @@ export const router = t.router({
           await measurementsOf(vault.path),
           input.tag,
           input.depth,
-          await refusing(readEdits(vault.path))
+          await refusing(readEdits(vault.path)),
+          await readPrintedKeywords(vault.path, index)
         );
       }),
     // The first *Sync now* and every one after (ADR 0045 decisions 4, 10).

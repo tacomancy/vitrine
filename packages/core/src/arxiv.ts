@@ -157,6 +157,20 @@ export function createArxivClient({
   };
 }
 
+/**
+ * A Lexicon's Terms as an arXiv `search_query` (ADR 0018 decision 5): every
+ * Term quoted, in the abstract and the title. A Term is normalised words by
+ * the time it is here, but a Seed can be hand-edited into `lexicon.json`, and
+ * a stray quote or backslash would end the phrase early and let the rest of the
+ * Term be read as query syntax, so both go.
+ */
+export const compileArxivQuery = (terms: readonly string[]): string =>
+  terms
+    .map((t) => t.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim())
+    .filter((t) => t !== "")
+    .flatMap((t) => [`abs:"${t}"`, `ti:"${t}"`])
+    .join(" OR ");
+
 /** `202609010000`: the form `submittedDate` takes, in GMT. */
 function gmt(date: Date): string {
   return date.toISOString().replace(/[-:T]/g, "").slice(0, 12);

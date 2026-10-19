@@ -353,10 +353,12 @@ const readAnnotations = (bytes: Uint8Array) =>
     }
     const annotations = [];
     const pageText: string[] = [];
+    const pageLines: string[] = [];
     for (let index = 0; index < pages; index++) {
       const page = m.FPDF_LoadPage(doc, index);
       if (!page) {
         pageText.push("");
+        pageLines.push("");
         continue;
       }
       let cached: Glyph[] | null = null;
@@ -385,11 +387,12 @@ const readAnnotations = (bytes: Uint8Array) =>
             .map((c) => c.ch)
             .join("")
         );
+        pageLines.push(linesOf(cached));
       } finally {
         m.FPDF_ClosePage(page);
       }
     }
-    return { pages, fileId, annotations, pageText };
+    return { pages, fileId, annotations, pageText, pageLines };
   });
 
 const rectQuad = ({ left, right, bottom, top }: Rect) => [
@@ -402,6 +405,52 @@ const rectQuad = ({ left, right, bottom, top }: Rect) => [
   right,
   bottom,
 ];
+
+/** Baseline distance, in glyph heights, past which two lines have a blank line between them; ordinary leading is under 2. */
+const BLANK_GAP = 2.5;
+
+/**
+ * The page as lines: a line break wherever PDFium generated one or the
+ * baseline moved, and a blank line where it moved by more than `BLANK_GAP`. `pageText` drops both and the hyphen, which the fingerprint wants;
+ * the keyword line's end (a blank gap, a heading) is only visible here, and a
+ * line-end hyphen is kept for the parser to join.
+ */
+function linesOf(chars: Glyph[]): string {
+  const lines: Array<{ text: string; bottom: number; height: number }> = [];
+  let broke = true;
+  for (const c of chars) {
+    if (c.generated || c.ch.trim() === "") {
+      if (/[\r\n]/.test(c.ch)) broke = true;
+      else if (lines.length > 0 && !broke) lines.at(-1)!.text += " ";
+      continue;
+    }
+    const height = c.box.top - c.box.bottom;
+    const last = lines.at(-1);
+    // PDFium marks a line-end hyphen with a control character; the printed
+    // hyphen is what the parser needs to see.
+    const ch = c.hyphen ? "-" : c.ch;
+    if (
+      last === undefined ||
+      broke ||
+      Math.abs(c.box.bottom - last.bottom) > Math.max(height, last.height) * 0.5
+    ) {
+      lines.push({ text: ch, bottom: c.box.bottom, height });
+    } else {
+      last.text += ch;
+    }
+    broke = false;
+  }
+  return lines
+    .map((line, i) => {
+      const before = lines[i - 1];
+      const gap =
+        before !== undefined &&
+        Math.abs(before.bottom - line.bottom) >
+          Math.max(before.height, line.height) * BLANK_GAP;
+      return (gap ? "\n" : "") + line.text.trimEnd();
+    })
+    .join("\n");
+}
 
 /**
  * The characters a selection covers, gathered into one rectangle per line of

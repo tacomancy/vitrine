@@ -8,6 +8,7 @@ import {
   type Measurements,
 } from "./measurements.js";
 import { rollUp, tagDisplays, threadMaterial } from "./question-map.js";
+import type { PrintedKeywords } from "./lexicon-printed.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -155,7 +156,10 @@ const isPlaced = (withText: number, seeded: boolean) =>
 const PAPER_KINDS = "('source', 'source-stub')";
 const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function readPapers(index: VaultIndex): Map<string, Paper> {
+function readPapers(
+  index: VaultIndex,
+  printed: PrintedKeywords
+): Map<string, Paper> {
   const papers = new Map<string, Paper>();
   for (const { path, value } of index.select<{ path: string; value: string }>(
     `SELECT f.path AS path, fm.value AS value FROM files f
@@ -171,7 +175,9 @@ function readPapers(index: VaultIndex): Map<string, Paper> {
         : Array.isArray(raw)
           ? raw.filter((k): k is string => typeof k === "string")
           : [];
-    for (const keyword of list) {
+    // A union, so a keyword typed in `keywords:` and printed in the PDF is one
+    // vote for the paper, not two; the sidecar's are the same author keywords.
+    for (const keyword of [...list, ...(printed.get(path) ?? [])]) {
       const phrase = normalisePhrase(keyword);
       if (phrase !== null) keywords.add(phrase);
     }
@@ -300,10 +306,11 @@ export function attention(
   store: Measurements,
   requested: number | undefined,
   edits: LexiconEdits,
-  now: Date
+  now: Date,
+  printed: PrintedKeywords = new Map()
 ): Attention {
   const { depth, deepest } = depthFor(index, requested);
-  const papers = readPapers(index);
+  const papers = readPapers(index, printed);
   const displays = tagDisplays(index);
   const byTag = papersByTag(index, depth, papers);
   const vocabulary = vocabularyOf(papers);
@@ -392,10 +399,11 @@ export function lexiconOf(
   store: Measurements,
   tag: string,
   requested?: number,
-  edits: LexiconEdits = {}
+  edits: LexiconEdits = {},
+  printed: PrintedKeywords = new Map()
 ): LexiconView {
   const { depth } = depthFor(index, requested);
-  const papers = readPapers(index);
+  const papers = readPapers(index, printed);
   return lexiconAmong(
     papers,
     vocabularyOf(papers),
@@ -405,6 +413,22 @@ export function lexiconOf(
     tag,
     depth,
     edits
+  );
+}
+
+/**
+ * The Terms in use for a Tag as written, at its own depth: what the editor
+ * lists and the scatter measures, which a Scout's Tag Filter compiles at each
+ * run so that the three cannot disagree (ADR 0018). No Measurement is read: a
+ * Term does not depend on one.
+ */
+export function termsInUse(
+  index: VaultIndex,
+  tag: string,
+  edits: LexiconEdits = {}
+): string[] {
+  return lexiconOf(index, NONE, tag, tag.split("/").length, edits).terms.map(
+    (t) => t.term
   );
 }
 
@@ -534,8 +558,12 @@ const KEYWORD_OVERLAP_TERMS = 2;
  * Lexicons, and which Terms. It does not know which papers share a Tag with
  * the row; the caller drops those, so a paper is never offered twice.
  */
-export function keywordOverlap(index: VaultIndex, edits: LexiconEdits = {}) {
-  const papers = readPapers(index);
+export function keywordOverlap(
+  index: VaultIndex,
+  edits: LexiconEdits = {},
+  printed: PrintedKeywords = new Map()
+) {
+  const papers = readPapers(index, printed);
   const vocabulary = vocabularyOf(papers);
   const displays = tagDisplays(index);
   const byDepth = new Map<number, Map<string, Set<string>>>();

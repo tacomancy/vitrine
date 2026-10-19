@@ -85,7 +85,15 @@ async function write(
   const name = form.name.trim();
   const query = form.query.trim();
   const watched = form.watching === "watched";
-  if (name === "" || query === "") {
+  const { scouts } = await readScouts(deps.vaultPath);
+  const names = await listScoutsFolder(deps.vaultPath);
+  const before =
+    form.id === undefined ? undefined : fileOf(scouts, form.id, names);
+  // A Tag Filter has no Query to type (spec #678): saving its Lane or its
+  // Assigned Questions leaves `filter.tags` alone. Editing the Tags is the
+  // form's later slice.
+  const tagged = before?.scout.tags !== undefined;
+  if (name === "" || (query === "" && !tagged)) {
     throw new VaultError(
       "refused",
       watched
@@ -98,10 +106,6 @@ async function write(
   }
   const queueEdits = queueBehaviour(form);
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
-  const { scouts } = await readScouts(deps.vaultPath);
-  const names = await listScoutsFolder(deps.vaultPath);
-  const before =
-    form.id === undefined ? undefined : fileOf(scouts, form.id, names);
 
   let doc: Document;
   let id: string;
@@ -156,7 +160,7 @@ async function write(
     if (value === null) doc.delete(key);
     else doc.set(key, value);
   }
-  if (!watched) {
+  if (!watched && !tagged) {
     if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
     else doc.set("filter", { query });
   }
@@ -180,6 +184,7 @@ async function write(
   const edited =
     before !== undefined &&
     !watched &&
+    !tagged &&
     before.scout.query !== query &&
     !before.scout.paused;
   return { id, runAfter: edited };

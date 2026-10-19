@@ -81,6 +81,15 @@ export type Sidecar = {
   /** The per-Source `^h` counter: never reused, not even after removal. */
   next_block: number;
   annotations: SidecarAnnotation[];
+  /**
+   * The keywords printed under the abstract on the PDF's first pages, as
+   * printed (ADR 0018 decision 3; read by the Lexicon as author keywords).
+   * Absent: this PDF has not been read for them, which is how Ingest finds
+   * the sidecars written before they existed. Present and empty: read, none
+   * found. Replaced wholesale whenever the PDF changes, so a vanished line
+   * leaves nothing behind. Never copied into the Source's frontmatter.
+   */
+  keywords?: string[];
   /** Read by *relink* (the Unmatched row, #421). */
   held?: HeldAnnotation[];
   /**

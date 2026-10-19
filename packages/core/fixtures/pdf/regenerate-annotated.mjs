@@ -89,6 +89,21 @@ const BODIES = {
       "Keepers logged storms alongside routine repairs.",
     ],
   ],
+  // The keyword line (#681): `synthetic-body`'s first page unchanged, then a
+  // blank slot, an abstract-style keyword line that wraps at a hyphen, a
+  // blank slot and a numbered heading. Appended below the existing lines so
+  // the same annotations land on the same text as in `annotated.pdf`.
+  "synthetic-keywords.pdf": [
+    [
+      ...PAGES[0],
+      "",
+      "Keywords: sleep spindles; odor cue; memory consol-",
+      "idation, slow wave sleep",
+      "",
+      "1 Introduction",
+    ],
+    PAGES[1],
+  ],
   "synthetic-twins.pdf": [
     [
       "Twin sentence here.",
@@ -164,6 +179,9 @@ const specs = {
     { kind: "highlight", phrase: "Another line follows here for a highlight" },
   ],
 };
+// The same annotations on the body with a keyword line (#681), so a run of
+// it can be compared with `annotated.pdf` for counts and matching.
+specs["annotated-keywords.pdf"] = specs["annotated.pdf"];
 
 // What a re-save and the ordinary edits to an annotated file look like once
 // PDFKit has written them (spec #416 story 34–39). Each starts from another
@@ -344,10 +362,22 @@ const run = (base, name, spec) => {
   writeFileSync(json, JSON.stringify(spec));
   execFileSync("swift", [swift, join(here, base), join(here, name), json]);
 };
+// `ONLY=a.pdf,b.pdf` regenerates just those: a PDFKit save mints a new
+// document id, so rerunning everything churns every committed fixture.
+const only = process.env.ONLY?.split(",");
+const wanted = (name) => only === undefined || only.includes(name);
 for (const [name, spec] of Object.entries(specs)) {
-  run("synthetic-body.pdf", name, spec);
+  if (!wanted(name)) continue;
+  run(
+    name === "annotated-keywords.pdf"
+      ? "synthetic-keywords.pdf"
+      : "synthetic-body.pdf",
+    name,
+    spec
+  );
 }
 // In order: `twins-resaved` starts from `twins`.
 for (const [name, { base, ops }] of Object.entries(derived)) {
+  if (!wanted(name)) continue;
   run(base, name, ops);
 }
