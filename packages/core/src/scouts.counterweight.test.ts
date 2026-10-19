@@ -155,11 +155,11 @@ describe("the counterweight slot and the cap", () => {
   ].join("\n")}
 </feed>`;
 
-  async function capped(fourth = KNOWN) {
+  async function capped(fourth = KNOWN, cap = 2) {
     const feed = feedOf(fourth);
     const q = await openedWithQueue(
       {
-        "a.yaml": arxivScout("a") + "cap: 2\n",
+        "a.yaml": arxivScout("a") + `cap: ${cap}\n`,
         "b.yaml": arxivScout("b"),
       },
       {},
@@ -226,6 +226,15 @@ describe("the counterweight slot and the cap", () => {
 
     // Paper 4 was kept, is now corroborated and from a stranger: it is the slot.
     expect(q.states().filter((p) => p.state === "capped")).toHaveLength(2);
+  });
+
+  it("does not release a paper only its own Scout has found again", async () => {
+    const q = await capped("D. Four", 1);
+    await q.run("a");
+
+    await q.run("a");
+
+    expect(q.states().filter((p) => p.state === "capped")).toHaveLength(3);
   });
 
   it("leaves a capped paper capped when the Scout is below the floor", async () => {
