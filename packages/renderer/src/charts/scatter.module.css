@@ -1,0 +1,78 @@
+/* The scatter's hue lives here and nowhere else: the component names a class
+   and this file binds it to a token, so the cascade gives it every theme
+   (ADR 0041 decision 12). A point is the surface ringed in the series hue and
+   its count rides on the surface, so the number is read against the same
+   background in both themes whatever the hue does. */
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.svg {
+  width: 100%;
+  /* The viewBox's own size, so the 11px text stays 11px rather than scaling with the pane. */
+  max-width: 640px;
+  height: auto;
+  display: block;
+  font-family: var(--font-mono);
+}
+
+.svg:focus-visible {
+  outline: none;
+}
+
+.axis {
+  stroke: var(--color-fg-muted);
+  stroke-width: 1;
+}
+
+.cross {
+  stroke: var(--color-fg-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.axisName,
+.quadrant {
+  fill: var(--color-fg-muted);
+  font-size: 11px;
+}
+
+.quadrant {
+  font-style: italic;
+}
+
+.point circle {
+  fill: var(--color-bg-surface);
+  stroke: var(--color-series-1);
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+.count {
+  fill: var(--color-fg);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.name {
+  fill: var(--color-fg-secondary);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.active circle,
+.open circle {
+  stroke: var(--color-fg);
+  stroke-width: 3;
+}
+
+.caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

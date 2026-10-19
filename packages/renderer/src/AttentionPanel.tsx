@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { AttentionTag, LexiconView, SyncResult } from "core";
+import { Scatter, growthOf } from "./charts/scatter";
 import { FirstSlot } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./AttentionPanel.module.css";
@@ -55,7 +56,13 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
     );
   }
   if (attention.data === undefined) return null;
-  const { tags, sources } = attention.data;
+  const { tags, sources, crossing } = attention.data;
+  const measured = tags.filter((t) => t.state === "measured");
+  // Unplaced is a Tag the chart cannot honestly plot, never a Tag plotted low
+  // (ADR 0045 decision 5), so it is listed beside the chart as a chip with
+  // its reason and is not a point.
+  const unplaced = tags.filter((t) => t.state === "unplaced");
+  const listed = tags.filter((t) => t.state !== "unplaced");
 
   return (
     <section className={styles.panel} aria-labelledby="attention-title">
@@ -115,17 +122,40 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         />
       ) : (
         <div className={styles.body}>
-          <ul className={styles.list}>
-            {tags.map((tag) => (
-              <li key={tag.tag}>
-                <TagButton
-                  tag={tag}
-                  pressed={tag.tag === chosen}
-                  onChoose={() => setChosen(tag.tag)}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className={styles.beside}>
+            <Scatter
+              tags={measured}
+              crossing={crossing}
+              chosen={chosen}
+              onChoose={setChosen}
+            />
+            {listed.length > 0 && (
+              <ul className={styles.list} aria-label="Tags">
+                {listed.map((tag) => (
+                  <li key={tag.tag}>
+                    <TagButton
+                      tag={tag}
+                      pressed={tag.tag === chosen}
+                      onChoose={() => setChosen(tag.tag)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {unplaced.length > 0 && (
+              <ul className={styles.chips} aria-label="Unplaced">
+                {unplaced.map((tag) => (
+                  <li key={tag.tag}>
+                    <TagButton
+                      tag={tag}
+                      pressed={tag.tag === chosen}
+                      onChoose={() => setChosen(tag.tag)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           {chosen !== undefined && <Editor tag={chosen} depth={depth} />}
         </div>
       )}
@@ -146,11 +176,6 @@ function asOfLine(asOf: string | null, synced: boolean) {
   if (asOf !== null) return `as of ${asOf.slice(0, 10)}`;
   return synced ? "nothing measured yet" : "nothing synced";
 }
-
-const growthOf = (growth: number) => {
-  const percent = Math.round(growth * 100);
-  return `${percent < 0 ? "\u2212" : "+"}${Math.abs(percent)}%`;
-};
 
 const FAILURE = {
   network: "OpenAlex could not be reached",
