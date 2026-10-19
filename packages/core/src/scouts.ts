@@ -614,7 +614,7 @@ async function readCards(
     "SELECT action, at FROM triage WHERE proposal_id = ? AND action IN ('promote', 'demote', 'raise') ORDER BY rowid DESC LIMIT 1"
   );
   const raiseBy = queue.prepare(
-    "SELECT scout_id FROM appearances WHERE proposal_id = ? AND seen_at = ? LIMIT 1"
+    "SELECT scout_id FROM appearances WHERE proposal_id = ? AND seen_at = ? AND scout_id <> ? ORDER BY rowid LIMIT 1"
   );
   return rows.map((row) => {
     const appearances = seen.all(row.id) as Array<{
@@ -639,9 +639,16 @@ async function readCards(
     }
     // The last move stands only while the card is still in the Lane it moved
     // it to: a demoted card promoted or undone back is simply in Review.
-    const last = (lastMove.get(row.id) as { action: string } | undefined)
-      ?.action;
-    const raiser = scoutIds[1];
+    const move = lastMove.get(row.id) as
+      { action: string; at: string } | undefined;
+    const last = move?.action;
+    // The Scout whose Appearance raised it is the one written at the raise's
+    // own time (`arrive` stamps both alike) other than the Scout that placed
+    // it, not merely the second to find it.
+    const raiser = (
+      raiseBy.get(row.id, move?.at ?? "", scoutIds[0] ?? "") as
+        { scout_id: string } | undefined
+    )?.scout_id;
     const moved: LaneMove | null =
       last === "demote" && row.lane === "skim"
         ? { kind: "demoted" }
