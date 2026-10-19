@@ -192,6 +192,7 @@ export { MAP_COLUMNS, MAP_ROWS } from "./question-map.js";
 export type {
   Attention,
   AttentionTag,
+  Crossing,
   LexiconView,
   SyncResult,
   Term,
