@@ -31,7 +31,9 @@ import { wikilinkTo } from "./link-text.js";
 import {
   acceptCounts,
   acceptSince,
+  firstAppearanceScout,
   HISTORY_FLOOR,
+  type AcceptCounts,
   inTransaction,
   returnDeferred,
 } from "./triage.js";
@@ -383,6 +385,10 @@ function arrive(
   let fresh = 0;
   let held = 0;
   const placed: Array<{ id: number; authors: string[] }> = [];
+  const wasCapped = queue.prepare(
+    "SELECT 1 FROM proposals WHERE id = ? AND state = 'capped'"
+  );
+  const revisited: number[] = [];
   for (const item of items) {
     const key = item.key;
     let id = (known.get(key) as { id: number } | undefined)?.id;
@@ -423,6 +429,9 @@ function arrive(
       raise.run(id);
       logRaise.run(id, at);
     }
+    if ((wasCapped.get(id) as object | undefined) !== undefined) {
+      revisited.push(id);
+    }
     appear.run(id, runId, scout.id, at, item.url);
   }
   // A line a rule holds is not weighed: it would take a slot from a card the
@@ -434,6 +443,7 @@ function arrive(
     scout,
     placed.filter((p) => !nowMuted.has(p.id))
   );
+  releaseCounterweight(deps, revisited);
   return { new: fresh, held };
 }
 
@@ -461,12 +471,7 @@ function applyCap(
   const counts = acceptCounts(deps.queue, acceptSince(deps.now())).find(
     (c) => c.scoutId === scout.id
   );
-  if (
-    counts === undefined ||
-    counts.accepted + counts.rejected < HISTORY_FLOOR
-  ) {
-    return;
-  }
+  if (!floorMet(counts)) return;
   const accepted = acceptedAuthors(deps.index);
   const known = (authors: string[]) =>
     authors.filter((name) => accepted.has(authorKey(name))).length;
@@ -478,6 +483,74 @@ function applyCap(
     "UPDATE proposals SET state = 'capped' WHERE id = ?"
   );
   for (const { id } of cut) park.run(id);
+}
+
+/** The one floor for "enough history" (ADR 0044 decision 6): the Cap and the counterweight slot both wait for it. */
+function floorMet(counts: AcceptCounts | undefined): boolean {
+  return (
+    counts !== undefined && counts.accepted + counts.rejected >= HISTORY_FLOOR
+  );
+}
+
+/** The Scouts that have reached the floor, by id. */
+function scoutsWithHistory(deps: ScoutDeps): Set<string> {
+  return new Set(
+    acceptCounts(deps.queue, acceptSince(deps.now()))
+      .filter(floorMet)
+      .map((c) => c.scoutId)
+  );
+}
+
+/**
+ * The counterweight slot is exempt from the Cap (ADR 0044 decision 7), but a
+ * Proposal is never corroborated on the run that cut it: it arrives with one
+ * Appearance. The exemption therefore bites when a second Scout later finds a
+ * capped one. Give back the newest of those that qualify, and only when the
+ * group has no qualifying card in the stack already — the slot is one card,
+ * so the cap still holds everything else. The newest-first pick matches the
+ * stack's own tie-break; Assigned Questions are not weighed here.
+ */
+function releaseCounterweight(deps: ScoutDeps, revisited: number[]): void {
+  if (revisited.length === 0) return;
+  const { queue } = deps;
+  const ready = scoutsWithHistory(deps);
+  const accepted = acceptedAuthors(deps.index);
+  // The same rule as `reserveCounterweight`'s pick, read from rows instead of
+  // cards: keep the two in step.
+  const qualifies = (authors: string, scouts: number) =>
+    scouts >= 2 &&
+    !(JSON.parse(authors) as string[]).some((name) =>
+      accepted.has(authorKey(name))
+    );
+  type Row = { id: number; authors: string; scouts: number; grp: string };
+  const read = (
+    state: string,
+    where: string,
+    ...args: Array<string | number>
+  ) =>
+    queue
+      .prepare(
+        `SELECT p.id, p.authors, ${firstAppearanceScout("p.id")} AS grp,
+                (SELECT COUNT(DISTINCT scout_id) FROM appearances WHERE proposal_id = p.id) AS scouts
+           FROM proposals p WHERE p.state = '${state}' AND p.lane = 'review' AND ${where}
+          ORDER BY p.id DESC`
+      )
+      .all(...args) as Row[];
+  const marks = revisited.map(() => "?").join(",");
+  const release = queue.prepare(
+    "UPDATE proposals SET state = 'pending' WHERE id = ?"
+  );
+  for (const row of read("capped", `p.id IN (${marks})`, ...revisited)) {
+    if (!ready.has(row.grp)) continue;
+    if (!qualifies(row.authors, row.scouts)) continue;
+    const inStack = read(
+      "pending",
+      `${firstAppearanceScout("p.id")} = ?`,
+      row.grp
+    );
+    if (inStack.some((p) => qualifies(p.authors, p.scouts))) continue;
+    release.run(row.id);
+  }
 }
 
 /**
@@ -569,6 +642,12 @@ export type Card = {
    * triaged like any card; aging moves no Lane. Always false in Skim.
    */
   pastWindow: boolean;
+  /**
+   * The counterweight slot's card (ADR 0044 decision 7): the Queue drew it
+   * second in its Scout's group and says *outside the usual*. False for every
+   * other card, and for all of them when nothing qualifies.
+   */
+  counterweight: boolean;
 };
 
 export type LaneMove =
@@ -613,10 +692,41 @@ export async function readQueue(
     sort === "newest" ? cards : cards.sort((a, b) => byRank(b, a));
   // The digest sits after every live card whichever sort is chosen, so aging
   // is a place in the stack and never a verdict on the card (ADR 0044 d.3).
-  return [
-    ...ordered.filter((card) => !card.pastWindow),
-    ...ordered.filter((card) => card.pastWindow),
-  ];
+  const live = ordered.filter((card) => !card.pastWindow);
+  // Newest is the researcher asking for date order; the slot is a Rank
+  // placement and would only break it.
+  if (sort === "rank") reserveCounterweight(deps, live);
+  return [...live, ...ordered.filter((card) => card.pastWindow)];
+}
+
+/**
+ * Mark and place each Scout group's counterweight (ADR 0044 decision 7): the
+ * first card in rank order that two or more Scouts found and none of whose
+ * authors has accepted work, lifted to second in its group's stack. A card
+ * that already ranks in the top two stays where it is — the slot guarantees
+ * a place, it never pushes a better-ranked card down. Nothing qualifying
+ * leaves the group untouched; the slot is never filled with filler. The
+ * group is the Scout that first found the card, as in the Queue's own
+ * grouping, and it must have the shared floor of triage history.
+ */
+function reserveCounterweight(deps: ScoutDeps, stack: Card[]): void {
+  const ready = scoutsWithHistory(deps);
+  const groupOf = (card: Card) => card.scouts[0]?.id ?? "";
+  for (const group of new Set(stack.map(groupOf))) {
+    if (!ready.has(group)) continue;
+    const members = stack.filter((card) => groupOf(card) === group);
+    const pick = members.find(
+      (card) =>
+        card.signals.some((s) => s.kind === "corroboration") &&
+        !card.signals.some((s) => s.kind === "authors")
+    );
+    if (pick === undefined) continue;
+    pick.counterweight = true;
+    const second = members[1];
+    if (second === undefined) continue;
+    stack.splice(stack.indexOf(pick), 1);
+    stack.splice(stack.indexOf(second), 0, pick);
+  }
 }
 
 /**
@@ -803,6 +913,7 @@ async function readCards(
       signals,
       moved,
       pastWindow: old.has(row.id),
+      counterweight: false,
       id: row.id,
       title: row.title,
       authors,

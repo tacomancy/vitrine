@@ -19,7 +19,7 @@ export type Route =
   | { surface: "loose-ends" }
   | { surface: "question-map" }
   | { surface: "scout-activity" }
-  | { surface: "scouts"; scout?: string }
+  | { surface: "scouts"; scout?: string; view?: "muted" }
   | { surface: "settings"; section?: "credentials" };
 
 /**
@@ -60,6 +60,8 @@ export const scoutStack = (scout: string): Route => ({
   surface: "scouts",
   scout,
 });
+/** The Queue opened on its muted list, where Scout Activity's *N muted* leads (#649). Vault-wide, as the rules are, so it names no Scout. */
+export const MUTED_LIST: Route = { surface: "scouts", view: "muted" };
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -103,9 +105,11 @@ export function hashOf(route: Route): string {
         ? "#/settings/credentials"
         : "#/settings";
     case "scouts":
-      return route.scout === undefined
-        ? "#/scouts"
-        : `#/scouts?scout=${encodeURIComponent(route.scout)}`;
+      return route.view === "muted"
+        ? "#/scouts?view=muted"
+        : route.scout === undefined
+          ? "#/scouts"
+          : `#/scouts?scout=${encodeURIComponent(route.scout)}`;
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
@@ -193,9 +197,9 @@ function parseHash(hash: string): Route {
   if (hash === "#/settings/credentials") return SETTINGS_CREDENTIALS;
   if (hash === "#/scouts") return SCOUTS;
   if (hash.startsWith("#/scouts?")) {
-    const scout = new URLSearchParams(hash.slice("#/scouts?".length)).get(
-      "scout"
-    );
+    const params = new URLSearchParams(hash.slice("#/scouts?".length));
+    if (params.get("view") === "muted") return MUTED_LIST;
+    const scout = params.get("scout");
     return scout === null || scout === "" ? SCOUTS : scoutStack(scout);
   }
   const question = pathUnder(hash, QUESTION);

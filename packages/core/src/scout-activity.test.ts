@@ -151,7 +151,13 @@ describe("scouts.activity — a row for each readable Scout", () => {
           median: null,
           oldest: null,
         },
-        volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+        volume: {
+          proposals: 0,
+          held: 0,
+          alsoFoundElsewhere: 0,
+          belowCap: 0,
+          muted: 0,
+        },
         cost: { kind: "no model call" },
       },
     ]);
