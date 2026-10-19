@@ -11,6 +11,7 @@ import {
   recordConsent,
   recordMeasurement,
 } from "./measurements.js";
+import { readEdits } from "./lexicon-edits.js";
 import { OpenAlexError, type OpenAlexClient } from "./openalex.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -61,9 +62,12 @@ export async function syncLexicons(deps: {
 
   const store = first.measurements;
   const months = completeMonths(now);
-  const due = attention(index, store).tags.flatMap((t) => {
+  // The Seeds and Exclusions are part of what a Tag is measured as: without
+  // them the query sent would not be the one the editor shows (#652).
+  const edits = await readEdits(vaultPath);
+  const due = attention(index, store, undefined, edits).tags.flatMap((t) => {
     if (t.reason === "few-papers") return [];
-    const view = lexiconOf(index, store, t.tag);
+    const view = lexiconOf(index, store, t.tag, undefined, edits);
     if (view.query === null) return [];
     const have = store.measurements.find((m) => m.tag === t.tag);
     const fresh =

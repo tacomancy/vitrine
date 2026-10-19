@@ -71,6 +71,9 @@ export function normalisePhrase(text: string): string | null {
     : words.join(" ");
 }
 
+/** How many words a typed phrase has once folded: 0 is empty, over three is too long. */
+export const wordCount = (text: string): number => segments(text).flat().length;
+
 /** The abstract of a Source or stub: the `> ` quoted lines of its body, unescaped. */
 export function abstractOf(body: string): string {
   return body
