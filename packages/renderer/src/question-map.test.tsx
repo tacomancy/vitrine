@@ -48,6 +48,7 @@ const NO_ATTENTION: Attention = {
   asOf: null,
   synced: false,
   due: 0,
+  measuring: null,
   tags: [],
   crossing: null,
 };
@@ -693,6 +694,7 @@ const tag = (
   measuredAt: null,
   pending: false,
   query: placed ? 'filter=title_and_abstract.search:("a")' : null,
+  failure: null,
 });
 
 const ATTENTION: Attention = {
@@ -1173,26 +1175,63 @@ describe("the Attention panel — Sync now", () => {
     ).toBeNull();
   });
 
-  it("says a sync failed, naming the Tag and the kind, and a rate limit with how many wait", async () => {
+  it("says which Tag failed and why from what is stored, in a status and not an alert, and keeps its old growth and date", async () => {
     open({
-      "questionMap.attention": SYNCED,
-      "lexicon.sync": {
-        measured: 1,
-        failed: [
-          { tag: "ml/probing", kind: "network" },
-          { tag: "sleep", kind: "rate_limited" },
+      "questionMap.attention": {
+        ...SYNCED,
+        asOf: "2026-10-09T08:00:00.000Z",
+        tags: [
+          {
+            ...measured("ml/probing", 0.5, "2026-10-09T08:00:00.000Z"),
+            failure: "network",
+          },
         ],
-        waiting: 3,
       },
     });
     const panel = await attentionSlot();
-    fireEvent.click(
-      await within(panel).findByRole("button", { name: "Sync now" })
-    );
-    const line = await within(panel).findByText(/rate limit/i);
+    const line = await within(panel).findByText(/could not be reached/);
+    expect(line.textContent).toMatch(/ml\/probing/);
+    expect(line.getAttribute("role")).toBe("status");
+    expect(within(panel).queryByRole("alert")).toBeNull();
+    expect(panel.textContent).toContain("as of 2026-10-09");
+    expect(
+      within(panel).getByRole("button", { name: /ml\/probing/ }).textContent
+    ).toContain("growth +50%");
+  });
+
+  it("says a rate limit stopped the sync and how many Tags are waiting", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        due: 3,
+        tags: [{ ...tag("sleep", 4), failure: "rate_limited" }],
+      },
+    });
+    const panel = await attentionSlot();
+    const line = await within(panel).findByText(/rate limited/);
+    expect(line.getAttribute("role")).toBe("status");
     expect(line.textContent).toMatch(/3 tags waiting/);
-    expect(panel.textContent).toMatch(/ml\/probing/);
-    expect(panel.textContent).toMatch(/could not be reached/);
+  });
+
+  it("says measuring n of m while a sync runs, and not after", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        due: 2,
+        measuring: { done: 1, of: 3 },
+        tags: [tag("sleep", 4)],
+      },
+    });
+    const panel = await attentionSlot();
+    expect(await within(panel).findByText(/measuring 1 of 3/)).toBeDefined();
+    expect(panel.textContent).not.toMatch(/waiting/);
+  });
+
+  it("does not say measuring when no sync runs", async () => {
+    open({ "questionMap.attention": { ...SYNCED, tags: [tag("sleep", 4)] } });
+    const panel = await attentionSlot();
+    await within(panel).findByRole("button", { name: /sleep/ });
+    expect(panel.textContent).not.toMatch(/measuring/);
   });
 
   it("shows growth for a measured Tag, an as-of date for the oldest measurement, and none for an unmeasured Tag", async () => {

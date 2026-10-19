@@ -72,6 +72,11 @@ export type AttentionTag = Judged & {
   withText: number;
   /** The OpenAlex query the Tag's Terms compile to now; null when it is unplaced or has none. */
   query: string | null;
+  /**
+   * Why the newest attempt to measure it failed, until one succeeds. Its
+   * Measurement, if any, stands as it was, *as of* its old date.
+   */
+  failure: OpenAlexErrorKind | null;
 };
 
 /**
@@ -96,6 +101,8 @@ export type Attention = {
   synced: boolean;
   /** How many of `tags` a sync would measure now (`isDue`): a failed sync leaves them counted, so it never looks like a quiet field. */
   due: number;
+  /** A sync running now: Tags measured so far, of those it set out to; null when none is. In memory only, so a restart shows none. */
+  measuring: { done: number; of: number } | null;
   /** Most papers first, then by name. */
   tags: AttentionTag[];
   /** Where the scatter's axes cross; null while fewer than `QUADRANT_MIN` Tags are placed. */
@@ -325,6 +332,7 @@ export function attention(
       papers: held.size,
       withText,
       query,
+      failure: store.failures.find((f) => f.tag === tag)?.kind ?? null,
       ...judge(placed, measurementOf(store, tag), query),
     };
   });
@@ -342,6 +350,7 @@ export function attention(
     asOf: dates[0] ?? null,
     synced: store.consentedAt !== null,
     due: tags.filter((t) => isDue(t, now)).length,
+    measuring: null,
     tags,
     crossing: crossingOf(tags),
   };

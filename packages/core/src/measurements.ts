@@ -2,6 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
+import type { OpenAlexErrorKind } from "./openalex.js";
 import { serialised } from "./serialise.js";
 
 /**
@@ -25,6 +26,9 @@ export type Measurement = {
   measuredAt: string;
 };
 
+/** Why a Tag's last attempt to measure failed; its Measurement is untouched. */
+export type Failure = { tag: string; kind: OpenAlexErrorKind; at: string };
+
 export type Measurements = {
   /** When *Sync now* was first confirmed; null while the vault has never synced (ADR 0045 decision 4). */
   consentedAt: string | null;
@@ -34,13 +38,25 @@ export type Measurements = {
    */
   depths: number[];
   measurements: Measurement[];
+  /**
+   * The Tags whose newest attempt failed. Stored beside the Measurement they
+   * leave standing, so a failure outlives the sync that saw it — one on open
+   * has no caller to return it to — and a broken sync never looks like a quiet
+   * field. A success for the Tag clears its row.
+   */
+  failures: Failure[];
 };
+
+// A stored kind the panel has no words for would render as nothing, so an
+// unknown one is dropped like any other malformed row.
+const KINDS: OpenAlexErrorKind[] = ["network", "http", "rate_limited", "parse"];
 
 const FILE = ".vitrine/measurements.json";
 export const NONE: Measurements = {
   consentedAt: null,
   depths: [],
   measurements: [],
+  failures: [],
 };
 
 export type ReadMeasurements = {
@@ -77,6 +93,14 @@ export async function readMeasurements(
         consentedAt,
         depths,
         measurements: list.filter(wellFormed),
+        failures: Array.isArray(parsed.failures)
+          ? parsed.failures.filter(
+              (f): f is Failure =>
+                typeof f?.tag === "string" &&
+                KINDS.includes(f?.kind) &&
+                typeof f?.at === "string"
+            )
+          : [],
       },
       problem: null,
     };
@@ -137,6 +161,18 @@ export function recordMeasurement(
       ...m.measurements.filter((x) => x.tag !== measurement.tag),
       measurement,
     ],
+    failures: m.failures.filter((x) => x.tag !== measurement.tag),
+  }));
+}
+
+/** Note that the Tag could not be measured, keeping whatever it was last measured as. */
+export function recordFailure(
+  vaultPath: string,
+  failure: Failure
+): Promise<void> {
+  return change(vaultPath, (m) => ({
+    ...m,
+    failures: [...m.failures.filter((x) => x.tag !== failure.tag), failure],
   }));
 }
 
