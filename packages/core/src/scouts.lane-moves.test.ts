@@ -235,6 +235,20 @@ describe("raise", () => {
     });
   });
 
+  it("does not raise a muted line, so deleting the rule returns it to Skim with no raise row", async () => {
+    const s = await twoScouts();
+    await s.run("quiet");
+    const [held] = await s.skim();
+    const rule = { kind: "keyword", value: held!.title };
+    expect((await s.c.mutate("scouts.mute", rule)).error).toBeUndefined();
+
+    await s.run("loud");
+    expect((await s.c.mutate("scouts.unmute", rule)).error).toBeUndefined();
+
+    expect((await s.queue()).map((c) => c.id)).not.toContain(held!.id);
+    expect((await s.skim()).map((c) => c.id)).toContain(held!.id);
+  });
+
   it("does not raise on the same Scout finding it again, nor leave Skim for a Review card", async () => {
     const s = await twoScouts();
     await s.run("quiet");

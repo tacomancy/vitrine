@@ -18,6 +18,12 @@ import {
   scoutIdOf,
   type Scout,
 } from "./scout-file.js";
+import {
+  applied as mutedBy,
+  readMutes,
+  readMuteState,
+  type MuteRule,
+} from "./mutes.js";
 import { pastWindowIds, windowsOf } from "./review-depth.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
@@ -144,8 +150,12 @@ export async function runScout(
         : await readArxiv(arxiv, scout.query, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
+    // Read before the transaction: it is async, and a muted line must not be
+    // raised by a second Scout (that would write a row for an item no one
+    // is shown).
+    const { rules } = await readMutes(deps.vaultPath);
     const arrived = inTransaction(queue, () => {
-      const arrived = arrive(deps, scout, runId, read.items);
+      const arrived = arrive(deps, scout, runId, read.items, rules);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
       returnDeferred(deps, scout.id);
       return arrived;
@@ -345,8 +355,10 @@ function arrive(
   deps: ScoutDeps,
   scout: Scout,
   runId: number,
-  items: Arrival[]
+  items: Arrival[],
+  rules: MuteRule[]
 ): { new: number; held: number } {
+  const muted = mutedBy(deps.queue, rules);
   const { queue } = deps;
   const at = iso(deps.now());
   const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
@@ -410,6 +422,7 @@ function arrive(
     // another Scout was already there.
     if (
       id !== undefined &&
+      !muted.has(id) &&
       (isSkimPending.get(id) as object | undefined) !== undefined &&
       (otherScout.get(id, scout.id) as object | undefined) !== undefined
     ) {
@@ -421,7 +434,15 @@ function arrive(
     }
     appear.run(id, runId, scout.id, at, item.url);
   }
-  applyCap(deps, scout, placed);
+  // A line a rule holds is not weighed: it would take a slot from a card the
+  // researcher is shown, and a Mute rule counts toward no Cap (ADR 0044 d.4).
+  // Read again because this run's own arrivals are new rows.
+  const nowMuted = mutedBy(deps.queue, rules);
+  applyCap(
+    deps,
+    scout,
+    placed.filter((p) => !nowMuted.has(p.id))
+  );
   releaseCounterweight(deps, revisited);
   return { new: fresh, held };
 }
@@ -708,6 +729,50 @@ function reserveCounterweight(deps: ScoutDeps, stack: Card[]): void {
   }
 }
 
+/**
+ * One Question's group in *group by Question*, or *Unassigned* when `question`
+ * is null (ADR 0044 decision 10). Only groups that hold something are listed.
+ * A paper found by Scouts with different Questions is in each of their groups,
+ * so these lists overlap by design; the ids are the one set the window acts on
+ * for *reject group* and *defer group*.
+ */
+export type QuestionGroup = {
+  question: { id: string; name: string } | null;
+  proposalIds: number[];
+};
+
+export async function readQuestionGroups(
+  deps: ScoutDeps
+): Promise<QuestionGroup[]> {
+  const byQuestion = new Map<string, QuestionGroup>();
+  const unassigned: number[] = [];
+  // Read from the pending stack, so a card acted on is in no group at all:
+  // there is no per-group copy of it to forget to remove.
+  for (const card of await readQueue(deps)) {
+    const assigned = card.scouts.flatMap((scout) => scout.assigned);
+    if (assigned.length === 0) unassigned.push(card.id);
+    for (const q of assigned) {
+      const group = byQuestion.get(q.id) ?? {
+        question: { id: q.id, name: q.name ?? q.id },
+        proposalIds: [],
+      };
+      if (!group.proposalIds.includes(card.id)) group.proposalIds.push(card.id);
+      byQuestion.set(q.id, group);
+    }
+  }
+  return [
+    // By name, so the rail does not reorder with whichever Scout found a paper.
+    ...[...byQuestion.values()].sort(
+      (a, b) =>
+        a.question!.name.localeCompare(b.question!.name) ||
+        a.question!.id.localeCompare(b.question!.id)
+    ),
+    ...(unassigned.length === 0
+      ? []
+      : [{ question: null, proposalIds: unassigned }]),
+  ];
+}
+
 /** The order of this tuple is the precedence of Rank (ADR 0044 decision 2): accepted-work authors, then Corroboration, then Assigned Questions. */
 function rankTuple(card: Card): [number, number, number] {
   let authors = 0;
@@ -780,11 +845,17 @@ async function readCards(
     lane === "review"
       ? pastWindowIds(queue, deps.now(), windowsOf([...scouts, ...dropped]))
       : new Set<number>();
-  const rows = queue
-    .prepare(
-      "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
-    )
-    .all(lane) as ProposalRow[];
+  // A muted Proposal is not in the stack and so is not ranked, aged or
+  // counted as a second Scout's find; it is held by a rule, not marked
+  // (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
+  const rows = (
+    queue
+      .prepare(
+        "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
+      )
+      .all(lane) as ProposalRow[]
+  ).filter((row) => !caught.has(row.id));
   const seen = queue.prepare(
     `SELECT DISTINCT a.scout_id, a.run_id, r.retroactive FROM appearances a
        JOIN scout_runs r ON r.id = a.run_id

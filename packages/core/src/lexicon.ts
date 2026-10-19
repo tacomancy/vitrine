@@ -2,6 +2,7 @@ import { NO_EDITS, type LexiconEdits } from "./lexicon-edits.js";
 import { normalisePhrase } from "./lexicon-phrases.js";
 import { compileOpenAlexQuery, type OpenAlexErrorKind } from "./openalex.js";
 import {
+  NONE,
   yearCounts,
   type Measurement,
   type Measurements,
@@ -35,6 +36,7 @@ export const FIELD_FLOOR = 50;
 export const MEASURED_MONTHS = 24;
 /** A Measurement older than this is due again at the next *Sync now*. */
 export const STALE_DAYS = 7;
+const DAY_MS = 86_400_000;
 
 /** A median of two is not a split: under this many placed Tags no quadrant is drawn. */
 export const QUADRANT_MIN = 4;
@@ -51,6 +53,13 @@ export type Judged = {
   /** The field's works in the last 12 complete months and the 12 before; null until measured. */
   counts: { last12: number; prior12: number } | null;
   measuredAt: string | null;
+  /**
+   * Re-measure pending: the Tag's current compiled query is not the one its
+   * newest Measurement was made with, so its point is the old one (ADR 0018
+   * decision 7). Derived from the two queries on every read, never set, so it
+   * clears the moment a sync stores a Measurement under the current query.
+   */
+  pending: boolean;
 };
 
 export type AttentionTag = Judged & {
@@ -61,6 +70,19 @@ export type AttentionTag = Judged & {
   papers: number;
   /** Of those, the ones with title or abstract text to derive from. */
   withText: number;
+  /** The OpenAlex query the Tag's Terms compile to now; null when it is unplaced or has none. */
+  query: string | null;
+};
+
+/**
+ * Whether a sync would measure the Tag: it was never measured, its query
+ * changed, or it was measured more than `STALE_DAYS` ago. A Tag with too few
+ * papers has no Lexicon to send, and one with no query has nothing to ask.
+ */
+export const isDue = (tag: AttentionTag, now: Date): boolean => {
+  if (tag.reason === "few-papers" || tag.query === null) return false;
+  if (tag.measuredAt === null || tag.pending) return true;
+  return now.getTime() - Date.parse(tag.measuredAt) > STALE_DAYS * DAY_MS;
 };
 
 export type Attention = {
@@ -72,6 +94,8 @@ export type Attention = {
   asOf: string | null;
   /** Whether *Sync now* has ever been confirmed; until it has, no request is made. */
   synced: boolean;
+  /** How many of `tags` a sync would measure now (`isDue`): a failed sync leaves them counted, so it never looks like a quiet field. */
+  due: number;
   /** Most papers first, then by name. */
   tags: AttentionTag[];
   /** Where the scatter's axes cross; null while fewer than `QUADRANT_MIN` Tags are placed. */
@@ -101,6 +125,8 @@ export type LexiconView = {
   /** What the field measured at, for a Tag judged on it. */
   counts: Judged["counts"];
   measuredAt: string | null;
+  /** The Tag's old point stands until the next sync (`Judged.pending`). */
+  pending: boolean;
   terms: Term[];
   notUsed: Term[];
   /** Terms the user Excluded for this Tag, so each can be restored. */
@@ -207,7 +233,11 @@ function papersByTag(
  * can change without a re-fetch (ADR 0045 decision 1). Too few of the
  * vault's own papers outranks anything measured: the Lexicon is not there.
  */
-function judge(placed: boolean, measurement: Measurement | undefined): Judged {
+function judge(
+  placed: boolean,
+  measurement: Measurement | undefined,
+  query: string | null
+): Judged {
   if (!placed) {
     return {
       state: "unplaced",
@@ -215,6 +245,7 @@ function judge(placed: boolean, measurement: Measurement | undefined): Judged {
       growth: null,
       counts: null,
       measuredAt: null,
+      pending: false,
     };
   }
   if (measurement === undefined) {
@@ -224,10 +255,16 @@ function judge(placed: boolean, measurement: Measurement | undefined): Judged {
       growth: null,
       counts: null,
       measuredAt: null,
+      pending: false,
     };
   }
   const counts = yearCounts(measurement);
   const measuredAt = measurement.measuredAt;
+  // The query is compared as stored, character for character: the compiler
+  // is the one place that knows which differences matter.
+  // A Tag left with no Terms has nothing to re-measure, so it cannot be
+  // pending: no sync would ever clear the mark.
+  const pending = query !== null && measurement.query !== query;
   if (counts.prior12 < FIELD_FLOOR) {
     return {
       state: "unplaced",
@@ -235,6 +272,7 @@ function judge(placed: boolean, measurement: Measurement | undefined): Judged {
       growth: null,
       counts,
       measuredAt,
+      pending,
     };
   }
   return {
@@ -243,6 +281,7 @@ function judge(placed: boolean, measurement: Measurement | undefined): Judged {
     growth: (counts.last12 - counts.prior12) / counts.prior12,
     counts,
     measuredAt,
+    pending,
   };
 }
 
@@ -252,27 +291,43 @@ const measurementOf = (store: Measurements, tag: string) =>
 export function attention(
   index: VaultIndex,
   store: Measurements,
-  requested?: number,
-  edits: LexiconEdits = {}
+  requested: number | undefined,
+  edits: LexiconEdits,
+  now: Date
 ): Attention {
   const { depth, deepest } = depthFor(index, requested);
   const papers = readPapers(index);
   const displays = tagDisplays(index);
-  const tags = [...papersByTag(index, depth, papers)].map(
-    ([tag, held]): AttentionTag => {
-      const withText = [...held].filter(
-        (p) => papers.get(p)!.text.size > 0
-      ).length;
-      const placed = isPlaced(withText, (edits[tag]?.seeds.length ?? 0) > 0);
-      return {
-        tag,
-        display: displays.get(tag) ?? tag,
-        papers: held.size,
-        withText,
-        ...judge(placed, measurementOf(store, tag)),
-      };
-    }
-  );
+  const byTag = papersByTag(index, depth, papers);
+  const vocabulary = vocabularyOf(papers);
+  const tags = [...byTag].map(([tag, held]): AttentionTag => {
+    const withText = [...held].filter(
+      (p) => papers.get(p)!.text.size > 0
+    ).length;
+    const placed = isPlaced(withText, (edits[tag]?.seeds.length ?? 0) > 0);
+    // What the Tag would be asked as today, which is what a stored
+    // Measurement's query is compared to. Unplaced has no Lexicon to compile.
+    const query = placed
+      ? lexiconAmong(
+          papers,
+          vocabulary,
+          byTag,
+          displays,
+          NONE,
+          tag,
+          depth,
+          edits
+        ).query
+      : null;
+    return {
+      tag,
+      display: displays.get(tag) ?? tag,
+      papers: held.size,
+      withText,
+      query,
+      ...judge(placed, measurementOf(store, tag), query),
+    };
+  });
   tags.sort((a, b) => b.papers - a.papers || byName(a.tag, b.tag));
   // The oldest among the Tags shown, never an average: the picture is as old
   // as its stalest point. A Tag never measured has no date and adds none.
@@ -286,6 +341,7 @@ export function attention(
     sources: papers.size,
     asOf: dates[0] ?? null,
     synced: store.consentedAt !== null,
+    due: tags.filter((t) => isDue(t, now)).length,
     tags,
     crossing: crossingOf(tags),
   };
@@ -333,6 +389,7 @@ export function lexiconOf(
   const papers = readPapers(index);
   return lexiconAmong(
     papers,
+    vocabularyOf(papers),
     papersByTag(index, depth, papers),
     tagDisplays(index),
     store,
@@ -342,9 +399,32 @@ export function lexiconOf(
   );
 }
 
+/** How many papers could hold a phrase at all, and how many do, vault-wide. */
+type Vocabulary = { papers: number; holding: Map<string, number> };
+
+/**
+ * Read once per request, not once per Tag: the rarity of a phrase is a
+ * vault-wide fact, and the panel asks it for every Tag. Papers with no
+ * phrases at all (no title, no abstract) cannot hold any, so they stay out of
+ * the denominator.
+ */
+function vocabularyOf(papers: ReadonlyMap<string, Paper>): Vocabulary {
+  const holding = new Map<string, number>();
+  let counted = 0;
+  for (const paper of papers.values()) {
+    if (paper.text.size === 0 && paper.keywords.size === 0) continue;
+    counted += 1;
+    for (const phrase of new Set([...paper.text.keys(), ...paper.keywords])) {
+      holding.set(phrase, (holding.get(phrase) ?? 0) + 1);
+    }
+  }
+  return { papers: counted, holding };
+}
+
 /** One Tag's Lexicon over papers and Tag sets the caller has already read. */
 function lexiconAmong(
   papers: ReadonlyMap<string, Paper>,
+  vocabulary: Vocabulary,
   byTag: ReadonlyMap<string, ReadonlySet<string>>,
   displays: ReadonlyMap<string, string>,
   store: Measurements,
@@ -369,6 +449,7 @@ function lexiconAmong(
       reason: "few-papers",
       counts: null,
       measuredAt: null,
+      pending: false,
       terms: [],
       notUsed: [],
       excluded: [...excluded],
@@ -378,11 +459,6 @@ function lexiconAmong(
 
   const holds = (paper: Paper, phrase: string) =>
     paper.text.has(phrase) || paper.keywords.has(phrase);
-  // Papers with no phrases at all (no title, no abstract) cannot hold any
-  // phrase, so they stay out of the rarity denominator.
-  const everyPaper = [...papers.values()].filter(
-    (p) => p.text.size > 0 || p.keywords.size > 0
-  );
   const candidates = new Set<string>();
   for (const paper of held) {
     for (const phrase of paper.text.keys()) candidates.add(phrase);
@@ -395,8 +471,7 @@ function lexiconAmong(
     const inTag = held.filter((p) => holds(p, term)).length;
     const authored = held.some((p) => p.keywords.has(term));
     if (inTag < PHRASE_FLOOR && !authored) continue;
-    const vaultWide = everyPaper.filter((p) => holds(p, term)).length;
-    const rarity = Math.log(everyPaper.length / vaultWide);
+    const rarity = Math.log(vocabulary.papers / vocabulary.holding.get(term)!);
     scored.push({
       term,
       origin: authored ? "author keyword" : "derived",
@@ -416,7 +491,9 @@ function lexiconAmong(
     ...derived,
   ];
   const used = new Set(derived.map((t) => t.term));
-  const judged = judge(true, measurementOf(store, tag));
+  const query =
+    inUse.length === 0 ? null : compileOpenAlexQuery(inUse.map((t) => t.term));
+  const judged = judge(true, measurementOf(store, tag), query);
   return {
     ...base,
     // Placed unless the field turned out too thin to measure.
@@ -424,16 +501,14 @@ function lexiconAmong(
     reason: judged.reason,
     counts: judged.counts,
     measuredAt: judged.measuredAt,
+    pending: judged.pending,
     terms: inUse,
     notUsed: scored
       .filter((t) => !used.has(t.term))
       .slice(0, NOT_USED_SHOWN)
       .map(({ term, origin }): Term => ({ term, origin })),
     excluded: [...excluded],
-    query:
-      inUse.length === 0
-        ? null
-        : compileOpenAlexQuery(inUse.map((t) => t.term)),
+    query,
   };
 }
 
@@ -442,7 +517,6 @@ function lexiconAmong(
  * likely to be coincidence as topic.
  */
 const KEYWORD_OVERLAP_TERMS = 2;
-const NO_MEASUREMENTS: Measurements = { consentedAt: null, measurements: [] };
 
 /**
  * Keyword overlap for Candidate links (ADR 0041 decision 9, ADR 0045): reads
@@ -453,6 +527,7 @@ const NO_MEASUREMENTS: Measurements = { consentedAt: null, measurements: [] };
  */
 export function keywordOverlap(index: VaultIndex, edits: LexiconEdits = {}) {
   const papers = readPapers(index);
+  const vocabulary = vocabularyOf(papers);
   const displays = tagDisplays(index);
   const byDepth = new Map<number, Map<string, Set<string>>>();
   const lexicons = new Map<string, Set<string>>();
@@ -468,9 +543,10 @@ export function keywordOverlap(index: VaultIndex, edits: LexiconEdits = {}) {
       // Terms do not depend on a measurement, so none is passed.
       const view = lexiconAmong(
         papers,
+        vocabulary,
         byTag,
         displays,
-        NO_MEASUREMENTS,
+        NONE,
         tag,
         depth,
         edits

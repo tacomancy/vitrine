@@ -13,6 +13,7 @@ import { createAnthropicProvider } from "./model-provider.js";
 import { createProviderSettings } from "./providers.js";
 import type { WatchedDeps } from "./watched.js";
 import { createEvents } from "./events.js";
+import { syncWhenOpened } from "./lexicon-sync.js";
 import { checkDue } from "./scout-schedule.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
@@ -163,7 +164,10 @@ export function createApp({
       events.emit({ type: "vaultSwitched", vault: switched }),
     onPdfFolder: (fault) => events.emit({ type: "pdfFolder", fault }),
     onRunClosed: (run) => events.emit({ type: "scoutFinished", ...run }),
-    onOpened: () => void checkScouts(),
+    onOpened: () => {
+      void checkScouts();
+      void syncLexiconsOnOpen();
+    },
     pdfs,
     ...(author === undefined ? {} : { author }),
     newId: newId ?? randomId,
@@ -236,6 +240,28 @@ export function createApp({
     } catch (cause) {
       console.error(
         `vitrine-core: the Scout check failed: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+    }
+  }
+  // Only a vault that has pressed *Sync now* once is asked for anything, and
+  // only for what is stale, pending or unmeasured (ADR 0045 decision 4). It
+  // waits for a sweep so it reads the papers as they are, not as they were.
+  async function syncLexiconsOnOpen(): Promise<void> {
+    try {
+      const opened = await vault.opened();
+      if (opened === null) return;
+      const result = await syncWhenOpened({
+        indexed: () => opened.index.sweep(),
+        index: opened.index,
+        vaultPath: opened.vault.path,
+        client: context.openalex,
+        now: context.now(),
+      });
+      if (result !== null) events.emit({ type: "lexiconSynced" });
+    } catch (cause) {
+      // The panel's *waiting* count still says what was left undone.
+      console.error(
+        `vitrine-core: the Lexicon sync failed: ${cause instanceof Error ? cause.message : String(cause)}`
       );
     }
   }

@@ -62,7 +62,11 @@ import {
   seedTerm,
 } from "./lexicon-edits.js";
 import { syncLexicons } from "./lexicon-sync.js";
-import { readMeasurements, type Measurements } from "./measurements.js";
+import {
+  readMeasurements,
+  recordViewedDepth,
+  type Measurements,
+} from "./measurements.js";
 import { looseEnds } from "./loose-ends.js";
 import {
   candidateLinks,
@@ -88,6 +92,7 @@ import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
   readQueue,
+  readQuestionGroups,
   readSkim,
   runScout,
   runWaiting,
@@ -106,6 +111,13 @@ import {
   actOnGroup,
   undoBulk,
 } from "./triage.js";
+import {
+  addMute,
+  MUTE_KINDS,
+  muteReach,
+  readMuted,
+  removeMute,
+} from "./mutes.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
@@ -361,6 +373,11 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
   }
 }
 
+const muteInput = z.object({
+  kind: z.enum(MUTE_KINDS),
+  value: z.string(),
+});
+
 /** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
 const providerInput = z.object({ provider: z.literal(ANTHROPIC) });
 
@@ -564,6 +581,27 @@ export const router = t.router({
       .query(async ({ ctx, input }) =>
         refusing(readQueue(await scoutDeps(ctx), input?.sort))
       ),
+    // Mute rules (#646, ADR 0044 decision 4): the file read as found, the
+    // items it holds with the rule that holds each, and what a rule would
+    // catch before it is saved.
+    muted: t.procedure.query(async ({ ctx }) =>
+      refusing(readMuted(await scoutDeps(ctx)))
+    ),
+    muteReach: t.procedure
+      .input(muteInput)
+      .query(async ({ ctx, input }) =>
+        refusing(
+          muteReach(await scoutDeps(ctx), input).then((count) => ({ count }))
+        )
+      ),
+    mute: t.procedure.input(muteInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(addMute(vault.path, input));
+    }),
+    unmute: t.procedure.input(muteInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(removeMute(vault.path, input));
+    }),
     // Skim: the quiet lane, split at 30 days; *to Review* is the one act on it.
     skim: t.procedure.query(async ({ ctx }) =>
       refusing(readSkim(await scoutDeps(ctx)))
@@ -680,6 +718,11 @@ export const router = t.router({
     groups: t.procedure.query(async ({ ctx }) =>
       refusing(readGroups(await scoutDeps(ctx)))
     ),
+    // *Group by Question*: each Assigned Question's pending cards, and
+    // *Unassigned* (#645).
+    questionGroups: t.procedure.query(async ({ ctx }) =>
+      refusing(readQuestionGroups(await scoutDeps(ctx)))
+    ),
     reject: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(({ ctx, input }) =>
@@ -720,7 +763,11 @@ export const router = t.router({
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))
       .mutation(({ ctx, input }) =>
-        triaged(ctx, (deps) => ({ rejected: rejectRun(deps, input.runId) }))
+        refusing(
+          scoutDeps(ctx)
+            .then((deps) => rejectRun(deps, input.runId))
+            .then((rejected) => ({ rejected }))
+        )
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
@@ -1510,12 +1557,21 @@ export const router = t.router({
       .input(z.object({ depth: z.number().int().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const { vault, index } = await requireVault(ctx);
-        return attention(
+        const view = attention(
           index,
           await measurementsOf(vault.path),
           input?.depth,
-          await refusing(readEdits(vault.path))
+          await refusing(readEdits(vault.path)),
+          ctx.now()
         );
+        // The default depth is the deepest (`depthFor`), as the sync's is.
+        // A depth other than the default, once viewed, is measured by every
+        // sync after (ADR 0045 decision 2). Only the number is kept, and it
+        // sends nothing: a vault that never synced makes no request.
+        if (view.depth !== view.deepest) {
+          await refusing(recordViewedDepth(vault.path, view.depth));
+        }
+        return view;
       }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {

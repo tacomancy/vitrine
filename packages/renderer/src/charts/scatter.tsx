@@ -76,8 +76,10 @@ export function Scatter({
     .range([H - PAD.bottom - 36, PAD.top + 36])
     .nice();
   const r = scaleSqrt().domain([0, maxPapers]).range([7, 20]);
+  // The old point is still the plotted one; it is named, so the outline is
+  // never the only thing that says it was measured as something else.
   const labelOf = (t: AttentionTag) =>
-    `${t.display}: ${plural(t.papers, "paper", "papers")}, growth ${growthOf(t.growth!)}`;
+    `${t.display}: ${plural(t.papers, "paper", "papers")}, growth ${growthOf(t.growth!)}${t.pending ? ", re-measure pending" : ""}`;
 
   const onKeyDown = (e: KeyboardEvent) => {
     const last = ordered.length - 1;
@@ -195,7 +197,7 @@ export function Scatter({
             role="option"
             aria-selected={active === i}
             aria-label={labelOf(t)}
-            className={`${styles.point} ${t.tag === chosen ? styles.open : ""} ${active === i ? styles.active : ""}`}
+            className={`${styles.point} ${t.pending ? styles.pending : ""} ${t.tag === chosen ? styles.open : ""} ${active === i ? styles.active : ""}`}
             onClick={() => {
               setActive(i);
               onChoose(t.tag);
@@ -219,6 +221,7 @@ export function Scatter({
               textAnchor="middle"
             >
               {t.display}
+              {t.pending && " · re-measure pending"}
             </text>
           </g>
         ))}
