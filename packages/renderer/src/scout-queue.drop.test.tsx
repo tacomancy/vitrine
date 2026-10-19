@@ -59,6 +59,7 @@ const answers = (
     { id: "blog", runId: 5, runPending: 2, deferred: 0, held: [] },
   ],
   "scouts.health": { scouts: [] },
+  "scouts.muted": { rules: [], problem: null, items: [] },
   "scouts.fleet": { claim: null, naming: [] },
   "scouts.skim": { recent: [], older: [] },
   "questions.list": { questions: [], partial: [], unreadable: [], shape: [] },

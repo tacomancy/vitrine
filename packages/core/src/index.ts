@@ -170,6 +170,7 @@ export type {
   RunSummary,
 } from "./scouts.js";
 export type { AcceptWeek, Group } from "./triage.js";
+export type { MuteKind, MuteRule, Muted, MutedItem } from "./mutes.js";
 export type {
   AcceptRate,
   ActivityRow,

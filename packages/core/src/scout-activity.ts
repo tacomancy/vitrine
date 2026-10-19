@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { coverage as mapCoverage } from "./question-map.js";
+import { readMuteState } from "./mutes.js";
 import { readScouts, type Scout } from "./scout-file.js";
 import { dueUnder } from "./scout-schedule.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -549,9 +550,11 @@ export async function readActivity(deps: {
   const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
+  const { caught } = await readMuteState(deps);
   const depth = reviewDepth(
     deps.queue,
     now,
+    new Set(caught.keys()),
     windowsOf([...scouts, ...dropped])
   );
   const since = thirtyDaysBefore(now);

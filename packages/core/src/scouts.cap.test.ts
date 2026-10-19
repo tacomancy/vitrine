@@ -113,6 +113,20 @@ describe("a Scout's cap", () => {
     expect((await q.group()).capped).toBe(0);
   });
 
+  it("does not weigh an arrival a Mute rule holds, so it takes no slot from the rest", async () => {
+    const q = await opened("2", 5);
+    await q.c.mutate("scouts.mute", { kind: "author", value: "D. Four" });
+
+    await q.run();
+
+    // Paper 4 is muted: the cap keeps the next two, and cuts one.
+    expect((await q.stack()).sort()).toEqual([
+      "Paper 2609.00001",
+      "Paper 2609.00003",
+    ]);
+    expect((await q.group()).capped).toBe(1);
+  });
+
   it("keeps the top N by Rank once the floor is met and stores the rest as capped", async () => {
     const q = await opened("2", 5);
     const before = q.triageRows();

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { VaultError } from "./errors.js";
+import { readMuteState } from "./mutes.js";
 import { readScouts, type Scout } from "./scout-file.js";
 
 /**
@@ -327,8 +328,14 @@ export function showCapped(deps: ScoutDeps, scoutId: string): number {
  * *this run was junk* from a brief that kept missing (ADR 0039 decision 5).
  * One transaction, so a run is rejected whole or not at all.
  */
-export function rejectRun(deps: ScoutDeps, runId: number): number {
+export async function rejectRun(
+  deps: ScoutDeps,
+  runId: number
+): Promise<number> {
   const { queue } = deps;
+  // A muted Proposal is not in the stack the button counts, so it is not
+  // rejected: that would write a verdict nobody gave (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
   const ids = (
     queue
       .prepare(
@@ -336,7 +343,9 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
           WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review' ORDER BY p.id`
       )
       .all(runId) as Array<{ id: number }>
-  ).map((row) => row.id);
+  )
+    .map((row) => row.id)
+    .filter((id) => !caught.has(id));
   const at = stamp(deps);
   inTransaction(queue, () => {
     for (const id of ids) {
@@ -538,6 +547,9 @@ export type Group = {
 export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
   const { queue } = deps;
   const { scouts, dropped } = await readScouts(deps.vaultPath);
+  // What a rule holds is out of the stack, so out of what the group offers to
+  // reject whole or says is waiting (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
   // A dropped Scout's stack is cleared with *reject this run* like any other,
   // so it has a group though the rail does not list it (ADR 0042 decision 1).
   return [...scouts, ...dropped].map((scout) => {
@@ -552,20 +564,20 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
         : (
             queue
               .prepare(
-                `SELECT COUNT(DISTINCT p.id) AS n FROM proposals p JOIN appearances a ON a.proposal_id = p.id
+                `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
                   WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'`
               )
-              .get(run.id) as { n: number }
-          ).n;
+              .all(run.id) as Array<{ id: number }>
+          ).filter((row) => !caught.has(row.id)).length;
     const deferred = (
       queue
         .prepare(
-          `SELECT COUNT(*) AS n FROM proposals
+          `SELECT id FROM proposals
             WHERE state = 'deferred' AND lane = 'review'
               AND ${firstAppearanceScout("proposals.id")} = ?`
         )
-        .get(scout.id) as { n: number }
-    ).n;
+        .all(scout.id) as Array<{ id: number }>
+    ).filter((row) => !caught.has(row.id)).length;
     const capped = (
       queue
         .prepare(
