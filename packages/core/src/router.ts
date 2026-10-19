@@ -1521,6 +1521,7 @@ export const router = t.router({
           await refusing(readEdits(vault.path)),
           ctx.now()
         );
+        // The default depth is the deepest (`depthFor`), as the sync's is.
         // A depth other than the default, once viewed, is measured by every
         // sync after (ADR 0045 decision 2). Only the number is kept, and it
         // sends nothing: a vault that never synced makes no request.

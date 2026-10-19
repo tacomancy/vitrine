@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { vi, afterEach, describe, expect, it } from "vitest";
-import type { Attention, SyncResult } from "./lexicon.js";
+import type { Attention, LexiconView, SyncResult } from "./lexicon.js";
 import {
   closeCores,
   core,
@@ -154,6 +154,22 @@ describe("re-measure pending", () => {
     await c.mutate("lexicon.sync", { confirm: true });
     const view = await attention();
     expect(view.tags.map((t) => t.pending)).toEqual([false, false]);
+  });
+
+  it("is not set on a measured Tag left with no Terms, which no sync could clear", async () => {
+    const vault = await vaultWith(PROBING);
+    const { c, attention } = await launch(vault, fakeOpenAlex(), NOW);
+    await c.mutate("lexicon.sync", { confirm: true });
+    const view = await c.query<LexiconView>("lexicon.get", {
+      tag: "ml/probing",
+    });
+    for (const { term } of view.result!.data.terms) {
+      await c.mutate("lexicon.exclude", { tag: "ml/probing", term });
+    }
+    const after = tagOf(await attention(), "ml/probing");
+    expect(after.query).toBeNull();
+    expect(after.pending).toBe(false);
+    expect((await attention()).due).toBe(0);
   });
 
   it("counts the pending Tag as due, so a failed re-measure is never a quiet field", async () => {

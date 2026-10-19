@@ -262,7 +262,9 @@ function judge(
   const measuredAt = measurement.measuredAt;
   // The query is compared as stored, character for character: the compiler
   // is the one place that knows which differences matter.
-  const pending = measurement.query !== query;
+  // A Tag left with no Terms has nothing to re-measure, so it cannot be
+  // pending: no sync would ever clear the mark.
+  const pending = query !== null && measurement.query !== query;
   if (counts.prior12 < FIELD_FLOOR) {
     return {
       state: "unplaced",
