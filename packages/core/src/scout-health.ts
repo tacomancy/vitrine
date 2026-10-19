@@ -222,7 +222,10 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     const lastClean = finishedRuns(queue, scout.id)
       .filter((r) => r.outcome === "ok")
       .at(-1);
+    // A Tag Filter has no stored string to compare: its drift is read from the
+    // compiled queries the runs recorded, which is a later slice's sentence.
     const edited =
+      scout.tags === undefined &&
       lastClean?.query != null &&
       lastClean.query !== scout.query &&
       (scout.source.kind !== "watched" || ok.length === 0);

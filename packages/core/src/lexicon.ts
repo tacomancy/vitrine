@@ -408,6 +408,22 @@ export function lexiconOf(
   );
 }
 
+/**
+ * The Terms in use for a Tag as written, at its own depth: what the editor
+ * lists and the scatter measures, which a Scout's Tag Filter compiles at each
+ * run so that the three cannot disagree (ADR 0018). No Measurement is read: a
+ * Term does not depend on one.
+ */
+export function termsInUse(
+  index: VaultIndex,
+  tag: string,
+  edits: LexiconEdits = {}
+): string[] {
+  return lexiconOf(index, NONE, tag, tag.split("/").length, edits).terms.map(
+    (t) => t.term
+  );
+}
+
 /** How many papers could hold a phrase at all, and how many do, vault-wide. */
 type Vocabulary = { papers: number; holding: Map<string, number> };
 

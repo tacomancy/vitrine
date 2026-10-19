@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { isTagCharacter, parseTag } from "markdown";
 import { stringify } from "yaml";
-import { ArxivError, type ArxivClient } from "./arxiv.js";
+import { ArxivError, compileArxivQuery, type ArxivClient } from "./arxiv.js";
 import {
   readWatched,
   WatchedError,
@@ -11,6 +11,8 @@ import {
 } from "./watched.js";
 import { finishedRunsAtPage, type RunErrorKind } from "./scout-health.js";
 import { VaultError } from "./errors.js";
+import { readEdits } from "./lexicon-edits.js";
+import { termsInUse } from "./lexicon.js";
 import type { Events } from "./events.js";
 import {
   DEFAULT_SKIM_DAYS,
@@ -101,6 +103,13 @@ export async function runScout(
   if (scout === undefined) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
+  // A Tag Filter is compiled here, at the run, from the Lexicon as it stands:
+  // a Seed or Exclusion made since the last run changes this query and
+  // nothing else (spec #678 decisions 2 and 6).
+  const asked =
+    scout.tags === undefined
+      ? scout.query
+      : await compileTags(deps, scout.tags);
   const now = deps.now();
   const last = queue
     .prepare(
@@ -129,14 +138,8 @@ export async function runScout(
       .prepare(
         "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query) VALUES (?, ?, ?, ?, ?, ?)"
       )
-      .run(
-        scoutId,
-        iso(now),
-        iso(from),
-        iso(now),
-        retroactive ? 1 : 0,
-        scout.query
-      ).lastInsertRowid
+      .run(scoutId, iso(now), iso(from), iso(now), retroactive ? 1 : 0, asked)
+      .lastInsertRowid
   );
 
   let summary: RunSummary;
@@ -147,7 +150,7 @@ export async function runScout(
             id: scout.id,
             url: scout.source.url,
           })
-        : await readArxiv(arxiv, scout.query, from, now);
+        : await readArxiv(arxiv, asked, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
     // Read before the transaction: it is async, and a muted line must not be
@@ -211,6 +214,32 @@ export async function runScout(
   }
   events.emit({ type: "scoutFinished", scoutId, runId });
   return summary;
+}
+
+/**
+ * The query a Tag Filter asks: the Terms in use of each Tag as written, each
+ * Tag at its own depth, so a parent searches the union of its descendants'
+ * papers and a child never takes its parent's Terms. A Tag with no Terms is
+ * named and refused rather than dropped, so a typo or an emptied Lexicon
+ * cannot look like a quiet field.
+ */
+async function compileTags(
+  deps: Pick<ScoutDeps, "vaultPath" | "index">,
+  tags: readonly string[]
+): Promise<string> {
+  const edits = await readEdits(deps.vaultPath);
+  const terms = new Set<string>();
+  for (const tag of tags) {
+    const used = termsInUse(deps.index, tag, edits);
+    if (used.length === 0) {
+      throw new VaultError(
+        "refused",
+        `Tag ${tag} has no Terms to search: seed one in its Lexicon, or give the Scout a Query.`
+      );
+    }
+    for (const term of used) terms.add(term);
+  }
+  return compileArxivQuery([...terms]);
 }
 
 export type WaitingScout = { id: string; name: string; message: string };
