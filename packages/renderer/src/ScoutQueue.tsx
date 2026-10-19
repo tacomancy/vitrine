@@ -86,6 +86,7 @@ export function ScoutQueue({
   // key* leaves for Settings, and this surface unmounts on the way.
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
   // The one line holds the latest thing that happened, of two kinds that are
   // heard differently: what was done is `said`, a polite status; what the core
   // turned down is `refusal`, an alert (ADR 0033 decision 1 and its 2026-10-15
@@ -196,10 +197,16 @@ export function ScoutQueue({
   ];
   const unread = reasons.length > 0;
   const everything = queue.data ?? [];
-  const inGroup = everything.filter(
+  const inScoutGroup = everything.filter(
     (card) =>
       selected === null || card.scouts.some((scout) => scout.id === selected)
   );
+  // Past-window cards leave the dealt stack for the digest line at its foot;
+  // opening the digest deals them after the live ones, so a digested card is
+  // triaged like any other (ADR 0044 decision 3).
+  const digest = inScoutGroup.filter((card) => card.pastWindow);
+  const liveInGroup = inScoutGroup.filter((card) => !card.pastWindow);
+  const inGroup = digestOpen ? [...liveInGroup, ...digest] : liveInGroup;
   // The session's order: what has not been passed, then what has, in the
   // order it was passed — so passing the last card wraps to the first.
   const stack = [
@@ -642,6 +649,7 @@ export function ScoutQueue({
         lane === "review" &&
         queue.isSuccess &&
         inGroup.length === 0 &&
+        digest.length === 0 &&
         !unread && (
           <ReviewQuiet
             scout={selected === null ? undefined : healthOf(selected)}
@@ -664,12 +672,33 @@ export function ScoutQueue({
       )}
       {form === null && lane === "review" && stack.length > 1 && (
         <ol className={styles.rest} aria-label="Next in the stack">
-          {stack.slice(1).map((next) => (
-            <li key={next.id} id={`scout-card-${next.id}`}>
-              {next.title}
-            </li>
-          ))}
+          {stack
+            .slice(1)
+            .filter((next) => !next.pastWindow)
+            .map((next) => (
+              <li key={next.id} id={`scout-card-${next.id}`}>
+                {next.title}
+              </li>
+            ))}
         </ol>
+      )}
+      {form === null && lane === "review" && digest.length > 0 && (
+        <div className={styles.line}>
+          <button
+            type="button"
+            aria-expanded={digestOpen}
+            onClick={() => setDigestOpen((was) => !was)}
+          >
+            {digest.length} older than the window
+          </button>
+          {digestOpen && (
+            <ol aria-label="Older than the window">
+              {digest.map((aged) => (
+                <li key={aged.id}>{aged.title}</li>
+              ))}
+            </ol>
+          )}
+        </div>
       )}
       {/* The footer channel, polite: a state the app is in, not a refusal of
           something the user did (ADR 0033). */}

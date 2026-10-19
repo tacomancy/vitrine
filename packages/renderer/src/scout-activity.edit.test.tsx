@@ -13,7 +13,13 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 // and what it asks the core to write.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
-const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NO_REVIEW = {
+  pending: 0,
+  pastWindow: 0,
+  deferred: 0,
+  median: null,
+  oldest: null,
+};
 const NO_FLEET = {
   parsingCleanly: 0,
   notParsing: 0,

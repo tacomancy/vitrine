@@ -18,6 +18,7 @@ import {
   scoutIdOf,
   type Scout,
 } from "./scout-file.js";
+import { pastWindowIds, windowsOf } from "./review-depth.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
@@ -488,6 +489,12 @@ export type Card = {
    * the researcher put it by hand.
    */
   moved: LaneMove | null;
+  /**
+   * Older than its Scout's `review_days` (ADR 0044 decision 3): the Queue
+   * draws these in the digest at the foot of the stack. Still pending, still
+   * triaged like any card; aging moves no Lane. Always false in Skim.
+   */
+  pastWindow: boolean;
 };
 
 export type LaneMove =
@@ -526,10 +533,16 @@ export async function readQueue(
   sort: QueueSort = "rank"
 ): Promise<Card[]> {
   const cards = await readCards(deps, "review");
-  if (sort === "newest") return cards;
   // `readCards` is newest first and Array#sort is stable, so the final
   // tie-break (newest) is the order already there.
-  return cards.sort((a, b) => byRank(b, a));
+  const ordered =
+    sort === "newest" ? cards : cards.sort((a, b) => byRank(b, a));
+  // The digest sits after every live card whichever sort is chosen, so aging
+  // is a place in the stack and never a verdict on the card (ADR 0044 d.3).
+  return [
+    ...ordered.filter((card) => !card.pastWindow),
+    ...ordered.filter((card) => card.pastWindow),
+  ];
 }
 
 /** The order of this tuple is the precedence of Rank (ADR 0044 decision 2): accepted-work authors, then Corroboration, then Assigned Questions. */
@@ -600,6 +613,10 @@ async function readCards(
   const byId = new Map([...scouts, ...dropped].map((s) => [s.id, s]));
   // Only Review is ranked, so only Review reads the vault's accepted authors.
   const accepted = lane === "review" ? acceptedAuthors(index) : null;
+  const old =
+    lane === "review"
+      ? pastWindowIds(queue, deps.now(), windowsOf([...scouts, ...dropped]))
+      : new Set<number>();
   const rows = queue
     .prepare(
       "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
@@ -661,6 +678,7 @@ async function readCards(
     return {
       signals,
       moved,
+      pastWindow: old.has(row.id),
       id: row.id,
       title: row.title,
       authors,

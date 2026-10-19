@@ -18,6 +18,7 @@ import {
 import {
   NOTHING_WAITING,
   reviewDepth,
+  windowsOf,
   type ReviewDepth,
 } from "./review-depth.js";
 import {
@@ -548,7 +549,11 @@ export async function readActivity(deps: {
   const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
-  const depth = reviewDepth(deps.queue, now);
+  const depth = reviewDepth(
+    deps.queue,
+    now,
+    windowsOf([...scouts, ...dropped])
+  );
   const since = thirtyDaysBefore(now);
   const volumeByScout = volumes(deps.queue, since);
   const healthByScout = new Map(

@@ -35,6 +35,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   retroactive: false,
   signals: [],
   moved: null,
+  pastWindow: false,
   ...rest,
 });
 
