@@ -88,7 +88,7 @@ describe("the Scout Queue — the counterweight slot", () => {
     expect(third?.textContent).not.toContain("outside the usual");
   });
 
-  it("labels the card once it is the one in hand, and no other", async () => {
+  it("labels the card once it is the one in hand", async () => {
     renderApp(answers([card(2, "Outside one", { counterweight: true })]));
     await open();
 

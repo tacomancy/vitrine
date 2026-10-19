@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Beat 6b's closing demo (#650): hidden launches on one scratch vault holding
-// five Scouts and the history the Queue's new mechanics rest on, one PNG each
+// six Scouts and the history the Queue's new mechanics rest on, one PNG each
 // (docs/agents/run.md), against a local stand-in for arXiv — never the real
 // arXiv. Needs both packages built.
 //
@@ -52,7 +52,7 @@ const freePort = () =>
   });
 
 // Async, not execFileSync: the stand-in lives in this process.
-const launch = async (png, step, after = 40000) => {
+const launch = async (png, step) => {
   const port = await freePort();
   return new Promise((done, fail) => {
     const child = spawn(
@@ -70,7 +70,7 @@ const launch = async (png, step, after = 40000) => {
         "--drive",
         join(here, "queue-demo/drives.mjs"),
         "--after",
-        String(after),
+        "40000",
       ],
       {
         stdio: "inherit",
@@ -111,7 +111,7 @@ try {
     "the stand-in answered Sleep and consolidation"
   );
   check(stateCount("capped") === 2, "the Cap parked two arrivals as capped");
-  const rows = verdictRows();
+  const triageRows = verdictRows();
   check(
     queue("SELECT COUNT(*) AS n FROM triage WHERE action = 'raise'")[0].n === 1,
     "the second Scout's find raised the Skim paper, and wrote one row"
@@ -120,7 +120,10 @@ try {
   await launch("2-digest.png", "digest");
   await launch("3-cap-released.png", "cap");
   check(stateCount("capped") === 0, "show them returned every capped paper");
-  check(verdictRows() === rows, "a Cap and its release wrote no triage row");
+  check(
+    verdictRows() === triageRows,
+    "a Cap and its release wrote no triage row"
+  );
 
   await launch("4-mute-rule.png", "mute");
   check(
@@ -129,7 +132,7 @@ try {
     ),
     "the rule is in the readable file"
   );
-  check(verdictRows() === rows, "a mute rule wrote no triage row");
+  check(verdictRows() === triageRows, "a mute rule wrote no triage row");
 
   await launch("5a-demoted.png", "demote");
   check(
