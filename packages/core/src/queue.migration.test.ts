@@ -65,7 +65,7 @@ describe("the queue database, version 5 to 6", () => {
       expect(
         (queue.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(7);
+      ).toBe(8);
       expect(
         queue
           .prepare(
@@ -122,6 +122,23 @@ describe("the queue database, version 5 to 6", () => {
         { action: "demote" },
         { action: "raise" },
       ]);
+      // Version 8 (#644): old acts keep a null `bulk`, and a gesture's id fits.
+      expect(queue.prepare("SELECT bulk FROM triage").all()).toEqual([
+        { bulk: null },
+        { bulk: null },
+        { bulk: null },
+      ]);
+      queue
+        .prepare(
+          "INSERT INTO triage (proposal_id, action, at, bulk) VALUES (3, 'reject', 'x', 4)"
+        )
+        .run();
+      expect(
+        queue
+          .prepare("SELECT bulk FROM triage ORDER BY rowid DESC LIMIT 1")
+          .get()
+      ).toEqual({ bulk: 4 });
+      queue.prepare("DELETE FROM triage WHERE bulk = 4").run();
       expect(queue.prepare("SELECT day FROM open_days").all()).toEqual([
         { day: "2026-09-20" },
       ]);

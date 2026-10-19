@@ -36,8 +36,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    kinds `credentials`, `model` and `extraction` (#464).
  * 7: the triage actions `demote` and `raise`, Lane moves the researcher did
  *    not make by hand (#643).
+ * 8: `triage.bulk`, the id one reject-group or defer-group gesture writes on
+ *    every row it makes, so one `⌘Z` can take the whole gesture back (#644).
  */
-export const QUEUE_SCHEMA_VERSION = 7;
+export const QUEUE_SCHEMA_VERSION = 8;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -186,6 +188,13 @@ DROP TABLE triage;
 ALTER TABLE triage_new RENAME TO triage;
 `;
 
+// Nullable and additive: every earlier row is a single act and keeps null.
+// Not a reference to anything: a gesture has no row of its own, only the id
+// its triage rows share (ADR 0044 decision 9).
+const TRIAGE_BULK = `
+ALTER TABLE triage ADD COLUMN bulk INTEGER;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -200,6 +209,7 @@ const MIGRATIONS: readonly string[] = [
   SCOUT_RUN_QUERY,
   SCOUT_RUN_MODEL,
   TRIAGE_LANE_MOVES,
+  TRIAGE_BULK,
 ];
 
 /**
