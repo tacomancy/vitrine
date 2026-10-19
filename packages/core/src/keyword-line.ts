@@ -12,8 +12,9 @@ const PAGES_SEARCHED = 2;
 const MAX_LIST_CHARS = 1_000;
 
 // At the start of a line only: "the keywords: a, b" mid-sentence is prose.
+// A plain hyphen needs a space before it, or "Keyword-based methods" is a label.
 const LABEL =
-  /^\s*(?:author\s+)?key\s*words?\s*[:：\-–—]|^\s*index\s+terms\s*[:：\-–—]/i;
+  /^\s*(?:author\s+)?key\s*words?(?:\s*[:：–—]|\s+-)|^\s*index\s+terms\s*[:：\-–—]/i;
 
 // A heading ends the list: "1 Introduction", "2.1 Method", "I. INTRODUCTION",
 // or the bare word. A keyword that merely starts with a digit ("3D mapping")
@@ -56,7 +57,6 @@ function fromPage(text: string): string[] | null {
   return joined
     .slice(0, MAX_LIST_CHARS)
     .split(SEPARATORS)
-    .map((item) => item.replace(/\s+/g, " ").trim())
-    .map((item) => item.replace(/\.$/, "").trim())
+    .map((item) => item.replace(/\s+/g, " ").replace(/\.$/, "").trim())
     .filter((item) => item !== "");
 }

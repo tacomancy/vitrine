@@ -96,6 +96,11 @@ describe("printedKeywords", () => {
         ])
       ).toEqual([]);
     });
+    it("ignores a hyphenated compound at the start of a line", () => {
+      expect(
+        printedKeywords([page("Keyword-based methods are common, they say.")])
+      ).toEqual([]);
+    });
     it("ignores the label with no colon or dash", () => {
       expect(printedKeywords([page("Keywords are useful.")])).toEqual([]);
     });
