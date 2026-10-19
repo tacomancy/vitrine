@@ -146,6 +146,7 @@ describe("scouts.activity — a row for each readable Scout", () => {
         acceptRate: { kind: "nothing triaged" },
         review: {
           pending: 0,
+          pastWindow: 0,
           deferred: 0,
           median: null,
           oldest: null,
@@ -296,7 +297,13 @@ describe("scouts.activity — nothing to draw", () => {
         keyRejected: 0,
         noKey: 0,
       },
-      review: { pending: 0, deferred: 0, median: null, oldest: null },
+      review: {
+        pending: 0,
+        pastWindow: 0,
+        deferred: 0,
+        median: null,
+        oldest: null,
+      },
       // No Scout is looking, so the fixture's open Questions are all gaps.
       coverageGaps: expect.objectContaining({ kind: "gaps" }) as unknown,
       dropped: [],
