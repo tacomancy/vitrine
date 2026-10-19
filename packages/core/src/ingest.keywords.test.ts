@@ -209,20 +209,23 @@ describe("a Source ingested before keywords were read", () => {
   };
 
   it("is read once for its keywords, without a summary", async () => {
-    const { vault, c, returned, sidecar, events } = await opened();
+    const { vault, c, returned, sidecar } = await opened();
     await returned(await pdf("annotated-keywords.pdf"));
     await c.close();
     await old(vault);
     const again = await core({ settleMs: 40 });
+    const heard = await again.events();
     await again.mutate("vault.open", { path: vault });
     await again.indexed();
     await vi.waitFor(
       async () => expect((await sidecar()).keywords).toEqual(PRINTED),
-      {
-        timeout: NEXT_TIMEOUT_MS,
-      }
+      { timeout: NEXT_TIMEOUT_MS }
     );
-    void events;
+    // The backfill is written and then silent: a summary here would put "N
+    // new" on a line whose counts did not move because keywords were found.
+    await expect(
+      heard.next("ingestLanded", { timeoutMs: 1_500 })
+    ).rejects.toThrow(/nothing arrived|saw/);
   });
 
   it("is not read again once the field is there, empty or not", async () => {
