@@ -92,6 +92,7 @@ import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
   readQueue,
+  readQuestionGroups,
   readSkim,
   runScout,
   runWaiting,
@@ -716,6 +717,11 @@ export const router = t.router({
     // What each Scout's group says beside the cards (#450).
     groups: t.procedure.query(async ({ ctx }) =>
       refusing(readGroups(await scoutDeps(ctx)))
+    ),
+    // *Group by Question*: each Assigned Question's pending cards, and
+    // *Unassigned* (#645).
+    questionGroups: t.procedure.query(async ({ ctx }) =>
+      refusing(readQuestionGroups(await scoutDeps(ctx)))
     ),
     reject: t.procedure
       .input(z.object({ proposalId: z.number().int() }))
