@@ -6,6 +6,7 @@ import {
   type LinkAnswer,
   type Present,
 } from "./annotation-matcher.js";
+import { printedKeywords } from "./keyword-line.js";
 import {
   readSidecar,
   writeSidecar,
@@ -445,6 +446,9 @@ export function createIngest({
     const before =
       source.id === null ? null : await readSidecar(vaultPath, source.id);
     if (before?.file.hash === file.hash) {
+      if (before.keywords === undefined) {
+        await backfillKeywords(source.pdf, file.hash, source.id!, before);
+      }
       // Nothing to read, but a note may still owe a Question: a run that
       // died between recording the file and spawning it must not lose it
       // for good, since no later event would come for an unchanged file.
@@ -606,6 +610,9 @@ export function createIngest({
       next_block: next,
       annotations: [...entries, ...fresh],
       held,
+      // Not carried from `before`: a changed file replaces the list, so a line
+      // the new version no longer prints leaves nothing behind.
+      keywords: printedKeywords(read.pageLines),
       // Carried across: the sidecar is rebuilt here, and a reader's place is
       // not something a PDF's return may forget.
       ...(before?.reading_position
@@ -646,6 +653,34 @@ export function createIngest({
       unmatched: owed.unmatched + tally.unmatched,
       changed,
     };
+  }
+
+  /**
+   * A sidecar written before keywords were read has no field; the PDF is
+   * opened once more to fill it (story 21) and never again, since "none
+   * found" is recorded as an empty list. Only the keywords change: it neither
+   * touches the matcher nor reports a count, and a file that cannot be read
+   * now is left for the next Ingest rather than recorded as broken.
+   */
+  async function backfillKeywords(
+    pdf: string,
+    hash: string,
+    id: string,
+    before: Sidecar
+  ): Promise<void> {
+    try {
+      const bytes = await readFile(join(vaultPath, pdf));
+      // The file moved on since the index hashed it: its own event is coming.
+      if (sha256(bytes) !== hash) return;
+      const read = await engine.annotations(bytes);
+      await writeSidecar(vaultPath, id, {
+        ...before,
+        keywords: printedKeywords(read.pageLines),
+      });
+    } catch {
+      // Best effort: a failure here costs a thinner Lexicon until the next
+      // Ingest, never the Ingest it rode in on.
+    }
   }
 
   /**

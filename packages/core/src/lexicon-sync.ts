@@ -13,6 +13,7 @@ import {
   recordMeasurement,
 } from "./measurements.js";
 import { readEdits } from "./lexicon-edits.js";
+import { readPrintedKeywords } from "./lexicon-printed.js";
 import { OpenAlexError, type OpenAlexClient } from "./openalex.js";
 import { serialised } from "./serialise.js";
 import type { VaultIndex } from "./vault-index.js";
@@ -110,7 +111,8 @@ async function sync(deps: Deps): Promise<SyncResult> {
   // The Seeds and Exclusions are part of what a Tag is measured as: without
   // them the query sent would not be the one the editor shows (#652).
   const edits = await readEdits(vaultPath);
-  const byDefault = attention(index, store, undefined, edits, now);
+  const printed = await readPrintedKeywords(vaultPath, index);
+  const byDefault = attention(index, store, undefined, edits, now, printed);
   const depths = new Set([
     byDefault.depth,
     ...store.depths.map((d) => Math.min(d, byDefault.deepest)),
@@ -120,7 +122,7 @@ async function sync(deps: Deps): Promise<SyncResult> {
     { tag: string; papers: number; depth: number; query: string }
   >();
   for (const depth of depths) {
-    for (const t of attention(index, store, depth, edits, now).tags) {
+    for (const t of attention(index, store, depth, edits, now, printed).tags) {
       // The same Tag at two depths is the one Tag: a leaf shallower than the
       // depth is itself at every depth above its own.
       if (isDue(t, now) && !queued.has(t.tag)) {
@@ -138,7 +140,7 @@ async function sync(deps: Deps): Promise<SyncResult> {
     .map(({ tag, depth, query }) => ({
       tag,
       query,
-      terms: lexiconOf(index, store, tag, depth, edits).terms.map(
+      terms: lexiconOf(index, store, tag, depth, edits, printed).terms.map(
         (x) => x.term
       ),
     }));
