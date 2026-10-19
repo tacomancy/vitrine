@@ -712,6 +712,7 @@ const LEXICON: LexiconView = {
     { term: "mechanistic interpretability", origin: "author keyword" },
   ],
   notUsed: [{ term: "linear probe", origin: "derived" }],
+  excluded: [],
   query:
     'filter=title_and_abstract.search:("residual stream" OR "mechanistic interpretability")',
 };
@@ -778,8 +779,8 @@ describe("the Attention panel", () => {
         .getAllByRole("listitem")
         .map((li) => li.textContent)
     ).toEqual([
-      "residual streamderived",
-      "mechanistic interpretabilityauthor keyword",
+      "residual streamderivedExclude",
+      "mechanistic interpretabilityauthor keywordExclude",
     ]);
     expect(within(editor).getByText(/not used/).textContent).toContain(
       "linear probe"
@@ -804,6 +805,7 @@ describe("the Attention panel", () => {
         measuredAt: null,
         terms: [],
         notUsed: [],
+        excluded: [],
         query: null,
       },
     });
@@ -869,6 +871,148 @@ describe("the Attention panel", () => {
     const view = await page();
     await within(view).findByText(/reading the vault/);
     expect(view.querySelector('[data-slot="attention"]')).toBeNull();
+  });
+});
+
+// The Lexicon editor's two edits (#652; ADR 0045 decisions 3 and 9): Seed a
+// Term by typing it, Exclude a derived one, undo either. The core answers a
+// refusal; the editor says it on the control, as an alert (ADR 0033).
+
+describe("the Lexicon editor's edits", () => {
+  const SEEDED: LexiconView = {
+    ...LEXICON,
+    terms: [{ term: "grokking", origin: "seeded" }, ...LEXICON.terms],
+    excluded: ["attention head"],
+  };
+
+  const opened = async (more: Record<string, unknown> = {}) => {
+    const asked: unknown[] = [];
+    open({
+      "questionMap.attention": ATTENTION,
+      "lexicon.get": () => {
+        asked.push(null);
+        return SEEDED;
+      },
+      ...more,
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /ml\/probing/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: ml\/probing/,
+    });
+    await within(editor).findByRole("list", { name: "Terms in use" });
+    return { editor, asked };
+  };
+
+  it("seeds a typed Term for the Tag as written, clears the box, and reads the Lexicon again", async () => {
+    const seeded: unknown[] = [];
+    const { editor, asked } = await opened({
+      "lexicon.seed": (input: unknown) => seeded.push(input) && null,
+    });
+    const before = asked.length;
+    const box = within(editor).getByRole("textbox", { name: "Seed a term" });
+    fireEvent.change(box, { target: { value: "Sparse Autoencoder" } });
+    fireEvent.click(within(editor).getByRole("button", { name: "Seed" }));
+    await vi.waitFor(() =>
+      expect(seeded).toEqual([
+        { tag: "ml/probing", term: "Sparse Autoencoder" },
+      ])
+    );
+    await vi.waitFor(() => expect(asked.length).toBeGreaterThan(before));
+    await vi.waitFor(() => expect((box as HTMLInputElement).value).toBe(""));
+  });
+
+  it("shows a Seed as seeded, with a way to remove it, and offers Exclude only on a Term the vault derived", async () => {
+    const restored: unknown[] = [];
+    const { editor } = await opened({
+      "lexicon.restore": (input: unknown) => restored.push(input) && null,
+    });
+    const terms = within(editor).getByRole("list", { name: "Terms in use" });
+    const [seeded, derived] = within(terms).getAllByRole("listitem");
+    expect(seeded!.textContent).toContain("seeded");
+    expect(
+      within(seeded!).queryByRole("button", { name: /Exclude/ })
+    ).toBeNull();
+    expect(
+      within(derived!).getByRole("button", { name: "Exclude residual stream" })
+    ).toBeDefined();
+    fireEvent.click(
+      within(seeded!).getByRole("button", { name: "Remove grokking" })
+    );
+    await vi.waitFor(() =>
+      expect(restored).toEqual([{ tag: "ml/probing", term: "grokking" }])
+    );
+  });
+
+  it("excludes a derived Term, lists the Excluded ones, and restores one", async () => {
+    const sent: Array<[string, unknown]> = [];
+    const { editor } = await opened({
+      "lexicon.exclude": (input: unknown) =>
+        sent.push(["exclude", input]) && null,
+      "lexicon.restore": (input: unknown) =>
+        sent.push(["restore", input]) && null,
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Exclude residual stream" })
+    );
+    await vi.waitFor(() =>
+      expect(sent).toEqual([
+        ["exclude", { tag: "ml/probing", term: "residual stream" }],
+      ])
+    );
+    const excluded = within(editor).getByRole("list", { name: "Excluded" });
+    expect(excluded.textContent).toContain("attention head");
+    fireEvent.click(
+      within(excluded).getByRole("button", { name: "Restore attention head" })
+    );
+    await vi.waitFor(() =>
+      expect(sent.at(-1)).toEqual([
+        "restore",
+        { tag: "ml/probing", term: "attention head" },
+      ])
+    );
+  });
+
+  it("says a refused Seed as an alert on the control, with the core's reason, and keeps what was typed", async () => {
+    const { editor } = await opened({
+      "lexicon.seed": () => {
+        throw new Error("A Term can't be empty.");
+      },
+    });
+    const box = within(editor).getByRole("textbox", { name: "Seed a term" });
+    fireEvent.change(box, { target: { value: "  " } });
+    fireEvent.click(within(editor).getByRole("button", { name: "Seed" }));
+    const alert = await within(editor).findByRole("alert");
+    expect(alert.textContent).toContain("A Term can't be empty.");
+    expect((box as HTMLInputElement).value).toBe("  ");
+  });
+
+  it("offers the Seed box on an unplaced Tag, since seeding is its way out", async () => {
+    open({
+      "questionMap.attention": ATTENTION,
+      "lexicon.get": {
+        ...LEXICON,
+        tag: "sleep",
+        display: "sleep",
+        placed: false,
+        reason: "few-papers",
+        terms: [],
+        notUsed: [],
+        query: null,
+      },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /sleep/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: sleep/,
+    });
+    expect(
+      within(editor).getByRole("textbox", { name: "Seed a term" })
+    ).toBeDefined();
   });
 });
 

@@ -186,6 +186,20 @@ describe("a Measurement", () => {
     expect(fake.urls[0]!.href).not.toMatch(/alpha|rats|ml%2Fprobing/);
   });
 
+  it("sends the Seeds and leaves out the Exclusions, so the query sent is the one the editor shows (#652)", async () => {
+    const fake = fakeOpenAlex(DOUBLING);
+    const { c, sync } = await opened(PROBING, fake);
+    await c.mutate("lexicon.seed", { tag: "ml/probing", term: "grokking" });
+    await c.mutate("lexicon.exclude", {
+      tag: "ml/probing",
+      term: "linear probe",
+    });
+    await sync();
+    const filter = fake.urls[0]!.searchParams.get("filter")!;
+    expect(filter).toContain('"grokking"');
+    expect(filter).not.toContain('"linear probe"');
+  });
+
   it("stores the query and the 24 monthly counts, and survives an Index rebuild", async () => {
     const fake = fakeOpenAlex(DOUBLING);
     const first = await opened(PROBING, fake);
