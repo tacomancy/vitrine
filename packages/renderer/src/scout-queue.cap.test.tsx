@@ -43,6 +43,7 @@ const card: Card = {
   signals: [],
   moved: null,
   pastWindow: false,
+  counterweight: false,
 };
 
 const group = (over: Record<string, unknown> = {}) => ({
