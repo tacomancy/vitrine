@@ -128,6 +128,7 @@ export type { Revision } from "./position-history.js";
 export type { AppRouter } from "./router.js";
 export type { VaultErrorKind } from "./errors.js";
 export type { Vault, VaultStatus, Watching } from "./vault.js";
+export type { TreeFile } from "./vault-tree.js";
 export type {
   IndexStatus,
   Position,

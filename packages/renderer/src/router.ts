@@ -20,7 +20,8 @@ export type Route =
   | { surface: "question-map" }
   | { surface: "scout-activity" }
   | { surface: "scouts"; scout?: string; view?: "muted" }
-  | { surface: "settings"; section?: "credentials" };
+  | { surface: "settings"; section?: "credentials" }
+  | { surface: "vault"; path?: string };
 
 /**
  * An Address the window arrived on and could not reach, and what came back
@@ -47,6 +48,8 @@ export const QUESTION_MAP: Route = { surface: "question-map" };
 export const SCOUT_ACTIVITY: Route = { surface: "scout-activity" };
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
+/** The Vault (spec #680): the ordinary note-taking surface, with the file open when it names one. */
+export const VAULT: Route = { surface: "vault" };
 export const SETTINGS: Route = { surface: "settings" };
 /** Settings with the Credentials section brought into view: where a Scout blocked on its key sends the researcher (#470). */
 export const SETTINGS_CREDENTIALS: Route = {
@@ -75,6 +78,7 @@ const RESEARCH_QUESTION = "#/research-question/";
 const HYPOTHESIS = "#/hypothesis/";
 const EXPERIMENT = "#/experiment/";
 const SOURCE = "#/source/";
+const VAULT_FILE = "#/vault/";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -100,6 +104,10 @@ export function hashOf(route: Route): string {
       return "#/scout-activity";
     case "experiments":
       return "#/experiments";
+    case "vault":
+      return route.path === undefined
+        ? "#/vault"
+        : VAULT_FILE + encodePath(route.path);
     case "settings":
       return route.section === "credentials"
         ? "#/settings/credentials"
@@ -193,6 +201,7 @@ function parseHash(hash: string): Route {
   if (hash === "#/question-map") return QUESTION_MAP;
   if (hash === "#/scout-activity") return SCOUT_ACTIVITY;
   if (hash === "#/experiments") return EXPERIMENTS;
+  if (hash === "#/vault") return VAULT;
   if (hash === "#/settings") return SETTINGS;
   if (hash === "#/settings/credentials") return SETTINGS_CREDENTIALS;
   if (hash === "#/scouts") return SCOUTS;
@@ -210,6 +219,8 @@ function parseHash(hash: string): Route {
   if (hypothesis !== null) return { surface: "hypothesis", path: hypothesis };
   const experiment = pathUnder(hash, EXPERIMENT);
   if (experiment !== null) return { surface: "experiment", path: experiment };
+  const file = pathUnder(hash, VAULT_FILE);
+  if (file !== null) return { surface: "vault", path: file };
   if (hash.startsWith(SOURCE)) return parseSource(hash);
   if (hash.startsWith(RETIRED))
     return {

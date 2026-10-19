@@ -178,6 +178,7 @@ const RECENT = [
   row("▪", "Question Inbox", "surface", true),
   row("▪", "Experiment view", "surface"),
   row("▪", "Scout Queue", "surface"),
+  row("▪", "Vault", "surface"),
   row("▦", "Loose Ends", "dashboard"),
   row("▦", "Question Map", "dashboard"),
   row("▦", "Scout Activity", "dashboard"),
@@ -199,7 +200,7 @@ describe("⌘K opens one list over whatever the window was doing", () => {
     window.location.hash = "#/loose-ends";
     const dialog = await openCommand();
     const { destinations } = await settled(dialog, RECENT.length);
-    expect(said(destinations)[3]).toBe(
+    expect(said(destinations)[4]).toBe(
       row("▦", "Loose Ends", "dashboard", true)
     );
   });
@@ -208,7 +209,6 @@ describe("⌘K opens one list over whatever the window was doing", () => {
     const dialog = await openCommand();
     const list = await listOf(dialog);
     expect(list.textContent).not.toContain("Reader");
-    expect(list.textContent).not.toContain("Vault");
     expect(list.textContent).not.toContain("Home");
   });
 
@@ -621,8 +621,9 @@ describe("before a character is typed, the list is what changed most recently", 
       row("▪", "Question Inbox", "surface"),
       row("▪", "Experiment view", "surface"),
       row("▪", "Scout Queue", "surface"),
+      row("▪", "Vault", "surface"),
       row("▦", "Loose Ends", "dashboard", true),
-      ...RECENT.slice(4),
+      ...RECENT.slice(5),
     ]);
     // The Dashboard just left is marked as where the window is, and ↵ is
     // on the capture, where nothing typed leaves it.
