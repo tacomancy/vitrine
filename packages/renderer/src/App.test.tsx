@@ -103,6 +103,7 @@ describe("the window with a vault open", () => {
       ["Question Inbox", "#/inbox"],
       ["Experiment view", "#/experiments"],
       ["Scout Queue", "#/scouts"],
+      ["Vault", "#/vault"],
       ["Loose Ends", "#/loose-ends"],
       ["Question Map", "#/question-map"],
       ["Scout Activity", "#/scout-activity"],

@@ -6,6 +6,7 @@ import {
   SCOUT_ACTIVITY,
   SCOUTS,
   SETTINGS,
+  VAULT,
   type Route,
 } from "./router";
 
@@ -66,7 +67,12 @@ export const SURFACES: readonly Entry[] = [
     holds: { kind: "experiment", hint: "designed here, run elsewhere" },
   },
   { name: "Scout Queue", to: SCOUTS },
-  { name: "Vault" },
+  {
+    name: "Vault",
+    // Never hollow: an empty vault still has *new note* to offer, so the
+    // entry is not held by `vault.kinds` (spec #680).
+    to: VAULT,
+  },
 ];
 
 export const DASHBOARDS: readonly Entry[] = [
