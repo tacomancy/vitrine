@@ -43,6 +43,7 @@ const card = (
   signals: [],
   moved: null,
   pastWindow: false,
+  counterweight: false,
 });
 const FROM_SLEEP = { id: "sleep", name: "Sleep and memory", dropped: false };
 const FROM_BLOG = { id: "blog", name: "Blog ring", dropped: true };

@@ -31,6 +31,7 @@ const card = (id: number): Card => ({
   signals: [],
   moved: null,
   pastWindow: false,
+  counterweight: false,
 });
 
 const answers = (more: Record<string, unknown> = {}) => ({
