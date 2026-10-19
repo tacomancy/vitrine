@@ -17,6 +17,8 @@ import { WarningLine } from "./VaultStatusLines";
 
 // Review's sort lasts the session and no longer: held outside the component
 // because leaving the surface unmounts it (ADR 0044 decision 2).
+const UNASSIGNED = "unassigned";
+
 const sessionSort = (() => {
   let sort: QueueSort = "rank";
   return { get: () => sort, set: (next: QueueSort) => void (sort = next) };
@@ -72,7 +74,15 @@ export function ScoutQueue({
   };
   const queue = useQuery(trpc.scouts.queue.queryOptions({ sort }));
   const groups = useQuery(trpc.scouts.groups.queryOptions());
+  // *Group by Question* (ADR 0044 decision 10): Scout is the default, and the
+  // Question view is Review's alone. The core says which cards each group holds.
+  const [groupBy, setGroupBy] = useState<"scout" | "question">("scout");
+  const questionGroups = useQuery({
+    ...trpc.scouts.questionGroups.queryOptions(),
+    enabled: groupBy === "question",
+  });
   const [lane, setLane] = useState<"review" | "skim">("review");
+  const byQuestion = groupBy === "question" && lane === "review";
   const skim = useQuery({
     ...trpc.scouts.skim.queryOptions(),
     enabled: lane === "skim",
@@ -112,6 +122,8 @@ export function ScoutQueue({
     onError: refuse,
   };
   const [selected, setSelected] = useState<string | null>(scout ?? null);
+  // The Question group on screen: a Question id, `UNASSIGNED`, or null for all.
+  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.
@@ -211,16 +223,36 @@ export function ScoutQueue({
   // it has nothing to do with.
   const reasons = [
     ...new Set(
-      [scouts, queue, groups, fleet, health, ...(lane === "skim" ? [skim] : [])]
+      [
+        scouts,
+        queue,
+        groups,
+        fleet,
+        health,
+        ...(lane === "skim" ? [skim] : []),
+        ...(byQuestion ? [questionGroups] : []),
+      ]
         .filter((read) => read.isError)
         .map((read) => read.error.message)
     ),
   ];
   const unread = reasons.length > 0;
   const everything = queue.data ?? [];
-  const inScoutGroup = everything.filter(
-    (card) =>
-      selected === null || card.scouts.some((scout) => scout.id === selected)
+  const questionRows = questionGroups.data ?? [];
+  const questionKey = (g: { question: { id: string } | null }) =>
+    g.question?.id ?? UNASSIGNED;
+  // The cards of the Question group on screen; a paper in several Questions is
+  // in each, and one acted on is gone from `everything` and so from all.
+  const inQuestion = new Set(
+    selectedQuestion === null
+      ? null
+      : questionRows.find((g) => questionKey(g) === selectedQuestion)
+          ?.proposalIds
+  );
+  const inScoutGroup = everything.filter((card) =>
+    byQuestion
+      ? selectedQuestion === null || inQuestion.has(card.id)
+      : selected === null || card.scouts.some((scout) => scout.id === selected)
   );
   // Past-window cards leave the dealt stack for the digest line at its foot;
   // opening the digest deals them after the live ones, so a digested card is
@@ -298,7 +330,11 @@ export function ScoutQueue({
     form?.edit == null
       ? undefined
       : scouts.data?.scouts.find((s) => s.id === form.edit);
-  useChosenInView(`scout-rail-${selected ?? "all"}`);
+  useChosenInView(
+    byQuestion
+      ? `question-rail-${selectedQuestion ?? "all"}`
+      : `scout-rail-${selected ?? "all"}`
+  );
   useChosenInView(
     lane === "review" && card !== undefined
       ? `scout-card-${card.id}`
@@ -312,6 +348,15 @@ export function ScoutQueue({
   // decide this one's order or its notice.
   function choose(id: string | null) {
     setSelected(id);
+    setPassed([]);
+  }
+  function chooseQuestion(key: string | null) {
+    setSelectedQuestion(key);
+    setPassed([]);
+  }
+  function chooseGroupBy(next: "scout" | "question") {
+    setGroupBy(next);
+    setSelectedQuestion(null);
     setPassed([]);
   }
   function onPass(id: number) {
@@ -470,6 +515,20 @@ export function ScoutQueue({
             ))}
           </span>
         )}
+        {lane === "review" && (
+          <span role="group" aria-label="Group by" className={styles.lanes}>
+            {(["scout", "question"] as const).map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={groupBy === name}
+                onClick={() => chooseGroupBy(name)}
+              >
+                {name === "scout" ? "Scout" : "Question"}
+              </button>
+            ))}
+          </span>
+        )}
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
@@ -480,53 +539,88 @@ export function ScoutQueue({
           + New Scout
         </button>
       </header>
-      <ul className={styles.scouts} aria-label="Scouts">
-        {scouts.isError && (
-          <li className={styles.scout}>
-            <FirstSlot voice="wrong" claim="" />
-          </li>
-        )}
-        {railRows.map((row) => (
-          <li key={row.id ?? "all"} className={styles.scout}>
-            <button
-              type="button"
-              id={`scout-rail-${row.id ?? "all"}`}
-              className={styles.railRow}
-              aria-current={row.id === selected ? "true" : undefined}
-              onClick={() => choose(row.id)}
-            >
-              <span>{row.name}</span>
-              {/* A 0 beside a read that failed would read as all clear. */}
-              {!queue.isError && (
-                <span className={styles.count}>{countFor(row.id)}</span>
-              )}
-            </button>
-            {row.id !== null && (
+      {byQuestion && (
+        <>
+          <ul className={styles.scouts} aria-label="Questions">
+            {[
+              { key: null, name: "All Questions", count: everything.length },
+              ...questionRows.map((g) => ({
+                key: questionKey(g),
+                name: g.question?.name ?? "Unassigned",
+                count: g.proposalIds.length,
+              })),
+            ].map((row) => (
+              <li key={row.key ?? "all"} className={styles.scout}>
+                <button
+                  type="button"
+                  id={`question-rail-${row.key ?? "all"}`}
+                  className={styles.railRow}
+                  aria-current={
+                    row.key === selectedQuestion ? "true" : undefined
+                  }
+                  onClick={() => chooseQuestion(row.key)}
+                >
+                  <span>{row.name}</span>
+                  <span className={styles.count}>{row.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.line}>
+            A paper can be in several groups, so these counts may add up to more
+            than the total.
+          </p>
+        </>
+      )}
+      {!byQuestion && (
+        <ul className={styles.scouts} aria-label="Scouts">
+          {scouts.isError && (
+            <li className={styles.scout}>
+              <FirstSlot voice="wrong" claim="" />
+            </li>
+          )}
+          {railRows.map((row) => (
+            <li key={row.id ?? "all"} className={styles.scout}>
               <button
                 type="button"
-                disabled={run.isPending}
-                onClick={() => run.mutate({ scoutId: row.id })}
+                id={`scout-rail-${row.id ?? "all"}`}
+                className={styles.railRow}
+                aria-current={row.id === selected ? "true" : undefined}
+                onClick={() => choose(row.id)}
               >
-                Run now
+                <span>{row.name}</span>
+                {/* A 0 beside a read that failed would read as all clear. */}
+                {!queue.isError && (
+                  <span className={styles.count}>{countFor(row.id)}</span>
+                )}
               </button>
-            )}
-            {/* On the row as well as in the header, so a broken Scout cannot
+              {row.id !== null && (
+                <button
+                  type="button"
+                  disabled={run.isPending}
+                  onClick={() => run.mutate({ scoutId: row.id })}
+                >
+                  Run now
+                </button>
+              )}
+              {/* On the row as well as in the header, so a broken Scout cannot
                 hide in a group nobody selects (spec #447 story 42). */}
-            {row.id !== null && <VoiceLine health={healthOf(row.id)} />}
-          </li>
-        ))}
-        {/* A file that does not parse is a Scout the researcher made, not one
+              {row.id !== null && <VoiceLine health={healthOf(row.id)} />}
+            </li>
+          ))}
+          {/* A file that does not parse is a Scout the researcher made, not one
             nobody did: named, with what is wrong. */}
-        {(scouts.data?.unreadable ?? []).map((file) => (
-          <li key={file.file} className={styles.scout}>
-            <span>{file.file}</span>
-            <VoiceLine
-              health={{ voice: "wrong", kind: null, sentence: file.sentence }}
-            />
-          </li>
-        ))}
-      </ul>
-      {droppedStacks.length > 0 && (
+          {(scouts.data?.unreadable ?? []).map((file) => (
+            <li key={file.file} className={styles.scout}>
+              <span>{file.file}</span>
+              <VoiceLine
+                health={{ voice: "wrong", kind: null, sentence: file.sentence }}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+      {!byQuestion && droppedStacks.length > 0 && (
         <ul className={styles.scouts} aria-label="Dropped Scouts">
           {droppedStacks.map((dropped) => (
             <li key={dropped.id} className={styles.scout}>
@@ -547,13 +641,13 @@ export function ScoutQueue({
           ))}
         </ul>
       )}
-      {selectedDropped !== undefined && form === null && (
+      {!byQuestion && selectedDropped !== undefined && form === null && (
         <div className={styles.scoutHeader}>
           <h2 className={styles.scoutName}>{selectedDropped.name}</h2>
           <VoiceLine health={{ voice: "not yet", sentence: DROPPED }} />
         </div>
       )}
-      {selectedScout !== undefined && form === null && (
+      {!byQuestion && selectedScout !== undefined && form === null && (
         <div className={styles.scoutHeader}>
           <h2 className={styles.scoutName}>{selectedScout.name}</h2>
           <VoiceLine health={healthOf(selectedScout.id)} />
@@ -609,61 +703,64 @@ export function ScoutQueue({
           }}
         />
       )}
-      {form === null && lane === "review" && group !== undefined && (
-        <div className={styles.group}>
-          {group.held.length > 0 && (
-            <div>
-              <p className={styles.line}>
-                {group.held.length} already in your vault
-              </p>
-              <ul
-                className={styles.heldList}
-                aria-label="Already in your vault"
-              >
-                {group.held.map((held) => (
-                  <li key={held.path}>
-                    <a href={hashOf({ surface: "source", path: held.path })}>
-                      {held.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* A deferred card comes back with its Scout's next clean run, which a
+      {form === null &&
+        lane === "review" &&
+        !byQuestion &&
+        group !== undefined && (
+          <div className={styles.group}>
+            {group.held.length > 0 && (
+              <div>
+                <p className={styles.line}>
+                  {group.held.length} already in your vault
+                </p>
+                <ul
+                  className={styles.heldList}
+                  aria-label="Already in your vault"
+                >
+                  {group.held.map((held) => (
+                    <li key={held.path}>
+                      <a href={hashOf({ surface: "source", path: held.path })}>
+                        {held.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {/* A deferred card comes back with its Scout's next clean run, which a
               dropped Scout does not make, and nothing else lists the card:
               said here so it is not left invisible (ADR 0042 decision 1). A
               Scout that is looking brings its own back. */}
-          {selectedDropped !== undefined && (group.deferred ?? 0) > 0 && (
-            <p className={styles.line}>
-              {group.deferred} deferred — they come back with its next run, if
-              it is restored
-            </p>
-          )}
-          {selected !== null && (group.capped ?? 0) > 0 && (
-            <p className={styles.line}>
-              {group.capped} below your cap of {group.cap}{" "}
+            {selectedDropped !== undefined && (group.deferred ?? 0) > 0 && (
+              <p className={styles.line}>
+                {group.deferred} deferred — they come back with its next run, if
+                it is restored
+              </p>
+            )}
+            {selected !== null && (group.capped ?? 0) > 0 && (
+              <p className={styles.line}>
+                {group.capped} below your cap of {group.cap}{" "}
+                <button
+                  type="button"
+                  disabled={showCapped.isPending}
+                  onClick={() => showCapped.mutate({ scoutId: selected })}
+                >
+                  Show them
+                </button>
+              </p>
+            )}
+            {runId !== null && group.runPending > 0 && (
               <button
                 type="button"
-                disabled={showCapped.isPending}
-                onClick={() => showCapped.mutate({ scoutId: selected })}
+                disabled={rejectRun.isPending}
+                onClick={() => rejectRun.mutate({ runId })}
               >
-                Show them
+                Reject this run{groupName !== undefined && ` of ${groupName}`} (
+                {group.runPending})
               </button>
-            </p>
-          )}
-          {runId !== null && group.runPending > 0 && (
-            <button
-              type="button"
-              disabled={rejectRun.isPending}
-              onClick={() => rejectRun.mutate({ runId })}
-            >
-              Reject this run{groupName !== undefined && ` of ${groupName}`} (
-              {group.runPending})
-            </button>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
       {said !== null && (
         <p className={styles.line} role="status">
           {said}
@@ -684,7 +781,10 @@ export function ScoutQueue({
       {form === null && lane === "review" && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
-          {selected === null ? "here" : "in this group"}; they come round again.
+          {(byQuestion ? selectedQuestion : selected) === null
+            ? "here"
+            : "in this group"}
+          ; they come round again.
         </p>
       )}
       {form === null && lane === "skim" && (
@@ -746,8 +846,14 @@ export function ScoutQueue({
         digest.length === 0 &&
         !unread && (
           <ReviewQuiet
-            scout={selected === null ? undefined : healthOf(selected)}
-            claim={selected === null ? fleet.data : undefined}
+            scout={
+              byQuestion || selected === null ? undefined : healthOf(selected)
+            }
+            claim={
+              (byQuestion ? selectedQuestion : selected) === null
+                ? fleet.data
+                : undefined
+            }
             dropped={droppedScouts.length}
           />
         )}
