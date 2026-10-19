@@ -77,6 +77,12 @@ export type PdfAnnotations = {
   annotations: PdfAnnotation[];
   /** Each page's characters in reading order; the document fingerprint is made from these. */
   pageText: string[];
+  /**
+   * Each page as lines, `\n` between them and a blank line where the page
+   * leaves a gap, a line-end hyphen kept. Only the printed keyword line reads
+   * it: the fingerprint's `pageText` has neither structure.
+   */
+  pageLines: string[];
 };
 
 /**
