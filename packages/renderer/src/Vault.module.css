@@ -1,0 +1,174 @@
+/* The Vault: panes on the window's gutter, never a line between them
+   (ADR 0023 decision 1). This slice holds the left pane and the editor's
+   slot; the backlinks pane joins with its own slice. */
+.vault {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.files,
+.editor {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.files {
+  width: 280px;
+  flex: none;
+}
+
+.editor {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.header {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+}
+
+.tab {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.newNote {
+  appearance: none;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: default;
+}
+
+.naming {
+  flex: none;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.nameInput {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.refusal {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.tree {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.row {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-4);
+  font-size: var(--text-sm);
+  cursor: default;
+}
+
+.row:hover {
+  background: var(--color-bg-raised);
+}
+
+/* The keyboard's row: one surface step up and a 2px primary rule, as the
+   Inbox's selection is. */
+.row[aria-selected="true"] {
+  background: var(--color-bg-raised);
+}
+
+.row[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--color-primary);
+}
+
+.row[aria-current="page"] .name {
+  font-weight: 600;
+}
+
+.glyph {
+  flex: none;
+  width: var(--space-4);
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.quiet {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+}
+
+.path {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--color-fg-muted);
+}

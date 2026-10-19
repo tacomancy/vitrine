@@ -58,6 +58,7 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.tags.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.kinds.pathFilter());
+          void queryClient.invalidateQueries(trpc.vault.tree.pathFilter());
           void queryClient.invalidateQueries(trpc.vault.outline.pathFilter());
           void queryClient.invalidateQueries(
             trpc.researchQuestions.page.pathFilter()

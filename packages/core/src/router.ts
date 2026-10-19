@@ -136,6 +136,7 @@ import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
+import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
   linkToResearchQuestion,
@@ -443,6 +444,17 @@ export const router = t.router({
       const { index } = await requireVault(ctx);
       return kindsHeld(index);
     }),
+    // The Vault surface's files tab and its *new note* (spec #680).
+    tree: t.procedure.query(async ({ ctx }) => {
+      const { index } = await requireVault(ctx);
+      return vaultTree(index);
+    }),
+    create: t.procedure
+      .input(z.object({ name: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(createNote(vault.path, index, input.name));
+      }),
   }),
   events: t.router({
     // One SSE stream per renderer, behind the same bearer guard as every
