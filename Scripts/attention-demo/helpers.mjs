@@ -1,10 +1,6 @@
 // Shared by the drives: what a researcher does on the Attention panel, as
 // page scripts (docs/agents/run.md).
-export {
-  applyTheme,
-  expect,
-  openMap,
-} from "../question-map-demo/helpers.mjs";
+export { applyTheme, expect, openMap } from "../question-map-demo/helpers.mjs";
 
 const attention =
   "document.querySelector('section[aria-labelledby=attention-title]')";
