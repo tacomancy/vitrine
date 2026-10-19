@@ -47,6 +47,7 @@ const NO_ATTENTION: Attention = {
   sources: 0,
   asOf: null,
   synced: false,
+  due: 0,
   tags: [],
   crossing: null,
 };
@@ -690,6 +691,8 @@ const tag = (
   growth: null,
   counts: null,
   measuredAt: null,
+  pending: false,
+  query: placed ? 'filter=title_and_abstract.search:("a")' : null,
 });
 
 const ATTENTION: Attention = {
@@ -708,6 +711,7 @@ const LEXICON: LexiconView = {
   reason: null,
   counts: null,
   measuredAt: null,
+  pending: false,
   terms: [
     { term: "residual stream", origin: "derived" },
     { term: "mechanistic interpretability", origin: "author keyword" },
@@ -1255,5 +1259,72 @@ describe("the Attention panel — Sync now", () => {
     });
     expect(editor.textContent).toContain("120 works in the last 12 months");
     expect(editor.textContent).toContain("49 in the 12 before");
+  });
+});
+
+// Re-measure pending and the waiting line (#656; ADR 0045 decisions 4 and
+// 10, ADR 0018 decision 7): a Tag whose query moved keeps its old point and
+// says so in words, three states apart (pending, unplaced, not yet measured).
+
+describe("the Attention panel — re-measure pending", () => {
+  const pending: Attention["tags"][number] = {
+    ...measured("ml/probing", 0.5, "2026-10-09T08:00:00.000Z"),
+    pending: true,
+  };
+
+  it("says re-measure pending in words beside the old growth, apart from unplaced and not yet measured", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        asOf: "2026-10-09T08:00:00.000Z",
+        tags: [
+          pending,
+          { ...tag("ml/fresh", 4), pending: false },
+          tag("sleep", 2, false),
+        ],
+      },
+    });
+    const panel = await attentionSlot();
+    const chosen = await within(panel).findByRole("button", {
+      name: /ml\/probing/,
+    });
+    expect(chosen.textContent).toContain("growth +50%");
+    expect(chosen.textContent).toContain("re-measure pending");
+    const fresh = within(panel).getByRole("button", { name: /ml\/fresh/ });
+    expect(fresh.textContent).toContain("not yet measured");
+    expect(fresh.textContent).not.toContain("re-measure pending");
+    const thin = within(panel).getByRole("button", { name: /sleep/ });
+    expect(thin.textContent).toContain("unplaced");
+    expect(thin.textContent).not.toContain("re-measure pending");
+  });
+
+  it("says how many Tags are waiting to be measured once the vault has synced, and nothing in one that never did", async () => {
+    open({
+      "questionMap.attention": { ...SYNCED, due: 2, tags: [pending] },
+    });
+    const panel = await attentionSlot();
+    expect(await within(panel).findByText(/2 tags waiting/)).toBeDefined();
+  });
+
+  it("does not say waiting when nothing is due", async () => {
+    open({ "questionMap.attention": { ...SYNCED, due: 0, tags: [pending] } });
+    const panel = await attentionSlot();
+    await within(panel).findByRole("button", { name: /ml\/probing/ });
+    expect(panel.textContent).not.toMatch(/waiting/);
+  });
+
+  it("says in the open Lexicon that the point is the old one", async () => {
+    open({
+      "questionMap.attention": { ...SYNCED, tags: [pending] },
+      "lexicon.get": { ...LEXICON, pending: true },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /ml\/probing/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: "Lexicon: ml/probing",
+    });
+    expect(editor.textContent).toMatch(/re-measure pending/);
   });
 });

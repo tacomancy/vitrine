@@ -90,6 +90,12 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           // A run ended, cleanly or not (ADR 0016 decision 13): what it found
           // and how it went are rows, so the Queue re-reads them.
           void queryClient.invalidateQueries(trpc.scouts.pathFilter());
+        } else if (event.type === "lexiconSynced") {
+          // The sync on open ended (#656): the panel re-reads what it measured.
+          void queryClient.invalidateQueries(
+            trpc.questionMap.attention.pathFilter()
+          );
+          void queryClient.invalidateQueries(trpc.lexicon.get.pathFilter());
         } else if (event.type === "vaultSwitched") {
           // Another vault is open (#377), whichever way it was asked for —
           // Settings, First run, or File ▸ Open Vault…, which the shell

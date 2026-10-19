@@ -52,6 +52,10 @@
   cursor: pointer;
 }
 
+.pending circle {
+  stroke-dasharray: 4 3;
+}
+
 .count {
   fill: var(--color-fg);
   font-size: 11px;

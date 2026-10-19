@@ -319,7 +319,8 @@ describe("the as-of line", () => {
     await writeFile(
       join(vault, ".vitrine", "measurements.json"),
       JSON.stringify({
-        consentedAt: "2026-10-01T00:00:00.000Z",
+        // Unconsented, so no sync on open moves the dates under test.
+        consentedAt: null,
         measurements: [
           {
             tag: "ml/probing",
