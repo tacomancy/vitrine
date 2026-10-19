@@ -19,7 +19,12 @@ import {
 } from "./scout-file.js";
 import { faultSentence, lastWindow } from "./scout-health.js";
 import { dueUnder } from "./scout-schedule.js";
-import { runScout, type RunSummary, type ScoutDeps } from "./scouts.js";
+import {
+  compileTags,
+  runScout,
+  type RunSummary,
+  type ScoutDeps,
+} from "./scouts.js";
 import { serialised } from "./serialise.js";
 
 /**
@@ -40,6 +45,14 @@ export type ScoutForm = {
   /** What it watches; a page's *Address* travels in `query`, so one field is one field (ADR 0040 d.4). */
   watching?: "arxiv" | "watched" | undefined;
   query: string;
+  /**
+   * The Filter as Tags, as written (spec #678): present and non-empty makes it
+   * a Tag Filter, and then `query` must be empty — a Scout has one or the
+   * other. Absent leaves a saved Scout's Filter as it is, which is how a Scout
+   * Activity row saves a Lane without knowing which Filter it holds; empty
+   * with a `query` is the switch back to a Query.
+   */
+  tags?: string[] | undefined;
   cadence: Scout["cadence"];
   assigned: string[];
   lane: Scout["lane"];
@@ -89,11 +102,27 @@ async function write(
   const names = await listScoutsFolder(deps.vaultPath);
   const before =
     form.id === undefined ? undefined : fileOf(scouts, form.id, names);
-  // A Tag Filter has no Query to type (spec #678): saving its Lane or its
-  // Assigned Questions leaves `filter.tags` alone. Editing the Tags is the
-  // form's later slice.
-  const tagged = before?.scout.tags !== undefined;
-  if (name === "" || (query === "" && !tagged)) {
+  const given = [...new Set((form.tags ?? []).map((t) => t.trim()))].filter(
+    (t) => t !== ""
+  );
+  if (given.length > 0 && watched) {
+    throw new VaultError(
+      "refused",
+      "A Watched page has no Filter to give Tags."
+    );
+  }
+  if (given.length > 0 && query !== "") {
+    throw new VaultError("refused", "A Scout has Tags or a Query, never both.");
+  }
+  // A Tag Filter has no Query to type (spec #678): a save that says nothing of
+  // the Filter (a Scout Activity row's Lane, say) leaves `filter.tags` alone.
+  const tags =
+    given.length > 0
+      ? given
+      : form.tags === undefined && query === ""
+        ? before?.scout.tags
+        : undefined;
+  if (name === "" || (query === "" && tags === undefined)) {
     throw new VaultError(
       "refused",
       watched
@@ -160,10 +189,7 @@ async function write(
     if (value === null) doc.delete(key);
     else doc.set(key, value);
   }
-  if (!watched && !tagged) {
-    if (isMap(doc.get("filter"))) doc.setIn(["filter", "query"], query);
-    else doc.set("filter", { query });
-  }
+  if (!watched) writeFilter(doc, query, tags, before?.scout.tags);
 
   await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
     throw new VaultError(
@@ -184,10 +210,35 @@ async function write(
   const edited =
     before !== undefined &&
     !watched &&
-    !tagged &&
-    before.scout.query !== query &&
+    (tags === undefined
+      ? before.scout.tags !== undefined || before.scout.query !== query
+      : before.scout.tags === undefined ||
+        !sameList(before.scout.tags, tags)) &&
     !before.scout.paused;
   return { id, runAfter: edited };
+}
+
+/**
+ * One of `filter.query` and `filter.tags`, never both. A key the save did not
+ * change is not written, so its comment and the style it was written in stay
+ * (ADR 0009); the other key of the pair goes, which is what a switch is.
+ */
+function writeFilter(
+  doc: Document,
+  query: string,
+  tags: string[] | undefined,
+  was: string[] | undefined
+) {
+  const filter = doc.get("filter");
+  if (!isMap(filter)) {
+    doc.set("filter", tags === undefined ? { query } : { tags });
+  } else if (tags === undefined) {
+    filter.delete("tags");
+    filter.set("query", query);
+  } else if (was === undefined || !sameList(was, tags)) {
+    filter.delete("query");
+    filter.set("tags", tags);
+  }
 }
 
 /**
@@ -353,6 +404,21 @@ export async function tryQuery(
       sentence: faultSentence(cause.kind, cause.message, false),
     };
   }
+}
+
+/**
+ * *Try* for Tags: what a run would ask now, once and with no window, so the
+ * form shows what a Query shows. A Tag with nothing to compile is refused by
+ * name, as the run refuses it.
+ */
+export async function tryTags(
+  deps: ScoutDeps,
+  tags: readonly string[]
+): Promise<TriedQuery> {
+  if (tags.length === 0) {
+    throw new VaultError("refused", "There are no Tags to try.");
+  }
+  return tryQuery(deps, await compileTags(deps, tags));
 }
 
 export type TriedWindow =
