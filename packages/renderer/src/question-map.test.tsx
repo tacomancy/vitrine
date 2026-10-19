@@ -48,6 +48,7 @@ const NO_ATTENTION: Attention = {
   asOf: null,
   synced: false,
   tags: [],
+  crossing: null,
 };
 
 const open = (more: Record<string, unknown> = {}) => {
@@ -821,6 +822,76 @@ describe("the Attention panel", () => {
       within(editor).queryByRole("list", { name: "Terms in use" })
     ).toBeNull();
     expect(within(editor).queryByText(/filter=/)).toBeNull();
+  });
+
+  it("plots the measured Tags, states where the axes cross, and lists an unplaced Tag as a chip with its reason, never as a point", async () => {
+    const measured = (name: string, papers: number, growth: number) => ({
+      ...tag(name, papers),
+      state: "measured" as const,
+      growth,
+      counts: { last12: 100, prior12: 100 },
+      measuredAt: "2026-10-16T09:00:00.000Z",
+    });
+    open({
+      "questionMap.attention": {
+        ...ATTENTION,
+        tags: [
+          measured("a", 9, 1),
+          measured("b", 7, 0.5),
+          measured("c", 4, 2),
+          measured("d", 2, 0.1),
+          { ...tag("thin", 1, false), reason: "few-in-field" },
+        ],
+        crossing: { placed: 4, papers: 5.5, growth: 0.75 },
+      },
+    });
+    const panel = await attentionSlot();
+    const chart = await within(panel).findByRole("listbox");
+    expect(within(chart).getAllByRole("option")).toHaveLength(4);
+    expect(within(chart).queryByRole("option", { name: /thin/ })).toBeNull();
+    expect(
+      within(panel).getByText("axes cross at the median of 4 placed tags")
+    ).toBeDefined();
+    const chips = within(panel).getByRole("list", { name: "Unplaced" });
+    expect(chips.textContent).toContain("thin");
+    expect(chips.textContent).toContain("too few in the field");
+  });
+
+  it("opens a Tag's Lexicon from a point", async () => {
+    const asked: unknown[] = [];
+    open({
+      "questionMap.attention": {
+        ...ATTENTION,
+        tags: [
+          {
+            ...tag("ml/probing", 5),
+            state: "measured",
+            growth: 1,
+            counts: { last12: 200, prior12: 100 },
+            measuredAt: "2026-10-16T09:00:00.000Z",
+          },
+        ],
+      },
+      "lexicon.get": (input: unknown) => {
+        asked.push(input);
+        return LEXICON;
+      },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("option", {
+        name: "ml/probing: 5 papers, growth +100%",
+      })
+    );
+    await within(panel).findByRole("region", { name: /Lexicon: ml\/probing/ });
+    expect(asked.at(-1)).toEqual({ tag: "ml/probing" });
+  });
+
+  it("draws no chart when nothing is placed, only the list", async () => {
+    open({ "questionMap.attention": ATTENTION });
+    const panel = await attentionSlot();
+    await within(panel).findByRole("button", { name: /ml\/probing/ });
+    expect(within(panel).queryByRole("listbox")).toBeNull();
   });
 
   it("asks at the page's depth, and the editor at that depth too", async () => {

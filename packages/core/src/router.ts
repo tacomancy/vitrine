@@ -103,6 +103,8 @@ import {
   rejectRun,
   showCapped,
   undoTriage,
+  actOnGroup,
+  undoBulk,
 } from "./triage.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
@@ -692,6 +694,23 @@ export const router = t.router({
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(({ ctx, input }) =>
         triaged(ctx, (deps) => undoTriage(deps, input.proposalId))
+      ),
+    // *Reject group* and *defer group* (#644): the cards the window shows in
+    // the group on screen, one `bulk` id across their rows, one undo.
+    rejectGroup: t.procedure
+      .input(z.object({ proposalIds: z.array(z.number().int()) }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => actOnGroup(deps, "reject", input.proposalIds))
+      ),
+    deferGroup: t.procedure
+      .input(z.object({ proposalIds: z.array(z.number().int()) }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => actOnGroup(deps, "defer", input.proposalIds))
+      ),
+    undoBulk: t.procedure
+      .input(z.object({ bulk: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => undoBulk(deps, input.bulk))
       ),
     showCapped: t.procedure
       .input(z.object({ scoutId: z.string().min(1) }))

@@ -36,9 +36,11 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    kinds `credentials`, `model` and `extraction` (#464).
  * 7: the triage actions `demote` and `raise`, Lane moves the researcher did
  *    not make by hand (#643).
- * 8: the Proposal state `capped`, what a Scout's cap cut (#647).
+ * 8: `triage.bulk`, the id one reject-group or defer-group gesture writes on
+ *    every row it makes, so one `⌘Z` can take the whole gesture back (#644).
+ * 9: the Proposal state `capped`, what a Scout's cap cut (#647).
  */
-export const QUEUE_SCHEMA_VERSION = 8;
+export const QUEUE_SCHEMA_VERSION = 9;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -187,6 +189,13 @@ DROP TABLE triage;
 ALTER TABLE triage_new RENAME TO triage;
 `;
 
+// Nullable and additive: every earlier row is a single act and keeps null.
+// Not a reference to anything: a gesture has no row of its own, only the id
+// its triage rows share (ADR 0044 decision 9).
+const TRIAGE_BULK = `
+ALTER TABLE triage ADD COLUMN bulk INTEGER;
+`;
+
 // A CHECK cannot be altered, so adding `capped` rebuilds `proposals`, keeping
 // every id: Appearances and the triage log point at Proposals by id, and a
 // Proposal row (with the stub path an accept wrote) is not re-derivable.
@@ -227,6 +236,7 @@ const MIGRATIONS: readonly string[] = [
   SCOUT_RUN_QUERY,
   SCOUT_RUN_MODEL,
   TRIAGE_LANE_MOVES,
+  TRIAGE_BULK,
   PROPOSAL_CAPPED,
 ];
 
