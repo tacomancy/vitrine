@@ -1,4 +1,10 @@
 import { normalisePhrase } from "./lexicon-phrases.js";
+import { compileOpenAlexQuery, type OpenAlexErrorKind } from "./openalex.js";
+import {
+  yearCounts,
+  type Measurement,
+  type Measurements,
+} from "./measurements.js";
 import { rollUp, tagDisplays, threadMaterial } from "./question-map.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -19,11 +25,31 @@ export const PLACED_PAPERS = 3;
 export const KEYWORD_WEIGHT = 2;
 /** How much of the *not used* line the editor is handed. */
 export const NOT_USED_SHOWN = 20;
+/**
+ * Works the field must hold in the 12 months before the last 12 for a
+ * percentage to mean anything; below it a Tag is unplaced (ADR 0045 d.5).
+ */
+export const FIELD_FLOOR = 50;
+/** How many complete months a Measurement keeps (ADR 0045 d.1). */
+export const MEASURED_MONTHS = 24;
+/** A Measurement older than this is due again at the next *Sync now*. */
+export const STALE_DAYS = 7;
 
 export type TermOrigin = "derived" | "author keyword";
 export type Term = { term: string; origin: TermOrigin };
 
-export type AttentionTag = {
+/** What a Tag's Measurement says, judged on read. */
+export type Judged = {
+  state: "not yet measured" | "unplaced" | "measured";
+  reason: "few-papers" | "few-in-field" | null;
+  /** (last 12 − prior 12) ÷ prior 12; null unless measured. */
+  growth: number | null;
+  /** The field's works in the last 12 complete months and the 12 before; null until measured. */
+  counts: { last12: number; prior12: number } | null;
+  measuredAt: string | null;
+};
+
+export type AttentionTag = Judged & {
   /** Canonical, at the page's depth. */
   tag: string;
   display: string;
@@ -31,9 +57,6 @@ export type AttentionTag = {
   papers: number;
   /** Of those, the ones with title or abstract text to derive from. */
   withText: number;
-  state: "not yet measured" | "unplaced";
-  /** Why a Tag is unplaced; the renderer words it. */
-  reason: "few-papers" | null;
 };
 
 export type Attention = {
@@ -41,11 +64,20 @@ export type Attention = {
   deepest: number;
   /** Papers held, whatever their Tags. */
   sources: number;
-  /** The oldest measurement shown; null until a sync has measured something. */
+  /** The oldest measurement among the Tags shown; null until a sync has measured one. */
   asOf: string | null;
+  /** Whether *Sync now* has ever been confirmed; until it has, no request is made. */
   synced: boolean;
   /** Most papers first, then by name. */
   tags: AttentionTag[];
+};
+
+export type SyncResult = {
+  measured: number;
+  /** A Tag whose measuring failed keeps its last Measurement and is named here. */
+  failed: Array<{ tag: string; kind: OpenAlexErrorKind }>;
+  /** Tags still to measure after a rate limit stopped the sync. */
+  waiting: number;
 };
 
 export type LexiconView = {
@@ -54,8 +86,12 @@ export type LexiconView = {
   depth: number;
   papers: number;
   withText: number;
+  /** Enough papers, and the field not too thin to measure. */
   placed: boolean;
-  reason: "few-papers" | null;
+  reason: "few-papers" | "few-in-field" | null;
+  /** What the field measured at, for a Tag judged on it. */
+  counts: Judged["counts"];
+  measuredAt: string | null;
   terms: Term[];
   notUsed: Term[];
   /** The OpenAlex query the Terms compile to, verbatim; null when there is nothing to compile. */
@@ -153,7 +189,58 @@ function papersByTag(
   return byTag;
 }
 
-export function attention(index: VaultIndex, requested?: number): Attention {
+/**
+ * A Tag's state, derived on read from its stored counts, so the definition
+ * can change without a re-fetch (ADR 0045 decision 1). Too few of the
+ * vault's own papers outranks anything measured: the Lexicon is not there.
+ */
+function judge(placed: boolean, measurement: Measurement | undefined): Judged {
+  if (!placed) {
+    return {
+      state: "unplaced",
+      reason: "few-papers",
+      growth: null,
+      counts: null,
+      measuredAt: null,
+    };
+  }
+  if (measurement === undefined) {
+    return {
+      state: "not yet measured",
+      reason: null,
+      growth: null,
+      counts: null,
+      measuredAt: null,
+    };
+  }
+  const counts = yearCounts(measurement);
+  const measuredAt = measurement.measuredAt;
+  if (counts.prior12 < FIELD_FLOOR) {
+    return {
+      state: "unplaced",
+      reason: "few-in-field",
+      growth: null,
+      counts,
+      measuredAt,
+    };
+  }
+  return {
+    state: "measured",
+    reason: null,
+    growth: (counts.last12 - counts.prior12) / counts.prior12,
+    counts,
+    measuredAt,
+  };
+}
+
+const measurementOf = (store: Measurements, tag: string) =>
+  store.measurements.find((m) => m.tag === tag);
+
+export function attention(
+  index: VaultIndex,
+  store: Measurements,
+  requested?: number
+): Attention {
   const { depth, deepest } = depthFor(index, requested);
   const papers = readPapers(index);
   const displays = tagDisplays(index);
@@ -168,21 +255,23 @@ export function attention(index: VaultIndex, requested?: number): Attention {
         display: displays.get(tag) ?? tag,
         papers: held.size,
         withText,
-        state: placed ? "not yet measured" : "unplaced",
-        reason: placed ? null : "few-papers",
+        ...judge(placed, measurementOf(store, tag)),
       };
     }
   );
   tags.sort((a, b) => b.papers - a.papers || byName(a.tag, b.tag));
-  // No measurement store exists yet (a later ticket), so nothing is dated
-  // and every placeable Tag is *not yet measured*; these literals become
-  // derived values when it lands, not facts to keep.
+  // The oldest among the Tags shown, never an average: the picture is as old
+  // as its stalest point. A Tag never measured has no date and adds none.
+  const dates = tags
+    .map((t) => t.measuredAt)
+    .filter((at): at is string => at !== null)
+    .sort();
   return {
     depth,
     deepest,
     sources: papers.size,
-    asOf: null,
-    synced: false,
+    asOf: dates[0] ?? null,
+    synced: store.consentedAt !== null,
     tags,
   };
 }
@@ -196,6 +285,7 @@ export function attention(index: VaultIndex, requested?: number): Attention {
  */
 export function lexiconOf(
   index: VaultIndex,
+  store: Measurements,
   tag: string,
   requested?: number
 ): LexiconView {
@@ -232,6 +322,8 @@ function lexiconAmong(
       ...base,
       placed: false,
       reason: "few-papers",
+      counts: null,
+      measuredAt: null,
       terms: [],
       notUsed: [],
       query: null,
@@ -269,10 +361,14 @@ function lexiconAmong(
     .slice(0, LEXICON_TERMS)
     .map(({ term, origin }): Term => ({ term, origin }));
   const used = new Set(inUse.map((t) => t.term));
+  const judged = judge(true, measurementOf(store, tag));
   return {
     ...base,
-    placed: true,
-    reason: null,
+    // Placed unless the field turned out too thin to measure.
+    placed: judged.reason === null,
+    reason: judged.reason,
+    counts: judged.counts,
+    measuredAt: judged.measuredAt,
     terms: inUse,
     notUsed: scored
       .filter((t) => !used.has(t.term))
@@ -281,7 +377,7 @@ function lexiconAmong(
     query:
       inUse.length === 0
         ? null
-        : `filter=title_and_abstract.search:(${inUse.map((t) => `"${t.term}"`).join(" OR ")})`,
+        : compileOpenAlexQuery(inUse.map((t) => t.term)),
   };
 }
 
