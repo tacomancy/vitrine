@@ -506,14 +506,12 @@ function releaseCounterweight(deps: ScoutDeps, revisited: number[]): void {
       )
       .all(...args) as Row[];
   const marks = revisited.map(() => "?").join(",");
-  const held = new Set<string>();
   const release = queue.prepare(
     "UPDATE proposals SET state = 'pending' WHERE id = ?"
   );
   for (const row of read("capped", `p.id IN (${marks})`, ...revisited)) {
-    if (!ready.has(row.grp) || held.has(row.grp)) continue;
+    if (!ready.has(row.grp)) continue;
     if (!qualifies(row.authors, row.scouts)) continue;
-    held.add(row.grp);
     const inStack = read(
       "pending",
       `${firstAppearanceScout("p.id")} = ?`,
@@ -698,7 +696,7 @@ function reserveCounterweight(deps: ScoutDeps, stack: Card[]): void {
     if (pick === undefined) continue;
     pick.counterweight = true;
     const second = members[1];
-    if (second === undefined || members.indexOf(pick) < 2) continue;
+    if (second === undefined) continue;
     stack.splice(stack.indexOf(pick), 1);
     stack.splice(stack.indexOf(second), 0, pick);
   }
