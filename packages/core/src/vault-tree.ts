@@ -4,7 +4,7 @@ import { createFile } from "./vault-files.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /** The one folder *new note* writes to (spec #680; `docs/architecture.md` § Vault surface). */
-export const NOTES_FOLDER = "notes";
+const NOTES_FOLDER = "notes";
 
 export type TreeFile = {
   /** Vault-relative, as the index keys it. */

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
+import { markOf } from "./kinds";
 import { pushRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
@@ -34,12 +35,6 @@ export function VaultSurface({ path }: { path: string | undefined }) {
 type Row =
   | { type: "folder"; key: string; name: string; depth: number; open: boolean }
   | { type: "file"; key: string; name: string; depth: number; file: TreeFile };
-
-const KIND_WORDS: Record<string, { glyph: string; word: string }> = {
-  question: { glyph: "◆", word: "question" },
-  source: { glyph: "●", word: "source" },
-  "source-stub": { glyph: "○", word: "source stub" },
-};
 
 const fileLabel = (path: string) =>
   (path.split("/").at(-1) ?? path).replace(/\.md$/i, "");
@@ -208,7 +203,7 @@ function Files({ open }: { open: string | undefined }) {
         >
           {rows.map((row, index) => {
             const kind =
-              row.type === "file" ? KIND_WORDS[row.file.kind ?? ""] : undefined;
+              row.type === "file" ? markOf(row.file.kind ?? "") : undefined;
             const annotations =
               row.type === "file" ? row.file.annotations : undefined;
             const label =
@@ -216,7 +211,7 @@ function Files({ open }: { open: string | undefined }) {
                 ? row.name
                 : [
                     row.name,
-                    kind?.word,
+                    kind?.label,
                     annotations === undefined
                       ? undefined
                       : `${annotations} annotations`,
