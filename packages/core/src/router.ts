@@ -728,9 +728,11 @@ export const router = t.router({
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))
       .mutation(({ ctx, input }) =>
-        triaged(ctx, async (deps) => ({
-          rejected: await rejectRun(deps, input.runId),
-        }))
+        refusing(
+          scoutDeps(ctx)
+            .then((deps) => rejectRun(deps, input.runId))
+            .then((rejected) => ({ rejected }))
+        )
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that
