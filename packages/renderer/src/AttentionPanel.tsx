@@ -111,12 +111,23 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         </div>
       )}
       <SyncLine sync={sync} />
-      {/* Derived from what is stored, so a sync that failed or ran out of
-          budget leaves its Tags counted here and never looks like a quiet field. */}
-      {attention.data.synced && attention.data.due > 0 && !sync.isPending && (
+      {/* Read from what is stored, so a failure outlives the sync that saw it
+          (the one on open has no caller to tell) and never looks like a quiet
+          field. A Tag that failed keeps its last Measurement and its date. */}
+      {attention.data.measuring !== null ? (
         <p className={styles.stated} role="status">
-          {plural(attention.data.due, "tag", "tags")} waiting to be measured
+          measuring {attention.data.measuring.done} of{" "}
+          {attention.data.measuring.of}
         </p>
+      ) : (
+        <>
+          <Failures tags={tags} due={attention.data.due} />
+          {attention.data.synced && attention.data.due > 0 && (
+            <p className={styles.stated} role="status">
+              {plural(attention.data.due, "tag", "tags")} waiting to be measured
+            </p>
+          )}
+        </>
       )}
       <p className={styles.stated}>
         counts papers held, not papers attached to questions
@@ -192,9 +203,9 @@ const FAILURE = {
 } as const;
 
 /**
- * What the last sync did, in a polite state-of-the-app line: it refuses
- * nothing the user did, so it is a status and not an alert (ADR 0033), and
- * a failure is always said.
+ * What the last *Sync now* did, in a polite state-of-the-app line: it refuses
+ * nothing the user did, so it is a status and not an alert (ADR 0033).
+ * Which Tags failed is `Failures`' to say, from what is stored.
  */
 function SyncLine({
   sync,
@@ -208,17 +219,35 @@ function SyncLine({
       </p>
     );
   }
-  const result = sync.data;
-  if (result === undefined) return null;
-  const limited = result.failed.some((f) => f.kind === "rate_limited");
-  const others = result.failed.filter((f) => f.kind !== "rate_limited");
+  if (sync.data === undefined) return null;
   return (
     <p className={styles.stated} role="status">
-      {plural(result.measured, "tag", "tags")} measured
-      {others.length > 0 &&
-        ` · ${others.map((f) => `${f.tag}: ${FAILURE[f.kind]}`).join("; ")}`}
+      {plural(sync.data.measured, "tag", "tags")} measured
+    </p>
+  );
+}
+
+/** Each Tag whose newest attempt failed, and why; a rate limit also says the rest are waiting. */
+function Failures({ tags, due }: { tags: AttentionTag[]; due: number }) {
+  const failed = tags.filter((t) => t.failure !== null);
+  const limited = failed.some((t) => t.failure === "rate_limited");
+  const others = failed.filter((t) => t.failure !== "rate_limited");
+  if (failed.length === 0) return null;
+  return (
+    <p className={styles.stated} role="status">
+      {others
+        .map(
+          (t) =>
+            `${t.tag}: ${FAILURE[t.failure!]}${
+              t.measuredAt === null
+                ? ""
+                : `, kept its measurement as of ${t.measuredAt.slice(0, 10)}`
+            }`
+        )
+        .join("; ")}
+      {others.length > 0 && limited && " · "}
       {limited &&
-        ` · rate limited — ${plural(result.waiting, "tag", "tags")} waiting, try again later`}
+        `rate limited — ${plural(due, "tag", "tags")} waiting, try again later`}
     </p>
   );
 }

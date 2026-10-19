@@ -256,6 +256,7 @@ export function createApp({
         vaultPath: opened.vault.path,
         client: context.openalex,
         now: context.now(),
+        onProgress: () => events.emit({ type: "lexiconSynced" }),
       });
       if (result !== null) events.emit({ type: "lexiconSynced" });
     } catch (cause) {

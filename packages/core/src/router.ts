@@ -61,7 +61,7 @@ import {
   restoreTerm,
   seedTerm,
 } from "./lexicon-edits.js";
-import { syncLexicons } from "./lexicon-sync.js";
+import { measuringOf, syncLexicons } from "./lexicon-sync.js";
 import {
   readMeasurements,
   recordViewedDepth,
@@ -1571,7 +1571,7 @@ export const router = t.router({
         if (view.depth !== view.deepest) {
           await refusing(recordViewedDepth(vault.path, view.depth));
         }
-        return view;
+        return { ...view, measuring: measuringOf(vault.path) };
       }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {
@@ -1619,6 +1619,7 @@ export const router = t.router({
             client: ctx.openalex,
             now: ctx.now(),
             confirm: input?.confirm === true,
+            onProgress: () => ctx.events.emit({ type: "lexiconSynced" }),
           })
         );
       }),

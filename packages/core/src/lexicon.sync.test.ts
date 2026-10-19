@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Attention, LexiconView, SyncResult } from "./lexicon.js";
 import {
   closeCores,
@@ -376,5 +376,99 @@ describe("a sync that cannot finish", () => {
     expect(result.measured).toBe(0);
     expect(result.failed.map((f) => f.kind)).toEqual(["rate_limited"]);
     expect(result.waiting).toBe(2);
+  });
+});
+
+describe("a failed Tag (#657)", () => {
+  const DAY = 86_400_000;
+
+  it("keeps its last Measurement and its as-of, and says that it failed and why", async () => {
+    let now = NOW;
+    let broken = false;
+    const fake = fakeOpenAlex((month) =>
+      broken ? new Response("down", { status: 500 }) : DOUBLING(month)
+    );
+    const { sync, attention } = await opened(PROBING, fake, {
+      now: () => now,
+    });
+    await sync();
+    const before = tagOf(await attention(), "ml/probing");
+
+    now = new Date(NOW.getTime() + 8 * DAY);
+    broken = true;
+    await sync();
+    const after = tagOf(await attention(), "ml/probing");
+
+    expect(after.failure).toBe("http");
+    expect(after.state).toBe("measured");
+    expect(after.growth).toBe(before.growth);
+    expect(after.measuredAt).toBe(before.measuredAt);
+  });
+
+  it("keeps the failure after the sync that saw it has returned, and clears it when a later sync succeeds", async () => {
+    let now = NOW;
+    let kind: "network" | "ok" = "network";
+    const fake = fakeOpenAlex((month) => {
+      if (kind === "network") throw new TypeError("offline");
+      return DOUBLING(month);
+    });
+    const { sync, attention } = await opened(PROBING, fake, {
+      now: () => now,
+    });
+    await sync();
+    expect(tagOf(await attention(), "ml/probing").failure).toBe("network");
+    expect(tagOf(await attention(), "ml/probing").state).toBe(
+      "not yet measured"
+    );
+
+    kind = "ok";
+    now = new Date(NOW.getTime() + DAY);
+    await sync();
+    expect(tagOf(await attention(), "ml/probing").failure).toBeNull();
+  });
+
+  it("marks the Tag the rate limit stopped on, and not the ones it left unattempted", async () => {
+    const fake = fakeOpenAlex(() => new Response("slow", { status: 429 }));
+    const { sync, attention } = await opened({ ...PROBING, ...SLEEP }, fake);
+    await sync();
+    const view = await attention();
+    expect(view.tags.map((t) => t.failure).sort()).toEqual([
+      null,
+      "rate_limited",
+    ]);
+    expect(view.due).toBe(2);
+    expect(fake.urls).toHaveLength(1);
+  });
+});
+
+describe("measuring n of m (#657)", () => {
+  it("is reported while a sync runs and clears after", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let held = 0;
+    const urls: URL[] = [];
+    const fetcher = (async (input: string | URL | Request) => {
+      urls.push(urlOf(input));
+      if (held++ === 0) await gate;
+      return Response.json({ meta: { count: 20 }, results: [] });
+    }) as typeof fetch;
+    const { c, sync, attention } = await opened(
+      { ...PROBING, ...SLEEP },
+      {
+        fetch: fetcher,
+        urls,
+        months: () => [],
+      }
+    );
+    expect(c).toBeDefined();
+    expect((await attention()).measuring).toBeNull();
+
+    const running = sync();
+    await vi.waitFor(async () =>
+      expect((await attention()).measuring).toEqual({ done: 0, of: 2 })
+    );
+    release();
+    await running;
+    expect((await attention()).measuring).toBeNull();
   });
 });

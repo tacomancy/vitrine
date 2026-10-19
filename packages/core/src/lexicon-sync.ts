@@ -9,6 +9,7 @@ import {
 import {
   readMeasurements,
   recordConsent,
+  recordFailure,
   recordMeasurement,
 } from "./measurements.js";
 import { readEdits } from "./lexicon-edits.js";
@@ -36,12 +37,22 @@ export function completeMonths(now: Date, n = MEASURED_MONTHS): string[] {
 // reads what the first stored and finds nothing due.
 const oneAtATime = serialised();
 
+// The progress of a sync in flight, for the panel's *measuring n of m*. Kept
+// in memory beside the queue it describes: it is true only while the sync is
+// running, so a restart rightly shows none.
+const running = new Map<string, { done: number; of: number }>();
+
+export const measuringOf = (vaultPath: string) =>
+  running.get(vaultPath) ?? null;
+
 type Deps = {
   index: VaultIndex;
   vaultPath: string;
   client: OpenAlexClient;
   now: Date;
   confirm: boolean;
+  /** Called as each Tag settles, so what shows `measuringOf` can re-read. */
+  onProgress?: () => void;
 };
 
 /**
@@ -133,7 +144,29 @@ async function sync(deps: Deps): Promise<SyncResult> {
     }));
 
   const result: SyncResult = { measured: 0, failed: [], waiting: 0 };
-  for (const [i, { tag, terms, query }] of due.entries()) {
+  if (due.length > 0) running.set(vaultPath, { done: 0, of: due.length });
+  try {
+    await measureAll();
+  } finally {
+    running.delete(vaultPath);
+    deps.onProgress?.();
+  }
+  return result;
+
+  async function measureAll() {
+    for (const [i, { tag, terms, query }] of due.entries()) {
+      deps.onProgress?.();
+      if (!(await measureOne(tag, terms, query))) {
+        // The budget is spent for every Tag after this one too; the rest wait.
+        result.waiting = due.length - i;
+        break;
+      }
+      running.set(vaultPath, { done: i + 1, of: due.length });
+    }
+  }
+
+  /** False when the sync should stop: the rate limit has been reached. */
+  async function measureOne(tag: string, terms: string[], query: string) {
     try {
       const counts = await client.monthlyCounts(terms, months);
       await recordMeasurement(vaultPath, {
@@ -143,15 +176,19 @@ async function sync(deps: Deps): Promise<SyncResult> {
         measuredAt: now.toISOString(),
       });
       result.measured += 1;
+      return true;
     } catch (cause) {
       if (!(cause instanceof OpenAlexError)) throw cause;
       result.failed.push({ tag, kind: cause.kind });
-      // The budget is spent for every Tag after this one too; the rest wait.
-      if (cause.kind === "rate_limited") {
-        result.waiting = due.length - i;
-        break;
-      }
+      // Stored, not only returned: the sync on open has no caller to tell, and
+      // a Tag that failed must not look like one nobody asked about. Its last
+      // Measurement is left exactly as it was.
+      await recordFailure(vaultPath, {
+        tag,
+        kind: cause.kind,
+        at: now.toISOString(),
+      });
+      return cause.kind !== "rate_limited";
     }
   }
-  return result;
 }
