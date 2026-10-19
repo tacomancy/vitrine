@@ -44,6 +44,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   ],
   retroactive: false,
   signals: [],
+  moved: null,
   pastWindow: false,
   ...rest,
 });
@@ -177,6 +178,26 @@ describe("the Scout Queue", () => {
     fireEvent.keyDown(ranked, { key: "p" });
     const plain = await screen.findByRole("article", { name: "Another" });
     expect(plain.textContent).not.toMatch(/accepted|found by/);
+  });
+
+  it("says why a card moved Lane, and nothing for one that did not", async () => {
+    renderApp(
+      answers([
+        card({
+          moved: { kind: "raised", by: { id: "b", name: "Memory watch" } },
+        }),
+        card({ id: 8, title: "Another" }),
+      ])
+    );
+
+    const raised = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+
+    expect(raised.textContent).toContain("raised — also found by Memory watch");
+    fireEvent.keyDown(raised, { key: "p" });
+    const plain = await screen.findByRole("article", { name: "Another" });
+    expect(plain.textContent).not.toMatch(/raised|moved to Skim/);
   });
 
   it("asks for Rank, switches to Newest on request, and keeps the choice for the session", async () => {

@@ -41,6 +41,7 @@ const card = (
   scouts: [{ ...by, assigned: [] }],
   retroactive: false,
   signals: [],
+  moved: null,
   pastWindow: false,
 });
 const FROM_SLEEP = { id: "sleep", name: "Sleep and memory", dropped: false };

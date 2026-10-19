@@ -349,6 +349,18 @@ function arrive(
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
   );
+  const isSkimPending = queue.prepare(
+    "SELECT 1 FROM proposals WHERE id = ? AND lane = 'skim' AND state = 'pending'"
+  );
+  const otherScout = queue.prepare(
+    "SELECT 1 FROM appearances WHERE proposal_id = ? AND scout_id <> ?"
+  );
+  const raise = queue.prepare(
+    "UPDATE proposals SET lane = 'review' WHERE id = ?"
+  );
+  const logRaise = queue.prepare(
+    "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'raise', ?)"
+  );
   const vaultHas = heldIn(deps.index);
   let fresh = 0;
   let held = 0;
@@ -375,6 +387,19 @@ function arrive(
       );
       if (heldBy === null) fresh++;
       else held++;
+    }
+    // Corroboration crosses Lanes: a Skim line a second Scout also finds has
+    // been independently found, which is what Review is for (ADR 0044
+    // decision 8). A `raise` row, like a `promote`, keeps it out of Accept
+    // rate. Checked before this Appearance is written, so it asks whether
+    // another Scout was already there.
+    if (
+      id !== undefined &&
+      (isSkimPending.get(id) as object | undefined) !== undefined &&
+      (otherScout.get(id, scout.id) as object | undefined) !== undefined
+    ) {
+      raise.run(id);
+      logRaise.run(id, at);
     }
     appear.run(id, runId, scout.id, at, item.url);
   }
@@ -458,12 +483,22 @@ export type Card = {
    */
   signals: RankSignal[];
   /**
+   * Why the card is in this Lane when it did not arrive there: the Lane move
+   * is a triage row, and the card says so rather than leave it a surprise
+   * (ADR 0044 decision 8). `null` when it is where its Scout put it, or where
+   * the researcher put it by hand.
+   */
+  moved: LaneMove | null;
+  /**
    * Older than its Scout's `review_days` (ADR 0044 decision 3): the Queue
    * draws these in the digest at the foot of the stack. Still pending, still
    * triaged like any card; aging moves no Lane. Always false in Skim.
    */
   pastWindow: boolean;
 };
+
+export type LaneMove =
+  { kind: "demoted" } | { kind: "raised"; by: { id: string; name: string } };
 
 export type RankSignal =
   | { kind: "authors"; names: string[] }
@@ -592,6 +627,12 @@ async function readCards(
        JOIN scout_runs r ON r.id = a.run_id
       WHERE a.proposal_id = ? ORDER BY a.run_id`
   );
+  const lastMove = queue.prepare(
+    "SELECT action, at FROM triage WHERE proposal_id = ? AND action IN ('promote', 'demote', 'raise') ORDER BY rowid DESC LIMIT 1"
+  );
+  const raiseBy = queue.prepare(
+    "SELECT scout_id FROM appearances WHERE proposal_id = ? AND seen_at = ? AND scout_id <> ? ORDER BY rowid LIMIT 1"
+  );
   return rows.map((row) => {
     const appearances = seen.all(row.id) as Array<{
       scout_id: string;
@@ -613,8 +654,30 @@ async function readCards(
         signals.push({ kind: "questions", count: questions.size });
       }
     }
+    // The last move stands only while the card is still in the Lane it moved
+    // it to: a demoted card promoted or undone back is simply in Review.
+    const move = lastMove.get(row.id) as
+      { action: string; at: string } | undefined;
+    const last = move?.action;
+    // The Scout whose Appearance raised it is the one written at the raise's
+    // own time (`arrive` stamps both alike) other than the Scout that placed
+    // it, not merely the second to find it.
+    const raiser = (
+      raiseBy.get(row.id, move?.at ?? "", scoutIds[0] ?? "") as
+        { scout_id: string } | undefined
+    )?.scout_id;
+    const moved: LaneMove | null =
+      last === "demote" && row.lane === "skim"
+        ? { kind: "demoted" }
+        : last === "raise" && row.lane === "review" && raiser !== undefined
+          ? {
+              kind: "raised",
+              by: { id: raiser, name: byId.get(raiser)?.name ?? raiser },
+            }
+          : null;
     return {
       signals,
+      moved,
       pastWindow: old.has(row.id),
       id: row.id,
       title: row.title,

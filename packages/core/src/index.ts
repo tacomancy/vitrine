@@ -164,6 +164,7 @@ export type {
   Accepted,
   Card,
   QueueSort,
+  LaneMove,
   RankSignal,
   RunSummary,
 } from "./scouts.js";

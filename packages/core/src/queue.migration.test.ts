@@ -65,7 +65,7 @@ describe("the queue database, version 5 to 6", () => {
       expect(
         (queue.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(6);
+      ).toBe(7);
       expect(
         queue
           .prepare(
@@ -105,6 +105,22 @@ describe("the queue database, version 5 to 6", () => {
       ]);
       expect(queue.prepare("SELECT batch FROM triage").all()).toEqual([
         { batch: 7 },
+      ]);
+      // Version 7 (#643): the two Lane moves are triage actions now, and the
+      // rebuilt log keeps the order its rows were written in.
+      for (const action of ["demote", "raise"]) {
+        queue
+          .prepare(
+            "INSERT INTO triage (proposal_id, action, at) VALUES (3, ?, 'x')"
+          )
+          .run(action);
+      }
+      expect(
+        queue.prepare("SELECT action FROM triage ORDER BY rowid").all()
+      ).toEqual([
+        { action: "reject" },
+        { action: "demote" },
+        { action: "raise" },
       ]);
       expect(queue.prepare("SELECT day FROM open_days").all()).toEqual([
         { day: "2026-09-20" },

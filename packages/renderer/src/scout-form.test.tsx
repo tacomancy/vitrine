@@ -326,6 +326,7 @@ describe("the form", () => {
           scouts: [{ id: "sleep", name: "Sleep and memory", assigned: [] }],
           retroactive: false,
           signals: [],
+          moved: null,
         },
       ],
     });

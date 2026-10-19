@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Card, Health, QueueSort, RankSignal } from "core";
+import type { Card, Health, LaneMove, QueueSort, RankSignal } from "core";
 import { useEffect, useRef, useState } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
@@ -32,6 +32,13 @@ function signalWords(signal: RankSignal): string {
     case "questions":
       return `assigned to ${signal.count} ${signal.count === 1 ? "Question" : "Questions"}`;
   }
+}
+
+/** Why a card is not in the Lane its Scout put it in (ADR 0044 decision 8). */
+function movedWords(moved: LaneMove): string {
+  return moved.kind === "demoted"
+    ? "moved to Skim after three defers"
+    : `raised — also found by ${moved.by.name}`;
 }
 
 /**
@@ -804,6 +811,7 @@ function Proposal({
           .filter((signal) => signal.kind !== "questions")
           .map((signal) => ` · ${signalWords(signal)}`)
           .join("")}
+        {card.moved !== null && ` · ${movedWords(card.moved)}`}
       </p>
       <h2 className={styles.cardTitle}>{card.title}</h2>
       <dl className={styles.fields}>
