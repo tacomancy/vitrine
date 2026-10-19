@@ -225,7 +225,7 @@ export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
 /** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
 export const MIN_WEEK_ITEMS = 5;
 
-/** How many counted triage acts a Scout needs before the Queue acts on its history: the Cap and the counterweight slot wait for it (ADR 0044 decision 6). The same five a week of Accept rate needs. */
+/** How many counted triage acts a Scout needs before the Queue acts on its history: the Cap and the counterweight slot wait for it (ADR 0044 decision 6). The same five a week of Accept rate needs, counted over Accept rate's trailing twelve weeks (`acceptSince`). */
 export const HISTORY_FLOOR = MIN_WEEK_ITEMS;
 
 const WEEK_MS = 7 * 86_400_000;
