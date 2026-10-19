@@ -259,7 +259,11 @@ export function CandidateReview({
             onClick={() => setAt(i)}
           >
             <span className={styles.paper}>{c.display}</span>
-            <span className={styles.why}>shares {c.shared.join(" · ")}</span>
+            <span className={styles.why}>
+              {c.shared.length > 0
+                ? `shares ${c.shared.join(" · ")}`
+                : `matches ${c.terms.join(" · ")}`}
+            </span>
           </li>
         ))}
       </ul>

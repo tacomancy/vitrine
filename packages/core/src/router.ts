@@ -54,7 +54,7 @@ import {
 } from "./experiment.js";
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
-import { attention, lexiconOf } from "./lexicon.js";
+import { attention, keywordOverlap, lexiconOf } from "./lexicon.js";
 import {
   excludeTerm,
   readEdits,
@@ -1469,7 +1469,9 @@ export const router = t.router({
     // `rejection`; pass is the renderer's, and nothing here is written.
     candidates: t.procedure.query(async ({ ctx }) => {
       const { vault, index } = await requireVault(ctx);
-      return candidateLinks(index, vault.path);
+      // Seeds and Exclusions are part of what a Tag is, here as in the editor.
+      const edits = await refusing(readEdits(vault.path));
+      return candidateLinks(index, vault.path, keywordOverlap(index, edits));
     }),
     matrix: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())

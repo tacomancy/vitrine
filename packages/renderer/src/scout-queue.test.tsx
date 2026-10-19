@@ -44,6 +44,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   ],
   retroactive: false,
   signals: [],
+  pastWindow: false,
   ...rest,
 });
 
@@ -66,6 +67,61 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
   "scouts.fleet": { claim: null, naming: [] },
   "scouts.skim": { recent: [], older: [] },
   ...more,
+});
+
+describe("the Review digest", () => {
+  const old = (id: number, title: string) =>
+    card({ id, title, pastWindow: true });
+
+  it("collapses past-window cards into one line at the foot, and expands it", async () => {
+    renderApp(
+      answers([card(), card({ id: 8, title: "Fresh two" }), old(9, "Aged one")])
+    );
+    await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+
+    // Not in the stack the card is dealt from; only the digest line holds it.
+    expect(screen.getByText("card 1 of 2")).toBeDefined();
+    const next = screen.getByRole("list", { name: "Next in the stack" });
+    expect(next.textContent).not.toContain("Aged one");
+    expect(screen.queryByText("Aged one")).toBeNull();
+    const line = screen.getByRole("button", {
+      name: /1 older than the window/,
+    });
+    expect(line.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(line);
+
+    expect(line.getAttribute("aria-expanded")).toBe("true");
+    const digest = screen.getByRole("list", { name: "Older than the window" });
+    expect(within(digest).getByText("Aged one")).toBeDefined();
+  });
+
+  it("draws no digest line when nothing is past its window", async () => {
+    renderApp(answers([card()]));
+    await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+
+    expect(screen.queryByText(/older than the window/)).toBeNull();
+  });
+
+  it("never calls a stack quiet while only the digest holds cards, and triages from it once expanded", async () => {
+    const reject = vi.fn(() => null);
+    renderApp(answers([old(9, "Aged one")], { "scouts.reject": reject }));
+    const line = await screen.findByRole("button", {
+      name: /1 older than the window/,
+    });
+    expect(screen.queryByRole("article")).toBeNull();
+    expect(screen.queryByText(/nothing pending/i)).toBeNull();
+
+    fireEvent.click(line);
+    const article = await screen.findByRole("article", { name: "Aged one" });
+    fireEvent.keyDown(article, { key: "r" });
+
+    await waitFor(() => expect(reject).toHaveBeenCalledWith({ proposalId: 9 }));
+  });
 });
 
 describe("the Scout Queue", () => {

@@ -19,7 +19,13 @@ const NO_FLEET = {
   keyRejected: 0,
   noKey: 0,
 };
-const NO_REVIEW = { pending: 0, deferred: 0, median: null, oldest: null };
+const NO_REVIEW = {
+  pending: 0,
+  pastWindow: 0,
+  deferred: 0,
+  median: null,
+  oldest: null,
+};
 
 type ScoutRow = Extract<ActivityRow, { kind: "scout" }>;
 
