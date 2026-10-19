@@ -29,9 +29,13 @@ export default async (page) => {
   const panel = await panelText(page);
   console.log("PANEL:", panel.replace(/\n+/g, " | "));
   expect(
-    /engrams · re-measure pending/.test(panel.replace(/\n+/g, " ")) ||
-      panel.includes("re-measure pending"),
+    panel.includes("re-measure pending"),
     "the Tag is marked re-measure pending"
   );
+  // The other edit: Exclude a derived Term, which is then listed to restore.
+  await page.eval(
+    `[...document.querySelectorAll('button[aria-label^="Exclude "]')][0].click()`
+  );
+  await page.wait(`!!document.querySelector('ul[aria-label=Excluded]')`);
   await bring(page);
 };

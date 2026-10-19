@@ -26,7 +26,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "./attention-demo/helpers.mjs";
 import { startStandin } from "./attention-demo/standin.mjs";
-import { attentionVault } from "./attention-demo/vault.mjs";
+import { FIELDS, attentionVault } from "./attention-demo/vault.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "..");
@@ -114,11 +114,14 @@ try {
     ),
     "only compiled Terms were sent"
   );
+  // The fields with 3 or more papers (the 2-paper Tag is never asked about);
+  // the one too thin in the field is still measured, then unplaced.
+  const measured = FIELDS.filter((f) => f.papers >= 3).length;
   // Five placed Tags and the one too thin in the field, 24 months each; the
   // 2-paper Tag is never asked about.
   expect(
-    sent.length === 24 * 6,
-    `six Tags measured, 24 months each: ${sent.length}`
+    sent.length === 24 * measured,
+    `${measured} Tags measured, 24 months each: ${sent.length}`
   );
   expect(
     !sent.some((u) => /dream report/.test(u.searchParams.get("filter") ?? "")),

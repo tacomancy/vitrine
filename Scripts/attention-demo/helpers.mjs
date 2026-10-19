@@ -4,7 +4,6 @@ export {
   applyTheme,
   expect,
   openMap,
-  press,
 } from "../question-map-demo/helpers.mjs";
 
 const attention =
