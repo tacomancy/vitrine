@@ -19,8 +19,13 @@ type ScoutDeps = {
   now: () => Date;
 };
 
-/** One transaction, rolled back whole if anything in it throws. */
+/**
+ * One transaction, rolled back whole if anything in it throws. Called inside
+ * another, it joins it: a bulk act is the single act many times over, and the
+ * gesture must land whole, so the outer one decides.
+ */
 export function inTransaction<T>(queue: DatabaseSync, work: () => T): T {
+  if (queue.isTransaction) return work();
   queue.exec("BEGIN");
   try {
     const result = work();
@@ -49,8 +54,12 @@ function stateOf(deps: ScoutDeps, proposalId: number): string {
  * version of the same paper arrives as an Appearance on this rejected row
  * (ADR 0016 decision 7), so the verdict follows the work and not a version.
  */
-export function rejectProposal(deps: ScoutDeps, proposalId: number): void {
-  decide(deps, proposalId, "reject", "rejected");
+export function rejectProposal(
+  deps: ScoutDeps,
+  proposalId: number,
+  bulk: number | null = null
+): void {
+  decide(deps, proposalId, "reject", "rejected", bulk);
 }
 
 /** How many standing defers drop a card to Skim (ADR 0044 decision 8). */
@@ -62,8 +71,12 @@ const DEFERS_BEFORE_DEMOTE = 3;
  * instead (ADR 0044 decision 8): a card the researcher keeps putting off is
  * not owed attention, and Skim is still one `T` from Review.
  */
-export function deferProposal(deps: ScoutDeps, proposalId: number): void {
-  decide(deps, proposalId, "defer", "deferred", () => {
+export function deferProposal(
+  deps: ScoutDeps,
+  proposalId: number,
+  bulk: number | null = null
+): void {
+  decide(deps, proposalId, "defer", "deferred", bulk, () => {
     if (standingDefers(deps.queue, proposalId) < DEFERS_BEFORE_DEMOTE) return;
     // Pending, not deferred: it is in Skim now, and a deferral would hide it
     // there until a run brought it back.
@@ -74,9 +87,9 @@ export function deferProposal(deps: ScoutDeps, proposalId: number): void {
       .run(proposalId);
     deps.queue
       .prepare(
-        "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'demote', ?)"
+        "INSERT INTO triage (proposal_id, action, at, bulk) VALUES (?, 'demote', ?, ?)"
       )
-      .run(proposalId, stamp(deps));
+      .run(proposalId, stamp(deps), bulk);
   });
 }
 
@@ -105,6 +118,7 @@ function decide(
   proposalId: number,
   action: "reject" | "defer",
   state: "rejected" | "deferred",
+  bulk: number | null,
   /** Runs inside the act's own transaction, so a move it makes is never half-written. */
   also: () => void = () => undefined
 ): void {
@@ -124,8 +138,10 @@ function decide(
       .prepare("UPDATE proposals SET state = ? WHERE id = ?")
       .run(state, proposalId);
     queue
-      .prepare("INSERT INTO triage (proposal_id, action, at) VALUES (?, ?, ?)")
-      .run(proposalId, action, stamp(deps));
+      .prepare(
+        "INSERT INTO triage (proposal_id, action, at, bulk) VALUES (?, ?, ?, ?)"
+      )
+      .run(proposalId, action, stamp(deps), bulk);
     also();
   });
 }
@@ -334,7 +350,11 @@ export async function rejectRun(
  * taken back, so a double undo, or one for a deferral that already came
  * back, appends nothing.
  */
-export function undoTriage(deps: ScoutDeps, proposalId: number): void {
+export function undoTriage(
+  deps: ScoutDeps,
+  proposalId: number,
+  bulk: number | null = null
+): void {
   const { queue } = deps;
   const state = stateOf(deps, proposalId);
   // The defer that dropped a card to Skim is still the last thing done to it,
@@ -359,10 +379,108 @@ export function undoTriage(deps: ScoutDeps, proposalId: number): void {
       .run(demoted ? 1 : 0, proposalId);
     queue
       .prepare(
-        "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'undo', ?)"
+        "INSERT INTO triage (proposal_id, action, at, bulk) VALUES (?, 'undo', ?, ?)"
       )
-      .run(proposalId, stamp(deps));
+      .run(proposalId, stamp(deps), bulk);
   });
+}
+
+/** What a bulk act or its undo did: the gesture's id and how many cards it covered. */
+export type BulkResult = { bulk: number; count: number };
+
+/**
+ * *Reject group* (`⇧R`) and *defer group* (`⇧D`): the single act, once per
+ * card, under one `bulk` id (ADR 0044 decision 9). `proposalIds` are the cards
+ * the window shows in the group on screen, so the act reaches exactly those;
+ * the core keeps only the ones still pending in Review, since a card the
+ * researcher's other window or a run has since moved is not owed this verdict.
+ * The `batch` column stays reject-this-run's run id and is not reused for this. The one transaction means a gesture
+ * lands whole or not at all.
+ */
+export function actOnGroup(
+  deps: ScoutDeps,
+  action: "reject" | "defer",
+  proposalIds: number[]
+): BulkResult {
+  const { queue } = deps;
+  // Read and written in one transaction, so a second writer can neither take
+  // the same `bulk` id nor act on a card this one has since moved.
+  return inTransaction(queue, () => {
+    const ids = [...new Set(proposalIds)].filter(
+      (id) =>
+        queue
+          .prepare(
+            "SELECT 1 FROM proposals WHERE id = ? AND state = 'pending' AND lane = 'review'"
+          )
+          .get(id) !== undefined
+    );
+    if (ids.length === 0) {
+      throw new VaultError(
+        "refused",
+        "There is nothing in this group to act on."
+      );
+    }
+    // One past the largest ever written, so a gesture never shares an id with
+    // an earlier one (a bulk row is never deleted).
+    const { next } = queue
+      .prepare("SELECT COALESCE(MAX(bulk), 0) + 1 AS next FROM triage")
+      .get() as { next: number };
+    for (const id of ids) {
+      if (action === "reject") rejectProposal(deps, id, next);
+      else deferProposal(deps, id, next);
+    }
+    return { bulk: next, count: ids.length };
+  });
+}
+
+/**
+ * `⌘Z` on a bulk act: a compensating `undo` row for every card of the gesture
+ * that its verdict still stands on, all under the same `bulk` id. A card a
+ * clean run already brought back from a deferral, or one decided again since,
+ * is left alone, exactly as the single undo would refuse it — so a gesture
+ * can be taken back part-way by events and still undo as one. Whether the
+ * cards are still in *this session's* stack is the window's to know, as for
+ * the single undo.
+ */
+export function undoBulk(deps: ScoutDeps, bulk: number): BulkResult {
+  const { queue } = deps;
+  const ids = (
+    queue
+      .prepare(
+        `SELECT DISTINCT proposal_id AS id FROM triage
+          WHERE bulk = ? AND action IN ('reject', 'defer') ORDER BY proposal_id`
+      )
+      .all(bulk) as Array<{ id: number }>
+  )
+    .map((row) => row.id)
+    .filter((id) => standing(queue, id));
+  if (ids.length === 0) {
+    throw new VaultError("refused", "There is nothing to undo for that group.");
+  }
+  inTransaction(queue, () => {
+    for (const id of ids) undoTriage(deps, id, bulk);
+  });
+  return { bulk, count: ids.length };
+}
+
+/** Whether `undoTriage` would take this card's last act back. */
+function standing(queue: DatabaseSync, proposalId: number): boolean {
+  const row = queue
+    .prepare("SELECT state FROM proposals WHERE id = ?")
+    .get(proposalId) as { state: string } | undefined;
+  if (row === undefined) return false;
+  const { state } = row;
+  if (state === "rejected" || state === "deferred") return true;
+  return (
+    state === "pending" &&
+    (
+      queue
+        .prepare(
+          "SELECT action FROM triage WHERE proposal_id = ? ORDER BY rowid DESC LIMIT 1"
+        )
+        .get(proposalId) as { action: string } | undefined
+    )?.action === "demote"
+  );
 }
 
 /**
