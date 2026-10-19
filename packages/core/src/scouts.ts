@@ -137,8 +137,12 @@ export async function runScout(
         : await readArxiv(arxiv, scout.query, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
+    // Read before the transaction: it is async, and a muted line must not be
+    // raised by a second Scout (that would write a row for an item no one
+    // is shown).
+    const { caught } = await readMuteState(deps);
     const arrived = inTransaction(queue, () => {
-      const arrived = arrive(deps, scout, runId, read.items);
+      const arrived = arrive(deps, scout, runId, read.items, caught);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
       returnDeferred(deps, scout.id);
       return arrived;
@@ -338,7 +342,8 @@ function arrive(
   deps: ScoutDeps,
   scout: Scout,
   runId: number,
-  items: Arrival[]
+  items: Arrival[],
+  muted: ReadonlyMap<number, unknown>
 ): { new: number; held: number } {
   const { queue } = deps;
   const at = iso(deps.now());
@@ -396,6 +401,7 @@ function arrive(
     // another Scout was already there.
     if (
       id !== undefined &&
+      !muted.has(id) &&
       (isSkimPending.get(id) as object | undefined) !== undefined &&
       (otherScout.get(id, scout.id) as object | undefined) !== undefined
     ) {

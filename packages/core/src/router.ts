@@ -365,12 +365,12 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
   }
 }
 
-/** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
 const muteInput = z.object({
   kind: z.enum(MUTE_KINDS),
   value: z.string(),
 });
 
+/** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
 const providerInput = z.object({ provider: z.literal(ANTHROPIC) });
 
 /** A Term edit: the Tag as written, and the Term as typed. */
@@ -728,7 +728,9 @@ export const router = t.router({
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))
       .mutation(({ ctx, input }) =>
-        triaged(ctx, (deps) => ({ rejected: rejectRun(deps, input.runId) }))
+        triaged(ctx, async (deps) => ({
+          rejected: await rejectRun(deps, input.runId),
+        }))
       ),
   }),
   // A stub made by hand (#220; ADR 0020 decision 7): the only path that

@@ -47,6 +47,7 @@ export function MuteOffer({
   );
 
   // Heard on the document so that Escape leaves the offer however focus moved.
+  // Re-bound each render because `onCancel` is a fresh closure each time.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onCancel();

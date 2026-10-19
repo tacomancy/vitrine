@@ -331,3 +331,37 @@ describe("the rules file", () => {
     expect(await readFile(file(q.vault), "utf8")).toBe("authors: [unclosed");
   });
 });
+
+describe("what a rule keeps from happening to a muted item", () => {
+  it("is not rejected by reject this run, which then writes no row for it", async () => {
+    const q = await opened();
+    q.seed("a", review({ authors: ["Ada"] }));
+    q.seed("a", review({ authors: ["Bo"] }));
+    q.db
+      .prepare(
+        "UPDATE appearances SET run_id = (SELECT MAX(id) FROM scout_runs)"
+      )
+      .run();
+    const run = (
+      q.db.prepare("SELECT MAX(id) AS id FROM scout_runs").get() as {
+        id: number;
+      }
+    ).id;
+    await q.mute("author", "Ada");
+
+    const r = await q.c.mutate<{ rejected: number }>("scouts.rejectRun", {
+      runId: run,
+    });
+
+    expect(r.result!.data.rejected).toBe(1);
+    expect(
+      q.db.prepare("SELECT id, state FROM proposals ORDER BY id").all()
+    ).toEqual([
+      { id: 1, state: "pending" },
+      { id: 2, state: "rejected" },
+    ]);
+    expect(q.db.prepare("SELECT proposal_id FROM triage").all()).toEqual([
+      { proposal_id: 2 },
+    ]);
+  });
+});

@@ -292,8 +292,14 @@ export function acceptWeeks(
  * *this run was junk* from a brief that kept missing (ADR 0039 decision 5).
  * One transaction, so a run is rejected whole or not at all.
  */
-export function rejectRun(deps: ScoutDeps, runId: number): number {
+export async function rejectRun(
+  deps: ScoutDeps,
+  runId: number
+): Promise<number> {
   const { queue } = deps;
+  // A muted Proposal is not in the stack the button counts, so it is not
+  // rejected: that would write a verdict nobody gave (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
   const ids = (
     queue
       .prepare(
@@ -301,7 +307,9 @@ export function rejectRun(deps: ScoutDeps, runId: number): number {
           WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review' ORDER BY p.id`
       )
       .all(runId) as Array<{ id: number }>
-  ).map((row) => row.id);
+  )
+    .map((row) => row.id)
+    .filter((id) => !caught.has(id));
   const at = stamp(deps);
   inTransaction(queue, () => {
     for (const id of ids) {
