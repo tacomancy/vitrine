@@ -207,6 +207,7 @@ describe("no setter for the PDF folder", () => {
       mutations.filter((path) => path.startsWith("vault.")).sort()
     ).toEqual([
       "vault.checkAgain",
+      "vault.create",
       "vault.open",
       "vault.pick",
       "vault.reveal",

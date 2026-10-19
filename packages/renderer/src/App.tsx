@@ -23,6 +23,7 @@ import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 import { UnmatchedPanel } from "./UnmatchedPanel";
+import { VaultSurface } from "./Vault";
 import { useTRPC } from "./trpc";
 
 export function App() {
@@ -202,6 +203,7 @@ function Workspace({ vault }: { vault: Vault }) {
             <Settings vault={vault} section={route.section} />
           )}
           {route.surface === "question-map" && <QuestionMap />}
+          {route.surface === "vault" && <VaultSurface path={route.path} />}
           {route.surface === "scout-activity" && (
             <ScoutActivity
               onNewScout={(assigning) => {
