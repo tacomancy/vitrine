@@ -97,7 +97,7 @@ export async function readMeasurements(
           ? parsed.failures.filter(
               (f): f is Failure =>
                 typeof f?.tag === "string" &&
-                KINDS.includes(f?.kind as OpenAlexErrorKind) &&
+                KINDS.includes(f?.kind) &&
                 typeof f?.at === "string"
             )
           : [],
