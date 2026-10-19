@@ -48,6 +48,10 @@ export type Volume = {
   held: number;
   /** Of `proposals`, how many another Scout also found — a Scout that only echoes another. */
   alsoFoundElsewhere: number;
+  /** What the Scout's cap cut and the Queue keeps: the count its *Show them* names, not a find lost (ADR 0044 decisions 5 and 12). */
+  belowCap: number;
+  /** What a mute rule holds back, in either Lane. Plain counts: the app never judges a cap or a rule (ADR 0042). */
+  muted: number;
 };
 
 /**
@@ -481,6 +485,8 @@ function volumes(queue: DatabaseSync, since: string): Map<string, Volume> {
       proposals: 0,
       held: 0,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     };
     if (row.held === 1) volume.held += 1;
     else {
@@ -488,6 +494,44 @@ function volumes(queue: DatabaseSync, since: string): Map<string, Volume> {
       volume.alsoFoundElsewhere += row.elsewhere;
     }
     byScout.set(row.scoutId, volume);
+  }
+  return byScout;
+}
+
+/**
+ * *N below your cap* and *N muted*, read the way the Queue reads them: a
+ * capped Review row is the Scout's by first Appearance (`group.capped`), and
+ * a muted one is whatever `readMuteState` caught, so the figure and the list
+ * it links to cannot disagree. Neither is windowed to thirty days: the Queue
+ * keeps both until the researcher acts, and a count that dropped them with age
+ * would say less than the list holds.
+ */
+function withheld(
+  queue: DatabaseSync,
+  caught: Map<number, unknown>
+): Map<string, Pick<Volume, "belowCap" | "muted">> {
+  const byScout = new Map<string, Pick<Volume, "belowCap" | "muted">>();
+  const of = (scoutId: string) => {
+    const counts = byScout.get(scoutId) ?? { belowCap: 0, muted: 0 };
+    byScout.set(scoutId, counts);
+    return counts;
+  };
+  const rows = queue
+    .prepare(
+      `SELECT p.id AS id, p.state AS state, p.lane AS lane,
+              ${firstAppearanceScout("p.id")} AS scoutId
+         FROM proposals p WHERE p.state IN ('capped', 'pending', 'deferred')`
+    )
+    .all() as Array<{
+    id: number;
+    state: string;
+    lane: string;
+    scoutId: string;
+  }>;
+  for (const row of rows) {
+    if (caught.has(row.id)) of(row.scoutId).muted += 1;
+    else if (row.state === "capped" && row.lane === "review")
+      of(row.scoutId).belowCap += 1;
   }
   return byScout;
 }
@@ -559,6 +603,7 @@ export async function readActivity(deps: {
   );
   const since = thirtyDaysBefore(now);
   const volumeByScout = volumes(deps.queue, since);
+  const withheldByScout = withheld(deps.queue, caught);
   const healthByScout = new Map(
     scouts.map((scout) => [scout.id, healthOf(deps.queue, scout, now)])
   );
@@ -597,10 +642,12 @@ export async function readActivity(deps: {
           pageChangeIn(deps.queue, scout, now)
         ),
         review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
-        volume: volumeByScout.get(scout.id) ?? {
+        volume: {
           proposals: 0,
           held: 0,
           alsoFoundElsewhere: 0,
+          ...volumeByScout.get(scout.id),
+          ...(withheldByScout.get(scout.id) ?? { belowCap: 0, muted: 0 }),
         },
         cost: costOf(modelRunsSince(deps.queue, scout.id, since)),
       };

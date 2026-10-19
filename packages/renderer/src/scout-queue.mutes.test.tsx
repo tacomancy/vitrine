@@ -276,3 +276,37 @@ describe("the muted view", () => {
     expect(line.closest("footer")).not.toBeNull();
   });
 });
+
+describe("arriving on the muted list from Scout Activity (#649)", () => {
+  it("opens the muted view in place of the stack", async () => {
+    window.location.hash = "#/scouts?view=muted";
+    renderApp(
+      answers({
+        "scouts.muted": {
+          rules: [{ kind: "author", value: "Ada" }],
+          problem: null,
+          items: [
+            {
+              id: 1,
+              title: "Held by author",
+              authors: ["A"],
+              venue: null,
+              url: "http://x.example",
+              lane: "review",
+              state: "pending",
+              rule: { kind: "author", value: "Ada" },
+            },
+          ],
+        },
+      })
+    );
+
+    expect(
+      (await screen.findByRole("button", { name: "1 muted" })).getAttribute(
+        "aria-pressed"
+      )
+    ).toBe("true");
+    const list = await screen.findByRole("list", { name: "Muted" });
+    expect(list.textContent).toContain("Held by author");
+  });
+});

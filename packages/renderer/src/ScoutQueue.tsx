@@ -67,9 +67,12 @@ export function ScoutQueue({
   form,
   setForm,
   scout,
+  mutedOpen: arrivedOnMuted = false,
 }: {
   form: ScoutDraft | null;
   setForm: (form: ScoutDraft | null) => void;
+  /** Arrived from Scout Activity's *N muted*: the muted view starts open, and the button closes it as it would any other time. */
+  mutedOpen?: boolean | undefined;
   /** The Scout whose stack the window arrived on (Scout Activity's row link); the rail's own choice takes over from there. */
   scout?: string | undefined;
 }) {
@@ -110,7 +113,7 @@ export function ScoutQueue({
   // The card a mute rule is being offered for, and whether the muted view has
   // taken the place of the stack (ADR 0044 decision 4).
   const [muting, setMuting] = useState<Card | null>(null);
-  const [mutedOpen, setMutedOpen] = useState(false);
+  const [mutedOpen, setMutedOpen] = useState(arrivedOnMuted);
   // The one line holds the latest thing that happened, of two kinds that are
   // heard differently: what was done is `said`, a polite status; what the core
   // turned down is `refusal`, an alert (ADR 0033 decision 1 and its 2026-10-15

@@ -85,6 +85,8 @@ describe("a row's volume", () => {
       proposals: 3,
       held: 0,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     });
   });
 
@@ -108,11 +110,15 @@ describe("a row's volume", () => {
       proposals: 1,
       held: 0,
       alsoFoundElsewhere: 1,
+      belowCap: 0,
+      muted: 0,
     });
     expect((await f.row("second")).volume).toEqual({
       proposals: 1,
       held: 0,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     });
   });
 
@@ -144,6 +150,8 @@ describe("a row's volume", () => {
       proposals: 1,
       held: 2,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     });
   });
 
@@ -158,11 +166,15 @@ describe("a row's volume", () => {
       proposals: 0,
       held: 1,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     });
     expect((await f.row("second")).volume).toEqual({
       proposals: 0,
       held: 0,
       alsoFoundElsewhere: 0,
+      belowCap: 0,
+      muted: 0,
     });
   });
 });
