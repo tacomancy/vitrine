@@ -256,4 +256,28 @@ describe("a Scout whose Filter is a Tag", () => {
     expect(c.requests).toHaveLength(0);
     expect(c.runRows()).toEqual([]);
   });
+
+  it("stays a Tag Scout when its Lane is saved through the form", async () => {
+    const c = await opened({
+      ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("ml")),
+      ".vitrine/lexicon.json": seeded({ ml: ["x"] }),
+    });
+
+    const saved = await c.c.mutate("scouts.save", {
+      id: "tags",
+      name: "Tags",
+      query: "",
+      lane: "skim",
+      cadence: "daily",
+      assigned: [],
+      searchBackTo: null,
+    });
+
+    expect(saved.error).toBeUndefined();
+    const { scouts, unreadable } = await c.list();
+    expect(unreadable).toEqual([]);
+    expect(scouts[0]).toMatchObject({ lane: "skim", tags: ["ml"], query: "" });
+    // Nothing about the Filter changed, so nothing runs.
+    expect(c.requests).toHaveLength(0);
+  });
 });
