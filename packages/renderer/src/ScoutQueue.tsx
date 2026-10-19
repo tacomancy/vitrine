@@ -45,6 +45,9 @@ function signalWords(signal: RankSignal): string {
   }
 }
 
+/** Why the counterweight slot's card sits second: the label is the reason (ADR 0044 decision 7). */
+const OUTSIDE_THE_USUAL = "outside the usual";
+
 /** Why a card is not in the Lane its Scout put it in (ADR 0044 decision 8). */
 function movedWords(moved: LaneMove): string {
   return moved.kind === "demoted"
@@ -952,6 +955,7 @@ export function ScoutQueue({
             .map((next) => (
               <li key={next.id} id={`scout-card-${next.id}`}>
                 {next.title}
+                {next.counterweight && ` — ${OUTSIDE_THE_USUAL}`}
               </li>
             ))}
         </ol>
@@ -1097,6 +1101,7 @@ function Proposal({
           .map((signal) => ` · ${signalWords(signal)}`)
           .join("")}
         {card.moved !== null && ` · ${movedWords(card.moved)}`}
+        {card.counterweight && ` · ${OUTSIDE_THE_USUAL}`}
       </p>
       <h2 className={styles.cardTitle}>{card.title}</h2>
       <dl className={styles.fields}>
