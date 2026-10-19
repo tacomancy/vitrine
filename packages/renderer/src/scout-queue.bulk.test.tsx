@@ -40,6 +40,7 @@ const card = (
   signals: [],
   moved: null,
   pastWindow: false,
+  counterweight: false,
   ...rest,
 });
 

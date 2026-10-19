@@ -37,6 +37,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   signals: [],
   moved: null,
   pastWindow: false,
+  counterweight: false,
   ...rest,
 });
 

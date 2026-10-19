@@ -36,3 +36,4 @@ ADR 0016 decision 6 put the Queue's history-dependent mechanics on a Wait list a
 - **−** `queue.sqlite` moves to schema version 7: `capped` as a state, `demote` and `raise` as actions, `triage.bulk`. Additive.
 - **−** Author overlap reads the vault's Sources on each read; the Source index makes it a query, but it is the cost of not storing a score.
 - **−** Until the Lexicon lands, "outside the usual" means *corroborated by authors you have not accepted*, which on one source is a narrow slot.
+- **−** As built (#648), the counterweight slot is a Rank placement: the Newest sort carries none, and a qualifying card that already ranks in the top two stays where it is rather than being pushed down. A Cap's exemption can only act when a second Scout later finds a capped paper, since a Proposal has one Appearance on the run that cuts it; and a qualifying card sitting in the digest still blocks that release.
