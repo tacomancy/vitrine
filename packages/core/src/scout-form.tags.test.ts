@@ -137,7 +137,7 @@ describe("saving a Tag Filter", () => {
       tags: ["ml"],
     });
 
-    expect(r.error?.message).toBe("A Watched page has no Filter to give Tags.");
+    expect(r.error?.message).toBe("Tags don't apply to a Watched page.");
   });
 });
 
@@ -258,6 +258,25 @@ describe("compiling at the run, not at the save", () => {
   });
 });
 
+describe("a Lexicon edit after the save", () => {
+  it("runs no Scout for an Exclusion, and only the next query changes", async () => {
+    const c = await opened({
+      ".vitrine/lexicon.json": lexicon({ ml: ["keep", "drop"] }),
+    });
+    await c.save({ tags: ["ml"] });
+    await c.c.mutate("scouts.runNow", { scoutId: "sleep" });
+
+    await c.c.mutate("lexicon.exclude", { tag: "ml", term: "drop" });
+    expect(c.requests).toHaveLength(1);
+    await c.c.mutate("scouts.runNow", { scoutId: "sleep" });
+
+    expect(c.runRows().map((r) => r.query)).toEqual([
+      'abs:"keep" OR ti:"keep" OR abs:"drop" OR ti:"drop"',
+      'abs:"keep" OR ti:"keep"',
+    ]);
+  });
+});
+
 describe("trying Tags", () => {
   it("sends the compiled query with no window and writes nothing", async () => {
     const c = await opened({
@@ -269,7 +288,11 @@ describe("trying Tags", () => {
     });
 
     expect(r.error).toBeUndefined();
-    expect(r.result!.data).toMatchObject({ outcome: "found", total: 2 });
+    expect(r.result!.data).toMatchObject({
+      outcome: "found",
+      total: 2,
+      titles: [expect.any(String), expect.any(String)],
+    });
     expect(c.queries()).toEqual([
       'abs:"alpha" OR ti:"alpha" OR abs:"beta" OR ti:"beta"',
     ]);

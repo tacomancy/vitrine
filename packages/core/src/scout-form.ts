@@ -106,20 +106,18 @@ async function write(
     (t) => t !== ""
   );
   if (given.length > 0 && watched) {
-    throw new VaultError(
-      "refused",
-      "A Watched page has no Filter to give Tags."
-    );
+    throw new VaultError("refused", "Tags don't apply to a Watched page.");
   }
   if (given.length > 0 && query !== "") {
     throw new VaultError("refused", "A Scout has Tags or a Query, never both.");
   }
   // A Tag Filter has no Query to type (spec #678): a save that says nothing of
   // the Filter (a Scout Activity row's Lane, say) leaves `filter.tags` alone.
+  const saysNothingOfFilter = form.tags === undefined && query === "";
   const tags =
     given.length > 0
       ? given
-      : form.tags === undefined && query === ""
+      : saysNothingOfFilter
         ? before?.scout.tags
         : undefined;
   if (name === "" || (query === "" && tags === undefined)) {
@@ -263,6 +261,8 @@ function queueBehaviour(form: ScoutForm): Array<[string, number | null]> {
   return edits;
 }
 
+// Order-sensitive on purpose: a reordered list is a written change to the file,
+// and the Terms of each Tag are OR'd in list order.
 const sameList = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((item, at) => item === b[at]);
 
