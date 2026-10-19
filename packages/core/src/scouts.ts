@@ -465,8 +465,20 @@ function applyCap(
 }
 
 /** The one floor for "enough history" (ADR 0044 decision 6): the Cap and the counterweight slot both wait for it. */
-const floorMet = (counts: AcceptCounts | undefined) =>
-  counts !== undefined && counts.accepted + counts.rejected >= HISTORY_FLOOR;
+function floorMet(counts: AcceptCounts | undefined): boolean {
+  return (
+    counts !== undefined && counts.accepted + counts.rejected >= HISTORY_FLOOR
+  );
+}
+
+/** The Scouts that have reached the floor, by id. */
+function scoutsWithHistory(deps: ScoutDeps): Set<string> {
+  return new Set(
+    acceptCounts(deps.queue, acceptSince(deps.now()))
+      .filter(floorMet)
+      .map((c) => c.scoutId)
+  );
+}
 
 /**
  * The counterweight slot is exempt from the Cap (ADR 0044 decision 7), but a
@@ -480,12 +492,10 @@ const floorMet = (counts: AcceptCounts | undefined) =>
 function releaseCounterweight(deps: ScoutDeps, revisited: number[]): void {
   if (revisited.length === 0) return;
   const { queue } = deps;
-  const ready = new Set(
-    acceptCounts(queue, acceptSince(deps.now()))
-      .filter(floorMet)
-      .map((c) => c.scoutId)
-  );
+  const ready = scoutsWithHistory(deps);
   const accepted = acceptedAuthors(deps.index);
+  // The same rule as `reserveCounterweight`'s pick, read from rows instead of
+  // cards: keep the two in step.
   const qualifies = (authors: string, scouts: number) =>
     scouts >= 2 &&
     !(JSON.parse(authors) as string[]).some((name) =>
@@ -679,11 +689,7 @@ export async function readQueue(
  * grouping, and it must have the shared floor of triage history.
  */
 function reserveCounterweight(deps: ScoutDeps, stack: Card[]): void {
-  const ready = new Set(
-    acceptCounts(deps.queue, acceptSince(deps.now()))
-      .filter(floorMet)
-      .map((c) => c.scoutId)
-  );
+  const ready = scoutsWithHistory(deps);
   const groupOf = (card: Card) => card.scouts[0]?.id ?? "";
   for (const group of new Set(stack.map(groupOf))) {
     if (!ready.has(group)) continue;
