@@ -295,6 +295,7 @@ export function lexiconOf(
     papers,
     papersByTag(index, depth, papers),
     tagDisplays(index),
+    store,
     tag,
     depth
   );
@@ -305,6 +306,7 @@ function lexiconAmong(
   papers: ReadonlyMap<string, Paper>,
   byTag: ReadonlyMap<string, ReadonlySet<string>>,
   displays: ReadonlyMap<string, string>,
+  store: Measurements,
   tag: string,
   depth: number
 ): LexiconView {
@@ -386,6 +388,7 @@ function lexiconAmong(
  * likely to be coincidence as topic.
  */
 const KEYWORD_OVERLAP_TERMS = 2;
+const NO_MEASUREMENTS: Measurements = { consentedAt: null, measurements: [] };
 
 /**
  * Keyword overlap for Candidate links (ADR 0041 decision 9, ADR 0045): reads
@@ -408,7 +411,15 @@ export function keywordOverlap(index: VaultIndex) {
     }
     let terms = lexicons.get(tag);
     if (terms === undefined) {
-      const view = lexiconAmong(papers, byTag, displays, tag, depth);
+      // Terms do not depend on a measurement, so none is passed.
+      const view = lexiconAmong(
+        papers,
+        byTag,
+        displays,
+        NO_MEASUREMENTS,
+        tag,
+        depth
+      );
       terms = new Set(view.terms.map((t) => t.term));
       lexicons.set(tag, terms);
     }
