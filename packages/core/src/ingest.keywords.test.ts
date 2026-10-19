@@ -51,7 +51,7 @@ const SOURCE = (extra = "") => `${FRONTMATTER(extra)}
 
 async function opened(
   extra = "",
-  { files = {} as Record<string, string>, start = "synthetic-body.pdf" } = {}
+  { files = {}, start = "synthetic-body.pdf" } = {}
 ) {
   const vault = await vaultWith({
     "sources/p1.md": SOURCE(extra),
@@ -196,7 +196,9 @@ describe("a Source ingested before keywords were read", () => {
 
   const old = async (vault: string, keywords?: string[]) => {
     const file = join(vault, ".vitrine/annotations/src-1.json");
-    const sidecar = JSON.parse(await readFile(file, "utf8"));
+    const sidecar = JSON.parse(await readFile(file, "utf8")) as {
+      keywords?: string[];
+    };
     delete sidecar.keywords;
     await writeFile(
       file,
