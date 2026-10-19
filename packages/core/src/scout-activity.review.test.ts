@@ -174,7 +174,7 @@ describe("reviewDepth — the derivation Home reads", () => {
     f.seed({ by: ["alpha"], age: 4 });
     f.seed({ by: ["beta"], age: 6, state: "deferred" });
 
-    const homes = reviewDepth(f.db, NOW);
+    const homes = reviewDepth(f.db, NOW, new Set());
 
     expect(homes.fleet).toMatchObject({ pending: 2, deferred: 1 });
     expect(homes.byScout.get("alpha")?.oldest?.ago).toBe("4 days ago");

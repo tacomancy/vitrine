@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { VaultError } from "./errors.js";
+import { readMuteState } from "./mutes.js";
 import { readScouts, type Scout } from "./scout-file.js";
 
 /**
@@ -396,6 +397,9 @@ export type Group = {
 export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
   const { queue } = deps;
   const { scouts, dropped } = await readScouts(deps.vaultPath);
+  // What a rule holds is out of the stack, so out of what the group offers to
+  // reject whole or says is waiting (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
   // A dropped Scout's stack is cleared with *reject this run* like any other,
   // so it has a group though the rail does not list it (ADR 0042 decision 1).
   return [...scouts, ...dropped].map((scout) => {
@@ -410,20 +414,20 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
         : (
             queue
               .prepare(
-                `SELECT COUNT(DISTINCT p.id) AS n FROM proposals p JOIN appearances a ON a.proposal_id = p.id
+                `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
                   WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'`
               )
-              .get(run.id) as { n: number }
-          ).n;
+              .all(run.id) as Array<{ id: number }>
+          ).filter((row) => !caught.has(row.id)).length;
     const deferred = (
       queue
         .prepare(
-          `SELECT COUNT(*) AS n FROM proposals
+          `SELECT id FROM proposals
             WHERE state = 'deferred' AND lane = 'review'
               AND ${firstAppearanceScout("proposals.id")} = ?`
         )
-        .get(scout.id) as { n: number }
-    ).n;
+        .all(scout.id) as Array<{ id: number }>
+    ).filter((row) => !caught.has(row.id)).length;
     const held = queue
       .prepare(
         `SELECT DISTINCT p.id, p.title, p.stub_path FROM proposals p JOIN appearances a ON a.proposal_id = p.id

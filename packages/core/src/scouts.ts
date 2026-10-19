@@ -18,6 +18,7 @@ import {
   scoutIdOf,
   type Scout,
 } from "./scout-file.js";
+import { readMuteState } from "./mutes.js";
 import { pastWindowIds, windowsOf } from "./review-depth.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
@@ -617,11 +618,17 @@ async function readCards(
     lane === "review"
       ? pastWindowIds(queue, deps.now(), windowsOf([...scouts, ...dropped]))
       : new Set<number>();
-  const rows = queue
-    .prepare(
-      "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
-    )
-    .all(lane) as ProposalRow[];
+  // A muted Proposal is not in the stack and so is not ranked, aged or
+  // counted as a second Scout's find; it is held by a rule, not marked
+  // (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
+  const rows = (
+    queue
+      .prepare(
+        "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
+      )
+      .all(lane) as ProposalRow[]
+  ).filter((row) => !caught.has(row.id));
   const seen = queue.prepare(
     `SELECT DISTINCT a.scout_id, a.run_id, r.retroactive FROM appearances a
        JOIN scout_runs r ON r.id = a.run_id

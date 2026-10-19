@@ -101,6 +101,8 @@ export function pastWindowIds(
 export function reviewDepth(
   queue: DatabaseSync,
   now: Date,
+  /** Proposals a Mute rule holds: they count nowhere here (ADR 0044 decision 4). Required, so a caller cannot forget it. */
+  muted: ReadonlySet<number>,
   windowOf: WindowOf = DEFAULT_WINDOW
 ): { fleet: ReviewDepth; byScout: Map<string, ReviewDepth> } {
   // A Proposal with no Appearance cannot be written (`arrive` always adds
@@ -117,7 +119,9 @@ export function reviewDepth(
     .all() as Array<
     Omit<Waiting, "pastWindow"> & { id: number; scoutId: string | null }
   >;
-  const rows = found.map((row) => ({ ...row, pastWindow: old.has(row.id) }));
+  const rows = found
+    .filter((row) => !muted.has(row.id))
+    .map((row) => ({ ...row, pastWindow: old.has(row.id) }));
 
   const depthOf = (stack: Waiting[]): ReviewDepth => {
     const pending = stack

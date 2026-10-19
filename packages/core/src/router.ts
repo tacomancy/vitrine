@@ -103,6 +103,13 @@ import {
   rejectRun,
   undoTriage,
 } from "./triage.js";
+import {
+  addMute,
+  MUTE_KINDS,
+  muteReach,
+  readMuted,
+  removeMute,
+} from "./mutes.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
 import { wikilinkTo } from "./link-text.js";
 import { candidates } from "./picker.js";
@@ -359,6 +366,11 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
 }
 
 /** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */
+const muteInput = z.object({
+  kind: z.enum(MUTE_KINDS),
+  value: z.string(),
+});
+
 const providerInput = z.object({ provider: z.literal(ANTHROPIC) });
 
 /** A Term edit: the Tag as written, and the Term as typed. */
@@ -561,6 +573,27 @@ export const router = t.router({
       .query(async ({ ctx, input }) =>
         refusing(readQueue(await scoutDeps(ctx), input?.sort))
       ),
+    // Mute rules (#646, ADR 0044 decision 4): the file read as found, the
+    // items it holds with the rule that holds each, and what a rule would
+    // catch before it is saved.
+    muted: t.procedure.query(async ({ ctx }) =>
+      refusing(readMuted(await scoutDeps(ctx)))
+    ),
+    muteReach: t.procedure
+      .input(muteInput)
+      .query(async ({ ctx, input }) =>
+        refusing(
+          muteReach(await scoutDeps(ctx), input).then((count) => ({ count }))
+        )
+      ),
+    mute: t.procedure.input(muteInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(addMute(vault.path, input));
+    }),
+    unmute: t.procedure.input(muteInput).mutation(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(removeMute(vault.path, input));
+    }),
     // Skim: the quiet lane, split at 30 days; *to Review* is the one act on it.
     skim: t.procedure.query(async ({ ctx }) =>
       refusing(readSkim(await scoutDeps(ctx)))
