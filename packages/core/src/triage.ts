@@ -241,6 +241,9 @@ export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
 /** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
 export const MIN_WEEK_ITEMS = 5;
 
+/** How many counted triage acts a Scout needs before the Queue acts on its history: the Cap and the counterweight slot wait for it (ADR 0044 decision 6). The same five a week of Accept rate needs, counted over Accept rate's trailing twelve weeks (`acceptSince`). */
+export const HISTORY_FLOOR = MIN_WEEK_ITEMS;
+
 const WEEK_MS = 7 * 86_400_000;
 const WEEKS = 12;
 
@@ -299,6 +302,23 @@ export function acceptWeeks(
     triaged,
     rate: triaged >= MIN_WEEK_ITEMS ? accepted / triaged : null,
   }));
+}
+
+/**
+ * *Show them*: give back what this Scout's cap cut. The rows go to `pending`
+ * and nothing else is written — they were never rejected, so there is no act
+ * to log, and Accept rate never saw them.
+ */
+export function showCapped(deps: ScoutDeps, scoutId: string): number {
+  return Number(
+    deps.queue
+      .prepare(
+        `UPDATE proposals SET state = 'pending'
+          WHERE state = 'capped' AND lane = 'review'
+            AND ${firstAppearanceScout("proposals.id")} = ?`
+      )
+      .run(scoutId).changes
+  );
 }
 
 /**
@@ -507,6 +527,10 @@ export type Group = {
    * restored, and nothing else lists them (ADR 0042 decision 1).
    */
   deferred: number;
+  /** Proposals this Scout's cap cut: kept, not rejected, and given back by `showCapped` (ADR 0044 decision 5). */
+  capped: number;
+  /** The Scout's cap, or null; the group says *N below your cap of M*. */
+  cap: number | null;
   /** Held Proposals, each with the file the vault already has: counted, never hidden (ADR 0039 decision 1). */
   held: Array<{ title: string; path: string }>;
 };
@@ -542,6 +566,15 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
         )
         .get(scout.id) as { n: number }
     ).n;
+    const capped = (
+      queue
+        .prepare(
+          `SELECT COUNT(*) AS n FROM proposals
+            WHERE state = 'capped' AND lane = 'review'
+              AND ${firstAppearanceScout("proposals.id")} = ?`
+        )
+        .get(scout.id) as { n: number }
+    ).n;
     const held = queue
       .prepare(
         `SELECT DISTINCT p.id, p.title, p.stub_path FROM proposals p JOIN appearances a ON a.proposal_id = p.id
@@ -553,6 +586,8 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
       runId: run?.id ?? null,
       runPending: pending,
       deferred,
+      capped,
+      cap: scout.cap,
       held: held.map((h) => ({ title: h.title, path: h.stub_path })),
     };
   });

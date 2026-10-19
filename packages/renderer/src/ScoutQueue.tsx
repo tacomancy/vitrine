@@ -185,6 +185,14 @@ export function ScoutQueue({
     ...trpc.scouts.deferGroup.mutationOptions(),
     ...acts,
   });
+  // Nothing is logged: the Proposals were only set aside, so giving them back
+  // is not an act on any of them (ADR 0044 decision 5).
+  const showCapped = useMutation(
+    trpc.scouts.showCapped.mutationOptions({
+      onSuccess: () => void reread(),
+      ...acts,
+    })
+  );
   const rejectRun = useMutation(
     trpc.scouts.rejectRun.mutationOptions({
       onSuccess: ({ rejected }) => {
@@ -240,6 +248,8 @@ export function ScoutQueue({
           runId: null,
           runPending: 0,
           deferred: 0,
+          capped: 0,
+          cap: null,
         }
       : groups.data?.find((g) => g.id === selected);
   const runId = group?.runId ?? null;
@@ -628,6 +638,18 @@ export function ScoutQueue({
             <p className={styles.line}>
               {group.deferred} deferred — they come back with its next run, if
               it is restored
+            </p>
+          )}
+          {selected !== null && (group.capped ?? 0) > 0 && (
+            <p className={styles.line}>
+              {group.capped} below your cap of {group.cap}{" "}
+              <button
+                type="button"
+                disabled={showCapped.isPending}
+                onClick={() => showCapped.mutate({ scoutId: selected })}
+              >
+                Show them
+              </button>
             </p>
           )}
           {runId !== null && group.runPending > 0 && (

@@ -35,7 +35,7 @@ export type Scout = {
   created: Date;
   /** *Also search back to* (ADR 0016 decision 5): the first run opens its window here and its finds are Retroactive. */
   searchBackTo: Date | null;
-  /** Queue behaviour (ADR 0044 d.11). Most Proposals a run keeps in Review, or null for no cap; read by the Caps ticket, stored and validated here. */
+  /** Queue behaviour (ADR 0044 d.11). Most Proposals a run keeps in Review, or null for no cap; `arrive` applies it once the Scout has `HISTORY_FLOOR` counted acts. */
   cap: number | null;
   /** Days before a pending Review item collapses into the digest. */
   reviewDays: number;

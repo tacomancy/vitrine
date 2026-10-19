@@ -65,7 +65,7 @@ describe("the queue database, version 5 to 6", () => {
       expect(
         (queue.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(8);
+      ).toBe(9);
       expect(
         queue
           .prepare(
@@ -139,6 +139,18 @@ describe("the queue database, version 5 to 6", () => {
           .get()
       ).toEqual({ bulk: 4 });
       queue.prepare("DELETE FROM triage WHERE bulk = 4").run();
+      // Version 9 (#647): a Proposal can be `capped`, and the rebuilt table
+      // keeps the row, its id and what points at it.
+      expect(
+        queue.prepare("SELECT id, state, stub_path FROM proposals").all()
+      ).toEqual([{ id: 3, state: "rejected", stub_path: null }]);
+      queue.prepare("UPDATE proposals SET state = 'capped'").run();
+      expect(queue.prepare("SELECT state FROM proposals").all()).toEqual([
+        { state: "capped" },
+      ]);
+      expect(() =>
+        queue.prepare("UPDATE proposals SET state = 'bogus'").run()
+      ).toThrow();
       expect(queue.prepare("SELECT day FROM open_days").all()).toEqual([
         { day: "2026-09-20" },
       ]);
