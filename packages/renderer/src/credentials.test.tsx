@@ -69,6 +69,15 @@ describe("Settings: what it talks to", () => {
     expect(section.textContent).not.toMatch(/add a provider/i);
   });
 
+  it("names OpenAlex, where it goes and what is sent: only compiled Terms, no credential", async () => {
+    renderApp(answers());
+    const section = await talks();
+    expect(within(section).getByText("OpenAlex")).toBeTruthy();
+    expect(row(section, "Sends")).toMatch(/only the compiled Terms/i);
+    expect(section.textContent).toContain("api.openalex.org");
+    expect(row(section, "Credential")).toMatch(/none/i);
+  });
+
   it("states a stored key without ever showing it", async () => {
     renderApp(answers({ "credentials.status": { state: "present" } }));
     const section = await talks();

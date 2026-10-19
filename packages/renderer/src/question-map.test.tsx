@@ -686,6 +686,9 @@ const tag = (
   withText: placed ? papers : 1,
   state: placed ? "not yet measured" : "unplaced",
   reason: placed ? null : "few-papers",
+  growth: null,
+  counts: null,
+  measuredAt: null,
 });
 
 const ATTENTION: Attention = {
@@ -702,6 +705,8 @@ const LEXICON: LexiconView = {
   withText: 5,
   placed: true,
   reason: null,
+  counts: null,
+  measuredAt: null,
   terms: [
     { term: "residual stream", origin: "derived" },
     { term: "mechanistic interpretability", origin: "author keyword" },
@@ -795,6 +800,8 @@ describe("the Attention panel", () => {
         withText: 1,
         placed: false,
         reason: "few-papers",
+        counts: null,
+        measuredAt: null,
         terms: [],
         notUsed: [],
         query: null,
@@ -862,5 +869,176 @@ describe("the Attention panel", () => {
     const view = await page();
     await within(view).findByText(/reading the vault/);
     expect(view.querySelector('[data-slot="attention"]')).toBeNull();
+  });
+});
+
+// The first *Sync now* (#653; ADR 0045 decisions 4, 5 and 10): the consent
+// is a one-line confirm in the panel, not a modal; a Measurement shows as
+// growth; a field too thin to measure is unplaced with the counts shown.
+
+const measured = (
+  name: string,
+  growth: number,
+  at: string
+): Attention["tags"][number] => ({
+  ...tag(name, 5),
+  state: "measured",
+  growth,
+  counts: { last12: 150, prior12: 100 },
+  measuredAt: at,
+});
+
+const SYNCED: Attention = { ...ATTENTION, synced: true };
+
+describe("the Attention panel — Sync now", () => {
+  it("opens a one-line confirm naming OpenAlex and what is sent on the first press, and sends nothing yet", async () => {
+    const sync = vi.fn(() => ({ measured: 0, failed: [], waiting: 0 }));
+    open({ "questionMap.attention": ATTENTION, "lexicon.sync": sync });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Sync now" })
+    );
+    const confirm = await within(panel).findByRole("group", {
+      name: "Confirm sync",
+    });
+    expect(confirm.textContent).toMatch(/OpenAlex/);
+    expect(confirm.textContent).toMatch(/Terms/);
+    expect(within(confirm).getByRole("button", { name: "Sync" })).toBeDefined();
+    expect(sync).not.toHaveBeenCalled();
+    // In the panel, not a modal.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(panel.contains(confirm)).toBe(true);
+  });
+
+  it("leaves the vault never-synced on Not now, and says so", async () => {
+    const sync = vi.fn(() => ({ measured: 0, failed: [], waiting: 0 }));
+    open({ "questionMap.attention": ATTENTION, "lexicon.sync": sync });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Sync now" })
+    );
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Not now" })
+    );
+    expect(
+      within(panel).queryByRole("group", { name: "Confirm sync" })
+    ).toBeNull();
+    expect(within(panel).getByText(/nothing synced/)).toBeDefined();
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("sends the confirmation with Sync, and reports what was measured", async () => {
+    const sync = vi.fn(() => ({ measured: 2, failed: [], waiting: 0 }));
+    open({ "questionMap.attention": ATTENTION, "lexicon.sync": sync });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Sync now" })
+    );
+    fireEvent.click(await within(panel).findByRole("button", { name: "Sync" }));
+    await vi.waitFor(() =>
+      expect(sync).toHaveBeenCalledWith({ confirm: true })
+    );
+    await within(panel).findByText(/2 tags measured/);
+  });
+
+  it("asks nothing once the vault has synced: Sync now just syncs", async () => {
+    const sync = vi.fn(() => ({ measured: 1, failed: [], waiting: 0 }));
+    open({ "questionMap.attention": SYNCED, "lexicon.sync": sync });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Sync now" })
+    );
+    await vi.waitFor(() => expect(sync).toHaveBeenCalled());
+    expect(
+      within(panel).queryByRole("group", { name: "Confirm sync" })
+    ).toBeNull();
+  });
+
+  it("says a sync failed, naming the Tag and the kind, and a rate limit with how many wait", async () => {
+    open({
+      "questionMap.attention": SYNCED,
+      "lexicon.sync": {
+        measured: 1,
+        failed: [
+          { tag: "ml/probing", kind: "network" },
+          { tag: "sleep", kind: "rate_limited" },
+        ],
+        waiting: 3,
+      },
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Sync now" })
+    );
+    const line = await within(panel).findByText(/rate limit/i);
+    expect(line.textContent).toMatch(/3 tags waiting/);
+    expect(panel.textContent).toMatch(/ml\/probing/);
+    expect(panel.textContent).toMatch(/could not be reached/);
+  });
+
+  it("shows growth for a measured Tag, an as-of date for the oldest measurement, and none for an unmeasured Tag", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        asOf: "2026-10-09T08:00:00.000Z",
+        tags: [
+          measured("ml/probing", 0.5, "2026-10-12T08:00:00.000Z"),
+          measured("bio", -0.25, "2026-10-09T08:00:00.000Z"),
+          tag("chem", 3),
+        ],
+      },
+    });
+    const panel = await attentionSlot();
+    const probing = await within(panel).findByRole("button", {
+      name: /ml\/probing/,
+    });
+    expect(probing.textContent).toContain("growth +50%");
+    expect(
+      within(panel).getByRole("button", { name: /bio/ }).textContent
+    ).toContain("growth −25%");
+    expect(within(panel).getByText(/as of 2026-10-09/)).toBeDefined();
+    expect(
+      within(panel).getByRole("button", { name: /chem/ }).textContent
+    ).toContain("not yet measured");
+    expect(
+      within(panel).getByRole("button", { name: /chem/ }).textContent
+    ).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("lists a Tag the field is too thin for as unplaced with that reason, and the editor shows the counts", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        asOf: "2026-10-12T08:00:00.000Z",
+        tags: [
+          {
+            ...tag("ml/probing", 5),
+            state: "unplaced",
+            reason: "few-in-field",
+            counts: { last12: 120, prior12: 49 },
+            measuredAt: "2026-10-12T08:00:00.000Z",
+          },
+        ],
+      },
+      "lexicon.get": {
+        ...LEXICON,
+        placed: false,
+        reason: "few-in-field",
+        counts: { last12: 120, prior12: 49 },
+        measuredAt: "2026-10-12T08:00:00.000Z",
+      },
+    });
+    const panel = await attentionSlot();
+    const button = await within(panel).findByRole("button", {
+      name: /ml\/probing/,
+    });
+    expect(button.textContent).toContain("unplaced");
+    expect(button.textContent).toContain("too few in the field");
+    fireEvent.click(button);
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: ml\/probing/,
+    });
+    expect(editor.textContent).toContain("120 works in the last 12 months");
+    expect(editor.textContent).toContain("49 in the 12 before");
   });
 });

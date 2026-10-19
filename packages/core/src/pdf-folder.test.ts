@@ -196,8 +196,12 @@ describe("no setter for the PDF folder", () => {
     const mutations = Object.entries(procedures)
       .filter(([, p]) => p._def.type === "mutation")
       .map(([path]) => path);
+    // `lexicon.sync` is the Attention panel's OpenAlex measuring (#653): it
+    // never touches a folder, and the name is the spec's.
     expect(
-      mutations.filter((path) => /pdf|symlink|sync|copy/i.test(path))
+      mutations.filter(
+        (path) => path !== "lexicon.sync" && /pdf|symlink|sync|copy/i.test(path)
+      )
     ).toEqual([]);
     expect(
       mutations.filter((path) => path.startsWith("vault.")).sort()
