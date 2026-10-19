@@ -66,6 +66,7 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
   // Answered, so that a test with a read failing is the only one saying so.
   "scouts.health": { scouts: [] },
   "scouts.fleet": { claim: null, naming: [] },
+  "scouts.muted": { rules: [], problem: null, items: [] },
   "scouts.skim": { recent: [], older: [] },
   ...more,
 });
@@ -826,6 +827,7 @@ describe("the Scout Queue", () => {
       "scouts.groups",
       "scouts.fleet",
       "scouts.health",
+      "scouts.muted",
     ];
     const surface = () => screen.findByRole("region", { name: "Scout Queue" });
     const lane = (name: "Review" | "Skim") =>

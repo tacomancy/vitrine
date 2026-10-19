@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Card, Health, LaneMove, QueueSort, RankSignal } from "core";
+import type {
+  Card,
+  Health,
+  LaneMove,
+  MuteRule,
+  QueueSort,
+  RankSignal,
+} from "core";
 import { useEffect, useRef, useState } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
+import { MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { hashOf } from "./router";
@@ -79,6 +87,7 @@ export function ScoutQueue({
   });
   const fleet = useQuery(trpc.scouts.fleet.queryOptions());
   const health = useQuery(trpc.scouts.health.queryOptions());
+  const muted = useQuery(trpc.scouts.muted.queryOptions());
   const questionList = useQuery(
     trpc.questions.list.queryOptions({ order: "newest" })
   );
@@ -87,6 +96,10 @@ export function ScoutQueue({
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
+  // The card a mute rule is being offered for, and whether the muted view has
+  // taken the place of the stack (ADR 0044 decision 4).
+  const [muting, setMuting] = useState<Card | null>(null);
+  const [mutedOpen, setMutedOpen] = useState(false);
   // The one line holds the latest thing that happened, of two kinds that are
   // heard differently: what was done is `said`, a polite status; what the core
   // turned down is `refusal`, an alert (ADR 0033 decision 1 and its 2026-10-15
@@ -176,6 +189,17 @@ export function ScoutQueue({
     ...acts,
   });
   const undo = useMutation(trpc.scouts.undo.mutationOptions(acts));
+  const unmute = useMutation(
+    trpc.scouts.unmute.mutationOptions({
+      onSuccess: (_done, rule) => {
+        acknowledge(
+          `Deleted the rule ${ruleWords(rule)}; everything it held is back.`
+        );
+        void reread();
+      },
+      ...acts,
+    })
+  );
   const undoBulk = useMutation(trpc.scouts.undoBulk.mutationOptions(acts));
   const rejectGroup = useMutation({
     ...trpc.scouts.rejectGroup.mutationOptions(),
@@ -211,12 +235,22 @@ export function ScoutQueue({
   // it has nothing to do with.
   const reasons = [
     ...new Set(
-      [scouts, queue, groups, fleet, health, ...(lane === "skim" ? [skim] : [])]
+      [
+        scouts,
+        queue,
+        groups,
+        fleet,
+        health,
+        muted,
+        ...(lane === "skim" ? [skim] : []),
+      ]
         .filter((read) => read.isError)
         .map((read) => read.error.message)
     ),
   ];
   const unread = reasons.length > 0;
+  // The stack, or what has taken its place: the form, or the muted view.
+  const stackShown = form === null && !mutedOpen;
   const everything = queue.data ?? [];
   const inScoutGroup = everything.filter(
     (card) =>
@@ -338,6 +372,18 @@ export function ScoutQueue({
       }
     );
   }
+  // What `MuteOffer` needs: saving says what the rule is and rereads, so the
+  // card it held is gone from the stack on the next read.
+  const muteOffer = (offered: Card) => ({
+    card: offered,
+    onSaved: (rule: MuteRule) => {
+      setMuting(null);
+      acknowledge(`Muted ${ruleWords(rule)}.`);
+      void reread();
+    },
+    onCancel: () => setMuting(null),
+    onRefused: refuse,
+  });
   // `⇧R` and `⇧D`: exactly the cards dealt on screen, so a card folded into
   // the closed digest, or in another Scout's group, is never reached. No
   // modal: the line says what was done and that `⌘Z` takes it back.
@@ -469,6 +515,16 @@ export function ScoutQueue({
               </button>
             ))}
           </span>
+        )}
+        {((muted.data?.items.length ?? 0) > 0 ||
+          (muted.data?.rules.length ?? 0) > 0) && (
+          <button
+            type="button"
+            aria-pressed={mutedOpen}
+            onClick={() => setMutedOpen((was) => !was)}
+          >
+            {muted.data?.items.length} muted
+          </button>
         )}
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
@@ -609,7 +665,7 @@ export function ScoutQueue({
           }}
         />
       )}
-      {form === null && lane === "review" && group !== undefined && (
+      {stackShown && lane === "review" && group !== undefined && (
         <div className={styles.group}>
           {group.held.length > 0 && (
             <div>
@@ -664,6 +720,14 @@ export function ScoutQueue({
           )}
         </div>
       )}
+      {form === null && mutedOpen && muted.data !== undefined && (
+        <MutedView
+          rules={muted.data.rules}
+          items={muted.data.items}
+          deleting={unmute.isPending}
+          onDelete={(rule) => unmute.mutate(rule)}
+        />
+      )}
       {said !== null && (
         <p className={styles.line} role="status">
           {said}
@@ -681,13 +745,13 @@ export function ScoutQueue({
           <kbd>⌘Z</kbd>
         </p>
       )}
-      {form === null && lane === "review" && passedThrough && (
+      {stackShown && lane === "review" && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
           {selected === null ? "here" : "in this group"}; they come round again.
         </p>
       )}
-      {form === null && lane === "skim" && (
+      {stackShown && lane === "skim" && (
         <>
           {lines.length > 0 && (
             <ul className={styles.skim} aria-label="Skim">
@@ -721,11 +785,15 @@ export function ScoutQueue({
             ) : (
               <SkimQuiet claim={fleet.data} dropped={droppedScouts.length} />
             ))}
-          {line !== undefined && (
+          {line !== undefined && muting?.id === line.id && (
+            <MuteOffer {...muteOffer(line)} />
+          )}
+          {line !== undefined && muting?.id !== line.id && (
             <Proposal
               key={line.id}
               card={line}
               lane="skim"
+              onMute={() => setMuting(line)}
               onAccept={() => {
                 if (!accept.isPending) accept.mutate({ proposalId: line.id });
               }}
@@ -736,7 +804,7 @@ export function ScoutQueue({
           )}
         </>
       )}
-      {form === null && lane === "review" && inGroup.length === 0 && unread && (
+      {stackShown && lane === "review" && inGroup.length === 0 && unread && (
         <FirstSlot voice="wrong" claim="" />
       )}
       {form === null &&
@@ -751,20 +819,28 @@ export function ScoutQueue({
             dropped={droppedScouts.length}
           />
         )}
-      {form === null && lane === "review" && card !== undefined && (
-        <Proposal
-          key={card.id}
-          card={card}
-          lane="review"
-          onAccept={() => {
-            if (!accept.isPending) accept.mutate({ proposalId: card.id });
-          }}
-          onPass={() => onPass(card.id)}
-          onReject={() => onDecide("rejected", reject, card.id, card.title)}
-          onDefer={() => onDecide("deferred", defer, card.id, card.title)}
-        />
-      )}
-      {form === null && lane === "review" && stack.length > 1 && (
+      {stackShown &&
+        lane === "review" &&
+        card !== undefined &&
+        muting?.id === card.id && <MuteOffer {...muteOffer(card)} />}
+      {stackShown &&
+        lane === "review" &&
+        card !== undefined &&
+        muting?.id !== card.id && (
+          <Proposal
+            key={card.id}
+            card={card}
+            lane="review"
+            onMute={() => setMuting(card)}
+            onAccept={() => {
+              if (!accept.isPending) accept.mutate({ proposalId: card.id });
+            }}
+            onPass={() => onPass(card.id)}
+            onReject={() => onDecide("rejected", reject, card.id, card.title)}
+            onDefer={() => onDecide("deferred", defer, card.id, card.title)}
+          />
+        )}
+      {stackShown && lane === "review" && stack.length > 1 && (
         <ol className={styles.rest} aria-label="Next in the stack">
           {stack
             .slice(1)
@@ -776,7 +852,7 @@ export function ScoutQueue({
             ))}
         </ol>
       )}
-      {form === null && lane === "review" && digest.length > 0 && (
+      {stackShown && lane === "review" && digest.length > 0 && (
         <div className={styles.line}>
           <button
             type="button"
@@ -796,13 +872,20 @@ export function ScoutQueue({
       )}
       {/* The footer channel, polite: a state the app is in, not a refusal of
           something the user did (ADR 0033). */}
-      {unread && (
+      {(unread || muted.data?.problem != null) && (
         <footer className={styles.footer}>
           {reasons.map((reason) => (
             <WarningLine key={reason} label="not read">
               {reason}
             </WarningLine>
           ))}
+          {/* A rules file that does not parse holds nothing back, and says
+              so by name: it must never look like no rules (ADR 0044 d.4). */}
+          {muted.data?.problem != null && (
+            <WarningLine label="mute rules not read">
+              {muted.data.problem}
+            </WarningLine>
+          )}
         </footer>
       )}
     </section>
@@ -828,6 +911,7 @@ function Proposal({
   onReject,
   onDefer,
   onPromote,
+  onMute,
 }: {
   card: Card;
   lane: "review" | "skim";
@@ -836,6 +920,7 @@ function Proposal({
   onReject?: () => void;
   onDefer?: () => void;
   onPromote?: () => void;
+  onMute: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -862,8 +947,8 @@ function Proposal({
     // passing: the keys are absent, not disabled.
     const act = (
       lane === "skim"
-        ? { a: onAccept, t: onPromote }
-        : { a: onAccept, p: onPass, r: onReject, d: onDefer }
+        ? { a: onAccept, t: onPromote, m: onMute }
+        : { a: onAccept, p: onPass, r: onReject, d: onDefer, m: onMute }
     )[key as "a"];
     if (act !== undefined) {
       event.preventDefault();
@@ -938,12 +1023,13 @@ function Proposal({
       <p className={styles.actions}>
         {lane === "skim" ? (
           <>
-            <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>T</kbd> to Review
+            <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>T</kbd> to Review ·{" "}
+            <kbd>M</kbd> mute…
           </>
         ) : (
           <>
             <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>P</kbd> pass ·{" "}
-            <kbd>R</kbd> reject · <kbd>D</kbd> defer
+            <kbd>R</kbd> reject · <kbd>D</kbd> defer · <kbd>M</kbd> mute…
           </>
         )}
       </p>
