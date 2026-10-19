@@ -18,11 +18,12 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
 const COVERAGE: Coverage = { depth: 1, deepest: 1, rows: [], tags: [] };
 
-const paper = (name: string, shared = ["sleep"]) => ({
+const paper = (name: string, shared = ["sleep"], terms: string[] = []) => ({
   path: `s/${name}.md`,
   kind: "source" as const,
   display: name,
   shared,
+  terms,
   rejection: { subject: "q-many", kind: `inferred-link:${name}` },
 });
 const QUESTIONS: CandidateQuestion[] = [
@@ -95,6 +96,24 @@ describe("the candidate review", () => {
     expect(view.textContent).not.toMatch(/\d+ of \d+|backlog|total/i);
     expect(within(await listbox()).getAllByRole("option")).toHaveLength(3);
     expect(await chosen()).toContain("one");
+  });
+
+  it("says which Terms a keyword-overlap candidate matched, and which Tags a shared-Tag one shares", async () => {
+    open([
+      {
+        ...QUESTIONS[0]!,
+        candidates: [
+          paper("tagged", ["sleep"]),
+          paper("worded", [], ["linear probe", "residual stream"]),
+        ],
+      },
+    ]);
+    const [tagged, worded] = within(await listbox()).getAllByRole("option");
+    expect(tagged!.textContent).toContain("shares sleep");
+    expect(worded!.textContent).toContain(
+      "matches linear probe · residual stream"
+    );
+    expect(worded!.textContent).not.toContain("shares");
   });
 
   it("accepts onto a Research Question through researchQuestions.link, not questions.link", async () => {

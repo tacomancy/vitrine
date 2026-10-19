@@ -54,7 +54,7 @@ import {
 } from "./experiment.js";
 import { explainRevision } from "./page-write.js";
 import { listQuestions } from "./list.js";
-import { attention, lexiconOf } from "./lexicon.js";
+import { attention, keywordOverlap, lexiconOf } from "./lexicon.js";
 import { syncLexicons } from "./lexicon-sync.js";
 import { readMeasurements, type Measurements } from "./measurements.js";
 import { looseEnds } from "./loose-ends.js";
@@ -1460,7 +1460,7 @@ export const router = t.router({
     // `rejection`; pass is the renderer's, and nothing here is written.
     candidates: t.procedure.query(async ({ ctx }) => {
       const { vault, index } = await requireVault(ctx);
-      return candidateLinks(index, vault.path);
+      return candidateLinks(index, vault.path, keywordOverlap(index));
     }),
     matrix: t.procedure
       .input(z.object({ depth: z.number().int().optional() }).optional())
