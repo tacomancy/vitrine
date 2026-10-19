@@ -101,6 +101,7 @@ import {
   readGroups,
   rejectProposal,
   rejectRun,
+  showCapped,
   undoTriage,
 } from "./triage.js";
 import { discardCopy, useCopy } from "./pdf-plumbing.js";
@@ -691,6 +692,11 @@ export const router = t.router({
       .input(z.object({ proposalId: z.number().int() }))
       .mutation(({ ctx, input }) =>
         triaged(ctx, (deps) => undoTriage(deps, input.proposalId))
+      ),
+    showCapped: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => ({ released: showCapped(deps, input.scoutId) }))
       ),
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))

@@ -36,8 +36,9 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    kinds `credentials`, `model` and `extraction` (#464).
  * 7: the triage actions `demote` and `raise`, Lane moves the researcher did
  *    not make by hand (#643).
+ * 8: the Proposal state `capped`, what a Scout's cap cut (#647).
  */
-export const QUEUE_SCHEMA_VERSION = 7;
+export const QUEUE_SCHEMA_VERSION = 8;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -186,6 +187,32 @@ DROP TABLE triage;
 ALTER TABLE triage_new RENAME TO triage;
 `;
 
+// A CHECK cannot be altered, so adding `capped` rebuilds `proposals`, keeping
+// every id: Appearances and the triage log point at Proposals by id, and a
+// Proposal row (with the stub path an accept wrote) is not re-derivable.
+// Foreign keys are off for migrations (`openQueue`).
+const PROPOSAL_CAPPED = `
+CREATE TABLE proposals_new (
+  id INTEGER PRIMARY KEY,
+  source_key TEXT NOT NULL UNIQUE,
+  doi TEXT,
+  title TEXT NOT NULL,
+  authors TEXT NOT NULL,
+  published TEXT NOT NULL,
+  venue TEXT,
+  abstract TEXT NOT NULL,
+  url TEXT NOT NULL,
+  lane TEXT NOT NULL CHECK (lane IN ('review', 'skim')),
+  state TEXT NOT NULL CHECK (state IN ('pending', 'deferred', 'accepted', 'rejected', 'held', 'capped')),
+  first_seen TEXT NOT NULL,
+  stub_path TEXT
+);
+INSERT INTO proposals_new (id, source_key, doi, title, authors, published, venue, abstract, url, lane, state, first_seen, stub_path)
+  SELECT id, source_key, doi, title, authors, published, venue, abstract, url, lane, state, first_seen, stub_path FROM proposals;
+DROP TABLE proposals;
+ALTER TABLE proposals_new RENAME TO proposals;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -200,6 +227,7 @@ const MIGRATIONS: readonly string[] = [
   SCOUT_RUN_QUERY,
   SCOUT_RUN_MODEL,
   TRIAGE_LANE_MOVES,
+  PROPOSAL_CAPPED,
 ];
 
 /**

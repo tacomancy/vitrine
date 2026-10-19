@@ -22,7 +22,13 @@ import { pastWindowIds, windowsOf } from "./review-depth.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
 import { wikilinkTo } from "./link-text.js";
-import { inTransaction, returnDeferred } from "./triage.js";
+import {
+  acceptCounts,
+  acceptSince,
+  HISTORY_FLOOR,
+  inTransaction,
+  returnDeferred,
+} from "./triage.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -364,6 +370,7 @@ function arrive(
   const vaultHas = heldIn(deps.index);
   let fresh = 0;
   let held = 0;
+  const placed: Array<{ id: number; authors: string[] }> = [];
   for (const item of items) {
     const key = item.key;
     let id = (known.get(key) as { id: number } | undefined)?.id;
@@ -385,8 +392,10 @@ function arrive(
           heldBy
         ).lastInsertRowid
       );
-      if (heldBy === null) fresh++;
-      else held++;
+      if (heldBy === null) {
+        fresh++;
+        placed.push({ id, authors: item.authors });
+      } else held++;
     }
     // Corroboration crosses Lanes: a Skim line a second Scout also finds has
     // been independently found, which is what Review is for (ADR 0044
@@ -403,7 +412,51 @@ function arrive(
     }
     appear.run(id, runId, scout.id, at, item.url);
   }
+  applyCap(deps, scout, placed);
   return { new: fresh, held };
+}
+
+/**
+ * Keep a run's top `cap` arrivals in the stack and store the rest as `capped`
+ * (ADR 0044 decision 5). It is a state and nothing else: no triage row, so
+ * Accept rate cannot move for a paper the researcher never judged, and no
+ * rejection, so *show them* can give every one back. It waits for the same
+ * five counted acts Accept rate does (decision 6) — before that a Scout has
+ * no history to rank by and a cut would be arbitrary.
+ *
+ * Only Proposals this run made are weighed, and each has exactly one
+ * Appearance, so Corroboration and Assigned Questions are the same for all of
+ * them and Rank here is the accepted-work authors alone. Ties keep what the
+ * stack would put first (the newest row), so the cap never keeps a card the
+ * Rank sort would have buried.
+ */
+function applyCap(
+  deps: ScoutDeps,
+  scout: Scout,
+  placed: Array<{ id: number; authors: string[] }>
+): void {
+  if (scout.cap === null || scout.lane !== "review") return;
+  if (placed.length <= scout.cap) return;
+  const counts = acceptCounts(deps.queue, acceptSince(deps.now())).find(
+    (c) => c.scoutId === scout.id
+  );
+  if (
+    counts === undefined ||
+    counts.accepted + counts.rejected < HISTORY_FLOOR
+  ) {
+    return;
+  }
+  const accepted = acceptedAuthors(deps.index);
+  const known = (authors: string[]) =>
+    authors.filter((name) => accepted.has(authorKey(name))).length;
+  const cut = placed
+    .map((p) => ({ id: p.id, known: known(p.authors) }))
+    .sort((a, b) => b.known - a.known || b.id - a.id)
+    .slice(scout.cap);
+  const park = deps.queue.prepare(
+    "UPDATE proposals SET state = 'capped' WHERE id = ?"
+  );
+  for (const { id } of cut) park.run(id);
 }
 
 /**

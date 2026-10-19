@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect } from "vitest";
-import { core, fixtureCopy } from "./test-core.js";
+import { core, fixtureCopy, type CoreOptions } from "./test-core.js";
 
 // A vault whose Scout queue is seeded row by row, for the tests that assert a
 // figure a Scout Activity row carries (the Accept rate, the volume, the cost)
@@ -44,7 +44,9 @@ export type Seed = {
 export async function openedWithQueue(
   scouts: Record<string, string>,
   /** Vault-relative files to write beside the fixture's own: Questions a suite needs. */
-  files: Record<string, string> = {}
+  files: Record<string, string> = {},
+  /** Handed to the core as is: a suite that runs a Scout answers arXiv itself. */
+  options: Omit<CoreOptions, "now"> = {}
 ) {
   const vault = await fixtureCopy("obsidian-vault");
   for (const [file, text] of Object.entries(files)) {
@@ -56,7 +58,7 @@ export async function openedWithQueue(
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, text);
   }
-  const c = await core({ now: () => NOW });
+  const c = await core({ ...options, now: () => NOW });
   expect((await c.mutate("vault.open", { path: vault })).error).toBeUndefined();
   await c.indexed();
   const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
