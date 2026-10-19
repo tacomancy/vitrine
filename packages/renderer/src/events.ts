@@ -86,6 +86,14 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
           // and raised their own `vaultChanged`, which is what re-reads a
           // Source; nothing here patches a list.
           announceIngest(event.summary);
+          // Keywords read from a PDF go to its sidecar, which is no vault
+          // file and raises no `vaultChanged`: an open Lexicon (and the
+          // list's *re-measure pending*, which follows from it) re-reads
+          // here or shows a set older than the Ingest (#683).
+          void queryClient.invalidateQueries(trpc.lexicon.get.pathFilter());
+          void queryClient.invalidateQueries(
+            trpc.questionMap.attention.pathFilter()
+          );
         } else if (event.type === "scoutFinished") {
           // A run ended, cleanly or not (ADR 0016 decision 13): what it found
           // and how it went are rows, so the Queue re-reads them.
