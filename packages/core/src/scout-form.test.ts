@@ -258,14 +258,14 @@ describe("editing a Scout", () => {
     const c = await opened(serving("empty"));
     await c.write(
       "hand",
-      "name: By hand\ncadence: daily\ncreated: 2026-09-20T00:00:00Z\ncap: 40\nfilter:\n  query: all:x\n  tags: [sleep]\n"
+      "name: By hand\ncadence: daily\ncreated: 2026-09-20T00:00:00Z\ncap: 40\nfilter:\n  query: all:x\n  note: hello\n"
     );
 
     await c.save({ id: "hand", name: "By hand", query: "all:x", lane: "skim" });
 
     const text = await c.file("hand");
     expect(text).toContain("cap: 40");
-    expect(text).toContain("tags:");
+    expect(text).toContain("note: hello");
   });
 
   it("refuses to edit a Scout that is not there", async () => {

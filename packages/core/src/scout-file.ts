@@ -20,6 +20,13 @@ export type Scout = {
   source: { kind: "arxiv" } | { kind: "watched"; url: string };
   /** The arXiv Query; for a Watched source, the address — what a run asked, so an edit to it overrides a wait. */
   query: string;
+  /**
+   * A Tag Filter (spec #678): the Tags as written, whose Lexicons the run
+   * compiles. Absent for a Query Scout and a Watched one, and then `query` is
+   * the Filter; present, `query` is empty, since the compiled string is never
+   * stored on the Scout, only on the runs that asked it.
+   */
+  tags?: string[];
   cadence: "daily" | "weekly" | "monthly";
   /** Question ids (§ Vault layout: `assigned: [question ids]`). */
   assigned: string[];
@@ -233,6 +240,7 @@ function readScout(id: string, text: string): Read {
   const kind = declared?.["kind"] ?? "arxiv";
   let source: Scout["source"];
   let query: string;
+  let tags: string[] | undefined;
   if (kind === "watched") {
     const url = declared?.["url"];
     if (typeof url !== "string" || !/^https?:\/\/\S+$/i.test(url.trim())) {
@@ -243,10 +251,36 @@ function readScout(id: string, text: string): Read {
   } else if (kind === "arxiv") {
     const filter = file["filter"] as Record<string, unknown> | undefined;
     const asked = filter?.["query"];
-    if (typeof asked !== "string" || asked.trim() === "") {
-      return { ok: false, problem: "it has no filter.query" };
+    const named = filter?.["tags"];
+    // Exclusive, and refused by name, so "what does it search?" has one answer.
+    if (named !== undefined && asked !== undefined) {
+      return {
+        ok: false,
+        problem:
+          "it has both filter.tags and filter.query, and a Scout has one",
+      };
     }
-    query = asked;
+    if (named !== undefined) {
+      if (
+        !Array.isArray(named) ||
+        named.length === 0 ||
+        !named.every((t) => typeof t === "string" && t.trim() !== "")
+      ) {
+        return { ok: false, problem: "filter.tags is not a list of Tags" };
+      }
+      tags = (named as string[]).map((t) => t.trim());
+      query = "";
+    } else if (typeof asked !== "string" || asked.trim() === "") {
+      return {
+        ok: false,
+        problem:
+          asked === undefined
+            ? "it has neither filter.tags nor filter.query"
+            : "it has no filter.query",
+      };
+    } else {
+      query = asked;
+    }
     source = { kind: "arxiv" };
   } else {
     return { ok: false, problem: "source.kind is not arxiv or watched" };
@@ -297,6 +331,7 @@ function readScout(id: string, text: string): Read {
           : id,
       source,
       query: query.trim(),
+      ...(tags === undefined ? {} : { tags }),
       cadence: cadence as Scout["cadence"],
       assigned,
       lane: lane as Scout["lane"],
