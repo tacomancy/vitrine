@@ -9,6 +9,7 @@ import {
   showStoredArtifact,
 } from "./artifact.js";
 import type { ArxivClient } from "./arxiv.js";
+import type { OpenAlexClient } from "./openalex.js";
 import type { WatchedDeps } from "./watched.js";
 import {
   ANTHROPIC,
@@ -60,6 +61,8 @@ import {
   restoreTerm,
   seedTerm,
 } from "./lexicon-edits.js";
+import { syncLexicons } from "./lexicon-sync.js";
+import { readMeasurements, type Measurements } from "./measurements.js";
 import { looseEnds } from "./loose-ends.js";
 import {
   candidateLinks,
@@ -156,6 +159,8 @@ export type Context = {
   now: () => Date;
   /** The one arXiv client every Scout shares (ADR 0016 decision 3). */
   arxiv: ArxivClient;
+  /** The one OpenAlex client, for the Attention panel's field counts (ADR 0045). */
+  openalex: OpenAlexClient;
   /** Fetch, model and key for a Scout that watches a page (ADR 0017). */
   watched: WatchedDeps;
   /** The Provider's model id, kept in `providers.json` (`providers.ts`). */
@@ -275,6 +280,18 @@ const promoteToHypothesisInput = z.object({
 
 const noVault = () =>
   new TRPCError({ code: "PRECONDITION_FAILED", message: "No vault is open." });
+
+/**
+ * The stored Measurements, or the INTERNAL_SERVER_ERROR that says the file cannot be
+ * read: an unreadable store read as empty would ask for consent again.
+ */
+async function measurementsOf(vaultPath: string): Promise<Measurements> {
+  const { measurements, problem } = await readMeasurements(vaultPath);
+  if (problem !== null) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: problem });
+  }
+  return measurements;
+}
 
 /** The open vault and its index, or the PRECONDITION_FAILED a procedure that needs them raises. */
 async function requireVault(ctx: Context) {
@@ -1468,6 +1485,7 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return attention(
           index,
+          await measurementsOf(vault.path),
           input?.depth,
           await refusing(readEdits(vault.path))
         );
@@ -1498,9 +1516,27 @@ export const router = t.router({
         const { vault, index } = await requireVault(ctx);
         return lexiconOf(
           index,
+          await measurementsOf(vault.path),
           input.tag,
           input.depth,
           await refusing(readEdits(vault.path))
+        );
+      }),
+    // The first *Sync now* and every one after (ADR 0045 decisions 4, 10).
+    // Whether the user has been told what is sent is the core's to check, so
+    // `confirm` is what the panel's one-line confirm sends, not a gate here.
+    sync: t.procedure
+      .input(z.object({ confirm: z.boolean().optional() }).optional())
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(
+          syncLexicons({
+            index,
+            vaultPath: vault.path,
+            client: ctx.openalex,
+            now: ctx.now(),
+            confirm: input?.confirm === true,
+          })
         );
       }),
     // Each edit belongs to the Tag as written (ADR 0045 decision 3); the

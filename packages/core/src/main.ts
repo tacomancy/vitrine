@@ -110,6 +110,8 @@ const author = process.env["VITRINE_AUTHOR"];
 // A demo's stand-in arXiv server (`Scripts/scout-demo.mjs`); never set in use,
 // so the real endpoint is the default and nothing leaves the device by it.
 const arxivEndpoint = process.env["VITRINE_ARXIV_ENDPOINT"];
+// The same for OpenAlex (`Scripts/` stand-ins); never set in use.
+const openalexEndpoint = process.env["VITRINE_OPENALEX_ENDPOINT"];
 // A demo's hidden run keeps its key in memory so the real Keychain is never
 // touched (`Scripts/watched-demo.mjs`); never set in use.
 const memoryKeys = process.env["VITRINE_CREDENTIALS"] === "memory";
@@ -122,6 +124,9 @@ const running = await startCore({
   ...(arxivEndpoint === undefined || arxivEndpoint === ""
     ? {}
     : { arxiv: { endpoint: arxivEndpoint } }),
+  ...(openalexEndpoint === undefined || openalexEndpoint === ""
+    ? {}
+    : { openalex: { endpoint: openalexEndpoint } }),
   ...(memoryKeys ? { credentials: createMemoryCredentialStore() } : {}),
   ...(shell ? { host: shell.host } : {}),
 });
