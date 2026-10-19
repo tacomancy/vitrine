@@ -333,16 +333,22 @@ export function ScoutQueue({
   // modal: the line says what was done and that `⌘Z` takes it back.
   function onDecideGroup(kind: "rejected" | "deferred") {
     const mutation = kind === "rejected" ? rejectGroup : deferGroup;
-    if (inGroup.length === 0 || mutation.isPending) return;
+    if (inGroup.length === 0 || rejectGroup.isPending || deferGroup.isPending)
+      return;
     mutation.mutate(
       { proposalIds: inGroup.map((c) => c.id) },
       {
         onSuccess: ({ bulk, count }) => {
           setUndoable((was) => [...was, { bulk, count, action: kind }]);
+          const skipped =
+            count < inGroup.length
+              ? ` (${inGroup.length - count} had already moved.)`
+              : "";
           acknowledge(
-            kind === "rejected"
+            (kind === "rejected"
               ? `Rejected ${count} in this group. ⌘Z puts them all back.`
-              : `Deferred ${count} in this group until the next run. ⌘Z puts them all back.`
+              : `Deferred ${count} in this group until the next run. ⌘Z puts them all back.`) +
+              skipped
           );
           void reread();
         },
@@ -361,6 +367,10 @@ export function ScoutQueue({
             acknowledge(`Put ${count} back.`);
             void reread();
           },
+          // Nothing of the gesture stands any more (a run brought the cards
+          // back): the refusal is shown, and the entry goes so it does not
+          // shadow the earlier acts beneath it.
+          onError: () => setUndoable((was) => was.slice(0, -1)),
         }
       );
       return;

@@ -385,7 +385,7 @@ export type BulkResult = { bulk: number; count: number };
  * the window shows in the group on screen, so the act reaches exactly those;
  * the core keeps only the ones still pending in Review, since a card the
  * researcher's other window or a run has since moved is not owed this verdict.
- * `batch` stays reject-this-run's own. The one transaction means a gesture
+ * The `batch` column stays reject-this-run's run id and is not reused for this. The one transaction means a gesture
  * lands whole or not at all.
  */
 export function actOnGroup(
@@ -394,32 +394,34 @@ export function actOnGroup(
   proposalIds: number[]
 ): BulkResult {
   const { queue } = deps;
-  const ids = [...new Set(proposalIds)].filter(
-    (id) =>
-      queue
-        .prepare(
-          "SELECT 1 FROM proposals WHERE id = ? AND state = 'pending' AND lane = 'review'"
-        )
-        .get(id) !== undefined
-  );
-  if (ids.length === 0) {
-    throw new VaultError(
-      "refused",
-      "There is nothing in this group to act on."
+  // Read and written in one transaction, so a second writer can neither take
+  // the same `bulk` id nor act on a card this one has since moved.
+  return inTransaction(queue, () => {
+    const ids = [...new Set(proposalIds)].filter(
+      (id) =>
+        queue
+          .prepare(
+            "SELECT 1 FROM proposals WHERE id = ? AND state = 'pending' AND lane = 'review'"
+          )
+          .get(id) !== undefined
     );
-  }
-  // The next id after the largest ever written, so a gesture never shares one
-  // with an earlier gesture (a bulk row is never deleted).
-  const { next } = queue
-    .prepare("SELECT COALESCE(MAX(bulk), 0) + 1 AS next FROM triage")
-    .get() as { next: number };
-  inTransaction(queue, () => {
+    if (ids.length === 0) {
+      throw new VaultError(
+        "refused",
+        "There is nothing in this group to act on."
+      );
+    }
+    // One past the largest ever written, so a gesture never shares an id with
+    // an earlier one (a bulk row is never deleted).
+    const { next } = queue
+      .prepare("SELECT COALESCE(MAX(bulk), 0) + 1 AS next FROM triage")
+      .get() as { next: number };
     for (const id of ids) {
       if (action === "reject") rejectProposal(deps, id, next);
       else deferProposal(deps, id, next);
     }
+    return { bulk: next, count: ids.length };
   });
-  return { bulk: next, count: ids.length };
 }
 
 /**
@@ -454,9 +456,11 @@ export function undoBulk(deps: ScoutDeps, bulk: number): BulkResult {
 
 /** Whether `undoTriage` would take this card's last act back. */
 function standing(queue: DatabaseSync, proposalId: number): boolean {
-  const { state } = queue
+  const row = queue
     .prepare("SELECT state FROM proposals WHERE id = ?")
-    .get(proposalId) as { state: string };
+    .get(proposalId) as { state: string } | undefined;
+  if (row === undefined) return false;
+  const { state } = row;
   if (state === "rejected" || state === "deferred") return true;
   return (
     state === "pending" &&
