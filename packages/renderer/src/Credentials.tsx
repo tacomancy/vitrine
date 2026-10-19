@@ -246,6 +246,23 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
         Held in the macOS Keychain. Never shown back, never written to the
         vault, sent only to the address above.
       </p>
+      <h3 className={styles.block}>OpenAlex</h3>
+      <dl className={styles.rows}>
+        <div className={styles.row}>
+          <dt className={styles.label}>Goes to</dt>
+          <dd className={styles.value}>api.openalex.org — nowhere else</dd>
+        </div>
+        <div className={styles.row}>
+          <dt className={styles.label}>Sends</dt>
+          <dd className={styles.value}>
+            only the compiled Terms of your Tags, once you press Sync now
+          </dd>
+        </div>
+        <div className={styles.row}>
+          <dt className={styles.label}>Credential</dt>
+          <dd className={styles.value}>none — it needs no credential</dd>
+        </div>
+      </dl>
     </section>
   );
 }

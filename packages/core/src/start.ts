@@ -21,6 +21,8 @@ export type StartOptions = {
   author?: string;
   /** Where the arXiv client asks; only a demo's stand-in server sets it, so the default is the real API. */
   arxiv?: { endpoint: string };
+  /** The same for OpenAlex; only a demo's stand-in sets it. */
+  openalex?: { endpoint: string };
   /** Where the model key lives; only a demo's hidden run sets it, so the default is the login Keychain and a demo never touches the real one. */
   credentials?: CredentialStore;
 };
@@ -73,6 +75,7 @@ export function startCore(options: StartOptions = {}): Promise<RunningCore> {
     ...(options.machine === undefined ? {} : { machine: options.machine }),
     ...(options.author === undefined ? {} : { author: options.author }),
     ...(options.arxiv === undefined ? {} : { arxiv: options.arxiv }),
+    ...(options.openalex === undefined ? {} : { openalex: options.openalex }),
     // Built once here, and read at each run: the Keychain is the one source
     // of truth for a key (§ BYOK and watched sources).
     watched: {
