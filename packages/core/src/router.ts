@@ -101,6 +101,7 @@ import {
   readGroups,
   rejectProposal,
   rejectRun,
+  showCapped,
   undoTriage,
   actOnGroup,
   undoBulk,
@@ -743,6 +744,11 @@ export const router = t.router({
       .input(z.object({ bulk: z.number().int() }))
       .mutation(({ ctx, input }) =>
         triaged(ctx, (deps) => undoBulk(deps, input.bulk))
+      ),
+    showCapped: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => ({ released: showCapped(deps, input.scoutId) }))
       ),
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))

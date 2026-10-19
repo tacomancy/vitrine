@@ -38,8 +38,9 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    not make by hand (#643).
  * 8: `triage.bulk`, the id one reject-group or defer-group gesture writes on
  *    every row it makes, so one `⌘Z` can take the whole gesture back (#644).
+ * 9: the Proposal state `capped`, what a Scout's cap cut (#647).
  */
-export const QUEUE_SCHEMA_VERSION = 8;
+export const QUEUE_SCHEMA_VERSION = 9;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -195,6 +196,32 @@ const TRIAGE_BULK = `
 ALTER TABLE triage ADD COLUMN bulk INTEGER;
 `;
 
+// A CHECK cannot be altered, so adding `capped` rebuilds `proposals`, keeping
+// every id: Appearances and the triage log point at Proposals by id, and a
+// Proposal row (with the stub path an accept wrote) is not re-derivable.
+// Foreign keys are off for migrations (`openQueue`).
+const PROPOSAL_CAPPED = `
+CREATE TABLE proposals_new (
+  id INTEGER PRIMARY KEY,
+  source_key TEXT NOT NULL UNIQUE,
+  doi TEXT,
+  title TEXT NOT NULL,
+  authors TEXT NOT NULL,
+  published TEXT NOT NULL,
+  venue TEXT,
+  abstract TEXT NOT NULL,
+  url TEXT NOT NULL,
+  lane TEXT NOT NULL CHECK (lane IN ('review', 'skim')),
+  state TEXT NOT NULL CHECK (state IN ('pending', 'deferred', 'accepted', 'rejected', 'held', 'capped')),
+  first_seen TEXT NOT NULL,
+  stub_path TEXT
+);
+INSERT INTO proposals_new (id, source_key, doi, title, authors, published, venue, abstract, url, lane, state, first_seen, stub_path)
+  SELECT id, source_key, doi, title, authors, published, venue, abstract, url, lane, state, first_seen, stub_path FROM proposals;
+DROP TABLE proposals;
+ALTER TABLE proposals_new RENAME TO proposals;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -210,6 +237,7 @@ const MIGRATIONS: readonly string[] = [
   SCOUT_RUN_MODEL,
   TRIAGE_LANE_MOVES,
   TRIAGE_BULK,
+  PROPOSAL_CAPPED,
 ];
 
 /**

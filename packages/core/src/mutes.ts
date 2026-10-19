@@ -134,7 +134,7 @@ function mutable(queue: DatabaseSync): Row[] {
 }
 
 /** Which rule holds which Proposal: the first in the file's order, so a rule's removal hands an item to the next rather than to nothing. */
-function applied(
+export function applied(
   queue: DatabaseSync,
   rules: MuteRule[]
 ): Map<number, MuteRule> {
