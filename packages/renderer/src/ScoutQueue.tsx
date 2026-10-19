@@ -118,8 +118,12 @@ export function ScoutQueue({
   const [passed, setPassed] = useState<number[]>([]);
   // Rejects and defers made this session that can still be taken back
   // (ADR 0016's update of 2026-09-26); accept is never on it.
+  // A group act is one entry, undone as one (ADR 0044 decision 9).
   const [undoable, setUndoable] = useState<
-    Array<{ id: number; title: string; action: "rejected" | "deferred" }>
+    Array<
+      | { id: number; title: string; action: "rejected" | "deferred" }
+      | { bulk: number; count: number; action: "rejected" | "deferred" }
+    >
   >([]);
   const reread = () => queryClient.invalidateQueries(trpc.scouts.pathFilter());
 
@@ -172,6 +176,15 @@ export function ScoutQueue({
     ...acts,
   });
   const undo = useMutation(trpc.scouts.undo.mutationOptions(acts));
+  const undoBulk = useMutation(trpc.scouts.undoBulk.mutationOptions(acts));
+  const rejectGroup = useMutation({
+    ...trpc.scouts.rejectGroup.mutationOptions(),
+    ...acts,
+  });
+  const deferGroup = useMutation({
+    ...trpc.scouts.deferGroup.mutationOptions(),
+    ...acts,
+  });
   const rejectRun = useMutation(
     trpc.scouts.rejectRun.mutationOptions({
       onSuccess: ({ rejected }) => {
@@ -315,9 +328,53 @@ export function ScoutQueue({
       }
     );
   }
+  // `⇧R` and `⇧D`: exactly the cards dealt on screen, so a card folded into
+  // the closed digest, or in another Scout's group, is never reached. No
+  // modal: the line says what was done and that `⌘Z` takes it back.
+  function onDecideGroup(kind: "rejected" | "deferred") {
+    const mutation = kind === "rejected" ? rejectGroup : deferGroup;
+    if (inGroup.length === 0 || rejectGroup.isPending || deferGroup.isPending)
+      return;
+    mutation.mutate(
+      { proposalIds: inGroup.map((c) => c.id) },
+      {
+        onSuccess: ({ bulk, count }) => {
+          setUndoable((was) => [...was, { bulk, count, action: kind }]);
+          const skipped =
+            count < inGroup.length
+              ? ` (${inGroup.length - count} had already moved.)`
+              : "";
+          acknowledge(
+            (kind === "rejected"
+              ? `Rejected ${count} in this group. ⌘Z puts them all back.`
+              : `Deferred ${count} in this group until the next run. ⌘Z puts them all back.`) +
+              skipped
+          );
+          void reread();
+        },
+      }
+    );
+  }
   const last = undoable.at(-1);
   function onUndo() {
-    if (last === undefined || undo.isPending) return;
+    if (last === undefined || undo.isPending || undoBulk.isPending) return;
+    if ("bulk" in last) {
+      undoBulk.mutate(
+        { bulk: last.bulk },
+        {
+          onSuccess: ({ count }) => {
+            setUndoable((was) => was.slice(0, -1));
+            acknowledge(`Put ${count} back.`);
+            void reread();
+          },
+          // Nothing of the gesture stands any more (a run brought the cards
+          // back): the refusal is shown, and the entry goes so it does not
+          // shadow the earlier acts beneath it.
+          onError: () => setUndoable((was) => was.slice(0, -1)),
+        }
+      );
+      return;
+    }
     undo.mutate(
       { proposalId: last.id },
       {
@@ -344,6 +401,20 @@ export function ScoutQueue({
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
         onUndo();
+      }
+      if (
+        form === null &&
+        lane === "review" &&
+        event.shiftKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        const key = event.key.toLowerCase();
+        if (key === "r" || key === "d") {
+          event.preventDefault();
+          onDecideGroup(key === "r" ? "rejected" : "deferred");
+        }
       }
       if (
         lane === "skim" &&
@@ -583,6 +654,7 @@ export function ScoutQueue({
         <p className={styles.line}>
           <button type="button" onClick={onUndo}>
             Undo {last.action === "rejected" ? "reject" : "defer"}
+            {"bulk" in last && ` of ${last.count}`}
           </button>{" "}
           <kbd>⌘Z</kbd>
         </p>
@@ -762,6 +834,8 @@ function Proposal({
     if (event.altKey) return;
     const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) return;
+    // ⇧R and ⇧D are the group's (the Queue hears them), never this card's own.
+    if (event.shiftKey && (key === "r" || key === "d")) return;
     // Skim owes nothing, so its card has no keys for refusing, putting off or
     // passing: the keys are absent, not disabled.
     const act = (
