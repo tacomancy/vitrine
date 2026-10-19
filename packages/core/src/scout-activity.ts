@@ -509,8 +509,8 @@ function volumes(queue: DatabaseSync, since: string): Map<string, Volume> {
 function withheld(
   queue: DatabaseSync,
   caught: Map<number, unknown>
-): Map<string, { belowCap: number; muted: number }> {
-  const byScout = new Map<string, { belowCap: number; muted: number }>();
+): Map<string, Pick<Volume, "belowCap" | "muted">> {
+  const byScout = new Map<string, Pick<Volume, "belowCap" | "muted">>();
   const of = (scoutId: string) => {
     const counts = byScout.get(scoutId) ?? { belowCap: 0, muted: 0 };
     byScout.set(scoutId, counts);
