@@ -1395,7 +1395,10 @@ describe("the Lexicon editor after an Ingest", () => {
   it("shows the Terms the Ingest added, and re-measure pending, without a reload", async () => {
     let landed = false;
     const { stream } = open({
-      "questionMap.attention": ATTENTION,
+      "questionMap.attention": () =>
+        landed
+          ? { ...ATTENTION, tags: [{ ...tag("ml/probing", 5), pending: true }] }
+          : ATTENTION,
       "lexicon.get": () => (landed ? GROWN : LEXICON),
     });
     const panel = await attentionSlot();
@@ -1413,5 +1416,11 @@ describe("the Lexicon editor after an Ingest", () => {
     act(() => stream.push(LANDED));
     await within(editor).findByText("odor cue");
     expect(editor.textContent).toContain("re-measure pending");
+    // The list's own line for the Tag follows from the same changed query.
+    await vi.waitFor(() =>
+      expect(
+        within(panel).getByRole("button", { name: /ml\/probing/ }).textContent
+      ).toContain("re-measure pending")
+    );
   });
 });
