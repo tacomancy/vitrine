@@ -36,6 +36,9 @@ export const MEASURED_MONTHS = 24;
 /** A Measurement older than this is due again at the next *Sync now*. */
 export const STALE_DAYS = 7;
 
+/** A median of two is not a split: under this many placed Tags no quadrant is drawn. */
+export const QUADRANT_MIN = 4;
+
 export type TermOrigin = "derived" | "author keyword" | "seeded";
 export type Term = { term: string; origin: TermOrigin };
 
@@ -71,7 +74,12 @@ export type Attention = {
   synced: boolean;
   /** Most papers first, then by name. */
   tags: AttentionTag[];
+  /** Where the scatter's axes cross; null while fewer than `QUADRANT_MIN` Tags are placed. */
+  crossing: Crossing | null;
 };
+
+/** The median of the placed Tags the chart's axes cross at (ADR 0045 decision 6). */
+export type Crossing = { placed: number; papers: number; growth: number };
 
 export type SyncResult = {
   measured: number;
@@ -279,6 +287,31 @@ export function attention(
     asOf: dates[0] ?? null,
     synced: store.consentedAt !== null,
     tags,
+    crossing: crossingOf(tags),
+  };
+}
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1
+    ? sorted[mid]!
+    : (sorted[mid - 1]! + sorted[mid]!) / 2;
+};
+
+/**
+ * Relative to the user's own vault, not to a fixed threshold that would be
+ * arbitrary for most fields (ADR 0045 decision 6). Only measured Tags
+ * count: an unplaced Tag has no growth, and counting its papers would move
+ * a line it is not on the chart to be judged by.
+ */
+function crossingOf(tags: AttentionTag[]): Crossing | null {
+  const placed = tags.filter((t) => t.state === "measured");
+  if (placed.length < QUADRANT_MIN) return null;
+  return {
+    placed: placed.length,
+    papers: median(placed.map((t) => t.papers)),
+    growth: median(placed.map((t) => t.growth!)),
   };
 }
 
