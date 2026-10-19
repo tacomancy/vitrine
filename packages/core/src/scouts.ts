@@ -18,6 +18,12 @@ import {
   scoutIdOf,
   type Scout,
 } from "./scout-file.js";
+import {
+  applied as mutedBy,
+  readMutes,
+  readMuteState,
+  type MuteRule,
+} from "./mutes.js";
 import { pastWindowIds, windowsOf } from "./review-depth.js";
 import { serialised } from "./serialise.js";
 import { citekeyFor, claimStub } from "./sources.js";
@@ -142,8 +148,12 @@ export async function runScout(
         : await readArxiv(arxiv, scout.query, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
+    // Read before the transaction: it is async, and a muted line must not be
+    // raised by a second Scout (that would write a row for an item no one
+    // is shown).
+    const { rules } = await readMutes(deps.vaultPath);
     const arrived = inTransaction(queue, () => {
-      const arrived = arrive(deps, scout, runId, read.items);
+      const arrived = arrive(deps, scout, runId, read.items, rules);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
       returnDeferred(deps, scout.id);
       return arrived;
@@ -343,8 +353,10 @@ function arrive(
   deps: ScoutDeps,
   scout: Scout,
   runId: number,
-  items: Arrival[]
+  items: Arrival[],
+  rules: MuteRule[]
 ): { new: number; held: number } {
+  const muted = mutedBy(deps.queue, rules);
   const { queue } = deps;
   const at = iso(deps.now());
   const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
@@ -404,6 +416,7 @@ function arrive(
     // another Scout was already there.
     if (
       id !== undefined &&
+      !muted.has(id) &&
       (isSkimPending.get(id) as object | undefined) !== undefined &&
       (otherScout.get(id, scout.id) as object | undefined) !== undefined
     ) {
@@ -412,7 +425,15 @@ function arrive(
     }
     appear.run(id, runId, scout.id, at, item.url);
   }
-  applyCap(deps, scout, placed);
+  // A line a rule holds is not weighed: it would take a slot from a card the
+  // researcher is shown, and a Mute rule counts toward no Cap (ADR 0044 d.4).
+  // Read again because this run's own arrivals are new rows.
+  const nowMuted = mutedBy(deps.queue, rules);
+  applyCap(
+    deps,
+    scout,
+    placed.filter((p) => !nowMuted.has(p.id))
+  );
   return { new: fresh, held };
 }
 
@@ -670,11 +691,17 @@ async function readCards(
     lane === "review"
       ? pastWindowIds(queue, deps.now(), windowsOf([...scouts, ...dropped]))
       : new Set<number>();
-  const rows = queue
-    .prepare(
-      "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
-    )
-    .all(lane) as ProposalRow[];
+  // A muted Proposal is not in the stack and so is not ranked, aged or
+  // counted as a second Scout's find; it is held by a rule, not marked
+  // (ADR 0044 decision 4).
+  const { caught } = await readMuteState(deps);
+  const rows = (
+    queue
+      .prepare(
+        "SELECT * FROM proposals WHERE state = 'pending' AND lane = ? ORDER BY first_seen DESC, id DESC"
+      )
+      .all(lane) as ProposalRow[]
+  ).filter((row) => !caught.has(row.id));
   const seen = queue.prepare(
     `SELECT DISTINCT a.scout_id, a.run_id, r.retroactive FROM appearances a
        JOIN scout_runs r ON r.id = a.run_id

@@ -976,6 +976,7 @@ describe("a Scout that watches a page", () => {
         scouts: [{ id: "lab", health: LOOKING }],
         unreadable: [],
       },
+      "scouts.muted": { rules: [], problem: null, items: [] },
       "scouts.fleet": { claim: null, naming: [] },
     });
     const edit = await panel();

@@ -52,6 +52,7 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
     { id: "sleep", runId: 3, runPending: queue.length, held: [] },
   ],
   "scouts.health": { scouts: [] },
+  "scouts.muted": { rules: [], problem: null, items: [] },
   "scouts.fleet": { claim: null, naming: [] },
   "scouts.skim": { recent: queue, older: [] },
   ...more,

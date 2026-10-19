@@ -67,6 +67,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
     scouts: [{ id: "sleep", health: quiet }],
     unreadable: [],
   },
+  "scouts.muted": { rules: [], problem: null, items: [] },
   "scouts.fleet": fleet(),
   "questions.list": {
     questions: [
@@ -867,6 +868,7 @@ describe("empty stacks, in the three voices", () => {
       answers({
         "scouts.list": { scouts: [], unreadable: [] },
         "scouts.health": { scouts: [], unreadable: [] },
+        "scouts.muted": { rules: [], problem: null, items: [] },
         "scouts.fleet": fleet({ claim: null }),
       })
     );
@@ -881,6 +883,7 @@ describe("empty stacks, in the three voices", () => {
   it("claims Review cleared with the fleet's warrant", async () => {
     renderApp(
       answers({
+        "scouts.muted": { rules: [], problem: null, items: [] },
         "scouts.fleet": fleet({
           claim:
             "3 scouts watching · all parsed cleanly · newest run 2h ago · last new proposal 11 Sep · Paused one not looking",
@@ -898,6 +901,7 @@ describe("empty stacks, in the three voices", () => {
   it("withholds Review cleared while any Scout is broken, and names it", async () => {
     renderApp(
       answers({
+        "scouts.muted": { rules: [], problem: null, items: [] },
         "scouts.fleet": fleet({
           claim: null,
           naming: ["Sleep and memory", "torn.yaml"],
@@ -946,6 +950,7 @@ describe("empty stacks, in the three voices", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     renderApp(
       answers({
+        "scouts.muted": { rules: [], problem: null, items: [] },
         "scouts.fleet": () => {
           throw new Error("down");
         },
