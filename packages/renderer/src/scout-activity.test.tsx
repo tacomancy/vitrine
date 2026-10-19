@@ -113,7 +113,13 @@ const BROKEN: ActivityRow = {
     median: { at: "2026-09-27T12:00:00.000Z", ago: "3 days ago" },
     oldest: { at: "2026-09-25T12:00:00.000Z", ago: "5 days ago" },
   },
-  volume: { proposals: 12, held: 0, alsoFoundElsewhere: 0 },
+  volume: {
+    proposals: 12,
+    held: 0,
+    alsoFoundElsewhere: 0,
+    belowCap: 0,
+    muted: 0,
+  },
   cost: { kind: "no model call" },
 };
 const QUIET: ActivityRow = {
@@ -141,7 +147,13 @@ const QUIET: ActivityRow = {
   },
   acceptRate: { kind: "nothing triaged" },
   review: NO_REVIEW,
-  volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+  volume: {
+    proposals: 0,
+    held: 0,
+    alsoFoundElsewhere: 0,
+    belowCap: 0,
+    muted: 0,
+  },
   cost: { kind: "no model call" },
 };
 const RESTING: ActivityRow = {
@@ -162,7 +174,13 @@ const RESTING: ActivityRow = {
     reason: "Most of this Scout's papers arrive without authors or venue.",
   },
   review: { ...NO_REVIEW, deferred: 2 },
-  volume: { proposals: 5, held: 2, alsoFoundElsewhere: 1 },
+  volume: {
+    proposals: 5,
+    held: 2,
+    alsoFoundElsewhere: 1,
+    belowCap: 0,
+    muted: 0,
+  },
   cost: { kind: "cost", perRun: 0.0312, runs: 3, unpriced: 0 },
 };
 const TORN: ActivityRow = {
@@ -1237,5 +1255,68 @@ describe("coverage gaps", () => {
     expect(await within(await page()).findByText("not known")).toBeDefined();
 
     expect(screen.queryByRole("region", { name: "Coverage gaps" })).toBeNull();
+  });
+});
+
+describe("what the Queue is withholding (#649)", () => {
+  const withholding = (belowCap: number, muted: number): ActivityRow => ({
+    ...RESTING,
+    volume: { ...RESTING.volume, belowCap, muted },
+  });
+  const volumeCell = async () => {
+    const [row] = await tableRows();
+    return within(row!).getAllByRole("cell")[4]!;
+  };
+
+  it("says N below your cap and N muted beside already in your vault, as plain parts", async () => {
+    open(fleet([withholding(4, 2)]));
+
+    expect(cellWords(await volumeCell())).toEqual([
+      "5 / 30d",
+      "2 already in your vault",
+      "1 also found elsewhere",
+      "4 below your cap",
+      "2 muted",
+    ]);
+  });
+
+  it("shows neither for a Scout with neither", async () => {
+    open(fleet([QUIET]));
+
+    expect(cellWords(await volumeCell())).toEqual(["0 / 30d"]);
+  });
+
+  it("links the cap's count to that Scout's stack, where Show them is", async () => {
+    open(fleet([withholding(4, 0)]));
+
+    const link = within(await volumeCell()).getByRole("link", {
+      name: /4 below your cap/,
+    });
+    fireEvent.click(link);
+
+    expect(window.location.hash).toBe("#/scouts?scout=resting");
+  });
+
+  it("links the muted count to the muted list", async () => {
+    open(fleet([withholding(0, 2)]));
+
+    const link = within(await volumeCell()).getByRole("link", {
+      name: /2 muted/,
+    });
+    fireEvent.click(link);
+
+    expect(window.location.hash).toBe("#/scouts?view=muted");
+  });
+
+  it("styles both as the page's other links, with no warning colour or alert", async () => {
+    open(fleet([withholding(4, 2)]));
+    const cell = await volumeCell();
+
+    const [cap, mute] = within(cell).getAllByRole("link");
+    expect(cap!.className).toBe(mute!.className);
+    expect(cap!.className).toBe(
+      within(cell.closest("tr")!).getByRole("link", { name: /Queue/ }).className
+    );
+    expect(within(cell).queryByRole("alert")).toBeNull();
   });
 });

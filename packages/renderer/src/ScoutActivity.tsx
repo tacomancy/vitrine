@@ -26,7 +26,7 @@ import { CadenceMenu } from "./CadenceMenu";
 import { AcceptLine, percent } from "./charts/line";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
-import { pushRoute, scoutStack } from "./router";
+import { hashOf, MUTED_LIST, pushRoute, scoutStack } from "./router";
 import { scoutKey, toggled, useRowActs, type RowActs } from "./row-acts";
 import { ScoutEdit } from "./ScoutEdit";
 import styles from "./ScoutActivity.module.css";
@@ -650,12 +650,13 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const thousands = (n: number) => n.toLocaleString("en-US");
 
 /** A figure of several parts, one to a line: a narrow column stacks them, and none is ever printed over its neighbour. */
-function Parts({ of }: { of: string[] }) {
+function Parts({ of, after }: { of: string[]; after?: ReactNode }) {
   return (
     <ul className={styles.parts}>
       {of.map((part) => (
         <li key={part}>{part}</li>
       ))}
+      {after}
     </ul>
   );
 }
@@ -668,6 +669,48 @@ const volumeParts = (volume: Volume): string[] => [
     ? [`${volume.alsoFoundElsewhere} also found elsewhere`]
     : []),
 ];
+
+/**
+ * What the Queue holds back, as the Volume line's last parts: plain counts
+ * that judge nothing, each the link to the list it counts (ADR 0044 decision
+ * 12). The cap's lead to that Scout's stack, where *Show them* is; the mutes
+ * are vault-wide, so theirs leads to the muted list and not to a Scout.
+ */
+function Withheld({ id, volume }: { id: string; volume: Volume }) {
+  const { belowCap, muted } = volume;
+  return (
+    <>
+      {belowCap > 0 && (
+        <li>
+          <a
+            href={hashOf(scoutStack(id))}
+            className={styles.link}
+            onClick={(event) => {
+              event.preventDefault();
+              pushRoute(scoutStack(id));
+            }}
+          >
+            {belowCap} below your cap
+          </a>
+        </li>
+      )}
+      {muted > 0 && (
+        <li>
+          <a
+            href={hashOf(MUTED_LIST)}
+            className={styles.link}
+            onClick={(event) => {
+              event.preventDefault();
+              pushRoute(MUTED_LIST);
+            }}
+          >
+            {muted} muted
+          </a>
+        </li>
+      )}
+    </>
+  );
+}
 
 /** Cents to the cent, and a smaller sum to the figure that shows it: a $0.0054 run is not `$0.01`. */
 const dollars = (usd: number) => `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
@@ -908,7 +951,10 @@ function Row({
           </button>
         </td>
         <td className={styles.wraps}>
-          <Parts of={volumeParts(row.volume)} />
+          <Parts
+            of={volumeParts(row.volume)}
+            after={<Withheld id={row.id} volume={row.volume} />}
+          />
         </td>
         <td className={styles.wraps}>
           <Parts of={costParts(row.cost)} />

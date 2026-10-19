@@ -46,7 +46,13 @@ const scout = (over: Partial<ScoutRow> = {}): ScoutRow => ({
   },
   acceptRate: { kind: "nothing triaged" },
   review: NO_REVIEW,
-  volume: { proposals: 0, held: 0, alsoFoundElsewhere: 0 },
+  volume: {
+    proposals: 0,
+    held: 0,
+    alsoFoundElsewhere: 0,
+    belowCap: 0,
+    muted: 0,
+  },
   cost: { kind: "no model call" },
   ...over,
 });
