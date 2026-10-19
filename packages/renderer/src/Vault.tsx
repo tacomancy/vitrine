@@ -5,9 +5,10 @@ import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { markOf } from "./kinds";
-import { pushRoute } from "./router";
+import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
+import { VaultEditor } from "./VaultEditor";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
@@ -24,10 +25,57 @@ export function VaultSurface({ path }: { path: string | undefined }) {
         {path === undefined ? (
           <p className={styles.quiet}>Choose a file from the tree.</p>
         ) : (
-          <h1 className={styles.path}>{path}</h1>
+          <OpenFile key={path} path={path} />
         )}
       </div>
     </section>
+  );
+}
+
+const edited = (mtime: number) =>
+  new Date(mtime).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+
+const wordsIn = (text: string) => text.split(/\s+/).filter(Boolean).length;
+
+/**
+ * One file in the editor. Opening only reads (`vault.read`): a file that
+ * will not read is an Address that did not resolve, and the Inbox says so by
+ * name (ADR 0027 decision 7) — replaced, not pushed, so back does not return
+ * to it.
+ */
+function OpenFile({ path }: { path: string }) {
+  const trpc = useTRPC();
+  const file = useQuery({
+    ...trpc.vault.read.queryOptions({ path }),
+    retry: false,
+  });
+  const failure = file.error?.message;
+  useEffect(() => {
+    if (failure === undefined) return;
+    replaceRoute({
+      surface: "inbox",
+      unresolved: {
+        address: hashOf({ surface: "vault", path }),
+        reason: failure,
+      },
+    });
+  }, [failure, path]);
+  if (file.data === undefined) return null;
+  const words = wordsIn(file.data.text);
+  return (
+    <>
+      <header className={styles.fileHeader}>
+        <h1 className={styles.path}>{path}</h1>
+        <span className={styles.meta}>
+          edited {edited(file.data.mtime)} · {words}{" "}
+          {words === 1 ? "word" : "words"}
+        </span>
+      </header>
+      <VaultEditor file={path} text={file.data.text} />
+    </>
   );
 }
 

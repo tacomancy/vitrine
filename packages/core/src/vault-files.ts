@@ -218,7 +218,7 @@ export async function locate(
   return { absolute, relativePath: relativePath.split(sep).join("/") };
 }
 
-function fileChoices(raw: string): { text: string; file: FileChoices } {
+export function fileChoices(raw: string): { text: string; file: FileChoices } {
   const bom = raw.startsWith(BOM);
   const text = bom ? raw.slice(BOM.length) : raw;
   return {

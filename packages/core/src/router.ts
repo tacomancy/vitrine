@@ -136,6 +136,7 @@ import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
+import { readFileText } from "./vault-read.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -397,6 +398,11 @@ export const router = t.router({
     outline: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
       const { vault, index } = await requireVault(ctx);
       return refusing(outlineFromIndex(index, vault.path, input.path));
+    }),
+    // The Vault editor's open (#690): the file's text and what its save needs.
+    read: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault } = await requireVault(ctx);
+      return refusing(readFileText(vault.path, input.path));
     }),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();

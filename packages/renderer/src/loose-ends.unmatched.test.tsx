@@ -89,9 +89,10 @@ describe("an Unmatched annotation row", () => {
     expect(
       within(row!).getByRole("link", { name: "Why does the cue help?" })
     ).toBeDefined();
-    // A Note has no Address yet: named, not linked.
-    expect(row!.textContent).toContain("plan");
-    expect(within(row!).queryByRole("link", { name: "plan" })).toBeNull();
+    // A Note's Address is the Vault (#690).
+    expect(
+      within(row!).getByRole("link", { name: "plan" }).getAttribute("href")
+    ).toBe("#/vault/notes/plan.md");
     expect(
       screen.getByRole("region", { name: "Broken plumbing" })
     ).toBeDefined();

@@ -138,7 +138,12 @@ describe("the files tree", () => {
   });
 
   it("arrives on an Address with the file lit and named", async () => {
-    open({}, "#/vault/q/What%20now.md");
+    open(
+      {
+        "vault.read": { text: "", hash: "h", eol: "lf", bom: false, mtime: 0 },
+      },
+      "#/vault/q/What%20now.md"
+    );
     await tree();
     expect(item("What now, question").getAttribute("aria-current")).toBe(
       "page"

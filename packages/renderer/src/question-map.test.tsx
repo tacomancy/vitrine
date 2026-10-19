@@ -205,9 +205,13 @@ describe("Origins on the Question Map", () => {
     expect(rasch.closest("li")!.textContent).toMatch(/1 material/);
     expect(slot.getByRole("link", { name: /Pilot/ })).toBeDefined();
     // Named and left alone: no Address, no link.
-    for (const name of ["unattached", "a lecture", "A note"]) {
+    for (const name of ["unattached", "a lecture"]) {
       expect(slot.getByText(name).closest("a")).toBeNull();
     }
+    // A Note's Address is the Vault (#690).
+    expect(
+      slot.getByRole("link", { name: /A note/ }).getAttribute("href")
+    ).toBe("#/vault/n/A.md");
   });
 
   it("states the cut and offers the full list on demand", async () => {
