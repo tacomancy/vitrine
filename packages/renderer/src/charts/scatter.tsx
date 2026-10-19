@@ -67,10 +67,12 @@ export function Scatter({
   const growths = ordered.map((t) => t.growth!);
   const x = scaleLinear()
     .domain([0, maxPapers])
+    // Inset by the largest radius so a point at an extreme is not cut off.
     .range([PAD.left + 20, W - PAD.right - 20])
     .nice();
   const y = scaleLinear()
     .domain([Math.min(0, ...growths), Math.max(0, ...growths)])
+    // The top and bottom keep clear of the corner quadrant names.
     .range([H - PAD.bottom - 36, PAD.top + 36])
     .nice();
   const r = scaleSqrt().domain([0, maxPapers]).range([7, 20]);
@@ -80,6 +82,7 @@ export function Scatter({
   const onKeyDown = (e: KeyboardEvent) => {
     const last = ordered.length - 1;
     const at = active ?? 0;
+    // The points are one left-to-right sequence, so up and down walk it too.
     const to: Record<string, number> = {
       ArrowRight: Math.min(at + 1, last),
       ArrowUp: Math.min(at + 1, last),
