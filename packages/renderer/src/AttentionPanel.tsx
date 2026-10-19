@@ -247,7 +247,12 @@ function Failures({ tags, due }: { tags: AttentionTag[]; due: number }) {
         .join("; ")}
       {others.length > 0 && limited && " · "}
       {limited &&
-        `rate limited — ${plural(due, "tag", "tags")} waiting, try again later`}
+        `rate limited at ${failed
+          .filter((t) => t.failure === "rate_limited")
+          .map((t) => t.tag)
+          .join(
+            ", "
+          )} — ${plural(due, "tag", "tags")} waiting, try again later`}
     </p>
   );
 }

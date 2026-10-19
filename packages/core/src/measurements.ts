@@ -47,6 +47,10 @@ export type Measurements = {
   failures: Failure[];
 };
 
+// A stored kind the panel has no words for would render as nothing, so an
+// unknown one is dropped like any other malformed row.
+const KINDS: OpenAlexErrorKind[] = ["network", "http", "rate_limited", "parse"];
+
 const FILE = ".vitrine/measurements.json";
 export const NONE: Measurements = {
   consentedAt: null,
@@ -93,7 +97,7 @@ export async function readMeasurements(
           ? parsed.failures.filter(
               (f): f is Failure =>
                 typeof f?.tag === "string" &&
-                typeof f?.kind === "string" &&
+                KINDS.includes(f?.kind as OpenAlexErrorKind) &&
                 typeof f?.at === "string"
             )
           : [],
