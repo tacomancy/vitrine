@@ -223,12 +223,15 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     const lastClean = finishedRuns(queue, scout.id)
       .filter((r) => r.outcome === "ok")
       .at(-1);
-    // A Tag Filter has no stored string to compare: its drift is read from the
-    // compiled queries the runs recorded, which is a later slice's sentence.
+    // A Tag Filter stores no string to compare: its query is compiled at every
+    // run, so drift (a Seed, an Exclusion, a retagged paper) is read from what
+    // the failed run recorded against what the last clean one did. A failed
+    // run that recorded none (it never got as far as a query) claims no edit.
     const edited =
-      scout.tags === undefined &&
       lastClean?.query != null &&
-      lastClean.query !== scout.query &&
+      (scout.tags === undefined
+        ? lastClean.query !== scout.query
+        : newest.query != null && lastClean.query !== newest.query) &&
       (scout.source.kind !== "watched" || ok.length === 0);
     return {
       voice: "wrong",
