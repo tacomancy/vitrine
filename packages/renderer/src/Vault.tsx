@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { SearchHit, TreeFile } from "core";
+import type { LinkFile, SearchHit, TreeFile } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -198,9 +198,10 @@ const rowId = (index: number) => `vault-file-row-${index}`;
  * What activating a link does (#701; spec #680 stories 41, 42). A resolved
  * wikilink moves the window to the file's own surface, or the Vault for a
  * Note; anything that goes nowhere says so, because a click that did nothing
- * would look like one that worked. The words are the user's click refused,
- * so they are an alert (ADR 0033); an ambiguous link's candidates are a
- * choice to make, not a refusal, and stay polite.
+ * would look like one that worked. A link that names nothing is the user's
+ * click refused, so it is an alert (ADR 0033). A link that has candidates —
+ * an ambiguous pair, a file whose heading is gone — is a choice to make, not
+ * a refusal, and stays polite.
  */
 function useFollow(path: string) {
   const trpc = useTRPC();
@@ -209,7 +210,7 @@ function useFollow(path: string) {
   const [choice, setChoice] = useState<{
     link: string;
     why: string;
-    candidates: { path: string; kind: string | null }[];
+    candidates: LinkFile[];
   } | null>(null);
   // Said about one file; it does not follow the window to the next.
   const [saidAt, setSaidAt] = useState(path);
@@ -266,6 +267,8 @@ function useFollow(path: string) {
     setChoice(null);
     const rule = classifyLink(to);
     if (rule.kind === "out") window.open(rule.href, "_blank", "noreferrer");
+    // The router reads the hash and nothing else (ADR 0021); an Address
+    // typed into note text is followed the way a pasted one is.
     else if (rule.kind === "route") window.location.hash = rule.href;
     else refusal.say(linkRefusal(rule.scheme));
   };

@@ -65,10 +65,20 @@
   cursor: pointer;
 }
 
-:global(.cm-follow-unresolved),
 :global(.cm-not-link) {
   color: var(--color-fg-muted);
   text-decoration: line-through;
+}
+
+/* Not yet known, or the lookup failed: quiet, so it is not drawn as a link
+   that works until the index has said it does. */
+:global(.cm-follow-pending) {
+  color: var(--color-fg-muted);
+}
+
+:global(.cm-follow-unresolved) {
+  color: var(--color-fg-muted);
+  text-decoration: underline dashed;
 }
 
 :global(.cm-follow-ambiguous) {

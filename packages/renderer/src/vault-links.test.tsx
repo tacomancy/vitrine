@@ -167,6 +167,17 @@ describe("a Markdown link in note text", () => {
     }
   );
 
+  it("treats a bare URL in the text as a link too", async () => {
+    const out = vi.spyOn(window, "open").mockReturnValue(null);
+    open("see https://example.com/bare now\n");
+    fireEvent.click(await link());
+    expect(out).toHaveBeenCalledWith(
+      "https://example.com/bare",
+      "_blank",
+      "noreferrer"
+    );
+  });
+
   it.each([
     ["file:///etc/passwd", "file:"],
     ["javascript:alert(1)", "javascript:"],
