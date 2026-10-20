@@ -42,9 +42,10 @@ import {
  * Hypothesis's Position rows (#333). 6: a Hypothesis's Display name, read
  * from its claim Position (#340). 7: a Question's `answeredBy`, its newest
  * write-back line's link and result (#338). 8: the `phrases` table the
- * Lexicon is derived from (#651).
+ * Lexicon is derived from (#651). 9: the `bodies` table and the FTS5 table
+ * over it, which the Vault's search reads (#697).
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** How many files one transaction covers; a build over more commits in pieces so rows appear as it goes. */
 export const CHUNK_SIZE = 250;
@@ -188,6 +189,18 @@ CREATE TABLE positions (path TEXT NOT NULL, field TEXT NOT NULL, text TEXT NOT N
 CREATE TABLE list_items (path TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL);
 -- 1–3-word phrases of a Source's or stub's title and abstract (§ Lexicon).
 CREATE TABLE phrases (path TEXT NOT NULL, phrase TEXT NOT NULL, count INTEGER NOT NULL);
+-- Each Markdown file's text after its frontmatter, for the Vault's search
+-- (#697). Its own table, with the FTS5 table indexing it by rowid, so a
+-- file's rows go by path like every other table's: an FTS5 table keyed
+-- by an UNINDEXED path would be scanned in full to delete one file.
+CREATE TABLE bodies (path TEXT PRIMARY KEY, body TEXT NOT NULL);
+CREATE VIRTUAL TABLE bodies_fts USING fts5(body, content='bodies', content_rowid='rowid');
+CREATE TRIGGER bodies_ai AFTER INSERT ON bodies BEGIN
+  INSERT INTO bodies_fts (rowid, body) VALUES (new.rowid, new.body);
+END;
+CREATE TRIGGER bodies_ad AFTER DELETE ON bodies BEGIN
+  INSERT INTO bodies_fts (bodies_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+END;
 CREATE INDEX files_lpath ON files (lpath);
 CREATE INDEX files_lname ON files (lname);
 CREATE INDEX files_lstem ON files (lstem);
@@ -220,6 +233,7 @@ const TABLES = [
   "positions",
   "list_items",
   "phrases",
+  "bodies",
 ];
 
 /** The database file and the WAL siblings `index.sqlite*` covers. */
@@ -513,6 +527,11 @@ function createIndex(
   );
   const insertPhrase = db.prepare(
     "INSERT INTO phrases (path, phrase, count) VALUES (?, ?, ?)"
+  );
+  // INSERT OR REPLACE would fire no delete trigger, leaving the old text in
+  // the FTS5 table; every re-index deletes by path first (`deletes`).
+  const insertBody = db.prepare(
+    "INSERT INTO bodies (path, body) VALUES (?, ?)"
   );
   const insertListItem = db.prepare(
     "INSERT INTO list_items (path, start, end) VALUES (?, ?, ?)"
@@ -924,8 +943,10 @@ function createIndex(
     for (const p of positions) {
       insertPosition.run(path, p.field, p.text, sha256(p.text));
     }
-    // Body text is not otherwise stored, so the Lexicon's phrases are taken
-    // here, in the same transaction as the rest (§ Lexicon).
+    // Body text is not otherwise stored, so the search's copy of it and the
+    // Lexicon's phrases are taken here, in the same transaction as the rest
+    // (§ Lexicon).
+    insertBody.run(path, content.slice(front?.range.end ?? 0));
     if (read.kind === "source" || read.kind === "source-stub") {
       const title = typeof fm["title"] === "string" ? fm["title"] : "";
       const body = content.slice(front?.range.end ?? 0);

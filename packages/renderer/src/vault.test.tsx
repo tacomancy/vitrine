@@ -234,3 +234,142 @@ describe("the three voices of an empty tree (ADR 0032)", () => {
     expect(names()).toContain("Idea");
   });
 });
+
+// The *search* tab (#697): full-text over note bodies, answered by the core
+// from its index; the matching line with the term marked, a keyboard list
+// that follows its choice (ADR 0030), ↵ opens.
+
+const HITS = [
+  {
+    path: "notes/Idea.md",
+    kind: null,
+    line: "Probing finds the feature direction.",
+    marks: [[0, 7]],
+  },
+  {
+    path: "q/What now.md",
+    kind: "question",
+    line: "Does probing generalise?",
+    marks: [[5, 12]],
+  },
+  {
+    path: "sources/Paper.md",
+    kind: "source",
+    line: "linear probing baselines",
+    marks: [[7, 14]],
+  },
+];
+
+describe("the search tab", () => {
+  const searchTab = () => screen.getByRole("tab", { name: "search" });
+  const box = () => screen.getByRole("searchbox", { name: "Search the vault" });
+  const options = () => screen.getAllByRole("option");
+  const typeQuery = async (text: string) => {
+    await tree();
+    fireEvent.click(searchTab());
+    fireEvent.change(box(), { target: { value: text } });
+  };
+
+  it("offers files and search as tabs, files first, and swaps the pane without losing the tree", async () => {
+    open({ "vault.search": [] });
+    await tree();
+    expect(
+      screen.getByRole("tab", { name: "files" }).getAttribute("aria-selected")
+    ).toBe("true");
+    expect(searchTab().getAttribute("aria-selected")).toBe("false");
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    fireEvent.click(searchTab());
+    expect(searchTab().getAttribute("aria-selected")).toBe("true");
+    expect(box()).toBeDefined();
+    expect(screen.queryByRole("tree", { name: "Files" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "files" }));
+    expect(await tree()).toBeDefined();
+    expect(names()).toContain("Idea");
+  });
+
+  it("asks the core nothing until a word is typed, then lists each hit with its Kind, its line and the term marked", async () => {
+    const search = vi.fn(() => HITS);
+    open({ "vault.search": search });
+    await tree();
+    fireEvent.click(searchTab());
+    expect(search).not.toHaveBeenCalled();
+    fireEvent.change(box(), { target: { value: "probing" } });
+    await screen.findAllByRole("option");
+    expect(search).toHaveBeenCalledWith({ query: "probing" });
+    expect(options().map((o) => o.getAttribute("aria-label"))).toEqual([
+      "Idea, notes/Idea.md",
+      "What now, question, q/What now.md",
+      "Paper, source, sources/Paper.md",
+    ]);
+    const marks = Array.from(options()[0]?.querySelectorAll("mark") ?? []);
+    expect(marks.map((m) => m.textContent)).toEqual(["Probing"]);
+    expect(options()[0]?.textContent).toContain(
+      "Probing finds the feature direction."
+    );
+    expect(options()[1]?.textContent).toContain("◆");
+  });
+
+  it("moves the choice with the arrows, keeps it in view, and opens the chosen file on ↵", async () => {
+    const asked = scrollsInto();
+    open({ "vault.search": HITS });
+    await typeQuery("probing");
+    await screen.findAllByRole("option");
+    const active = () =>
+      document.getElementById(
+        box().getAttribute("aria-activedescendant") ?? ""
+      );
+    expect(active()?.getAttribute("aria-label")).toBe("Idea, notes/Idea.md");
+    fireEvent.keyDown(box(), { key: "ArrowDown" });
+    fireEvent.keyDown(box(), { key: "ArrowDown" });
+    expect(active()?.getAttribute("aria-label")).toContain("Paper");
+    expect(asked.at(-1)).toMatchObject({ block: "nearest" });
+    expect(asked.at(-1)?.row.getAttribute("aria-label")).toContain("Paper");
+    fireEvent.keyDown(box(), { key: "ArrowDown" });
+    expect(active()?.getAttribute("aria-label")).toContain("Paper");
+    fireEvent.keyDown(box(), { key: "ArrowUp" });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(window.location.hash).toBe("#/vault/q/What%20now.md");
+  });
+
+  it("opens a hit on a click, and starts the choice again at the top for a new query", async () => {
+    open({ "vault.search": HITS });
+    await typeQuery("probing");
+    await screen.findAllByRole("option");
+    fireEvent.keyDown(box(), { key: "ArrowDown" });
+    fireEvent.change(box(), { target: { value: "probing b" } });
+    await waitFor(() =>
+      expect(
+        document
+          .getElementById(box().getAttribute("aria-activedescendant") ?? "")
+          ?.getAttribute("aria-label")
+      ).toBe("Idea, notes/Idea.md")
+    );
+    fireEvent.click(options()[2] as HTMLElement);
+    expect(window.location.hash).toBe("#/vault/sources/Paper.md");
+  });
+
+  it("says nothing matched, politely, once the read is whole", async () => {
+    open({ "vault.search": [] });
+    await typeQuery("zebra");
+    expect(await screen.findByText("Nothing matches zebra.")).toBeDefined();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("claims nothing while the index is still being read", async () => {
+    open({ "vault.search": [], "vault.status": READING });
+    await typeQuery("zebra");
+    expect(await screen.findByText("not read yet")).toBeDefined();
+    expect(screen.queryByText(/Nothing matches/)).toBeNull();
+  });
+
+  it("says not known, never empty, when the search could not be answered", async () => {
+    open({
+      "vault.search": () => {
+        throw new Error("boom");
+      },
+    });
+    await typeQuery("zebra");
+    expect(await screen.findByText("not known")).toBeDefined();
+    expect(screen.queryByText(/Nothing matches/)).toBeNull();
+  });
+});

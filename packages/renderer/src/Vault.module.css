@@ -37,13 +37,40 @@
   padding: 0 var(--space-4);
 }
 
+.tabs {
+  display: flex;
+  gap: var(--space-3);
+}
+
 .tab {
-  margin: 0;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--color-fg-muted);
+  cursor: default;
+}
+
+/* The open tab is the one in the body colour; no underline, no box
+   (ADR 0023 decision 1). */
+.tab[aria-selected="true"] {
+  color: var(--color-fg);
+}
+
+.panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel[hidden] {
+  display: none;
 }
 
 .newNote {
@@ -207,4 +234,55 @@
 .cm :global(.cm-scroller) {
   font-family: inherit;
   line-height: 1.6;
+}
+
+.hits {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.hit {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  cursor: default;
+}
+
+.hit:hover,
+.hit[aria-selected="true"] {
+  background: var(--color-bg-raised);
+}
+
+.hit[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--color-primary);
+}
+
+.hitName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.line {
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.line mark {
+  background: none;
+  color: var(--color-fg);
+  font-weight: 600;
 }
