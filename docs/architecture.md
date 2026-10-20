@@ -381,7 +381,7 @@ Not stored: body text, section bodies. Nothing from a sidecar or a PDF: the Sour
 
 **`current()`.** True when the open-time sweep has completed, the watcher has no unrecovered error, and every Markdown batch that settled before the caller's Ingest run started has been applied; otherwise false with the reason. Ingest flushes pending Markdown batches, then asks; a file still inside its settle window is not waited for. Tier 5 (§ Annotation identity) concludes *removed* only when this is true.
 
-**Full-text search** joins with the Vault surface as an FTS5 virtual table over body text — additive, no existing table changes. The index is where search lives; no separate search library.
+**Full-text search** is as built (#697): a `bodies` table (each Markdown file's text after its frontmatter, deleted and moved by path with the other tables) and an external-content FTS5 table `bodies_fts` over it, kept in step by triggers — additive, no existing table changes, `SCHEMA_VERSION` 9. `vault.search` turns the query into quoted words (the last a prefix, so a stray quote or `AND` is text and never FTS5 syntax), ranks by FTS5's `rank`, caps at 50 files, and finds the matching line and its marks in the stored body; no vault file is opened. The index is where search lives; no separate search library.
 
 ## Vault surface
 
@@ -401,7 +401,7 @@ The shape ADR 0015 decided, in enough detail to write against. Everything here i
 
 **Changed on disk.** `vaultChanged` naming the open path while the editor is dirty, or a hash-mismatch refusal from `replaceFile`, shows the line inside the editor pane with the file's mtime relative: *keep mine* re-reads the hash and saves; *take the disk copy* replaces the document and clears `dirty`. Autosave is suspended while the line shows. A clean editor reloads silently on `vaultChanged`, preserving scroll and cursor where the text allows.
 
-**Panes.** Three, inside the surface slot the Sidebar already frames: a left pane tabbed *files* / *tags* (search joins when full-text search does), the editor, and a right pane for backlinks. The Vault surface accepts a vault-relative path to open, so a `[[link]]` on any other surface lands here.
+**Panes.** Three, inside the surface slot the Sidebar already frames: a left pane tabbed *files* / *tags* / *search* (*search* is built, #697; both built panels stay mounted and the other is hidden, so a folded folder and a typed query survive a visit to the other tab), the editor, and a right pane for backlinks. The Vault surface accepts a vault-relative path to open, so a `[[link]]` on any other surface lands here.
 
 - *Files*: the vault tree with a Kind glyph per file (◆ question · ● source · ○ stub, the Inbox's family), Source rows showing their annotation count, `.vitrine/` hidden. Read-only in the first slice — no rename, move, delete, or new folder; *new note* is one command writing to `notes/`. Stub and Source rows expose the Reader beat's *attach a PDF* and *open in reader* commands.
 - *Tags*: the tree from `vault.tags`, inclusive count (with children) and exclusive count (this level only) per node; clicking a node lists its files. No rename, no drag: tag hierarchy management is out of scope by the brief (`#### Tags as topics`), whatever the prototype's caption says.
@@ -411,7 +411,7 @@ The shape ADR 0015 decided, in enough detail to write against. Everything here i
 
 **As built: opening a file (#690).** `vault.read` (`vault-read.ts`) answers `{ text, hash, eol, bom, mtime }` for one Markdown file: the text without its BOM and with LF throughout, the hash of the *bytes* (the save's `basedOn`), and the EOL and BOM the write restores; it never writes, refuses a path outside the vault or a non-Markdown file through `locate`, and says an unreadable file without its path. `VaultEditor` is the one `EditorView` — read-only (`editable` false) until the save ticket, whole-document `dispatch` only when the file or its text changes — and holds LF text, so `lineSeparator` is not set yet: `replaceFile` already restores CRLF and the BOM around the LF content it is given. The header shows the path, the edited date and the word count. `routeOf` sends a Note (no `kind:`, or the picker's `note`) to `#/vault/<path>`, so a link to one from any surface lands here, while a stub and an unknown `kind:` stay named; a `vault.read` that fails replaces the route with the Inbox naming the Address and the reason (ADR 0027 decision 7).
 
-**First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: full-text search (FTS5 in `index.sqlite`, ADR 0014 decision 12) with the *search* tab and unlinked mentions; block widgets starting with a Properties block; folder operations; the graph view (fog on map #131; never force-directed, ADR 0015 update of 2026-09-26).
+**First slice.** Tree, editor, backlinks, tag browser, changed-on-disk, autosave. Later slices of the same beat: unlinked mentions (full-text search and its *search* tab are built, #697); block widgets starting with a Properties block; folder operations; the graph view (fog on map #131; never force-directed, ADR 0015 update of 2026-09-26).
 
 ## Settings
 

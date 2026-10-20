@@ -93,6 +93,7 @@ import {
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
+  previewTags,
   readQueue,
   readQuestionGroups,
   readSkim,
@@ -168,6 +169,7 @@ import {
 } from "./reader.js";
 import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
+import { searchVault } from "./vault-search.js";
 import { tagTree } from "./vault-tags.js";
 
 export type Context = {
@@ -456,6 +458,13 @@ export const router = t.router({
       const { index } = await requireVault(ctx);
       return vaultTree(index);
     }),
+    // The Vault surface's *search* tab (#697): the index's FTS5 table, no file read.
+    search: t.procedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return searchVault(index, input.query);
+      }),
     create: t.procedure
       .input(z.object({ name: z.string() }))
       .mutation(async ({ ctx, input }) => {
@@ -715,6 +724,12 @@ export const router = t.router({
       .input(z.object({ query: z.string() }))
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
+    // A query, not a mutation: it reads the Lexicon and spends no request.
+    previewTags: t.procedure
+      .input(z.object({ tags: z.array(z.string()) }))
+      .query(async ({ ctx, input }) =>
+        refusing(previewTags(await scoutDeps(ctx), input.tags))
       ),
     tryTags: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))
