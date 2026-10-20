@@ -13,6 +13,7 @@ import { markOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
+import { Marked } from "./VaultMarked";
 import { VaultBacklinks } from "./VaultBacklinks";
 import { VaultEditor } from "./VaultEditor";
 import { Tags } from "./VaultTags";
@@ -536,20 +537,6 @@ function NewNote({ onDone }: { onDone: () => void }) {
 }
 
 const hitId = (index: number) => `vault-hit-${index}`;
-
-/** A hit's line with each found term in a `<mark>`; the offsets are the core's. */
-function Marked({ line, marks }: Pick<SearchHit, "line" | "marks">) {
-  const parts: React.ReactNode[] = [];
-  let at = 0;
-  for (const [from, to] of marks) {
-    if (from < at) continue;
-    parts.push(line.slice(at, from));
-    parts.push(<mark key={from}>{line.slice(from, to)}</mark>);
-    at = to;
-  }
-  parts.push(line.slice(at));
-  return <>{parts}</>;
-}
 
 /**
  * The *search* tab (#697): full text over note bodies. The query goes to the

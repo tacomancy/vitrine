@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Backlink } from "core";
 import { useState, type KeyboardEvent } from "react";
+import type { SearchHit } from "core";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { markOf } from "./kinds";
 import { pushRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
+import { Marked } from "./VaultMarked";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 const day = (when: number) =>
@@ -55,6 +57,41 @@ function arranged(data: Backlink[]): {
   return { rows: groups.flatMap((group) => group.rows), groups };
 }
 
+const mentionId = (index: number) => `vault-mention-row-${index}`;
+
+// The keys every list of the pane answers to (ADR 0030): the choice moves,
+// ↵ opens it.
+function listKeys(
+  at: number,
+  count: number,
+  choose: (to: number) => void,
+  open: (index: number) => void
+) {
+  return (event: KeyboardEvent<HTMLUListElement>) => {
+    const move = (to: number) => choose(Math.min(Math.max(to, 0), count - 1));
+    switch (event.key) {
+      case "ArrowDown":
+        move(at + 1);
+        break;
+      case "ArrowUp":
+        move(at - 1);
+        break;
+      case "Home":
+        move(0);
+        break;
+      case "End":
+        move(count - 1);
+        break;
+      case "Enter":
+        open(at);
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  };
+}
+
 /**
  * The right pane: the files that link to the open one (spec #680;
  * `docs/architecture.md` § Vault surface). Linked backlinks only — the core
@@ -76,30 +113,7 @@ export function VaultBacklinks({ path }: { path: string }) {
     const row = rows[index];
     if (row !== undefined) pushRoute({ surface: "vault", path: row.path });
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
-    const move = (to: number) =>
-      setChosen(Math.min(Math.max(to, 0), rows.length - 1));
-    switch (event.key) {
-      case "ArrowDown":
-        move(at + 1);
-        break;
-      case "ArrowUp":
-        move(at - 1);
-        break;
-      case "Home":
-        move(0);
-        break;
-      case "End":
-        move(rows.length - 1);
-        break;
-      case "Enter":
-        open(at);
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-  };
+  const onKeyDown = listKeys(at, rows.length, setChosen, open);
 
   const renderRow = (row: Backlink, index: number) => {
     const mark = markOf(row.kind ?? "note");
@@ -174,6 +188,70 @@ export function VaultBacklinks({ path }: { path: string }) {
               ))}
         </ul>
       )}
+      <UnlinkedMentions path={path} />
     </aside>
+  );
+}
+
+/**
+ * Files whose text names the open one without linking it (#703). Quiet when
+ * there are none, since this is a suggestion; never quiet when the read
+ * failed (no silent failures).
+ */
+function UnlinkedMentions({ path }: { path: string }) {
+  const trpc = useTRPC();
+  const found = useQuery(trpc.vault.unlinkedMentions.queryOptions({ path }));
+  const [chosen, setChosen] = useState(0);
+  const hits: SearchHit[] = found.data ?? [];
+  const at = Math.min(chosen, Math.max(hits.length - 1, 0));
+  const activeId = hits.length === 0 ? undefined : mentionId(at);
+  useChosenInView(activeId);
+  // An empty answer is no claim worth a row, but a failed one is said.
+  if (found.isError) return <FirstSlot voice="wrong" claim="" />;
+  if (hits.length === 0) return null;
+
+  const open = (index: number) => {
+    setChosen(index);
+    const hit = hits[index];
+    if (hit !== undefined) pushRoute({ surface: "vault", path: hit.path });
+  };
+  return (
+    <>
+      <div className={styles.header}>
+        <h2 className={styles.tab}>unlinked mentions</h2>
+      </div>
+      <ul
+        className={styles.tree}
+        role="listbox"
+        aria-label="Unlinked mentions"
+        aria-activedescendant={activeId}
+        tabIndex={0}
+        onKeyDown={listKeys(at, hits.length, setChosen, open)}
+      >
+        {hits.map((hit, index) => {
+          const mark = markOf(hit.kind ?? "note");
+          return (
+            <li
+              key={hit.path}
+              id={mentionId(index)}
+              role="option"
+              aria-selected={index === at}
+              className={`${styles.row} ${styles.backlink}`}
+              onClick={() => open(index)}
+            >
+              <span className={styles.glyph} aria-hidden="true">
+                {mark?.glyph ?? "·"}
+              </span>
+              <span className={styles.backlinkBody}>
+                <span className={styles.snippet}>
+                  <Marked line={hit.line} marks={hit.marks} />
+                </span>
+                <span className={styles.kindLine}>{hit.path}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
