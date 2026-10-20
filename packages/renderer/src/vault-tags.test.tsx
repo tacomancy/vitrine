@@ -116,12 +116,13 @@ const names = () =>
 const item = (name: string) => screen.getByRole("treeitem", { name });
 
 describe("the tags tab", () => {
-  it("is a tab beside files, files first", async () => {
+  it("is a tab between files and search", async () => {
     open();
     await screen.findByRole("tree", { name: "Files" });
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "files",
       "tags",
+      "search",
     ]);
     expect(
       screen.getByRole("tab", { name: "files" }).getAttribute("aria-selected")

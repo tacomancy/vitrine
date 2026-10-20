@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { markOf } from "./kinds";
 import { hashOf } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
-import { useVaultStatusLines } from "./VaultStatusLines";
+import type { VaultRead } from "./VaultStatusLines";
 
 /**
  * The Vault's *tags* tab (spec #680, #696): the tree `vault.tags` answers,
@@ -64,12 +64,11 @@ const rowId = (index: number) => `vault-tag-row-${index}`;
 const fileLabel = (path: string) =>
   (path.split("/").at(-1) ?? path).replace(/\.md$/i, "");
 
-export function Tags({ tabs }: { tabs: ReactNode }) {
+export function Tags({ read, active }: { read: VaultRead; active: boolean }) {
   const trpc = useTRPC();
   const tags = useQuery(trpc.vault.tags.queryOptions());
   // The files' Kinds are the tree's; it is the same query the files tab reads.
   const tree = useQuery(trpc.vault.tree.queryOptions());
-  const status = useVaultStatusLines();
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   // `chosen` is the keyboard's row; `picked` is the node whose files are
   // listed. A click or ↵ sets both, the arrows only the first.
@@ -142,12 +141,15 @@ export function Tags({ tabs }: { tabs: ReactNode }) {
   const voice = voiceOf({
     incomplete: tags.isError,
     answered: tags.data !== undefined,
-    read: status.read,
+    read,
   });
 
+  // The panel stays mounted so the fold and the picked node survive a visit
+  // to another tab, but draws nothing while hidden: its voice would otherwise
+  // be heard beside the files tab's.
+  if (!active) return null;
   return (
-    <div className={styles.files}>
-      <div className={styles.header}>{tabs}</div>
+    <>
       {rows.length === 0 ? (
         invalid.length === 0 && (
           <FirstSlot voice={voice} claim="No tags yet.">
@@ -254,9 +256,6 @@ export function Tags({ tabs }: { tabs: ReactNode }) {
           </ul>
         </>
       )}
-      {status.hasLines && (
-        <footer className={styles.footer}>{status.lines}</footer>
-      )}
-    </div>
+    </>
   );
 }
