@@ -23,6 +23,9 @@ const hide = Decoration.replace({});
 /** A callout is a blockquote whose first line opens `[!type]`. */
 const CALLOUT = /^>[ \t]*\[!/;
 
+/** The alias pipe: the first one a backslash has not escaped. */
+const ALIAS_PIPE = /(?<!\\)\|/;
+
 function inlineMarks(
   state: EditorState,
   from: number,
@@ -42,10 +45,14 @@ function inlineMarks(
     to,
     enter(node) {
       switch (node.name) {
+        // Skipped whole, so nothing inside them is ever mistaken for prose.
+        // A fenced block is code, not inline: its fences stay.
         case "Table":
+        case "Frontmatter":
+        case "FencedCode":
           return false;
         case "Blockquote":
-          if (CALLOUT.test(state.sliceDoc(node.from, node.from + 24))) {
+          if (CALLOUT.test(state.doc.lineAt(node.from).text.trimStart())) {
             return false;
           }
           return;
@@ -75,7 +82,7 @@ function inlineMarks(
           const text = state.sliceDoc(node.from, node.to);
           if (text.startsWith("!")) return; // an embed stays as text
           if (onCursorLine(node.from, node.to)) return;
-          const pipe = text.indexOf("|");
+          const pipe = text.search(ALIAS_PIPE);
           // With an alias only the alias is the link's face, so the target
           // and the pipe go with the brackets.
           add(node.from, node.from + (pipe < 0 ? 2 : pipe + 1));

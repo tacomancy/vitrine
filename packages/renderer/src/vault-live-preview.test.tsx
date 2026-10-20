@@ -82,6 +82,12 @@ describe("hiding marks off the cursor's line", () => {
     expect(lines(box)[2]).toBe("see [[Target]] and [[Target|alias]]");
   });
 
+  it("keeps an escaped pipe in the target and hides only up to the alias pipe", async () => {
+    const { box, view } = await open("[[a\\|b|alias]]\nx");
+    cursorAt(view, 16);
+    expect(lines(box)[0]).toBe("alias");
+  });
+
   it("hides a block id off its line", async () => {
     const { box, view } = await open("para ^blk\n\nnext");
     cursorAt(view, 14);
@@ -99,7 +105,7 @@ describe("what stays as text", () => {
   it("leaves frontmatter, a table, an embed and a callout exactly as written", async () => {
     const doc = [
       "---",
-      "title: **x**",
+      "title: **x** `y` [[T]] _z_",
       "---",
       "",
       "| a | b |",
@@ -110,6 +116,10 @@ describe("what stays as text", () => {
       "",
       "> [!note] Title",
       "> **x** and [[T]]",
+      "",
+      "```",
+      "`x` **y**",
+      "```",
       "",
       "end",
     ].join("\n");
