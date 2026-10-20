@@ -40,7 +40,7 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    every row it makes, so one `⌘Z` can take the whole gesture back (#644).
  * 9: the Proposal state `capped`, what a Scout's cap cut (#647).
  */
-export const QUEUE_SCHEMA_VERSION = 9;
+export const QUEUE_SCHEMA_VERSION = 10;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -222,6 +222,46 @@ DROP TABLE proposals;
 ALTER TABLE proposals_new RENAME TO proposals;
 `;
 
+// A Tag Filter whose Tags compile to nothing fails its run with its own kind
+// (`tags`, spec #678 decision 7), and a run that went on without some of its
+// Tags says which in `note`. The CHECK cannot be altered, so this rebuilds
+// `scout_runs` again, keeping every id as SCOUT_RUN_MODEL does. Foreign keys
+// are off for migrations (`openQueue`).
+const SCOUT_RUN_TAGS = `
+CREATE TABLE scout_runs_new (
+  id INTEGER PRIMARY KEY,
+  scout_id TEXT NOT NULL,
+  started TEXT NOT NULL,
+  finished TEXT,
+  outcome TEXT CHECK (outcome IN ('ok', 'failed')),
+  error_kind TEXT CHECK (error_kind IN ('network', 'http', 'rate_limited', 'parse', 'interrupted', 'credentials', 'model', 'extraction', 'tags')),
+  error_message TEXT,
+  window_from TEXT NOT NULL,
+  window_to TEXT NOT NULL,
+  retroactive INTEGER NOT NULL DEFAULT 0,
+  fetched INTEGER NOT NULL DEFAULT 0,
+  new INTEGER NOT NULL DEFAULT 0,
+  held INTEGER NOT NULL DEFAULT 0,
+  truncated INTEGER NOT NULL DEFAULT 0,
+  query TEXT,
+  model TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  cache_read_tokens INTEGER,
+  cost_usd REAL,
+  page_hash TEXT,
+  page_length INTEGER,
+  page_capped INTEGER NOT NULL DEFAULT 0,
+  unverified INTEGER NOT NULL DEFAULT 0,
+  note TEXT
+);
+INSERT INTO scout_runs_new (id, scout_id, started, finished, outcome, error_kind, error_message, window_from, window_to, retroactive, fetched, new, held, truncated, query, model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, page_capped, unverified)
+  SELECT id, scout_id, started, finished, outcome, error_kind, error_message, window_from, window_to, retroactive, fetched, new, held, truncated, query, model, input_tokens, output_tokens, cache_read_tokens, cost_usd, page_hash, page_length, page_capped, unverified FROM scout_runs;
+DROP TABLE scout_runs;
+ALTER TABLE scout_runs_new RENAME TO scout_runs;
+CREATE INDEX scout_runs_scout ON scout_runs (scout_id);
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -238,6 +278,7 @@ const MIGRATIONS: readonly string[] = [
   TRIAGE_LANE_MOVES,
   TRIAGE_BULK,
   PROPOSAL_CAPPED,
+  SCOUT_RUN_TAGS,
 ];
 
 /**

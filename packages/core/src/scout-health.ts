@@ -31,7 +31,8 @@ export type RunErrorKind =
   | "interrupted"
   | "credentials"
   | "model"
-  | "extraction";
+  | "extraction"
+  | "tags";
 
 export type Health =
   /** `kind` is null for a Scout file that does not parse or could not be read: no run exists to carry one (ADR 0039 decision 7). */
@@ -343,6 +344,8 @@ function baseFaultSentence(
       );
     case "interrupted":
       return "Vitrine closed before this check finished.";
+    case "tags":
+      return message ?? "Nothing was checked: the Tags have nothing to search.";
   }
 }
 

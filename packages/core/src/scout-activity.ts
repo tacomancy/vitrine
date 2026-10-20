@@ -418,7 +418,12 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
     notParsing: count(
       (h) =>
         h.voice === "wrong" &&
-        (h.kind === null || h.kind === "parse" || h.kind === "extraction")
+        (h.kind === null ||
+          h.kind === "parse" ||
+          h.kind === "extraction" ||
+          // A Tag Filter that compiled to no query asked no source, yet is
+          // broken: counted here so it falls in some bucket.
+          h.kind === "tags")
     ),
     notReached: count(
       (h) =>
