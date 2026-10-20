@@ -37,3 +37,14 @@ The brief (`design-brief.md` § The tag lexicon) builds each Tag's Lexicon from 
 - **−** Derived phrases are text statistics over a small corpus; a Tag with three papers has a thin Lexicon, and the editor must make that legible (paper count, *not used* line) rather than hide it.
 - **−** The measurement row gains a stored-query column that beat 10 must design around from the start.
 - **−** Seeds and exclusions are keyed by Tag; tag hierarchy management is out of scope by the brief, so a renamed Tag starts over.
+
+## Update (2026-10-20, #684)
+
+Decision 3 said the reading of keywords printed under the abstract would be its own small slice after beat 10. It shipped (#681–#683, spec #679), with these choices the decision left open, recorded here so they are durable and not just a spec's marked calls:
+
+- **Where.** The first two pages' lines only, so the references never supply keywords; a label must start a line (Keywords, Key words, Author keywords, Index Terms), so prose that mentions the word is not the list.
+- **What is stored.** The sidecar keeps the keywords raw, as printed; the Lexicon's phrase normaliser cleans them when it counts, so a better rule needs no migration. Absent means not read yet, empty means none found.
+- **When.** Whenever Ingest reads the PDF, in the same write as the rest of the sidecar; a PDF with unchanged bytes and no field is read once to backfill; a changed PDF replaces the field, so a vanished line leaves no stale keywords.
+- **How they count.** Exactly as `keywords:` does, unioned with it once per paper; nothing is copied into frontmatter.
+- **No defect.** A missing or unreadable line is a thinner Lexicon: no Loose Ends row, no Home item, no Ingest summary change.
+
