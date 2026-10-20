@@ -6,8 +6,9 @@ import {
   type ChangeSpec,
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./Vault.module.css";
+import { WarningLine } from "./VaultStatusLines";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
 import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
@@ -27,6 +28,46 @@ export type EditorFile = { path: string; text: string; hash: string };
  * the save was refused or failed; the caller has said so.
  */
 export type SavedText = { hash: string; text: string } | null;
+
+/**
+ * What reached the editor about its open file from outside (#699). `n` makes a
+ * second note of the same kind a new one. `refused` is `replaceFile`'s hash
+ * mismatch; the rest are a `vaultChanged` naming the open path.
+ */
+export type DiskNote = {
+  n: number;
+  kind: "changed" | "refused" | "removed" | "renamed";
+  /** Where a renamed file went. */
+  to?: string;
+  /** When it was heard, which is what the line's age counts from. */
+  at: number;
+};
+
+/** The disk's side of the file, read afresh: LF text, and the hash a save is `basedOn`. */
+export type DiskCopy = { hash: string; text: string };
+
+/** The line the editor shows while the disk and its document disagree. */
+type DiskLine = {
+  kind: DiskNote["kind"];
+  to?: string;
+  at: number;
+  /** An action could not read the disk: said, so the buttons are not dead. */
+  failed?: boolean;
+};
+
+const agoOf = (since: number, now: number) => {
+  const minutes = Math.floor((now - since) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.floor(minutes / 60)} h ago`;
+};
+
+const wording: Record<DiskNote["kind"], string> = {
+  changed: "changed on disk",
+  refused: "changed on disk",
+  removed: "removed on disk",
+  renamed: "renamed on disk",
+};
 
 /** Marks a transaction that is not the user's typing: a file pushed in, a Revision taken back. */
 const fromDisk = Annotation.define<true>();
@@ -64,15 +105,26 @@ function spliceBetween(from: string, to: string): ChangeSpec {
  * BOM are the core's to restore around a save, so nothing here needs
  * `lineSeparator` yet. There is no undo history until the editor's
  * extensions land.
+ *
+ * Changed on disk (#699): the file moved under unsaved typing, or a save was
+ * refused for its hash, or the file went. One non-modal line says so with
+ * *keep mine* and *take the disk copy*; saving is suspended while it shows
+ * (a save would only be refused again, or overwrite what the user has not
+ * seen), and typing goes on. A clean editor has nothing to lose, so it takes
+ * the new text in silently, as a splice so the cursor and scroll stay.
  */
 export function VaultEditor({
   file,
   save,
   links,
+  disk,
+  reread,
 }: {
   file: EditorFile | null;
   save: (path: string, content: string, basedOn: string) => Promise<SavedText>;
   links: LinkHooks;
+  disk: DiskNote | null;
+  reread: () => Promise<DiskCopy>;
 }) {
   // The extension reads the latest hooks through this, so the view is still
   // made once and a render never rebuilds it.
@@ -91,18 +143,40 @@ export function VaultEditor({
   // past it instead of clobbering it.
   const saving = useRef<{ typed: ChangeSet; again: boolean } | null>(null);
   const saveRef = useRef(save);
-  const flushRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const flushRef = useRef<(leaving?: boolean) => Promise<void>>(() =>
+    Promise.resolve()
+  );
+  const [line, setLine] = useState<DiskLine | null>(null);
+  // Read by the save paths, which are closures made once: while true, an
+  // idle, blur or ⌘S save is held back. Leaving the file still saves, since
+  // the document is about to go and the refusal is then said.
+  const suspended = useRef(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (line === null) return;
+    const tick = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(tick);
+  }, [line]);
+  useEffect(() => {
+    suspended.current = line !== null;
+  }, [line]);
+  const show = (next: DiskLine | null) => {
+    suspended.current = next !== null;
+    clearTimeout(timer.current);
+    setLine(next);
+  };
 
   useEffect(() => {
     saveRef.current = save;
   }, [save]);
 
   useEffect(() => {
-    flushRef.current = async () => {
+    flushRef.current = async (leaving = false) => {
       clearTimeout(timer.current);
       const current = view.current;
       const target = held.current;
       if (current === null || target === null || !dirty.current) return;
+      if (suspended.current && !leaving) return;
       if (saving.current !== null) {
         saving.current.again = true;
         return;
@@ -205,7 +279,7 @@ export function VaultEditor({
       window.removeEventListener("pagehide", leaving);
       // Typing the idle timer had not yet saved still goes out; the view is
       // read before it is destroyed.
-      void flushRef.current();
+      void flushRef.current(true);
       clearTimeout(timer.current);
       created.destroy();
       view.current = null;
@@ -222,14 +296,20 @@ export function VaultEditor({
     if (!switching && (dirty.current || held.current?.hash === hash)) return;
     // The last file's unsaved typing goes out before its document is gone:
     // the save reads the text now, before the dispatch below.
-    if (switching) void flushRef.current();
+    if (switching) void flushRef.current(true);
     held.current = { path, hash };
     dirty.current = false;
     clearTimeout(timer.current);
+    if (switching) show(null);
+    const before = current.state.doc.toString();
+    // The same file arriving anew is spliced in, so the cursor and scroll
+    // map past it; a different file replaces the document whole.
     const changes =
-      current.state.doc.toString() === text
+      before === text
         ? []
-        : [{ from: 0, to: current.state.doc.length, insert: text }];
+        : switching
+          ? [{ from: 0, to: current.state.doc.length, insert: text }]
+          : [spliceBetween(before, text)];
     // A new file forgets what links the last one resolved.
     if (changes.length === 0 && !switching) return;
     current.dispatch({
@@ -239,5 +319,92 @@ export function VaultEditor({
     });
   }, [path, text, hash]);
 
-  return <div ref={host} className={styles.cm} />;
+  // What reached the editor from outside. A change under clean text needs
+  // no line: the re-read it asks for is what the effect above takes in.
+  const [heard, setHeard] = useState(0);
+  if (disk !== null && disk.n !== heard) {
+    setHeard(disk.n);
+    if (disk.kind !== "changed") {
+      setLine({
+        kind: disk.kind,
+        ...(disk.to === undefined ? {} : { to: disk.to }),
+        at: disk.at,
+      });
+    }
+  }
+  const changedAt = disk?.kind === "changed" ? disk.at : undefined;
+  const noteN = disk?.n;
+  useEffect(() => {
+    if (changedAt === undefined) return;
+    let stale = false;
+    // A read that fails leaves the editor as it was; the surface's own
+    // error handling says why the file cannot be read.
+    void reread().then(
+      (copy) => {
+        if (stale) return;
+        // Nothing of the user's is at stake — the disk is what the editor holds
+        // (its own echo, or a file that came back as it was) or there is no
+        // typing — so any line from before is retracted, a removed file that
+        // reappeared included.
+        if (held.current?.hash === copy.hash || !dirty.current) show(null);
+        else show({ kind: "changed", at: changedAt });
+      },
+      () => {}
+    );
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one note, one reaction
+  }, [noteN]);
+
+  const unread = () =>
+    setLine((was) => (was === null ? null : { ...was, failed: true }));
+  const keepMine = async () => {
+    const copy = await reread().catch(() => null);
+    if (copy === null) return unread();
+    if (held.current !== null)
+      held.current = { ...held.current, hash: copy.hash };
+    show(null);
+    await flushRef.current();
+  };
+  const takeDisk = async () => {
+    const copy = await reread().catch(() => null);
+    if (copy === null) return unread();
+    const current = view.current;
+    if (current === null || held.current === null) return;
+    held.current = { ...held.current, hash: copy.hash };
+    dirty.current = false;
+    show(null);
+    current.dispatch({
+      changes: spliceBetween(current.state.doc.toString(), copy.text),
+      annotations: fromDisk.of(true),
+    });
+  };
+
+  return (
+    <>
+      {line !== null && (
+        <WarningLine label={wording[line.kind]}>
+          {line.kind === "renamed" && line.to !== undefined && (
+            <>to {line.to} · </>
+          )}
+          {agoOf(line.at, Math.max(now, line.at))}
+          {line.failed === true && <> · could not read the file</>}
+          {(line.kind === "changed" || line.kind === "refused") && (
+            <>
+              {" "}
+              ·{" "}
+              <button type="button" onClick={() => void keepMine()}>
+                keep mine
+              </button>{" "}
+              <button type="button" onClick={() => void takeDisk()}>
+                take the disk copy
+              </button>
+            </>
+          )}
+        </WarningLine>
+      )}
+      <div ref={host} className={styles.cm} />
+    </>
+  );
 }

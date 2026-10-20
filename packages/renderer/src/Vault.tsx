@@ -5,7 +5,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type { LinkFile, SearchHit, TreeFile } from "core";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
@@ -16,7 +22,13 @@ import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { Marked } from "./VaultMarked";
 import { VaultBacklinks } from "./VaultBacklinks";
-import { VaultEditor, type EditorFile, type SavedText } from "./VaultEditor";
+import {
+  VaultEditor,
+  type DiskNote,
+  type EditorFile,
+  type SavedText,
+} from "./VaultEditor";
+import { useVaultChanged } from "./events";
 import { Tags } from "./VaultTags";
 import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
 
@@ -104,6 +116,41 @@ function OpenFile({
   }
   const refusal = useRefusal();
   const replace = useMutation(trpc.vault.replaceFile.mutationOptions());
+  // What the disk told the editor about this file (#699). Kept with its path:
+  // one editor serves every file, and a note is about one.
+  const [note, setNote] = useState<(DiskNote & { path: string }) | null>(null);
+  const current = useRef(path);
+  useEffect(() => {
+    current.current = path;
+  }, [path]);
+  const tell = useCallback(
+    (about: Omit<DiskNote, "n" | "at">) =>
+      setNote((was) => ({
+        ...about,
+        path,
+        n: (was?.n ?? 0) + 1,
+        at: Date.now(),
+      })),
+    [path]
+  );
+  useVaultChanged(
+    useCallback(
+      ({ changed, removed, renamed }) => {
+        const moved = renamed.find(({ from }) => from === path);
+        if (removed.includes(path)) tell({ kind: "removed" });
+        else if (moved !== undefined) tell({ kind: "renamed", to: moved.to });
+        else if (changed.includes(path)) tell({ kind: "changed" });
+      },
+      [path, tell]
+    )
+  );
+  const reread = async () => {
+    const copy = await queryClient.fetchQuery({
+      ...trpc.vault.read.queryOptions({ path }),
+      staleTime: 0,
+    });
+    return { hash: copy.hash, text: copy.text };
+  };
   const saveFile = async (
     at: string,
     content: string,
@@ -113,7 +160,20 @@ function OpenFile({
     try {
       const saved = await replace.mutateAsync({ path: at, content, basedOn });
       if (!saved.written) {
-        refusal.say(saved.detail);
+        // The file moved under the typing: a line with two actions, not a
+        // refusal, but only for the file still open. The save that leaves a
+        // file has no line to go to, so it is said as the refusal it is.
+        // Both checks are needed: a child's effects run before this
+        // component's, so on a switch this closure already names the new file
+        // while `current` still names the old one, and a save that resolves
+        // after the switch has the old closure and the new `current`.
+        if (
+          saved.reason === "changedOnDisk" &&
+          at === path &&
+          current.current === at
+        )
+          tell({ kind: "refused" });
+        else refusal.say(saved.detail);
         return null;
       }
       // The typing is on disk whatever else happened: a Revision that could
@@ -152,6 +212,8 @@ function OpenFile({
       <VaultEditor
         file={loaded}
         save={saveFile}
+        disk={note?.path === path ? note : null}
+        reread={reread}
         links={{
           resolve: (links) =>
             queryClient.fetchQuery({
