@@ -15,13 +15,15 @@ import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { VaultBacklinks } from "./VaultBacklinks";
 import { VaultEditor } from "./VaultEditor";
+import { Tags } from "./VaultTags";
 import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
 
 /**
  * The Vault surface (spec #680; `docs/architecture.md` § Vault surface).
  * The left pane is tabbed: *files* (the vault as a tree, a Kind glyph per
- * file, folders that fold, and *new note*) and *search* (full text over note
- * bodies, #697). The editor and the backlinks pane fill the other two panes.
+ * file, folders that fold, and *new note*), *tags* (#696) and *search* (full
+ * text over note bodies, #697). The editor and the backlinks pane fill the
+ * other two panes.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
   return (
@@ -164,7 +166,7 @@ function rowsOf(
 // is, and position is what decides whether a row is in view (ADR 0030).
 const rowId = (index: number) => `vault-file-row-${index}`;
 
-const TABS = ["files", "search"] as const;
+const TABS = ["files", "tags", "search"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -220,6 +222,15 @@ function LeftPane({ open }: { open: string | undefined }) {
           naming={naming}
           onNamed={() => setNaming(false)}
         />
+      </div>
+      <div
+        role="tabpanel"
+        id="vault-panel-tags"
+        aria-labelledby="vault-tab-tags"
+        className={styles.panel}
+        hidden={tab !== "tags"}
+      >
+        <Tags read={status.read} active={tab === "tags"} />
       </div>
       <div
         role="tabpanel"
