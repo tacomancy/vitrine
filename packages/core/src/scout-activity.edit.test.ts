@@ -294,7 +294,7 @@ describe("scouts.activity — a Tag Filter", () => {
   it("refuses by name a Tag with nothing to compile", async () => {
     const f = await seeded(["ml/probing"]);
     const r = await f.c.query("scouts.compiled", { tags: ["nope"] });
-    expect(r.error?.message).toContain("Tag nope has no Terms");
+    expect(r.error?.message).toContain("Tag nope is gone");
   });
 
   it("saves a changed Tag list through scouts.save, keeps the Scout, and runs it once", async () => {

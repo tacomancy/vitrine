@@ -93,7 +93,7 @@ import {
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
-  compileTags,
+  compileTagsOrRefuse,
   readQueue,
   readQuestionGroups,
   readSkim,
@@ -722,7 +722,7 @@ export const router = t.router({
     compiled: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))
       .query(async ({ ctx, input }) =>
-        refusing(compileTags(await scoutDeps(ctx), input.tags))
+        refusing(compileTagsOrRefuse(await scoutDeps(ctx), input.tags))
       ),
     tryTags: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))
