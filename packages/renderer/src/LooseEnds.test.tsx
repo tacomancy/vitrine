@@ -476,16 +476,16 @@ describe("the ambiguous link row", () => {
     expect(group.textContent).toContain("b/Klinzing 2019.md");
   });
 
-  it("offers *open* for a linking file with a surface, and names the file without one for a Note", async () => {
+  it("offers *open* for every linking file: a Note's is the Vault", async () => {
     open({ "looseEnds.rows": ambiguous() });
     const view = await dashboard();
 
-    // A Note has no address yet (beat 11): the row names it and stops.
-    await within(view).findByText("Reading list");
-    expect(within(view).queryByRole("link", { name: "open" })).toBeNull();
+    // A Note's surface is the Vault (#690).
     expect(
-      within(view).queryByRole("link", { name: "Reading list" })
-    ).toBeNull();
+      (await within(view).findByRole("link", { name: "open" })).getAttribute(
+        "href"
+      )
+    ).toBe("#/vault/notes/Reading%20list.md");
     expect(view.textContent).toContain("notes/Reading list.md");
 
     cleanup();

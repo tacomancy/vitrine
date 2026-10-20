@@ -452,6 +452,14 @@ const WHOLE = connection({
   page: null,
   open: true,
 });
+// A stub has no surface and is no Note: the one Kind left that is named, not opened.
+const STUB = connection({
+  path: "sources/born2010.md",
+  kind: "source-stub",
+  name: "born",
+  block: "h1",
+  page: 1,
+});
 const CONNECTIONS = [NOTE, RQ, ASKED, WHOLE];
 
 const ticks = () =>
@@ -585,23 +593,29 @@ describe("Connections", () => {
     expect(window.location.hash).toBe(addressOf(WHOLE.kind, WHOLE.path));
   });
 
-  it("names a connection that has none, and the click says so", async () => {
+  it("opens a Note in the Vault", async () => {
     await openPanel();
+    fireEvent.click(options()[0]!);
+    expect(window.location.hash).toBe("#/vault/notes/idea.md");
+  });
+
+  it("names a connection that has none, and the click says so", async () => {
+    await openPanel([STUB, RQ]);
     fireEvent.click(options()[0]!);
     expect(window.location.hash).toBe(`#/source/${PATH}`);
     expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
-      "idea has no page in Vitrine to open: it is the file notes/idea.md."
+      "born has no page in Vitrine to open: it is the file sources/born2010.md."
     );
     expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("says it on Enter too, says it again as a new element, and drops it when another is chosen", async () => {
-    const { list } = await openPanel();
+    const { list } = await openPanel([STUB, RQ]);
     fireEvent.keyDown(list, { key: "Enter" });
     const first = await screen.findByRole("alert");
     expect(first.textContent).toBe(
-      "idea has no page in Vitrine to open: it is the file notes/idea.md."
+      "born has no page in Vitrine to open: it is the file sources/born2010.md."
     );
     expect(screen.queryByRole("status")).toBeNull();
     fireEvent.keyDown(list, { key: "Enter" });
