@@ -1130,7 +1130,7 @@ describe("links on the page", () => {
     note: "",
   });
 
-  it("a link resolving to a Research Question or a Question opens it by hash; one resolving to a Kind with no surface is inert", async () => {
+  it("a link resolving to a Research Question or a Question opens it by hash; a Note's is the Vault; one resolving to a Kind with no surface is inert", async () => {
     open(() =>
       withRelated({
         present: true,
@@ -1152,6 +1152,7 @@ describe("links on the page", () => {
     expect(links.map((l) => l.textContent)).toEqual([
       "Other (RQ)",
       "A capture",
+      "A note",
       "A read paper",
     ]);
     // A Question's Address is the Inbox on its row (#300, ADR 0026); a
@@ -1159,10 +1160,10 @@ describe("links on the page", () => {
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "#/research-question/questions/Other%20(RQ).md",
       "#/question/questions/A%20capture.md",
+      "#/vault/notes/A%20note.md",
       "#/source/sources/rasch2013.md",
     ]);
     // The rest are text: nothing to click, nothing that pretends to open.
-    expect(related.textContent).toContain("A note");
     expect(related.textContent).toContain("A paper");
     expect(related.textContent).toContain("Nowhere");
     expect(related.textContent).toContain("unresolved");

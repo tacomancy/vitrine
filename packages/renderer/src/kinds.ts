@@ -31,9 +31,9 @@ export const markOf = (kind: string): Mark | undefined => byKind[kind];
 
 /**
  * Where a file of this Kind opens, or null for a Kind with nowhere to open
- * yet — a Note, a Source stub, and a `kind:` the app does not know,
- * each named rather than linked until its surface exists (spec #206 story 56;
- * the Vault editor is beat 11). The Kind is a bare string because that is how
+ * yet — a Source stub, and a `kind:` the app does not know, each named
+ * rather than linked until its surface exists (spec #206 story 56). A Note's
+ * is the Vault (#690). The Kind is a bare string because that is how
  * the index carries it: one the app does not know is stored verbatim, and
  * there is nothing to open for it either way. One function, so every surface
  * says the same thing about the same file and one edit wakes them all — and
@@ -57,6 +57,14 @@ export function routeOf(
     // and so no Address (spec #416 story 73).
     case "source":
       return { surface: "source", path };
+    // An ordinary Markdown file has no surface of its own, so the Vault is
+    // where a link to it lands (spec #680 story 38). The index carries it as
+    // no `kind:` at all; the picker names it `note`. A stub and a `kind:` the
+    // app does not know are not Notes and stay named rather than linked.
+    case null:
+    case undefined:
+    case "note":
+      return { surface: "vault", path };
     default:
       return null;
   }
