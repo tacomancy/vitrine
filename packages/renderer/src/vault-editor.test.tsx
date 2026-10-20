@@ -1,17 +1,24 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 import { addressOf } from "./kinds";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // Opening a file in the Vault editor (#690; spec #680): the file's text in a
-// CodeMirror editor, read-only until the save ticket, with the Address that
+// CodeMirror editor, saved by the next, with the Address that
 // names it and the Inbox's account of one that names nothing.
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
@@ -67,27 +74,6 @@ describe("opening a file", () => {
     expect(textOf(await editor())).toBe("one\ntwo\n");
     expect(document.querySelectorAll(".cm-line")).toHaveLength(3);
     expect((await editor()).textContent).not.toContain("\r");
-  });
-
-  it("is read-only and never asks the core to write", async () => {
-    const replace = vi.fn();
-    const create = vi.fn();
-    open(
-      {
-        "vault.read": FILE("text\n"),
-        "vault.replaceFile": replace,
-        "vault.create": create,
-      },
-      "#/vault/plain.md"
-    );
-    const box = await editor();
-    fireEvent.input(box, { data: "x" });
-    fireEvent.keyDown(box, { key: "a" });
-    fireEvent.blur(box);
-    expect(textOf(box)).toBe("text\n");
-    expect(box.getAttribute("contenteditable")).toBe("false");
-    expect(replace).not.toHaveBeenCalled();
-    expect(create).not.toHaveBeenCalled();
   });
 
   it("opens an Address with spaces and non-ASCII in it", async () => {
@@ -195,5 +181,200 @@ describe("what the editor colours", () => {
     ).toBe(true);
     expect(coloured("[[Idea]]")[0]!.className).toMatch(/wikilink/);
     expect(coloured("#ml/probing")[0]!.className).toMatch(/tag/);
+  });
+});
+
+// Typing saves (#693; spec #680): on a pause, on ⌘S, on blur, and before
+// another file replaces the document, each `basedOn` the hash last read or
+// written. A Revision the core wrote in the same save is taken in, so the
+// next save cannot write the file back without it.
+
+const VIEW = () => {
+  const dom = document.querySelector(".cm-editor") as HTMLElement;
+  return EditorView.findFromDOM(dom)!;
+};
+/** What the user does: a change that is not the file arriving. */
+const type = (text: string) => {
+  const view = VIEW();
+  act(() =>
+    view.dispatch({ changes: { from: view.state.doc.length, insert: text } })
+  );
+};
+const SAVED = (hash: string, content: string) => ({
+  written: true,
+  hash,
+  content,
+  shape: [],
+});
+
+describe("typing saves", () => {
+  it("saves a pause after the last keystroke, basedOn the hash it read, and not before", async () => {
+    const replace = vi.fn(() => SAVED("h2", "one two\n"));
+    open(
+      { "vault.read": FILE("one\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    await editor();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    type(" two");
+    await act(() => vi.advanceTimersByTimeAsync(1900));
+    expect(replace).not.toHaveBeenCalled();
+    type(" a");
+    await act(() => vi.advanceTimersByTimeAsync(1900));
+    expect(replace).not.toHaveBeenCalled();
+    type(" more");
+    await act(() => vi.advanceTimersByTimeAsync(2100));
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith({
+      path: "plain.md",
+      content: "one\n two a more",
+      basedOn: "h",
+    });
+  });
+
+  it("⌘S saves at once, and the next save is basedOn the hash the last one wrote", async () => {
+    const replace = vi
+      .fn()
+      .mockReturnValueOnce(SAVED("h2", "a\nb\n"))
+      .mockReturnValueOnce(SAVED("h3", "a\nb\nc\n"));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace.mock.calls[0]?.[0]).toMatchObject({
+      content: "a\nb\n",
+      basedOn: "h",
+    });
+    type("c\n");
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
+    expect(replace.mock.calls[1]?.[0]).toMatchObject({ basedOn: "h2" });
+  });
+
+  it("a file that has not been typed in is never saved, however long it is open or whatever blurs", async () => {
+    const replace = vi.fn();
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    fireEvent.blur(box);
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("a saved file is clean: a blur or ⌘S after it saves nothing more until it is typed in again", async () => {
+    const replace = vi.fn(() => SAVED("h2", "a\nb\n"));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    fireEvent.blur(box);
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await act(async () => {});
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves on blur", async () => {
+    const replace = vi.fn(() => SAVED("h2", "a\nb\n"));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.blur(box);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+  });
+
+  it("takes in the Revision the core wrote beside the typing, keeping what was typed meanwhile", async () => {
+    let finish: (value: unknown) => void = () => {};
+    const replace = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    open(
+      {
+        "vault.read": FILE("answer\n\nhistory\n"),
+        "vault.replaceFile": replace,
+      },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    const view = VIEW();
+    act(() => view.dispatch({ changes: { from: 6, insert: "!" } }));
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    // Typed while the save was out, before the history it will gain.
+    act(() => view.dispatch({ changes: { from: 0, insert: ">" } }));
+    finish(SAVED("h2", "answer!\n\nhistory\n- 2026 · answer\n"));
+    await waitFor(() =>
+      expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n")
+    );
+    expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n");
+  });
+
+  it("saves the typing of the file being left before the next replaces the document", async () => {
+    const replace = vi.fn(() => SAVED("h2", "idea!\n"));
+    open(
+      {
+        "vault.read": (input: { path: string }) =>
+          FILE(input.path === "plain.md" ? "plain\n" : "idea\n"),
+        "vault.replaceFile": replace,
+      },
+      "#/vault/notes/Idea.md"
+    );
+    await editor();
+    type("!");
+    fireEvent.click(await screen.findByRole("treeitem", { name: "plain" }));
+    await waitFor(async () => expect(textOf(await editor())).toBe("plain\n"));
+    expect(replace).toHaveBeenCalledWith({
+      path: "notes/Idea.md",
+      content: "idea\n!",
+      basedOn: "h",
+    });
+  });
+
+  it("a refused save is said in an alert and the typing stays; a changed file is not overwritten", async () => {
+    const replace = vi.fn(() => ({
+      written: false,
+      reason: "changedOnDisk",
+      detail: "plain.md changed since it was read",
+    }));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.blur(box);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("plain.md changed since it was read");
+    expect(textOf(box)).toBe("a\nb\n");
+  });
+
+  it("says a Revision that could not be recorded, the typing saved all the same", async () => {
+    const replace = vi.fn(() => ({
+      ...SAVED("h2", "a\nb\n"),
+      unrecorded: "the history would not parse",
+    }));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.blur(box);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("history was not recorded");
+    expect(textOf(box)).toBe("a\nb\n");
   });
 });

@@ -138,6 +138,8 @@ import type { QuestionService } from "./questions.js";
 import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
+import { saveFile } from "./page-write.js";
+import type { PositionsOf } from "./vault-index.js";
 import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
 import { resolveLinks } from "./vault-links.js";
@@ -191,6 +193,8 @@ export type Context = {
   /** This machine's computer name, which a linked Artifact records (ADR 0035 decision 5); tests pass any string. */
   machine: string;
   coalesceMs: number;
+  /** The Kinds with a Position, as the watcher diffs them; the Vault editor's save diffs by the same. */
+  positionsOf: PositionsOf;
   /** How many open days a promoted Research Question may sit unsourced (#243); tests shorten it. */
   stalledOpenDays: number;
   /** The id source for an object the router makes itself (an Experiment); pinned by tests. */
@@ -409,6 +413,26 @@ export const router = t.router({
       const { vault } = await requireVault(ctx);
       return refusing(readFileText(vault.path, input.path));
     }),
+    // The Vault editor's save (#693): the typing whole, the Revisions it owes
+    // in the same write; the one refusal is a hash mismatch.
+    replaceFile: t.procedure
+      .input(
+        z.object({ path: z.string(), content: z.string(), basedOn: z.string() })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(
+          saveFile(
+            await requirePage(ctx),
+            input.path,
+            { content: input.content, basedOn: input.basedOn },
+            {
+              at: ctx.now(),
+              coalesceMs: ctx.coalesceMs,
+              positionsOf: ctx.positionsOf,
+            }
+          )
+        )
+      ),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();
       if (status === null) throw noVault();
