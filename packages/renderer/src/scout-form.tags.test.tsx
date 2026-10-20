@@ -195,7 +195,10 @@ describe("the Tags Filter", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Sleep/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     await screen.findByRole("form", { name: "Edit Sleep" });
-    expect(screen.getByLabelText("by Query").checked).toBe(true);
+    expect(screen.getByRole("radio", { name: "by Query" })).toHaveProperty(
+      "checked",
+      true
+    );
 
     pickTags();
     const list = await picker();
