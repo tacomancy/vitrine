@@ -446,7 +446,7 @@ function AttachPdf({ stub, onDone }: { stub: string; onDone: () => void }) {
       aria-label={`Attach a PDF to ${leaf(stub)}`}
     >
       {attached !== null ? (
-        <p role="status" className={styles.refusal}>
+        <p role="status" className={styles.note}>
           Attached {leaf(attached)} — {leaf(stub)} is a Source now.
         </p>
       ) : (

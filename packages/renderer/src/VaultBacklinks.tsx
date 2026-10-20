@@ -40,7 +40,11 @@ function arranged(data: Backlink[]): {
   const fileLevel: Backlink[] = [];
   for (const row of data) {
     if (row.block === null) fileLevel.push(row);
-    else byBlock.set(row.block, [...(byBlock.get(row.block) ?? []), row]);
+    else {
+      const same = byBlock.get(row.block) ?? [];
+      same.push(row);
+      byBlock.set(row.block, same);
+    }
   }
   const groups = [...byBlock]
     .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))
@@ -150,13 +154,21 @@ export function VaultBacklinks({ path }: { path: string }) {
         >
           {groups === null
             ? rows.map(renderRow)
-            : groups.map((group) => (
+            : groups.map((group, g) => (
                 <li key={group.label} role="presentation">
                   <h3 className={styles.groupHead} aria-hidden="true">
                     {group.label}
                   </h3>
                   <ul role="group" aria-label={group.label}>
-                    {group.rows.map(renderRow)}
+                    {group.rows.map((row, i) =>
+                      renderRow(
+                        row,
+                        // The choice and the ids are positions in `rows`.
+                        groups
+                          .slice(0, g)
+                          .reduce((n, { rows }) => n + rows.length, 0) + i
+                      )
+                    )}
                   </ul>
                 </li>
               ))}

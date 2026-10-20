@@ -176,6 +176,22 @@ describe("a Source's backlinks", () => {
     expect(window.location.hash).toBe("#/vault/notes/D.md");
   });
 
+  it("gives every row its own id and marks only the chosen one, across the groups", async () => {
+    open({ "vault.backlinks": GROUPED });
+    const box = await list();
+    const options = screen.getAllByRole("option");
+    expect(new Set(options.map((o) => o.id)).size).toBe(options.length);
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(options.map((o) => o.getAttribute("aria-selected"))).toEqual([
+      "false",
+      "false",
+      "true",
+      "false",
+    ]);
+    expect(box.getAttribute("aria-activedescendant")).toBe(options[2]?.id);
+  });
+
   it("stays flat when no link targets a highlight", async () => {
     open();
     await list();
