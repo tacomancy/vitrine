@@ -161,10 +161,17 @@ function OpenFile({
       const saved = await replace.mutateAsync({ path: at, content, basedOn });
       if (!saved.written) {
         // The file moved under the typing: a line with two actions, not a
-        // refusal of something the user did.
-        // Only for the file still open: a refusal of the save that leaves a
+        // refusal, but only for the file still open. The save that leaves a
         // file has no line to go to, so it is said as the refusal it is.
-        if (saved.reason === "changedOnDisk" && current.current === at)
+        // Both checks are needed: a child's effects run before this
+        // component's, so on a switch this closure already names the new file
+        // while `current` still names the old one, and a save that resolves
+        // after the switch has the old closure and the new `current`.
+        if (
+          saved.reason === "changedOnDisk" &&
+          at === path &&
+          current.current === at
+        )
           tell({ kind: "refused" });
         else refusal.say(saved.detail);
         return null;

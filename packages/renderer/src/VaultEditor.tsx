@@ -47,7 +47,13 @@ export type DiskNote = {
 export type DiskCopy = { hash: string; text: string };
 
 /** The line the editor shows while the disk and its document disagree. */
-type DiskLine = { kind: DiskNote["kind"]; to?: string; at: number };
+type DiskLine = {
+  kind: DiskNote["kind"];
+  to?: string;
+  at: number;
+  /** An action could not read the disk: said, so the buttons are not dead. */
+  failed?: boolean;
+};
 
 const agoOf = (since: number, now: number) => {
   const minutes = Math.floor((now - since) / 60_000);
@@ -294,10 +300,7 @@ export function VaultEditor({
     held.current = { path, hash };
     dirty.current = false;
     clearTimeout(timer.current);
-    if (switching) {
-      suspended.current = false;
-      setLine(null);
-    }
+    if (switching) show(null);
     const before = current.state.doc.toString();
     // The same file arriving anew is spliced in, so the cursor and scroll
     // map past it; a different file replaces the document whole.
@@ -338,9 +341,13 @@ export function VaultEditor({
     // error handling says why the file cannot be read.
     void reread().then(
       (copy) => {
-        // The echo of the editor's own save reads back as the hash it holds.
-        if (stale || held.current?.hash === copy.hash || !dirty.current) return;
-        show({ kind: "changed", at: changedAt });
+        if (stale) return;
+        // Nothing of the user's is at stake — the disk is what the editor holds
+        // (its own echo, or a file that came back as it was) or there is no
+        // typing — so any line from before is retracted, a removed file that
+        // reappeared included.
+        if (held.current?.hash === copy.hash || !dirty.current) show(null);
+        else show({ kind: "changed", at: changedAt });
       },
       () => {}
     );
@@ -350,9 +357,11 @@ export function VaultEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one note, one reaction
   }, [noteN]);
 
+  const unread = () =>
+    setLine((was) => (was === null ? null : { ...was, failed: true }));
   const keepMine = async () => {
     const copy = await reread().catch(() => null);
-    if (copy === null) return;
+    if (copy === null) return unread();
     if (held.current !== null)
       held.current = { ...held.current, hash: copy.hash };
     show(null);
@@ -360,7 +369,7 @@ export function VaultEditor({
   };
   const takeDisk = async () => {
     const copy = await reread().catch(() => null);
-    if (copy === null) return;
+    if (copy === null) return unread();
     const current = view.current;
     if (current === null || held.current === null) return;
     held.current = { ...held.current, hash: copy.hash };
@@ -380,6 +389,7 @@ export function VaultEditor({
             <>to {line.to} · </>
           )}
           {agoOf(line.at, Math.max(now, line.at))}
+          {line.failed === true && <> · could not read the file</>}
           {(line.kind === "changed" || line.kind === "refused") && (
             <>
               {" "}

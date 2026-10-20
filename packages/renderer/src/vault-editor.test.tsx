@@ -654,6 +654,42 @@ describe("changed on disk", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(
       "plain.md changed since it was read"
     );
+    // Said as a refusal of the left file, not as a change to the new one.
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+  });
+
+  it("a removed file that comes back as it was retracts the line, and saving resumes", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn(() => SAVED("h2", "one\nmine\n"));
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("mine\n");
+    act(() => stream.push(changed({ removed: ["plain.md"] })));
+    await said(/removed on disk/);
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await waitFor(() =>
+      expect(screen.queryByText(/removed on disk/)).toBeNull()
+    );
+    fireEvent.blur(box);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+  });
+
+  it("says so when an action cannot read the disk, rather than doing nothing", async () => {
+    const d = disk("one\n");
+    const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");
+    await editor();
+    type("mine\n");
+    d.move("two\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await line();
+    d.read.mockImplementation(() => {
+      throw new Error("gone");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "keep mine" }));
+    expect((await line()).textContent).toContain("could not read the file");
   });
 
   it("the line belongs to its file: opening another clears it", async () => {
