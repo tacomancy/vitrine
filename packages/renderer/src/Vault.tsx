@@ -13,6 +13,7 @@ import { markOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
+import { VaultBacklinks } from "./VaultBacklinks";
 import { VaultEditor } from "./VaultEditor";
 import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
 
@@ -20,7 +21,7 @@ import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
  * The Vault surface (spec #680; `docs/architecture.md` § Vault surface).
  * The left pane is tabbed: *files* (the vault as a tree, a Kind glyph per
  * file, folders that fold, and *new note*) and *search* (full text over note
- * bodies, #697). The editor and the backlinks fill the other two panes.
+ * bodies, #697). The editor and the backlinks pane fill the other two panes.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
   return (
@@ -33,6 +34,7 @@ export function VaultSurface({ path }: { path: string | undefined }) {
           <OpenFile path={path} />
         )}
       </div>
+      {path !== undefined && <VaultBacklinks key={path} path={path} />}
     </section>
   );
 }
