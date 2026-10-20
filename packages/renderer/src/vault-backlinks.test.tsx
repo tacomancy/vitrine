@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -120,5 +120,71 @@ describe("the backlinks pane", () => {
     });
     expect(await screen.findByText("not known")).toBeDefined();
     expect(screen.queryByText("Nothing links here yet.")).toBeNull();
+  });
+});
+
+// On a Source the rows group by the highlight they target (#702): the
+// annotation-level backlinks Prompt 7 asks for, file-level links beneath.
+describe("a Source's backlinks", () => {
+  const link = (path: string, block: string | null) => ({
+    path,
+    kind: null,
+    field: null,
+    date: WHEN,
+    snippet: `from ${path}`,
+    block,
+  });
+  const GROUPED = [
+    link("notes/A.md", null),
+    link("notes/B.md", "h10"),
+    link("notes/C.md", "h2"),
+    link("notes/D.md", "h2"),
+  ];
+
+  it("groups by ^h<n> in highlight order, each group's files under it, file-level links last", async () => {
+    open({ "vault.backlinks": GROUPED });
+    await list();
+    const groups = screen.getAllByRole("group");
+    expect(groups.map((g) => g.getAttribute("aria-label"))).toEqual([
+      "^h2",
+      "^h10",
+      "file-level",
+    ]);
+    expect(
+      groups.map((g) =>
+        within(g)
+          .getAllByRole("option")
+          .map((o) => o.textContent)
+          .join("|")
+      )
+    ).toEqual([
+      expect.stringMatching(/from notes\/C\.md.*from notes\/D\.md/),
+      expect.stringContaining("from notes/B.md"),
+      expect.stringContaining("from notes/A.md"),
+    ]);
+  });
+
+  it("keeps one keyboard list across the groups, in the order they are drawn", async () => {
+    open({ "vault.backlinks": GROUPED });
+    const box = await list();
+    fireEvent.keyDown(box, { key: "End" });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(window.location.hash).toBe("#/vault/notes/A.md");
+    const next = await list();
+    fireEvent.keyDown(next, { key: "ArrowDown" });
+    fireEvent.keyDown(next, { key: "Enter" });
+    expect(window.location.hash).toBe("#/vault/notes/D.md");
+  });
+
+  it("stays flat when no link targets a highlight", async () => {
+    open();
+    await list();
+    expect(screen.queryAllByRole("group")).toEqual([]);
+  });
+
+  it("names only the file-level group when that is all there is, as flat", async () => {
+    open({ "vault.backlinks": [link("notes/A.md", null)] });
+    await list();
+    expect(screen.queryAllByRole("group")).toEqual([]);
   });
 });

@@ -252,6 +252,7 @@ function Files({
   const tree = useQuery(trpc.vault.tree.queryOptions());
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const [chosenKey, setChosenKey] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
 
   const files = tree.data ?? [];
   const rows = rowsOf(folderOf(files), folded);
@@ -322,6 +323,9 @@ function Files({
   return (
     <>
       {naming && <NewNote onDone={onNamed} />}
+      {attaching !== null && (
+        <AttachPdf stub={attaching} onDone={() => setAttaching(null)} />
+      )}
       {rows.length === 0 ? (
         <FirstSlot voice={voice} claim="No notes here yet.">
           Nothing in this vault is a note yet. New note starts one in notes/.
@@ -379,12 +383,98 @@ function Files({
                 {annotations !== undefined && (
                   <span className={styles.count}>{annotations}</span>
                 )}
+                {row.type === "file" && row.file.kind === "source" && (
+                  <button
+                    type="button"
+                    className={styles.command}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      pushRoute({ surface: "source", path: row.file.path });
+                    }}
+                  >
+                    open in reader
+                  </button>
+                )}
+                {row.type === "file" && row.file.kind === "source-stub" && (
+                  <button
+                    type="button"
+                    className={styles.command}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setAttaching(row.file.path);
+                    }}
+                  >
+                    attach a PDF
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
       )}
     </>
+  );
+}
+
+/**
+ * A stub's *attach a PDF* (#702): the Reader beat's own write, the one the
+ * Loose Ends stub row calls, so a stub becomes a Source here by exactly the
+ * act it does there — the core attaches and ingests, this only chooses. The
+ * list is the PDFs no Source names; a refusal is an alert and leaves the
+ * choice open to try another (ADR 0033).
+ */
+function AttachPdf({ stub, onDone }: { stub: string; onDone: () => void }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [attached, setAttached] = useState<string | null>(null);
+  const refusal = useRefusal();
+  const waiting = useQuery(trpc.sources.unnamedPdfs.queryOptions());
+  const attach = useMutation(
+    trpc.sources.attachToStub.mutationOptions({
+      onSuccess: (_reply, { pdf }) => {
+        setAttached(pdf);
+        void queryClient.invalidateQueries(trpc.vault.tree.pathFilter());
+      },
+      onError: (error) => refusal.say(error.message),
+    })
+  );
+  const leaf = (path: string) => path.replace(/^.*\//, "");
+  return (
+    <div
+      className={styles.naming}
+      role="group"
+      aria-label={`Attach a PDF to ${leaf(stub)}`}
+    >
+      {attached !== null ? (
+        <p role="status" className={styles.refusal}>
+          Attached {leaf(attached)} — {leaf(stub)} is a Source now.
+        </p>
+      ) : (
+        <ul className={styles.pdfs}>
+          {(waiting.data ?? []).map((pdf) => (
+            <li key={pdf}>
+              <button
+                type="button"
+                className={styles.command}
+                onClick={() => {
+                  refusal.forget();
+                  if (!attach.isPending) attach.mutate({ pdf, stub });
+                }}
+              >
+                {leaf(pdf)}
+              </button>
+            </li>
+          ))}
+          {waiting.data?.length === 0 && (
+            <li>No PDF in the folder is waiting for a Source.</li>
+          )}
+        </ul>
+      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
+      <button type="button" className={styles.command} onClick={onDone}>
+        {attached === null ? "cancel" : "done"}
+      </button>
+    </div>
   );
 }
 

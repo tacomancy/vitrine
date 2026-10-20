@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { Backlink } from "core";
 import { useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -18,6 +19,38 @@ const day = (when: number) =>
 // view (ADR 0030), and a path is not id-safe.
 const rowId = (index: number) => `vault-backlink-row-${index}`;
 
+type Group = { label: string; rows: Backlink[] };
+
+/**
+ * A Source's backlinks group by the highlight they target (`^h<n>`, in
+ * highlight order), file-level links beneath — "which of my notes depend on
+ * this passage" (spec #680 story 24). Rows with no block anywhere stay flat:
+ * a lone *file-level* heading would group nothing. `rows` is the order drawn,
+ * which is the order the keyboard moves in, so a choice index and an id mean
+ * the same row whether or not the list is grouped.
+ */
+function arranged(data: Backlink[]): {
+  rows: Backlink[];
+  groups: Group[] | null;
+} {
+  if (data.every((row) => row.block === null)) {
+    return { rows: data, groups: null };
+  }
+  const byBlock = new Map<string, Backlink[]>();
+  const fileLevel: Backlink[] = [];
+  for (const row of data) {
+    if (row.block === null) fileLevel.push(row);
+    else byBlock.set(row.block, [...(byBlock.get(row.block) ?? []), row]);
+  }
+  const groups = [...byBlock]
+    .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))
+    .map(([block, rows]) => ({ label: `^${block}`, rows }));
+  if (fileLevel.length > 0) {
+    groups.push({ label: "file-level", rows: fileLevel });
+  }
+  return { rows: groups.flatMap((group) => group.rows), groups };
+}
+
 /**
  * The right pane: the files that link to the open one (spec #680;
  * `docs/architecture.md` § Vault surface). Linked backlinks only — the core
@@ -29,7 +62,7 @@ export function VaultBacklinks({ path }: { path: string }) {
   const backlinks = useQuery(trpc.vault.backlinks.queryOptions({ path }));
   const status = useVaultStatusLines();
   const [chosen, setChosen] = useState(0);
-  const rows = backlinks.data ?? [];
+  const { rows, groups } = arranged(backlinks.data ?? []);
   const at = Math.min(chosen, Math.max(rows.length - 1, 0));
   const activeId = rows.length === 0 ? undefined : rowId(at);
   useChosenInView(activeId);
@@ -64,6 +97,33 @@ export function VaultBacklinks({ path }: { path: string }) {
     event.preventDefault();
   };
 
+  const renderRow = (row: Backlink, index: number) => {
+    const mark = markOf(row.kind ?? "note");
+    const kind = mark?.label ?? row.kind ?? "note";
+    return (
+      <li
+        key={`${row.path}:${index}`}
+        id={rowId(index)}
+        role="option"
+        aria-selected={index === at}
+        className={`${styles.row} ${styles.backlink}`}
+        onClick={() => open(index)}
+      >
+        <span className={styles.glyph} aria-hidden="true">
+          {mark?.glyph ?? "·"}
+        </span>
+        <span className={styles.backlinkBody}>
+          <span className={styles.snippet}>{row.snippet}</span>
+          <span className={styles.kindLine}>
+            {[kind, row.field, day(row.date)]
+              .filter((part) => part !== null)
+              .join(" · ")}
+          </span>
+        </span>
+      </li>
+    );
+  };
+
   const voice = voiceOf({
     incomplete: backlinks.isError,
     answered: backlinks.data !== undefined,
@@ -88,32 +148,18 @@ export function VaultBacklinks({ path }: { path: string }) {
           tabIndex={0}
           onKeyDown={onKeyDown}
         >
-          {rows.map((row, index) => {
-            const mark = markOf(row.kind ?? "note");
-            const kind = mark?.label ?? row.kind ?? "note";
-            return (
-              <li
-                key={`${row.path}:${index}`}
-                id={rowId(index)}
-                role="option"
-                aria-selected={index === at}
-                className={`${styles.row} ${styles.backlink}`}
-                onClick={() => open(index)}
-              >
-                <span className={styles.glyph} aria-hidden="true">
-                  {mark?.glyph ?? "·"}
-                </span>
-                <span className={styles.backlinkBody}>
-                  <span className={styles.snippet}>{row.snippet}</span>
-                  <span className={styles.kindLine}>
-                    {[kind, row.field, day(row.date)]
-                      .filter((part) => part !== null)
-                      .join(" · ")}
-                  </span>
-                </span>
-              </li>
-            );
-          })}
+          {groups === null
+            ? rows.map(renderRow)
+            : groups.map((group) => (
+                <li key={group.label} role="presentation">
+                  <h3 className={styles.groupHead} aria-hidden="true">
+                    {group.label}
+                  </h3>
+                  <ul role="group" aria-label={group.label}>
+                    {group.rows.map(renderRow)}
+                  </ul>
+                </li>
+              ))}
         </ul>
       )}
     </aside>
