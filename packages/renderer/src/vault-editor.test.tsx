@@ -177,6 +177,11 @@ describe("what the editor colours", () => {
     }
     // The frontmatter is source: its `# not a heading` is not a heading.
     expect(box.querySelectorAll("[class*='h1']")).toHaveLength(0);
+    expect(
+      Array.from(box.querySelectorAll("span")).some((span) =>
+        /frontmatter/.test(span.className)
+      )
+    ).toBe(true);
     expect(coloured("[[Idea]]")[0]!.className).toMatch(/wikilink/);
     expect(coloured("#ml/probing")[0]!.className).toMatch(/tag/);
   });

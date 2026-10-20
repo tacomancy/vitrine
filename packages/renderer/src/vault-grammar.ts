@@ -38,6 +38,7 @@ const CARRIAGE_RETURN = 13;
 const SPACE = 32;
 const TAB = 9;
 const DOLLAR = 36;
+const COLON = 58;
 
 export const vaultTags = {
   tag: HighlightTag.define("vaultTag"),
@@ -129,7 +130,7 @@ function parseInlineFieldAt(
   while (keyEnd < cx.end && isInlineFieldKeyCharacter(cx.char(keyEnd))) {
     keyEnd++;
   }
-  if (cx.char(keyEnd) !== 58 || cx.char(keyEnd + 1) !== 58) return -1;
+  if (cx.char(keyEnd) !== COLON || cx.char(keyEnd + 1) !== COLON) return -1;
   // The rest of the line decides, exactly as the outline asks it.
   const lineEnd = lineEndFrom(cx, pos);
   const field = parseInlineField(cx.slice(pos, lineEnd));
@@ -231,7 +232,8 @@ export const vaultGrammar: MarkdownConfig = {
       Wikilink: vaultTags.wikilink,
       BlockId: vaultTags.blockId,
       "Paragraph/InlineField/InlineFieldKey": vaultTags.fieldKey,
-      // A `key::` in a callout is prose to the outline, so it is not coloured.
+      // A `key::` in a callout is prose to the outline, so it is not coloured:
+      // `plain` has no entry in the highlight style, which is what leaves it bare.
       "Blockquote/Paragraph/InlineField/InlineFieldKey": vaultTags.plain,
     }),
   ],
@@ -255,7 +257,7 @@ export interface GrammarItems {
 }
 
 /**
- * What the tree finds, as the parity test and the click handlers read it.
+ * What the tree finds, as the parity test reads it (the click handlers will read the same).
  * `text` is the same editor text the tree was parsed from.
  */
 export function itemsIn(tree: Tree, text: string): GrammarItems {
