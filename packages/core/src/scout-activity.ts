@@ -418,7 +418,13 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
     notParsing: count(
       (h) =>
         h.voice === "wrong" &&
-        (h.kind === null || h.kind === "parse" || h.kind === "extraction")
+        (h.kind === null ||
+          h.kind === "parse" ||
+          h.kind === "extraction" ||
+          // Tags that compile to nothing asked no source anything, but the
+          // Filter did not read into a query: counted here so a broken Scout
+          // is never in no count at all.
+          h.kind === "tags")
     ),
     notReached: count(
       (h) =>

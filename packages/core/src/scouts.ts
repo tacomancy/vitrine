@@ -62,6 +62,8 @@ export type ScoutDeps = {
 
 export type RunSummary = {
   runId: number;
+  /** Which Tags a Tag Filter run went on without, null when it left none out. */
+  note?: string | null;
   outcome: "ok" | "failed";
   errorKind: RunErrorKind | null;
   fetched: number;
@@ -106,10 +108,13 @@ export async function runScout(
   // A Tag Filter is compiled here, at the run, from the Lexicon as it stands:
   // a Seed or Exclusion made since the last run changes this query and
   // nothing else (spec #678 decisions 2 and 6).
-  const asked =
-    scout.tags === undefined
-      ? scout.query
-      : await compileTags(deps, scout.tags);
+  const compiled =
+    scout.tags === undefined ? undefined : await compileTags(deps, scout.tags);
+  const asked = compiled === undefined ? scout.query : compiled.query;
+  const note =
+    compiled === undefined || compiled.left.length === 0 || asked === null
+      ? null
+      : `Left out: ${compiled.left.join("; ")}.`;
   const now = deps.now();
   const last = queue
     .prepare(
@@ -136,14 +141,28 @@ export async function runScout(
   const runId = Number(
     queue
       .prepare(
-        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
       )
-      .run(scoutId, iso(now), iso(from), iso(now), retroactive ? 1 : 0, asked)
-      .lastInsertRowid
+      .run(
+        scoutId,
+        iso(now),
+        iso(from),
+        iso(now),
+        retroactive ? 1 : 0,
+        asked,
+        note
+      ).lastInsertRowid
   );
 
   let summary: RunSummary;
   try {
+    // Never an `ok` run with zero results: nothing to ask is a failure
+    // naming the Tags, retried at the next check like `network`.
+    if (asked === null) {
+      throw new TagsError(
+        `Nothing was checked: ${compiled!.left.join("; ")}. ${WAY_OUT}`
+      );
+    }
     const read =
       scout.source.kind === "watched"
         ? await readWatched(deps.watched, queue, {
@@ -184,11 +203,16 @@ export async function runScout(
       ...arrived,
       unverified: read.facts?.unverified ?? 0,
       truncated: read.moreMatched,
+      note,
     };
   } catch (cause) {
     // Only what a source names is its fault; anything else is a bug in this
     // module and must not be filed as "the answer did not read".
-    if (!(cause instanceof ArxivError || cause instanceof WatchedError)) {
+    if (!(
+      cause instanceof ArxivError ||
+      cause instanceof WatchedError ||
+      cause instanceof TagsError
+    )) {
       queue
         .prepare("DELETE FROM scout_runs WHERE id = ? AND finished IS NULL")
         .run(runId);
@@ -210,36 +234,84 @@ export async function runScout(
       unverified:
         cause instanceof WatchedError ? (cause.facts.unverified ?? 0) : 0,
       truncated: 0,
+      note,
     };
   }
   events.emit({ type: "scoutFinished", scoutId, runId });
   return summary;
 }
 
+/** What a Tag Filter compiles to now: the query (null when no Tag has Terms) and why each Tag that did not compile was left out. */
+export type TagsCompiled = { query: string | null; left: string[] };
+
 /**
  * The query a Tag Filter asks: the Terms in use of each Tag as written, each
  * Tag at its own depth, so a parent searches the union of its descendants'
  * papers and a child never takes its parent's Terms. A Tag with no Terms is
- * named and refused rather than dropped, so a typo or an emptied Lexicon
- * cannot look like a quiet field.
+ * named in `left` rather than dropped silently, so a typo, a renamed Tag or an
+ * emptied Lexicon cannot look like a quiet field: the run goes on without it
+ * and says so, or fails by name when none compile (spec #678 decision 7).
  */
 export async function compileTags(
   deps: Pick<ScoutDeps, "vaultPath" | "index">,
   tags: readonly string[]
-): Promise<string> {
+): Promise<TagsCompiled> {
   const edits = await readEdits(deps.vaultPath);
   const terms = new Set<string>();
+  const left: string[] = [];
   for (const tag of tags) {
     const used = termsInUse(deps.index, tag, edits);
     if (used.length === 0) {
-      throw new VaultError(
-        "refused",
-        `Tag ${tag} has no Terms to search: seed one in its Lexicon, or give the Scout a Query.`
+      // Gone: nothing in the vault carries it (nor a descendant) and the
+      // Lexicon holds no edit for it, so it was renamed or removed. Else the
+      // Tag is there and its Lexicon is simply empty.
+      left.push(
+        tagExists(deps.index, tag, edits)
+          ? `Tag ${tag} has no Terms to search`
+          : `Tag ${tag} is gone`
       );
     }
     for (const term of used) terms.add(term);
   }
-  return compileArxivQuery([...terms]);
+  return {
+    query: terms.size === 0 ? null : compileArxivQuery([...terms]),
+    left,
+  };
+}
+
+const WAY_OUT = "Seed a Term in its Lexicon, or give the Scout a Query.";
+
+/** A Tag with nothing to compile refused where a researcher is choosing it (save, *try*): the reason and the way out. */
+export async function compileTagsOrRefuse(
+  deps: Pick<ScoutDeps, "vaultPath" | "index">,
+  tags: readonly string[]
+): Promise<string> {
+  const { query, left } = await compileTags(deps, tags);
+  if (left.length > 0 || query === null) {
+    throw new VaultError("refused", `${left.join("; ")}. ${WAY_OUT}`);
+  }
+  return query;
+}
+
+function tagExists(
+  index: ScoutDeps["index"],
+  tag: string,
+  edits: Awaited<ReturnType<typeof readEdits>>
+): boolean {
+  if (edits[tag] !== undefined) return true;
+  const parsed = parseTag(tag);
+  if (!("canonical" in parsed)) return false;
+  return (
+    index.select(
+      "SELECT 1 FROM tags WHERE canonical = ? OR canonical LIKE ? LIMIT 1",
+      parsed.canonical,
+      `${parsed.canonical}/%`
+    ).length > 0
+  );
+}
+
+class TagsError extends Error {
+  readonly kind = "tags" as const;
 }
 
 export type WaitingScout = { id: string; name: string; message: string };

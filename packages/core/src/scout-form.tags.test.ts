@@ -102,7 +102,9 @@ const withQueryScout = {
 
 describe("saving a Tag Filter", () => {
   it("makes a Scout of Tags as written, run by nothing until it is due", async () => {
-    const c = await opened({ ".vitrine/lexicon.json": lexicon({ ml: ["a"] }) });
+    const c = await opened({
+      ".vitrine/lexicon.json": lexicon({ ml: ["a"], bio: ["b"] }),
+    });
 
     const saved = await c.save({ tags: [" ml ", "bio", "ml"] });
 
@@ -244,7 +246,9 @@ describe("editing a Tag list", () => {
 
 describe("compiling at the run, not at the save", () => {
   it("lets a Seed made after the save change the next run's query and run nothing", async () => {
-    const c = await opened({ ".vitrine/lexicon.json": lexicon({ ml: ["a"] }) });
+    const c = await opened({
+      ".vitrine/lexicon.json": lexicon({ ml: ["a"], bio: ["b"] }),
+    });
     await c.save({ tags: ["ml"] });
 
     await c.c.mutate("lexicon.seed", { tag: "ml", term: "later" });

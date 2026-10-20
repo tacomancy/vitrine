@@ -20,7 +20,7 @@ import {
 import { faultSentence, lastWindow } from "./scout-health.js";
 import { dueUnder } from "./scout-schedule.js";
 import {
-  compileTags,
+  compileTagsOrRefuse,
   runScout,
   type RunSummary,
   type ScoutDeps,
@@ -131,6 +131,11 @@ async function write(
   if (watched && !WEB_ADDRESS.test(query)) {
     throw new VaultError("refused", ADDRESS_REFUSAL);
   }
+  // Only a Tag this save adds is refused: a Tag already in the file whose
+  // Lexicon later emptied must not trap the Scout's other edits (its run
+  // fails by name instead).
+  const added = given.filter((t) => !(before?.scout.tags ?? []).includes(t));
+  if (added.length > 0) await compileTagsOrRefuse(deps, added);
   const queueEdits = queueBehaviour(form);
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
 
@@ -418,7 +423,7 @@ export async function tryTags(
   if (tags.length === 0) {
     throw new VaultError("refused", "There are no Tags to try.");
   }
-  return tryQuery(deps, await compileTags(deps, tags));
+  return tryQuery(deps, await compileTagsOrRefuse(deps, tags));
 }
 
 export type TriedWindow =
