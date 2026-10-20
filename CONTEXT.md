@@ -167,6 +167,14 @@ A file that links to the open one, listed in the Vault's right pane with the lin
 **Unlinked mention**:
 A file whose text names the open file — its basename, as whole words — without linking it; listed beneath the Backlinks in the Vault's right pane and found through the full-text index. A file with a resolved link to the open one is a Backlink and never also a mention; one whose only link is ambiguous may show as a mention.
 
+**Ring**:
+One hop's distance from the open file in the Vault graph view: the open file at the centre, the files it links to or is linked from on the first Ring, theirs on the second. A node's place is decided by its Ring and its sort position alone, never by simulation.
+_Avoid_: Layer, cluster, level
+
+**Not drawn** (links):
+The open file's neighbourhood links the graph view leaves out because they resolve to no single file: an ambiguous link, or an unresolved one. Counted and listed beside the graph, each with the file it is in and the target as written, so a missing line is never mistaken for no link.
+_Avoid_: Hidden, broken (an unresolved link is the broken one; *Not drawn* covers both states)
+
 **Unmatched annotation**:
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.
 
