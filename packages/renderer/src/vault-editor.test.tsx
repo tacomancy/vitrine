@@ -343,6 +343,45 @@ describe("typing saves", () => {
     });
   });
 
+  it("saves when the window is closing, and only typing that has not been saved", async () => {
+    const replace = vi.fn(() => SAVED("h2", "a\nb\n"));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    await editor();
+    act(() => void window.dispatchEvent(new Event("pagehide")));
+    await act(async () => {});
+    expect(replace).not.toHaveBeenCalled();
+
+    type("b\n");
+    act(() => void window.dispatchEvent(new Event("pagehide")));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace).toHaveBeenCalledWith({
+      path: "plain.md",
+      content: "a\nb\n",
+      basedOn: "h",
+    });
+  });
+
+  it("a write that failed is an alert naming the file and the reason, with no path from the machine", async () => {
+    const replace = vi.fn(() => {
+      throw new Error("Couldn't write plain.md: no space left on device");
+    });
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.blur(box);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe(
+      "Couldn't write plain.md: no space left on device"
+    );
+    expect(textOf(box)).toBe("a\nb\n");
+  });
+
   it("a refused save is said in an alert and the typing stays; a changed file is not overwritten", async () => {
     const replace = vi.fn(() => ({
       written: false,

@@ -248,6 +248,30 @@ describe("vault.replaceFile never refuses on shape", () => {
     expect(c).toBeDefined();
   });
 
+  it("a Working answer heading deleted by typing is said by the file's own page afterwards", async () => {
+    const { edit, c } = await opened(
+      { [RQ]: question("Probably both.") },
+      () => t0
+    );
+    const problems = async () =>
+      (
+        await c.query<{ problems: { problem: string; block?: string }[] }>(
+          "researchQuestions.page",
+          { path: RQ }
+        )
+      ).result!.data.problems;
+    expect(await problems()).toEqual([]);
+
+    await edit(RQ, (t) => t.replace("## Working answer\n", ""));
+
+    expect(await problems()).toEqual([
+      expect.objectContaining({
+        problem: "sectionMissing",
+        block: "Working answer",
+      }),
+    ]);
+  });
+
   it("a `kind:` changed by hand is re-read as found: the typing lands and nothing is recorded", async () => {
     const { edit, bytes } = await opened(
       { [RQ]: question("Probably both.") },
