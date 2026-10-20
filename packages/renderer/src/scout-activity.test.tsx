@@ -91,7 +91,7 @@ const BROKEN: ActivityRow = {
   kind: "scout",
   id: "broken",
   name: "Broken by arXiv",
-  source: { kind: "arxiv", query: "all:broken" },
+  source: { kind: "arxiv", query: "all:broken", tags: null },
   cadence: "daily",
   dueUnder: [],
   assigned: [],
@@ -126,7 +126,7 @@ const QUIET: ActivityRow = {
   kind: "scout",
   id: "quiet",
   name: "Quiet by design",
-  source: { kind: "arxiv", query: "all:quiet" },
+  source: { kind: "arxiv", query: "all:quiet", tags: null },
   cadence: "weekly",
   dueUnder: [],
   assigned: [],
@@ -531,7 +531,7 @@ describe("a long Query", () => {
     const query =
       `(cat:q-bio.NC OR cat:cs.LG) AND ${"all:sleep ".repeat(20)}`.trim();
     open({
-      ...fleet([{ ...QUIET, source: { kind: "arxiv", query } }]),
+      ...fleet([{ ...QUIET, source: { kind: "arxiv", query, tags: null } }]),
     });
 
     const [row] = await tableRows();

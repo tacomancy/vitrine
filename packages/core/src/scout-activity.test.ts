@@ -133,7 +133,7 @@ describe("scouts.activity — a row for each readable Scout", () => {
         kind: "scout",
         id: "sleep",
         name: "Sleep and memory",
-        source: { kind: "arxiv", query: "all:sleep" },
+        source: { kind: "arxiv", query: "all:sleep", tags: null },
         cadence: "daily",
         // What a row's edit writes back, which `scout-activity.edit.test.ts` pins.
         dueUnder: [],
@@ -186,7 +186,7 @@ describe("scouts.activity — what a Scout watches", () => {
       rows.map((row) => row.kind === "scout" && [row.source, row.cadence])
     ).toEqual([
       [{ kind: "watched", url: "https://lab.example/publications" }, "monthly"],
-      [{ kind: "arxiv", query: "all:sleep" }, "weekly"],
+      [{ kind: "arxiv", query: "all:sleep", tags: null }, "weekly"],
     ]);
     // A page saved but never checked says why it has not looked, in the rail's words.
     expect(rows[0]!.health).toEqual({

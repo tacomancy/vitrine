@@ -33,7 +33,7 @@ const scout = (id: string, name: string): ScoutRow => ({
   kind: "scout",
   id,
   name,
-  source: { kind: "arxiv", query: `all:${id}` },
+  source: { kind: "arxiv", query: `all:${id}`, tags: null },
   cadence: "daily",
   dueUnder: [],
   assigned: [],
