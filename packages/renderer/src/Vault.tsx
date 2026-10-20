@@ -13,7 +13,7 @@ import { markOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
-import { VaultEditor } from "./VaultEditor";
+import { VaultEditor, type EditorFile, type SavedText } from "./VaultEditor";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
@@ -71,23 +71,65 @@ function OpenFile({ path }: { path: string }) {
       },
     });
   }, [failure, path]);
+  // The file the editor was last handed whole: `file.data` stands in for the
+  // next file while it loads, and a save must go to the path its text came
+  // from, so the pair is kept as one (state derived during render).
+  const [loaded, setLoaded] = useState<EditorFile | null>(null);
+  if (
+    file.data !== undefined &&
+    !file.isPlaceholderData &&
+    (loaded?.path !== path || loaded.hash !== file.data.hash)
+  ) {
+    setLoaded({ path, text: file.data.text, hash: file.data.hash });
+  }
+  const refusal = useRefusal();
+  const replace = useMutation(trpc.vault.replaceFile.mutationOptions());
+  const saveFile = async (
+    at: string,
+    content: string,
+    basedOn: string
+  ): Promise<SavedText> => {
+    refusal.forget();
+    try {
+      const saved = await replace.mutateAsync({ path: at, content, basedOn });
+      if (!saved.written) {
+        refusal.say(saved.detail);
+        return null;
+      }
+      // The typing is on disk whatever else happened: a Revision that could
+      // not be recorded is said, never a reason to lose or repeat the save.
+      if (saved.unrecorded !== undefined) {
+        refusal.say(
+          `Saved, but its history was not recorded: ${saved.unrecorded}`
+        );
+      }
+      return {
+        hash: saved.hash,
+        text: saved.content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n"),
+      };
+    } catch (error) {
+      refusal.say(error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  };
   if (file.data === undefined) return null;
   // While the next file loads the editor still holds the last one, so the
   // header, which names `path`, says nothing rather than the old file's facts.
-  const loaded = file.isPlaceholderData ? null : file.data;
-  const words = loaded === null ? 0 : wordsIn(loaded.text);
+  const loadedNow = file.isPlaceholderData ? null : file.data;
+  const words = loadedNow === null ? 0 : wordsIn(loadedNow.text);
   return (
     <>
       <header className={styles.fileHeader}>
         <h1 className={styles.path}>{path}</h1>
-        {loaded !== null && (
+        {loadedNow !== null && (
           <span className={styles.meta}>
-            edited {edited(loaded.mtime)} · {words}{" "}
+            edited {edited(loadedNow.mtime)} · {words}{" "}
             {words === 1 ? "word" : "words"}
           </span>
         )}
       </header>
-      <VaultEditor text={file.data.text} />
+      <RefusalLine refusal={refusal} className={styles.refusal} />
+      <VaultEditor file={loaded} save={saveFile} />
     </>
   );
 }
