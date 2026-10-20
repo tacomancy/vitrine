@@ -19,6 +19,10 @@
 // 9. Following links: a Source's own surface, an unresolved link, a scheme
 //    that is not followed.
 //
+// The launches share one vault, in order: 3 leaves a duplicated section in
+// the Research Question, and 7 and 8 both edit the Reading log. VITRINE_CREDENTIALS
+// keeps any key in memory, though none is stored.
+//
 // Each drive throws when the page, or the file on disk, is not what its step
 // claims, so a green run is the evidence. KEEP=1 leaves the scratch vault.
 import { spawn } from "node:child_process";

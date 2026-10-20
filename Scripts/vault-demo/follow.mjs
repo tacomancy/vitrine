@@ -16,11 +16,17 @@ export default async (page) => {
   await page.wait("!location.hash.startsWith('#/vault')", 10000);
   const landed = await page.eval("location.hash");
   console.log(`9a. [[rasch2013]] LANDED: ${landed}`);
-  expect(landed.includes("source"), "a Source lands on its own surface");
+  expect(
+    landed === "#/source/sources/rasch2013.md",
+    "a Source lands on its own surface"
+  );
 
   await openFile(page, LINKS_NOTE);
   await word(page, '[data-link="never written"]');
-  await page.wait("document.body.innerText.includes('never written')", 10000);
+  await page.wait(
+    "document.body.innerText.includes('has no file in this vault')",
+    10000
+  );
   await word(page, '[data-href^="file:"]');
   await page.wait(
     "[...document.querySelectorAll('[role=alert]')].some(a=>/will not follow file/.test(a.innerText))",

@@ -18,7 +18,8 @@ export default async (page) => {
     `TREE: ${rows.map((r) => `${r.glyph ?? ""} ${r.label}`).join(" | ")}`
   );
   const glyphs = new Set(rows.map((r) => r.glyph));
-  for (const g of ["◆", "●", "○"])
+  // Question, Research Question, Hypothesis, Experiment, Source, stub.
+  for (const g of ["◆", "●", "○", "■", "▲", "▼"])
     expect(glyphs.has(g), `the tree draws ${g} for a Kind`);
   expect(
     rows.some((r) => /^rasch2013, .*2 annotations$/.test(r.label)),

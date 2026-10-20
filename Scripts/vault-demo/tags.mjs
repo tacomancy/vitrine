@@ -15,7 +15,12 @@ export default async (page) => {
     `${row("memory")}?.getAttribute('aria-label')`
   );
   console.log(`5. MEMORY: ${memory}`);
-  expect(memory !== undefined && memory !== null, "a memory node");
+  const [, inclusive, exclusive] =
+    /(\d+) in all, (\d+) at this level/.exec(memory ?? "") ?? [];
+  expect(
+    Number(inclusive) > Number(exclusive),
+    "a parent shows its inclusive count apart from its own"
+  );
   await page.eval(`${row("memory")}.click()`);
   await page.wait(
     "!!document.querySelector('[aria-label^=\"Files tagged\"]')",
@@ -37,5 +42,8 @@ export default async (page) => {
     "document.querySelector('[aria-label=\"Invalid tags\"]').innerText"
   );
   console.log(`5. INVALID: ${invalid.replace(/\s+/g, " ")}`);
-  expect(invalid.includes("2024"), "the refused tag is named");
+  expect(
+    invalid.includes("2024") && invalid.includes("Lab chatter"),
+    "the refused tag is named"
+  );
 };

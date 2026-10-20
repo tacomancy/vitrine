@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const vaultPath = (rel) => join(process.env.VAULT_DEMO_VAULT, rel);
+const vaultPath = (rel) => join(process.env.VAULT_DEMO_VAULT, rel);
 export const read = (rel) => readFileSync(vaultPath(rel), "utf8");
 export const write = (rel, text) => writeFileSync(vaultPath(rel), text);
 export const expect = (ok, what) => {
@@ -22,8 +22,6 @@ export async function openFile(page, rel) {
     15000
   );
 }
-
-export const editorText = (page) => page.eval(`${EDITOR}.innerText`);
 
 /** A real click at the left of the element `js` evaluates to. */
 export async function clickAt(page, js) {
