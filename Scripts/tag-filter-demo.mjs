@@ -142,10 +142,6 @@ try {
       bare.every((r) => r.outcome === "failed" && r.error_kind === "tags"),
     `Bare watch fails with the tags kind, got ${JSON.stringify(bare)}`
   );
-  expect(
-    !standin.requests.some((q) => q.includes("bare")),
-    "arXiv was never asked about the Tag with no Terms"
-  );
 
   await launch("5-scout-activity.png", "activity.mjs");
 

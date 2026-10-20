@@ -6,8 +6,10 @@
 import { cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const paper = (tag, n, phrase, second) =>
-  `---\nkind: source\ncitekey: ${tag}${n}\ntitle: ${phrase} study ${n}\nyear: 2024\ntags:\n  - ${tag}\n---\n> The ${phrase} appears with ${second} in trial ${["amber", "birch", "cobalt"][n]}${tag}.\n> A second sentence about ${["amber", "birch", "cobalt"][n]}${tag}z and ${second}.\n`;
+// The word before each Tag name is what makes the three papers differ, so the
+// Lexicon has Terms (a phrase must recur across papers) beside noise to rank.
+const paper = (tag, n, phrase, partner) =>
+  `---\nkind: source\ncitekey: ${tag}${n}\ntitle: ${phrase} study ${n}\nyear: 2024\ntags:\n  - ${tag}\n---\n> The ${phrase} appears with ${partner} in trial ${["amber", "birch", "cobalt"][n]}${tag}.\n> A partner sentence about ${["amber", "birch", "cobalt"][n]}${tag}z and ${partner}.\n`;
 
 export function tagFilterVault(fixture, vault) {
   cpSync(fixture, vault, { recursive: true });
