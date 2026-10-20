@@ -1,3 +1,4 @@
+import { syntaxHighlighting } from "@codemirror/language";
 import {
   Annotation,
   ChangeSet,
@@ -7,6 +8,8 @@ import {
 import { EditorView, keymap } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
+import { vaultMarkdown } from "./vault-grammar";
+import { vaultHighlight } from "./vault-highlight";
 
 /** Obsidian's pause: typing that stops for this long is saved. */
 export const IDLE_MS = 2000;
@@ -146,6 +149,11 @@ export function VaultEditor({
             "aria-multiline": "true",
           }),
           EditorView.lineWrapping,
+          // The parse is of the editor's LF text, so a CRLF file needs no
+          // care here; the tags and links it colours are the ones the index
+          // counts (`vault-grammar.parity.test.ts`).
+          vaultMarkdown(),
+          syntaxHighlighting(vaultHighlight),
           keymap.of([
             {
               key: "Mod-s",

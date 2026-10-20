@@ -137,6 +137,43 @@ describe("an Address that names nothing", () => {
   });
 });
 
+describe("what the editor colours", () => {
+  it("draws a tag and a wikilink as links, and does not colour what the index does not count", async () => {
+    open(
+      {
+        "vault.read": FILE(
+          "---\ntags: [a]\n# not a heading\n---\nSee [[Idea]] and #ml/probing, not a#b or `#code`.\n"
+        ),
+      },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    await waitFor(() =>
+      expect(box.querySelectorAll("span[class]").length).toBeGreaterThan(0)
+    );
+    const coloured = (text: string) =>
+      Array.from(box.querySelectorAll("span")).filter(
+        (span) => span.textContent === text && span.className !== ""
+      );
+    expect(coloured("[[Idea]]")).toHaveLength(1);
+    expect(coloured("#ml/probing")).toHaveLength(1);
+    // `a#b` is not a tag; a `#code` in a code span is code, not a tag.
+    for (const text of ["#b", "#code"]) {
+      for (const span of coloured(text))
+        expect(span.className).not.toMatch(/tag/);
+    }
+    // The frontmatter is source: its `# not a heading` is not a heading.
+    expect(box.querySelectorAll("[class*='h1']")).toHaveLength(0);
+    expect(
+      Array.from(box.querySelectorAll("span")).some((span) =>
+        /frontmatter/.test(span.className)
+      )
+    ).toBe(true);
+    expect(coloured("[[Idea]]")[0]!.className).toMatch(/wikilink/);
+    expect(coloured("#ml/probing")[0]!.className).toMatch(/tag/);
+  });
+});
+
 // Typing saves (#693; spec #680): on a pause, on ⌘S, on blur, and before
 // another file replaces the document, each `basedOn` the hash last read or
 // written. A Revision the core wrote in the same save is taken in, so the
