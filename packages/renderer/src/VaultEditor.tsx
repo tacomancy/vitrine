@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
+import { livePreview } from "./vault-live-preview";
 
 /**
  * One `EditorView`, for the life of the surface (`docs/architecture.md`
@@ -44,6 +45,7 @@ export function VaultEditor({ text }: { text: string }) {
           // counts (`vault-grammar.parity.test.ts`).
           vaultMarkdown(),
           syntaxHighlighting(vaultHighlight),
+          livePreview(),
         ],
       }),
     });
