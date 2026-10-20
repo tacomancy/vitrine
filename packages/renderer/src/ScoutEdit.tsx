@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import type { RunSummary, ScoutRow } from "core";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
@@ -8,7 +8,7 @@ import { useTRPC } from "./trpc";
 
 /**
  * A row's *edit*: the fields the Queue's form writes and that a Scout has —
- * a Query and the Questions it is Assigned to — opened in the row, so that
+ * a Filter (a Query or Tags) and the Questions it is Assigned to — opened in the row, so that
  * mending a poor Scout never means leaving what it just showed (spec #511
  * stories 48 and 49). It is not a second form: it is the same picker, and
  * what it saves goes through the same `scouts.save`.
@@ -43,7 +43,36 @@ export function ScoutEdit({
   // decision 5), so the field is not offered rather than offered and refused.
   const savedQuery = row.source.kind === "arxiv" ? row.source.query : null;
   const arxiv = savedQuery !== null;
+  const savedTags = row.source.kind === "arxiv" ? row.source.tags : null;
+  // Which Filter the edit writes; a Scout has one or the other (spec #678
+  // decision 1). The Tags are typed one to a line, as written in the file.
+  const [filter, setFilter] = useState<"query" | "tags">(
+    savedTags === null ? "query" : "tags"
+  );
   const [query, setQuery] = useState(savedQuery ?? "");
+  const [tagText, setTagText] = useState((savedTags ?? []).join("\n"));
+  const tags = [
+    ...new Set(
+      tagText
+        .split("\n")
+        .map((t) => t.trim())
+        .filter((t) => t !== "")
+    ),
+  ];
+  const byTags = arxiv && filter === "tags";
+  const tagsChanged =
+    savedTags === null || tags.join("\n") !== savedTags.join("\n");
+  const filterChanged = byTags
+    ? tagsChanged
+    : arxiv && (savedTags !== null || query.trim() !== savedQuery);
+  const [showCompiled, setShowCompiled] = useState(false);
+  // The compiled query is the Lexicon's to say, so it is read when asked for
+  // and never kept on the row, where it would go stale as a Seed is made.
+  const compiled = useQuery({
+    ...trpc.scouts.compiled.queryOptions({ tags }),
+    enabled: showCompiled && byTags && tags.length > 0,
+    retry: false,
+  });
   const [assigned, setAssigned] = useState(row.assigned);
   // A refusal is the user's act turned down, so it is said here, where their
   // typing is, and the form stays open with it (ADR 0033 decision 1).
@@ -56,9 +85,7 @@ export function ScoutEdit({
     trpc.scouts.save.mutationOptions({
       onSuccess: ({ run }) => {
         void queryClient.invalidateQueries(trpc.scouts.pathFilter());
-        onSaved(
-          savedWords(run, arxiv && query.trim() !== savedQuery, row.paused)
-        );
+        onSaved(savedWords(run, filterChanged, row.paused));
       },
       onError: (error) => setRefused(error.message),
     })
@@ -67,7 +94,7 @@ export function ScoutEdit({
   // it was sent with, so it is dropped when the text changes.
   const tried = useMutation(trpc.scouts.tryWindow.mutationOptions());
   const result = tried.data;
-  const ready = !arxiv || query.trim() !== "";
+  const ready = !arxiv || (byTags ? tags.length > 0 : query.trim() !== "");
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") onClose();
@@ -86,7 +113,11 @@ export function ScoutEdit({
         id: row.id,
         name: row.name,
         watching: row.source.kind,
-        query: row.source.kind === "arxiv" ? query : row.source.url,
+        query:
+          row.source.kind === "arxiv" ? (byTags ? "" : query) : row.source.url,
+        // Absent leaves a Query Scout's Filter alone; empty is the switch
+        // back from Tags to a Query (the core's `ScoutForm.tags`).
+        ...(byTags ? { tags } : savedTags !== null ? { tags: [] } : {}),
         cadence: row.cadence,
         assigned,
         lane: row.lane,
@@ -103,7 +134,53 @@ export function ScoutEdit({
       onKeyDown={onKeyDown}
       onSubmit={submit}
     >
-      {arxiv ? (
+      {arxiv && (
+        <div role="radiogroup" aria-label="Filter" className={styles.line}>
+          {(["query", "tags"] as const).map((which) => (
+            <label key={which}>
+              <input
+                type="radio"
+                name="filter"
+                checked={filter === which}
+                onChange={() => {
+                  setFilter(which);
+                  tried.reset();
+                }}
+              />
+              {which === "query" ? "by Query" : "by Tags"}
+            </label>
+          ))}
+        </div>
+      )}
+      {byTags ? (
+        <>
+          <label>
+            Tags
+            <textarea
+              rows={Math.min(Math.max(tags.length, 2), 6)}
+              autoFocus
+              value={tagText}
+              onChange={(event) => {
+                setTagText(event.target.value);
+                setShowCompiled(false);
+              }}
+            />
+          </label>
+          <p className={styles.line}>
+            <button
+              type="button"
+              disabled={tags.length === 0}
+              onClick={() => setShowCompiled(true)}
+            >
+              Show the compiled query
+            </button>
+          </p>
+          {showCompiled && compiled.data !== undefined && (
+            <code className={styles.line}>{compiled.data}</code>
+          )}
+          {compiled.isError && <p role="alert">{compiled.error.message}</p>}
+        </>
+      ) : arxiv ? (
         <label>
           Query
           <textarea
@@ -124,7 +201,7 @@ export function ScoutEdit({
           </button>
         </p>
       )}
-      {arxiv && (
+      {arxiv && !byTags && (
         <div className={styles.line}>
           {row.lastWindow === null ? (
             <p className={styles.line}>

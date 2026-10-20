@@ -143,9 +143,15 @@ export type ActivityRow =
       kind: "scout";
       id: string;
       name: string;
-      /** What it watches: an arXiv Query, or the one page a Watched source reads. */
+      /**
+       * What it watches: an arXiv Query or Tags, or the one page a Watched
+       * source reads. A Tag Filter's Filter is its Tags as written, `query`
+       * is empty, and the compiled string is read on demand (`scouts.compiled`),
+       * since it is the Lexicon's to say and changes as the Lexicon does.
+       */
       source:
-        { kind: "arxiv"; query: string } | { kind: "watched"; url: string };
+        | { kind: "arxiv"; query: string; tags: string[] | null }
+        | { kind: "watched"; url: string };
       cadence: Scout["cadence"];
       /**
        * The cadences that would make this Scout due at the next check, which
@@ -617,7 +623,7 @@ export async function readActivity(deps: {
         source:
           scout.source.kind === "watched"
             ? { kind: "watched", url: scout.source.url }
-            : { kind: "arxiv", query: scout.query },
+            : { kind: "arxiv", query: scout.query, tags: scout.tags ?? null },
         cadence: scout.cadence,
         dueUnder: dueUnder(deps.queue, scout, now),
         assigned: scout.assigned,

@@ -388,6 +388,39 @@ describe("each failure kind", () => {
     expect(await f.check(c)).toEqual(["sleep"]);
   });
 
+  describe("for a Tag Filter, drift is read from the compiled queries the runs recorded", () => {
+    const tagYaml = scoutYaml().replace(
+      "  query: all:sleep",
+      "  tags:\n    - sleep"
+    );
+    const FIRST = 'abs:"sleep" OR ti:"sleep"';
+    const CLAUSE = "Its query changed since it last ran cleanly.";
+
+    async function failedParse(failedAsked: string) {
+      const f = await fleet(serving("empty"), { "sleep.yaml": tagYaml });
+      f.seed({ started: f.at - 3 * DAY, query: FIRST });
+      f.seed({
+        started: f.at - 2 * HOUR,
+        outcome: "failed",
+        kind: "parse",
+        query: failedAsked,
+      });
+      const c = await f.start();
+      const [only] = (await f.health(c)).scouts;
+      return (only!.health as { sentence: string }).sentence;
+    }
+
+    it("names the change when the failed run asked a different compiled query than the last clean one", async () => {
+      expect(
+        await failedParse('abs:"sleep" OR ti:"sleep" OR abs:"spindle"')
+      ).toContain(CLAUSE);
+    });
+
+    it("says nothing of a change when both asked the same compiled query", async () => {
+      expect(await failedParse(FIRST)).not.toContain(CLAUSE);
+    });
+  });
+
   it("no sentence names a path or anything about the machine", () => {
     for (const k of kinds) {
       expect(k.sentence).not.toMatch(/\/|\\|Users|\.sqlite|\.yaml/);

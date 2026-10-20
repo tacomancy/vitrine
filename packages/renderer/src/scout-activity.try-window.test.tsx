@@ -29,7 +29,7 @@ const scout = (over: Partial<ScoutRow> = {}): ScoutRow => ({
   kind: "scout",
   id: "sleep",
   name: "Sleep and memory",
-  source: { kind: "arxiv", query: "all:sleep" },
+  source: { kind: "arxiv", query: "all:sleep", tags: null },
   cadence: "weekly",
   dueUnder: [],
   assigned: [],

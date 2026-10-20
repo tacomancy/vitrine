@@ -45,7 +45,7 @@ const scout = (over: Partial<ScoutRow> = {}): ScoutRow => ({
   kind: "scout",
   id: "sleep",
   name: "Sleep and memory",
-  source: { kind: "arxiv", query: "all:sleep" },
+  source: { kind: "arxiv", query: "all:sleep", tags: null },
   cadence: "weekly",
   dueUnder: [],
   assigned: [],
@@ -1548,4 +1548,115 @@ describe("the order of the table after each kind of act", () => {
       expect(await names()).toEqual(["Alpha", "Beta"]);
     }
   );
+});
+
+// A Tag Filter on a row (#691; spec #678 decision 10): the Tags are the
+// Filter, the compiled query is one step deeper, and the edit saves a changed
+// list through the same `scouts.save` as the form.
+describe("a Scout whose Filter is Tags", () => {
+  const TAGGED = scout({
+    source: { kind: "arxiv", query: "", tags: ["ml/probing", "ml/saes"] },
+  });
+  const COMPILED = 'abs:"probing" OR ti:"probing"';
+  const openEdit = async (more: Record<string, unknown> = {}) => {
+    const asked: unknown[] = [];
+    open(() => fleet([TAGGED]), {
+      "questions.list": QUESTIONS,
+      "scouts.compiled": COMPILED,
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        return { id: "sleep", run: null };
+      },
+      ...more,
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    const panel = within(
+      await screen.findByRole("form", { name: "Edit Sleep and memory" })
+    );
+    return { asked, panel };
+  };
+
+  it("shows the Tags as what it watches, not the compiled query", async () => {
+    open(() => fleet([TAGGED]));
+    const [row] = await tableRows();
+    expect(row!.textContent).toContain("arXiv · Tags: ml/probing, ml/saes");
+    expect(row!.textContent).not.toContain("abs:");
+  });
+
+  it("offers the Tags, one to a line, in place of a Query", async () => {
+    const { panel } = await openEdit();
+    expect(panel.getByLabelText("Tags").value).toBe("ml/probing\nml/saes");
+    expect(panel.queryByLabelText("Query")).toBeNull();
+  });
+
+  it("says the compiled query verbatim, only when asked", async () => {
+    const { panel } = await openEdit();
+    expect(panel.queryByText(COMPILED)).toBeNull();
+
+    fireEvent.click(
+      panel.getByRole("button", { name: "Show the compiled query" })
+    );
+
+    expect(await panel.findByText(COMPILED)).toBeDefined();
+  });
+
+  it("saves a changed Tag list with no Query, as the form would", async () => {
+    const { asked, panel } = await openEdit();
+    fireEvent.change(panel.getByLabelText("Tags"), {
+      target: { value: "ml/probing\n\n ml/circuits \n" },
+    });
+
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    await screen.findByRole("status");
+    expect(asked).toEqual([
+      {
+        id: "sleep",
+        name: "Sleep and memory",
+        watching: "arxiv",
+        query: "",
+        tags: ["ml/probing", "ml/circuits"],
+        cadence: "weekly",
+        assigned: [],
+        lane: "review",
+        searchBackTo: null,
+      },
+    ]);
+  });
+
+  it("cannot be saved with no Tags", async () => {
+    const { panel } = await openEdit();
+    fireEvent.change(panel.getByLabelText("Tags"), { target: { value: " " } });
+    expect(panel.getByRole("button", { name: "Save" }).disabled).toBe(true);
+  });
+
+  it("switches a Query Scout to Tags, and a Tag Scout back to a Query", async () => {
+    const asked: unknown[] = [];
+    open(() => fleet([scout()]), {
+      "questions.list": QUESTIONS,
+      "scouts.save": (input: unknown) => {
+        asked.push(input);
+        return { id: "sleep", run: null };
+      },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sleep and memory: edit" })
+    );
+    const panel = within(
+      await screen.findByRole("form", { name: "Edit Sleep and memory" })
+    );
+
+    fireEvent.click(panel.getByRole("radio", { name: "by Tags" }));
+    fireEvent.change(panel.getByLabelText("Tags"), {
+      target: { value: "ml/probing" },
+    });
+    fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+    await screen.findByRole("status");
+    expect(asked).toEqual([
+      expect.objectContaining({ query: "", tags: ["ml/probing"] }),
+    ]);
+  });
 });
