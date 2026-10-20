@@ -58,8 +58,8 @@ function spliceBetween(from: string, to: string): ChangeSpec {
  * in with a single whole-document `dispatch`, and only when the *file*
  * changes: React never re-renders per keystroke and never owns the text.
  *
- * Save (#693): on a short idle, on ⌘S, on blur, and before another file
- * replaces the document, each `basedOn` the hash of the text last read from
+ * Save (#693, #698): on a short idle, on ⌘S, on blur, when the window is
+ * closing, and before another file replaces the document, each `basedOn` the hash of the text last read from
  * or written to disk. The text is the editor's LF text; the file's CRLF and
  * BOM are the core's to restore around a save, so nothing here needs
  * `lineSeparator` yet. There is no undo history until the editor's
@@ -194,7 +194,15 @@ export function VaultEditor({
       }),
     });
     view.current = created;
+    // Closing the window is no blur and unmounts nothing React gets to run:
+    // the page is simply gone, so the save is sent from the event that says
+    // it is going. `beforeunload` is Electron's close; `pagehide` the rest.
+    const leaving = () => void flushRef.current();
+    window.addEventListener("beforeunload", leaving);
+    window.addEventListener("pagehide", leaving);
     return () => {
+      window.removeEventListener("beforeunload", leaving);
+      window.removeEventListener("pagehide", leaving);
       // Typing the idle timer had not yet saved still goes out; the view is
       // read before it is destroyed.
       void flushRef.current();
