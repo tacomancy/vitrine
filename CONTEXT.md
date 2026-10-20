@@ -165,7 +165,7 @@ _Avoid_: Backlink (a Connection is wider: it includes a Question that no link me
 A file that links to the open one, listed in the Vault's right pane with the line the link is on. Resolved links only — an ambiguous link counts for neither candidate. Narrower than a Connection.
 
 **Unlinked mention**:
-A file whose text names the open file — its basename, as whole words — without linking it; listed beneath the Backlinks in the Vault's right pane and found through the full-text index. A file that links the open one anywhere is a Backlink and never also a mention.
+A file whose text names the open file — its basename, as whole words — without linking it; listed beneath the Backlinks in the Vault's right pane and found through the full-text index. A file with a resolved link to the open one is a Backlink and never also a mention; one whose only link is ambiguous may show as a mention.
 
 **Unmatched annotation**:
 An Annotation that previously had links pointing at it and could not be re-identified on Ingest. Never dropped; surfaces in Loose Ends until resolved as *relink*, *drop the links*, or *treat as new*.

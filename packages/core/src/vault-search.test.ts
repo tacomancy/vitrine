@@ -179,6 +179,16 @@ describe("vault.unlinkedMentions", () => {
     expect(await mentions(c, "Idea.md")).toEqual([]);
   });
 
+  it("finds a name through accents and case, as the index folds them", async () => {
+    const { c } = await opened({
+      "Résumé.md": "# r\n",
+      "a.md": "Send the resume today.\n",
+    });
+    const hits = await mentions(c, "Résumé.md");
+    expect(hits.map((h) => h.path)).toEqual(["a.md"]);
+    expect(marked(hits[0] as SearchHit)).toEqual(["resume"]);
+  });
+
   it("answers nothing for a path the index does not hold", async () => {
     const { c } = await opened({ "a.md": "a\n" });
     expect(await mentions(c, "nope.md")).toEqual([]);

@@ -137,9 +137,8 @@ export function VaultBacklinks({ path }: { path: string }) {
 
 /**
  * Files whose text names the open one without linking it (#703). Quiet when
- * there are none: unlike the linked list this is a suggestion, so an empty
- * answer is no claim worth a row, and an unreadable one is the backlinks'
- * own voice's to say.
+ * there are none, since this is a suggestion; never quiet when the read
+ * failed (no silent failures).
  */
 function UnlinkedMentions({ path }: { path: string }) {
   const trpc = useTRPC();
@@ -149,6 +148,8 @@ function UnlinkedMentions({ path }: { path: string }) {
   const at = Math.min(chosen, Math.max(hits.length - 1, 0));
   const activeId = hits.length === 0 ? undefined : mentionId(at);
   useChosenInView(activeId);
+  // An empty answer is no claim worth a row, but a failed one is said.
+  if (found.isError) return <FirstSlot voice="wrong" claim="" />;
   if (hits.length === 0) return null;
 
   const open = (index: number) => {

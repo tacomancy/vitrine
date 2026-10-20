@@ -141,12 +141,7 @@ export function unlinkedMentionsOf(
       )
       .map((row) => row.path)
   );
-  const phrase = new RegExp(
-    `(?<![\\p{L}\\p{N}\\p{M}])${terms
-      .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("[^\\p{L}\\p{N}\\p{M}]+")}(?![\\p{L}\\p{N}\\p{M}])`,
-    "iu"
-  );
+  const wanted = terms.map(fold);
   const rows = index.select<{
     path: string;
     kind: string | null;
@@ -163,12 +158,18 @@ export function unlinkedMentionsOf(
   for (const { path: from, kind, body } of rows) {
     if (linking.has(from)) continue;
     for (const raw of body.split(/\r?\n/)) {
-      const found = phrase.exec(raw);
-      if (found === null) continue;
+      // Consecutive words, folded as FTS5 folds them, so "resume" finds "Résumé".
+      const words = [...raw.matchAll(WORD)];
+      const at = words.findIndex((_, i) =>
+        wanted.every((word, k) => fold(words[i + k]?.[0] ?? "") === word)
+      );
+      if (at === -1) continue;
+      const first = words[at] as RegExpExecArray;
+      const last = words[at + wanted.length - 1] as RegExpExecArray;
       hits.push({
         path: from,
         kind,
-        ...clip(raw, [[found.index, found.index + found[0].length]]),
+        ...clip(raw, [[first.index, last.index + last[0].length]]),
       });
       break;
     }

@@ -181,6 +181,15 @@ describe("the backlinks pane", () => {
       expect(asked.at(-1)?.row).toBe(chosen);
     });
 
+    it("says not known when the mentions could not be read", async () => {
+      open({
+        "vault.unlinkedMentions": () => {
+          throw new Error("boom");
+        },
+      });
+      expect(await screen.findByText("not known")).toBeDefined();
+    });
+
     it("draws nothing when no file mentions the name", async () => {
       open();
       await list();
