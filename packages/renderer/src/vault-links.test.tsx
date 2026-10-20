@@ -150,7 +150,9 @@ describe("a tag", () => {
     expect(
       screen.getByRole("tab", { name: "tags" }).getAttribute("aria-selected")
     ).toBe("true");
-    await waitFor(() => expect(screen.getByText("ML/Probing")).toBeDefined());
+    expect(
+      await screen.findByRole("list", { name: "Files tagged ml/probing" })
+    ).toBeDefined();
   });
 });
 
