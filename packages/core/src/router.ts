@@ -170,6 +170,7 @@ import {
 } from "./reader.js";
 import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
+import { searchVault } from "./vault-search.js";
 import { tagTree } from "./vault-tags.js";
 
 export type Context = {
@@ -463,6 +464,13 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return backlinksOf(vault.path, index, input.path);
     }),
+    // The Vault surface's *search* tab (#697): the index's FTS5 table, no file read.
+    search: t.procedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return searchVault(index, input.query);
+      }),
     create: t.procedure
       .input(z.object({ name: z.string() }))
       .mutation(async ({ ctx, input }) => {
