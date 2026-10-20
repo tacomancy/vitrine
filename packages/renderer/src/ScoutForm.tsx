@@ -7,6 +7,7 @@ type Editable = Pick<
   | "id"
   | "name"
   | "query"
+  | "tags"
   | "cadence"
   | "assigned"
   | "lane"
@@ -26,6 +27,7 @@ const queueText = (value: number | null | undefined, standard?: string) =>
     ? ""
     : String(value);
 import { useEffect, useRef, useState } from "react";
+import { TagsFilter } from "./TagsFilter";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { pushRoute, SETTINGS } from "./router";
@@ -41,6 +43,9 @@ export type FormValues = {
   name: string;
   watching: "arxiv" | "watched";
   query: string;
+  /** Which Filter the form is on; the other's text is kept, so switching back loses nothing. */
+  filter: "query" | "tags";
+  tags: string[];
   cadence: Scout["cadence"];
   lane: Scout["lane"];
   assigned: string[];
@@ -94,6 +99,10 @@ export function ScoutForm({
     values?.watching ?? scout?.source.kind ?? "arxiv"
   );
   const [query, setQuery] = useState(values?.query ?? scout?.query ?? "");
+  const [filter, setFilter] = useState<FormValues["filter"]>(
+    values?.filter ?? (scout?.tags === undefined ? "query" : "tags")
+  );
+  const [tags, setTags] = useState<string[]>(values?.tags ?? scout?.tags ?? []);
   const [cadence, setCadence] = useState(
     values?.cadence ?? scout?.cadence ?? "daily"
   );
@@ -126,6 +135,8 @@ export function ScoutForm({
         name,
         watching,
         query,
+        filter,
+        tags,
         cadence,
         lane,
         assigned,
@@ -139,6 +150,8 @@ export function ScoutForm({
       name,
       watching,
       query,
+      filter,
+      tags,
       cadence,
       lane,
       assigned,
@@ -166,9 +179,21 @@ export function ScoutForm({
     })
   );
   const tried = useMutation(trpc.scouts.tryQuery.mutationOptions());
+  const triedTags = useMutation(trpc.scouts.tryTags.mutationOptions());
   const triedPage = useMutation(trpc.scouts.tryWatched.mutationOptions());
 
-  const ready = name.trim() !== "" && query.trim() !== "";
+  const byTags = !page && filter === "tags";
+  const missing = [
+    ...(name.trim() === "" ? ["a name"] : []),
+    ...(byTags
+      ? tags.length === 0
+        ? ["a Tag"]
+        : []
+      : query.trim() === ""
+        ? [page ? "an Address" : "a Query"]
+        : []),
+  ];
+  const ready = missing.length === 0;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -178,7 +203,10 @@ export function ScoutForm({
       ...(scout === undefined ? {} : { id: scout.id }),
       name,
       watching,
-      query,
+      // A Scout has Tags or a Query: the one not in use is sent empty, and
+      // an empty list is how an existing Tag Scout is switched back to a Query.
+      query: byTags ? "" : query,
+      ...(byTags ? { tags } : scout?.tags === undefined ? {} : { tags: [] }),
       cadence,
       assigned,
       lane,
@@ -208,7 +236,8 @@ export function ScoutForm({
     return () => document.removeEventListener("keydown", onKeyDown);
   });
 
-  const result = tried.data;
+  const attempt = byTags ? triedTags : tried;
+  const result = attempt.data;
   const pageResult = triedPage.data;
   return (
     <form
@@ -249,6 +278,39 @@ export function ScoutForm({
         </small>
       )}
       {!page && (
+        <fieldset>
+          <legend>Filter</legend>
+          <label>
+            <input
+              type="radio"
+              name="filter"
+              checked={filter === "query"}
+              onChange={() => setFilter("query")}
+            />
+            by Query
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="filter"
+              checked={filter === "tags"}
+              onChange={() => setFilter("tags")}
+            />
+            by Tags
+          </label>
+        </fieldset>
+      )}
+      {byTags && (
+        <TagsFilter
+          chosen={tags}
+          onChange={(next) => {
+            setTags(next);
+            // What was tried was the old list.
+            triedTags.reset();
+          }}
+        />
+      )}
+      {!page && !byTags && (
         <label>
           Query
           <textarea
@@ -290,13 +352,18 @@ export function ScoutForm({
         <p className={styles.try}>
           <button
             type="button"
-            disabled={query.trim() === "" || tried.isPending}
-            onClick={() => tried.mutate({ query })}
+            disabled={
+              (byTags ? tags.length === 0 : query.trim() === "") ||
+              attempt.isPending
+            }
+            onClick={() =>
+              byTags ? triedTags.mutate({ tags }) : tried.mutate({ query })
+            }
           >
             Try
           </button>{" "}
-          {tried.isPending && <span>trying…</span>}
-          {tried.isError && <span role="alert">{tried.error.message}</span>}
+          {attempt.isPending && <span>trying…</span>}
+          {attempt.isError && <span role="alert">{attempt.error.message}</span>}
           {result?.outcome === "failed" && (
             <span role="alert">{result.sentence}</span>
           )}
@@ -404,6 +471,8 @@ export function ScoutForm({
         </label>
       </fieldset>
       <RefusalLine refusal={refusal} />
+      {/* Names what Save lacks; a disabled button alone says nothing. */}
+      {!ready && <p>Save needs {missing.join(" and ")}.</p>}
       <p className={styles.actions}>
         <button type="submit" disabled={!ready || save.isPending}>
           Save
