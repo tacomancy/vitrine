@@ -173,7 +173,11 @@ describe("what the editor colours", () => {
     );
     const coloured = (text: string) =>
       Array.from(box.querySelectorAll("span")).filter(
-        (span) => span.textContent === text && span.className !== ""
+        // The follow mark (#701) wraps the same text; this counts the colour.
+        (span) =>
+          span.textContent === text &&
+          span.className !== "" &&
+          !span.hasAttribute("data-follow")
       );
     expect(coloured("[[Idea]]")).toHaveLength(1);
     expect(coloured("#ml/probing")).toHaveLength(1);

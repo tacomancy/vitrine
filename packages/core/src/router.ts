@@ -140,6 +140,7 @@ import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
+import { resolveLinks } from "./vault-links.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -464,6 +465,13 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return backlinksOf(vault.path, index, input.path);
     }),
+    // Where the editor's `[[links]]` land, for drawing them and following them (#701).
+    resolveLinks: t.procedure
+      .input(z.object({ from: z.string(), links: z.array(z.string()) }))
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return resolveLinks(index, input.from, input.links);
+      }),
     // The Vault surface's *search* tab (#697): the index's FTS5 table, no file read.
     search: t.procedure
       .input(z.object({ query: z.string() }))
