@@ -115,3 +115,65 @@ function clip(
   }
   return { line, marks: shifted };
 }
+
+/**
+ * `vault.unlinkedMentions`: files whose text names the open file but do not
+ * link it (spec #680 story 26). The name is the file's basename — what a
+ * `[[link]]` to it would have said — searched as a phrase in the FTS5 table,
+ * then confirmed on a line as whole words, since FTS5 matches tokens and a
+ * phrase hit could otherwise show no mark. A file that links the open file
+ * anywhere is already a backlink and is left out, as is the file itself.
+ * An ambiguous link has no `resolved_path`, so its file still shows here:
+ * the pane would rather offer a mention twice than hide one.
+ */
+export function unlinkedMentionsOf(
+  index: VaultIndex,
+  path: string
+): SearchHit[] {
+  const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+  const terms = termsOf(name);
+  if (terms.length === 0) return [];
+  const linking = new Set(
+    index
+      .select<{ path: string }>(
+        "SELECT DISTINCT path FROM links WHERE resolved_path = ?",
+        path
+      )
+      .map((row) => row.path)
+  );
+  const wanted = terms.map(fold);
+  const rows = index.select<{
+    path: string;
+    kind: string | null;
+    body: string;
+  }>(
+    `SELECT b.path AS path, f.kind AS kind, b.body AS body
+       FROM bodies_fts JOIN bodies b ON b.id = bodies_fts.rowid
+       JOIN files f ON f.path = b.path
+      WHERE bodies_fts MATCH ? AND b.path <> ? ORDER BY bodies_fts.rank, b.path`,
+    `"${terms.join(" ")}"`,
+    path
+  );
+  const hits: SearchHit[] = [];
+  for (const { path: from, kind, body } of rows) {
+    if (linking.has(from)) continue;
+    for (const raw of body.split(/\r?\n/)) {
+      // Consecutive words, folded as FTS5 folds them, so "resume" finds "Résumé".
+      const words = [...raw.matchAll(WORD)];
+      const at = words.findIndex((_, i) =>
+        wanted.every((word, k) => fold(words[i + k]?.[0] ?? "") === word)
+      );
+      if (at === -1) continue;
+      const first = words[at] as RegExpExecArray;
+      const last = words[at + wanted.length - 1] as RegExpExecArray;
+      hits.push({
+        path: from,
+        kind,
+        ...clip(raw, [[first.index, last.index + last[0].length]]),
+      });
+      break;
+    }
+    if (hits.length === SEARCH_LIMIT) break;
+  }
+  return hits;
+}

@@ -171,7 +171,7 @@ import {
 } from "./reader.js";
 import { kindsHeld } from "./vault-kinds.js";
 import { outlineFromIndex } from "./vault-outline.js";
-import { searchVault } from "./vault-search.js";
+import { searchVault, unlinkedMentionsOf } from "./vault-search.js";
 import { tagTree } from "./vault-tags.js";
 
 export type Context = {
@@ -478,6 +478,13 @@ export const router = t.router({
       .query(async ({ ctx, input }) => {
         const { index } = await requireVault(ctx);
         return searchVault(index, input.query);
+      }),
+    // The backlinks pane's unlinked mentions (#703): the same table, no file read.
+    unlinkedMentions: t.procedure
+      .input(pathInput)
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return unlinkedMentionsOf(index, input.path);
       }),
     create: t.procedure
       .input(z.object({ name: z.string() }))

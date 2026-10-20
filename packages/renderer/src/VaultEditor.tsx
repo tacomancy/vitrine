@@ -6,6 +6,7 @@ import styles from "./Vault.module.css";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
 import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
+import { livePreview } from "./vault-live-preview";
 
 /**
  * One `EditorView`, for the life of the surface (`docs/architecture.md`
@@ -61,6 +62,7 @@ export function VaultEditor({
           vaultMarkdown(),
           syntaxHighlighting(vaultHighlight),
           vaultLinks(() => hooks.current),
+          livePreview(),
         ],
       }),
     });
