@@ -118,6 +118,7 @@ const launch = async (png, { present = [], absent = [] }) => {
   });
 };
 
+// The fixture prints four; three suffice to find the Terms in the editor.
 const PRINTED = ["odor cue", "sleep spindles", "slow wave sleep"];
 const original = note();
 try {
@@ -138,6 +139,7 @@ try {
 
   put("annotated-keywords.pdf");
   await launch("3-put-back.png", { present: PRINTED });
+  expect(sidecar().keywords?.length === 4, "the put-back PDF is read again");
 
   const pre = sidecar();
   delete pre.keywords;
