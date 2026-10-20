@@ -58,3 +58,19 @@
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
+
+/* Links the editor will follow: a resolved one is a link, one that goes
+   nowhere is drawn quieter and struck, so it never looks like it works. */
+:global(.cm-follow) {
+  cursor: pointer;
+}
+
+:global(.cm-follow-unresolved),
+:global(.cm-not-link) {
+  color: var(--color-fg-muted);
+  text-decoration: line-through;
+}
+
+:global(.cm-follow-ambiguous) {
+  text-decoration: underline dotted;
+}

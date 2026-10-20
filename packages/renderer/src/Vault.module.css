@@ -315,3 +315,23 @@
   color: var(--color-fg);
   font-weight: 600;
 }
+
+/* What a followed link says: a line under the header, in the surface's register. */
+.followLine {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+.candidates {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-link);
+}

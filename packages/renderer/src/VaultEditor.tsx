@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
+import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
 
 /**
  * One `EditorView`, for the life of the surface (`docs/architecture.md`
@@ -16,7 +17,22 @@ import { vaultHighlight } from "./vault-highlight";
  * file's CRLF and BOM are the core's to restore around a save, so nothing
  * here needs `lineSeparator` yet.
  */
-export function VaultEditor({ text }: { text: string }) {
+export function VaultEditor({
+  text,
+  path,
+  links,
+}: {
+  text: string;
+  /** The open file: links resolve relative to it, so a new file forgets what the last one learned. */
+  path: string;
+  links: LinkHooks;
+}) {
+  // The extension reads the latest hooks through this, so the view is still
+  // made once and a render never rebuilds it.
+  const hooks = useRef(links);
+  useEffect(() => {
+    hooks.current = links;
+  });
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
 
@@ -44,6 +60,7 @@ export function VaultEditor({ text }: { text: string }) {
           // counts (`vault-grammar.parity.test.ts`).
           vaultMarkdown(),
           syntaxHighlighting(vaultHighlight),
+          vaultLinks(() => hooks.current),
         ],
       }),
     });
@@ -58,11 +75,13 @@ export function VaultEditor({ text }: { text: string }) {
 
   useEffect(() => {
     const current = view.current;
-    if (current === null || current.state.doc.toString() === text) return;
-    current.dispatch({
-      changes: { from: 0, to: current.state.doc.length, insert: text },
-    });
-  }, [text]);
+    if (current === null) return;
+    const changes =
+      current.state.doc.toString() === text
+        ? []
+        : [{ from: 0, to: current.state.doc.length, insert: text }];
+    current.dispatch({ changes, effects: forgetResolutions.of(null) });
+  }, [text, path]);
 
   return <div ref={host} className={styles.cm} />;
 }

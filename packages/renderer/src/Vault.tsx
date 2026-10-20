@@ -9,7 +9,8 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
-import { markOf } from "./kinds";
+import { classifyLink, refusal as linkRefusal } from "./link-rule";
+import { markOf, routeOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
@@ -24,14 +25,21 @@ import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
  * bodies, #697). The editor and the backlinks pane fill the other two panes.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
+  // A tag followed from the editor: the files tab cannot list a tag's files
+  // yet, so the search tab is opened on it. `n` makes a second click on the
+  // same tag a new request, after the user has changed the tab or the text.
+  const [tag, setTag] = useState<{ text: string; n: number } | null>(null);
   return (
     <section className={styles.vault} aria-label="Vault">
-      <LeftPane open={path} />
+      <LeftPane open={path} seek={tag} />
       <div className={styles.editor}>
         {path === undefined ? (
           <p className={styles.quiet}>Choose a file from the tree.</p>
         ) : (
-          <OpenFile path={path} />
+          <OpenFile
+            path={path}
+            onTag={(text) => setTag((was) => ({ text, n: (was?.n ?? 0) + 1 }))}
+          />
         )}
       </div>
       {path !== undefined && <VaultBacklinks key={path} path={path} />}
@@ -53,8 +61,16 @@ const wordsIn = (text: string) => text.split(/\s+/).filter(Boolean).length;
  * name (ADR 0027 decision 7) — replaced, not pushed, so back does not return
  * to it.
  */
-function OpenFile({ path }: { path: string }) {
+function OpenFile({
+  path,
+  onTag,
+}: {
+  path: string;
+  onTag: (tag: string) => void;
+}) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const followed = useFollow(path);
   const file = useQuery({
     ...trpc.vault.read.queryOptions({ path }),
     retry: false,
@@ -89,7 +105,21 @@ function OpenFile({ path }: { path: string }) {
           </span>
         )}
       </header>
-      <VaultEditor text={file.data.text} />
+      <VaultEditor
+        text={file.data.text}
+        path={path}
+        links={{
+          resolve: (links) =>
+            queryClient.fetchQuery({
+              ...trpc.vault.resolveLinks.queryOptions({ from: path, links }),
+              staleTime: 0,
+            }),
+          onWikilink: (link) => void followed.wikilink(link),
+          onTag,
+          onHref: followed.href,
+        }}
+      />
+      {followed.line}
     </>
   );
 }
@@ -164,6 +194,113 @@ function rowsOf(
 // is, and position is what decides whether a row is in view (ADR 0030).
 const rowId = (index: number) => `vault-file-row-${index}`;
 
+/**
+ * What activating a link does (#701; spec #680 stories 41, 42). A resolved
+ * wikilink moves the window to the file's own surface, or the Vault for a
+ * Note; anything that goes nowhere says so, because a click that did nothing
+ * would look like one that worked. The words are the user's click refused,
+ * so they are an alert (ADR 0033); an ambiguous link's candidates are a
+ * choice to make, not a refusal, and stay polite.
+ */
+function useFollow(path: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const refusal = useRefusal();
+  const [choice, setChoice] = useState<{
+    link: string;
+    why: string;
+    candidates: { path: string; kind: string | null }[];
+  } | null>(null);
+  // Said about one file; it does not follow the window to the next.
+  const [saidAt, setSaidAt] = useState(path);
+  if (saidAt !== path) {
+    setSaidAt(path);
+    setChoice(null);
+    refusal.forget();
+  }
+
+  const land = (kind: string | null, to: string) =>
+    pushRoute(routeOf(kind, to) ?? { surface: "vault", path: to });
+
+  const wikilink = async (link: string) => {
+    refusal.forget();
+    setChoice(null);
+    // Asked afresh: the picture the editor drew from may be older than the vault.
+    let landing;
+    try {
+      landing = (
+        await queryClient.fetchQuery({
+          ...trpc.vault.resolveLinks.queryOptions({
+            from: path,
+            links: [link],
+          }),
+          staleTime: 0,
+        })
+      )[link];
+    } catch {
+      refusal.say(`Could not look up [[${link}]].`);
+      return;
+    }
+    if (landing === undefined) return;
+    if (landing.resolution === "resolved" && landing.path !== null) {
+      land(landing.kind, landing.path);
+    } else if (landing.resolution === "ambiguous") {
+      setChoice({
+        link,
+        why: "is ambiguous: more than one file has that name.",
+        candidates: landing.candidates,
+      });
+    } else if (landing.candidates.length > 0) {
+      setChoice({
+        link,
+        why: "names a file, but not the part of it the link points at.",
+        candidates: landing.candidates,
+      });
+    } else {
+      refusal.say(`[[${link}]] has no file in this vault.`);
+    }
+  };
+
+  const href = (to: string) => {
+    refusal.forget();
+    setChoice(null);
+    const rule = classifyLink(to);
+    if (rule.kind === "out") window.open(rule.href, "_blank", "noreferrer");
+    else if (rule.kind === "route") window.location.hash = rule.href;
+    else refusal.say(linkRefusal(rule.scheme));
+  };
+
+  const line = (
+    <>
+      <RefusalLine refusal={refusal} className={styles.followLine} />
+      {choice !== null && (
+        <div role="status" className={styles.followLine}>
+          <p>
+            [[{choice.link}]] {choice.why}
+          </p>
+          <ul className={styles.candidates}>
+            {choice.candidates.map((c) => (
+              <li key={c.path}>
+                <button
+                  type="button"
+                  className={styles.candidate}
+                  onClick={() => land(c.kind, c.path)}
+                >
+                  <span aria-hidden="true">
+                    {markOf(c.kind ?? "note")?.glyph}
+                  </span>{" "}
+                  {c.path}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+  return { wikilink, href, line };
+}
+
 const TABS = ["files", "search"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -174,10 +311,22 @@ type Tab = (typeof TABS)[number];
  * the other tab. The footer is here, once, since it speaks for the vault and
  * not for a tab.
  */
-function LeftPane({ open }: { open: string | undefined }) {
+function LeftPane({
+  open,
+  seek,
+}: {
+  open: string | undefined;
+  seek: { text: string; n: number } | null;
+}) {
   const status = useVaultStatusLines();
   const [tab, setTab] = useState<Tab>("files");
   const [naming, setNaming] = useState(false);
+  // A new request to search (a tag followed in the editor) opens the tab.
+  const [seen, setSeen] = useState(seek);
+  if (seen !== seek) {
+    setSeen(seek);
+    if (seek !== null) setTab("search");
+  }
   return (
     <div className={styles.files}>
       <div className={styles.header}>
@@ -228,7 +377,7 @@ function LeftPane({ open }: { open: string | undefined }) {
         className={styles.panel}
         hidden={tab !== "search"}
       >
-        <Search read={status.read} active={tab === "search"} />
+        <Search read={status.read} active={tab === "search"} seek={seek} />
       </div>
       {status.hasLines && (
         <footer className={styles.footer}>{status.lines}</footer>
@@ -457,9 +606,22 @@ function Marked({ line, marks }: Pick<SearchHit, "line" | "marks">) {
  * the focus and the arrows move a choice that the list publishes as its
  * `aria-activedescendant`, as the Global command does (ADR 0030).
  */
-function Search({ read, active }: { read: VaultRead; active: boolean }) {
+function Search({
+  read,
+  active,
+  seek,
+}: {
+  read: VaultRead;
+  active: boolean;
+  seek: { text: string; n: number } | null;
+}) {
   const trpc = useTRPC();
   const [text, setText] = useState("");
+  const [seen, setSeen] = useState(seek);
+  if (seen !== seek) {
+    setSeen(seek);
+    if (seek !== null) setText(seek.text);
+  }
   const [choice, setChoice] = useState({ text: "", at: 0 });
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
