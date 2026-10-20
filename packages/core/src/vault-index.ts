@@ -192,14 +192,16 @@ CREATE TABLE phrases (path TEXT NOT NULL, phrase TEXT NOT NULL, count INTEGER NO
 -- Each Markdown file's text after its frontmatter, for the Vault's search
 -- (#697). Its own table, with the FTS5 table indexing it by rowid, so a
 -- file's rows go by path like every other table's: an FTS5 table keyed
--- by an UNINDEXED path would be scanned in full to delete one file.
-CREATE TABLE bodies (path TEXT PRIMARY KEY, body TEXT NOT NULL);
-CREATE VIRTUAL TABLE bodies_fts USING fts5(body, content='bodies', content_rowid='rowid');
+-- by an UNINDEXED path would be scanned in full to delete one file. The
+-- integer key is declared because a table keyed by its TEXT path has a
+-- rowid VACUUM may renumber, which would silently desync the FTS5 table.
+CREATE TABLE bodies (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, body TEXT NOT NULL);
+CREATE VIRTUAL TABLE bodies_fts USING fts5(body, content='bodies', content_rowid='id');
 CREATE TRIGGER bodies_ai AFTER INSERT ON bodies BEGIN
-  INSERT INTO bodies_fts (rowid, body) VALUES (new.rowid, new.body);
+  INSERT INTO bodies_fts (rowid, body) VALUES (new.id, new.body);
 END;
 CREATE TRIGGER bodies_ad AFTER DELETE ON bodies BEGIN
-  INSERT INTO bodies_fts (bodies_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+  INSERT INTO bodies_fts (bodies_fts, rowid, body) VALUES ('delete', old.id, old.body);
 END;
 CREATE INDEX files_lpath ON files (lpath);
 CREATE INDEX files_lname ON files (lname);
@@ -946,10 +948,10 @@ function createIndex(
     // Body text is not otherwise stored, so the search's copy of it and the
     // Lexicon's phrases are taken here, in the same transaction as the rest
     // (§ Lexicon).
-    insertBody.run(path, content.slice(front?.range.end ?? 0));
+    const body = content.slice(front?.range.end ?? 0);
+    insertBody.run(path, body);
     if (read.kind === "source" || read.kind === "source-stub") {
       const title = typeof fm["title"] === "string" ? fm["title"] : "";
-      const body = content.slice(front?.range.end ?? 0);
       for (const [phrase, count] of phrasesOf(title, abstractOf(body))) {
         insertPhrase.run(path, phrase, count);
       }

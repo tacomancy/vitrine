@@ -77,6 +77,20 @@ describe("vault.search", () => {
     ]);
   });
 
+  it("marks a word the index matched by folding case and accents, and treats _ as a break", async () => {
+    const { c } = await opened({
+      "a.md": "A quiet café near the Zürich lab.\n",
+      "b.md": "uses foo bar here\n",
+    });
+    const [cafe] = await search(c, "cafe");
+    expect(marked(cafe as SearchHit)).toEqual(["café"]);
+    const [zurich] = await search(c, "ZURICH");
+    expect(marked(zurich as SearchHit)).toEqual(["Zürich"]);
+    const [pair] = await search(c, "foo_bar");
+    expect(pair?.path).toBe("b.md");
+    expect(marked(pair as SearchHit)).toEqual(["foo", "bar"]);
+  });
+
   it("does not search frontmatter or the files that are not Markdown", async () => {
     const { c } = await opened({
       "a.md": "---\ntitle: Zebra\n---\nbody\n",
