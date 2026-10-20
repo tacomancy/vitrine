@@ -115,3 +115,64 @@ function clip(
   }
   return { line, marks: shifted };
 }
+
+/**
+ * `vault.unlinkedMentions`: files whose text names the open file but do not
+ * link it (spec #680 story 26). The name is the file's basename — what a
+ * `[[link]]` to it would have said — searched as a phrase in the FTS5 table,
+ * then confirmed on a line as whole words, since FTS5 matches tokens and a
+ * phrase hit could otherwise show no mark. A file that links the open file
+ * anywhere is already a backlink and is left out, as is the file itself.
+ * An ambiguous link has no `resolved_path`, so its file still shows here:
+ * the pane would rather offer a mention twice than hide one.
+ */
+export function unlinkedMentionsOf(
+  index: VaultIndex,
+  path: string
+): SearchHit[] {
+  const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+  const terms = termsOf(name);
+  if (terms.length === 0) return [];
+  const linking = new Set(
+    index
+      .select<{ path: string }>(
+        "SELECT DISTINCT path FROM links WHERE resolved_path = ?",
+        path
+      )
+      .map((row) => row.path)
+  );
+  const phrase = new RegExp(
+    `(?<![\\p{L}\\p{N}\\p{M}])${terms
+      .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[^\\p{L}\\p{N}\\p{M}]+")}(?![\\p{L}\\p{N}\\p{M}])`,
+    "iu"
+  );
+  const rows = index.select<{
+    path: string;
+    kind: string | null;
+    body: string;
+  }>(
+    `SELECT b.path AS path, f.kind AS kind, b.body AS body
+       FROM bodies_fts JOIN bodies b ON b.id = bodies_fts.rowid
+       JOIN files f ON f.path = b.path
+      WHERE bodies_fts MATCH ? AND b.path <> ? ORDER BY bodies_fts.rank, b.path`,
+    `"${terms.join(" ")}"`,
+    path
+  );
+  const hits: SearchHit[] = [];
+  for (const { path: from, kind, body } of rows) {
+    if (linking.has(from)) continue;
+    for (const raw of body.split(/\r?\n/)) {
+      const found = phrase.exec(raw);
+      if (found === null) continue;
+      hits.push({
+        path: from,
+        kind,
+        ...clip(raw, [[found.index, found.index + found[0].length]]),
+      });
+      break;
+    }
+    if (hits.length === SEARCH_LIMIT) break;
+  }
+  return hits;
+}

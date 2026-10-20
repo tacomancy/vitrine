@@ -44,6 +44,7 @@ const open = (more: Record<string, unknown> = {}) => {
     "vault.tree": [{ path: "notes/Idea.md", kind: null }],
     "vault.read": { text: "", hash: "h", eol: "lf", bom: false, mtime: WHEN },
     "vault.backlinks": ROWS,
+    "vault.unlinkedMentions": [],
     "vault.pdfFault": null,
     ...more,
   });
@@ -120,5 +121,72 @@ describe("the backlinks pane", () => {
     });
     expect(await screen.findByText("not known")).toBeDefined();
     expect(screen.queryByText("Nothing links here yet.")).toBeNull();
+  });
+
+  describe("unlinked mentions", () => {
+    const MENTIONS = [
+      {
+        path: "notes/Talk.md",
+        kind: null,
+        line: "We discussed idea at length.",
+        marks: [[13, 17]],
+      },
+      {
+        path: "q/Why.md",
+        kind: "question",
+        line: "Is the idea sound?",
+        marks: [[11, 15]],
+      },
+    ];
+    const mentions = () =>
+      screen.findByRole("listbox", { name: "Unlinked mentions" });
+
+    it("asks for the open file's mentions and draws each with its glyph, line and the name marked", async () => {
+      const asked = vi.fn(() => MENTIONS);
+      open({ "vault.unlinkedMentions": asked });
+      const box = await mentions();
+      expect(asked).toHaveBeenCalledWith({ path: "notes/Idea.md" });
+      const [first] = Array.from(box.querySelectorAll('[role="option"]'));
+      expect(first?.textContent).toContain("We discussed idea at length.");
+      expect(first?.querySelector("mark")?.textContent).toBe("idea");
+      // Linked backlinks stay their own list.
+      expect(screen.getByRole("listbox", { name: "Backlinks" })).toBeDefined();
+    });
+
+    it("opens the mentioning file on a click and on ↵, moving with the arrows", async () => {
+      open({ "vault.unlinkedMentions": MENTIONS });
+      const box = await mentions();
+      const rows = box.querySelectorAll('[role="option"]');
+      fireEvent.click(rows[1]!);
+      expect(window.location.hash).toBe("#/vault/q/Why.md");
+      const next = await mentions();
+      fireEvent.keyDown(next, { key: "ArrowDown" });
+      fireEvent.keyDown(next, { key: "Enter" });
+      expect(window.location.hash).toBe("#/vault/q/Why.md");
+      fireEvent.keyDown(next, { key: "Home" });
+      fireEvent.keyDown(next, { key: "Enter" });
+      expect(window.location.hash).toBe("#/vault/notes/Talk.md");
+    });
+
+    it("keeps the choice on a published id and in view (ADR 0030)", async () => {
+      const asked = scrollsInto();
+      open({ "vault.unlinkedMentions": MENTIONS });
+      const box = await mentions();
+      fireEvent.keyDown(box, { key: "ArrowDown" });
+      const chosen = document.getElementById(
+        box.getAttribute("aria-activedescendant") ?? ""
+      );
+      expect(chosen?.getAttribute("aria-selected")).toBe("true");
+      expect(chosen?.textContent).toContain("Is the idea sound?");
+      expect(asked.at(-1)?.row).toBe(chosen);
+    });
+
+    it("draws nothing when no file mentions the name", async () => {
+      open();
+      await list();
+      expect(
+        screen.queryByRole("listbox", { name: "Unlinked mentions" })
+      ).toBeNull();
+    });
   });
 });

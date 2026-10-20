@@ -147,3 +147,40 @@ describe("vault.search", () => {
     ]);
   });
 });
+
+describe("vault.unlinkedMentions", () => {
+  const mentions = async (c: Core, path: string) => {
+    const reply = await c.query<SearchHit[]>("vault.unlinkedMentions", {
+      path,
+    });
+    expect(reply.error).toBeUndefined();
+    return reply.result?.data ?? [];
+  };
+
+  it("lists files whose text names the open file, the line marked, and leaves out the ones that link it", async () => {
+    const { c } = await opened({
+      "notes/Sparse Autoencoders.md": "# SAEs\n",
+      "notes/A.md": "Reading about sparse autoencoders today.\n",
+      "notes/B.md":
+        "Already [[Sparse Autoencoders]] here, and sparse autoencoders.\n",
+      "notes/C.md": "sparse coding only\n",
+    });
+    const hits = await mentions(c, "notes/Sparse Autoencoders.md");
+    expect(hits.map((h) => h.path)).toEqual(["notes/A.md"]);
+    expect(hits[0]?.line).toBe("Reading about sparse autoencoders today.");
+    expect(marked(hits[0] as SearchHit)).toEqual(["sparse autoencoders"]);
+  });
+
+  it("does not offer the file itself, nor match inside a longer word", async () => {
+    const { c } = await opened({
+      "Idea.md": "The Idea is here.\n",
+      "other.md": "Ideas and ideal things.\n",
+    });
+    expect(await mentions(c, "Idea.md")).toEqual([]);
+  });
+
+  it("answers nothing for a path the index does not hold", async () => {
+    const { c } = await opened({ "a.md": "a\n" });
+    expect(await mentions(c, "nope.md")).toEqual([]);
+  });
+});
