@@ -380,3 +380,14 @@ describe("vault.replaceFile and the watcher", () => {
     expect(pendingRows(vault)).toEqual([]);
   });
 });
+
+describe("vault.replaceFile on a file with mixed line endings", () => {
+  it("saving it unedited in the Working answer records no Revision", async () => {
+    const mixed = question("Probably\r\nboth\nreally.");
+    const { edit, bytes } = await opened({ [RQ]: mixed }, () => t0);
+
+    await edit(RQ, (t) => t + "\n- ask Jan\n");
+
+    expect(await bytes(RQ)).not.toContain("· working answer");
+  });
+});

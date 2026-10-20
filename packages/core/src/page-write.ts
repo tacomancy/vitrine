@@ -723,7 +723,9 @@ export function saveFile(
         : (typed) => {
             const revised = revisions(
               relativePath,
-              fileChoices(disk).text,
+              // In the line endings the typing was given, or a file with mixed
+              // endings would differ from its own unedited text.
+              asTyped(fileChoices(disk).text, typed),
               typed,
               waiting,
               { at, coalesceMs, positionsOf }
@@ -822,3 +824,9 @@ function revisions(
   }
   return text;
 }
+
+/** `text` with the line endings `like` uses: a file's endings are one choice, whatever it was read with. */
+const asTyped = (text: string, like: string) => {
+  const lf = text.replace(/\r\n/g, "\n");
+  return like.includes("\r\n") ? lf.replace(/\n/g, "\r\n") : lf;
+};
