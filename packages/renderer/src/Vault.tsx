@@ -16,18 +16,19 @@ import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { VaultBacklinks } from "./VaultBacklinks";
 import { VaultEditor } from "./VaultEditor";
+import { Tags } from "./VaultTags";
 import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
 
 /**
  * The Vault surface (spec #680; `docs/architecture.md` § Vault surface).
  * The left pane is tabbed: *files* (the vault as a tree, a Kind glyph per
- * file, folders that fold, and *new note*) and *search* (full text over note
- * bodies, #697). The editor and the backlinks pane fill the other two panes.
+ * file, folders that fold, and *new note*), *tags* (#696) and *search* (full
+ * text over note bodies, #697). The editor and the backlinks pane fill the
+ * other two panes.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
-  // A tag followed from the editor: the files tab cannot list a tag's files
-  // yet, so the search tab is opened on it. `n` makes a second click on the
-  // same tag a new request, after the user has changed the tab or the text.
+  // A tag followed from the editor: the tags tab picks its node. `n` makes a
+  // second click on the same tag a new request, after the user has moved on.
   const [tag, setTag] = useState<{ text: string; n: number } | null>(null);
   return (
     <section className={styles.vault} aria-label="Vault">
@@ -304,7 +305,7 @@ function useFollow(path: string) {
   return { wikilink, href, line };
 }
 
-const TABS = ["files", "search"] as const;
+const TABS = ["files", "tags", "search"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -324,11 +325,11 @@ function LeftPane({
   const status = useVaultStatusLines();
   const [tab, setTab] = useState<Tab>("files");
   const [naming, setNaming] = useState(false);
-  // A new request to search (a tag followed in the editor) opens the tab.
+  // A tag followed in the editor opens the tags tab.
   const [seen, setSeen] = useState(seek);
   if (seen !== seek) {
     setSeen(seek);
-    if (seek !== null) setTab("search");
+    if (seek !== null) setTab("tags");
   }
   return (
     <div className={styles.files}>
@@ -375,12 +376,21 @@ function LeftPane({
       </div>
       <div
         role="tabpanel"
+        id="vault-panel-tags"
+        aria-labelledby="vault-tab-tags"
+        className={styles.panel}
+        hidden={tab !== "tags"}
+      >
+        <Tags read={status.read} active={tab === "tags"} seek={seek} />
+      </div>
+      <div
+        role="tabpanel"
         id="vault-panel-search"
         aria-labelledby="vault-tab-search"
         className={styles.panel}
         hidden={tab !== "search"}
       >
-        <Search read={status.read} active={tab === "search"} seek={seek} />
+        <Search read={status.read} active={tab === "search"} />
       </div>
       {status.hasLines && (
         <footer className={styles.footer}>{status.lines}</footer>
@@ -609,22 +619,9 @@ function Marked({ line, marks }: Pick<SearchHit, "line" | "marks">) {
  * the focus and the arrows move a choice that the list publishes as its
  * `aria-activedescendant`, as the Global command does (ADR 0030).
  */
-function Search({
-  read,
-  active,
-  seek,
-}: {
-  read: VaultRead;
-  active: boolean;
-  seek: { text: string; n: number } | null;
-}) {
+function Search({ read, active }: { read: VaultRead; active: boolean }) {
   const trpc = useTRPC();
   const [text, setText] = useState("");
-  const [seen, setSeen] = useState(seek);
-  if (seen !== seek) {
-    setSeen(seek);
-    if (seek !== null) setText(seek.text);
-  }
   const [choice, setChoice] = useState({ text: "", at: 0 });
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {

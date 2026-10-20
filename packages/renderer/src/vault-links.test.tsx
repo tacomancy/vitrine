@@ -114,19 +114,31 @@ describe("a wikilink", () => {
 });
 
 describe("a tag", () => {
-  it("lists the files that carry it, in the search tab", async () => {
-    const search = vi.fn(() => []);
+  it("opens the tags tab on its node, listing the files that carry it", async () => {
     window.location.hash = "#/vault/a.md";
+    const node = {
+      canonical: "ml/probing",
+      display: "ml/probing",
+      name: "probing",
+      implicit: false,
+      count: { inclusive: 1, exclusive: 1 },
+      files: ["b.md"],
+      occurrences: [{ path: "b.md", written: "ML/Probing", source: "inline" }],
+      children: [],
+    };
     renderApp({
       "vault.current": vault,
       "questions.list": empty,
       "vault.status": READ,
-      "vault.tree": [{ path: "a.md", kind: null }],
+      "vault.tree": [
+        { path: "a.md", kind: null },
+        { path: "b.md", kind: null },
+      ],
       "vault.pdfFault": null,
       "vault.backlinks": [],
-      "vault.read": FILE("#ml/probing\n"),
+      "vault.read": FILE("#ML/Probing\n"),
       "vault.resolveLinks": {},
-      "vault.search": search,
+      "vault.tags": { tags: [node], invalid: [] },
     });
     await screen.findByRole("textbox", { name: "Editor" });
     const tag = await waitFor(() => {
@@ -135,11 +147,10 @@ describe("a tag", () => {
       return el as HTMLElement;
     });
     fireEvent.click(tag);
-    const box = await screen.findByRole("searchbox");
-    expect((box as HTMLInputElement).value).toBe("#ml/probing");
-    await waitFor(() =>
-      expect(search).toHaveBeenCalledWith({ query: "#ml/probing" })
-    );
+    expect(
+      screen.getByRole("tab", { name: "tags" }).getAttribute("aria-selected")
+    ).toBe("true");
+    await waitFor(() => expect(screen.getByText("ML/Probing")).toBeDefined());
   });
 });
 
