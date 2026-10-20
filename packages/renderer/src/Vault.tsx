@@ -4,12 +4,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { SearchHit, TreeFile } from "core";
+import type { LinkFile, SearchHit, TreeFile } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
-import { markOf } from "./kinds";
+import { classifyLink, refusal as linkRefusal } from "./link-rule";
+import { markOf, routeOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
@@ -27,14 +28,20 @@ import { useVaultStatusLines, type VaultRead } from "./VaultStatusLines";
  * other two panes.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
+  // A tag followed from the editor: the tags tab picks its node. `n` makes a
+  // second click on the same tag a new request, after the user has moved on.
+  const [tag, setTag] = useState<{ text: string; n: number } | null>(null);
   return (
     <section className={styles.vault} aria-label="Vault">
-      <LeftPane open={path} />
+      <LeftPane open={path} seek={tag} />
       <div className={styles.editor}>
         {path === undefined ? (
           <p className={styles.quiet}>Choose a file from the tree.</p>
         ) : (
-          <OpenFile path={path} />
+          <OpenFile
+            path={path}
+            onTag={(text) => setTag((was) => ({ text, n: (was?.n ?? 0) + 1 }))}
+          />
         )}
       </div>
       {path !== undefined && <VaultBacklinks key={path} path={path} />}
@@ -56,8 +63,16 @@ const wordsIn = (text: string) => text.split(/\s+/).filter(Boolean).length;
  * name (ADR 0027 decision 7) — replaced, not pushed, so back does not return
  * to it.
  */
-function OpenFile({ path }: { path: string }) {
+function OpenFile({
+  path,
+  onTag,
+}: {
+  path: string;
+  onTag: (tag: string) => void;
+}) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const followed = useFollow(path);
   const file = useQuery({
     ...trpc.vault.read.queryOptions({ path }),
     retry: false,
@@ -134,7 +149,21 @@ function OpenFile({ path }: { path: string }) {
         )}
       </header>
       <RefusalLine refusal={refusal} className={styles.refusal} />
-      <VaultEditor file={loaded} save={saveFile} />
+      <VaultEditor
+        file={loaded}
+        save={saveFile}
+        links={{
+          resolve: (links) =>
+            queryClient.fetchQuery({
+              ...trpc.vault.resolveLinks.queryOptions({ from: path, links }),
+              staleTime: 0,
+            }),
+          onWikilink: (link) => void followed.wikilink(link),
+          onTag,
+          onHref: followed.href,
+        }}
+      />
+      {followed.line}
     </>
   );
 }
@@ -209,6 +238,116 @@ function rowsOf(
 // is, and position is what decides whether a row is in view (ADR 0030).
 const rowId = (index: number) => `vault-file-row-${index}`;
 
+/**
+ * What activating a link does (#701; spec #680 stories 41, 42). A resolved
+ * wikilink moves the window to the file's own surface, or the Vault for a
+ * Note; anything that goes nowhere says so, because a click that did nothing
+ * would look like one that worked. A link that names nothing is the user's
+ * click refused, so it is an alert (ADR 0033). A link that has candidates —
+ * an ambiguous pair, a file whose heading is gone — is a choice to make, not
+ * a refusal, and stays polite.
+ */
+function useFollow(path: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const refusal = useRefusal();
+  const [choice, setChoice] = useState<{
+    link: string;
+    why: string;
+    candidates: LinkFile[];
+  } | null>(null);
+  // Said about one file; it does not follow the window to the next.
+  const [saidAt, setSaidAt] = useState(path);
+  if (saidAt !== path) {
+    setSaidAt(path);
+    setChoice(null);
+    refusal.forget();
+  }
+
+  const land = (kind: string | null, to: string) =>
+    pushRoute(routeOf(kind, to) ?? { surface: "vault", path: to });
+
+  const wikilink = async (link: string) => {
+    refusal.forget();
+    setChoice(null);
+    // Asked afresh: the picture the editor drew from may be older than the vault.
+    let landing;
+    try {
+      landing = (
+        await queryClient.fetchQuery({
+          ...trpc.vault.resolveLinks.queryOptions({
+            from: path,
+            links: [link],
+          }),
+          staleTime: 0,
+        })
+      )[link];
+    } catch {
+      refusal.say(`Could not look up [[${link}]].`);
+      return;
+    }
+    if (landing === undefined) return;
+    if (landing.resolution === "resolved" && landing.path !== null) {
+      land(landing.kind, landing.path);
+    } else if (landing.resolution === "ambiguous") {
+      setChoice({
+        link,
+        why: "is ambiguous: more than one file has that name.",
+        candidates: landing.candidates,
+      });
+    } else if (landing.candidates.length > 0) {
+      setChoice({
+        link,
+        why: "names a file, but not the part of it the link points at.",
+        candidates: landing.candidates,
+      });
+    } else {
+      refusal.say(`[[${link}]] has no file in this vault.`);
+    }
+  };
+
+  const href = (to: string) => {
+    refusal.forget();
+    setChoice(null);
+    const rule = classifyLink(to);
+    if (rule.kind === "out") window.open(rule.href, "_blank", "noreferrer");
+    // The router reads the hash and nothing else (ADR 0021); an Address
+    // typed into note text is followed the way a pasted one is.
+    else if (rule.kind === "route") window.location.hash = rule.href;
+    else refusal.say(linkRefusal(rule.scheme));
+  };
+
+  const line = (
+    <>
+      <RefusalLine refusal={refusal} className={styles.followLine} />
+      {choice !== null && (
+        <div role="status" className={styles.followLine}>
+          <p>
+            [[{choice.link}]] {choice.why}
+          </p>
+          <ul className={styles.candidates}>
+            {choice.candidates.map((c) => (
+              <li key={c.path}>
+                <button
+                  type="button"
+                  className={styles.candidate}
+                  onClick={() => land(c.kind, c.path)}
+                >
+                  <span aria-hidden="true">
+                    {markOf(c.kind ?? "note")?.glyph}
+                  </span>{" "}
+                  {c.path}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+  return { wikilink, href, line };
+}
+
 const TABS = ["files", "tags", "search"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -219,10 +358,22 @@ type Tab = (typeof TABS)[number];
  * the other tab. The footer is here, once, since it speaks for the vault and
  * not for a tab.
  */
-function LeftPane({ open }: { open: string | undefined }) {
+function LeftPane({
+  open,
+  seek,
+}: {
+  open: string | undefined;
+  seek: { text: string; n: number } | null;
+}) {
   const status = useVaultStatusLines();
   const [tab, setTab] = useState<Tab>("files");
   const [naming, setNaming] = useState(false);
+  // A tag followed in the editor opens the tags tab.
+  const [seen, setSeen] = useState(seek);
+  if (seen !== seek) {
+    setSeen(seek);
+    if (seek !== null) setTab("tags");
+  }
   return (
     <div className={styles.files}>
       <div className={styles.header}>
@@ -273,7 +424,7 @@ function LeftPane({ open }: { open: string | undefined }) {
         className={styles.panel}
         hidden={tab !== "tags"}
       >
-        <Tags read={status.read} active={tab === "tags"} />
+        <Tags read={status.read} active={tab === "tags"} seek={seek} />
       </div>
       <div
         role="tabpanel"
@@ -306,6 +457,7 @@ function Files({
   const tree = useQuery(trpc.vault.tree.queryOptions());
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const [chosenKey, setChosenKey] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
 
   const files = tree.data ?? [];
   const rows = rowsOf(folderOf(files), folded);
@@ -376,6 +528,9 @@ function Files({
   return (
     <>
       {naming && <NewNote onDone={onNamed} />}
+      {attaching !== null && (
+        <AttachPdf stub={attaching} onDone={() => setAttaching(null)} />
+      )}
       {rows.length === 0 ? (
         <FirstSlot voice={voice} claim="No notes here yet.">
           Nothing in this vault is a note yet. New note starts one in notes/.
@@ -433,12 +588,98 @@ function Files({
                 {annotations !== undefined && (
                   <span className={styles.count}>{annotations}</span>
                 )}
+                {row.type === "file" && row.file.kind === "source" && (
+                  <button
+                    type="button"
+                    className={styles.command}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      pushRoute({ surface: "source", path: row.file.path });
+                    }}
+                  >
+                    open in reader
+                  </button>
+                )}
+                {row.type === "file" && row.file.kind === "source-stub" && (
+                  <button
+                    type="button"
+                    className={styles.command}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setAttaching(row.file.path);
+                    }}
+                  >
+                    attach a PDF
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
       )}
     </>
+  );
+}
+
+/**
+ * A stub's *attach a PDF* (#702): the Reader beat's own write, the one the
+ * Loose Ends stub row calls, so a stub becomes a Source here by exactly the
+ * act it does there — the core attaches and ingests, this only chooses. The
+ * list is the PDFs no Source names; a refusal is an alert and leaves the
+ * choice open to try another (ADR 0033).
+ */
+function AttachPdf({ stub, onDone }: { stub: string; onDone: () => void }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [attached, setAttached] = useState<string | null>(null);
+  const refusal = useRefusal();
+  const waiting = useQuery(trpc.sources.unnamedPdfs.queryOptions());
+  const attach = useMutation(
+    trpc.sources.attachToStub.mutationOptions({
+      onSuccess: (_reply, { pdf }) => {
+        setAttached(pdf);
+        void queryClient.invalidateQueries(trpc.vault.tree.pathFilter());
+      },
+      onError: (error) => refusal.say(error.message),
+    })
+  );
+  const leaf = (path: string) => path.replace(/^.*\//, "");
+  return (
+    <div
+      className={styles.naming}
+      role="group"
+      aria-label={`Attach a PDF to ${leaf(stub)}`}
+    >
+      {attached !== null ? (
+        <p role="status" className={styles.note}>
+          Attached {leaf(attached)} — {leaf(stub)} is a Source now.
+        </p>
+      ) : (
+        <ul className={styles.pdfs}>
+          {(waiting.data ?? []).map((pdf) => (
+            <li key={pdf}>
+              <button
+                type="button"
+                className={styles.command}
+                onClick={() => {
+                  refusal.forget();
+                  if (!attach.isPending) attach.mutate({ pdf, stub });
+                }}
+              >
+                {leaf(pdf)}
+              </button>
+            </li>
+          ))}
+          {waiting.data?.length === 0 && (
+            <li>No PDF in the folder is waiting for a Source.</li>
+          )}
+        </ul>
+      )}
+      <RefusalLine refusal={refusal} className={styles.refusal} />
+      <button type="button" className={styles.command} onClick={onDone}>
+        {attached === null ? "cancel" : "done"}
+      </button>
+    </div>
   );
 }
 

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -371,5 +377,93 @@ describe("the search tab", () => {
     await typeQuery("zebra");
     expect(await screen.findByText("not known")).toBeDefined();
     expect(screen.queryByText(/Nothing matches/)).toBeNull();
+  });
+});
+
+// The Reader beat's two commands, exposed on the rows that own them (#702;
+// spec #680 story 10): a stub's *attach a PDF*, a Source's *open in reader*.
+// The surface builds neither — it calls what the Loose Ends row and the
+// Source route already do.
+describe("a row's Reader commands", () => {
+  it("gives a Source row *open in reader*, which goes to the Source's own Address", async () => {
+    open();
+    await tree();
+    fireEvent.click(
+      within(item("Paper, source, 3 annotations")).getByRole("button", {
+        name: "open in reader",
+      })
+    );
+    expect(window.location.hash).toBe("#/source/sources/Paper.md");
+  });
+
+  it("gives a stub row *attach a PDF* and neither command to a note, a question or a folder", async () => {
+    open();
+    await tree();
+    const withButtons = screen
+      .getAllByRole("treeitem")
+      .filter((row) => within(row).queryAllByRole("button").length > 0)
+      .map((row) => row.getAttribute("aria-label"));
+    expect(withButtons).toEqual([
+      "Paper, source, 3 annotations",
+      "Stub, source stub",
+    ]);
+    expect(
+      within(item("Stub, source stub")).getByRole("button", {
+        name: "attach a PDF",
+      })
+    ).toBeDefined();
+  });
+
+  it("attaches a chosen PDF to the stub through the Loose Ends write, and says so", async () => {
+    const attach = vi.fn<(input: unknown) => object>(() => ({}));
+    open({
+      "sources.unnamedPdfs": ["sources/pdf/waiting.pdf"],
+      "sources.attachToStub": attach,
+    });
+    await tree();
+    fireEvent.click(
+      within(item("Stub, source stub")).getByRole("button", {
+        name: "attach a PDF",
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "waiting.pdf" }));
+    await waitFor(() =>
+      expect(attach).toHaveBeenCalledWith({
+        pdf: "sources/pdf/waiting.pdf",
+        stub: "sources/Stub.md",
+      })
+    );
+    expect(await screen.findByText(/Attached waiting\.pdf/)).toBeDefined();
+  });
+
+  it("says when no PDF waits, and says a refusal as an alert, leaving the choice open", async () => {
+    open({ "sources.unnamedPdfs": [] });
+    await tree();
+    fireEvent.click(
+      within(item("Stub, source stub")).getByRole("button", {
+        name: "attach a PDF",
+      })
+    );
+    expect(
+      await screen.findByText("No PDF in the folder is waiting for a Source.")
+    ).toBeDefined();
+    cleanup();
+    open({
+      "sources.unnamedPdfs": ["sources/pdf/waiting.pdf"],
+      "sources.attachToStub": () => {
+        throw new Error("sources/Other.md already names that PDF.");
+      },
+    });
+    await tree();
+    fireEvent.click(
+      within(item("Stub, source stub")).getByRole("button", {
+        name: "attach a PDF",
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "waiting.pdf" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "already names that PDF"
+    );
+    expect(screen.getByRole("button", { name: "waiting.pdf" })).toBeDefined();
   });
 });

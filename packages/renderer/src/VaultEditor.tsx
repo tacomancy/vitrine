@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
+import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
 import { livePreview } from "./vault-live-preview";
 
 /** Obsidian's pause: typing that stops for this long is saved. */
@@ -67,10 +68,18 @@ function spliceBetween(from: string, to: string): ChangeSpec {
 export function VaultEditor({
   file,
   save,
+  links,
 }: {
   file: EditorFile | null;
   save: (path: string, content: string, basedOn: string) => Promise<SavedText>;
+  links: LinkHooks;
 }) {
+  // The extension reads the latest hooks through this, so the view is still
+  // made once and a render never rebuilds it.
+  const hooks = useRef(links);
+  useEffect(() => {
+    hooks.current = links;
+  });
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // What the document is a copy of: the file, and the hash `basedOn` names.
@@ -155,6 +164,7 @@ export function VaultEditor({
           // counts (`vault-grammar.parity.test.ts`).
           vaultMarkdown(),
           syntaxHighlighting(vaultHighlight),
+          vaultLinks(() => hooks.current),
           livePreview(),
           keymap.of([
             {
@@ -208,9 +218,15 @@ export function VaultEditor({
     held.current = { path, hash };
     dirty.current = false;
     clearTimeout(timer.current);
-    if (current.state.doc.toString() === text) return;
+    const changes =
+      current.state.doc.toString() === text
+        ? []
+        : [{ from: 0, to: current.state.doc.length, insert: text }];
+    // A new file forgets what links the last one resolved.
+    if (changes.length === 0 && !switching) return;
     current.dispatch({
-      changes: { from: 0, to: current.state.doc.length, insert: text },
+      changes,
+      effects: forgetResolutions.of(null),
       annotations: fromDisk.of(true),
     });
   }, [path, text, hash]);

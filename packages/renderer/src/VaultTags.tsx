@@ -64,7 +64,16 @@ const rowId = (index: number) => `vault-tag-row-${index}`;
 const fileLabel = (path: string) =>
   (path.split("/").at(-1) ?? path).replace(/\.md$/i, "");
 
-export function Tags({ read, active }: { read: VaultRead; active: boolean }) {
+export function Tags({
+  read,
+  active,
+  seek,
+}: {
+  read: VaultRead;
+  active: boolean;
+  /** A tag followed from the editor, as written (`#Ml/Probing`). */
+  seek: { text: string; n: number } | null;
+}) {
   const trpc = useTRPC();
   const tags = useQuery(trpc.vault.tags.queryOptions());
   // The files' Kinds are the tree's; it is the same query the files tab reads.
@@ -74,6 +83,16 @@ export function Tags({ read, active }: { read: VaultRead; active: boolean }) {
   // listed. A click or ↵ sets both, the arrows only the first.
   const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  // The index's canonical form is the written tag, lowercased, without `#`.
+  const [seen, setSeen] = useState(seek);
+  if (seen !== seek) {
+    setSeen(seek);
+    if (seek !== null) {
+      const canonical = seek.text.replace(/^#/, "").toLowerCase();
+      setChosenKey(canonical);
+      setPicked(canonical);
+    }
+  }
 
   const roots = tags.data?.tags ?? [];
   const invalid = tags.data?.invalid ?? [];
