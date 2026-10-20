@@ -222,6 +222,23 @@ describe("typing saves", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("a saved file is clean: a blur or ⌘S after it saves nothing more until it is typed in again", async () => {
+    const replace = vi.fn(() => SAVED("h2", "a\nb\n"));
+    open(
+      { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("b\n");
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    fireEvent.blur(box);
+    fireEvent.keyDown(box, { key: "s", ctrlKey: true });
+    await act(async () => {});
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
   it("saves on blur", async () => {
     const replace = vi.fn(() => SAVED("h2", "a\nb\n"));
     open(
@@ -251,8 +268,9 @@ describe("typing saves", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
     // Typed while the save was out, before the history it will gain.
     act(() => view.dispatch({ changes: { from: 0, insert: ">" } }));
-    await act(async () =>
-      finish(SAVED("h2", "answer!\n\nhistory\n- 2026 · answer\n"))
+    finish(SAVED("h2", "answer!\n\nhistory\n- 2026 · answer\n"));
+    await waitFor(() =>
+      expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n")
     );
     expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n");
   });

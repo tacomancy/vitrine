@@ -210,6 +210,7 @@ describe("no setter for the PDF folder", () => {
       "vault.create",
       "vault.open",
       "vault.pick",
+      "vault.replaceFile",
       "vault.reveal",
       "vault.rewatch",
     ]);
