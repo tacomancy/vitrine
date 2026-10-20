@@ -17,20 +17,24 @@ import { useVaultStatusLines } from "./VaultStatusLines";
  * dropped (ADR 0008 decision 8).
  */
 
-type Node = {
+type TagNode = {
   canonical: string;
   display: string;
   name: string;
   count: { inclusive: number; exclusive: number };
   files: string[];
   occurrences: { path: string; written: string }[];
-  children: Node[];
+  children: TagNode[];
 };
 
-type Row = { node: Node; depth: number; open: boolean };
+type Row = { node: TagNode; depth: number; open: boolean };
 
 /** The rows showing, top to bottom: a node's children follow it unless it is folded. */
-function rowsOf(nodes: Node[], folded: ReadonlySet<string>, depth = 0): Row[] {
+function rowsOf(
+  nodes: TagNode[],
+  folded: ReadonlySet<string>,
+  depth = 0
+): Row[] {
   return nodes.flatMap((node) => {
     const open = !folded.has(node.canonical);
     return [
@@ -46,7 +50,7 @@ function rowsOf(nodes: Node[], folded: ReadonlySet<string>, depth = 0): Row[] {
  * what the file says for itself is the child's spelling — which is the
  * reason to show it.
  */
-function writtenIn(node: Node, path: string): string[] {
+function writtenIn(node: TagNode, path: string): string[] {
   const own = node.occurrences
     .filter((o) => o.path === path)
     .map((o) => o.written);
@@ -67,6 +71,8 @@ export function Tags({ tabs }: { tabs: ReactNode }) {
   const tree = useQuery(trpc.vault.tree.queryOptions());
   const status = useVaultStatusLines();
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  // `chosen` is the keyboard's row; `picked` is the node whose files are
+  // listed. A click or ↵ sets both, the arrows only the first.
   const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
 
