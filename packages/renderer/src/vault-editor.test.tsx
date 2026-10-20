@@ -252,7 +252,9 @@ describe("typing saves", () => {
     type("c\n");
     fireEvent.keyDown(box, { key: "s", ctrlKey: true });
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
-    expect(replace.mock.calls[1]?.[0]).toMatchObject({ basedOn: "h2" });
+    expect(replace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ basedOn: "h2" })
+    );
   });
 
   it("a file that has not been typed in is never saved, however long it is open or whatever blurs", async () => {
@@ -382,11 +384,11 @@ describe("typing saves", () => {
     expect(textOf(box)).toBe("a\nb\n");
   });
 
-  it("a refused save is said in an alert and the typing stays; a changed file is not overwritten", async () => {
+  it("a refused save is said in an alert and the typing stays", async () => {
     const replace = vi.fn(() => ({
       written: false,
-      reason: "changedOnDisk",
-      detail: "plain.md changed since it was read",
+      reason: "outsideVault",
+      detail: "plain.md is outside the vault",
     }));
     open(
       { "vault.read": FILE("a\n"), "vault.replaceFile": replace },
@@ -396,7 +398,7 @@ describe("typing saves", () => {
     type("b\n");
     fireEvent.blur(box);
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toBe("plain.md changed since it was read");
+    expect(alert.textContent).toBe("plain.md is outside the vault");
     expect(textOf(box)).toBe("a\nb\n");
   });
 
@@ -415,5 +417,237 @@ describe("typing saves", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("history was not recorded");
     expect(textOf(box)).toBe("a\nb\n");
+  });
+});
+
+// Changed on disk (#699; spec #680 stories 34–37): a file that moved under
+// unsaved typing is one non-modal line with two actions, not a modal and not
+// an overwrite; a clean editor takes the new text in without a word.
+
+const changed = (
+  more: Partial<Record<"changed" | "removed", string[]>> & {
+    renamed?: { from: string; to: string }[];
+  }
+) => ({
+  type: "vaultChanged" as const,
+  changed: [],
+  removed: [],
+  renamed: [],
+  ...more,
+});
+
+/** A disk the test moves under the open editor: `vault.read` answers with it. */
+const disk = (text: string, hash = "h") => {
+  const now = { text, hash };
+  return {
+    now,
+    read: vi.fn(() => ({ ...FILE(now.text), hash: now.hash })),
+    move: (to: string, at: string) => {
+      now.text = to;
+      now.hash = at;
+    },
+  };
+};
+
+const said = async (words: RegExp) =>
+  (await screen.findByText(words)).closest("[role=status]")!;
+const line = () => said(/changed on disk/);
+
+describe("changed on disk", () => {
+  it("a vaultChanged naming the open path under unsaved typing shows the line, and autosave stops while typing goes on", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn(() => SAVED("h3", "one\nmine\n"));
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    type("mine\n");
+    d.move("one\nelsewhere\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    expect((await line()).textContent).toContain("just now");
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    type("more\n");
+    fireEvent.blur(box);
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(replace).not.toHaveBeenCalled();
+    expect(textOf(box)).toBe("one\nmine\nmore\n");
+    // Non-modal: a status, not a dialog or an alert.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(120_000));
+    expect((await line()).textContent).toContain("2 min ago");
+  });
+
+  it("keep mine saves the typing basedOn the disk's hash", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn(() => SAVED("h3", "one\nmine\n"));
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    await editor();
+    type("mine\n");
+    d.move("one\nelsewhere\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await line();
+    fireEvent.click(screen.getByRole("button", { name: "keep mine" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace).toHaveBeenCalledWith({
+      path: "plain.md",
+      content: "one\nmine\n",
+      basedOn: "h2",
+    });
+    await waitFor(() =>
+      expect(screen.queryByText(/changed on disk/)).toBeNull()
+    );
+  });
+
+  it("take the disk copy replaces the document, clears the line and saves nothing", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn();
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("mine\n");
+    d.move("one\nelsewhere\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await line();
+    fireEvent.click(screen.getByRole("button", { name: "take the disk copy" }));
+    await waitFor(() => expect(textOf(box)).toBe("one\nelsewhere\n"));
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+    fireEvent.blur(box);
+    await act(async () => {});
+    expect(replace).not.toHaveBeenCalled();
+    // Clean again: the next typing saves, basedOn what was taken.
+    replace.mockReturnValue(SAVED("h3", "one\nelsewhere\nx"));
+    type("x");
+    fireEvent.blur(box);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace.mock.calls[0]?.[0]).toMatchObject({ basedOn: "h2" });
+  });
+
+  it("a hash-mismatch refusal shows the same line, not an alert, and the typing stays", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn<() => unknown>(() => ({
+      written: false,
+      reason: "changedOnDisk",
+      detail: "plain.md changed since it was read",
+    }));
+    open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("mine\n");
+    d.move("one\nelsewhere\n", "h2");
+    fireEvent.blur(box);
+    await line();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(textOf(box)).toBe("one\nmine\n");
+    replace.mockReturnValue(SAVED("h3", "one\nmine\n"));
+    fireEvent.click(screen.getByRole("button", { name: "keep mine" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
+    expect(replace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ basedOn: "h2" })
+    );
+  });
+
+  it("the echo of the editor's own save is not a change on disk", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn(() => {
+      d.move("one\nmine\n", "h2");
+      return SAVED("h2", "one\nmine\n");
+    });
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    await editor();
+    type("mine\n");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Editor" }), {
+      key: "s",
+      ctrlKey: true,
+    });
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    type("more\n");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await act(async () => {});
+    await act(async () => {});
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+  });
+
+  it("a clean editor reloads silently, the cursor kept where the text allows", async () => {
+    const d = disk("hello world\n");
+    const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");
+    const box = await editor();
+    const view = VIEW();
+    act(() => view.dispatch({ selection: { anchor: 9 } }));
+    d.move("hello brave world\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await waitFor(() => expect(textOf(box)).toBe("hello brave world\n"));
+    expect(view.state.selection.main.head).toBe(15);
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("another file's change is none of this editor's business", async () => {
+    const d = disk("one\n");
+    const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");
+    await editor();
+    type("mine\n");
+    act(() => stream.push(changed({ changed: ["notes/Idea.md"] })));
+    await act(async () => {});
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+  });
+
+  it("a removed open file is said in the same line, the typing kept and the window not moved", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn();
+    const { stream } = open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    const box = await editor();
+    type("mine\n");
+    act(() => stream.push(changed({ removed: ["plain.md"] })));
+    expect((await said(/removed on disk/)).textContent).toContain("just now");
+    expect(window.location.hash).toBe("#/vault/plain.md");
+    expect(textOf(box)).toBe("one\nmine\n");
+    fireEvent.blur(box);
+    await act(async () => {});
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("a renamed open file says where it went, even when the editor is clean", async () => {
+    const d = disk("one\n");
+    const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");
+    await editor();
+    act(() =>
+      stream.push(
+        changed({ renamed: [{ from: "plain.md", to: "notes/Idea.md" }] })
+      )
+    );
+    expect((await said(/renamed on disk/)).textContent).toContain(
+      "notes/Idea.md"
+    );
+    expect(window.location.hash).toBe("#/vault/plain.md");
+  });
+
+  it("the line belongs to its file: opening another clears it", async () => {
+    const d = disk("one\n");
+    const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");
+    await editor();
+    type("mine\n");
+    d.move("two\n", "h2");
+    act(() => stream.push(changed({ changed: ["plain.md"] })));
+    await line();
+    fireEvent.click(await screen.findByRole("treeitem", { name: "Idea" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/changed on disk/)).toBeNull()
+    );
   });
 });
