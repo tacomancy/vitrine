@@ -93,6 +93,7 @@ import {
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
+  previewTags,
   readQueue,
   readQuestionGroups,
   readSkim,
@@ -715,6 +716,12 @@ export const router = t.router({
       .input(z.object({ query: z.string() }))
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
+    // A query, not a mutation: it reads the Lexicon and spends no request.
+    previewTags: t.procedure
+      .input(z.object({ tags: z.array(z.string()) }))
+      .query(async ({ ctx, input }) =>
+        refusing(previewTags(await scoutDeps(ctx), input.tags))
       ),
     tryTags: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))
