@@ -637,6 +637,25 @@ describe("changed on disk", () => {
     expect(window.location.hash).toBe("#/vault/plain.md");
   });
 
+  it("a save of the file being left that finds it changed is said as a refusal, not lost", async () => {
+    const d = disk("one\n");
+    const replace = vi.fn<() => unknown>(() => ({
+      written: false,
+      reason: "changedOnDisk",
+      detail: "plain.md changed since it was read",
+    }));
+    open(
+      { "vault.read": d.read, "vault.replaceFile": replace },
+      "#/vault/plain.md"
+    );
+    await editor();
+    type("mine\n");
+    fireEvent.click(await screen.findByRole("treeitem", { name: "Idea" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "plain.md changed since it was read"
+    );
+  });
+
   it("the line belongs to its file: opening another clears it", async () => {
     const d = disk("one\n");
     const { stream } = open({ "vault.read": d.read }, "#/vault/plain.md");

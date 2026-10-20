@@ -334,11 +334,16 @@ export function VaultEditor({
   useEffect(() => {
     if (changedAt === undefined) return;
     let stale = false;
-    void reread().then((copy) => {
-      // The echo of the editor's own save reads back as the hash it holds.
-      if (stale || held.current?.hash === copy.hash || !dirty.current) return;
-      show({ kind: "changed", at: changedAt });
-    });
+    // A read that fails leaves the editor as it was; the surface's own
+    // error handling says why the file cannot be read.
+    void reread().then(
+      (copy) => {
+        // The echo of the editor's own save reads back as the hash it holds.
+        if (stale || held.current?.hash === copy.hash || !dirty.current) return;
+        show({ kind: "changed", at: changedAt });
+      },
+      () => {}
+    );
     return () => {
       stale = true;
     };
@@ -346,14 +351,16 @@ export function VaultEditor({
   }, [noteN]);
 
   const keepMine = async () => {
-    const copy = await reread();
+    const copy = await reread().catch(() => null);
+    if (copy === null) return;
     if (held.current !== null)
       held.current = { ...held.current, hash: copy.hash };
     show(null);
     await flushRef.current();
   };
   const takeDisk = async () => {
-    const copy = await reread();
+    const copy = await reread().catch(() => null);
+    if (copy === null) return;
     const current = view.current;
     if (current === null || held.current === null) return;
     held.current = { ...held.current, hash: copy.hash };

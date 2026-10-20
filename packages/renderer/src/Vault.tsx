@@ -119,6 +119,10 @@ function OpenFile({
   // What the disk told the editor about this file (#699). Kept with its path:
   // one editor serves every file, and a note is about one.
   const [note, setNote] = useState<(DiskNote & { path: string }) | null>(null);
+  const current = useRef(path);
+  useEffect(() => {
+    current.current = path;
+  }, [path]);
   const tell = useCallback(
     (about: Omit<DiskNote, "n" | "at">) =>
       setNote((was) => ({
@@ -158,7 +162,10 @@ function OpenFile({
       if (!saved.written) {
         // The file moved under the typing: a line with two actions, not a
         // refusal of something the user did.
-        if (saved.reason === "changedOnDisk") tell({ kind: "refused" });
+        // Only for the file still open: a refusal of the save that leaves a
+        // file has no line to go to, so it is said as the refusal it is.
+        if (saved.reason === "changedOnDisk" && current.current === at)
+          tell({ kind: "refused" });
         else refusal.say(saved.detail);
         return null;
       }
