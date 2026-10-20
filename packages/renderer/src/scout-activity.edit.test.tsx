@@ -1587,7 +1587,9 @@ describe("a Scout whose Filter is Tags", () => {
 
   it("offers the Tags, one to a line, in place of a Query", async () => {
     const { panel } = await openEdit();
-    expect(panel.getByLabelText("Tags").value).toBe("ml/probing\nml/saes");
+    expect(panel.getByLabelText<HTMLTextAreaElement>("Tags").value).toBe(
+      "ml/probing\nml/saes"
+    );
     expect(panel.queryByLabelText("Query")).toBeNull();
   });
 
@@ -1629,7 +1631,9 @@ describe("a Scout whose Filter is Tags", () => {
   it("cannot be saved with no Tags", async () => {
     const { panel } = await openEdit();
     fireEvent.change(panel.getByLabelText("Tags"), { target: { value: " " } });
-    expect(panel.getByRole("button", { name: "Save" }).disabled).toBe(true);
+    expect(
+      panel.getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled
+    ).toBe(true);
   });
 
   it("switches a Query Scout to Tags, and a Tag Scout back to a Query", async () => {
