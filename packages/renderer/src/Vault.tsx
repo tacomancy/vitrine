@@ -5,7 +5,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type { TreeFile } from "core";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
@@ -14,18 +20,25 @@ import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { VaultEditor } from "./VaultEditor";
+import { Tags } from "./VaultTags";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 /**
  * The Vault surface (spec #680; `docs/architecture.md` § Vault surface).
- * This slice is its left pane's *files* tab: the vault as a tree, a Kind
- * glyph per file, folders that fold, and *new note*. The editor and the
- * backlinks fill the other two panes in later slices.
+ * The left pane is tabbed: *files* — the vault as a tree, a Kind glyph per
+ * file, folders that fold, and *new note* — and *tags* (#696). Search joins
+ * it, and the backlinks fill the right pane, in later slices.
  */
 export function VaultSurface({ path }: { path: string | undefined }) {
+  const [tab, setTab] = useState<LeftTab>("files");
+  const tabs = <Tabs tab={tab} onTab={setTab} />;
   return (
     <section className={styles.vault} aria-label="Vault">
-      <Files open={path} />
+      {tab === "files" ? (
+        <Files open={path} tabs={tabs} />
+      ) : (
+        <Tags tabs={tabs} />
+      )}
       <div className={styles.editor}>
         {path === undefined ? (
           <p className={styles.quiet}>Choose a file from the tree.</p>
@@ -34,6 +47,28 @@ export function VaultSurface({ path }: { path: string | undefined }) {
         )}
       </div>
     </section>
+  );
+}
+
+type LeftTab = "files" | "tags";
+
+/** The left pane's tabs; each pane draws them in its own header so they never move. */
+function Tabs({ tab, onTab }: { tab: LeftTab; onTab: (tab: LeftTab) => void }) {
+  return (
+    <div role="tablist" aria-label="Vault panes" className={styles.tabs}>
+      {(["files", "tags"] as const).map((name) => (
+        <button
+          key={name}
+          type="button"
+          role="tab"
+          aria-selected={tab === name}
+          className={styles.tab}
+          onClick={() => onTab(name)}
+        >
+          {name}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -162,7 +197,7 @@ function rowsOf(
 // is, and position is what decides whether a row is in view (ADR 0030).
 const rowId = (index: number) => `vault-file-row-${index}`;
 
-function Files({ open }: { open: string | undefined }) {
+function Files({ open, tabs }: { open: string | undefined; tabs: ReactNode }) {
   const trpc = useTRPC();
   const tree = useQuery(trpc.vault.tree.queryOptions());
   const status = useVaultStatusLines();
@@ -239,7 +274,7 @@ function Files({ open }: { open: string | undefined }) {
   return (
     <div className={styles.files}>
       <div className={styles.header}>
-        <h2 className={styles.tab}>files</h2>
+        {tabs}
         <button
           type="button"
           className={styles.newNote}
