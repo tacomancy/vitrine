@@ -69,7 +69,9 @@ function valueOf(row: ActivityRow, column: Column): string | number | null {
   if (row.kind === "unreadable") return null;
   switch (column) {
     case "watching":
-      return row.source.kind === "arxiv" ? row.source.query : row.source.url;
+      return row.source.kind === "arxiv"
+        ? (row.source.tags?.join(", ") ?? row.source.query)
+        : row.source.url;
     case "cadence":
       return CADENCE_RANK[row.cadence];
     case "last run":
@@ -854,7 +856,7 @@ function Row({
   }
   const watching =
     row.source.kind === "arxiv"
-      ? `arXiv · ${row.source.query}`
+      ? `arXiv · ${row.source.tags === null ? row.source.query : `Tags: ${row.source.tags.join(", ")}`}`
       : row.source.url;
   const detail = `${id}-detail`;
   const rate = rateWords(row.acceptRate);

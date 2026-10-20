@@ -234,6 +234,99 @@ describe("a Query edited from its row", () => {
   });
 });
 
+// A Tag Filter on a row (#691; spec #678 decision 10): the Filter a row shows
+// is the Tags as written, the compiled query is one step deeper, and the edit
+// row saves a changed list through the same `scouts.save` as the form.
+describe("scouts.activity — a Tag Filter", () => {
+  const TAGGED = (...tags: string[]) =>
+    [
+      "name: Probing",
+      "cadence: daily",
+      "lane: review",
+      "created: 2026-09-20T00:00:00Z",
+      "filter:",
+      "  tags:",
+      ...tags.map((t) => `    - ${t}`),
+      "",
+    ].join("\n");
+
+  async function seeded(tags: string[]) {
+    const f = await opened({ "probing.yaml": TAGGED(...tags) });
+    for (const tag of ["ml/probing", "ml/saes"]) {
+      expect(
+        (await f.c.mutate("lexicon.seed", { tag, term: `${tag} term` })).error
+      ).toBeUndefined();
+    }
+    return f;
+  }
+
+  it("shows the Tags as the Filter, with no query of its own", async () => {
+    const f = await opened({ "probing.yaml": TAGGED("ml/probing", "ml/saes") });
+    const [row] = await f.rows();
+    expect(row!.source).toEqual({
+      kind: "arxiv",
+      query: "",
+      tags: ["ml/probing", "ml/saes"],
+    });
+  });
+
+  it("gives a Query Scout no Tags", async () => {
+    const f = await opened({ "sleep.yaml": scoutYaml("Sleep") });
+    const [row] = await f.rows();
+    expect(row!.source).toEqual({
+      kind: "arxiv",
+      query: "all:sleep",
+      tags: null,
+    });
+  });
+
+  it("says the compiled query verbatim on demand, as a run would ask it now", async () => {
+    const f = await seeded(["ml/probing"]);
+    const r = await f.c.query<{ query: string | null }>("scouts.previewTags", {
+      tags: ["ml/probing", "ml/saes"],
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.result!.data.query).toBe(
+      'abs:"ml probing term" OR ti:"ml probing term" OR abs:"ml saes term" OR ti:"ml saes term"'
+    );
+  });
+
+  it("has no query to show for a Tag with nothing to compile", async () => {
+    const f = await seeded(["ml/probing"]);
+    const r = await f.c.query<{ query: string | null }>("scouts.previewTags", {
+      tags: ["nope"],
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.result!.data.query).toBeNull();
+  });
+
+  it("saves a changed Tag list through scouts.save, keeps the Scout, and runs it once", async () => {
+    const f = await seeded(["ml/probing"]);
+    const [row] = await f.rows();
+
+    const saved = await f.c.mutate<{ run: { outcome: string } | null }>(
+      "scouts.save",
+      {
+        id: row!.id,
+        name: row!.name,
+        watching: "arxiv",
+        query: "",
+        tags: ["ml/probing", "ml/saes"],
+        cadence: row!.cadence,
+        assigned: row!.assigned,
+        lane: row!.lane,
+        searchBackTo: null,
+      }
+    );
+
+    expect(saved.error).toBeUndefined();
+    expect(saved.result!.data.run).toMatchObject({ outcome: "ok" });
+    expect(await f.file("probing")).toContain("- ml/saes");
+    const [after] = await f.rows();
+    expect(after!.source).toMatchObject({ tags: ["ml/probing", "ml/saes"] });
+  });
+});
+
 // What a hand-written file is owed by a save that did not change a key: the
 // key is not rewritten (ADR 0009). A list is a node the document replaces
 // whole when it is set, so setting it to what it already was would lose a
