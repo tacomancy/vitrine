@@ -139,6 +139,7 @@ import { localIso } from "./time.js";
 import { VaultError } from "./errors.js";
 import type { VaultService } from "./vault.js";
 import { readFileText } from "./vault-read.js";
+import { backlinksOf } from "./vault-backlinks.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -457,6 +458,11 @@ export const router = t.router({
     tree: t.procedure.query(async ({ ctx }) => {
       const { index } = await requireVault(ctx);
       return vaultTree(index);
+    }),
+    // The Vault's right pane (#695): what links to the open file.
+    backlinks: t.procedure.input(pathInput).query(async ({ ctx, input }) => {
+      const { vault, index } = await requireVault(ctx);
+      return backlinksOf(vault.path, index, input.path);
     }),
     // The Vault surface's *search* tab (#697): the index's FTS5 table, no file read.
     search: t.procedure
