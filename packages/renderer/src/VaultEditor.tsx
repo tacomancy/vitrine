@@ -59,8 +59,8 @@ function spliceBetween(from: string, to: string): ChangeSpec {
  * changes: React never re-renders per keystroke and never owns the text.
  *
  * Save (#693, #698): on a short idle, on ⌘S, on blur, when the window is
- * closing, and before another file replaces the document, each `basedOn` the hash of the text last read from
- * or written to disk. The text is the editor's LF text; the file's CRLF and
+ * closing, and before another file replaces the document, each `basedOn` the
+ * hash of the text last read from or written to disk. The text is the editor's LF text; the file's CRLF and
  * BOM are the core's to restore around a save, so nothing here needs
  * `lineSeparator` yet. There is no undo history until the editor's
  * extensions land.
