@@ -93,7 +93,7 @@ import {
 import { checkDue } from "./scout-schedule.js";
 import {
   acceptProposal,
-  compileTagsOrRefuse,
+  previewTags,
   readQueue,
   readQuestionGroups,
   readSkim,
@@ -717,12 +717,11 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
       ),
-    // What a Tag Filter would ask arXiv now, for a surface that shows it one
-    // step below the Tags. A read: it spends no request.
-    compiled: t.procedure
+    // A query, not a mutation: it reads the Lexicon and spends no request.
+    previewTags: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))
       .query(async ({ ctx, input }) =>
-        refusing(compileTagsOrRefuse(await scoutDeps(ctx), input.tags))
+        refusing(previewTags(await scoutDeps(ctx), input.tags))
       ),
     tryTags: t.procedure
       .input(z.object({ tags: z.array(z.string()) }))

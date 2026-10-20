@@ -314,6 +314,35 @@ class TagsError extends Error {
   readonly kind = "tags" as const;
 }
 
+/** What the form shows for chosen Tags: each one's Terms in use, and the query a run would ask. */
+export type TagsPreview = {
+  tags: Array<{ tag: string; terms: string[] }>;
+  /** Null when no chosen Tag has a Term. */
+  query: string | null;
+};
+
+/**
+ * `compileTags` for the form, which must show a Tag with nothing to compile
+ * rather than throw on it: the form names that Tag, and a run refuses it. The
+ * query is built from the same Terms `compileTags` uses, so the form shows
+ * what a run asks and not an approximation of it.
+ */
+export async function previewTags(
+  deps: Pick<ScoutDeps, "vaultPath" | "index">,
+  tags: readonly string[]
+): Promise<TagsPreview> {
+  const edits = await readEdits(deps.vaultPath);
+  const shown = tags.map((tag) => ({
+    tag,
+    terms: termsInUse(deps.index, tag, edits),
+  }));
+  const all = new Set(shown.flatMap((t) => t.terms));
+  return {
+    tags: shown,
+    query: all.size === 0 ? null : compileArxivQuery([...all]),
+  };
+}
+
 export type WaitingScout = { id: string; name: string; message: string };
 
 /**

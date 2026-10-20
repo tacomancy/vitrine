@@ -1562,7 +1562,7 @@ describe("a Scout whose Filter is Tags", () => {
     const asked: unknown[] = [];
     open(() => fleet([TAGGED]), {
       "questions.list": QUESTIONS,
-      "scouts.compiled": COMPILED,
+      "scouts.previewTags": { tags: [], query: COMPILED },
       "scouts.save": (input: unknown) => {
         asked.push(input);
         return { id: "sleep", run: null };

@@ -69,7 +69,7 @@ export function ScoutEdit({
   // The compiled query is the Lexicon's to say, so it is read when asked for
   // and never kept on the row, where it would go stale as a Seed is made.
   const compiled = useQuery({
-    ...trpc.scouts.compiled.queryOptions({ tags }),
+    ...trpc.scouts.previewTags.queryOptions({ tags }),
     enabled: showCompiled && byTags && tags.length > 0,
     retry: false,
   });
@@ -176,7 +176,9 @@ export function ScoutEdit({
             </button>
           </p>
           {showCompiled && compiled.data !== undefined && (
-            <code className={styles.line}>{compiled.data}</code>
+            <code className={styles.line}>
+              {compiled.data.query ?? "No chosen Tag has a Term to search."}
+            </code>
           )}
           {compiled.isError && <p role="alert">{compiled.error.message}</p>}
         </>

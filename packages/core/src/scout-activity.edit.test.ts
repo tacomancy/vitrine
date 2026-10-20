@@ -282,19 +282,22 @@ describe("scouts.activity — a Tag Filter", () => {
 
   it("says the compiled query verbatim on demand, as a run would ask it now", async () => {
     const f = await seeded(["ml/probing"]);
-    const r = await f.c.query<string>("scouts.compiled", {
+    const r = await f.c.query<{ query: string | null }>("scouts.previewTags", {
       tags: ["ml/probing", "ml/saes"],
     });
     expect(r.error).toBeUndefined();
-    expect(r.result!.data).toBe(
+    expect(r.result!.data.query).toBe(
       'abs:"ml probing term" OR ti:"ml probing term" OR abs:"ml saes term" OR ti:"ml saes term"'
     );
   });
 
-  it("refuses by name a Tag with nothing to compile", async () => {
+  it("has no query to show for a Tag with nothing to compile", async () => {
     const f = await seeded(["ml/probing"]);
-    const r = await f.c.query("scouts.compiled", { tags: ["nope"] });
-    expect(r.error?.message).toContain("Tag nope is gone");
+    const r = await f.c.query<{ query: string | null }>("scouts.previewTags", {
+      tags: ["nope"],
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.result!.data.query).toBeNull();
   });
 
   it("saves a changed Tag list through scouts.save, keeps the Scout, and runs it once", async () => {
