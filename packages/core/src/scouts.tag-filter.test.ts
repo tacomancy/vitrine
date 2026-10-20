@@ -2,7 +2,9 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { LooseEnds } from "./loose-ends.js";
 import type { RunSummary } from "./scouts.js";
+import { isDue } from "./scout-schedule.js";
 import type { Scout, UnreadableScout } from "./scout-file.js";
 import {
   closeCores,
@@ -51,6 +53,20 @@ const seeded = (edits: Record<string, string[]>) =>
     )
   );
 
+function lastRun(vault: string, column: string): string | null {
+  const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"), {
+    readOnly: true,
+  });
+  try {
+    const row = db
+      .prepare(`SELECT ${column} AS v FROM scout_runs ORDER BY id DESC LIMIT 1`)
+      .get() as { v: string | null } | undefined;
+    return row?.v ?? null;
+  } finally {
+    db.close();
+  }
+}
+
 async function opened(files: Record<string, string>) {
   const empty = await readFile(join(fixtures, "arxiv", "empty.xml"), "utf8");
   const requests: URL[] = [];
@@ -85,6 +101,8 @@ async function opened(files: Record<string, string>) {
       expect(r.error).toBeUndefined();
       return r.result!.data;
     },
+    runMessage: () => lastRun(vault, "error_message"),
+    runNote: () => lastRun(vault, "note"),
     runRows: () => {
       const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"), {
         readOnly: true,
@@ -245,16 +263,108 @@ describe("a Scout whose Filter is a Tag", () => {
     );
   });
 
-  it("names a Tag with nothing to compile and asks arXiv nothing", async () => {
+  it("fails a run whose Tags compile to nothing, by name, and asks arXiv nothing", async () => {
     const c = await opened({
       ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("nowhere/at-all")),
     });
 
     const r = await c.run();
 
-    expect(r.error?.message).toContain("nowhere/at-all");
+    expect(r.error).toBeUndefined();
+    expect(r.result!.data).toMatchObject({
+      outcome: "failed",
+      errorKind: "tags",
+    });
     expect(c.requests).toHaveLength(0);
-    expect(c.runRows()).toEqual([]);
+    expect(c.runRows()).toEqual([{ query: null, outcome: "failed" }]);
+    expect(c.runMessage()).toContain("nowhere/at-all");
+  });
+
+  it("is due again at the next check, not after a cadence", async () => {
+    const c = await opened({
+      ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("nowhere/at-all")),
+    });
+    await c.run();
+    const { scouts } = await c.list();
+
+    const queue = new DatabaseSync(join(c.vault, ".vitrine/queue.sqlite"), {
+      readOnly: true,
+    });
+    try {
+      const soon = new Date(NOW.getTime() + 60 * 60 * 1000);
+      expect(isDue(queue, scouts[0]!, soon)).toBe(true);
+    } finally {
+      queue.close();
+    }
+  });
+
+  it("says a Tag that no longer exists is gone, and a Tag with papers but no Terms has none", async () => {
+    const c = await opened({
+      ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("gone", "thin")),
+      "Papers/a.md": paper("a", ["thin"], "Sleep matters. Rest too"),
+    });
+
+    const r = await c.run();
+
+    expect(r.result!.data).toMatchObject({ errorKind: "tags" });
+    const message = c.runMessage()!;
+    expect(message).toMatch(/gone is gone/);
+    expect(message).toMatch(/thin has no Terms/);
+  });
+
+  it("runs on the Tags that compile and names those left out", async () => {
+    const c = await opened({
+      ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("ml", "nowhere")),
+      ".vitrine/lexicon.json": seeded({ ml: ["x"] }),
+    });
+
+    const r = await c.run();
+
+    expect(r.result!.data).toMatchObject({ outcome: "ok", errorKind: null });
+    expect(c.queries()[0]).toContain('"x"');
+    expect(c.queries()[0]).not.toContain("nowhere");
+    expect(r.result!.data.note).toContain("nowhere");
+    expect(c.runNote()).toContain("nowhere");
+  });
+
+  it("refuses to save a Tag with nothing to compile, with the way out", async () => {
+    const c = await opened({});
+
+    const saved = await c.c.mutate("scouts.save", {
+      name: "Tags",
+      query: "",
+      tags: ["nowhere"],
+      lane: "review",
+      cadence: "daily",
+      assigned: [],
+      searchBackTo: null,
+    });
+
+    expect(saved.error?.message).toMatch(/nowhere/);
+    expect(saved.error?.message).toMatch(/seed/i);
+    expect(saved.error?.message).toMatch(/Query/);
+    expect((await c.list()).scouts).toEqual([]);
+  });
+
+  it("shows the sentence on the existing failed-Scout row and adds no other row or Home item", async () => {
+    const c = await opened({
+      ".vitrine/scouts/tags.yaml": scoutFile(tagsFilter("nowhere/at-all")),
+    });
+    const before = await c.c.query<LooseEnds>("looseEnds.rows");
+    await c.run();
+
+    const after = (await c.c.query<LooseEnds>("looseEnds.rows")).result!.data;
+
+    const rows = after.groups.flatMap((g) => g.rows);
+    const failed = rows.filter((r) => r.kind === "failed-scout");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ errorKind: "tags" });
+    expect((failed[0] as { sentence: string }).sentence).toContain(
+      "nowhere/at-all"
+    );
+    expect(rows).toHaveLength(
+      before.result!.data.groups.flatMap((g) => g.rows).length + 1
+    );
   });
 
   it("stays a Tag Scout when its Lane is saved through the form", async () => {
