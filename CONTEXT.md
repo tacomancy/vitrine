@@ -353,7 +353,7 @@ A scheduled background agent watching one source on a cadence and producing Prop
 _Avoid_: Agent (too general), watcher, feed, brief (the design brief's metaphor; there is no text to brief a Scout with)
 
 **Filter** (of a Scout):
-What narrows a Scout's source: a Query, Tags, or nothing. A Tag becomes search terms deterministically, through its Lexicon, compiled into the source's own syntax (ADR 0018); until that slice lands a Filter is a Query. No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
+What narrows a Scout's source: a Query, Tags, or nothing. A Tag becomes search terms deterministically, through its Lexicon, compiled into the source's own syntax (ADR 0018). A **Tag Filter** is a Filter of one or more Tags, stored as written and compiled at every run from each Tag's Lexicon as it then is, so a Seed or an Exclusion changes the next run and runs nothing; a Scout has Tags or a Query, never both, and only an arXiv Scout has either (ADR 0046). No model call is involved. The Questions a Scout is Assigned to are not part of its Filter: they say what it is for, not what it searches.
 _Avoid_: Brief, prompt, topic
 
 **Assigned** (a Scout, to Questions):
@@ -365,7 +365,7 @@ Its cadence has elapsed since its last completed run — one that finished witho
 _Avoid_: Scheduled, overdue, late
 
 **Query**:
-A hand-written search string, in the Structured source's own syntax, that a Scout sends as its Filter. The only Filter until the Lexicon exists; afterwards the escape hatch for a Question whose Tags have none.
+A hand-written search string, in the Structured source's own syntax, that a Scout sends as its Filter. The way to watch a Question whose Tags have no Lexicon; the other arXiv Filter is Tags, and a Scout has one or the other.
 _Avoid_: Prompt, search
 
 **Watched source**:
