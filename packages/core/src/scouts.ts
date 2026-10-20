@@ -223,7 +223,7 @@ export async function runScout(
  * named and refused rather than dropped, so a typo or an emptied Lexicon
  * cannot look like a quiet field.
  */
-async function compileTags(
+export async function compileTags(
   deps: Pick<ScoutDeps, "vaultPath" | "index">,
   tags: readonly string[]
 ): Promise<string> {

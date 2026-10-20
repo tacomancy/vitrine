@@ -87,6 +87,7 @@ import {
   setPaused,
   tryPage,
   tryQuery,
+  tryTags,
   tryWindow,
 } from "./scout-form.js";
 import { checkDue } from "./scout-schedule.js";
@@ -667,6 +668,7 @@ export const router = t.router({
           name: z.string(),
           watching: z.enum(["arxiv", "watched"]).optional(),
           query: z.string(),
+          tags: z.array(z.string()).optional(),
           cadence: z.enum(CADENCES),
           assigned: z.array(z.string()),
           lane: z.enum(["review", "skim"]),
@@ -713,6 +715,11 @@ export const router = t.router({
       .input(z.object({ query: z.string() }))
       .mutation(async ({ ctx, input }) =>
         refusing(tryQuery(await scoutDeps(ctx), input.query))
+      ),
+    tryTags: t.procedure
+      .input(z.object({ tags: z.array(z.string()) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(tryTags(await scoutDeps(ctx), input.tags))
       ),
     // *Try over the last run's window*: a mutation like `tryQuery`, since it
     // spends a request, and it writes nothing (ADR 0042 decision 5).
