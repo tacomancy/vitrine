@@ -362,6 +362,31 @@
   color: var(--color-fg-muted);
 }
 
+/* What a followed link says: a line under the header, in the surface's register. */
+.followLine {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+.candidates {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-link);
+}
+
+.candidate:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+
 /* The tags tab: the tree above, the chosen node's files beneath it. */
 .tagFiles {
   flex: none;

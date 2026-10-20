@@ -130,6 +130,11 @@ export type { VaultErrorKind } from "./errors.js";
 export type { Vault, VaultStatus, Watching } from "./vault.js";
 export type { TreeFile } from "./vault-tree.js";
 export type { Backlink } from "./vault-backlinks.js";
+export type {
+  LinkFile,
+  LinkResolution,
+  LinkResolutions,
+} from "./vault-links.js";
 export type { SearchHit } from "./vault-search.js";
 export type { FileText } from "./vault-read.js";
 export type {
