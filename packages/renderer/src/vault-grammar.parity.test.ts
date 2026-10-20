@@ -71,6 +71,8 @@ const extra: Record<string, string> = {
     "",
     "a:b:: not a key",
     "",
+    "mid-line key:: not a field, and a#b is not a tag, but (#c) is",
+    "",
   ].join("\n"),
 };
 
