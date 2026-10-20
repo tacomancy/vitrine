@@ -1,7 +1,10 @@
+import { syntaxHighlighting } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
+import { vaultMarkdown } from "./vault-grammar";
+import { vaultHighlight } from "./vault-highlight";
 
 /**
  * One `EditorView`, for the life of the surface (`docs/architecture.md`
@@ -36,6 +39,11 @@ export function VaultEditor({ text }: { text: string }) {
             "aria-multiline": "true",
           }),
           EditorView.lineWrapping,
+          // The parse is of the editor's LF text, so a CRLF file needs no
+          // care here; the tags and links it colours are the ones the index
+          // counts (`vault-grammar.parity.test.ts`).
+          vaultMarkdown(),
+          syntaxHighlighting(vaultHighlight),
         ],
       }),
     });
