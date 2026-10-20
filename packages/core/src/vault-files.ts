@@ -975,7 +975,7 @@ function restoreTrailingNewline(text: string, file: FileChoices): string {
 }
 
 /** All operations applied to `text`, or the first refusal. */
-function apply(
+export function apply(
   text: string,
   operations: Operation[],
   file: FileChoices
@@ -1160,8 +1160,9 @@ export async function replaceFile(
   vaultPath: string,
   path: string,
   content: string,
-  basedOn: string
-): Promise<WriteResult> {
+  basedOn: string,
+  revise?: Revise
+): Promise<WriteResult & { unrecorded?: string }> {
   const { absolute, relativePath } = await locate(vaultPath, path);
   const bytes = await current(absolute);
   if (bytes === null || sha256(bytes) !== basedOn) {
@@ -1171,9 +1172,34 @@ export async function replaceFile(
     );
   }
   const { file } = fileChoices(bytes.toString("utf8"));
-  const text = withEol(asLf(content), file.eol);
-  return commit(absolute, relativePath, (file.bom ? BOM : "") + text);
+  const typed = withEol(asLf(content), file.eol);
+  // The Revisions ride in the same write as the typing, so the disk never
+  // holds the typing without them for a watcher to see and record twice.
+  // If they cannot be made, the typing is still written whole and the
+  // caller is told what was not recorded: autosave never discards text.
+  let text = typed;
+  let unrecorded: string | undefined;
+  if (revise !== undefined) {
+    try {
+      text = revise(typed);
+    } catch (cause) {
+      unrecorded = errorMessageWithoutPath(cause);
+    }
+  }
+  const result = await commit(
+    absolute,
+    relativePath,
+    (file.bom ? BOM : "") + text
+  );
+  return unrecorded === undefined ? result : { ...result, unrecorded };
 }
+
+/**
+ * What `replaceFile` is given to record the history of a save: the typing
+ * in the file's own line endings, answered with the same text carrying the
+ * Revisions. A throw is "could not be recorded".
+ */
+export type Revise = (typed: string) => string;
 
 /**
  * A new object or an app-created Note, written whole: UTF-8, LF, one

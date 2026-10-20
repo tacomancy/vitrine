@@ -1,9 +1,13 @@
-import type { Outline } from "markdown";
+import { readFile } from "node:fs/promises";
+import { outline as parseOutline, type Outline } from "markdown";
 import {
+  AFTER_EVIDENCE,
   CRITERIA_FIELD,
+  DELETED_AFTER_EVIDENCE,
   criteriaEntries,
   liveOverride,
   OVERRIDE,
+  OVERRIDE_VOIDED,
   voidOf,
 } from "./hypothesis-rule.js";
 import { VaultError } from "./errors.js";
@@ -12,19 +16,27 @@ import {
   coalesce,
   formatRevision,
   onOneLine,
+  parseRevision,
   readRevisions,
   sectionWithEntry,
   type Save,
 } from "./position-history.js";
 import { bodyText, readPageFile, section, type PageFile } from "./page-file.js";
 import { serialised } from "./serialise.js";
+import { localIso } from "./time.js";
 import {
+  analyseFile,
+  apply,
+  fileChoices,
+  locate,
+  replaceFile,
+  sha256,
   write,
   type Operation,
   type Write,
   type WriteResult,
 } from "./vault-files.js";
-import type { VaultIndex } from "./vault-index.js";
+import type { PositionsOf, VaultIndex } from "./vault-index.js";
 
 /**
  * How a page writes to its own file, whichever Kind the page is — the
@@ -621,4 +633,192 @@ export async function splicePendingRevisions(
   path: string
 ): Promise<WriteResult> {
   return writeOwn(ctx, path, "any historied page", unchanged);
+}
+
+/** The page-shaped reading of some text, for the helpers above that take one; null when it will not parse or has no Kind. */
+function pageOf(relativePath: string, text: string): PageFile | null {
+  const read = analyseFile(relativePath, text, "");
+  if (!read.readable || read.kind === null) return null;
+  return {
+    readable: true,
+    relativePath,
+    content: fileChoices(text).text,
+    outline: read.outline,
+    hash: read.hash,
+    kind: read.kind,
+    file: read.file,
+    shape: read.shape,
+    criteria: read.criteria,
+  };
+}
+
+/**
+ * Entries that are events rather than one field's drift, so a second one
+ * inside the window is a second fact: the state moving, an Override and its
+ * void, and the loud criterion marks (ADR 0031 decisions 4, 6, 7).
+ */
+const alwaysOwnEntry = (field: string) =>
+  field === "state" ||
+  field === OVERRIDE ||
+  field === OVERRIDE_VOIDED ||
+  field.endsWith(AFTER_EVIDENCE) ||
+  field.endsWith(DELETED_AFTER_EVIDENCE);
+
+/** What `saveFile` answers with: the write, and — when the typing landed but its Revisions could not — why they did not. */
+export type SavedFile = WriteResult & { unrecorded?: string };
+
+/**
+ * The Vault editor's save: the user's typing, whole, and the Revisions it
+ * owes the history, in one write. Load-bearing (`CLAUDE.md` § Code
+ * standard): this is the second writer of `## Position history` — a Working
+ * answer, a claim, a Criterion typed in the editor is the same edit as one
+ * made on the Kind's own surface, and the brief's history has no side door
+ * (ADR 0015 decision 3; spec #680 story 31). A change to `positionsOf` or
+ * to the coalescing rule must be checked against both callers.
+ *
+ * The Positions are diffed between the text on disk — which `basedOn`
+ * proves is the text the editor last read or wrote — and the new content,
+ * by the registry the watcher diffs by, so the two cannot disagree about
+ * what a Position is. Each change becomes an entry the way an Obsidian
+ * edit's parked row does (`splicesOf`: per-criterion entries, edited after
+ * evidence, the state move, an Override's void), except that a save inside
+ * the window re-stamps the head instead of opening another entry, as the
+ * page's own saves do — an editor that saves on every two-second pause
+ * would otherwise write an entry per pause. Whatever Obsidian edits are
+ * still parked go in first, and close the window (`writeOwn` says why).
+ *
+ * One write, and `index.own` after it, so the watcher's hash no-op is what
+ * keeps the typing from being recorded again by the external path. A file
+ * of another Kind, or one whose Kind the typing changed, owes nothing.
+ */
+export function saveFile(
+  { vaultPath, index, pending }: PageContext,
+  path: string,
+  { content, basedOn }: { content: string; basedOn: string },
+  {
+    at,
+    coalesceMs,
+    positionsOf,
+  }: {
+    at: Date;
+    coalesceMs: number;
+    positionsOf: PositionsOf;
+  }
+): Promise<SavedFile> {
+  return serially(async () => {
+    const { absolute, relativePath } = await locate(vaultPath, path);
+    const bytes = await readFile(absolute).catch(() => null);
+    // A missing or changed file is `replaceFile`'s one refusal.
+    const stale = bytes === null || sha256(bytes) !== basedOn;
+    const disk = bytes === null ? "" : bytes.toString("utf8");
+    const waiting = stale ? [] : pending.pending(relativePath);
+    let spliced = false;
+    const result = await replaceFile(
+      vaultPath,
+      relativePath,
+      content,
+      basedOn,
+      stale
+        ? undefined
+        : (typed) => {
+            const revised = revisions(
+              relativePath,
+              fileChoices(disk).text,
+              typed,
+              waiting,
+              { at, coalesceMs, positionsOf }
+            );
+            spliced = waiting.length > 0;
+            return revised;
+          }
+    );
+    if (result.written) {
+      // Cleared once the bytes are on disk, before the index is told, for
+      // the reason `writeOwn` gives.
+      if (spliced && result.unrecorded === undefined) {
+        pending.clear(waiting.map((row) => row.id));
+      }
+      await index.own(relativePath, result.content);
+    }
+    return result;
+  });
+}
+
+/** `typed` with the Revisions the change from `before` owes it, and those the file already owed. */
+function revisions(
+  relativePath: string,
+  before: string,
+  typed: string,
+  waiting: PendingRevision[],
+  {
+    at,
+    coalesceMs,
+    positionsOf,
+  }: { at: Date; coalesceMs: number; positionsOf: PositionsOf }
+): string {
+  const was = analyseFile(relativePath, before, "");
+  const now = analyseFile(relativePath, typed, "");
+  if (!was.readable || !now.readable) return typed;
+  // A `kind:` changed by hand makes the two Positions lists answers to
+  // different questions; the file is re-read as found, and owes nothing.
+  const diff =
+    was.kind === null || was.kind !== now.kind
+      ? undefined
+      : positionsOf[was.kind];
+  if (diff === undefined) return typed;
+  const held = diff(was, before);
+  const owed = diff(now, typed).flatMap((position) => {
+    const prior = held.find((p) => p.field === position.field);
+    // As the watcher's diff: a field the file held before and holds still.
+    return prior !== undefined && prior.text !== position.text
+      ? [
+          {
+            id: -1,
+            path: relativePath,
+            field: position.field,
+            from: prior.text,
+            at: localIso(at),
+          },
+        ]
+      : [];
+  });
+  if (owed.length === 0 && waiting.length === 0) return typed;
+
+  let text = typed;
+  const applyTo = (operations: Operation[]) => {
+    const applied = apply(text, operations, fileChoices(text).file);
+    if (!applied.ok) throw new Error(applied.detail);
+    text = applied.content;
+  };
+  // What the file owed before this save is judged against the file as it
+  // was, so a criterion edit in Obsidian and one typed here are two edits.
+  const prior = pageOf(relativePath, before);
+  if (waiting.length > 0 && prior !== null) {
+    applyTo(splicesOf(prior, waiting).operations);
+  }
+  const current = pageOf(relativePath, text);
+  if (current === null) return text;
+  for (const op of splicesOf(current, owed).operations) {
+    if (op.op !== "prependEntry") {
+      applyTo([op]);
+      continue;
+    }
+    const entry = parseRevision(op.entry);
+    const joins =
+      entry !== null &&
+      entry.why === null &&
+      !alwaysOwnEntry(entry.field) &&
+      waiting.length === 0;
+    applyTo(
+      joins
+        ? historyOperations(
+            text,
+            parseOutline(text),
+            { field: entry.field, from: entry.from, at },
+            coalesceMs
+          ).operations
+        : [op]
+    );
+  }
+  return text;
 }

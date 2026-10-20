@@ -28,7 +28,7 @@ import {
 } from "./research-question.js";
 import { router, type Context } from "./router.js";
 import { createVaultService } from "./vault.js";
-import type { IndexOptions } from "./vault-index.js";
+import type { IndexOptions, PositionsOf } from "./vault-index.js";
 
 const HOURLY_MS = 60 * 60 * 1000;
 
@@ -141,6 +141,18 @@ export function createApp({
   // The stream is fed before whatever the caller hung on the same seam
   // (the test harness), so a test's listener runs after the renderer's.
   const historyWindowMs = coalesceMs ?? COALESCE_MS;
+  // The Kinds with a Position (§ Index): the Research Question's
+  // `## Working answer`, the Hypothesis's claim, design notes and
+  // criteria, and the Experiment's design and observations. A test's
+  // stand-in may add to or override the registry, never lose it. The
+  // watcher diffs by it and so does the Vault editor's save, which must
+  // agree about what a Position is.
+  const positionsOf: PositionsOf = {
+    [RESEARCH_QUESTION]: researchQuestionPositions,
+    [HYPOTHESIS]: hypothesisPositions,
+    [EXPERIMENT]: experimentPositions,
+    ...index?.positionsOf,
+  };
   // The worker starts with the first PDF it is asked to read, not with the
   // core, so a vault of no PDFs never pays for a WebAssembly heap.
   const pdfs = {
@@ -200,16 +212,7 @@ export function createApp({
     },
     index: {
       ...index,
-      // The Kinds with a Position (§ Index): the Research Question's
-      // `## Working answer`, the Hypothesis's claim, design notes and
-      // criteria, and the Experiment's design and observations. A test's
-      // stand-in may add to or override the registry, never lose it.
-      positionsOf: {
-        [RESEARCH_QUESTION]: researchQuestionPositions,
-        [HYPOTHESIS]: hypothesisPositions,
-        [EXPERIMENT]: experimentPositions,
-        ...index?.positionsOf,
-      },
+      positionsOf,
       onChanged: async (event) => {
         events.emit(event);
         await index?.onChanged?.(event);
@@ -313,6 +316,7 @@ export function createApp({
     },
     machine: machine ?? hostname(),
     coalesceMs: historyWindowMs,
+    positionsOf,
     stalledOpenDays: stalledOpenDays ?? STALLED_OPEN_DAYS,
     newId: newId ?? randomId,
     host,
