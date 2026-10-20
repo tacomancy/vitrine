@@ -421,9 +421,8 @@ function sourceHealth(rows: ActivityRow[]): FleetSource {
         (h.kind === null ||
           h.kind === "parse" ||
           h.kind === "extraction" ||
-          // Tags that compile to nothing asked no source anything, but the
-          // Filter did not read into a query: counted here so a broken Scout
-          // is never in no count at all.
+          // A Tag Filter that compiled to no query asked no source, yet is
+          // broken: counted here so it falls in some bucket.
           h.kind === "tags")
     ),
     notReached: count(

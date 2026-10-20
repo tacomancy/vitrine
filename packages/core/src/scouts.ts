@@ -160,7 +160,7 @@ export async function runScout(
     // naming the Tags, retried at the next check like `network`.
     if (asked === null) {
       throw new TagsError(
-        `Nothing was checked: ${compiled!.left.join("; ")}. ${WAY_OUT}`
+        `Nothing was checked: ${(compiled?.left ?? []).join("; ")}. ${WAY_OUT}`
       );
     }
     const read =
