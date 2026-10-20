@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import styles from "./Vault.module.css";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
+import { livePreview } from "./vault-live-preview";
 
 /** Obsidian's pause: typing that stops for this long is saved. */
 export const IDLE_MS = 2000;
@@ -154,6 +155,7 @@ export function VaultEditor({
           // counts (`vault-grammar.parity.test.ts`).
           vaultMarkdown(),
           syntaxHighlighting(vaultHighlight),
+          livePreview(),
           keymap.of([
             {
               key: "Mod-s",

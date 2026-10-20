@@ -148,6 +148,12 @@ describe("what the editor colours", () => {
       "#/vault/plain.md"
     );
     const box = await editor();
+    // Off the cursor's line the brackets are hidden (live preview, #700); the
+    // cursor on the line is what leaves `[[Idea]]` whole to colour.
+    const view = EditorView.findFromDOM(
+      box.closest(".cm-editor") as HTMLElement
+    )!;
+    view.dispatch({ selection: { anchor: view.state.doc.length - 2 } });
     await waitFor(() =>
       expect(box.querySelectorAll("span[class]").length).toBeGreaterThan(0)
     );
