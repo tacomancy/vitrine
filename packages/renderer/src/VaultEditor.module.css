@@ -1,0 +1,60 @@
+/* The editor's syntax colours: semantic tokens only (the brand lint holds this
+   file to it). Prose stays in the body face; code spans take the mono face. */
+.heading,
+.h1,
+.h2 {
+  font-weight: 600;
+}
+
+.h1 {
+  font-size: var(--text-lg);
+}
+
+.h2 {
+  font-size: var(--text-md);
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.emphasis {
+  font-style: italic;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.mark {
+  color: var(--color-fg-muted);
+}
+
+.quote {
+  font-family: var(--font-serif);
+  color: var(--color-fg-secondary);
+}
+
+/* What the index counts, drawn the way a link is: the editor colours the
+   tags and links the vault will find, and nothing it will not. */
+.link,
+.tag,
+.wikilink {
+  color: var(--color-link);
+}
+
+.tag {
+  font-weight: 500;
+}
+
+.blockId,
+.fieldKey,
+.frontmatter {
+  color: var(--color-fg-muted);
+}
+
+.frontmatter {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
