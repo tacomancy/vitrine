@@ -1,7 +1,14 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  within,
+} from "@testing-library/react";
 import type {
   Attention,
   Coverage,
+  CoreEvent,
   LexiconView,
   Matrix,
   OriginRow,
@@ -1369,5 +1376,55 @@ describe("the Attention panel — re-measure pending", () => {
       name: "Lexicon: ml/probing",
     });
     expect(editor.textContent).toMatch(/re-measure pending/);
+  });
+});
+
+// An Ingest lands keywords read from a PDF (#683; spec #679 story 23): the
+// sidecar they go to is no vault file, so no `vaultChanged` follows, and the
+// editor re-reads on the Ingest's own event or it shows a stale set.
+
+describe("the Lexicon editor after an Ingest", () => {
+  const LANDED: CoreEvent = {
+    type: "ingestLanded",
+    runId: "r1",
+    summary: { new: 1, questions: 0, removed: 0, unmatched: 0 },
+    sources: [],
+  };
+  const GROWN: LexiconView = {
+    ...LEXICON,
+    pending: true,
+    terms: [{ term: "odor cue", origin: "author keyword" }, ...LEXICON.terms],
+  };
+
+  it("shows the Terms the Ingest added, and re-measure pending, without a reload", async () => {
+    let landed = false;
+    const { stream } = open({
+      "questionMap.attention": () =>
+        landed
+          ? { ...ATTENTION, tags: [{ ...tag("ml/probing", 5), pending: true }] }
+          : ATTENTION,
+      "lexicon.get": () => (landed ? GROWN : LEXICON),
+    });
+    const panel = await attentionSlot();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: /ml\/probing/ })
+    );
+    const editor = await within(panel).findByRole("region", {
+      name: /Lexicon: ml\/probing/,
+    });
+    await within(editor).findByRole("list", { name: "Terms in use" });
+    expect(within(editor).queryByText("odor cue")).toBeNull();
+    expect(editor.textContent).not.toContain("re-measure pending");
+
+    landed = true;
+    act(() => stream.push(LANDED));
+    await within(editor).findByText("odor cue");
+    expect(editor.textContent).toContain("re-measure pending");
+    // The list's own line for the Tag follows from the same changed query.
+    await vi.waitFor(() =>
+      expect(
+        within(panel).getByRole("button", { name: /ml\/probing/ }).textContent
+      ).toContain("re-measure pending")
+    );
   });
 });

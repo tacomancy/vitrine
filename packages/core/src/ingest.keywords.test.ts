@@ -28,6 +28,31 @@ const PRINTED = [
   "slow wave sleep",
 ];
 
+/** A one-page PDF whose only text is `text`, or none; the real engine reads it. */
+function textPdf(text: string | null): Buffer {
+  const stream = text === null ? "" : `BT /F1 12 Tf 72 700 Td (${text}) Tj ET`;
+  const bodies = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    text === null
+      ? "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"
+      : "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ].slice(0, text === null ? 3 : 5);
+  let out = "%PDF-1.4\n";
+  const offsets = bodies.map((b, i) => {
+    const at = out.length;
+    out += `${i + 1} 0 obj\n${b}\nendobj\n`;
+    return at;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${bodies.length + 1}\n0000000000 65535 f \n`;
+  for (const at of offsets) out += `${String(at).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${bodies.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+
 const paper = (name: string, abstract: string, extra = "") => `---
 kind: source
 citekey: ${name}
@@ -164,11 +189,31 @@ describe("a PDF that prints its keywords", () => {
     );
   });
 
-  it("raises no Loose Ends row for a Source whose PDF prints none", async () => {
-    const { returned, c } = await opened();
-    await returned(await pdf("annotated.pdf"));
-    const reply = await c.query<unknown[]>("looseEnds.list");
-    expect(JSON.stringify(reply.result?.data ?? [])).not.toMatch(/keyword/i);
+  // A missing keyword line is a thinner Lexicon, not a defect (spec #679
+  // story 25; brief § Loose Ends): the dashboard stays empty after the Ingest,
+  // for each way a PDF can give none.
+  it.each([
+    ["prints no keyword line", () => textPdf("Rats navigated mazes.")],
+    [
+      "prints a keyword line that holds nothing",
+      () => textPdf("Keywords: ;, ;"),
+    ],
+    ["has no text at all", () => textPdf(null)],
+  ])("raises no Loose Ends row for a PDF that %s", async (_, make) => {
+    const { c, returned, sidecar } = await opened("", {
+      start: "annotated.pdf",
+    });
+    const rows = async () => {
+      const reply = await c.query("looseEnds.rows");
+      expect(reply.error).toBeUndefined();
+      return JSON.stringify(reply.result!.data);
+    };
+    await returned(make());
+    // The Ingest did read it, so the rows are not quiet for want of a run.
+    expect((await sidecar()).keywords).toEqual([]);
+    // The annotations the first PDF carried were the only loose thing; with
+    // them gone the dashboard holds nothing, so no row is about keywords.
+    expect(await rows()).toBe('{"groups":[],"problems":[]}');
   });
 });
 
@@ -245,25 +290,7 @@ describe("a Source ingested before keywords were read", () => {
 });
 
 describe("a PDF that cannot give keywords", () => {
-  const textFree = () => {
-    const bodies = [
-      "<< /Type /Catalog /Pages 2 0 R >>",
-      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
-    ];
-    let out = "%PDF-1.4\n";
-    const offsets = bodies.map((b, i) => {
-      const at = out.length;
-      out += `${i + 1} 0 obj\n${b}\nendobj\n`;
-      return at;
-    });
-    const xref = out.length;
-    out += `xref\n0 4\n0000000000 65535 f \n`;
-    for (const at of offsets)
-      out += `${String(at).padStart(10, "0")} 00000 n \n`;
-    out += `trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-    return Buffer.from(out, "latin1");
-  };
+  const textFree = () => textPdf(null);
 
   it("is ingested as before with no keywords when it has no text", async () => {
     const { returned, sidecar } = await opened("", {
