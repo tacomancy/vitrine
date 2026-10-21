@@ -8,13 +8,18 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SPACING = /^(padding|margin)(-[a-z]+)*$|^(gap|row-gap|column-gap)$/;
-const FONT_SIZE = /^font-size$/;
+// `font` is the shorthand that carries a size.
+const FONT_SIZE = /^font(-size)?$/;
 const RADIUS = /^border(-[a-z]+)*-radius$/;
 const COLOUR =
   /^(color|background(-color|-image)?|border(-[a-z]+)*|outline(-color)?|box-shadow|text-shadow|fill|stroke|caret-color|accent-color|text-decoration(-color)?)$/;
 
+// A non-zero px length. The lookbehind keeps it off identifiers and numbers
+// it would otherwise match the tail of (`--space-1px`, `1.5px` as `5px`).
 const RAW_PX = /(?<![\w.-])-?\d*\.?\d*[1-9]\d*(\.\d+)?px\b/;
-const HEX = /#[0-9a-fA-F]{3,8}\b/;
+// Hex, or a colour function: both are literals the palette tokens replace.
+const COLOUR_LITERAL =
+  /#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(/i;
 
 const HAIRLINE =
   "below the 4px space scale (smallest token is --space-1); optical spacing";
@@ -84,48 +89,48 @@ function strip(css) {
 }
 
 export function lintCss(css, file = "<css>", allowed = []) {
+  const text = strip(css);
   const problems = [];
-  strip(css)
-    .split("\n")
-    .forEach((text, i) => {
-      for (const m of text.matchAll(/([a-z-]+)\s*:\s*([^;{}]+)/g)) {
-        const [, prop, rawValue] = m;
-        // A token reference is the point; only what sits outside var() counts.
-        const value = rawValue.replace(/var\((?:[^()]|\([^)]*\))*\)/g, "");
-        const kind = SPACING.test(prop)
-          ? "spacing"
-          : FONT_SIZE.test(prop)
-            ? "font-size"
-            : RADIUS.test(prop)
-              ? "radius"
-              : COLOUR.test(prop)
-                ? "colour"
-                : null;
-        if (!kind) continue;
-        // Border, outline and shadow shorthands carry a hairline width beside
-        // the colour; only the colour must be a token there.
-        const raw = HEX.test(value)
-          ? "hex"
-          : kind !== "colour" && RAW_PX.test(value)
-            ? "px"
+  // Whole-text scan, not per line: a prettier-wrapped value spans lines.
+  for (const m of text.matchAll(/([a-zA-Z-]+)\s*:\s*([^;{}]+)/g)) {
+    const prop = m[1].toLowerCase();
+    const rawValue = m[2].replace(/\s+/g, " ").trim();
+    // Strip the token name but keep any fallback: `var(--c, <literal>)`
+    // is still a literal.
+    const value = rawValue.replace(/var\(\s*--[\w-]+\s*/g, "(");
+    const kind = SPACING.test(prop)
+      ? "spacing"
+      : FONT_SIZE.test(prop)
+        ? "font-size"
+        : RADIUS.test(prop)
+          ? "radius"
+          : COLOUR.test(prop)
+            ? "colour"
             : null;
-        if (!raw) continue;
-        if (
-          allowed.some(
-            (a) =>
-              a.file === file && a.prop === prop && a.value === rawValue.trim()
-          )
-        )
-          continue;
-        problems.push({
-          file,
-          prop,
-          value: rawValue.trim(),
-          line: i + 1,
-          message: `${file}:${i + 1}: raw ${raw} in ${prop} (${kind}); use a token`,
-        });
-      }
+    if (!kind) continue;
+    // Border, outline and shadow shorthands carry a hairline width beside
+    // the colour; only the colour must be a token there.
+    const raw = COLOUR_LITERAL.test(value)
+      ? "colour literal"
+      : kind !== "colour" && RAW_PX.test(value)
+        ? "px"
+        : null;
+    if (!raw) continue;
+    if (
+      allowed.some(
+        (a) => a.file === file && a.prop === prop && a.value === rawValue
+      )
+    )
+      continue;
+    const line = text.slice(0, m.index).split("\n").length;
+    problems.push({
+      file,
+      line,
+      prop,
+      value: rawValue,
+      message: `${file}:${line}: raw ${raw} in ${prop} (${kind}); use a token`,
     });
+  }
   return problems;
 }
 

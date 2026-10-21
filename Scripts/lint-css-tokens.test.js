@@ -31,6 +31,22 @@ describe("lint-css-tokens", () => {
     expect(lintCss(`.a { border: 1px solid ${HEX}; }`)).toHaveLength(1);
   });
 
+  it("fails colour functions, var() fallbacks, wrapped values and font shorthand", () => {
+    expect(lintCss(`.a { color: rgb(1, 2, 3); }`)).toHaveLength(1);
+    expect(lintCss(`.a { background: hsla(0 0% 0% / .5); }`)).toHaveLength(1);
+    expect(lintCss(`.a { color: var(--c, ${HEX}); }`)).toHaveLength(1);
+    expect(lintCss(`.a { padding: var(--s, 3px); }`)).toHaveLength(1);
+    expect(
+      lintCss(`.a {\n  padding:\n    var(--space-1)\n    4px;\n}`)
+    ).toHaveLength(1);
+    expect(lintCss(`.a { font: 12px/1.4 sans-serif; }`)).toHaveLength(1);
+    expect(lintCss(`.a { PADDING: 4px; }`)).toHaveLength(1);
+  });
+
+  it("passes a var() whose fallback is itself a token", () => {
+    expect(lintCss(`.a { padding: var(--a, var(--space-2)); }`)).toEqual([]);
+  });
+
   it("ignores hex and px inside comments", () => {
     expect(
       lintCss(`/* ${HEX} and padding: 3px */\n.a { color: var(--c); }`)
