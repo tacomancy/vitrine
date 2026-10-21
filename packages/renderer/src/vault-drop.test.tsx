@@ -191,6 +191,20 @@ describe("dropping an image on the note", () => {
     expect(doc(view)).toBe(DOC);
   });
 
+  it("writes nothing and says so when the copy itself fails — no space, an unwritable vault", async () => {
+    const { view } = await open(() => {
+      throw new Error("ENOSPC: no space left on device, write");
+    });
+
+    dropOn(view, [file("shot.png")], EMPTY_LINE);
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "no space left"
+    );
+    expect(doc(view)).toBe(DOC);
+    expect(doc(view)).not.toContain("![[");
+  });
+
   it("still writes the files that copied when one of a batch is refused", async () => {
     const { view } = await open(({ source }) => {
       if (source.endsWith(".txt")) throw new Error("notes.txt is not an image");
