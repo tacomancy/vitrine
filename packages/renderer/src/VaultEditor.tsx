@@ -318,7 +318,11 @@ export function VaultEditor({
             // Not the whole default keymap: the browser already owns caret
             // movement and deletion, but a contenteditable CodeMirror owns
             // Enter, and with no binding it types nothing (#777).
-            { key: "Enter", run: insertNewlineAndIndent },
+            {
+              key: "Enter",
+              shift: insertNewlineAndIndent,
+              run: insertNewlineAndIndent,
+            },
             {
               key: "Mod-s",
               preventDefault: true,
