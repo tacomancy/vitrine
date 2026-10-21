@@ -5,14 +5,10 @@ import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
-const ORDINALS = ["th", "st", "nd", "rd"];
-
 /** 14 → "14th", 21 → "21st"; the teens take *th*. */
 const ordinal = (n: number) => {
-  const last = n % 10;
-  const suffix =
-    n % 100 >= 11 && n % 100 <= 13 ? "th" : (ORDINALS[last] ?? "th");
-  return `${n}${last > 3 ? "th" : suffix}`;
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  return `${n}${teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 };
 
 /**
