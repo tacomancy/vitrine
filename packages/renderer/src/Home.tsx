@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
+import { HomeChanged } from "./HomeChanged";
 import { hashOf, SCOUTS } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -99,6 +100,7 @@ export function Home() {
         ) : (
           <FirstSlot voice={voice} claim="" fragment="reading" />
         )}
+        <HomeChanged />
       </div>
     </section>
   );
