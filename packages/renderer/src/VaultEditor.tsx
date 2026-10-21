@@ -12,6 +12,7 @@ import { WarningLine } from "./VaultStatusLines";
 import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
 import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
+import { vaultEmbeds } from "./vault-embeds";
 import { livePreview } from "./vault-live-preview";
 
 /** Obsidian's pause: typing that stops for this long is saved. */
@@ -240,6 +241,7 @@ export function VaultEditor({
           syntaxHighlighting(vaultHighlight),
           vaultLinks(() => hooks.current),
           livePreview(),
+          vaultEmbeds(),
           keymap.of([
             {
               key: "Mod-s",
