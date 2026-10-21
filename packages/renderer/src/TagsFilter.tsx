@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Button } from "./Form";
 import { useChosenInView } from "./chosen";
 import { useTRPC } from "./trpc";
 
@@ -114,8 +115,7 @@ export function TagsFilter({
             const expanded = open.includes(tag);
             return (
               <li key={tag}>
-                <button
-                  type="button"
+                <Button
                   aria-expanded={expanded}
                   onClick={() =>
                     setOpen(
@@ -124,14 +124,13 @@ export function TagsFilter({
                   }
                 >
                   {tag} — Terms
-                </button>{" "}
-                <button
-                  type="button"
+                </Button>{" "}
+                <Button
                   aria-label={`Remove ${tag}`}
                   onClick={() => toggle(tag)}
                 >
                   ×
-                </button>
+                </Button>
                 {terms?.length === 0 && (
                   <small>
                     {" "}
