@@ -20,6 +20,31 @@ const dotRadius = 0.07;
 
 const HOPS = [1, 2] as const;
 
+// The four chips group the Kinds (spec #740 story 18). A Kind with no chip of
+// its own (Hypothesis, Experiment, one the app does not know) rides with
+// notes, so no file is ever a node that no chip can reach.
+const CHIPS = [
+  { key: "notes", label: "notes" },
+  { key: "questions", label: "Questions" },
+  { key: "sources", label: "Sources" },
+  { key: "stubs", label: "stubs" },
+] as const;
+type Chip = (typeof CHIPS)[number]["key"];
+
+const chipOf = (kind: string | null): Chip => {
+  switch (kind) {
+    case "question":
+    case "research-question":
+      return "questions";
+    case "source":
+      return "sources";
+    case "source-stub":
+      return "stubs";
+    default:
+      return "notes";
+  }
+};
+
 /**
  * The Graph tab (#741; spec #740, ADR 0047): the open file's Rings (1 or 2
  * hops, 2 to begin with) as plain SVG. The core says where every node goes (`vault.graph`), so this
@@ -34,7 +59,11 @@ export function VaultGraph({ path }: { path: string }) {
   const status = useVaultStatusLines();
   const [chosen, setChosen] = useState(0);
   const [hovered, setHovered] = useState<string | null>(null);
-  const ring = (graph.data?.nodes ?? []).filter((node) => node.hop > 0);
+  const [off, setOff] = useState<ReadonlySet<Chip>>(new Set());
+  const all = (graph.data?.nodes ?? []).filter((node) => node.hop > 0);
+  // Hiding only stops a node being drawn: positions come from the core, so
+  // every other node stays exactly where it was (ADR 0047).
+  const ring = all.filter((node) => !off.has(chipOf(node.kind)));
   const at = Math.min(chosen, Math.max(ring.length - 1, 0));
   const activeId = ring.length === 0 ? undefined : rowId(at);
   useChosenInView(activeId);
@@ -42,7 +71,7 @@ export function VaultGraph({ path }: { path: string }) {
   const notDrawn = graph.data?.notDrawn ?? [];
   const overflow = graph.data?.overflow ?? [];
 
-  if (ring.length === 0 && notDrawn.length > 0) {
+  if (all.length === 0 && notDrawn.length > 0) {
     // Links exist, none lands on one file: saying "no links yet" here would
     // be the quiet-field lie the Not drawn list exists to prevent.
     return (
@@ -53,7 +82,7 @@ export function VaultGraph({ path }: { path: string }) {
     );
   }
 
-  if (ring.length === 0) {
+  if (all.length === 0) {
     return (
       <FirstSlot
         voice={voiceOf({
@@ -69,9 +98,10 @@ export function VaultGraph({ path }: { path: string }) {
   }
 
   const centre = graph.data?.nodes.find((node) => node.hop === 0);
-  const place = new Map(
-    (graph.data?.nodes ?? []).map((node) => [node.path, node])
+  const drawn = (graph.data?.nodes ?? []).filter(
+    (node) => node.hop === 0 || !off.has(chipOf(node.kind))
   );
+  const place = new Map(drawn.map((node) => [node.path, node]));
   const open = (index: number) => {
     setChosen(index);
     const node = ring[index];
@@ -105,6 +135,25 @@ export function VaultGraph({ path }: { path: string }) {
           </label>
         ))}
       </fieldset>
+      <div className={styles.hops} role="group" aria-label="Kinds">
+        {CHIPS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={!off.has(key)}
+            onClick={() => {
+              setOff((was) => {
+                const next = new Set(was);
+                if (!next.delete(key)) next.add(key);
+                return next;
+              });
+              setChosen(0); // the list's length changes with the chips
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <svg
         className={styles.graph}
         viewBox={`${-1.6 * scale} ${-1.3 * scale} ${3.2 * scale} ${2.6 * scale}`}
@@ -137,7 +186,7 @@ export function VaultGraph({ path }: { path: string }) {
             </g>
           );
         })}
-        {graph.data?.nodes.map((node) => (
+        {drawn.map((node) => (
           <Dot
             key={node.path}
             node={node}
@@ -146,7 +195,7 @@ export function VaultGraph({ path }: { path: string }) {
             onHover={(on) => setHovered(on ? node.path : null)}
           />
         ))}
-        {graph.data?.nodes
+        {drawn
           .filter((node) => labelled.has(node.path))
           .map((node) => (
             <text
