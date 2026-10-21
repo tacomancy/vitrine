@@ -199,6 +199,7 @@ function Workspace({ vault }: { vault: Vault }) {
               setForm={setScoutDraft}
               scout={route.scout}
               mutedOpen={route.view === "muted"}
+              skimOpen={route.view === "skim"}
             />
           )}
           {route.surface === "settings" && (
