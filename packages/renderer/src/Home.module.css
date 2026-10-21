@@ -47,7 +47,7 @@
   font-size: var(--text-xs);
 }
 
-/* The way to brief a scout, beside the fragment that says there are none. */
+/* A route on Home: the way to brief a scout, open review, a dashboard. */
 .way {
   font-size: var(--text-sm);
   color: var(--color-accent);
