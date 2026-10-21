@@ -77,7 +77,7 @@ const wording: Record<DiskNote["kind"], string> = {
 const fromDisk = Annotation.define<true>();
 // Not the user's typing, so not the user's to undo: ⌘Z must never take back
 // what the disk said.
-const notTyping = [fromDisk.of(true), Transaction.addToHistory.of(false)];
+const notUserEdit = [fromDisk.of(true), Transaction.addToHistory.of(false)];
 
 /** The one splice that turns `from` into `to`: everything between their common head and tail. */
 function spliceBetween(from: string, to: string): ChangeSpec {
@@ -127,6 +127,7 @@ export function VaultEditor({
   disk,
   reread,
   attach,
+  stranded,
 }: {
   file: EditorFile | null;
   save: (path: string, content: string, basedOn: string) => Promise<SavedText>;
@@ -137,6 +138,8 @@ export function VaultEditor({
    * it was.
    */
   attach: (sources: string[]) => Promise<(string | null)[]>;
+  /** Files were copied but their embeds had no note to go into: said, never dropped quietly. */
+  stranded: (names: string[]) => void;
   links: LinkHooks;
   disk: DiskNote | null;
   reread: () => Promise<DiskCopy>;
@@ -145,9 +148,11 @@ export function VaultEditor({
   // made once and a render never rebuilds it.
   const hooks = useRef(links);
   const attachRef = useRef(attach);
+  const strandedRef = useRef(stranded);
   useEffect(() => {
     hooks.current = links;
     attachRef.current = attach;
+    strandedRef.current = stranded;
   });
   // Where each drop in flight will land. A copy takes time, and the note may
   // be typed in meanwhile, so the position is carried through every change
@@ -232,7 +237,7 @@ export function VaultEditor({
             spliceBetween(sent, saved.text),
             sent.length
           ).map(run.typed),
-          annotations: notTyping,
+          annotations: notUserEdit,
         });
       }
       dirty.current = !run.typed.empty;
@@ -246,7 +251,8 @@ export function VaultEditor({
    * for a file that was not copied, and a single undo for the lot. The copies
    * stay if the embeds are undone, since nothing the app copies in is deleted
    * (ADR 0035 decision 2). If another file has replaced the document while
-   * the copies were out, the embeds have no place to go and are not written.
+   * the copies were out, the embeds have no place to go: they are not
+   * written and the copies are reported as `stranded`.
    */
   const embedAll = async (
     target: EditorView,
@@ -258,8 +264,11 @@ export function VaultEditor({
       const names = (
         await attachRef.current(dropped.map((f) => window.vitrine.pathOf(f)))
       ).filter((name) => name !== null);
-      if (names.length === 0 || view.current !== target) return;
-      if (held.current?.path !== from) return;
+      if (names.length === 0) return;
+      if (view.current !== target || held.current?.path !== from) {
+        strandedRef.current(names);
+        return;
+      }
       // The live preview draws an embed only when it is a line of its own.
       const line = target.state.doc.lineAt(drop.pos);
       const lead = drop.pos > line.from ? "\n" : "";
@@ -399,7 +408,7 @@ export function VaultEditor({
     current.dispatch({
       changes,
       effects: forgetResolutions.of(null),
-      annotations: notTyping,
+      annotations: notUserEdit,
     });
   }, [path, text, hash]);
 
@@ -461,7 +470,7 @@ export function VaultEditor({
     show(null);
     current.dispatch({
       changes: spliceBetween(current.state.doc.toString(), copy.text),
-      annotations: notTyping,
+      annotations: notUserEdit,
     });
   };
 

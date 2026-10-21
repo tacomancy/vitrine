@@ -234,6 +234,11 @@ function OpenFile({
         disk={note?.path === path ? note : null}
         reread={reread}
         attach={attach}
+        stranded={(names) =>
+          refusal.say(
+            `${names.join(", ")} copied into assets/, but the note changed before the embed could be written.`
+          )
+        }
         links={{
           resolve: (links) =>
             queryClient.fetchQuery({

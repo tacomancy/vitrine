@@ -53,9 +53,13 @@ const open = async (
     "vault.current": vault,
     "questions.list": empty,
     "vault.status": READ,
-    "vault.tree": [{ path: "plain.md", kind: null }],
+    "vault.tree": [
+      { path: "plain.md", kind: null },
+      { path: "other.md", kind: null },
+    ],
     "vault.pdfFault": null,
-    "vault.read": () => FILE(text),
+    "vault.read": ({ path }: { path: string }) =>
+      FILE(path === "other.md" ? "the other note" : text),
     "vault.replaceFile": { written: true, hash: "h2", content: text },
     "vault.resolveLinks": { "shot.png": resolved },
     "vault.attachImage": attach,
@@ -242,5 +246,25 @@ describe("dropping an image on the note", () => {
     });
 
     expect(attach).not.toHaveBeenCalled();
+  });
+
+  it("says so when the note is replaced while the copy is out, and writes no embed", async () => {
+    let finish!: (v: { file: string; path: string }) => void;
+    const slow = new Promise<{ file: string; path: string }>(
+      (r) => (finish = r)
+    );
+    const { view } = await open(() => slow);
+
+    dropOn(view, [file("shot.png")], EMPTY_LINE);
+    window.location.hash = "#/vault/other.md";
+    await waitFor(() => expect(doc(view)).toBe("the other note"));
+    await act(() => {
+      finish({ file: "shot.png", path: "assets/shot.png" });
+      return Promise.resolve();
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "shot.png copied into assets/"
+    );
   });
 });
