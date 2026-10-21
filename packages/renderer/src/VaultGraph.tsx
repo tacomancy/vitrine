@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { GraphNode } from "core";
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { markOf } from "./kinds";
@@ -18,20 +18,23 @@ const nameOf = (path: string) => path.replace(/^.*\//, "").replace(/\.md$/, "");
 
 const dotRadius = 0.07;
 
+const HOPS = [1, 2] as const;
+
 /**
- * The Graph tab (#741; spec #740, ADR 0047): the open file's first Ring as
- * plain SVG. The core says where every node goes (`vault.graph`), so this
+ * The Graph tab (#741; spec #740, ADR 0047): the open file's Rings (1 or 2
+ * hops, 2 to begin with) as plain SVG. The core says where every node goes (`vault.graph`), so this
  * draws coordinates and moves nothing; there is no pan, zoom, drag or
  * animation. The drawing is a mouse's way in; the same nodes are one keyboard
  * list in layout order, which is also how a screen reader reads them.
  */
 export function VaultGraph({ path }: { path: string }) {
   const trpc = useTRPC();
-  const graph = useQuery(trpc.vault.graph.queryOptions({ path, hops: 1 }));
+  const [hops, setHops] = useState<1 | 2>(2);
+  const graph = useQuery(trpc.vault.graph.queryOptions({ path, hops }));
   const status = useVaultStatusLines();
   const [chosen, setChosen] = useState(0);
   const [hovered, setHovered] = useState<string | null>(null);
-  const ring = (graph.data?.nodes ?? []).filter((node) => node.hop === 1);
+  const ring = (graph.data?.nodes ?? []).filter((node) => node.hop > 0);
   const at = Math.min(chosen, Math.max(ring.length - 1, 0));
   const activeId = ring.length === 0 ? undefined : rowId(at);
   useChosenInView(activeId);
@@ -66,11 +69,32 @@ export function VaultGraph({ path }: { path: string }) {
     )
   );
 
+  // The Ring grows with the hops but a hop-1 node keeps its place; the view
+  // widens and `--u` keeps dots and text the size they were.
+  const u = hops;
   return (
     <>
+      <fieldset className={styles.hops}>
+        <legend>Hops</legend>
+        {HOPS.map((h) => (
+          <label key={h}>
+            <input
+              type="radio"
+              name="graph-hops"
+              checked={hops === h}
+              onChange={() => {
+                setHops(h);
+                setChosen(0);
+              }}
+            />
+            {h}
+          </label>
+        ))}
+      </fieldset>
       <svg
         className={styles.graph}
-        viewBox="-1.6 -1.3 3.2 2.6"
+        viewBox={`${-1.6 * u} ${-1.3 * u} ${3.2 * u} ${2.6 * u}`}
+        style={{ "--u": u } as CSSProperties}
         role="presentation"
       >
         {graph.data?.edges.map((edge) => {
@@ -103,6 +127,7 @@ export function VaultGraph({ path }: { path: string }) {
           <Dot
             key={node.path}
             node={node}
+            radius={dotRadius * u}
             onOpen={() => open(ring.indexOf(node))}
             onHover={(on) => setHovered(on ? node.path : null)}
           />
@@ -114,7 +139,7 @@ export function VaultGraph({ path }: { path: string }) {
               key={node.path}
               data-label=""
               x={node.x}
-              y={node.y - dotRadius * 1.8}
+              y={node.y - dotRadius * u * 1.8}
               className={styles.nodeLabel}
               textAnchor="middle"
             >
@@ -148,6 +173,9 @@ export function VaultGraph({ path }: { path: string }) {
               <span className={styles.kindLine}>
                 {mark?.label ?? node.kind ?? "note"}
               </span>
+              <span className={styles.kindLine}>
+                {node.hop === 1 ? "1 hop" : "2 hops"}
+              </span>
             </li>
           );
         })}
@@ -158,10 +186,12 @@ export function VaultGraph({ path }: { path: string }) {
 
 function Dot({
   node,
+  radius,
   onOpen,
   onHover,
 }: {
   node: GraphNode;
+  radius: number;
   onOpen: () => void;
   onHover: (on: boolean) => void;
 }) {
@@ -177,7 +207,7 @@ function Dot({
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
     >
-      <circle cx={node.x} cy={node.y} r={dotRadius} />
+      <circle cx={node.x} cy={node.y} r={radius} />
       <text
         x={node.x}
         y={node.y}

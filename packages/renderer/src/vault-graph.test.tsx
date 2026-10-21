@@ -63,12 +63,12 @@ describe("the Graph tab", () => {
     expect(screen.queryByRole("listbox", { name: "Graph" })).toBeNull();
   });
 
-  it("asks for the open file's first Ring and lists its neighbours in layout order, with name and Kind", async () => {
+  it("asks for two hops and lists its neighbours in layout order, with name and Kind", async () => {
     const asked = vi.fn(() => GRAPH);
     open({ "vault.graph": asked });
     fireEvent.click(await graphTab());
     const box = await list();
-    expect(asked).toHaveBeenCalledWith({ path: "notes/Idea.md", hops: 1 });
+    expect(asked).toHaveBeenCalledWith({ path: "notes/Idea.md", hops: 2 });
     const rows = screen.getAllByRole("option").map((o) => o.textContent);
     expect(rows).toEqual([
       expect.stringContaining("Other"),
@@ -80,6 +80,34 @@ describe("the Graph tab", () => {
     expect(box.getAttribute("aria-activedescendant")).toBe(
       screen.getAllByRole("option")[0]?.id
     );
+  });
+
+  it("lists each node's hop, a second-Ring node after the first and a control switches to one hop", async () => {
+    const asked = vi.fn(({ hops }: { hops: number }) =>
+      hops === 1
+        ? GRAPH
+        : {
+            ...GRAPH,
+            nodes: [
+              ...GRAPH.nodes,
+              { path: "far/Away.md", kind: null, hop: 2, x: 2, y: 0 },
+            ],
+          }
+    );
+    open({ "vault.graph": asked });
+    fireEvent.click(await graphTab());
+    await list();
+    const rows = () => screen.getAllByRole("option").map((o) => o.textContent);
+    expect(rows()).toHaveLength(4);
+    expect(rows()[0]).toContain("1 hop");
+    expect(rows()[3]).toContain("Away");
+    expect(rows()[3]).toContain("2 hops");
+    const two = screen.getByRole<HTMLInputElement>("radio", { name: "2" });
+    expect(two.checked).toBe(true);
+    // A radio group is one tab stop moved by the arrows; a click is its stand-in here.
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    await vi.waitFor(() => expect(rows()).toHaveLength(3));
+    expect(asked).toHaveBeenLastCalledWith({ path: "notes/Idea.md", hops: 1 });
   });
 
   it("draws each node where the core put it, and a count on a line that collapses links", async () => {
@@ -184,7 +212,7 @@ describe("the Graph tab", () => {
     await vi.waitFor(() =>
       expect(asked).toHaveBeenLastCalledWith({
         path: "notes/Other.md",
-        hops: 1,
+        hops: 2,
       })
     );
   });
