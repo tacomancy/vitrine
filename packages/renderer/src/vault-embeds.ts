@@ -36,11 +36,11 @@ type Size = { width: number | null; height: number | null };
 
 function sizeOf(alias: string | null): Size {
   const m = /^(\d+)(?:x(\d+))?$/.exec(alias?.trim() ?? "");
-  if (m === null) return { width: null, height: null };
-  return {
-    width: Number(m[1]),
-    height: m[2] === undefined ? null : Number(m[2]),
-  };
+  const width = m === null ? 0 : Number(m[1]);
+  const height = m?.[2] === undefined ? null : Number(m[2]);
+  // A zero would draw an invisible image, which is a silent failure.
+  if (width === 0 || height === 0) return { width: null, height: null };
+  return { width, height };
 }
 
 /** The line that stands in for an embed the index could not land, so a broken one is never an empty paragraph. */

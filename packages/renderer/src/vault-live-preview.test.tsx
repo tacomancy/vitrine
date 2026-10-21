@@ -291,7 +291,12 @@ describe("an image embed", () => {
   });
 
   it("draws a malformed size at the natural size", async () => {
-    for (const embed of ["![[diagram.png|big]]", "![[diagram.png|300x]]"]) {
+    for (const embed of [
+      "![[diagram.png|big]]",
+      "![[diagram.png|300x]]",
+      "![[diagram.png|0]]",
+      "![[diagram.png|300x0]]",
+    ]) {
       cleanup();
       const img = await sized(embed);
       expect(img.style.width).toBe("");
@@ -315,6 +320,14 @@ describe("an image embed", () => {
 
   it("decodes a Markdown image's percent-escapes before asking the index", async () => {
     const { box, view } = await open("intro\n\n![](my%20pic.png)\n\ntail", {
+      "my pic.png": RESOLVED["diagram.png"],
+    });
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+  });
+
+  it("reads an angle-bracketed Markdown destination without its brackets", async () => {
+    const { box, view } = await open("intro\n\n![](<my pic.png>)\n", {
       "my pic.png": RESOLVED["diagram.png"],
     });
     cursorAt(view, 2);

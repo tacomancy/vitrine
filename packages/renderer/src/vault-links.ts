@@ -60,7 +60,10 @@ const wikilinkText = (raw: string) => raw.replace(/^!?\[\[/, "").slice(0, -2);
 export function imageKey(node: SyntaxNode, state: EditorState): string | null {
   const url = node.getChild("URL");
   if (url === null) return null;
-  const target = parseMarkdownLinkTarget(state.sliceDoc(url.from, url.to));
+  const target = parseMarkdownLinkTarget(
+    // `<my file.png>` is how a path with a space is written.
+    state.sliceDoc(url.from, url.to).replace(/^<(.*)>$/, "$1")
+  );
   return target.external || target.target === "" ? null : target.target;
 }
 
