@@ -82,3 +82,51 @@
   font-size: var(--text-2xs);
   color: var(--color-fg-muted);
 }
+
+/* Changed while you were away: topics as threads, one column of sentences and
+   routes; the gutter between topics does the separating, not a line. */
+.changed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  margin: 0;
+  padding: 0 var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.topic {
+  padding: 0 var(--space-5);
+}
+
+.topicName {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--color-fg-muted);
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.item {
+  font-size: var(--text-base);
+  color: var(--color-accent);
+}
+
+.what {
+  margin-left: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
