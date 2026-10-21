@@ -540,3 +540,13 @@
 .target {
   font-family: var(--font-mono);
 }
+
+.cutRow {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
