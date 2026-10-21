@@ -109,6 +109,25 @@ describe("the New Scout form's sections", () => {
     expect(screen.queryByText(/Try needs/)).toBeNull();
   });
 
+  it("blocks Save without a name and a Query, and names which is missing", async () => {
+    const form = await open();
+    const save = within(form).getByRole("button", { name: "Save" });
+
+    fireEvent.change(within(form).getByLabelText("Name"), {
+      target: { value: "N" },
+    });
+    expect(save).toHaveProperty("disabled", true);
+    expect(screen.getByText("Save needs a Query.")).toBeDefined();
+    fireEvent.change(within(form).getByLabelText("Name"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(form).getByLabelText("Query"), {
+      target: { value: "q" },
+    });
+    expect(save).toHaveProperty("disabled", true);
+    expect(screen.getByText("Save needs a name.")).toBeDefined();
+  });
+
   it("says what an empty optional field means", async () => {
     const form = await open();
 

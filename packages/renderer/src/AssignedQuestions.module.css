@@ -1,7 +1,7 @@
 /* The picker as the Queue's form and a Scout Activity row both draw it. The
    choice's selector is two classes deep so it holds against a form's own
    `label` rule, which would stack the box above its words. */
-.fieldset {
+.choices {
   margin: 0;
   padding: 0;
   border: 0;
@@ -10,7 +10,7 @@
   gap: var(--space-1);
 }
 
-.fieldset .choice {
+.choices .choice {
   display: flex;
   flex-direction: row;
   align-items: center;

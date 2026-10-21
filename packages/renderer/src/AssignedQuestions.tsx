@@ -53,7 +53,7 @@ export function AssignedQuestions({
   const unknown = assigned.filter((id) => !questions.some((q) => q.id === id));
   return (
     <GroupRow label="Assigned Questions">
-      <div className={styles.fieldset}>
+      <div className={styles.choices}>
         {choices.length === 0 && unknown.length === 0 && (
           <p className={styles.none}>no open Questions</p>
         )}

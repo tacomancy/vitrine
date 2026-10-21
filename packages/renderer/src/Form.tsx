@@ -79,14 +79,24 @@ export function GroupRow({
   children: ReactNode;
 }) {
   const id = useId();
+  const noteId = `${id}-note`;
   return (
-    <div role="group" aria-labelledby={id} className={styles.row}>
+    <div
+      role="group"
+      aria-labelledby={id}
+      aria-describedby={note === undefined ? undefined : noteId}
+      className={styles.row}
+    >
       <span id={id} className={styles.label}>
         {label}
       </span>
       <div className={styles.control}>
         {children}
-        {note !== undefined && <small className={styles.note}>{note}</small>}
+        {note !== undefined && (
+          <small id={noteId} className={styles.note}>
+            {note}
+          </small>
+        )}
       </div>
     </div>
   );
@@ -102,16 +112,19 @@ export function ActionRow({ children }: { children: ReactNode }) {
   );
 }
 
-type ButtonProps = Omit<React.ComponentProps<"button">, "className"> & {
+type ButtonProps = Omit<
+  React.ComponentProps<"button">,
+  "className" | "type"
+> & {
   /** One primary per form (filled sapphire); everything else is sapphire text. */
   tier?: "primary" | "secondary";
 };
 
-export function Button({ tier = "secondary", type, ...rest }: ButtonProps) {
+export function Button({ tier = "secondary", ...rest }: ButtonProps) {
   return (
     <button
       // A button inside a form submits it; only the primary is meant to.
-      type={type ?? (tier === "primary" ? "submit" : "button")}
+      type={tier === "primary" ? "submit" : "button"}
       className={tier === "primary" ? styles.primary : styles.secondary}
       {...rest}
     />

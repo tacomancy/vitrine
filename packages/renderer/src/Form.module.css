@@ -183,8 +183,9 @@ input[inputmode="numeric"].input {
   color: var(--color-fg-muted);
 }
 
+/* Not a grey box either: a disabled primary gives up its fill. */
 .primary:disabled {
-  background: var(--color-bg-sunken);
+  background: transparent;
 }
 
 .unlocks {
