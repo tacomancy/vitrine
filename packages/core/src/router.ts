@@ -150,6 +150,7 @@ import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
 import { graphOf } from "./vault-graph.js";
 import { resolveLinks } from "./vault-links.js";
+import { attachImage } from "./vault-image.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -440,6 +441,15 @@ export const router = t.router({
           )
         )
       ),
+    // A dropped image copied into `assets/` (#754; spec #751). The source is a
+    // path the preload read off the dropped file; the note is the editor's to
+    // write, after this answers.
+    attachImage: t.procedure
+      .input(z.object({ source: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(attachImage(vault.path, index, input.source));
+      }),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();
       if (status === null) throw noVault();
