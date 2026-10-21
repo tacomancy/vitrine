@@ -10,11 +10,12 @@
     "dev": "pnpm --filter core... build && pnpm --filter shell dev",
     "package": "node Scripts/package.mjs",
     "build": "pnpm -r build",
-    "lint": "eslint . && prettier --check . && pnpm lint:boundaries",
+    "lint": "eslint . && prettier --check . && pnpm lint:boundaries && pnpm lint:tokens",
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "lint:boundaries": "depcruise packages --config .dependency-cruiser.cjs"
+    "lint:boundaries": "depcruise packages --config .dependency-cruiser.cjs",
+    "lint:tokens": "node Scripts/lint-css-tokens.mjs"
   },
   "devDependencies": {
     "@eslint/css": "^2.0.0",
