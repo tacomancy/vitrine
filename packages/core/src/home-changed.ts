@@ -1,4 +1,6 @@
+import type { DatabaseSync } from "node:sqlite";
 import { localDay, type OpenDays } from "./open-days.js";
+import { readPageFile, revisionsOf, section } from "./page-file.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -18,7 +20,13 @@ const MAX_ITEMS = 3;
 export type ChangedItem = {
   /** Vault-relative, as the index keys it; the renderer makes the Address. */
   path: string;
-  kind: "question" | "note";
+  kind:
+    | "question"
+    | "note"
+    | "research-question"
+    | "hypothesis"
+    | "experiment"
+    | "source";
   sentence: string;
   title: string;
   at: string;
@@ -45,6 +53,21 @@ export function changedWindowStart(days: OpenDays, now: Date): Date {
   return new Date(Math.max(new Date(y, m - 1, d).getTime(), floor));
 }
 
+/** Kinds whose file carries `## Position history`. */
+const REVISED_KINDS = [
+  "research-question",
+  "hypothesis",
+  "experiment",
+] as const;
+
+const AFTER_EVIDENCE = " · edited after evidence";
+
+/** What a Revision's field reads as on Home: a criterion edited after Evidence is named for what it is, any other field by itself (*Working answer revised*, *Claim revised*). */
+function revisionSentence(field: string): string {
+  if (field.endsWith(AFTER_EVIDENCE)) return "Criterion edited after Evidence";
+  return `${field.charAt(0).toUpperCase()}${field.slice(1)} revised`;
+}
+
 type Tags = { valid: Map<string, string>; invalid: string[] };
 
 /**
@@ -53,12 +76,16 @@ type Tags = { valid: Map<string, string>; invalid: string[] };
  * restore and Obsidian's own rewrites, and would put a claim on the page with
  * no warrant. A Note has no event record, so its `mtime` is its one item.
  */
-export function changedWhileAway(
+export async function changedWhileAway(
   index: VaultIndex,
   days: OpenDays,
-  now: Date
-): { since: string; groups: ChangedGroup[] } {
+  now: Date,
+  vaultPath: string,
+  queue: DatabaseSync
+): Promise<{ since: string; groups: ChangedGroup[] }> {
   const start = changedWindowStart(days, now).getTime();
+  // The window runs to now: a hand-typed or skewed future date is no event yet.
+  const end = now.getTime();
 
   const items: Array<ChangedItem & { tags: Tags }> = [];
   const tagsOf = new Map<string, Tags>();
@@ -77,6 +104,11 @@ export function changedWhileAway(
       tags.valid.set(row.canonical, row.written);
     tagsOf.set(row.path, tags);
   }
+  const titleOf = (path: string) =>
+    index.select<{ display: string | null }>(
+      "SELECT display FROM files WHERE path = ?",
+      path
+    )[0]?.display ?? path;
   const tagsFor = (path: string): Tags =>
     tagsOf.get(path) ?? { valid: new Map(), invalid: [] };
 
@@ -90,7 +122,7 @@ export function changedWhileAway(
     "SELECT path FROM files WHERE kind = 'question'"
   )) {
     const at = Date.parse(captured.get(`captured:${row.path}`) ?? "");
-    if (Number.isNaN(at) || at < start) continue;
+    if (Number.isNaN(at) || at < start || at > end) continue;
     items.push({
       path: row.path,
       kind: "question",
@@ -100,6 +132,80 @@ export function changedWhileAway(
       tags: tagsFor(row.path),
     });
   }
+
+  // Position history's own dates: one item per entry, named by its field.
+  for (const row of index.select<{ path: string; kind: string }>(
+    `SELECT f.path, f.kind FROM files f WHERE f.kind IN (${REVISED_KINDS.map(() => "?").join(", ")})
+       AND EXISTS (SELECT 1 FROM headings h WHERE h.path = f.path AND h.level = 2 AND h.text = 'Position history')
+     ORDER BY f.path`,
+    ...REVISED_KINDS
+  )) {
+    const page = await readPageFile(vaultPath, row.path, [row.kind], row.kind);
+    // A file the page cannot read is the Inbox's and Loose Ends' to report;
+    // here its Revisions simply have no entries to name.
+    if (!page.readable) continue;
+    const { heading } = section(page.outline, "Position history");
+    const { entries } = revisionsOf(
+      page.relativePath,
+      row.kind,
+      page.content,
+      page.outline,
+      heading
+    );
+    for (const revision of entries) {
+      const at = Date.parse(revision.at);
+      if (Number.isNaN(at) || at < start || at > end) continue;
+      items.push({
+        path: row.path,
+        kind: row.kind as (typeof REVISED_KINDS)[number],
+        sentence: revisionSentence(revision.field),
+        title: titleOf(row.path),
+        at: new Date(at).toISOString(),
+        tags: tagsFor(row.path),
+      });
+    }
+  }
+
+  // An Experiment is a run recorded, from its own `created:`.
+  for (const row of index.select<{ path: string; created: string | null }>(
+    `SELECT f.path, json_extract(fm.value, '$.created') AS created FROM files f
+       JOIN frontmatter fm ON fm.path = f.path WHERE f.kind = 'experiment'`
+  )) {
+    const at = Date.parse(row.created ?? "");
+    if (Number.isNaN(at) || at < start || at > end) continue;
+    items.push({
+      path: row.path,
+      kind: "experiment",
+      sentence: "Experiment run recorded",
+      title: titleOf(row.path),
+      at: new Date(at).toISOString(),
+      tags: tagsFor(row.path),
+    });
+  }
+
+  // A stub the researcher accepted from a Scout: the triage row's own date.
+  for (const row of queue
+    .prepare(
+      `SELECT t.at, p.title, p.stub_path FROM triage t JOIN proposals p ON p.id = t.proposal_id
+       WHERE t.action = 'accept' AND p.stub_path IS NOT NULL`
+    )
+    .all() as Array<{ at: string; title: string; stub_path: string }>) {
+    const at = Date.parse(row.at);
+    if (Number.isNaN(at) || at < start || at > end) continue;
+    items.push({
+      path: row.stub_path,
+      kind: "source",
+      sentence: "Source stub accepted",
+      title: row.title,
+      at: new Date(at).toISOString(),
+      tags: tagsFor(row.stub_path),
+    });
+  }
+
+  // A Source's highlights ingested is left out: Ingest records no timestamp of
+  // its own (the sidecar's `last_matched` moves on every re-match, the PDF's
+  // mtime is a file time), so there is nothing to report it from (#734).
+
   for (const row of index.select<{
     path: string;
     display: string | null;
