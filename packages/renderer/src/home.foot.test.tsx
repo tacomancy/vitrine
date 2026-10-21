@@ -48,6 +48,35 @@ const answers: Record<string, unknown> = {
   "scouts.fleet": { claim: "1 scout watching", naming: [] },
 };
 
+const BROKEN_ROW = {
+  kind: "scout",
+  id: "density-watch",
+  name: "density-watch",
+  source: { kind: "arxiv", query: "all:density", tags: null },
+  cadence: "weekly",
+  dueUnder: [],
+  assigned: [],
+  lane: "review",
+  paused: false,
+  lastWindow: null,
+  lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "3 d ago" },
+  health: {
+    voice: "wrong",
+    kind: "network",
+    sentence: "arXiv did not answer on the last check.",
+  },
+  acceptRate: { kind: "nothing triaged" },
+  review: NO_REVIEW,
+  volume: {
+    proposals: 0,
+    held: 0,
+    alsoFoundElsewhere: 0,
+    belowCap: 0,
+    muted: 0,
+  },
+  cost: { kind: "no model call" },
+};
+
 const home = () => screen.findByRole("region", { name: "Home" });
 
 describe("the dashboards foot", () => {
@@ -198,9 +227,7 @@ describe("what Home must never have", () => {
       ...answers,
       "scouts.health": { scouts: [broken], unreadable: [] },
       "scouts.fleet": { claim: null, naming: ["density-watch"] },
-      "scouts.activity": () => {
-        throw new Error("the scouts folder cannot be read");
-      },
+      "scouts.activity": { rows: [BROKEN_ROW] },
       "home.changed": () => {
         throw new Error("the index cannot be read");
       },
@@ -209,8 +236,9 @@ describe("what Home must never have", () => {
       },
     });
     const page = await home();
-    await within(page).findAllByText(/could not tell/);
+    await within(page).findByText(/arXiv did not answer on the last check/);
     await within(page).findByText(/could not tell what changed/);
+    await within(page).findByText(/could not tell what waits in Review/);
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
     expect(
       page.querySelectorAll("[role='alert'], [aria-live='assertive']")
@@ -224,7 +252,20 @@ describe("what Home must never have", () => {
       { claim: null, naming: ["density-watch"] },
     ]) {
       cleanup();
-      renderApp({ ...answers, "scouts.fleet": fleet });
+      renderApp({
+        ...answers,
+        "scouts.fleet": fleet,
+        ...(fleet.claim === null && fleet.naming.length > 0
+          ? {
+              "scouts.health": {
+                scouts: [
+                  { ...looking, health: { voice: "wrong", sentence: "x" } },
+                ],
+                unreadable: [],
+              },
+            }
+          : {}),
+      });
       const page = await home();
       await waitFor(() => expect(page.textContent).not.toBe(""));
       expect(page.textContent).not.toMatch(
@@ -294,36 +335,7 @@ describe("currency: a vaultChanged updates the section it concerns", () => {
     });
     const page = await home();
     expect(within(page).queryByText(/arXiv did not answer/)).toBeNull();
-    rows = [
-      {
-        kind: "scout",
-        id: "density-watch",
-        name: "density-watch",
-        source: { kind: "arxiv", query: "all:density", tags: null },
-        cadence: "weekly",
-        dueUnder: [],
-        assigned: [],
-        lane: "review",
-        paused: false,
-        lastWindow: null,
-        lastRun: { finished: "2026-09-30T10:00:00.000Z", ago: "3 d ago" },
-        health: {
-          voice: "wrong",
-          kind: "network",
-          sentence: "arXiv did not answer on the last check.",
-        },
-        acceptRate: { kind: "nothing triaged" },
-        review: NO_REVIEW,
-        volume: {
-          proposals: 0,
-          held: 0,
-          alsoFoundElsewhere: 0,
-          belowCap: 0,
-          muted: 0,
-        },
-        cost: { kind: "no model call" },
-      },
-    ];
+    rows = [BROKEN_ROW];
     stream.push(change);
     await within(page).findByText(/arXiv did not answer on the last check/);
   });
