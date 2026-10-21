@@ -449,3 +449,50 @@
   color: inherit;
   font-family: var(--font-mono);
 }
+
+/* The Graph tab: plain SVG on the pane's own surface, no box around it.
+   Strokes and fills come from the same tokens as the tree's rows. */
+.graph {
+  flex: none;
+  width: 100%;
+  height: auto;
+  padding: var(--space-3);
+}
+
+.edge {
+  stroke: var(--color-fg-muted);
+  stroke-width: 0.012;
+}
+
+.edgeCount,
+.nodeLabel {
+  font-size: 0.09px;
+  fill: var(--color-fg);
+}
+
+.edgeCount {
+  fill: var(--color-fg-muted);
+}
+
+.dot,
+.centre {
+  cursor: default;
+}
+
+.dot circle,
+.centre circle {
+  fill: var(--color-bg-surface);
+  stroke: var(--color-fg-muted);
+  stroke-width: 0.012;
+}
+
+.centre circle {
+  stroke: var(--color-fg);
+  stroke-width: 0.025;
+}
+
+.dotGlyph {
+  font-size: 0.09px;
+  fill: var(--color-fg-muted);
+  pointer-events: none;
+}
