@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReviewDepth } from "core";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
+import { HomeChanged } from "./HomeChanged";
 import { Resurfaced } from "./Resurfaced";
 import { hashOf, SCOUTS, SKIM_LANE } from "./router";
 import { useTRPC } from "./trpc";
@@ -115,6 +116,7 @@ export function Home({ vaultPath }: { vaultPath: string }) {
               fleet={fleet.data}
             />
           )}
+        <HomeChanged />
         <Resurfaced vaultPath={vaultPath} />
       </div>
     </section>
