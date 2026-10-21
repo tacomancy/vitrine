@@ -15,7 +15,24 @@ export type GraphNode = {
 /** An undirected line: one per file pair, `count` links collapsed into it (block links included). `a` sorts before `b`. */
 export type GraphEdge = { a: string; b: string; count: number };
 
-export type Graph = { nodes: GraphNode[]; edges: GraphEdge[] };
+/**
+ * A link in the neighbourhood that resolves to no single file, so no line is
+ * drawn for it (CONTEXT.md *Not drawn*; ADR 0047 decision 4). Listed rather
+ * than dropped: a missing line must never read as no link.
+ */
+export type NotDrawn = {
+  /** The file the link is written in. */
+  path: string;
+  /** As written, before the index lowercased or split it. */
+  target: string;
+  state: "ambiguous" | "unresolved";
+};
+
+export type Graph = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  notDrawn: NotDrawn[];
+};
 
 /**
  * The Kinds in the order their sectors go round the Ring, clockwise from the
@@ -62,6 +79,7 @@ export function ringOf(
   for (let sector = 0; sector < SECTOR_COUNT; sector++) {
     const inside = files
       .filter((file) => sectorOf(file.kind) === sector)
+      // Array.sort is stable, so links of one file keep the SQL's document order.
       .sort((a, b) => byName(a.path, b.path));
     inside.forEach((file, i) => {
       const angle =
@@ -78,6 +96,31 @@ export function ringOf(
 }
 
 type Row = { path: string; resolved_path: string };
+
+/**
+ * Links written in the drawn files that landed on no single file. Only
+ * outgoing ones can be listed: an ambiguous link has no resolved target, so
+ * nothing says it points at the open file.
+ */
+function notDrawnIn(index: VaultIndex, files: string[]): NotDrawn[] {
+  const drawn = new Set(files);
+  return (
+    index
+      .select<NotDrawn & { resolution: NotDrawn["state"] }>(
+        `SELECT path, target, resolution FROM links
+        WHERE resolution IN ('ambiguous', 'unresolved')
+        ORDER BY path, start`
+      )
+      .filter((row) => drawn.has(row.path))
+      .map(({ path, target, resolution }) => ({
+        path,
+        target,
+        state: resolution,
+      }))
+      // Array.sort is stable, so links of one file keep the SQL's document order.
+      .sort((a, b) => byName(a.path, b.path))
+  );
+}
 
 /**
  * `vault.graph`: the files a resolved link joins to the open one, in either
@@ -108,6 +151,7 @@ export function graphOf(index: VaultIndex, path: string): Graph {
   );
   return {
     nodes: [{ path, kind: kindOf(path), hop: 0, x: 0, y: 0 }, ...ring],
+    notDrawn: notDrawnIn(index, [path, ...ring.map((node) => node.path)]),
     edges: ring.map((node) => {
       const [a, b] = path < node.path ? [path, node.path] : [node.path, path];
       return { a, b, count: counts.get(node.path) ?? 0 };
