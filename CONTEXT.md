@@ -412,7 +412,15 @@ A Scout whose Watched source needs an Extraction while no Credential exists, or 
 _Avoid_: Broken (a failure), unconfigured, disabled
 
 **Structured source**:
-A literature API a Scout queries — Semantic Scholar, arXiv, OpenAlex, PubMed, Crossref. Returns fields directly.
+A literature API a Scout queries — Semantic Scholar, arXiv, OpenAlex, PubMed, Crossref. Returns fields directly. arXiv and OpenAlex are built (ADR 0016, ADR 0051); the rest are named by the brief and not yet.
+
+**OpenAlex source**:
+A Structured source whose Scout asks OpenAlex for works, keyless, and takes either Tags or a Query as its Filter. It asks for **published venues only**: works whose primary location is a journal or conference, not retracted — never a repository, so preprints are left to arXiv Scouts. Cards say *journal* or *conference*, never *peer-reviewed*, since nothing can verify review. May carry a **venue allowlist** of its own. Its budget is a daily credit pool shared with the Attention scatter and with others on the same IP address, so a spent budget is shown as *waiting*, not broken (ADR 0051).
+_Avoid_: Scholar, peer-reviewed feed
+
+**Venue allowlist**:
+The OpenAlex venues one Scout is restricted to, stored on the Scout. It narrows what the Scout asks, which is why it is not a Mute rule; an allowlist that leaves nothing is said on the run.
+_Avoid_: Whitelist
 
 **Proposal**:
 A metadata card a Scout produced: title, authors, date, venue, author keywords, abstract as published, link back, and Origin. No model-generated summary, no file. Missing fields show as missing; a field the source is known never to supply is not shown at all (ADR 0018). Lives in App state until accepted; acceptance writes a Source stub carrying the Origin.
@@ -459,7 +467,7 @@ The foot of the stack where Review Proposals older than the Scout's aging window
 _Avoid_: Archive, expired
 
 **Mute rule**:
-A vault-wide author, venue or keyword rule that moves matching pending Proposals, in either Lane, to the muted view. Stored as a rule and applied when read, so adding one catches what is already pending, and deleting one returns it. A muted Proposal counts nowhere — not Review depth, not Rank, not Corroboration, not a Cap — except as *N muted*, and writes no triage row. Muted is not rejected: nothing is permanent and nothing is deleted (ADR 0044).
+A vault-wide author, venue, publisher or keyword rule that moves matching pending Proposals, in either Lane, to the muted view. Stored as a rule and applied when read, so adding one catches what is already pending, and deleting one returns it. A muted Proposal counts nowhere — not Review depth, not Rank, not Corroboration, not a Cap — except as *N muted*, and writes no triage row. Muted is not rejected: nothing is permanent and nothing is deleted (ADR 0044). A venue or publisher rule made from OpenAlex matches by OpenAlex ID, with the name kept beside it; a name-only rule still matches by name (ADR 0051).
 _Avoid_: Block, filter, auto-reject
 
 **Raise / Demote**:
