@@ -1,7 +1,15 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { cleanup, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
 afterEach(() => {
@@ -182,6 +190,7 @@ describe("an image embed", () => {
     },
   };
   let fetched: { url: string; init: RequestInit | undefined }[];
+  let revoked: Mock<(url: string) => void>;
 
   beforeEach(() => {
     fetched = [];
@@ -196,7 +205,8 @@ describe("an image embed", () => {
       })
     );
     URL.createObjectURL = vi.fn(() => "blob:vitrine/1");
-    URL.revokeObjectURL = vi.fn();
+    revoked = vi.fn<(url: string) => void>();
+    URL.revokeObjectURL = revoked;
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -239,11 +249,11 @@ describe("an image embed", () => {
     cursorAt(view, 0);
     cursorAt(view, DOC.length);
     expect(images(box)).toHaveLength(1);
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(revoked).not.toHaveBeenCalled();
     cursorAt(view, DOC.indexOf("![["));
     await waitFor(() => expect(images(box)).toHaveLength(0));
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:vitrine/1");
+    expect(revoked).toHaveBeenCalledTimes(1);
+    expect(revoked).toHaveBeenCalledWith("blob:vitrine/1");
   });
 
   it("leaves an embed as written until the index has resolved it to an image", async () => {
