@@ -476,6 +476,8 @@
 }
 
 .edge {
+  /* `--u` is the hop count set on the svg: the view widens for the second Ring
+     and sizes in view units scale with it, so dots and text stay as they were. */
   stroke: var(--color-fg-muted);
   stroke-width: calc(0.012px * var(--u, 1));
 }

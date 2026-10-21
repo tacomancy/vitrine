@@ -71,7 +71,7 @@ export function VaultGraph({ path }: { path: string }) {
 
   // The Ring grows with the hops but a hop-1 node keeps its place; the view
   // widens and `--u` keeps dots and text the size they were.
-  const u = hops;
+  const scale = hops;
   return (
     <>
       <fieldset className={styles.hops}>
@@ -84,7 +84,7 @@ export function VaultGraph({ path }: { path: string }) {
               checked={hops === h}
               onChange={() => {
                 setHops(h);
-                setChosen(0);
+                setChosen(0); // the list's length changes with the hops
               }}
             />
             {h}
@@ -93,8 +93,8 @@ export function VaultGraph({ path }: { path: string }) {
       </fieldset>
       <svg
         className={styles.graph}
-        viewBox={`${-1.6 * u} ${-1.3 * u} ${3.2 * u} ${2.6 * u}`}
-        style={{ "--u": u } as CSSProperties}
+        viewBox={`${-1.6 * scale} ${-1.3 * scale} ${3.2 * scale} ${2.6 * scale}`}
+        style={{ "--u": scale } as CSSProperties}
         role="presentation"
       >
         {graph.data?.edges.map((edge) => {
@@ -127,7 +127,7 @@ export function VaultGraph({ path }: { path: string }) {
           <Dot
             key={node.path}
             node={node}
-            radius={dotRadius * u}
+            radius={dotRadius * scale}
             onOpen={() => open(ring.indexOf(node))}
             onHover={(on) => setHovered(on ? node.path : null)}
           />
@@ -139,7 +139,7 @@ export function VaultGraph({ path }: { path: string }) {
               key={node.path}
               data-label=""
               x={node.x}
-              y={node.y - dotRadius * u * 1.8}
+              y={node.y - dotRadius * scale * 1.8}
               className={styles.nodeLabel}
               textAnchor="middle"
             >
