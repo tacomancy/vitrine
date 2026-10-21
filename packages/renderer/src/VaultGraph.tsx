@@ -40,6 +40,7 @@ export function VaultGraph({ path }: { path: string }) {
   useChosenInView(activeId);
 
   const notDrawn = graph.data?.notDrawn ?? [];
+  const overflow = graph.data?.overflow ?? [];
 
   if (ring.length === 0 && notDrawn.length > 0) {
     // Links exist, none lands on one file: saying "no links yet" here would
@@ -193,9 +194,7 @@ export function VaultGraph({ path }: { path: string }) {
           );
         })}
       </ul>
-      {(graph.data?.overflow ?? []).length > 0 && (
-        <OverflowPanel cut={graph.data?.overflow ?? []} />
-      )}
+      {overflow.length > 0 && <OverflowPanel overflow={overflow} />}
       {notDrawn.length > 0 && <NotDrawnPanel links={notDrawn} />}
     </>
   );
@@ -206,18 +205,18 @@ export function VaultGraph({ path }: { path: string }) {
  * rank order. Counted and listed so a hub's missing dots are never mistaken
  * for no links; each row is a way to the file the drawing no longer shows.
  */
-function OverflowPanel({ cut }: { cut: GraphOverflow[] }) {
+function OverflowPanel({ overflow }: { overflow: GraphOverflow[] }) {
   return (
     <section className={styles.notDrawn} aria-label="Not shown">
-      <p className={styles.notDrawnCount}>+{cut.length} more</p>
+      <p className={styles.notDrawnCount}>+{overflow.length} more</p>
       <ul className={styles.notDrawnList}>
-        {cut.map((file) => {
+        {overflow.map((file) => {
           const mark = markOf(file.kind ?? "note");
           return (
             <li key={file.path}>
               <button
                 type="button"
-                className={styles.cutRow}
+                className={styles.overflowRow}
                 onClick={() => pushRoute({ surface: "vault", path: file.path })}
               >
                 <span className={styles.name}>{nameOf(file.path)}</span>{" "}
