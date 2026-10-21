@@ -200,6 +200,43 @@ describe("the Graph tab", () => {
     expect(labels()).toEqual(["Idea", "Other"]);
   });
 
+  it("hides a Kind's nodes and lines from a chip and moves no other node", async () => {
+    open();
+    fireEvent.click(await graphTab());
+    await list();
+    const drawn = () =>
+      [...document.querySelectorAll("svg [data-node]")].map((d) => [
+        d.getAttribute("data-node"),
+        d.getAttribute("data-x"),
+        d.getAttribute("data-y"),
+      ]);
+    const before = drawn();
+    const chip = screen.getByRole("button", { name: "Questions" });
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(drawn()).toEqual(before.filter(([p]) => p !== "q/What now.md"));
+    expect(document.querySelectorAll("svg line")).toHaveLength(2);
+    expect(
+      screen.getAllByRole("option").map((o) => o.textContent)
+    ).not.toContainEqual(expect.stringContaining("What now"));
+    fireEvent.click(chip);
+    expect(drawn()).toEqual(before);
+    expect(document.querySelectorAll("svg line")).toHaveLength(3);
+  });
+
+  it("keeps the open file whatever the chips say, and the list when every Kind is off", async () => {
+    open();
+    fireEvent.click(await graphTab());
+    await list();
+    for (const name of ["notes", "Questions", "Sources", "stubs"]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+    expect(document.querySelectorAll("svg [data-node]")).toHaveLength(1);
+    expect(screen.queryByText("No links yet.")).toBeNull();
+    expect(screen.getByRole("listbox", { name: "Graph" })).toBeDefined();
+  });
+
   it("says in words that a file with no links has none", async () => {
     open({
       "vault.graph": {
