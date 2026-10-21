@@ -223,6 +223,7 @@ describe("the first sentence", () => {
     const page = await home();
     await within(page).findByText(/mine\.md/);
     expect(page.textContent).not.toContain("watching");
+    expect(within(page).getByText("‖")).toBeDefined();
   });
 
   it("is not yet for a fleet that is all not looking: named, no claim", async () => {

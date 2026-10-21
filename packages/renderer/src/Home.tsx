@@ -63,7 +63,8 @@ export function Home() {
 
   const failure = fleet.error ?? health.error ?? tree.error;
   const voice = voiceOf({
-    incomplete: failure !== null,
+    // A failed read is said by its own sentence below, before the Voice is asked.
+    incomplete: false,
     answered:
       health.data !== undefined &&
       fleet.data !== undefined &&
