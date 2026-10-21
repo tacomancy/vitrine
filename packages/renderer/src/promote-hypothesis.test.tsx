@@ -13,7 +13,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Promote to Hypothesis from the Inbox (#331; spec #327 stories 1–6, 10, 11;
 // ADR 0031 decision 9): `h` opens one typed line on the row for the claim —

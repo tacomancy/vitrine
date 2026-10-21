@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   pressCaptureChord,
   question as q,
@@ -7,6 +7,9 @@ import {
   rows,
   vault,
 } from "./fake-core";
+
+// These suites are about the Inbox, so each starts on it; an empty hash is Home.
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // The join: a capture lands in the Inbox. The list is re-read, the new row is
 // the selection, and the keyboard is on the list so j/k act on it at once.

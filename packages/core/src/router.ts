@@ -79,6 +79,7 @@ import {
 } from "./question-map.js";
 import { readActivity, readRunCosts } from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
+import { awaySince } from "./home.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
@@ -142,6 +143,7 @@ import { saveFile } from "./page-write.js";
 import type { PositionsOf } from "./vault-index.js";
 import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
+import { graphOf } from "./vault-graph.js";
 import { resolveLinks } from "./vault-links.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
@@ -489,6 +491,13 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return backlinksOf(vault.path, index, input.path);
     }),
+    // The Vault's Graph tab (#741): the open file's first Ring, laid out by a pure function.
+    graph: t.procedure
+      .input(z.object({ path: z.string(), hops: z.literal(1) }))
+      .query(async ({ ctx, input }) => {
+        const { index } = await requireVault(ctx);
+        return graphOf(index, input.path);
+      }),
     // Where the editor's `[[links]]` land, for drawing them and following them (#701).
     resolveLinks: t.procedure
       .input(z.object({ from: z.string(), links: z.array(z.string()) }))
@@ -1730,6 +1739,14 @@ export const router = t.router({
     restore: t.procedure.input(termInput).mutation(async ({ ctx, input }) => {
       const { vault } = await requireVault(ctx);
       await refusing(restoreTerm(vault.path, input.tag, input.term));
+    }),
+  }),
+  // Home (spec #728): the landing's own facts. Each is a query over what
+  // already exists and writes nothing.
+  home: t.router({
+    away: t.procedure.query(async ({ ctx }) => {
+      const { days } = await requireVault(ctx);
+      return { since: awaySince(days, ctx.now()) };
     }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries

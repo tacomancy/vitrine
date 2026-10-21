@@ -22,6 +22,12 @@ export type OpenDays = {
    * because the day something was promoted is not a day it spent waiting.
    */
   since: (day: string) => number;
+  /**
+   * The latest recorded day strictly before `day`, or null when there is none:
+   * Home's *away since* is measured against it (spec #728). Read-only, and
+   * nothing that counts a quiet period reads it.
+   */
+  before: (day: string) => string | null;
 };
 
 export function openDays(db: DatabaseSync): OpenDays {
@@ -32,9 +38,13 @@ export function openDays(db: DatabaseSync): OpenDays {
   // absorbs — and the alternative, resolving both into one zone, would
   // quietly move days the user actually spent at the vault.
   const after = db.prepare("SELECT COUNT(*) AS n FROM open_days WHERE day > ?");
+  const previous = db.prepare(
+    "SELECT MAX(day) AS day FROM open_days WHERE day < ?"
+  );
   return {
     record: (day) => insert.run(day),
     since: (day) => (after.get(day) as { n: number }).n,
+    before: (day) => (previous.get(day) as { day: string | null }).day,
   };
 }
 

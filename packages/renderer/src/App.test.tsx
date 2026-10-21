@@ -1,9 +1,11 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { renderApp, vault } from "./fake-core";
 
 // Testing Library only cleans up by itself when the runner exposes globals.
 afterEach(cleanup);
+// Most of this file is about the Inbox, so it starts there; an empty hash is Home.
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 describe("First run", () => {
   it("is what a launch with no vault shows: the promise and one action", async () => {
@@ -100,6 +102,7 @@ describe("the window with a vault open", () => {
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
       // The gear on the vault's name, first in the rail (prototype 13).
       ["⚙", "#/settings"],
+      ["Home", "#/home"],
       ["Question Inbox", "#/inbox"],
       ["Experiment view", "#/experiments"],
       ["Scout Queue", "#/scouts"],
@@ -109,7 +112,7 @@ describe("the window with a vault open", () => {
       ["Scout Activity", "#/scout-activity"],
     ]);
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
-      "Question Inbox"
+      "Home"
     );
     expect(nav.querySelectorAll("button, [tabindex]")).toHaveLength(0);
     // The nav named no chord while none existed. Both do now, and the map
