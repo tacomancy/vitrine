@@ -256,7 +256,83 @@ describe("an image embed", () => {
     expect(revoked).toHaveBeenCalledWith("blob:vitrine/1");
   });
 
-  it("leaves an embed as written until the index has resolved it to an image", async () => {
+  it("leaves an embed as written until the index has answered for it", async () => {
+    const { box, view } = await open(DOC, {});
+    cursorAt(view, 2);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(images(box)).toHaveLength(0);
+    expect(lines(box)).toContain("![[diagram.png]]");
+    expect(fetched).toEqual([]);
+  });
+
+  const sized = async (embed: string) => {
+    const { box, view } = await open(
+      `intro\n\n${embed}\n\ntail`,
+      Object.fromEntries(
+        [embed.slice(3, -2)].map((k) => [k, RESOLVED["diagram.png"]])
+      )
+    );
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    return images(box)[0]!;
+  };
+
+  it("sizes the picture by a width, `|300`", async () => {
+    const img = await sized("![[diagram.png|300]]");
+    expect(img.style.width).toBe("300px");
+    // The engine keeps the proportions of a width-only image.
+    expect(img.style.height).toBe("");
+  });
+
+  it("sizes the picture by `|WxH`", async () => {
+    const img = await sized("![[diagram.png|300x150]]");
+    expect(img.style.width).toBe("300px");
+    expect(img.style.height).toBe("150px");
+  });
+
+  it("draws a malformed size at the natural size", async () => {
+    for (const embed of ["![[diagram.png|big]]", "![[diagram.png|300x]]"]) {
+      cleanup();
+      const img = await sized(embed);
+      expect(img.style.width).toBe("");
+      expect(img.style.height).toBe("");
+    }
+  });
+
+  it("draws a Markdown image to a vault image, keeping its alt text", async () => {
+    const { box, view } = await open(
+      "intro\n\n![A diagram](assets/diagram.png)\n\ntail",
+      { "assets/diagram.png": RESOLVED["diagram.png"] }
+    );
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    expect(images(box)[0]!.alt).toBe("A diagram");
+    expect(fetched.map((f) => f.url)).toEqual([
+      "http://127.0.0.1:4242/vault-image/assets/diagram.png",
+    ]);
+    expect(lines(box)).not.toContain("![A diagram](assets/diagram.png)");
+  });
+
+  it("decodes a Markdown image's percent-escapes before asking the index", async () => {
+    const { box, view } = await open("intro\n\n![](my%20pic.png)\n\ntail", {
+      "my pic.png": RESOLVED["diagram.png"],
+    });
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+  });
+
+  it("leaves a Markdown image to the web as written", async () => {
+    const { box, view } = await open(
+      "intro\n\n![x](https://example.com/a.png)\n",
+      {}
+    );
+    cursorAt(view, 2);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(images(box)).toHaveLength(0);
+    expect(fetched).toEqual([]);
+  });
+
+  it("names the file an unresolved embed could not find, in place of the embed", async () => {
     const { box, view } = await open(DOC, {
       "diagram.png": {
         resolution: "unresolved",
@@ -266,10 +342,56 @@ describe("an image embed", () => {
       },
     });
     cursorAt(view, 2);
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() =>
+      expect(box.querySelector(".cm-embed-missing")?.textContent).toBe(
+        "Could not find diagram.png"
+      )
+    );
     expect(images(box)).toHaveLength(0);
-    expect(lines(box)).toContain("![[diagram.png]]");
+    expect(lines(box)).not.toContain("![[diagram.png]]");
     expect(fetched).toEqual([]);
+    cursorAt(view, DOC.indexOf("![["));
+    await waitFor(() =>
+      expect(box.querySelector(".cm-embed-missing")).toBeNull()
+    );
+    expect(lines(box)).toContain("![[diagram.png]]");
+  });
+
+  it("names the file an ambiguous embed could not pick", async () => {
+    const { box, view } = await open(DOC, {
+      "diagram.png": {
+        resolution: "ambiguous",
+        path: null,
+        kind: null,
+        candidates: [
+          { path: "a/diagram.png", kind: null },
+          { path: "b/diagram.png", kind: null },
+        ],
+      },
+    });
+    cursorAt(view, 2);
+    await waitFor(() =>
+      expect(box.querySelector(".cm-embed-missing")?.textContent).toBe(
+        "Could not choose between the files named diagram.png"
+      )
+    );
+  });
+
+  it("names the file a Markdown image could not find", async () => {
+    const { box, view } = await open("intro\n\n![alt](gone.png)\n", {
+      "gone.png": {
+        resolution: "unresolved",
+        path: null,
+        kind: null,
+        candidates: [],
+      },
+    });
+    cursorAt(view, 2);
+    await waitFor(() =>
+      expect(box.querySelector(".cm-embed-missing")?.textContent).toBe(
+        "Could not find gone.png"
+      )
+    );
   });
 
   it("leaves an embed of a file that is not an image as written", async () => {

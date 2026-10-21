@@ -1,5 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
+import type { SyntaxNode } from "@lezer/common";
 import {
+  type EditorState,
   StateEffect,
   StateField,
   type Extension,
@@ -13,6 +15,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import type { LinkResolution } from "core";
+import { parseMarkdownLinkTarget } from "markdown";
 import { classifyLink } from "./link-rule";
 
 /**
@@ -48,6 +51,18 @@ export const known = StateField.define<Record<string, LinkResolution>>({
 });
 
 const wikilinkText = (raw: string) => raw.replace(/^!?\[\[/, "").slice(0, -2);
+
+/**
+ * The text a `![alt](path)` is asked of the index by: the vault path it
+ * names, percent-decoded, as a note link's is. A URL with a scheme is the
+ * web's, not the vault's, and is never asked.
+ */
+export function imageKey(node: SyntaxNode, state: EditorState): string | null {
+  const url = node.getChild("URL");
+  if (url === null) return null;
+  const target = parseMarkdownLinkTarget(state.sliceDoc(url.from, url.to));
+  return target.external || target.target === "" ? null : target.target;
+}
 
 /**
  * The marks that make a link followable: a data attribute the click handler
@@ -118,9 +133,15 @@ function unknownLinks(view: EditorView): string[] {
   const wanted = new Set<string>();
   syntaxTree(view.state).iterate({
     enter(node) {
-      if (node.name !== "Wikilink") return;
-      const link = wikilinkText(view.state.doc.sliceString(node.from, node.to));
-      if (answers[link] === undefined) wanted.add(link);
+      // An image is asked of the index like a wikilink, so the drawing
+      // (`vault-embeds`) takes the index's verdict and resolves nothing itself.
+      const link =
+        node.name === "Wikilink"
+          ? wikilinkText(view.state.doc.sliceString(node.from, node.to))
+          : node.name === "Image"
+            ? imageKey(node.node, view.state)
+            : null;
+      if (link !== null && answers[link] === undefined) wanted.add(link);
     },
   });
   return [...wanted];

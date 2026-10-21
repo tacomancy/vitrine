@@ -84,3 +84,10 @@
 :global(.cm-follow-ambiguous) {
   text-decoration: underline dotted;
 }
+
+/* An embed the index could not land: a line in the editor's own muted voice,
+   never a broken-image icon and never nothing. */
+:global(.cm-embed-missing) {
+  color: var(--color-fg-muted);
+  font-style: italic;
+}

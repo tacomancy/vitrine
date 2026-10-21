@@ -1,3 +1,4 @@
+import { parseWikilink } from "markdown";
 import { syntaxTree } from "@codemirror/language";
 import { StateField, type EditorState, type Range } from "@codemirror/state";
 import {
@@ -6,7 +7,7 @@ import {
   EditorView,
   WidgetType,
 } from "@codemirror/view";
-import { known } from "./vault-links";
+import { imageKey, known } from "./vault-links";
 
 // A block-level image for an embed that is a line to itself (docs/architecture.md
 // § Live preview; spec #751). Off the cursor's line `![[diagram.png]]` is the
@@ -28,17 +29,59 @@ const wikilinkText = (raw: string) => raw.replace(/^!?\[\[/, "").slice(0, -2);
 // the instance that runs `destroy` is not the one that ran `toDOM`.
 const cleanups = new WeakMap<HTMLElement, () => void>();
 
+// `|300` is a width and `|WxH` both; the image keeps its proportions when only
+// the width is given. Any other alias is the link's display text, which an
+// image has none of, so it draws at its natural size.
+type Size = { width: number | null; height: number | null };
+
+function sizeOf(alias: string | null): Size {
+  const m = /^(\d+)(?:x(\d+))?$/.exec(alias?.trim() ?? "");
+  if (m === null) return { width: null, height: null };
+  return {
+    width: Number(m[1]),
+    height: m[2] === undefined ? null : Number(m[2]),
+  };
+}
+
+/** The line that stands in for an embed the index could not land, so a broken one is never an empty paragraph. */
+class MissingEmbed extends WidgetType {
+  constructor(readonly words: string) {
+    super();
+  }
+
+  eq(other: MissingEmbed) {
+    return other.words === this.words;
+  }
+
+  toDOM() {
+    const line = document.createElement("div");
+    line.className = "cm-embed-missing";
+    line.textContent = this.words;
+    return line;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
 /** An image the page fetches with the bearer header and draws from an object URL, as the Experiment page does. */
 class ImageEmbed extends WidgetType {
   constructor(
     readonly path: string,
-    readonly text: string
+    readonly text: string,
+    readonly size: Size
   ) {
     super();
   }
 
   eq(other: ImageEmbed) {
-    return other.path === this.path && other.text === this.text;
+    return (
+      other.path === this.path &&
+      other.text === this.text &&
+      other.size.width === this.size.width &&
+      other.size.height === this.size.height
+    );
   }
 
   toDOM() {
@@ -46,6 +89,8 @@ class ImageEmbed extends WidgetType {
     wrap.className = "cm-embed-image";
     const img = document.createElement("img");
     img.alt = this.text;
+    if (this.size.width !== null) img.style.width = `${this.size.width}px`;
+    if (this.size.height !== null) img.style.height = `${this.size.height}px`;
     wrap.append(img);
     const aborted = new AbortController();
     let url: string | null = null;
@@ -84,9 +129,12 @@ class ImageEmbed extends WidgetType {
   }
 }
 
-type Embed = { from: number; to: number; path: string; text: string };
+type Embed = { from: number; to: number } & (
+  | { kind: "image"; path: string; text: string; size: Size }
+  | { kind: "missing"; words: string }
+);
 
-/** The embeds that are a whole line and resolved to an image. */
+/** The embeds that are a whole line and that the index has answered for. */
 function embedsOf(state: EditorState): Embed[] {
   const answers = state.field(known);
   const out: Embed[] = [];
@@ -95,15 +143,52 @@ function embedsOf(state: EditorState): Embed[] {
       if (node.name === "Frontmatter" || node.name === "FencedCode") {
         return false;
       }
-      if (node.name !== "Wikilink") return;
+      if (node.name !== "Wikilink" && node.name !== "Image") return;
       const line = state.doc.lineAt(node.from);
       if (line.from !== node.from || line.to !== node.to) return;
       const text = state.sliceDoc(node.from, node.to);
-      if (!text.startsWith("!")) return;
-      const answer = answers[wikilinkText(text)];
-      if (answer?.resolution !== "resolved" || answer.path === null) return;
-      if (!IMAGE.test(answer.path)) return;
-      out.push({ from: node.from, to: node.to, path: answer.path, text });
+      let key: string | null;
+      let alt: string;
+      let size = sizeOf(null);
+      if (node.name === "Wikilink") {
+        if (!text.startsWith("!")) return;
+        key = wikilinkText(text);
+        const { alias } = parseWikilink(key);
+        size = sizeOf(alias);
+        alt = text;
+      } else {
+        key = imageKey(node.node, state);
+        alt = /^!\[([^\]]*)\]/.exec(text)?.[1] ?? "";
+      }
+      if (key === null) return;
+      const answer = answers[key];
+      if (answer === undefined) return;
+      const name = parseWikilink(key).target;
+      if (answer.resolution === "resolved" && answer.path !== null) {
+        if (!IMAGE.test(answer.path)) return;
+        out.push({
+          from: node.from,
+          to: node.to,
+          kind: "image",
+          path: answer.path,
+          text: alt,
+          size,
+        });
+      } else if (answer.resolution === "ambiguous") {
+        out.push({
+          from: node.from,
+          to: node.to,
+          kind: "missing",
+          words: `Could not choose between the files named ${name}`,
+        });
+      } else if (answer.resolution === "unresolved") {
+        out.push({
+          from: node.from,
+          to: node.to,
+          kind: "missing",
+          words: `Could not find ${name}`,
+        });
+      }
     },
   });
   return out;
@@ -133,7 +218,10 @@ function drawn(state: EditorState, list: Embed[]): DecorationSet {
     out.push(
       Decoration.replace({
         block: true,
-        widget: new ImageEmbed(e.path, e.text),
+        widget:
+          e.kind === "image"
+            ? new ImageEmbed(e.path, e.text, e.size)
+            : new MissingEmbed(e.words),
       }).range(e.from, e.to)
     );
   }
