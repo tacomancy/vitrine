@@ -1,8 +1,11 @@
 import { syntaxHighlighting } from "@codemirror/language";
+import { history, historyKeymap, isolateHistory } from "@codemirror/commands";
 import {
   Annotation,
   ChangeSet,
+  EditorSelection,
   EditorState,
+  Transaction,
   type ChangeSpec,
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -72,6 +75,9 @@ const wording: Record<DiskNote["kind"], string> = {
 
 /** Marks a transaction that is not the user's typing: a file pushed in, a Revision taken back. */
 const fromDisk = Annotation.define<true>();
+// Not the user's typing, so not the user's to undo: ⌘Z must never take back
+// what the disk said.
+const notTyping = [fromDisk.of(true), Transaction.addToHistory.of(false)];
 
 /** The one splice that turns `from` into `to`: everything between their common head and tail. */
 function spliceBetween(from: string, to: string): ChangeSpec {
@@ -120,9 +126,17 @@ export function VaultEditor({
   links,
   disk,
   reread,
+  attach,
 }: {
   file: EditorFile | null;
   save: (path: string, content: string, basedOn: string) => Promise<SavedText>;
+  /**
+   * Copy dropped files in, in order (#754): per file the name it was stored
+   * under, or null once the caller has said why it was not. The editor writes
+   * an embed only for a name, so a refused or failed copy leaves the note as
+   * it was.
+   */
+  attach: (sources: string[]) => Promise<(string | null)[]>;
   links: LinkHooks;
   disk: DiskNote | null;
   reread: () => Promise<DiskCopy>;
@@ -130,9 +144,15 @@ export function VaultEditor({
   // The extension reads the latest hooks through this, so the view is still
   // made once and a render never rebuilds it.
   const hooks = useRef(links);
+  const attachRef = useRef(attach);
   useEffect(() => {
     hooks.current = links;
+    attachRef.current = attach;
   });
+  // Where each drop in flight will land. A copy takes time, and the note may
+  // be typed in meanwhile, so the position is carried through every change
+  // rather than read when the copy comes back.
+  const drops = useRef(new Set<{ pos: number }>());
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // What the document is a copy of: the file, and the hash `basedOn` names.
@@ -212,13 +232,49 @@ export function VaultEditor({
             spliceBetween(sent, saved.text),
             sent.length
           ).map(run.typed),
-          annotations: fromDisk.of(true),
+          annotations: notTyping,
         });
       }
       dirty.current = !run.typed.empty;
       if (dirty.current && run.again) void flushRef.current();
     };
   });
+
+  /**
+   * Copy each dropped file in turn, then write their embeds in one
+   * transaction at the drop (spec #751): the order dropped, nothing written
+   * for a file that was not copied, and a single undo for the lot. The copies
+   * stay if the embeds are undone, since nothing the app copies in is deleted
+   * (ADR 0035 decision 2). If another file has replaced the document while
+   * the copies were out, the embeds have no place to go and are not written.
+   */
+  const embedAll = async (
+    target: EditorView,
+    dropped: File[],
+    drop: { pos: number },
+    from: string | undefined
+  ) => {
+    try {
+      const names = (
+        await attachRef.current(dropped.map((f) => window.vitrine.pathOf(f)))
+      ).filter((name) => name !== null);
+      if (names.length === 0 || view.current !== target) return;
+      if (held.current?.path !== from) return;
+      // The live preview draws an embed only when it is a line of its own.
+      const line = target.state.doc.lineAt(drop.pos);
+      const lead = drop.pos > line.from ? "\n" : "";
+      const trail = drop.pos < line.to ? "\n" : "";
+      const insert = lead + names.map((n) => `![[${n}]]`).join("\n") + trail;
+      target.dispatch({
+        changes: { from: drop.pos, insert },
+        selection: EditorSelection.cursor(drop.pos + insert.length),
+        userEvent: "input.drop",
+        annotations: isolateHistory.of("full"),
+      });
+    } finally {
+      drops.current.delete(drop);
+    }
+  };
 
   useEffect(() => {
     const parent = host.current;
@@ -242,7 +298,9 @@ export function VaultEditor({
           vaultLinks(() => hooks.current),
           livePreview(),
           vaultEmbeds(),
+          history(),
           keymap.of([
+            ...historyKeymap,
             {
               key: "Mod-s",
               preventDefault: true,
@@ -254,6 +312,9 @@ export function VaultEditor({
           ]),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
+            for (const drop of drops.current) {
+              drop.pos = update.changes.mapPos(drop.pos, 1);
+            }
             if (update.transactions.some((t) => t.annotation(fromDisk))) return;
             dirty.current = true;
             const run = saving.current;
@@ -264,6 +325,27 @@ export function VaultEditor({
           EditorView.domEventHandlers({
             blur: () => {
               void flushRef.current();
+            },
+            dragover: (event) => {
+              if (event.dataTransfer?.types.includes("Files") !== true) {
+                return false;
+              }
+              event.preventDefault();
+              return true;
+            },
+            drop: (event, target) => {
+              const dropped = Array.from(event.dataTransfer?.files ?? []);
+              // Dragged text and links are the editor's own; only files are ours.
+              if (dropped.length === 0) return false;
+              event.preventDefault();
+              const drop = {
+                pos:
+                  target.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+                  target.state.selection.main.head,
+              };
+              drops.current.add(drop);
+              void embedAll(target, dropped, drop, held.current?.path);
+              return true;
             },
           }),
         ],
@@ -317,7 +399,7 @@ export function VaultEditor({
     current.dispatch({
       changes,
       effects: forgetResolutions.of(null),
-      annotations: fromDisk.of(true),
+      annotations: notTyping,
     });
   }, [path, text, hash]);
 
@@ -379,7 +461,7 @@ export function VaultEditor({
     show(null);
     current.dispatch({
       changes: spliceBetween(current.state.doc.toString(), copy.text),
-      annotations: fromDisk.of(true),
+      annotations: notTyping,
     });
   };
 
