@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Backlink } from "core";
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import type { SearchHit } from "core";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { markOf } from "./kinds";
+import { listKeys } from "./listKeys";
 import { pushRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { Marked } from "./VaultMarked";
+import { VaultGraph } from "./VaultGraph";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
 const day = (when: number) =>
@@ -59,46 +61,62 @@ function arranged(data: Backlink[]): {
 
 const mentionId = (index: number) => `vault-mention-row-${index}`;
 
-// The keys every list of the pane answers to (ADR 0030): the choice moves,
-// ↵ opens it.
-function listKeys(
-  at: number,
-  count: number,
-  choose: (to: number) => void,
-  open: (index: number) => void
-) {
-  return (event: KeyboardEvent<HTMLUListElement>) => {
-    const move = (to: number) => choose(Math.min(Math.max(to, 0), count - 1));
-    switch (event.key) {
-      case "ArrowDown":
-        move(at + 1);
-        break;
-      case "ArrowUp":
-        move(at - 1);
-        break;
-      case "Home":
-        move(0);
-        break;
-      case "End":
-        move(count - 1);
-        break;
-      case "Enter":
-        open(at);
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-  };
-}
+const VIEWS = ["backlinks", "graph"] as const;
 
 /**
- * The right pane: the files that link to the open one (spec #680;
- * `docs/architecture.md` § Vault surface). Linked backlinks only — the core
- * leaves out an ambiguous link, which counts for neither candidate. A row
- * opens the linking file in the Vault.
+ * The right pane: *backlinks*, the files that link to the open one (spec
+ * #680; `docs/architecture.md` § Vault surface), and beside it the *graph*
+ * (#741, ADR 0047). Linked backlinks only — the core leaves out an ambiguous
+ * link, which counts for neither candidate. A row opens the linking file in
+ * the Vault. The lists are keyed by the open file, so a new file starts a new
+ * choice, while the tab chosen stays: walking the graph must not bounce back
+ * to backlinks.
  */
 export function VaultBacklinks({ path }: { path: string }) {
+  const [view, setView] = useState<(typeof VIEWS)[number]>("backlinks");
+  return (
+    <aside className={styles.backlinks} aria-label="Links pane">
+      <div className={styles.header}>
+        <div role="tablist" aria-label="Link views" className={styles.tabs}>
+          {VIEWS.map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              id={`vault-links-tab-${name}`}
+              aria-selected={view === name}
+              aria-controls={`vault-links-panel-${name}`}
+              className={styles.tab}
+              onClick={() => setView(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div
+        role="tabpanel"
+        id="vault-links-panel-backlinks"
+        aria-labelledby="vault-links-tab-backlinks"
+        className={styles.panel}
+        hidden={view !== "backlinks"}
+      >
+        <Backlinks key={path} path={path} />
+      </div>
+      <div
+        role="tabpanel"
+        id="vault-links-panel-graph"
+        aria-labelledby="vault-links-tab-graph"
+        className={styles.panel}
+        hidden={view !== "graph"}
+      >
+        {view === "graph" && <VaultGraph key={path} path={path} />}
+      </div>
+    </aside>
+  );
+}
+
+function Backlinks({ path }: { path: string }) {
   const trpc = useTRPC();
   const backlinks = useQuery(trpc.vault.backlinks.queryOptions({ path }));
   const status = useVaultStatusLines();
@@ -149,10 +167,7 @@ export function VaultBacklinks({ path }: { path: string }) {
   });
 
   return (
-    <aside className={styles.backlinks} aria-label="Backlinks pane">
-      <div className={styles.header}>
-        <h2 className={styles.tab}>backlinks</h2>
-      </div>
+    <>
       {rows.length === 0 ? (
         <FirstSlot voice={voice} claim="Nothing links here yet.">
           No other file links to this one.
@@ -189,7 +204,7 @@ export function VaultBacklinks({ path }: { path: string }) {
         </ul>
       )}
       <UnlinkedMentions path={path} />
-    </aside>
+    </>
   );
 }
 
