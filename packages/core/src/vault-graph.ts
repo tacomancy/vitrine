@@ -79,6 +79,7 @@ export function ringOf(
   for (let sector = 0; sector < SECTOR_COUNT; sector++) {
     const inside = files
       .filter((file) => sectorOf(file.kind) === sector)
+      // Array.sort is stable, so links of one file keep the SQL's document order.
       .sort((a, b) => byName(a.path, b.path));
     inside.forEach((file, i) => {
       const angle =
@@ -102,20 +103,23 @@ type Row = { path: string; resolved_path: string };
  * nothing says it points at the open file.
  */
 function notDrawnIn(index: VaultIndex, files: string[]): NotDrawn[] {
-  const inGraph = new Set(files);
-  return index
-    .select<NotDrawn & { resolution: NotDrawn["state"] }>(
-      `SELECT path, target, resolution FROM links
+  const drawn = new Set(files);
+  return (
+    index
+      .select<NotDrawn & { resolution: NotDrawn["state"] }>(
+        `SELECT path, target, resolution FROM links
         WHERE resolution IN ('ambiguous', 'unresolved')
         ORDER BY path, start`
-    )
-    .filter((row) => inGraph.has(row.path))
-    .map(({ path, target, resolution }) => ({
-      path,
-      target,
-      state: resolution,
-    }))
-    .sort((a, b) => byName(a.path, b.path));
+      )
+      .filter((row) => drawn.has(row.path))
+      .map(({ path, target, resolution }) => ({
+        path,
+        target,
+        state: resolution,
+      }))
+      // Array.sort is stable, so links of one file keep the SQL's document order.
+      .sort((a, b) => byName(a.path, b.path))
+  );
 }
 
 /**
