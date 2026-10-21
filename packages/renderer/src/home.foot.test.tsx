@@ -268,7 +268,7 @@ describe("what Home must never have", () => {
       });
       const page = await home();
       // The first sentence has landed, so the negative below is not vacuous.
-      await within(page).findByText(/watching|not looking yet|not working/);
+      await within(page).findAllByText(/watching|not looking yet|not working/);
       expect(page.textContent).not.toMatch(
         /nothing is (broken|wrong)|all (is )?well|everything is fine/i
       );
