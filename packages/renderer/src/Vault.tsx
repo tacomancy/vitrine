@@ -56,7 +56,7 @@ export function VaultSurface({ path }: { path: string | undefined }) {
           />
         )}
       </div>
-      {path !== undefined && <VaultBacklinks key={path} path={path} />}
+      {path !== undefined && <VaultBacklinks path={path} />}
     </section>
   );
 }
