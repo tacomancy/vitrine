@@ -14,7 +14,7 @@ afterEach(() => {
   cleanup();
   clearIngest();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Unmatched annotations in Loose Ends and the panel (#421; spec #416 stories
 // 45–58), against the fake core: what the researcher reads on a row, the

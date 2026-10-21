@@ -1,9 +1,11 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { VaultStatus } from "core";
 import { empty, renderApp, vault } from "./fake-core";
 
 afterEach(cleanup);
+// The empty Inbox suites start on it; an empty hash is Home.
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // The Inbox's first slot in the three Voices (ADR 0032; prototype 12's
 // contrast set, 5). Prototype 12 says the three differ in four places; the

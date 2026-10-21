@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   empty,
   question as q,
@@ -8,6 +8,9 @@ import {
   scrollsInto,
   vault,
 } from "./fake-core";
+
+// These suites are about the Inbox, so each starts on it; an empty hash is Home.
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 afterEach(() => {
   cleanup();

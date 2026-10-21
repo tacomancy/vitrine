@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 import { announceIngest, clearIngest } from "./ingest-line";
-import { INBOX, replaceRoute } from "./router";
+import { HOME, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
 
 type VaultChanged = Extract<CoreEvent, { type: "vaultChanged" }>;
@@ -22,7 +22,7 @@ type Listener = (event: VaultChanged) => void;
  * connect and reconnect every query is — the stream replays nothing, so the
  * reconnect is the catch-up for whatever was missed while it was down. A
  * `vaultSwitched` is the one event that empties the cache rather than
- * invalidating it, and moves the window to the Inbox; `vaultPath` is the
+ * invalidating it, and moves the window to Home; `vaultPath` is the
  * open vault's folder, so a switch the stream missed is caught on reconnect.
  * Returns the set a surface registers with through `useVaultChanged` to
  * follow a path it holds; the set is told before the invalidation, so a
@@ -42,7 +42,7 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
   const switchWindow = useCallback(() => {
     void queryClient.resetQueries();
     clearIngest();
-    replaceRoute(INBOX);
+    replaceRoute(HOME);
   }, [queryClient]);
   useSubscription(
     trpc.events.subscribe.subscriptionOptions(undefined, {

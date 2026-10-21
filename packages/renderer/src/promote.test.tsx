@@ -7,7 +7,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Promote to Research Question from the Inbox (#210; spec #206 stories 1–3,
 // 8–11): one key, the page takes the keyboard (ADR 0010), the row stays as

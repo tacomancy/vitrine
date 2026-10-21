@@ -13,7 +13,7 @@ afterEach(() => {
   clearIngest();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 const watched: VaultStatus = {
   indexing: null,
