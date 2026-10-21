@@ -75,6 +75,11 @@ export function useCoreEvents(vaultPath: string | null): Set<Listener> {
             trpc.experiments.artifactPreview.pathFilter()
           );
           void queryClient.invalidateQueries(trpc.looseEnds.rows.pathFilter());
+          // Home is drawn from the index and the Scouts' proposals: a Question
+          // captured, a file edited on disk or a run's arrivals change what it
+          // says, and nothing on it may wait for a reload (spec #728).
+          void queryClient.invalidateQueries(trpc.home.pathFilter());
+          void queryClient.invalidateQueries(trpc.scouts.pathFilter());
         } else if (event.type === "vaultStatus") {
           void queryClient.invalidateQueries(trpc.vault.status.pathFilter());
         } else if (event.type === "pdfFolder") {
