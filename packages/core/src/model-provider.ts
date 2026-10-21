@@ -91,10 +91,51 @@ const SCHEMA = {
 
 class NotItems extends Error {}
 
+/**
+ * The one host the key may reach (#749). The SDK would otherwise read
+ * `ANTHROPIC_BASE_URL` from the environment, so a variable on the core's
+ * process could carry the `x-api-key` header anywhere; there is no test seam
+ * for the origin on purpose, so a packaged build has no back door either.
+ */
+export const PROVIDER_ORIGIN = "https://api.anthropic.com";
+
+/**
+ * The only way out for a request that carries the key: refuses any other
+ * origin before anything is sent, and never follows a redirect, since a
+ * redirect is a way to hand the header to a host nobody pinned.
+ */
+export function pinnedFetch(inner: typeof fetch = fetch): typeof fetch {
+  return (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (new URL(url).origin !== PROVIDER_ORIGIN) {
+      return Promise.reject(new Error("refusing a request off the provider"));
+    }
+    return inner(input, { ...init, redirect: "error" });
+  };
+}
+
+/**
+ * `baseURL` and `authToken` are set explicitly because the SDK reads both from
+ * the environment otherwise. `ANTHROPIC_CUSTOM_HEADERS` still applies and
+ * cannot be switched off; it only ever travels to the pinned host.
+ */
+export function anthropicClient(
+  apiKey: string,
+  egress: typeof fetch = fetch
+): Anthropic {
+  return new Anthropic({
+    apiKey,
+    authToken: null,
+    baseURL: PROVIDER_ORIGIN,
+    fetch: pinnedFetch(egress),
+  });
+}
+
 /** Anthropic through its SDK; the client is a parameter so a test hands in one that answers from a fixture. */
 export function createAnthropicProvider(
   makeClient: (apiKey: string) => Anthropic = (apiKey) =>
-    new Anthropic({ apiKey })
+    anthropicClient(apiKey, egress),
+  egress: typeof fetch = fetch
 ): ModelProvider {
   const fault = (cause: unknown, usage?: Usage): ModelError => {
     if (cause instanceof ModelError) return cause;
