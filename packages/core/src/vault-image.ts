@@ -8,7 +8,7 @@ import { locate } from "./vault-files.js";
  * decodes. A fixed list, not a Setting; anything else is refused by name
  * wherever a file is offered, and is never served as bytes here.
  */
-export const VAULT_IMAGE_TYPES: Record<string, string> = {
+const VAULT_IMAGE_TYPES: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",

@@ -2,6 +2,7 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeCores, core, tmp, vaultWith } from "./test-core.js";
+import { vaultImageBytes } from "./vault-image.js";
 
 // The bytes route's vault-image case (#752; spec #751 § Serving the bytes): a
 // note's `![[diagram.png]]` is drawn from bytes the renderer fetches behind
@@ -86,5 +87,16 @@ describe("the vault-image bytes route", () => {
     for (const path of ["assets/link.png", "linked/leak.png"]) {
       expect((await get(c, path)).status, path).toBe(404);
     }
+  });
+
+  // The HTTP client normalises `..` before the router sees it, so the
+  // function is asked directly: it is the thing that must refuse.
+  it("refuses a climbing path itself, not only through the URL parser", async () => {
+    const { vault } = await opened();
+    const outside = await tmp("outside");
+    await writeFile(join(outside, "x.png"), PNG);
+    expect(await vaultImageBytes(vault, "assets/../../x.png")).toBeNull();
+    expect(await vaultImageBytes(vault, join(outside, "x.png"))).toBeNull();
+    expect(await vaultImageBytes(vault, "assets/diagram.png")).not.toBeNull();
   });
 });

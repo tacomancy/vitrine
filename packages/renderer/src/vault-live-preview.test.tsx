@@ -232,6 +232,20 @@ describe("an image embed", () => {
     expect(lines(box)).not.toContain("![[diagram.png]]");
   });
 
+  it("keeps the object URL across cursor moves and revokes it once, when the picture goes", async () => {
+    const { box, view } = await open(DOC, RESOLVED);
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    cursorAt(view, 0);
+    cursorAt(view, DOC.length);
+    expect(images(box)).toHaveLength(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    cursorAt(view, DOC.indexOf("![["));
+    await waitFor(() => expect(images(box)).toHaveLength(0));
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:vitrine/1");
+  });
+
   it("leaves an embed as written until the index has resolved it to an image", async () => {
     const { box, view } = await open(DOC, {
       "diagram.png": {

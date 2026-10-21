@@ -23,11 +23,13 @@ const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 const wikilinkText = (raw: string) => raw.replace(/^!?\[\[/, "").slice(0, -2);
 
+// What to undo when a drawn image goes. Kept per element, not per widget:
+// CodeMirror reuses the DOM of an `eq` widget and drops the new instance, so
+// the instance that runs `destroy` is not the one that ran `toDOM`.
+const cleanups = new WeakMap<HTMLElement, () => void>();
+
 /** An image the page fetches with the bearer header and draws from an object URL, as the Experiment page does. */
 class ImageEmbed extends WidgetType {
-  private abort: AbortController | null = null;
-  private url: string | null = null;
-
   constructor(
     readonly path: string,
     readonly text: string
@@ -46,7 +48,11 @@ class ImageEmbed extends WidgetType {
     img.alt = this.text;
     wrap.append(img);
     const aborted = new AbortController();
-    this.abort = aborted;
+    let url: string | null = null;
+    cleanups.set(wrap, () => {
+      aborted.abort();
+      if (url !== null) URL.revokeObjectURL(url);
+    });
     const { port, token } = window.vitrine;
     const address = this.path.split("/").map(encodeURIComponent).join("/");
     fetch(`http://127.0.0.1:${port}/vault-image/${address}`, {
@@ -55,20 +61,21 @@ class ImageEmbed extends WidgetType {
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(`the core answered ${res.status}`);
-        const url = URL.createObjectURL(await res.blob());
-        if (aborted.signal.aborted) URL.revokeObjectURL(url);
+        const made = URL.createObjectURL(await res.blob());
+        if (aborted.signal.aborted) URL.revokeObjectURL(made);
         else {
-          this.url = url;
-          img.src = url;
+          url = made;
+          img.src = made;
         }
       })
+      // The bytes could not be had: the image stays its alt text, the embed's
+      // own words, rather than the engine's broken-image icon.
       .catch(() => undefined);
     return wrap;
   }
 
-  destroy() {
-    this.abort?.abort();
-    if (this.url !== null) URL.revokeObjectURL(this.url);
+  destroy(dom: HTMLElement) {
+    cleanups.get(dom)?.();
   }
 
   // Clicks on the picture are the editor's: they put the cursor on the line.
