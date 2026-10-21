@@ -1,5 +1,6 @@
 import {
   EXPERIMENTS,
+  HOME,
   INBOX,
   LOOSE_ENDS,
   QUESTION_MAP,
@@ -37,7 +38,7 @@ export type Entry = {
 };
 
 export const SURFACES: readonly Entry[] = [
-  { name: "Home" },
+  { name: "Home", to: HOME },
   { name: "Question Inbox", to: INBOX },
   {
     name: "Reader",

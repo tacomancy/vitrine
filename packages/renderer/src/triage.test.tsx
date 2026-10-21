@@ -12,7 +12,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Answer in place, drop, reopen (#212; spec #206 stories 5–10): the last
 // three triage keys, each one write, each showing as the row's glyph and

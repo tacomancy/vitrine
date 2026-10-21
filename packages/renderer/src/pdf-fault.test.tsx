@@ -15,7 +15,7 @@ import { empty, question, renderApp, rows, vault } from "./fake-core";
 // *check again*, and gone from both the moment it resolves.
 
 afterEach(cleanup);
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 const watched: VaultStatus = {
   indexing: null,

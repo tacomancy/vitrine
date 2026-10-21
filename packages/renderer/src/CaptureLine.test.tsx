@@ -2,6 +2,9 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, pressCaptureChord, renderApp, vault } from "./fake-core";
 
+// These suites are about the Inbox, so each starts on it; an empty hash is Home.
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
+
 afterEach(cleanup);
 
 // Only the clock is faked; timers stay real so Testing Library's waits work.

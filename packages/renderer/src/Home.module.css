@@ -1,0 +1,55 @@
+/* A pane: its own surface on the ground at the surfaces' radius, separated
+   by the gutter around it rather than by a border (ADR 0023 decision 1). */
+.home {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.header {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* The dateline is a fact about when the page is looking: mono, muted. */
+.dateline {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) 0 var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.chord {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* The way to brief a scout, beside the fragment that says there are none. */
+.way {
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+}

@@ -14,7 +14,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Link from the Inbox (#211; spec #206 story 4): one key opens the one
 // picker over the index's files, the choice is one write through the

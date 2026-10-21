@@ -30,12 +30,10 @@ const answers = {
 };
 
 describe("the window's location is the URL hash", () => {
-  it("renders the Inbox with no hash and makes the hash read #/inbox", async () => {
+  it("renders Home with no hash and makes the hash read #/home", async () => {
     renderApp(answers);
-    expect(
-      await screen.findByRole("region", { name: "Question Inbox" })
-    ).toBeDefined();
-    expect(window.location.hash).toBe("#/inbox");
+    expect(await screen.findByRole("region", { name: "Home" })).toBeDefined();
+    expect(window.location.hash).toBe("#/home");
   });
 
   it("treats a hash it does not know as the Inbox", async () => {
@@ -67,6 +65,7 @@ describe("the window's location is the URL hash", () => {
   });
 
   it("navigates from the Sidebar by hash and back again", async () => {
+    window.location.hash = "#/inbox";
     renderApp(answers);
     await screen.findByRole("region", { name: "Question Inbox" });
     fireEvent.click(screen.getByRole("link", { name: "Loose Ends" }));

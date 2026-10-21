@@ -79,6 +79,7 @@ import {
 } from "./question-map.js";
 import { readActivity, readRunCosts } from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
+import { awaySince } from "./home.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
@@ -1730,6 +1731,14 @@ export const router = t.router({
     restore: t.procedure.input(termInput).mutation(async ({ ctx, input }) => {
       const { vault } = await requireVault(ctx);
       await refusing(restoreTerm(vault.path, input.tag, input.term));
+    }),
+  }),
+  // Home (spec #728): the landing's own facts. Each is a query over what
+  // already exists and writes nothing.
+  home: t.router({
+    away: t.procedure.query(async ({ ctx }) => {
+      const { days } = await requireVault(ctx);
+      return { since: awaySince(days, ctx.now()) };
     }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries

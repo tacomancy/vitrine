@@ -8,6 +8,7 @@ import { Experiments } from "./Experiments";
 import { useCoreEvents, VaultChangedListeners } from "./events";
 import { FirstRun } from "./FirstRun";
 import { GlobalCommand } from "./GlobalCommand";
+import { Home } from "./Home";
 import { Hypothesis } from "./Hypothesis";
 import { Inbox } from "./Inbox";
 import { LooseEnds } from "./LooseEnds";
@@ -135,6 +136,7 @@ function Workspace({ vault }: { vault: Vault }) {
         <TitleBar title={vault.name} />
         <div className={styles.panes}>
           <Sidebar route={route} vault={vault} />
+          {route.surface === "home" && <Home />}
           {route.surface === "inbox" && (
             <Inbox
               landed={landed}

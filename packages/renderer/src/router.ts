@@ -10,6 +10,7 @@ import { useEffect, useSyncExternalStore } from "react";
  * spells it in frontmatter; surfaces keep their own (ADR 0026).
  */
 export type Route =
+  | { surface: "home" }
   | { surface: "inbox"; question?: string; unresolved?: Unresolved }
   | { surface: "research-question"; path: string }
   | { surface: "hypothesis"; path: string }
@@ -40,6 +41,8 @@ export type Arrival = { page: number } | { block: string };
 
 export type Unresolved = { address: string; reason: string };
 
+/** Home (spec #728): the window's landing, and where an empty hash and a vault switch arrive. */
+export const HOME: Route = { surface: "home" };
 export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 /** The Question Map (ADR 0041): a Dashboard, opened deliberately. */
@@ -92,6 +95,8 @@ const RETIRED = "#/questions/";
 /** The hash for a route; the path is vault-relative and encoded per segment. */
 export function hashOf(route: Route): string {
   switch (route.surface) {
+    case "home":
+      return "#/home";
     case "inbox":
       return route.question === undefined
         ? "#/inbox"
@@ -191,12 +196,14 @@ function parseSource(hash: string): Route {
 }
 
 /**
- * The route a hash names; anything unrecognised is the Inbox. Two different
- * things arrive there and the second is owed a word: a hash nothing ever
- * wrote, and one that used to mean something (§ Invariants, no silent
+ * The route a hash names. An empty hash is the window before it has decided
+ * where it is, and that is Home; anything else unrecognised is the Inbox. Two
+ * different things arrive there and the second is owed a word: a hash nothing
+ * ever wrote, and one that used to mean something (§ Invariants, no silent
  * failures — the second would otherwise be indistinguishable from a typo).
  */
 function parseHash(hash: string): Route {
+  if (hash === "" || hash === "#/home") return HOME;
   if (hash === "#/loose-ends") return LOOSE_ENDS;
   if (hash === "#/question-map") return QUESTION_MAP;
   if (hash === "#/scout-activity") return SCOUT_ACTIVITY;
@@ -309,8 +316,8 @@ export function useRoute(): Route {
     reason !== null
       ? { surface: "inbox", unresolved: { address, reason } }
       : parsed;
-  // An empty or unknown hash reads as `#/inbox` once the window has decided
-  // where it is; replaced, not pushed, so back does not land on a hash that
+  // An empty hash reads as `#/home` and an unknown one as `#/inbox` once the
+  // window has decided where it is; replaced, not pushed, so back does not land on a hash that
   // named nothing.
   useEffect(() => {
     const canonical = hashOf(route);

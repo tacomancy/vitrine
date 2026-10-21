@@ -13,7 +13,7 @@ import {
 import { ADDRESSED } from "./surfaces";
 
 afterEach(cleanup);
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // ⌘K opens, lists, goes — and captures (#302, #303; ADR 0027 decisions 1,
 // 2, 4, 6, 7 and 8). One keyboard list over whatever the window was doing,
@@ -175,6 +175,7 @@ function storedAfterClearing(): () => string[] {
  * and they must be asserting the same list.
  */
 const RECENT = [
+  row("▪", "Home", "surface"),
   row("▪", "Question Inbox", "surface", true),
   row("▪", "Experiment view", "surface"),
   row("▪", "Scout Queue", "surface"),
@@ -200,7 +201,7 @@ describe("⌘K opens one list over whatever the window was doing", () => {
     window.location.hash = "#/loose-ends";
     const dialog = await openCommand();
     const { destinations } = await settled(dialog, RECENT.length);
-    expect(said(destinations)[4]).toBe(
+    expect(said(destinations)[5]).toBe(
       row("▦", "Loose Ends", "dashboard", true)
     );
   });
@@ -209,7 +210,6 @@ describe("⌘K opens one list over whatever the window was doing", () => {
     const dialog = await openCommand();
     const list = await listOf(dialog);
     expect(list.textContent).not.toContain("Reader");
-    expect(list.textContent).not.toContain("Home");
   });
 
   it("is not live when no vault is open, where First run has its single action", async () => {
@@ -294,7 +294,8 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
   it("starts on the capture, because nothing typed is nothing matched", async () => {
     const dialog = await openCommand();
     const { destinations, capture } = await settled(dialog, RECENT.length);
-    expect(destinations[0]?.getAttribute("aria-current")).toBe("page");
+    // Home is first, so the Inbox the window is on is the second.
+    expect(destinations[1]?.getAttribute("aria-current")).toBe("page");
     expect(chosenIn(destinations)).toBe(-1);
     expect(capture.getAttribute("aria-selected")).toBe("true");
     expect(verbOf(dialog)).toBe("↵Capturetype a question");
@@ -387,7 +388,7 @@ describe("the side ↵ belongs to, and the verb that names it", () => {
     expect(chosenIn((await settled(dialog, RECENT.length)).destinations)).toBe(
       0
     );
-    expect(verbOf(dialog)).toBe("↵Go toQuestion Inbox");
+    expect(verbOf(dialog)).toBe("↵Go toHome");
     press(dialog, "ArrowUp");
     expect(chosenIn((await settled(dialog, RECENT.length)).destinations)).toBe(
       0
@@ -618,12 +619,13 @@ describe("before a character is typed, the list is what changed most recently", 
     expect((queryBox(reopened) as HTMLInputElement).value).toBe("");
     const { destinations, capture } = await settled(reopened, RECENT.length);
     expect(said(destinations)).toEqual([
+      row("▪", "Home", "surface"),
       row("▪", "Question Inbox", "surface"),
       row("▪", "Experiment view", "surface"),
       row("▪", "Scout Queue", "surface"),
       row("▪", "Vault", "surface"),
       row("▦", "Loose Ends", "dashboard", true),
-      ...RECENT.slice(5),
+      ...RECENT.slice(6),
     ]);
     // The Dashboard just left is marked as where the window is, and ↵ is
     // on the capture, where nothing typed leaves it.

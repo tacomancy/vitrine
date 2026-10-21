@@ -25,7 +25,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-beforeEach(() => window.history.replaceState(null, "", "/"));
+beforeEach(() => window.history.replaceState(null, "", "/#/inbox"));
 
 // Local time, so the row's clock reads the same in every time zone.
 const SINCE = new Date(2026, 8, 28, 8, 40);
@@ -509,7 +509,7 @@ describe("Open a different folder…", () => {
     await vi.waitFor(() => expect(pick).toHaveBeenCalledTimes(1));
   });
 
-  it("lands on the new vault's Inbox, with nothing of the old one left on screen", async () => {
+  it("lands on the new vault's Home, with nothing of the old one left on screen", async () => {
     const { stream, at } = switchable();
     // The old vault's Inbox, with its Question on it.
     expect((await rows()).map((r) => r.textContent)).toEqual([
@@ -524,8 +524,8 @@ describe("Open a different folder…", () => {
     at.list = new Promise(() => {}) as never;
     act(() => stream.push({ type: "vaultSwitched", vault: other }));
 
-    await screen.findByRole("region", { name: "Question Inbox" });
-    expect(window.location.hash).toBe("#/inbox");
+    await screen.findByRole("region", { name: "Home" });
+    expect(window.location.hash).toBe("#/home");
     const rail = await screen.findByRole("navigation", { name: "Surfaces" });
     await vi.waitFor(() => expect(rail.textContent).toContain(other.path));
     expect(document.body.textContent).not.toContain(vault.path);
@@ -540,8 +540,8 @@ describe("Open a different folder…", () => {
     await screen.findByRole("navigation", { name: "Surfaces" });
     at.vault = other;
     act(() => stream.push({ type: "vaultSwitched", vault: other }));
-    await screen.findByRole("region", { name: "Question Inbox" });
-    expect(window.location.hash).toBe("#/inbox");
+    await screen.findByRole("region", { name: "Home" });
+    expect(window.location.hash).toBe("#/home");
   });
 
   // The stream replays nothing, so a switch made while it was down reaches
@@ -559,8 +559,8 @@ describe("Open a different folder…", () => {
         screen.getByRole("navigation", { name: "Surfaces" }).textContent
       ).toContain(other.path)
     );
-    await screen.findByRole("region", { name: "Question Inbox" });
-    expect(window.location.hash).toBe("#/inbox");
+    await screen.findByRole("region", { name: "Home" });
+    expect(window.location.hash).toBe("#/home");
   });
 
   it("a cancelled chooser leaves everything as it was", async () => {
