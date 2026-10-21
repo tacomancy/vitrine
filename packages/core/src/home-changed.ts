@@ -142,19 +142,39 @@ export function changedWhileAway(
     groups.set(key, group);
   }
 
+  const heading = (g: ChangedGroup) =>
+    g.topic.kind === "tag"
+      ? g.topic.tag
+      : g.topic.kind === "invalid"
+        ? g.topic.reason
+        : "";
   const newest = (g: ChangedGroup) => g.items[0]?.at ?? "";
   const ordered = [...groups.values()];
-  for (const g of ordered) g.items.sort((a, b) => (a.at < b.at ? 1 : -1));
+  // Path breaks a tie in time, so the same vault always reads the same.
+  for (const g of ordered)
+    g.items.sort(
+      (a, b) =>
+        (a.at < b.at ? 1 : a.at > b.at ? -1 : 0) || (a.path < b.path ? -1 : 1)
+    );
   ordered.sort(
     (a, b) =>
       Number(a.topic.kind === "untagged") -
-        Number(b.topic.kind === "untagged") || (newest(a) < newest(b) ? 1 : -1)
+        Number(b.topic.kind === "untagged") ||
+      (newest(a) < newest(b) ? 1 : newest(a) > newest(b) ? -1 : 0) ||
+      (heading(a) < heading(b) ? -1 : 1)
   );
+  // Untagged keeps its slot when the cap bites: an item is never dropped for
+  // lacking a Tag (story 41).
+  const last = ordered.at(-1);
+  const shown =
+    ordered.length > MAX_GROUPS && last?.topic.kind === "untagged"
+      ? [...ordered.slice(0, MAX_GROUPS - 1), last]
+      : ordered.slice(0, MAX_GROUPS);
   // The remainder is not counted or hinted at: the group simply ends.
   return {
     // Said in the Warrant of an empty section: what was looked at, since when.
     since: new Date(start).toISOString(),
-    groups: ordered.slice(0, MAX_GROUPS).map((g) => ({
+    groups: shown.map((g) => ({
       ...g,
       items: g.items.slice(0, MAX_ITEMS),
     })),

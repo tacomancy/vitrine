@@ -254,6 +254,22 @@ describe("home.changed — topics", () => {
   });
 });
 
+describe("home.changed — the cap and untagged", () => {
+  it("keeps the untagged group when more than five Tags compete for the slots", async () => {
+    const many: Record<string, string> = {
+      "questions/loose.md": question("2026-09-20T01:00:00+01:00"),
+    };
+    for (let g = 0; g < 6; g++)
+      many[`questions/g${g}.md`] = question(
+        `2026-09-20T0${g + 2}:00:00+01:00`,
+        [`t${g}`]
+      );
+    const { groups } = await changed(many);
+    expect(groups).toHaveLength(5);
+    expect(groups.at(-1)?.topic).toEqual({ kind: "untagged" });
+  });
+});
+
 describe("home.changed — reading", () => {
   it("changes no file in the vault", async () => {
     const { vault, c } = await changed({
