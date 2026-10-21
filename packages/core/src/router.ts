@@ -77,7 +77,11 @@ import {
   readings,
   unread,
 } from "./question-map.js";
-import { readActivity, readRunCosts } from "./scout-activity.js";
+import {
+  readActivity,
+  readReviewDepth,
+  readRunCosts,
+} from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
 import { awaySince } from "./home.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
@@ -145,6 +149,7 @@ import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
 import { graphOf } from "./vault-graph.js";
 import { resolveLinks } from "./vault-links.js";
+import { attachImage } from "./vault-image.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -435,6 +440,15 @@ export const router = t.router({
           )
         )
       ),
+    // A dropped image copied into `assets/` (#754; spec #751). The source is a
+    // path the preload read off the dropped file; the note is the editor's to
+    // write, after this answers.
+    attachImage: t.procedure
+      .input(z.object({ source: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(attachImage(vault.path, index, input.source));
+      }),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();
       if (status === null) throw noVault();
@@ -711,6 +725,11 @@ export const router = t.router({
     // one read, with each Scout's Voice taken from the same derivation.
     activity: t.procedure.query(async ({ ctx }) =>
       refusing(readActivity(await scoutDeps(ctx)))
+    ),
+    // What waits in Review, fleet-wide: Home's Waiting section, the figure
+    // Scout Activity's header carries (ADR 0042 decision 7).
+    depth: t.procedure.query(async ({ ctx }) =>
+      refusing(readReviewDepth(await scoutDeps(ctx)))
     ),
     // The runs behind a row's *cost / run*, tokens and cost each (ADR 0042 decision 6).
     runCosts: t.procedure
