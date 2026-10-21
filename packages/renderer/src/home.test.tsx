@@ -30,6 +30,13 @@ const answers = {
   "vault.tree": [{ path: "questions/a.md", kind: "question" }],
   "looseEnds.rows": { groups: [], problems: [] },
   "home.away": { since: null },
+  "scouts.depth": {
+    pending: 0,
+    pastWindow: 0,
+    deferred: 0,
+    median: null,
+    oldest: null,
+  },
   "scouts.health": {
     scouts: [
       SCOUT("sleep-proceedings", "claim"),
