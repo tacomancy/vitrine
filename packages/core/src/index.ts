@@ -130,7 +130,13 @@ export type { VaultErrorKind } from "./errors.js";
 export type { Vault, VaultStatus, Watching } from "./vault.js";
 export type { TreeFile } from "./vault-tree.js";
 export type { Backlink } from "./vault-backlinks.js";
-export type { Graph, GraphEdge, GraphNode, NotDrawn } from "./vault-graph.js";
+export type {
+  Graph,
+  GraphEdge,
+  GraphNode,
+  GraphOverflow,
+  NotDrawn,
+} from "./vault-graph.js";
 export type {
   LinkFile,
   LinkResolution,
