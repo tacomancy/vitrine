@@ -89,6 +89,7 @@ import {
   resurfaced,
   undismissResurfaced,
 } from "./home.js";
+import { changedWhileAway } from "./home-changed.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
@@ -1776,6 +1777,10 @@ export const router = t.router({
     away: t.procedure.query(async ({ ctx }) => {
       const { days } = await requireVault(ctx);
       return { since: awaySince(days, ctx.now()) };
+    }),
+    changed: t.procedure.query(async ({ ctx }) => {
+      const { index, days } = await requireVault(ctx);
+      return changedWhileAway(index, days, ctx.now());
     }),
     // From the notebook: `seed` is the client's *↻ others* count, and the
     // reply carries the Questions and nothing about the pool they came from.
