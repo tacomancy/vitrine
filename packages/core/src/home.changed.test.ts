@@ -1,5 +1,6 @@
 import { utimes } from "node:fs/promises";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeCores, core, fingerprint, vaultWith } from "./test-core.js";
 
@@ -37,6 +38,8 @@ async function changed(
     opens?: string[];
     today?: string;
     touch?: Record<string, string>;
+    /** Rows the test writes to `queue.sqlite` once the vault is open. */
+    queue?: (db: DatabaseSync) => void;
   } = {}
 ) {
   const vault = await vaultWith(files);
@@ -58,6 +61,11 @@ async function changed(
   if (opts.touch) {
     await c.mutate("vault.open", { path: vault });
     await c.indexed();
+  }
+  if (opts.queue) {
+    const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
+    opts.queue(db);
+    db.close();
   }
   const reply = await c.query<{ groups: Group[] }>("home.changed");
   return { vault, c, reply, groups: reply.result?.data.groups ?? [] };
@@ -278,5 +286,145 @@ describe("home.changed — reading", () => {
     const before = await fingerprint(vault);
     await c.query("home.changed");
     expect(await fingerprint(vault)).toEqual(before);
+  });
+});
+
+// The other event types: each from a timestamp the vault already records, and
+// each named by Kind and field. A structured file never reports on its mtime.
+describe("home.changed — Revisions, accepted stubs and runs", () => {
+  const entry = (at: string, field: string, from = "was") =>
+    `- ${at} · ${field}\n  from:\n    ${from}\n`;
+  const rq = (history: string, tags = "[]") =>
+    `---\nkind: research-question\nquestion: "RQ"\ntags: ${tags}\n---\n\n## Working answer\n\nnow\n\n## Position history\n\n${history}`;
+  const hypothesis = (history: string) =>
+    `---\nkind: hypothesis\ntags: []\n---\n\n## Claim\n\nNaps help.\n\n## Criteria\n\n## Design notes\n\n## Position history\n\n${history}`;
+  const IN = "2026-09-19T12:00:00+01:00";
+  const OUT = "2026-06-01T12:00:00+01:00";
+
+  it("names a Working answer revision in the window, and one outside it nothing", async () => {
+    const { groups } = await changed({
+      "rqs/a.md": rq(
+        entry(IN, "working answer") + entry(OUT, "working answer")
+      ),
+    });
+    expect(groups[0]?.items).toMatchObject([
+      {
+        path: "rqs/a.md",
+        kind: "research-question",
+        sentence: "Working answer revised",
+        at: "2026-09-19T11:00:00.000Z",
+      },
+    ]);
+    expect(groups).toHaveLength(1);
+  });
+
+  it("names a Claim revision and a Criterion edited after Evidence, each by its field", async () => {
+    const { groups } = await changed({
+      "h/a.md": hypothesis(
+        entry("2026-09-20T09:00:00+01:00", "claim") +
+          entry(
+            "2026-09-19T09:00:00+01:00",
+            "criterion C1 · edited after evidence"
+          ) +
+          entry(OUT, "claim")
+      ),
+    });
+    expect(groups[0]?.items).toMatchObject([
+      { kind: "hypothesis", sentence: "Claim revised" },
+      { kind: "hypothesis", sentence: "Criterion edited after Evidence" },
+    ]);
+  });
+
+  it("gives a file with an old Revision, touched only by mtime, no item", async () => {
+    const { groups } = await changed(
+      { "rqs/a.md": rq(entry(OUT, "working answer")) },
+      { touch: { "rqs/a.md": IN } }
+    );
+    expect(groups).toEqual([]);
+  });
+
+  it("groups a Revision under its file's Tag", async () => {
+    const { groups } = await changed({
+      "rqs/a.md": rq(entry(IN, "working answer"), '["memory"]'),
+    });
+    expect(groups[0]?.topic).toEqual({ kind: "tag", tag: "memory" });
+  });
+
+  const stub = (
+    db: DatabaseSync,
+    at: string,
+    path: string,
+    action = "accept"
+  ) => {
+    db.exec(
+      `INSERT INTO proposals (source_key, title, authors, published, abstract, url, lane, state, first_seen, stub_path) VALUES ('k${at}', 'A paper', '[]', '2026-01-01', '', 'u', 'review', 'accepted', '${at}', '${path}')`
+    );
+    db.exec(
+      `INSERT INTO triage (proposal_id, action, at) VALUES ((SELECT max(id) FROM proposals), '${action}', '${at}')`
+    );
+  };
+
+  it("names a stub accepted from a Scout in the window, and one outside it nothing", async () => {
+    const { groups } = await changed(
+      {
+        "sources/in.md": '---\nkind: source\ntags: ["memory"]\n---\n',
+        "sources/out.md": "---\nkind: source\n---\n",
+      },
+      {
+        queue: (db) => {
+          stub(db, "2026-09-19T11:00:00.000Z", "sources/in.md");
+          stub(db, "2026-06-01T11:00:00.000Z", "sources/out.md");
+        },
+      }
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.items).toEqual([
+      {
+        path: "sources/in.md",
+        kind: "source",
+        sentence: "Source stub accepted",
+        title: "A paper",
+        at: "2026-09-19T11:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("does not count a reject or a promote as an accepted stub", async () => {
+    const { groups } = await changed(
+      { "sources/in.md": "---\nkind: source\n---\n" },
+      {
+        queue: (db) =>
+          stub(db, "2026-09-19T11:00:00.000Z", "sources/in.md", "promote"),
+      }
+    );
+    expect(groups).toEqual([]);
+  });
+
+  it("names an Experiment recorded in the window by its created date", async () => {
+    const experiment = (created: string) =>
+      `---\nkind: experiment\nname: "run"\nstatus: planned\ncreated: ${created}\ntags: []\n---\n`;
+    const { groups } = await changed({
+      "experiments/new/new.md": experiment(IN),
+      "experiments/old/old.md": experiment(OUT),
+    });
+    expect(groups[0]?.items).toMatchObject([
+      {
+        path: "experiments/new/new.md",
+        kind: "experiment",
+        sentence: "Experiment run recorded",
+      },
+    ]);
+    expect(groups).toHaveLength(1);
+  });
+
+  // Ingest writes no timestamp of its own for a Source: the sidecar's
+  // `last_matched` moves on every re-match and the PDF's mtime is a file time.
+  // The gap is recorded on #734; the Source's mtime must not fill it.
+  it("gives a Source touched in the window no item for its highlights", async () => {
+    const { groups } = await changed(
+      { "sources/s.md": "---\nkind: source\n---\n" },
+      { touch: { "sources/s.md": IN } }
+    );
+    expect(groups).toEqual([]);
   });
 });
