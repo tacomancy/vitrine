@@ -38,7 +38,7 @@
 .axisName,
 .quadrant {
   fill: var(--color-fg-muted);
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 .quadrant {
@@ -58,13 +58,13 @@
 
 .count {
   fill: var(--color-fg);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   pointer-events: none;
 }
 
 .name {
   fill: var(--color-fg-secondary);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   pointer-events: none;
 }
 
