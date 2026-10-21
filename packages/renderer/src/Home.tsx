@@ -3,6 +3,7 @@ import type { ReviewDepth } from "core";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
 import { HomeChanged } from "./HomeChanged";
+import { HomeInterrupt } from "./HomeInterrupt";
 import { Resurfaced } from "./Resurfaced";
 import { hashOf, SCOUTS, SKIM_LANE } from "./router";
 import { useTRPC } from "./trpc";
@@ -58,10 +59,13 @@ export function Home({ vaultPath }: { vaultPath: string }) {
   const away = useQuery(trpc.home.away.queryOptions());
   const health = useQuery(trpc.scouts.health.queryOptions());
   const fleet = useQuery(trpc.scouts.fleet.queryOptions());
+  // What the interrupt is drawn from: the same rows Scout Activity shows, with
+  // each Scout's Voice and fault sentence the core's, so Home words neither.
+  const activity = useQuery(trpc.scouts.activity.queryOptions());
   const tree = useQuery(trpc.vault.tree.queryOptions());
   const depth = useQuery(trpc.scouts.depth.queryOptions());
 
-  const scoutsFailure = fleet.error ?? health.error;
+  const scoutsFailure = fleet.error ?? health.error ?? activity.error;
   const failure = scoutsFailure ?? tree.error;
   const voice = voiceOf({
     // A failed read is said by its own sentence below, before the Voice is asked.
@@ -102,6 +106,9 @@ export function Home({ vaultPath }: { vaultPath: string }) {
           />
         ) : (
           <FirstSlot voice={voice} claim="" fragment="reading" />
+        )}
+        {activity.data !== undefined && (
+          <HomeInterrupt rows={activity.data.rows} />
         )}
         {failure === null &&
           voice === "claim" &&
