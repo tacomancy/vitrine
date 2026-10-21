@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { artifactBytes } from "./artifact.js";
+import { vaultImageBytes } from "./vault-image.js";
 import { pdfBytes } from "./reader.js";
 import { createArxivClient, type ArxivOptions } from "./arxiv.js";
 import { createOpenAlexClient, type OpenAlexOptions } from "./openalex.js";
@@ -349,6 +350,26 @@ export function createApp({
     }
     const served =
       opened === null ? null : await artifactBytes(opened.vault.path, path);
+    return served ?? c.notFound();
+  });
+
+  // An image in the vault, for a note's `![[diagram.png]]` to draw (#752):
+  // the Artifact route's rule, behind the same bearer header, for any image
+  // under the vault rather than an Experiment's folder.
+  app.use("/vault-image/*", cors());
+  app.use("/vault-image/*", bearerAuth({ token }));
+  app.get("/vault-image/*", async (c) => {
+    const opened = await vault.opened();
+    let path: string;
+    try {
+      path = decodeURIComponent(
+        new URL(c.req.url).pathname.slice("/vault-image/".length)
+      );
+    } catch {
+      return c.notFound();
+    }
+    const served =
+      opened === null ? null : await vaultImageBytes(opened.vault.path, path);
     return served ?? c.notFound();
   });
 
