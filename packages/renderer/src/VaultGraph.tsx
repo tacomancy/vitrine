@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import type { GraphNode } from "core";
+import type { GraphNode, NotDrawn } from "core";
 import { useState } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import { markOf } from "./kinds";
 import { listKeys } from "./listKeys";
-import { pushRoute } from "./router";
+import { hashOf, LOOSE_ENDS, pushRoute } from "./router";
 import { useTRPC } from "./trpc";
 import styles from "./Vault.module.css";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -35,6 +35,19 @@ export function VaultGraph({ path }: { path: string }) {
   const at = Math.min(chosen, Math.max(ring.length - 1, 0));
   const activeId = ring.length === 0 ? undefined : rowId(at);
   useChosenInView(activeId);
+
+  const notDrawn = graph.data?.notDrawn ?? [];
+
+  if (ring.length === 0 && notDrawn.length > 0) {
+    // Links exist, none lands on one file: saying "no links yet" here would
+    // be the quiet-field lie the Not drawn list exists to prevent.
+    return (
+      <>
+        <p className={styles.notDrawnLead}>No link here lands on one file.</p>
+        <NotDrawnPanel links={notDrawn} />
+      </>
+    );
+  }
 
   if (ring.length === 0) {
     return (
@@ -152,7 +165,39 @@ export function VaultGraph({ path }: { path: string }) {
           );
         })}
       </ul>
+      {notDrawn.length > 0 && <NotDrawnPanel links={notDrawn} />}
     </>
+  );
+}
+
+/**
+ * Links in the neighbourhood that resolve to no single file (CONTEXT.md *Not
+ * drawn*; ADR 0047 decision 4). Counted and listed, never drawn as ghost
+ * nodes. Only an ambiguous link has a Loose Ends row (an unresolved one is
+ * the editor's squiggle to show), so only then does the count link there; the
+ * page has no per-row anchor, so it lands on the surface.
+ */
+function NotDrawnPanel({ links }: { links: NotDrawn[] }) {
+  const count = `${links.length} not drawn`;
+  return (
+    <section className={styles.notDrawn} aria-label="Not drawn">
+      <p className={styles.notDrawnCount}>
+        {links.some((link) => link.state === "ambiguous") ? (
+          <a href={hashOf(LOOSE_ENDS)}>{count}</a>
+        ) : (
+          count
+        )}
+      </p>
+      <ul className={styles.notDrawnList}>
+        {links.map((link, i) => (
+          <li key={`${link.path}:${link.target}:${i}`}>
+            <span className={styles.name}>{nameOf(link.path)}</span>{" "}
+            <span className={styles.target}>[[{link.target}]]</span>{" "}
+            <span className={styles.kindLine}>{link.state}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

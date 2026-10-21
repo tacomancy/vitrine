@@ -77,7 +77,11 @@ import {
   readings,
   unread,
 } from "./question-map.js";
-import { readActivity, readRunCosts } from "./scout-activity.js";
+import {
+  readActivity,
+  readReviewDepth,
+  readRunCosts,
+} from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
 import { awaySince } from "./home.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
@@ -721,6 +725,11 @@ export const router = t.router({
     // one read, with each Scout's Voice taken from the same derivation.
     activity: t.procedure.query(async ({ ctx }) =>
       refusing(readActivity(await scoutDeps(ctx)))
+    ),
+    // What waits in Review, fleet-wide: Home's Waiting section, the figure
+    // Scout Activity's header carries (ADR 0042 decision 7).
+    depth: t.procedure.query(async ({ ctx }) =>
+      refusing(readReviewDepth(await scoutDeps(ctx)))
     ),
     // The runs behind a row's *cost / run*, tokens and cost each (ADR 0042 decision 6).
     runCosts: t.procedure

@@ -125,3 +125,65 @@ describe("vault.graph, first Ring", () => {
     expect(a!.y).toBeCloseTo(Math.sin((-67.5 * Math.PI) / 180), 3);
   });
 });
+
+describe("vault.graph, Not drawn", () => {
+  it("lists an ambiguous and an unresolved link, each with its file, the target as written and its state", async () => {
+    const c = await opened({
+      "centre.md": "[[Dup]] and [[nowhere]] and [[ok]]\n",
+      "ok.md": "fine\n",
+      "one/dup.md": "x\n",
+      "two/dup.md": "y\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn).toEqual([
+      { path: "centre.md", target: "Dup", state: "ambiguous" },
+      { path: "centre.md", target: "nowhere", state: "unresolved" },
+    ]);
+    // Neither is a ghost: only the resolved neighbour is a node or an edge.
+    expect(g.nodes.map((n) => n.path)).toEqual(["centre.md", "ok.md"]);
+    expect(g.edges).toHaveLength(1);
+  });
+
+  it("counts a link to a file whose block or heading is gone as unresolved", async () => {
+    const c = await opened({
+      "centre.md": "[[paper#^gone]]\n",
+      "paper.md": "text ^here\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn).toEqual([
+      { path: "centre.md", target: "paper", state: "unresolved" },
+    ]);
+  });
+
+  it("includes the links of the files on the Ring, with the file each is in", async () => {
+    const c = await opened({
+      "centre.md": "[[a]]\n",
+      "a.md": "[[missing]]\n",
+      "far.md": "[[missing-too]]\n",
+    });
+    const g = await graph(c, "centre.md");
+    // far.md is not in the neighbourhood, so its link is not this graph's.
+    expect(g.notDrawn).toEqual([
+      { path: "a.md", target: "missing", state: "unresolved" },
+    ]);
+  });
+
+  it("lists each link once as written, by file name and then document order", async () => {
+    const c = await opened({
+      "centre.md": "[[zz]] [[aa]] [[zz]]\n[[a]]\n",
+      "a.md": "[[b-gone]]\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn.map((n) => [n.path, n.target])).toEqual([
+      ["a.md", "b-gone"],
+      ["centre.md", "zz"],
+      ["centre.md", "aa"],
+      ["centre.md", "zz"],
+    ]);
+  });
+
+  it("is empty when every link resolves", async () => {
+    const c = await opened({ "centre.md": "[[a]]\n", "a.md": "a\n" });
+    expect((await graph(c, "centre.md")).notDrawn).toEqual([]);
+  });
+});
