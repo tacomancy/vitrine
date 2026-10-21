@@ -1,0 +1,193 @@
+/* The shared form pieces (docs/architecture.md § UI conventions). Rows are
+   Settings' (prototype 13): a narrow label column, the control beside it at
+   its own width, a muted note beneath. Groups are kept apart by spacing, and
+   by a hairline only within the surface (ADR 0023 decision 3). */
+.section {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A hairline between sections, within the one surface. */
+.seam + .seam {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+}
+
+.heading {
+  padding: 0;
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-4);
+  padding: var(--space-1) 0;
+  border: 0;
+  margin: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+.control {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.note {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+/* Native controls, drawn with the tokens: no native border or glow, and
+   sized by what they hold, not stretched across the row. */
+.input {
+  appearance: none;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  color-scheme: inherit;
+}
+
+.input::placeholder {
+  /* A default reads as one: legible, set apart by being italic. */
+  color: var(--color-fg-muted);
+  font-style: italic;
+  opacity: 1;
+}
+
+.input:disabled {
+  color: var(--color-fg-muted);
+  background: transparent;
+  -webkit-text-fill-color: var(--color-fg-muted);
+  opacity: 1;
+}
+
+textarea.input {
+  width: 100%;
+  min-width: 20ch;
+  max-width: 60ch;
+  resize: vertical;
+}
+
+input[type="url"].input,
+input:not([type]).input {
+  width: 100%;
+  max-width: 40ch;
+}
+
+input[inputmode="numeric"].input {
+  width: 8ch;
+}
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.selectWrap .input {
+  padding-right: var(--space-5);
+}
+
+/* A chevron from borders, so it takes the text colour in both themes. */
+.selectWrap::after {
+  content: "";
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-right: 1px solid var(--color-fg-muted);
+  border-bottom: 1px solid var(--color-fg-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+.primary,
+.secondary {
+  appearance: none;
+  border: 0;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+/* Sapphire is every action (BRAND law 2); the one filled button is the one
+   that saves. */
+.primary {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--color-primary-active);
+}
+
+.secondary {
+  padding: var(--space-1) 0;
+  background: transparent;
+  color: var(--color-link);
+}
+
+.secondary:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* Disabled stays readable, at muted-text contrast: "not yet", not "gone". */
+.primary:disabled,
+.secondary:disabled {
+  cursor: default;
+  color: var(--color-fg-muted);
+}
+
+.primary:disabled {
+  background: var(--color-bg-sunken);
+}
+
+.unlocks {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}

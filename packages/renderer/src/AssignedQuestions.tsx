@@ -1,3 +1,4 @@
+import { GroupRow } from "./Form";
 import { StatusGlyph } from "./StatusGlyph";
 import styles from "./AssignedQuestions.module.css";
 
@@ -51,37 +52,38 @@ export function AssignedQuestions({
   );
   const unknown = assigned.filter((id) => !questions.some((q) => q.id === id));
   return (
-    <fieldset className={styles.fieldset}>
-      <legend>Assigned Questions</legend>
-      {choices.length === 0 && unknown.length === 0 && (
-        <p className={styles.none}>no open Questions</p>
-      )}
-      {choices.map((q) => (
-        <label key={q.id} className={styles.choice}>
-          <input
-            type="checkbox"
-            checked={assigned.includes(q.id)}
-            onChange={(e) =>
-              onChange(
-                e.target.checked
-                  ? [...assigned, q.id]
-                  : assigned.filter((id) => id !== q.id)
-              )
-            }
-          />
-          <StatusGlyph status={q.status} /> {q.question}
-        </label>
-      ))}
-      {unknown.map((id) => (
-        <label key={id} className={styles.choice}>
-          <input
-            type="checkbox"
-            checked
-            onChange={() => onChange(assigned.filter((a) => a !== id))}
-          />
-          {id}
-        </label>
-      ))}
-    </fieldset>
+    <GroupRow label="Assigned Questions">
+      <div className={styles.fieldset}>
+        {choices.length === 0 && unknown.length === 0 && (
+          <p className={styles.none}>no open Questions</p>
+        )}
+        {choices.map((q) => (
+          <label key={q.id} className={styles.choice}>
+            <input
+              type="checkbox"
+              checked={assigned.includes(q.id)}
+              onChange={(e) =>
+                onChange(
+                  e.target.checked
+                    ? [...assigned, q.id]
+                    : assigned.filter((id) => id !== q.id)
+                )
+              }
+            />
+            <StatusGlyph status={q.status} /> {q.question}
+          </label>
+        ))}
+        {unknown.map((id) => (
+          <label key={id} className={styles.choice}>
+            <input
+              type="checkbox"
+              checked
+              onChange={() => onChange(assigned.filter((a) => a !== id))}
+            />
+            {id}
+          </label>
+        ))}
+      </div>
+    </GroupRow>
   );
 }
