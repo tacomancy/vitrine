@@ -56,7 +56,9 @@ const answers = {
   },
 };
 
-const waiting = async () => screen.findByRole("region", { name: "Waiting" });
+// The first render in a cold worker is slow; the section itself is not.
+const waiting = async () =>
+  screen.findByRole("region", { name: "Waiting" }, { timeout: 4000 });
 
 describe("Waiting — Review depth", () => {
   it("states the core's figure with the median and oldest age as plain facts", async () => {
