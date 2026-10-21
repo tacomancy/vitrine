@@ -84,6 +84,8 @@ export async function changedWhileAway(
   queue: DatabaseSync
 ): Promise<{ since: string; groups: ChangedGroup[] }> {
   const start = changedWindowStart(days, now).getTime();
+  // The window runs to now: a hand-typed or skewed future date is no event yet.
+  const end = now.getTime();
 
   const items: Array<ChangedItem & { tags: Tags }> = [];
   const tagsOf = new Map<string, Tags>();
@@ -120,7 +122,7 @@ export async function changedWhileAway(
     "SELECT path FROM files WHERE kind = 'question'"
   )) {
     const at = Date.parse(captured.get(`captured:${row.path}`) ?? "");
-    if (Number.isNaN(at) || at < start) continue;
+    if (Number.isNaN(at) || at < start || at > end) continue;
     items.push({
       path: row.path,
       kind: "question",
@@ -139,6 +141,8 @@ export async function changedWhileAway(
     ...REVISED_KINDS
   )) {
     const page = await readPageFile(vaultPath, row.path, [row.kind], row.kind);
+    // A file the page cannot read is the Inbox's and Loose Ends' to report;
+    // here its Revisions simply have no entries to name.
     if (!page.readable) continue;
     const { heading } = section(page.outline, "Position history");
     const { entries } = revisionsOf(
@@ -150,10 +154,10 @@ export async function changedWhileAway(
     );
     for (const revision of entries) {
       const at = Date.parse(revision.at);
-      if (Number.isNaN(at) || at < start) continue;
+      if (Number.isNaN(at) || at < start || at > end) continue;
       items.push({
         path: row.path,
-        kind: row.kind as ChangedItem["kind"],
+        kind: row.kind as (typeof REVISED_KINDS)[number],
         sentence: revisionSentence(revision.field),
         title: titleOf(row.path),
         at: new Date(at).toISOString(),
@@ -168,7 +172,7 @@ export async function changedWhileAway(
        JOIN frontmatter fm ON fm.path = f.path WHERE f.kind = 'experiment'`
   )) {
     const at = Date.parse(row.created ?? "");
-    if (Number.isNaN(at) || at < start) continue;
+    if (Number.isNaN(at) || at < start || at > end) continue;
     items.push({
       path: row.path,
       kind: "experiment",
@@ -187,7 +191,7 @@ export async function changedWhileAway(
     )
     .all() as Array<{ at: string; title: string; stub_path: string }>) {
     const at = Date.parse(row.at);
-    if (Number.isNaN(at) || at < start) continue;
+    if (Number.isNaN(at) || at < start || at > end) continue;
     items.push({
       path: row.stub_path,
       kind: "source",

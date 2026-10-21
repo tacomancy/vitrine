@@ -428,3 +428,12 @@ describe("home.changed — Revisions, accepted stubs and runs", () => {
     expect(groups).toEqual([]);
   });
 });
+
+describe("home.changed — the window ends at now", () => {
+  it("gives a Revision dated after now no item", async () => {
+    const { groups } = await changed({
+      "rqs/a.md": `---\nkind: research-question\nquestion: "RQ"\ntags: []\n---\n\n## Working answer\n\nnow\n\n## Position history\n\n- 2026-10-30T12:00:00+01:00 · working answer\n  from:\n    was\n`,
+    });
+    expect(groups).toEqual([]);
+  });
+});
