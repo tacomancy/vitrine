@@ -459,14 +459,32 @@
   padding: var(--space-3);
 }
 
+.hops {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
+  border: 0;
+  font-size: var(--text-sm, inherit);
+  color: var(--color-fg-muted);
+}
+
+.hops legend {
+  float: left;
+  padding: 0;
+  margin-right: var(--space-3);
+}
+
 .edge {
+  /* `--u` is the hop count set on the svg: the view widens for the second Ring
+     and sizes in view units scale with it, so dots and text stay as they were. */
   stroke: var(--color-fg-muted);
-  stroke-width: 0.012;
+  stroke-width: calc(0.012px * var(--u, 1));
 }
 
 .edgeCount,
 .nodeLabel {
-  font-size: 0.09px;
+  font-size: calc(0.09px * var(--u, 1));
   fill: var(--color-fg);
 }
 
@@ -483,16 +501,42 @@
 .centre circle {
   fill: var(--color-bg-surface);
   stroke: var(--color-fg-muted);
-  stroke-width: 0.012;
+  stroke-width: calc(0.012px * var(--u, 1));
 }
 
 .centre circle {
   stroke: var(--color-fg);
-  stroke-width: 0.025;
+  stroke-width: calc(0.025px * var(--u, 1));
 }
 
 .dotGlyph {
-  font-size: 0.09px;
+  font-size: calc(0.09px * var(--u, 1));
   fill: var(--color-fg-muted);
   pointer-events: none;
+}
+
+/* Not drawn: a plain note beneath the graph, set apart by space and not a box. */
+.notDrawn,
+.notDrawnLead {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.notDrawnCount {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+}
+
+.notDrawnList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notDrawnList li {
+  padding: var(--space-1) 0;
+}
+
+.target {
+  font-family: var(--font-mono);
 }

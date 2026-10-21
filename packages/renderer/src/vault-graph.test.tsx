@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, scrollsInto, vault } from "./fake-core";
 
@@ -32,7 +32,12 @@ const GRAPH = {
     { a: "notes/Idea.md", b: "q/What now.md", count: 3 },
     { a: "notes/Idea.md", b: "src/Paper.md", count: 1 },
   ],
+  notDrawn: [] as { path: string; target: string; state: string }[],
 };
+const NOT_DRAWN = [
+  { path: "notes/Idea.md", target: "Dup", state: "ambiguous" },
+  { path: "notes/Other.md", target: "nowhere", state: "unresolved" },
+];
 
 const open = (more: Record<string, unknown> = {}) => {
   window.location.hash = "#/vault/notes/Idea.md";
@@ -63,12 +68,12 @@ describe("the Graph tab", () => {
     expect(screen.queryByRole("listbox", { name: "Graph" })).toBeNull();
   });
 
-  it("asks for the open file's first Ring and lists its neighbours in layout order, with name and Kind", async () => {
+  it("asks for two hops and lists its neighbours in layout order, with name and Kind", async () => {
     const asked = vi.fn(() => GRAPH);
     open({ "vault.graph": asked });
     fireEvent.click(await graphTab());
     const box = await list();
-    expect(asked).toHaveBeenCalledWith({ path: "notes/Idea.md", hops: 1 });
+    expect(asked).toHaveBeenCalledWith({ path: "notes/Idea.md", hops: 2 });
     const rows = screen.getAllByRole("option").map((o) => o.textContent);
     expect(rows).toEqual([
       expect.stringContaining("Other"),
@@ -80,6 +85,34 @@ describe("the Graph tab", () => {
     expect(box.getAttribute("aria-activedescendant")).toBe(
       screen.getAllByRole("option")[0]?.id
     );
+  });
+
+  it("lists each node's hop, a second-Ring node after the first and a control switches to one hop", async () => {
+    const asked = vi.fn(({ hops }: { hops: number }) =>
+      hops === 1
+        ? GRAPH
+        : {
+            ...GRAPH,
+            nodes: [
+              ...GRAPH.nodes,
+              { path: "far/Away.md", kind: null, hop: 2, x: 2, y: 0 },
+            ],
+          }
+    );
+    open({ "vault.graph": asked });
+    fireEvent.click(await graphTab());
+    await list();
+    const rows = () => screen.getAllByRole("option").map((o) => o.textContent);
+    expect(rows()).toHaveLength(4);
+    expect(rows()[0]).toContain("1 hop");
+    expect(rows()[3]).toContain("Away");
+    expect(rows()[3]).toContain("2 hops");
+    const two = screen.getByRole<HTMLInputElement>("radio", { name: "2" });
+    expect(two.checked).toBe(true);
+    // A radio group is one tab stop moved by the arrows; a click is its stand-in here.
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    await vi.waitFor(() => expect(rows()).toHaveLength(3));
+    expect(asked).toHaveBeenLastCalledWith({ path: "notes/Idea.md", hops: 1 });
   });
 
   it("draws each node where the core put it, and a count on a line that collapses links", async () => {
@@ -158,7 +191,9 @@ describe("the Graph tab", () => {
   });
 
   it("says in words that a file with no links has none", async () => {
-    open({ "vault.graph": { nodes: [GRAPH.nodes[0]], edges: [] } });
+    open({
+      "vault.graph": { nodes: [GRAPH.nodes[0]], edges: [], notDrawn: [] },
+    });
     fireEvent.click(await graphTab());
     expect(await screen.findByText("No links yet.")).toBeDefined();
     expect(screen.queryByRole("listbox", { name: "Graph" })).toBeNull();
@@ -184,8 +219,64 @@ describe("the Graph tab", () => {
     await vi.waitFor(() =>
       expect(asked).toHaveBeenLastCalledWith({
         path: "notes/Other.md",
-        hops: 1,
+        hops: 2,
       })
     );
+  });
+
+  it("counts and lists the links it cannot draw, each with its file, target as written and state", async () => {
+    open({ "vault.graph": { ...GRAPH, notDrawn: NOT_DRAWN } });
+    fireEvent.click(await graphTab());
+    await list();
+    const panel = screen.getByRole("region", { name: "Not drawn" });
+    expect(within(panel).getByText("2 not drawn")).toBeDefined();
+    const items = within(panel)
+      .getAllByRole("listitem")
+      .map((li) => li.textContent);
+    expect(items).toEqual([
+      expect.stringMatching(/Idea.*\[\[Dup\]\].*ambiguous/),
+      expect.stringMatching(/Other.*\[\[nowhere\]\].*unresolved/),
+    ]);
+    // Counted and listed, never drawn: no ghost node, no extra line.
+    expect(document.querySelectorAll("svg [data-node]")).toHaveLength(4);
+    expect(document.querySelectorAll("svg line")).toHaveLength(3);
+  });
+
+  it("links the count to Loose Ends, where an ambiguous link has its row", async () => {
+    open({ "vault.graph": { ...GRAPH, notDrawn: NOT_DRAWN } });
+    fireEvent.click(await graphTab());
+    await list();
+    const link = screen.getByRole("link", { name: "2 not drawn" });
+    expect(link.getAttribute("href")).toBe("#/loose-ends");
+  });
+
+  it("does not link the count when nothing is ambiguous: Loose Ends has no row for an unresolved link", async () => {
+    open({
+      "vault.graph": { ...GRAPH, notDrawn: NOT_DRAWN.slice(1) },
+    });
+    fireEvent.click(await graphTab());
+    await list();
+    expect(screen.getByText("1 not drawn")).toBeDefined();
+    expect(screen.queryByRole("link", { name: "1 not drawn" })).toBeNull();
+  });
+
+  it("draws no Not drawn panel when every link lands", async () => {
+    open();
+    fireEvent.click(await graphTab());
+    await list();
+    expect(screen.queryByRole("region", { name: "Not drawn" })).toBeNull();
+  });
+
+  it("does not call a file with only undrawable links linkless", async () => {
+    open({
+      "vault.graph": {
+        nodes: [GRAPH.nodes[0]],
+        edges: [],
+        notDrawn: NOT_DRAWN,
+      },
+    });
+    fireEvent.click(await graphTab());
+    expect(await screen.findByText("2 not drawn")).toBeDefined();
+    expect(screen.queryByText("No links yet.")).toBeNull();
   });
 });

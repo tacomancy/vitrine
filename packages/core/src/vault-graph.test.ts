@@ -15,8 +15,12 @@ async function opened(files: Record<string, string>) {
   return c;
 }
 
-const graph = async (c: Awaited<ReturnType<typeof opened>>, path: string) => {
-  const reply = await c.query<Graph>("vault.graph", { path, hops: 1 });
+const graph = async (
+  c: Awaited<ReturnType<typeof opened>>,
+  path: string,
+  hops: 1 | 2 = 1
+) => {
+  const reply = await c.query<Graph>("vault.graph", { path, hops });
   expect(reply.error).toBeUndefined();
   return reply.result?.data as Graph;
 };
@@ -123,5 +127,140 @@ describe("vault.graph, first Ring", () => {
     // Eight equal sectors of 45°: the first, from -90°, is centred on -67.5°.
     expect(a!.x).toBeCloseTo(Math.cos((-67.5 * Math.PI) / 180), 3);
     expect(a!.y).toBeCloseTo(Math.sin((-67.5 * Math.PI) / 180), 3);
+  });
+});
+
+describe("vault.graph, second Ring", () => {
+  const files = {
+    "centre.md": "[[near]] [[also]]\n",
+    "near.md": "[[far]] [[far2]]\n",
+    "also.md": "[[far]]\n",
+    "far.md": "[[near]] [[far2]] [[centre]]\n",
+    "far2.md": kind("question"),
+    "unrelated.md": "[[far2]]\n",
+  };
+
+  it("puts files two hops away on an outer Ring and adds the edges among every drawn file", async () => {
+    const g = await graph(await opened(files), "centre.md", 2);
+    expect(g.nodes.map(({ path, hop }) => [path, hop])).toEqual([
+      ["centre.md", 0],
+      ["also.md", 1],
+      ["far.md", 1],
+      ["near.md", 1],
+      ["far2.md", 2],
+    ]);
+    const far2 = g.nodes.find((n) => n.path === "far2.md")!;
+    expect(Math.hypot(far2.x, far2.y)).toBeCloseTo(2, 3);
+    expect(g.edges).toEqual([
+      { a: "also.md", b: "centre.md", count: 1 },
+      { a: "also.md", b: "far.md", count: 1 },
+      { a: "centre.md", b: "far.md", count: 1 },
+      { a: "centre.md", b: "near.md", count: 1 },
+      { a: "far.md", b: "far2.md", count: 1 },
+      { a: "far.md", b: "near.md", count: 2 },
+      { a: "far2.md", b: "near.md", count: 1 },
+    ]);
+  });
+
+  it("never moves a hop-1 node when the hops change", async () => {
+    const c = await opened(files);
+    const one = await graph(c, "centre.md", 1);
+    const two = await graph(c, "centre.md", 2);
+    expect(two.nodes.filter((n) => n.hop <= 1)).toEqual(one.nodes);
+  });
+
+  it("keeps a Kind's sector on the outer Ring, sorted by name inside it", async () => {
+    const c = await opened({
+      "centre.md": "[[near]]\n",
+      "near.md": "[[zeta]] [[alpha]] [[q]]\n",
+      "zeta.md": "z\n",
+      "alpha.md": "a\n",
+      "q.md": kind("question"),
+    });
+    const g = await graph(c, "centre.md", 2);
+    expect(g.nodes.slice(2).map((n) => n.path)).toEqual([
+      "alpha.md",
+      "zeta.md",
+      "q.md",
+    ]);
+  });
+
+  it("does not draw a file that is both one and two hops away twice, or the centre as a hop-2 node", async () => {
+    const g = await graph(
+      await opened({
+        "centre.md": "[[a]] [[b]]\n",
+        "a.md": "[[b]] [[centre]]\n",
+        "b.md": "x\n",
+      }),
+      "centre.md",
+      2
+    );
+    expect(g.nodes.map((n) => [n.path, n.hop])).toEqual([
+      ["centre.md", 0],
+      ["a.md", 1],
+      ["b.md", 1],
+    ]);
+  });
+});
+
+describe("vault.graph, Not drawn", () => {
+  it("lists an ambiguous and an unresolved link, each with its file, the target as written and its state", async () => {
+    const c = await opened({
+      "centre.md": "[[Dup]] and [[nowhere]] and [[ok]]\n",
+      "ok.md": "fine\n",
+      "one/dup.md": "x\n",
+      "two/dup.md": "y\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn).toEqual([
+      { path: "centre.md", target: "Dup", state: "ambiguous" },
+      { path: "centre.md", target: "nowhere", state: "unresolved" },
+    ]);
+    // Neither is a ghost: only the resolved neighbour is a node or an edge.
+    expect(g.nodes.map((n) => n.path)).toEqual(["centre.md", "ok.md"]);
+    expect(g.edges).toHaveLength(1);
+  });
+
+  it("counts a link to a file whose block or heading is gone as unresolved", async () => {
+    const c = await opened({
+      "centre.md": "[[paper#^gone]]\n",
+      "paper.md": "text ^here\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn).toEqual([
+      { path: "centre.md", target: "paper", state: "unresolved" },
+    ]);
+  });
+
+  it("includes the links of the files on the Ring, with the file each is in", async () => {
+    const c = await opened({
+      "centre.md": "[[a]]\n",
+      "a.md": "[[missing]]\n",
+      "far.md": "[[missing-too]]\n",
+    });
+    const g = await graph(c, "centre.md");
+    // far.md is not in the neighbourhood, so its link is not this graph's.
+    expect(g.notDrawn).toEqual([
+      { path: "a.md", target: "missing", state: "unresolved" },
+    ]);
+  });
+
+  it("lists each link once as written, by file name and then document order", async () => {
+    const c = await opened({
+      "centre.md": "[[zz]] [[aa]] [[zz]]\n[[a]]\n",
+      "a.md": "[[b-gone]]\n",
+    });
+    const g = await graph(c, "centre.md");
+    expect(g.notDrawn.map((n) => [n.path, n.target])).toEqual([
+      ["a.md", "b-gone"],
+      ["centre.md", "zz"],
+      ["centre.md", "aa"],
+      ["centre.md", "zz"],
+    ]);
+  });
+
+  it("is empty when every link resolves", async () => {
+    const c = await opened({ "centre.md": "[[a]]\n", "a.md": "a\n" });
+    expect((await graph(c, "centre.md")).notDrawn).toEqual([]);
   });
 });

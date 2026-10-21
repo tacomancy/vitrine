@@ -83,7 +83,12 @@ import {
   readRunCosts,
 } from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
-import { awaySince } from "./home.js";
+import {
+  awaySince,
+  dismissResurfaced,
+  resurfaced,
+  undismissResurfaced,
+} from "./home.js";
 import { changedWhileAway } from "./home-changed.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
@@ -150,6 +155,7 @@ import { readFileText } from "./vault-read.js";
 import { backlinksOf } from "./vault-backlinks.js";
 import { graphOf } from "./vault-graph.js";
 import { resolveLinks } from "./vault-links.js";
+import { attachImage } from "./vault-image.js";
 import { createNote, vaultTree } from "./vault-tree.js";
 import {
   attachSource,
@@ -440,6 +446,15 @@ export const router = t.router({
           )
         )
       ),
+    // A dropped image copied into `assets/` (#754; spec #751). The source is a
+    // path the preload read off the dropped file; the note is the editor's to
+    // write, after this answers.
+    attachImage: t.procedure
+      .input(z.object({ source: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return refusing(attachImage(vault.path, index, input.source));
+      }),
     status: t.procedure.query(async ({ ctx }) => {
       const status = await ctx.vault.status();
       if (status === null) throw noVault();
@@ -496,12 +511,17 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return backlinksOf(vault.path, index, input.path);
     }),
-    // The Vault's Graph tab (#741): the open file's first Ring, laid out by a pure function.
+    // The Vault's Graph tab (#741): the open file's Rings, laid out by a pure function.
     graph: t.procedure
-      .input(z.object({ path: z.string(), hops: z.literal(1) }))
+      .input(
+        z.object({
+          path: z.string(),
+          hops: z.union([z.literal(1), z.literal(2)]),
+        })
+      )
       .query(async ({ ctx, input }) => {
         const { index } = await requireVault(ctx);
-        return graphOf(index, input.path);
+        return graphOf(index, input.path, input.hops);
       }),
     // Where the editor's `[[links]]` land, for drawing them and following them (#701).
     resolveLinks: t.procedure
@@ -1762,6 +1782,41 @@ export const router = t.router({
       const { index, days } = await requireVault(ctx);
       return changedWhileAway(index, days, ctx.now());
     }),
+    // From the notebook: `seed` is the client's *↻ others* count, and the
+    // reply carries the Questions and nothing about the pool they came from.
+    resurfaced: t.procedure
+      .input(z.object({ seed: z.number().int().min(0) }).default({ seed: 0 }))
+      .query(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return resurfaced(index, vault.path, ctx.now(), input.seed);
+      }),
+    // Not the Loose Ends procedures: a dismissal here is about the
+    // rotation alone, and neither pair widens the other's contract.
+    dismissResurfaced: t.procedure
+      .input(z.object({ path: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        await refusing(
+          Promise.resolve().then(() =>
+            dismissResurfaced(
+              index,
+              vault.path,
+              input.path,
+              ctx.now().toISOString()
+            )
+          )
+        );
+      }),
+    undismissResurfaced: t.procedure
+      .input(z.object({ path: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        await refusing(
+          Promise.resolve().then(() =>
+            undismissResurfaced(index, vault.path, input.path)
+          )
+        );
+      }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
   // plus `dismissals.json`, and *mark deliberate* and its undo are the only

@@ -136,7 +136,7 @@ function Workspace({ vault }: { vault: Vault }) {
         <TitleBar title={vault.name} />
         <div className={styles.panes}>
           <Sidebar route={route} vault={vault} />
-          {route.surface === "home" && <Home />}
+          {route.surface === "home" && <Home vaultPath={vault.path} />}
           {route.surface === "inbox" && (
             <Inbox
               landed={landed}

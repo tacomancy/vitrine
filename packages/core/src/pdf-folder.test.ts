@@ -206,6 +206,9 @@ describe("no setter for the PDF folder", () => {
     expect(
       mutations.filter((path) => path.startsWith("vault.")).sort()
     ).toEqual([
+      // A dropped image copied into the vault's own assets/ (#754) — never
+      // into the PDF folder, which `locate` keeps it from leaving the vault for.
+      "vault.attachImage",
       "vault.checkAgain",
       "vault.create",
       "vault.open",
