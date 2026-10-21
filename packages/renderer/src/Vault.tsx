@@ -116,6 +116,25 @@ function OpenFile({
   }
   const refusal = useRefusal();
   const replace = useMutation(trpc.vault.replaceFile.mutationOptions());
+  const attachImage = useMutation(trpc.vault.attachImage.mutationOptions());
+  // Files dropped on the note, copied one after another so the names taken
+  // are taken in order. What was refused is said once, together (spec #751
+  // story 13); the rest still land.
+  const attach = async (sources: string[]): Promise<(string | null)[]> => {
+    refusal.forget();
+    const stored: (string | null)[] = [];
+    const said: string[] = [];
+    for (const source of sources) {
+      try {
+        stored.push((await attachImage.mutateAsync({ source })).file);
+      } catch (error) {
+        said.push(error instanceof Error ? error.message : String(error));
+        stored.push(null);
+      }
+    }
+    if (said.length > 0) refusal.say(said.join(" "));
+    return stored;
+  };
   // What the disk told the editor about this file (#699). Kept with its path:
   // one editor serves every file, and a note is about one.
   const [note, setNote] = useState<(DiskNote & { path: string }) | null>(null);
@@ -214,6 +233,12 @@ function OpenFile({
         save={saveFile}
         disk={note?.path === path ? note : null}
         reread={reread}
+        attach={attach}
+        stranded={(names) =>
+          refusal.say(
+            `${names.join(", ")} copied into assets/, but the note changed before the embed could be written.`
+          )
+        }
         links={{
           resolve: (links) =>
             queryClient.fetchQuery({
