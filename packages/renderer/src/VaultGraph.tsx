@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { GraphNode, NotDrawn } from "core";
+import type { GraphNode, GraphOverflow, NotDrawn } from "core";
 import { type CSSProperties, useState } from "react";
 import { useChosenInView } from "./chosen";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -40,6 +40,7 @@ export function VaultGraph({ path }: { path: string }) {
   useChosenInView(activeId);
 
   const notDrawn = graph.data?.notDrawn ?? [];
+  const overflow = graph.data?.overflow ?? [];
 
   if (ring.length === 0 && notDrawn.length > 0) {
     // Links exist, none lands on one file: saying "no links yet" here would
@@ -193,8 +194,47 @@ export function VaultGraph({ path }: { path: string }) {
           );
         })}
       </ul>
+      {overflow.length > 0 && <OverflowPanel overflow={overflow} />}
       {notDrawn.length > 0 && <NotDrawnPanel links={notDrawn} />}
     </>
+  );
+}
+
+/**
+ * The neighbours a Ring's cap left off (ADR 0047 decision 5), in the core's
+ * rank order. Counted and listed so a hub's missing dots are never mistaken
+ * for no links; each row is a way to the file the drawing no longer shows.
+ */
+function OverflowPanel({ overflow }: { overflow: GraphOverflow[] }) {
+  return (
+    <section className={styles.notDrawn} aria-label="Not shown">
+      <p className={styles.notDrawnCount}>+{overflow.length} more</p>
+      <ul className={styles.notDrawnList}>
+        {overflow.map((file) => {
+          const mark = markOf(file.kind ?? "note");
+          return (
+            <li key={file.path}>
+              <button
+                type="button"
+                className={styles.overflowRow}
+                onClick={() => pushRoute({ surface: "vault", path: file.path })}
+              >
+                <span className={styles.name}>{nameOf(file.path)}</span>{" "}
+                <span className={styles.kindLine}>
+                  {mark?.label ?? file.kind ?? "note"}
+                </span>{" "}
+                <span className={styles.kindLine}>
+                  {file.hop === 1 ? "1 hop" : "2 hops"}
+                </span>{" "}
+                <span className={styles.kindLine}>
+                  {file.links} {file.links === 1 ? "link" : "links"}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

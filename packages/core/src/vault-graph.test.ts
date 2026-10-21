@@ -264,3 +264,112 @@ describe("vault.graph, Not drawn", () => {
     expect((await graph(c, "centre.md")).notDrawn).toEqual([]);
   });
 });
+
+describe("vault.graph, Ring caps", () => {
+  // n leaves n01..nNN, all linked from the centre: each has one link.
+  const leaves = (n: number) =>
+    Object.fromEntries(
+      Array.from({ length: n }, (_, i) => [
+        `n${String(i + 1).padStart(2, "0")}.md`,
+        "x\n",
+      ])
+    );
+  const hub = (n: number) => ({
+    "centre.md": Object.keys(leaves(n))
+      .map((p) => `[[${p.replace(".md", "")}]]`)
+      .join(" "),
+    ...leaves(n),
+  });
+
+  it("keeps all 40 on the first Ring and cuts nothing", async () => {
+    const g = await graph(await opened(hub(40)), "centre.md");
+    expect(g.nodes).toHaveLength(41);
+    expect(g.overflow).toEqual([]);
+  });
+
+  it("cuts the 41st by name when every file has the same links, and lists it", async () => {
+    const g = await graph(await opened(hub(41)), "centre.md");
+    expect(g.nodes).toHaveLength(41);
+    expect(g.nodes.map((n) => n.path)).not.toContain("n41.md");
+    expect(g.overflow).toEqual([
+      { path: "n41.md", kind: null, hop: 1, links: 1 },
+    ]);
+    // A cut node is no line either: nothing is drawn to a file not drawn.
+    expect(g.edges).toHaveLength(40);
+  });
+
+  it("keeps the most-linked over the name-first, and ranks the overflow most-linked first, then by name", async () => {
+    const files: Record<string, string> = hub(43);
+    // zz is last by name but has two links; yy and xx have one more each than the rest.
+    files["centre.md"] += " [[zz]] [[yy]]";
+    files["zz.md"] = "[[extra]] [[extra2]]\n";
+    files["yy.md"] = "[[extra]]\n";
+    files["extra.md"] = "x\n";
+    files["extra2.md"] = "x\n";
+    const g = await graph(await opened(files), "centre.md");
+    const paths = g.nodes.map((n) => n.path);
+    expect(paths).toContain("zz.md");
+    expect(paths).toContain("yy.md");
+    // 45 neighbours: the 5 name-last of the one-link files are cut, in name order.
+    expect(g.overflow.map((o) => o.path)).toEqual([
+      "n39.md",
+      "n40.md",
+      "n41.md",
+      "n42.md",
+      "n43.md",
+    ]);
+    const cutAt = (path: string) =>
+      g.overflow.findIndex((o) => o.path === path);
+    expect(cutAt("n39.md")).toBeLessThan(cutAt("n43.md"));
+  });
+
+  it("ranks overflow by link count before name", async () => {
+    // Forty files with three links each fill the Ring; a1 has one link and
+    // b1 has two, so b1 outranks a1 in the list though it sorts after it.
+    const files: Record<string, string> = {};
+    const names = Array.from({ length: 40 }, (_, i) => `n${i}`);
+    for (const n of names) files[`${n}.md`] = "[[extra]] [[extra2]]\n";
+    files["centre.md"] = [...names, "a1", "b1"]
+      .map((n) => `[[${n}]]`)
+      .join(" ");
+    files["a1.md"] = "x\n";
+    files["b1.md"] = "[[extra]]\n";
+    files["extra.md"] = "x\n";
+    files["extra2.md"] = "x\n";
+    const g = await graph(await opened(files), "centre.md");
+    expect(g.overflow).toEqual([
+      { path: "b1.md", kind: null, hop: 1, links: 2 },
+      { path: "a1.md", kind: null, hop: 1, links: 1 },
+    ]);
+    expect(g.nodes.filter((n) => n.hop === 1)).toHaveLength(40);
+  });
+
+  it("keeps all 80 on the second Ring and cuts the 81st", async () => {
+    const second = (n: number) => ({
+      "centre.md": "[[mid]]\n",
+      "mid.md": hub(n)["centre.md"],
+      ...leaves(n),
+    });
+    const eighty = await graph(await opened(second(80)), "centre.md", 2);
+    expect(eighty.nodes.filter((n) => n.hop === 2)).toHaveLength(80);
+    expect(eighty.overflow).toEqual([]);
+
+    const eightyOne = await graph(await opened(second(81)), "centre.md", 2);
+    expect(eightyOne.nodes.filter((n) => n.hop === 2)).toHaveLength(80);
+    expect(eightyOne.overflow).toEqual([
+      { path: "n81.md", kind: null, hop: 2, links: 1 },
+    ]);
+  });
+
+  it("does not move a kept node when the cut changes", async () => {
+    const one = await graph(await opened(hub(41)), "centre.md");
+    const two = await graph(await opened(hub(44)), "centre.md");
+    expect(two.nodes).toEqual(one.nodes);
+    expect(two.overflow.map((o) => o.path)).toEqual([
+      "n41.md",
+      "n42.md",
+      "n43.md",
+      "n44.md",
+    ]);
+  });
+});
