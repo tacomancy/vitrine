@@ -135,6 +135,17 @@ describe("vault.attachImage", () => {
     );
   });
 
+  it("says so and stores nothing when assets/ cannot be made, leaving no stray file behind", async () => {
+    // A file where the folder must go: the same refusal an unwritable vault gives.
+    const { vault, c } = await opened({ assets: "not a folder" });
+
+    const reply = await attach(c, await outside("x.png"));
+
+    expect(reply.error).toBeDefined();
+    expect(await readdir(vault)).not.toContain("x.png");
+    expect(await readFile(join(vault, "assets"), "utf8")).toBe("not a folder");
+  });
+
   it("refuses to write through an assets/ that is a symlink out of the vault", async () => {
     const { vault, c } = await opened();
     const elsewhere = await tmp("elsewhere");
