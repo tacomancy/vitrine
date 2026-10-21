@@ -1,0 +1,87 @@
+/* Rows are separated by space, not rules (ADR 0023): this is a page to wander
+   through, not a list to work down. */
+.notebook {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* The tone: said once, and the one place the section speaks about itself. */
+.tone {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: baseline;
+  gap: 0 var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.question {
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+  color: var(--color-link);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.provenance,
+.age {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.act {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--color-link);
+  cursor: pointer;
+}
+
+.said {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.refusal {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+}

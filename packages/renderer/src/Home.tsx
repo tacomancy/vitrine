@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReviewDepth } from "core";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
+import { Resurfaced } from "./Resurfaced";
 import { hashOf, SCOUTS, SKIM_LANE } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
@@ -50,7 +51,7 @@ export function dateline(now: Date, since: string | null): string {
  * `scouts.fleet`, which Review's and Skim's empty lanes read too, so the three
  * cannot disagree about whether the field is being watched.
  */
-export function Home() {
+export function Home({ vaultPath }: { vaultPath: string }) {
   const trpc = useTRPC();
   const status = useVaultStatusLines();
   const away = useQuery(trpc.home.away.queryOptions());
@@ -114,6 +115,7 @@ export function Home() {
               fleet={fleet.data}
             />
           )}
+        <Resurfaced vaultPath={vaultPath} />
       </div>
     </section>
   );

@@ -30,6 +30,7 @@ const answers = {
   "vault.tree": [{ path: "questions/a.md", kind: "question" }],
   "looseEnds.rows": { groups: [], problems: [] },
   "home.away": { since: null },
+  "home.resurfaced": { questions: [] },
   "scouts.depth": {
     pending: 0,
     pastWindow: 0,
