@@ -114,7 +114,14 @@ describe("vault.attachImage", () => {
 
   it("accepts each extension the preview draws, in any case", async () => {
     const { c } = await opened();
-    for (const name of ["a.png", "b.JPG", "c.jpeg", "d.gif", "e.webp", "f.SVG"]) {
+    for (const name of [
+      "a.png",
+      "b.JPG",
+      "c.jpeg",
+      "d.gif",
+      "e.webp",
+      "f.SVG",
+    ]) {
       const reply = await attach(c, await outside(name));
       expect(reply.error).toBeUndefined();
     }
@@ -123,7 +130,9 @@ describe("vault.attachImage", () => {
   it("refuses a source that is not a readable file", async () => {
     const { c } = await opened();
     const reply = await attach(c, join(await tmp("nowhere"), "gone.png"));
-    expect(reply.error?.message).toBe("gone.png is not a file that can be read.");
+    expect(reply.error?.message).toBe(
+      "gone.png is not a file that can be read."
+    );
   });
 
   it("refuses to write through an assets/ that is a symlink out of the vault", async () => {

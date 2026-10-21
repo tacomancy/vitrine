@@ -211,9 +211,10 @@ describe("dropping an image on the note", () => {
 
     dropOn(view, [file("shot.png")], EMPTY_LINE);
     view.dispatch({ changes: { from: 0, insert: "XX" } });
-    await act(async () =>
-      finish({ file: "shot.png", path: "assets/shot.png" })
-    );
+    await act(() => {
+      finish({ file: "shot.png", path: "assets/shot.png" });
+      return Promise.resolve();
+    });
 
     await waitFor(() => expect(doc(view)).toContain("![[shot.png]]"));
     expect(doc(view)).toBe("XXintro\n![[shot.png]]\nthe middle of it\n\ntail");
