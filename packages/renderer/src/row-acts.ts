@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Scout, ScoutRow } from "core";
+import { runWords } from "./run-words";
 import { useTRPC } from "./trpc";
 
 export const toggled = (
@@ -43,7 +44,7 @@ export type SaidNote = Said & { count: number };
 export type RowActs = ReturnType<typeof useRowActs>;
 
 /**
- * What a Scout Activity row can be told to do — pause or resume, change its
+ * What a Scout row can be told to do — run now, pause or resume, change its
  * cadence, open its edit — in one place, so a button on the row and a key on
  * the chosen one are the same act and cannot come to differ. The writes are
  * the core's (`scouts.setPaused`, `scouts.setCadence`); each says what it did
@@ -123,6 +124,17 @@ export function useRowActs(hold: () => void) {
     })
   );
 
+  const run = useMutation(
+    trpc.scouts.runNow.mutationOptions({
+      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
+      onSuccess: (summary, { scoutId }) => {
+        say(scoutKey(scoutId), { refused: false, text: runWords(summary) });
+        reread();
+      },
+      onError: refused,
+    })
+  );
+
   return {
     said,
     cadenceOpen,
@@ -136,6 +148,11 @@ export function useRowActs(hold: () => void) {
     closeEdit: (key: string) => setEditing((was) => without(was, key)),
     toggleCadence: (key: string) => setCadenceOpen((was) => toggled(was, key)),
     closeCadence: (key: string) => setCadenceOpen((was) => without(was, key)),
+    /** Check now, due or not; the row says what the run found, or why it was refused. */
+    runNow(row: Pick<ScoutRow, "id">) {
+      hold();
+      run.mutate({ scoutId: row.id });
+    },
     pauseOrResume(row: ScoutRow) {
       hold();
       pause.mutate({ scoutId: row.id, paused: !row.paused });

@@ -39,6 +39,7 @@ const answers = {
     median: null,
     oldest: null,
   },
+  "scouts.activity": { rows: [] },
   "scouts.health": {
     scouts: [
       SCOUT("sleep-proceedings", "claim"),
