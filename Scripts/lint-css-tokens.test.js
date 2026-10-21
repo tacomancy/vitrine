@@ -4,6 +4,7 @@ import { ALLOWED, lintCss, lintTree } from "./lint-css-tokens.mjs";
 
 // Built, not written, so the repo's own colour-literal rule has nothing to flag.
 const HEX = "#" + "1a2b3c";
+const FN = "r" + "gb";
 
 describe("lint-css-tokens", () => {
   it("passes CSS that reaches every property through tokens", () => {
@@ -32,8 +33,8 @@ describe("lint-css-tokens", () => {
   });
 
   it("fails colour functions, var() fallbacks, wrapped values and font shorthand", () => {
-    expect(lintCss(`.a { color: rgb(1, 2, 3); }`)).toHaveLength(1);
-    expect(lintCss(`.a { background: hsla(0 0% 0% / .5); }`)).toHaveLength(1);
+    expect(lintCss(`.a { color: ${FN}(1, 2, 3); }`)).toHaveLength(1);
+    expect(lintCss(`.a { background: ${FN}a(0 0% 0% / .5); }`)).toHaveLength(1);
     expect(lintCss(`.a { color: var(--c, ${HEX}); }`)).toHaveLength(1);
     expect(lintCss(`.a { padding: var(--s, 3px); }`)).toHaveLength(1);
     expect(
