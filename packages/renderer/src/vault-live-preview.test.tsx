@@ -1,7 +1,15 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { cleanup, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen, waitFor } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
 afterEach(() => {
@@ -12,7 +20,8 @@ beforeEach(() => window.history.replaceState(null, "", "/"));
 
 // Inline-only live preview (#700; spec #680, stories 16–18, 21): the marks
 // that make prose are hidden off the cursor's line and shown on it, and the
-// shapes the first slice does not render stay as the text they are.
+// shapes the first slice does not render stay as the text they are. An embed
+// that resolves to an image is drawn as one (#752; spec #751 stories 5–6, 8).
 
 const READ = { indexing: null, watching: { ok: true }, current: { ok: true } };
 const FILE = (text: string) => ({
@@ -23,7 +32,7 @@ const FILE = (text: string) => ({
   mtime: Date.UTC(2026, 7, 5, 12),
 });
 
-const open = async (text: string) => {
+const open = async (text: string, links: Record<string, unknown> = {}) => {
   window.location.hash = "#/vault/plain.md";
   renderApp({
     "vault.current": vault,
@@ -32,6 +41,7 @@ const open = async (text: string) => {
     "vault.tree": [{ path: "plain.md", kind: null }],
     "vault.pdfFault": null,
     "vault.read": () => FILE(text),
+    "vault.resolveLinks": links,
   });
   const box = await screen.findByRole("textbox", { name: "Editor" });
   const view = EditorView.findFromDOM(
@@ -102,7 +112,7 @@ describe("hiding marks off the cursor's line", () => {
 });
 
 describe("what stays as text", () => {
-  it("leaves frontmatter, a table, an embed and a callout exactly as written", async () => {
+  it("leaves frontmatter, a table, an embed that is not an image and a callout exactly as written", async () => {
     const doc = [
       "---",
       "title: **x** `y` [[T]] _z_",
@@ -166,5 +176,114 @@ describe("a 1 MB note", () => {
     expect(box.querySelectorAll(".cm-line").length).toBeLessThan(2000);
     expect(lines(box)[0]).toBe(para.trimEnd()); // the cursor's line, shown
     expect(lines(box)[1]).toBe("A bold claim with alias and code, then more.");
+  });
+});
+
+describe("an image embed", () => {
+  const DOC = ["intro", "", "![[diagram.png]]", "", "tail"].join("\n");
+  const RESOLVED = {
+    "diagram.png": {
+      resolution: "resolved",
+      path: "assets/diagram.png",
+      kind: null,
+      candidates: [],
+    },
+  };
+  let fetched: { url: string; init: RequestInit | undefined }[];
+  let revoked: Mock<(url: string) => void>;
+
+  beforeEach(() => {
+    fetched = [];
+    window.vitrine = { port: 4242, token: "session-token", pathOf: () => "" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        fetched.push({ url, init });
+        return Promise.resolve(
+          new Response(new Blob([new Uint8Array([137, 80, 78, 71])]))
+        );
+      })
+    );
+    URL.createObjectURL = vi.fn(() => "blob:vitrine/1");
+    revoked = vi.fn<(url: string) => void>();
+    URL.revokeObjectURL = revoked;
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const images = (box: HTMLElement) =>
+    Array.from(box.querySelectorAll<HTMLImageElement>("img"));
+
+  it("draws the picture off the cursor's line, from its bytes fetched with the bearer header", async () => {
+    const { box, view } = await open(DOC, RESOLVED);
+    cursorAt(view, 2);
+    await waitFor(() =>
+      expect(images(box).map((i) => i.getAttribute("src"))).toEqual([
+        "blob:vitrine/1",
+      ])
+    );
+    expect(lines(box)).not.toContain("![[diagram.png]]");
+    expect(fetched.map((f) => f.url)).toEqual([
+      "http://127.0.0.1:4242/vault-image/assets/diagram.png",
+    ]);
+    expect(new Headers(fetched[0]!.init?.headers).get("authorization")).toBe(
+      "Bearer session-token"
+    );
+  });
+
+  it("shows the embed's text on the cursor's line, and the picture again when the cursor leaves", async () => {
+    const { box, view } = await open(DOC, RESOLVED);
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    cursorAt(view, DOC.indexOf("![["));
+    await waitFor(() => expect(images(box)).toHaveLength(0));
+    expect(lines(box)).toContain("![[diagram.png]]");
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    expect(lines(box)).not.toContain("![[diagram.png]]");
+  });
+
+  it("keeps the object URL across cursor moves and revokes it once, when the picture goes", async () => {
+    const { box, view } = await open(DOC, RESOLVED);
+    cursorAt(view, 2);
+    await waitFor(() => expect(images(box)).toHaveLength(1));
+    cursorAt(view, 0);
+    cursorAt(view, DOC.length);
+    expect(images(box)).toHaveLength(1);
+    expect(revoked).not.toHaveBeenCalled();
+    cursorAt(view, DOC.indexOf("![["));
+    await waitFor(() => expect(images(box)).toHaveLength(0));
+    expect(revoked).toHaveBeenCalledTimes(1);
+    expect(revoked).toHaveBeenCalledWith("blob:vitrine/1");
+  });
+
+  it("leaves an embed as written until the index has resolved it to an image", async () => {
+    const { box, view } = await open(DOC, {
+      "diagram.png": {
+        resolution: "unresolved",
+        path: null,
+        kind: null,
+        candidates: [],
+      },
+    });
+    cursorAt(view, 2);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(images(box)).toHaveLength(0);
+    expect(lines(box)).toContain("![[diagram.png]]");
+    expect(fetched).toEqual([]);
+  });
+
+  it("leaves an embed of a file that is not an image as written", async () => {
+    const { box, view } = await open("x\n\n![[notes.md]]\n", {
+      "notes.md": {
+        resolution: "resolved",
+        path: "notes.md",
+        kind: null,
+        candidates: [],
+      },
+    });
+    cursorAt(view, 0);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(images(box)).toHaveLength(0);
+    expect(fetched).toEqual([]);
   });
 });
