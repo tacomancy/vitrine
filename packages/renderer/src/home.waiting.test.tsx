@@ -120,7 +120,9 @@ describe("Waiting — Review depth", () => {
     const section = await waiting();
     expect(section.textContent).not.toContain("Review is empty");
     expect(section.textContent).not.toContain("watching");
-    expect(section.textContent).toContain("density-watch");
+    expect(section.textContent).toContain("no claim that the field is quiet");
+    // The Scout is named once, by the first sentence, and not again here.
+    expect(section.textContent).not.toContain("density-watch");
   });
 
   it("draws no section when there are no Scouts", async () => {

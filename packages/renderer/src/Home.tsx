@@ -102,6 +102,7 @@ export function Home() {
           <FirstSlot voice={voice} claim="" fragment="reading" />
         )}
         {failure === null &&
+          voice === "claim" &&
           health.data !== undefined &&
           fleet.data !== undefined &&
           (health.data.scouts.length > 0 ||
@@ -123,6 +124,18 @@ type Health = {
   unreadable: unknown[];
 };
 type Fleet = { claim: string | null; naming: string[] };
+
+/**
+ * The core's claim is one line of ` · `-joined parts, headline first, with
+ * the Scouts not looking last when there are any. Home states those in a
+ * sentence of its own, where they are named and never counted, so the Warrant
+ * leaves them out rather than saying them twice.
+ */
+function claimParts(claim: string, naming: string[]) {
+  const [headline = "", ...rest] = claim.split(" · ");
+  const warrant = (naming.length > 0 ? rest.slice(0, -1) : rest).join(" · ");
+  return { headline, warrant };
+}
 
 /**
  * The sentence, once the vault has been read in full and watched and the
@@ -182,14 +195,7 @@ function FirstSentence({
       />
     );
 
-  // The core's claim is one line of ` · `-joined parts, headline first, with
-  // the Scouts not looking last when there are any. Home states those in the
-  // sentence, where they are named and never counted, so the Warrant leaves
-  // them out rather than saying them twice.
-  const [headline = "", ...rest] = fleet.claim.split(" · ");
-  const warrant = (fleet.naming.length > 0 ? rest.slice(0, -1) : rest).join(
-    " · "
-  );
+  const { headline, warrant } = claimParts(fleet.claim, fleet.naming);
   return (
     <FirstSlot
       voice="claim"
@@ -221,6 +227,10 @@ function Waiting({
   failure: string | undefined;
   fleet: Fleet;
 }) {
+  const { headline, warrant } =
+    fleet.claim === null
+      ? { headline: "", warrant: "" }
+      : claimParts(fleet.claim, fleet.naming);
   return (
     <section className={styles.waiting} aria-labelledby="home-waiting">
       <h2 id="home-waiting" className={styles.heading}>
@@ -259,10 +269,8 @@ function Waiting({
         <p className={styles.line}>
           <span>
             {fleet.claim !== null
-              ? `Review is empty — ${fleet.claim}.`
-              : fleet.naming.length > 0
-                ? `Nothing in Review, and no claim that the field is quiet: ${fleet.naming.join(", ")} ${fleet.naming.length === 1 ? "needs" : "need"} a look.`
-                : null}
+              ? `Review is empty — ${[headline, warrant].filter(Boolean).join(" · ")}.`
+              : "Nothing pending, and no claim that the field is quiet."}
           </span>
           {depth.deferred > 0 && (
             <span className={styles.fact}>{depth.deferred} deferred</span>
