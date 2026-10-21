@@ -31,7 +31,7 @@ An ordinary Markdown file with links, tags, and backlinks. Obsidian behaviour is
 
 **Tag**:
 A slash-separated topic label parsed into a tree (`ml/interpretability/probing`), the same tag whatever its casing. A parent's coverage is the union of its children's.
-_Avoid_: Topic (a tag *is* the topic axis; "topic cluster" is a Scout Queue grouping, not a tag)
+_Avoid_: Topic as a synonym (a Tag used as a grouping is a *Topic*, below; "topic cluster" is a Scout Queue grouping, not a tag)
 
 **Outline**:
 The app's reading of one Markdown file: its frontmatter, headings and their sections, block ids, links and tags as written, inline fields, and list items, each with the range of source text it covers. Produced by `packages/markdown` from the file's text alone; carries no resolution and nothing Kind-specific. What the Index stores per file, and what `vault.outline` shows.
@@ -512,6 +512,22 @@ _Avoid_: Onboarding, welcome screen, empty state
 **Surface**:
 One of the eight screens the brief names: Home, Question Inbox, Reader, Research Question view, Hypothesis view, Experiment view, Scout Queue, Vault. All eight are about the work. Ingest review is a panel, not a Surface; First run is a state, not a Surface; Settings is a ninth screen and not one of the eight (ADR 0025).
 
+**Home**:
+The window's landing, at `#/home`: one column of sentences and routes, never a grid of cards, and never a total of anything. A dateline, a first sentence that claims coverage of *looking* (never the absence of failure, so *nothing is broken* is said nowhere), an interrupt only when a Scout is broken, Waiting, what changed by Topic, three Resurfaced Questions, and three links to the Dashboards with nothing summarised beside them. It adds no Loose end and holds no Setting; it renders derivations the other surfaces already own (ADR 0032, 0050).
+_Avoid_: Dashboard (Home is opened without choosing; the Dashboards are opened deliberately from it), overview, inbox
+
+**Resurfaced Question**:
+One of up to three open Questions at least 60 days old that Home's *From the notebook* shows, with the Inbox's own provenance line. Picked by a shuffle seeded by the local date and a client seed, so it is the same all day and different tomorrow, and never weighted by anything. Not a to-do and not counted: how many older Questions there are is not said (ADR 0050).
+_Avoid_: Reminder, overdue Question, suggestion
+
+**Rotation**:
+The set of Questions Home may resurface. Dismissing a Resurfaced Question takes it out of the rotation (a `resurfaced` dismissal in `dismissals.json`), never out of the vault: it stays in the Inbox, unchanged. A Question also leaves by changing status; *undo* returns it while its line is on screen (ADR 0050).
+_Avoid_: Queue, pool (the pool is the unranked set it is drawn from)
+
+**Topic**:
+A Tag used as a grouping rather than as a label: Home's *changed while you were away* collects each item under the one Tag, among its own, that most other changed items share. Grouped as written at its own depth, with no roll-up, and an item with no Tag is *untagged*. Not a new object (ADR 0050).
+_Avoid_: Theme, cluster (a topic cluster is a Scout Queue grouping)
+
 **Dashboard**:
 One of the three analytical surfaces opened deliberately from Home: Question Map, Scout Activity, Loose Ends. Each answers a distinct question, and every element leads to an action.
 
@@ -566,7 +582,7 @@ One row on the Loose Ends dashboard: something incomplete or broken with a one-c
 What a Loose end is loose *about* — a Research Question with no source, a bare link matching several files — as distinct from the object it names. A dismissal is judged per row kind, so one object can be silenced as one kind and still surface as another.
 
 **Open day**:
-A local date on which the vault was opened, or its window brought to the front, in the app. The unit Loose Ends counts a stalled row's wait in, so time away from the vault never makes anything look stalled.
+A local date on which the vault was opened, or its window brought to the front, in the app. The unit Loose Ends counts a stalled row's wait in, so time away from the vault never makes anything look stalled. Home reads it a second way: the latest open day before today is where *changed while you were away* begins and what the dateline's *away since* says, and neither counts a quiet period (ADR 0050).
 _Avoid_: Active day, calendar day (it is not one)
 
 **Coverage**:
