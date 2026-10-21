@@ -12,7 +12,7 @@ Beat 10b (#179, spec #678) lets an arXiv Scout's Filter be Tags, on ADR 0018's L
 4. **A Lexicon change runs nothing.** Only saving an edited Filter runs a Scout. The window is untouched, so a Term added later does not find older papers; *also search back to* is the way to ask.
 5. **A Tag with nothing to compile refuses the save and fails the run.** Save names the Tag and the way out (Seed a Term, or use a Query). A saved Scout whose Tags later compile to nothing, or whose Tag is gone, records a failed run of the new `error_kind` `tags` naming them, due at the next check, and never an `ok` run with no results. A run on several Tags where only some compile goes on with those and names the rest in its note.
 6. **Switching a Filter keeps the Scout.** An existing arXiv Scout moves between a Query and Tags on its form as the same file, with its history and window.
-7. **Tag Filters are for the arXiv source only,** and no Loose Ends row or Home item is added: the existing failed-Scout row carries the sentence.
+7. **Tag Filters are for the arXiv source only** (amended by ADR 0051: arXiv and OpenAlex), and no Loose Ends row or Home item is added: the existing failed-Scout row carries the sentence.
 
 ## Considered options
 
