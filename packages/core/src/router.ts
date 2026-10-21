@@ -510,12 +510,17 @@ export const router = t.router({
       const { vault, index } = await requireVault(ctx);
       return backlinksOf(vault.path, index, input.path);
     }),
-    // The Vault's Graph tab (#741): the open file's first Ring, laid out by a pure function.
+    // The Vault's Graph tab (#741): the open file's Rings, laid out by a pure function.
     graph: t.procedure
-      .input(z.object({ path: z.string(), hops: z.literal(1) }))
+      .input(
+        z.object({
+          path: z.string(),
+          hops: z.union([z.literal(1), z.literal(2)]),
+        })
+      )
       .query(async ({ ctx, input }) => {
         const { index } = await requireVault(ctx);
-        return graphOf(index, input.path);
+        return graphOf(index, input.path, input.hops);
       }),
     // Where the editor's `[[links]]` land, for drawing them and following them (#701).
     resolveLinks: t.procedure
