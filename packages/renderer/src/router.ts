@@ -20,7 +20,7 @@ export type Route =
   | { surface: "loose-ends" }
   | { surface: "question-map" }
   | { surface: "scout-activity" }
-  | { surface: "scouts"; scout?: string; view?: "muted" }
+  | { surface: "scouts"; scout?: string; view?: "muted" | "skim" }
   | { surface: "settings"; section?: "credentials" }
   | { surface: "vault"; path?: string };
 
@@ -68,6 +68,8 @@ export const scoutStack = (scout: string): Route => ({
 });
 /** The Queue opened on its muted list, where Scout Activity's *N muted* leads (#649). Vault-wide, as the rules are, so it names no Scout. */
 export const MUTED_LIST: Route = { surface: "scouts", view: "muted" };
+/** The Queue opened on its Skim lane, where Home's Waiting line leads: a feed has no depth, so the link is *glance*, not a count (#731). */
+export const SKIM_LANE: Route = { surface: "scouts", view: "skim" };
 
 /**
  * A Question's Address is the Inbox with a row named (#300; ADR 0027
@@ -120,9 +122,11 @@ export function hashOf(route: Route): string {
     case "scouts":
       return route.view === "muted"
         ? "#/scouts?view=muted"
-        : route.scout === undefined
-          ? "#/scouts"
-          : `#/scouts?scout=${encodeURIComponent(route.scout)}`;
+        : route.view === "skim"
+          ? "#/scouts?view=skim"
+          : route.scout === undefined
+            ? "#/scouts"
+            : `#/scouts?scout=${encodeURIComponent(route.scout)}`;
     case "research-question":
       return RESEARCH_QUESTION + encodePath(route.path);
     case "hypothesis":
@@ -215,6 +219,7 @@ function parseHash(hash: string): Route {
   if (hash.startsWith("#/scouts?")) {
     const params = new URLSearchParams(hash.slice("#/scouts?".length));
     if (params.get("view") === "muted") return MUTED_LIST;
+    if (params.get("view") === "skim") return SKIM_LANE;
     const scout = params.get("scout");
     return scout === null || scout === "" ? SCOUTS : scoutStack(scout);
   }

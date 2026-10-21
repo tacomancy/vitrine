@@ -596,12 +596,33 @@ export function readRunCosts(
     }));
 }
 
-export async function readActivity(deps: {
+type ActivityDeps = {
   vaultPath: string;
   index: VaultIndex;
   queue: DatabaseSync;
   now: () => Date;
-}): Promise<ScoutActivity> {
+};
+
+/**
+ * The fleet's Review depth for Home's Waiting section: the very figure Scout
+ * Activity's header carries, read through the same muted set and per-Scout
+ * windows, so the two surfaces cannot disagree about what waits. Home renders
+ * it and never recounts the stack (ADR 0042 decision 7).
+ */
+export async function readReviewDepth(
+  deps: ActivityDeps
+): Promise<ReviewDepth> {
+  const { scouts, dropped } = await readScouts(deps.vaultPath);
+  const { caught } = await readMuteState(deps);
+  return reviewDepth(
+    deps.queue,
+    deps.now(),
+    new Set(caught.keys()),
+    windowsOf([...scouts, ...dropped])
+  ).fleet;
+}
+
+export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
   const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
   const counts = acceptCounts(deps.queue, acceptSince(now));
