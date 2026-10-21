@@ -296,7 +296,7 @@ describe("opening Home writes nothing", () => {
     const spy = new Proxy(answers, {
       get(target, key) {
         if (typeof key === "string") called.push(key);
-        return Reflect.get(target, key);
+        return Reflect.get(target, key) as unknown;
       },
     });
     renderApp(spy);
