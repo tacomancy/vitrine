@@ -130,3 +130,76 @@
   font-size: var(--text-2xs);
   color: var(--color-fg-muted);
 }
+
+/* The interrupt: the one block that is louder than the rest, and only by
+   being first and plain. Warm colour, if any, comes with a glyph and a label
+   (prototype 12), and the lead sentence above carries both; this block adds
+   neither and is never red. */
+.interrupt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+}
+
+.broken {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brokenRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.brokenName {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.sentence {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--color-fg);
+}
+
+.facts {
+  flex-basis: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-fg-muted);
+}
+
+.acts {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.act {
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.said {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+.closing {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
