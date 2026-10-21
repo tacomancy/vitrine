@@ -5,9 +5,9 @@ export type GraphNode = {
   path: string;
   /** Its `kind:` verbatim, null when it declares none. */
   kind: string | null;
-  /** 0 for the open file, 1 for a file a link joins it to. */
+  /** 0 for the open file, 1 for a file a link joins it to, 2 for one joined to those. */
   hop: number;
-  /** Position in a plane whose centre is the open file and whose first Ring has radius 1. */
+  /** Position in a plane whose centre is the open file, whose first Ring has radius 1 and whose second has radius 2. */
   x: number;
   y: number;
 };
@@ -72,7 +72,8 @@ const round = (n: number) => Math.round(n * 1e4) / 1e4;
  * name and the angle comes from sort position alone.
  */
 export function ringOf(
-  files: { path: string; kind: string | null }[]
+  files: { path: string; kind: string | null }[],
+  hop: 1 | 2
 ): GraphNode[] {
   const share = (2 * Math.PI) / SECTOR_COUNT;
   const out: GraphNode[] = [];
@@ -86,9 +87,9 @@ export function ringOf(
         -Math.PI / 2 + sector * share + ((i + 0.5) / inside.length) * share;
       out.push({
         ...file,
-        hop: 1,
-        x: round(Math.cos(angle)),
-        y: round(Math.sin(angle)),
+        hop,
+        x: round(hop * Math.cos(angle)),
+        y: round(hop * Math.sin(angle)),
       });
     });
   }
@@ -124,37 +125,65 @@ function notDrawnIn(index: VaultIndex, files: string[]): NotDrawn[] {
 
 /**
  * `vault.graph`: the files a resolved link joins to the open one, in either
- * direction. An ambiguous or unresolved link has no `resolved_path` and so
- * draws nothing, as in backlinks (ADR 0036); a file's link to itself is no
- * neighbour. Reads the index only and writes nothing.
+ * direction, and with `hops` 2 the files joined to those. An ambiguous or
+ * unresolved link has no `resolved_path` and so draws nothing, as in backlinks
+ * (ADR 0036); a file's link to itself is no neighbour. A hop-1 file's place
+ * depends on the hop-1 files alone, so asking for 2 hops never moves it. Edges
+ * join any two drawn files, not only a file and its parent Ring. Reads the
+ * index only and writes nothing.
  */
-export function graphOf(index: VaultIndex, path: string): Graph {
-  const rows = index.select<Row>(
-    `SELECT path, resolved_path FROM links
-      WHERE resolved_path IS NOT NULL AND path <> resolved_path
-        AND (path = ? OR resolved_path = ?)`,
-    path,
-    path
-  );
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const other = row.path === path ? row.resolved_path : row.path;
-    counts.set(other, (counts.get(other) ?? 0) + 1);
-  }
+export function graphOf(index: VaultIndex, path: string, hops: 1 | 2): Graph {
+  const linked = (of: string): string[] =>
+    index
+      .select<Row>(
+        `SELECT path, resolved_path FROM links
+          WHERE resolved_path IS NOT NULL AND path <> resolved_path
+            AND (path = ? OR resolved_path = ?)`,
+        of,
+        of
+      )
+      .map((row) => (row.path === of ? row.resolved_path : row.path));
   const kindOf = (p: string): string | null =>
     index.select<{ kind: string | null }>(
       "SELECT kind FROM files WHERE path = ?",
       p
     )[0]?.kind ?? null;
-  const ring = ringOf(
-    [...counts.keys()].map((p) => ({ path: p, kind: kindOf(p) }))
+
+  const first = new Set(linked(path));
+  const second = new Set<string>();
+  if (hops === 2) {
+    for (const near of first)
+      for (const far of linked(near))
+        if (far !== path && !first.has(far)) second.add(far);
+  }
+  const withKind = (paths: Set<string>) =>
+    [...paths].map((p) => ({ path: p, kind: kindOf(p) }));
+  const nodes = [
+    { path, kind: kindOf(path), hop: 0, x: 0, y: 0 },
+    ...ringOf(withKind(first), 1),
+    ...ringOf(withKind(second), 2),
+  ];
+
+  const drawn = new Set(nodes.map((node) => node.path));
+  const counts = new Map<string, GraphEdge>();
+  for (const node of nodes) {
+    const outgoing = index.select<Row>(
+      `SELECT path, resolved_path FROM links
+        WHERE path = ? AND resolved_path IS NOT NULL AND path <> resolved_path`,
+      node.path
+    );
+    for (const { path: from, resolved_path: to } of outgoing) {
+      if (!drawn.has(to)) continue;
+      const [a, b] = from < to ? [from, to] : [to, from];
+      const edge = counts.get(`${a}\0${b}`) ?? { a, b, count: 0 };
+      edge.count++;
+      counts.set(`${a}\0${b}`, edge);
+    }
+  }
+  const edges = [...counts.values()].sort(
+    (x, y) =>
+      (x.a < y.a ? -1 : x.a > y.a ? 1 : 0) ||
+      (x.b < y.b ? -1 : x.b > y.b ? 1 : 0)
   );
-  return {
-    nodes: [{ path, kind: kindOf(path), hop: 0, x: 0, y: 0 }, ...ring],
-    notDrawn: notDrawnIn(index, [path, ...ring.map((node) => node.path)]),
-    edges: ring.map((node) => {
-      const [a, b] = path < node.path ? [path, node.path] : [node.path, path];
-      return { a, b, count: counts.get(node.path) ?? 0 };
-    }),
-  };
+  return { nodes, notDrawn: notDrawnIn(index, [...drawn]), edges };
 }
