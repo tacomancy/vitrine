@@ -298,6 +298,21 @@ describe("the first sentence", () => {
   });
 });
 
+describe("a failed read of the vault's files", () => {
+  it("says it could not tell what the vault holds, not that the scouts failed", async () => {
+    renderApp({
+      ...answers,
+      "vault.tree": () => {
+        throw new Error("the index cannot be read");
+      },
+    });
+    const page = await home();
+    await within(page).findByText(/could not tell what the vault holds/);
+    expect(page.textContent).toContain("the index cannot be read");
+    expect(page.textContent).not.toContain("scouts are looking");
+  });
+});
+
 describe("opening another vault", () => {
   it("lands on Home", async () => {
     window.location.hash = "#/loose-ends";

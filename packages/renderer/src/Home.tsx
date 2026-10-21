@@ -57,7 +57,8 @@ export function Home() {
   const fleet = useQuery(trpc.scouts.fleet.queryOptions());
   const tree = useQuery(trpc.vault.tree.queryOptions());
 
-  const failure = fleet.error ?? health.error ?? tree.error;
+  const scoutsFailure = fleet.error ?? health.error;
+  const failure = scoutsFailure ?? tree.error;
   const voice = voiceOf({
     // A failed read is said by its own sentence below, before the Voice is asked.
     incomplete: false,
@@ -84,7 +85,7 @@ export function Home() {
           <FirstSlot
             voice="wrong"
             claim=""
-            fragment={`could not tell whether the scouts are looking · ${failure.message}`}
+            fragment={`could not tell ${scoutsFailure ? "whether the scouts are looking" : "what the vault holds"} · ${failure.message}`}
           />
         ) : voice === "claim" &&
           health.data !== undefined &&
