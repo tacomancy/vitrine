@@ -138,7 +138,9 @@ describe("changed while you were away", () => {
       name: "Changed while you were away",
     });
     expect(section.textContent).toContain("Nothing has changed.");
-    expect(section.textContent).toContain("questions and notes since 14 Sep");
+    expect(section.textContent).toContain(
+      "questions, notes, revisions, accepted stubs and runs since 14 Sep"
+    );
     expect(within(section).queryAllByRole("heading", { level: 3 })).toEqual([]);
   });
 
@@ -167,5 +169,59 @@ describe("changed while you were away", () => {
     // A macrotask, so the section's own query has answered before the absence is asserted.
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByText("Nothing has changed.")).toBeNull();
+  });
+
+  it("opens each Revision, run and accepted stub at its own Kind's Address", async () => {
+    const at = "2026-09-20T08:00:00.000Z";
+    renderApp({
+      ...answers,
+      "home.changed": {
+        since: SINCE,
+        groups: [
+          {
+            topic: { kind: "untagged" },
+            items: [
+              {
+                path: "h/a.md",
+                kind: "hypothesis",
+                sentence: "Claim revised",
+                title: "a",
+                at,
+              },
+              {
+                path: "r/b.md",
+                kind: "research-question",
+                sentence: "Working answer revised",
+                title: "b",
+                at,
+              },
+              {
+                path: "e/c.md",
+                kind: "experiment",
+                sentence: "Experiment run recorded",
+                title: "c",
+                at,
+              },
+              {
+                path: "s/d.md",
+                kind: "source",
+                sentence: "Source stub accepted",
+                title: "d",
+                at,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const section = await within(await page()).findByRole("region", {
+      name: "Changed while you were away",
+    });
+    const href = (name: string) =>
+      within(section).getByRole("link", { name }).getAttribute("href");
+    expect(href("a")).toBe("#/hypothesis/h/a.md");
+    expect(href("b")).toBe("#/research-question/r/b.md");
+    expect(href("c")).toBe("#/experiment/e/c.md");
+    expect(href("d")).toBe("#/source/s/d.md");
   });
 });

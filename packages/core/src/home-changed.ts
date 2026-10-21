@@ -62,10 +62,8 @@ const REVISED_KINDS = [
 
 const AFTER_EVIDENCE = " · edited after evidence";
 
-/** What a Revision's field reads as on Home: the three the brief names, then the field itself. */
+/** What a Revision's field reads as on Home: a criterion edited after Evidence is named for what it is, any other field by itself (*Working answer revised*, *Claim revised*). */
 function revisionSentence(field: string): string {
-  if (field === "working answer") return "Working answer revised";
-  if (field === "claim") return "Claim revised";
   if (field.endsWith(AFTER_EVIDENCE)) return "Criterion edited after Evidence";
   return `${field.charAt(0).toUpperCase()}${field.slice(1)} revised`;
 }
