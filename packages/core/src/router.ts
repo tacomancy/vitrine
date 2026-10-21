@@ -83,7 +83,12 @@ import {
   readRunCosts,
 } from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
-import { awaySince } from "./home.js";
+import {
+  awaySince,
+  dismissResurfaced,
+  resurfaced,
+  undismissResurfaced,
+} from "./home.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
@@ -1772,6 +1777,41 @@ export const router = t.router({
       const { days } = await requireVault(ctx);
       return { since: awaySince(days, ctx.now()) };
     }),
+    // From the notebook: `seed` is the client's *↻ others* count, and the
+    // reply carries the Questions and nothing about the pool they came from.
+    resurfaced: t.procedure
+      .input(z.object({ seed: z.number().int().min(0) }).default({ seed: 0 }))
+      .query(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        return resurfaced(index, vault.path, ctx.now(), input.seed);
+      }),
+    // Not the Loose Ends procedures: a dismissal here is about the
+    // rotation alone, and neither pair widens the other's contract.
+    dismissResurfaced: t.procedure
+      .input(z.object({ path: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        await refusing(
+          Promise.resolve().then(() =>
+            dismissResurfaced(
+              index,
+              vault.path,
+              input.path,
+              ctx.now().toISOString()
+            )
+          )
+        );
+      }),
+    undismissResurfaced: t.procedure
+      .input(z.object({ path: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { vault, index } = await requireVault(ctx);
+        await refusing(
+          Promise.resolve().then(() =>
+            undismissResurfaced(index, vault.path, input.path)
+          )
+        );
+      }),
   }),
   // The maintenance dashboard (§ Loose Ends): the rows are index queries
   // plus `dismissals.json`, and *mark deliberate* and its undo are the only
