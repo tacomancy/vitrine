@@ -33,7 +33,17 @@ const GRAPH = {
     { a: "notes/Idea.md", b: "src/Paper.md", count: 1 },
   ],
   notDrawn: [] as { path: string; target: string; state: string }[],
+  overflow: [] as {
+    path: string;
+    kind: string | null;
+    hop: number;
+    links: number;
+  }[],
 };
+const OVERFLOW = [
+  { path: "notes/Busy.md", kind: null, hop: 1, links: 4 },
+  { path: "src/Cut.md", kind: "source", hop: 2, links: 1 },
+];
 const NOT_DRAWN = [
   { path: "notes/Idea.md", target: "Dup", state: "ambiguous" },
   { path: "notes/Other.md", target: "nowhere", state: "unresolved" },
@@ -192,7 +202,12 @@ describe("the Graph tab", () => {
 
   it("says in words that a file with no links has none", async () => {
     open({
-      "vault.graph": { nodes: [GRAPH.nodes[0]], edges: [], notDrawn: [] },
+      "vault.graph": {
+        nodes: [GRAPH.nodes[0]],
+        edges: [],
+        notDrawn: [],
+        overflow: [],
+      },
     });
     fireEvent.click(await graphTab());
     expect(await screen.findByText("No links yet.")).toBeDefined();
@@ -278,5 +293,41 @@ describe("the Graph tab", () => {
     fireEvent.click(await graphTab());
     expect(await screen.findByText("2 not drawn")).toBeDefined();
     expect(screen.queryByText("No links yet.")).toBeNull();
+  });
+});
+
+describe("the Graph tab, overflow", () => {
+  it("says how many a Ring's cap left off and lists them ranked, with Kind, hop and links", async () => {
+    open({ "vault.graph": { ...GRAPH, overflow: OVERFLOW } });
+    fireEvent.click(await graphTab());
+    await list();
+    const panel = screen.getByRole("region", { name: "Not shown" });
+    expect(within(panel).getByText("+2 more")).toBeDefined();
+    expect(
+      within(panel)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual([
+      expect.stringMatching(/Busy.*note.*1 hop.*4 links/),
+      expect.stringMatching(/Cut.*source.*2 hops.*1 link\b/),
+    ]);
+    // Not drawn: a cut node is a row in this list and no dot.
+    expect(document.querySelectorAll("svg [data-node]")).toHaveLength(4);
+  });
+
+  it("opens a cut node's file from its row", async () => {
+    open({ "vault.graph": { ...GRAPH, overflow: OVERFLOW } });
+    fireEvent.click(await graphTab());
+    await list();
+    const panel = screen.getByRole("region", { name: "Not shown" });
+    fireEvent.click(within(panel).getByRole("button", { name: /Cut/ }));
+    expect(window.location.hash).toBe("#/vault/src/Cut.md");
+  });
+
+  it("draws no panel when nothing was cut", async () => {
+    open();
+    fireEvent.click(await graphTab());
+    await list();
+    expect(screen.queryByRole("region", { name: "Not shown" })).toBeNull();
   });
 });
