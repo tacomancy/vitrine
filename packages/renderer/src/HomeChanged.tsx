@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatAge } from "./age";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
-import { hashOf } from "./router";
+import { hashOf, type Route } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
@@ -58,7 +58,7 @@ export function HomeChanged() {
         <FirstSlot
           voice="claim"
           claim="Nothing has changed."
-          warrant={`looked at questions and notes since ${since}`}
+          warrant={`looked at questions, notes, revisions, accepted stubs and runs since ${since}`}
         />
       </Section>
     );
@@ -71,15 +71,8 @@ export function HomeChanged() {
           <h3 className={styles.topicName}>{heading(group.topic)}</h3>
           <ul className={styles.items}>
             {group.items.map((item) => (
-              <li key={item.path}>
-                <a
-                  className={styles.item}
-                  href={hashOf(
-                    item.kind === "note"
-                      ? { surface: "vault", path: item.path }
-                      : { surface: "inbox", question: item.path }
-                  )}
-                >
+              <li key={`${item.path}:${item.sentence}:${item.at}`}>
+                <a className={styles.item} href={hashOf(routeOf(item))}>
                   {item.title}
                 </a>
                 <span className={styles.what}>
@@ -92,6 +85,21 @@ export function HomeChanged() {
       ))}
     </Section>
   );
+}
+
+/** Each Kind opens at its own Address; a Note, which has none, opens in the Vault. */
+function routeOf(item: { kind: string; path: string }): Route {
+  switch (item.kind) {
+    case "note":
+      return { surface: "vault", path: item.path };
+    case "research-question":
+    case "hypothesis":
+    case "experiment":
+    case "source":
+      return { surface: item.kind, path: item.path };
+    default:
+      return { surface: "inbox", question: item.path };
+  }
 }
 
 function Section({ children }: { children: React.ReactNode }) {
