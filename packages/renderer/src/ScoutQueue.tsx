@@ -71,11 +71,14 @@ export function ScoutQueue({
   setForm,
   scout,
   mutedOpen: arrivedOnMuted = false,
+  skimOpen: arrivedOnSkim = false,
 }: {
   form: ScoutDraft | null;
   setForm: (form: ScoutDraft | null) => void;
   /** Arrived from Scout Activity's *N muted*: the muted view starts open, and the button closes it as it would any other time. */
   mutedOpen?: boolean | undefined;
+  /** Arrived from Home's Skim line: the Skim lane starts chosen, and the lane buttons move off it as they would any other time. */
+  skimOpen?: boolean | undefined;
   /** The Scout whose stack the window arrived on (Scout Activity's row link); the rail's own choice takes over from there. */
   scout?: string | undefined;
 }) {
@@ -96,7 +99,9 @@ export function ScoutQueue({
     ...trpc.scouts.questionGroups.queryOptions(),
     enabled: groupBy === "question",
   });
-  const [lane, setLane] = useState<"review" | "skim">("review");
+  const [lane, setLane] = useState<"review" | "skim">(
+    arrivedOnSkim ? "skim" : "review"
+  );
   const byQuestion = groupBy === "question" && lane === "review";
   const skim = useQuery({
     ...trpc.scouts.skim.queryOptions(),

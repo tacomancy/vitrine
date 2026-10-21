@@ -31,6 +31,13 @@ const answers = {
   "looseEnds.rows": { groups: [], problems: [] },
   "home.away": { since: null },
   "home.resurfaced": { questions: [] },
+  "scouts.depth": {
+    pending: 0,
+    pastWindow: 0,
+    deferred: 0,
+    median: null,
+    oldest: null,
+  },
   "scouts.health": {
     scouts: [
       SCOUT("sleep-proceedings", "claim"),
