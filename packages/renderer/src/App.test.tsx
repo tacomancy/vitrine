@@ -98,7 +98,8 @@ describe("the window with a vault open", () => {
       "Question Map",
       "Scout Activity",
     ]);
-    const links = screen.getAllByRole("link");
+    // The rail's links only: Home's own foot carries the dashboards' names too.
+    const links = within(nav).getAllByRole("link");
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
       // The gear on the vault's name, first in the rail (prototype 13).
       ["⚙", "#/settings"],
@@ -111,7 +112,7 @@ describe("the window with a vault open", () => {
       ["Question Map", "#/question-map"],
       ["Scout Activity", "#/scout-activity"],
     ]);
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
+    expect(within(nav).getByRole("link", { current: "page" }).textContent).toBe(
       "Home"
     );
     expect(nav.querySelectorAll("button, [tabindex]")).toHaveLength(0);

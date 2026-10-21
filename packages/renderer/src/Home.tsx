@@ -5,7 +5,14 @@ import styles from "./Home.module.css";
 import { HomeChanged } from "./HomeChanged";
 import { HomeInterrupt } from "./HomeInterrupt";
 import { Resurfaced } from "./Resurfaced";
-import { hashOf, SCOUTS, SKIM_LANE } from "./router";
+import {
+  hashOf,
+  LOOSE_ENDS,
+  QUESTION_MAP,
+  SCOUT_ACTIVITY,
+  SCOUTS,
+  SKIM_LANE,
+} from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
@@ -125,8 +132,31 @@ export function Home({ vaultPath }: { vaultPath: string }) {
           )}
         <HomeChanged />
         <Resurfaced vaultPath={vaultPath} />
+        <Dashboards />
       </div>
     </section>
+  );
+}
+
+/**
+ * The three dashboards, opened deliberately: names and routes, and nothing
+ * summarised. No figure sits beside any of them — a count of what is loose is
+ * a total the brief rules out, and a number that leads nowhere does not
+ * belong on Home (Prompt 8).
+ */
+function Dashboards() {
+  return (
+    <nav className={styles.dashboards} aria-label="Dashboards">
+      <a className={styles.way} href={hashOf(LOOSE_ENDS)}>
+        Loose Ends
+      </a>
+      <a className={styles.way} href={hashOf(QUESTION_MAP)}>
+        Question Map
+      </a>
+      <a className={styles.way} href={hashOf(SCOUT_ACTIVITY)}>
+        Scout Activity
+      </a>
+    </nav>
   );
 }
 
