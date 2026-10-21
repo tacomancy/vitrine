@@ -116,4 +116,12 @@ describe("vault.graph, first Ring", () => {
     expect(radius(b!)).toBeCloseTo(1, 3);
     expect([a!.x, a!.y]).not.toEqual([b!.x, b!.y]);
   });
+
+  it("centres a lone file in its sector, the note sector starting at the top", async () => {
+    const c = await opened({ "centre.md": "[[a]]\n", "a.md": "a\n" });
+    const [, a] = (await graph(c, "centre.md")).nodes;
+    // Eight equal sectors of 45°: the first, from -90°, is centred on -67.5°.
+    expect(a!.x).toBeCloseTo(Math.cos((-67.5 * Math.PI) / 180), 3);
+    expect(a!.y).toBeCloseTo(Math.sin((-67.5 * Math.PI) / 180), 3);
+  });
 });
