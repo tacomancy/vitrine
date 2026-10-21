@@ -36,7 +36,7 @@ export type LinkHooks = {
 export const forgetResolutions = StateEffect.define<null>();
 const learn = StateEffect.define<Record<string, LinkResolution>>();
 
-const known = StateField.define<Record<string, LinkResolution>>({
+export const known = StateField.define<Record<string, LinkResolution>>({
   create: () => ({}),
   update(value, tr) {
     for (const effect of tr.effects) {
