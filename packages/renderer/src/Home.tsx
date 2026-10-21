@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReviewDepth } from "core";
 import { FirstSlot, voiceOf } from "./FirstSlot";
 import styles from "./Home.module.css";
-import { hashOf, SCOUTS } from "./router";
+import { hashOf, SCOUTS, SKIM_LANE } from "./router";
 import { useTRPC } from "./trpc";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
@@ -56,6 +57,7 @@ export function Home() {
   const health = useQuery(trpc.scouts.health.queryOptions());
   const fleet = useQuery(trpc.scouts.fleet.queryOptions());
   const tree = useQuery(trpc.vault.tree.queryOptions());
+  const depth = useQuery(trpc.scouts.depth.queryOptions());
 
   const scoutsFailure = fleet.error ?? health.error;
   const failure = scoutsFailure ?? tree.error;
@@ -99,6 +101,19 @@ export function Home() {
         ) : (
           <FirstSlot voice={voice} claim="" fragment="reading" />
         )}
+        {failure === null &&
+          voice === "claim" &&
+          health.data !== undefined &&
+          fleet.data !== undefined &&
+          (health.data.scouts.length > 0 ||
+            health.data.unreadable.length > 0) &&
+          (depth.data !== undefined || depth.error !== null) && (
+            <Waiting
+              depth={depth.data}
+              failure={depth.error?.message}
+              fleet={fleet.data}
+            />
+          )}
       </div>
     </section>
   );
@@ -109,6 +124,18 @@ type Health = {
   unreadable: unknown[];
 };
 type Fleet = { claim: string | null; naming: string[] };
+
+/**
+ * The core's claim is one line of ` · `-joined parts, headline first, with
+ * the Scouts not looking last when there are any. Home states those in a
+ * sentence of its own, where they are named and never counted, so the Warrant
+ * leaves them out rather than saying them twice.
+ */
+function claimParts(claim: string, naming: string[]) {
+  const [headline = "", ...rest] = claim.split(" · ");
+  const warrant = (naming.length > 0 ? rest.slice(0, -1) : rest).join(" · ");
+  return { headline, warrant };
+}
 
 /**
  * The sentence, once the vault has been read in full and watched and the
@@ -168,14 +195,7 @@ function FirstSentence({
       />
     );
 
-  // The core's claim is one line of ` · `-joined parts, headline first, with
-  // the Scouts not looking last when there are any. Home states those in the
-  // sentence, where they are named and never counted, so the Warrant leaves
-  // them out rather than saying them twice.
-  const [headline = "", ...rest] = fleet.claim.split(" · ");
-  const warrant = (fleet.naming.length > 0 ? rest.slice(0, -1) : rest).join(
-    " · "
-  );
+  const { headline, warrant } = claimParts(fleet.claim, fleet.naming);
   return (
     <FirstSlot
       voice="claim"
@@ -186,5 +206,86 @@ function FirstSentence({
       }
       warrant={warrant}
     />
+  );
+}
+
+/**
+ * Waiting: what Review holds, as the core's own figure (`scouts.depth`, the
+ * one Scout Activity's header carries), and a Skim line saying a feed has no
+ * depth. Age is a neutral fact beside the figure, deferred is kept out of the
+ * headline, and the aged ones the Queue folds into its digest stay inside it:
+ * aging decides nothing (ADR 0044), so a week away reads as a week's arrivals
+ * and not as a failure. An empty Review is a claim only the fleet can warrant,
+ * so with a Scout broken it is not made — the Scout is named instead.
+ */
+function Waiting({
+  depth,
+  failure,
+  fleet,
+}: {
+  depth: ReviewDepth | undefined;
+  failure: string | undefined;
+  fleet: Fleet;
+}) {
+  const { headline, warrant } =
+    fleet.claim === null
+      ? { headline: "", warrant: "" }
+      : claimParts(fleet.claim, fleet.naming);
+  return (
+    <section className={styles.waiting} aria-labelledby="home-waiting">
+      <h2 id="home-waiting" className={styles.heading}>
+        Waiting
+      </h2>
+      {depth === undefined ? (
+        <FirstSlot
+          voice="wrong"
+          claim=""
+          fragment={`could not tell what waits in Review · ${failure ?? ""}`}
+        />
+      ) : depth.pending > 0 ? (
+        <p className={styles.line}>
+          <span>{depth.pending} in Review</span>
+          <span className={styles.fact}>
+            {[
+              depth.median && `median ${depth.median.ago}`,
+              depth.oldest && `oldest ${depth.oldest.ago}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+          {depth.pastWindow > 0 && (
+            <span className={styles.fact}>
+              {depth.pastWindow} older than their window, included
+            </span>
+          )}
+          {depth.deferred > 0 && (
+            <span className={styles.fact}>{depth.deferred} deferred</span>
+          )}
+          <a className={styles.way} href={hashOf(SCOUTS)}>
+            open review
+          </a>
+        </p>
+      ) : (
+        <p className={styles.line}>
+          <span>
+            {fleet.claim !== null
+              ? `Review is empty — ${[headline, warrant].filter(Boolean).join(" · ")}.`
+              : "Nothing pending, and no claim that the field is quiet."}
+          </span>
+          {depth.deferred > 0 && (
+            <span className={styles.fact}>{depth.deferred} deferred</span>
+          )}
+          <a className={styles.way} href={hashOf(SCOUTS)}>
+            open review
+          </a>
+        </p>
+      )}
+      <p className={styles.line}>
+        <span>Skim is a feed with no depth, so it is not counted here.</span>
+        <a className={styles.way} href={hashOf(SKIM_LANE)}>
+          glance
+        </a>
+      </p>
+    </section>
   );
 }

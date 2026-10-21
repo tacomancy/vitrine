@@ -514,3 +514,29 @@
   fill: var(--color-fg-muted);
   pointer-events: none;
 }
+
+/* Not drawn: a plain note beneath the graph, set apart by space and not a box. */
+.notDrawn,
+.notDrawnLead {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.notDrawnCount {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+}
+
+.notDrawnList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notDrawnList li {
+  padding: var(--space-1) 0;
+}
+
+.target {
+  font-family: var(--font-mono);
+}
