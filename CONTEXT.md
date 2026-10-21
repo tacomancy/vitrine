@@ -354,6 +354,10 @@ _Avoid_: Hash, checksum (both imply the whole file), document fingerprint (a PDF
 A file produced by an Experiment — plot, screenshot, CSV snippet, sample output. *Stored* in the vault beside the Experiment when under 25 MB; *linked* with path, size, date, and description when heavier — the threshold proposes, and the choice is the user's per Artifact (#94). A property of the Artifact, never a Setting. A stored Artifact arrives either way: the app copies it in when the user adds it on the page, or it appears in the Experiment's folder by other means and the page offers to show it. The app copies an Artifact in, never out, and never moves one.
 _Avoid_: Attachment, file (too general), output (that is what a run writes elsewhere)
 
+**Dropped image**:
+An image file dropped on a note in the Vault editor: copied into `assets/` at the vault root and embedded as `![[name]]` where it was dropped. Ordinary vault content afterwards — the app keeps no record of it and never moves, renames or deletes it. Not an Artifact (an Experiment's).
+_Avoid_: Attachment, asset (the folder's name, not the file's)
+
 ### Scouts
 
 **Scout**:
