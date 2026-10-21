@@ -29,6 +29,14 @@ export function Resurfaced({ vaultPath }: { vaultPath: string }) {
   // something to sit beside. The next read does not return them, which is
   // when they go (as Loose Ends' do, #266).
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  // A read that lands is the next read: whatever it returns is the truth, so
+  // a mark left from before it must not outlive it (a Question brought back
+  // from another window would otherwise draw as dismissed).
+  const [seenRead, setSeenRead] = useState(picked.dataUpdatedAt);
+  if (picked.dataUpdatedAt !== seenRead) {
+    setSeenRead(picked.dataUpdatedAt);
+    setDismissed(new Set());
+  }
   const refusal = useRefusal();
   const [refusedPath, setRefusedPath] = useState<string | null>(null);
 

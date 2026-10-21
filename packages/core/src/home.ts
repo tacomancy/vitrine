@@ -27,7 +27,7 @@ export function awaySince(days: OpenDays, now: Date): string | null {
 export const RESURFACE_AFTER_DAYS = 60;
 
 /** How many it shows. Fewer when the pool holds fewer; none when it is empty. */
-const RESURFACED = 3;
+const RESURFACED_COUNT = 3;
 
 /** The row kind this store keeps its dismissals under, apart from every Loose Ends kind. */
 export const RESURFACED_KIND = "resurfaced";
@@ -48,7 +48,7 @@ function calendarDaysBetween(from: Date, to: Date): number {
 
 // mulberry32: a few lines, no dependency, and the same stream for the same
 // seed on every machine — the property the choice rests on.
-function random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -90,7 +90,7 @@ export async function resurfaced(
     // The listing's order is the index's; the shuffle must not depend on it.
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
-  const next = random(
+  const next = seededRandom(
     createHash("sha256")
       .update(`${localDay(now)}:${seed}`)
       .digest()
@@ -100,7 +100,7 @@ export async function resurfaced(
     const j = Math.floor(next() * (i + 1));
     [pool[i], pool[j]] = [pool[j]!, pool[i]!];
   }
-  return { questions: pool.slice(0, RESURFACED) };
+  return { questions: pool.slice(0, RESURFACED_COUNT) };
 }
 
 /** The key a dismissal of the Question at `path` is stored under; refuses a path that is no Question here. */
