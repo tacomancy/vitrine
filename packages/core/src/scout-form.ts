@@ -222,6 +222,10 @@ async function write(
   }
   const venuesChanged =
     venues !== undefined && !sameVenues(before?.scout.venues ?? [], venues);
+  // A rename or a reorder rewrites the file but asks the same venues, so it
+  // does not spend a run.
+  const askedVenuesChanged =
+    venues !== undefined && !sameIds(before?.scout.venues ?? [], venues);
   if (!watched) {
     writeFilter(
       doc,
@@ -253,7 +257,7 @@ async function write(
   const edited =
     before !== undefined &&
     !watched &&
-    (venuesChanged ||
+    (askedVenuesChanged ||
       (tags === undefined
         ? before.scout.tags !== undefined || before.scout.query !== query
         : before.scout.tags === undefined ||
@@ -325,6 +329,9 @@ function checkedVenues(
 const sameVenues = (a: readonly Venue[], b: readonly Venue[]) =>
   a.length === b.length &&
   a.every((v, at) => v.id === b[at]?.id && v.name === b[at]?.name);
+
+const sameIds = (a: readonly Venue[], b: readonly Venue[]) =>
+  a.length === b.length && a.every((v) => b.some((w) => w.id === v.id));
 
 /** `filter.venues` written whole when it changed and not otherwise, so a comment on it survives a save that left it alone (ADR 0009); empty takes the key away. */
 function writeVenues(doc: Document, venues: Venue[]) {
