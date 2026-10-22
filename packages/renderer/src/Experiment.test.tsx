@@ -212,6 +212,23 @@ describe("the page of a run designed but not yet run", () => {
     );
   });
 
+  it("moves the status with the arrow keys, one write per step", async () => {
+    const asked: unknown[] = [];
+    open(() => planned, {
+      "experiments.setStatus": (input: unknown) => {
+        asked.push(input);
+        return written();
+      },
+    });
+    const page = await region();
+    fireEvent.keyDown(within(page).getByRole("radio", { name: "planned" }), {
+      key: "ArrowRight",
+    });
+    await waitFor(() =>
+      expect(asked).toEqual([{ path: PATH, status: "running", basedOn: "abc" }])
+    );
+  });
+
   it("says a refused status chip in an alert, not a status, and leaves the chip where it was", async () => {
     open(() => planned, {
       "experiments.setStatus": () => ({
