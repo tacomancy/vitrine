@@ -1038,6 +1038,11 @@ function Row({
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>
             <AcceptLine rate={row.acceptRate} />
+            {row.lastQuery !== undefined && (
+              <p className={styles.runs}>
+                Last run asked: <code>{row.lastQuery}</code>
+              </p>
+            )}
           </td>
         </tr>
       )}

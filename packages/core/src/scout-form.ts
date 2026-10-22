@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
 import { ArxivError } from "./arxiv.js";
+import { OpenAlexError, SEARCH_FILTER } from "./openalex.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
@@ -135,7 +136,13 @@ async function write(
   // Lexicon later emptied must not trap the Scout's other edits (its run
   // fails by name instead).
   const added = given.filter((t) => !(before?.scout.tags ?? []).includes(t));
-  if (added.length > 0) await compileTagsOrRefuse(deps, added);
+  if (added.length > 0) {
+    await compileTagsOrRefuse(
+      deps,
+      added,
+      form.watching === "openalex" ? "openalex" : "arxiv"
+    );
+  }
   const queueEdits = queueBehaviour(form);
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
 
@@ -385,7 +392,13 @@ export function setDropped(
 }
 
 export type TriedQuery =
-  | { outcome: "found"; total: number; titles: string[] }
+  | {
+      outcome: "found";
+      total: number;
+      titles: string[];
+      /** OpenAlex only: the shared daily budget as its answer stated it, null when it did not. A keyless budget is shared by IP (ADR 0051 decision 5), so *try* shows what it left. */
+      creditsLeft?: number | null;
+    }
   | { outcome: "failed"; sentence: string };
 
 /**
@@ -395,10 +408,30 @@ export type TriedQuery =
  */
 export async function tryQuery(
   deps: ScoutDeps,
-  query: string
+  query: string,
+  source: "arxiv" | "openalex" = "arxiv"
 ): Promise<TriedQuery> {
   if (query.trim() === "") {
     throw new VaultError("refused", "There is no Query to try.");
+  }
+  if (source === "openalex") {
+    try {
+      const found = await deps.openalex.searchWorks(query.trim(), null, {
+        limit: 5,
+      });
+      return {
+        outcome: "found",
+        total: found.total,
+        titles: found.works.slice(0, 5).map((work) => work.title),
+        creditsLeft: found.creditsLeft,
+      };
+    } catch (cause) {
+      if (!(cause instanceof OpenAlexError)) throw cause;
+      return {
+        outcome: "failed",
+        sentence: faultSentence(cause.kind, cause.message, false, "openalex"),
+      };
+    }
   }
   try {
     const found = await deps.arxiv.search(query.trim(), null, { limit: 5 });
@@ -424,12 +457,19 @@ export async function tryQuery(
  */
 export async function tryTags(
   deps: ScoutDeps,
-  tags: readonly string[]
+  tags: readonly string[],
+  source: "arxiv" | "openalex" = "arxiv"
 ): Promise<TriedQuery> {
   if (tags.length === 0) {
     throw new VaultError("refused", "There are no Tags to try.");
   }
-  return tryQuery(deps, await compileTagsOrRefuse(deps, tags));
+  const compiled = await compileTagsOrRefuse(deps, tags, source);
+  // The run sends the search part and adds its own filters (`readOpenAlex`).
+  return tryQuery(
+    deps,
+    source === "openalex" ? compiled.slice(SEARCH_FILTER.length) : compiled,
+    source
+  );
 }
 
 export type TriedWindow =

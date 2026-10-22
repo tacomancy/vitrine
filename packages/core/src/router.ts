@@ -806,20 +806,35 @@ export const router = t.router({
         refusing(setDropped(await scoutDeps(ctx), input.scoutId, false))
       ),
     tryQuery: t.procedure
-      .input(z.object({ query: z.string() }))
+      .input(
+        z.object({
+          query: z.string(),
+          watching: z.enum(["arxiv", "openalex"]).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) =>
-        refusing(tryQuery(await scoutDeps(ctx), input.query))
+        refusing(tryQuery(await scoutDeps(ctx), input.query, input.watching))
       ),
     // A query, not a mutation: it reads the Lexicon and spends no request.
     previewTags: t.procedure
-      .input(z.object({ tags: z.array(z.string()) }))
+      .input(
+        z.object({
+          tags: z.array(z.string()),
+          source: z.enum(["arxiv", "openalex"]).optional(),
+        })
+      )
       .query(async ({ ctx, input }) =>
-        refusing(previewTags(await scoutDeps(ctx), input.tags))
+        refusing(previewTags(await scoutDeps(ctx), input.tags, input.source))
       ),
     tryTags: t.procedure
-      .input(z.object({ tags: z.array(z.string()) }))
+      .input(
+        z.object({
+          tags: z.array(z.string()),
+          watching: z.enum(["arxiv", "openalex"]).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) =>
-        refusing(tryTags(await scoutDeps(ctx), input.tags))
+        refusing(tryTags(await scoutDeps(ctx), input.tags, input.watching))
       ),
     // *Try over the last run's window*: a mutation like `tryQuery`, since it
     // spends a request, and it writes nothing (ADR 0042 decision 5).

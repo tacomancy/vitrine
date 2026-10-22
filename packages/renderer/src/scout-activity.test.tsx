@@ -1003,6 +1003,25 @@ describe("opening a row", () => {
     expect(line()).toBeNull();
   });
 
+  it("says what the newest run asked, as it recorded it, when the row is open (#802)", async () => {
+    open(
+      fleet([
+        {
+          ...TWELVE_WEEKS,
+          lastQuery: 'filter=title_and_abstract.search:("alpha")',
+        },
+      ])
+    );
+
+    const [row] = await tableRows();
+    expect(screen.queryByText(/Last run asked/)).toBeNull();
+    fireEvent.click(within(row!).getByText("Broken by arXiv"));
+
+    expect(screen.getByText(/Last run asked/).textContent).toBe(
+      'Last run asked: filter=title_and_abstract.search:("alpha")'
+    );
+  });
+
   it("opens from the accept rate's own button too, which says whether the row is open", async () => {
     open(fleet([TWELVE_WEEKS]));
 
