@@ -735,6 +735,20 @@ The window's landing at `#/home` (spec #728, beat 12, ADR 0050; the route and Si
 
 **What Home never has:** a total, a count beside Loose Ends or any Dashboard, a badge or number on its Sidebar entry, a `role="alert"` for a state, *nothing is broken* in any form, or a figure for the older Questions. The Dashboards foot (Loose Ends, Question Map, Scout Activity as three bare links) is ticket #735.
 
+## UI conventions
+
+The rules a form is drawn by, written from the New Scout form (#783, spec #782) and grown by each surface moved onto them; `packages/renderer/src/Form.tsx` carries them so a surface follows them by using the components. They compose the tokens of `docs/reference/branding/`; no divergence from `BRAND.md` has been needed yet, so none has an ADR.
+
+**Rows.** A field is a row on Settings' pattern (prototype 13): a narrow label column, the control beside it at the width of what it holds, a muted note beneath it. The label is tied to the control (`FieldRow` hands the control its `id` and the note's `aria-describedby`); a one-of-N or many-of-N choice is a `GroupRow`, named as a group. A control is never stretched to the row.
+
+**Sections.** Fields that belong together sit under a heading in small letterspaced mono caps (`FormSection`, a fieldset, so it is announced as a group with its name). Sections are always open: nothing that governs a thing is collapsed. A hairline seam separates sections within the one surface and nowhere between surfaces, which stay apart by gutters (ADR 0023).
+
+**Buttons.** Two tiers. One primary per form, filled sapphire (BRAND law 2), and it is the one that submits. Everything else is sapphire text with no box (`Button`, `tier="secondary"`, which never submits). No grey boxed button.
+
+**Native controls.** Inputs, textareas, selects and the date field stay the native elements, restyled with the tokens (`Input`, `TextArea`, `Select`): no native border, a sunken ground, a chevron drawn on the select. A custom control is built only where a native one cannot do the job.
+
+**Disabled and empty.** A disabled control keeps muted-text contrast (never a faded one) and sits beside a sentence saying what unlocks it (`Unlocks`: *Save needs a name and a Query.*). An empty optional field shows its default as an italic placeholder, and its note says what empty means.
+
 ## Open, in the order they block work
 
 Nothing is open. The Artifact size threshold was the last item: 25 MB, a proposal the user overrides per Artifact (#94, ADR 0035 decision 4).

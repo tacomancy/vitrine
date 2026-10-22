@@ -241,7 +241,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin: var(--space-3) var(--space-5) var(--space-5);
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
@@ -249,33 +249,34 @@
   font-size: var(--text-sm);
 }
 
-.form label {
+.filter {
   display: flex;
-  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.filter label {
+  display: flex;
+  align-items: center;
   gap: var(--space-1);
 }
 
-/* A group of fields, not a box: no ruled border (ADR 0023, soft geometry). */
-.queueBehaviour {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-inline-size: 0;
-}
-
-.try {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-fg-secondary);
-}
-
-.try ol {
+.titles {
   margin: var(--space-1) 0 0;
   padding-left: var(--space-5);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+
+.escape {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
 }
 
 /* The footer channel, as every surface draws it: one quiet mono line each.
