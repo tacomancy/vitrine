@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from "react";
 import { AttachRun } from "./AttachEvidence";
+import { Button, SegmentedControl } from "./Form";
 import styles from "./Hypothesis.module.css";
 import { Lines, Outline } from "./ResearchQuestion";
 import rq from "./ResearchQuestion.module.css";
@@ -302,7 +303,6 @@ function Card({
       <div className={styles.controls}>
         <Choice
           label="Outcome"
-          name={`outcome-${id}`}
           values={OUTCOMES}
           chosen={outcome}
           onChoose={(value) =>
@@ -311,7 +311,6 @@ function Card({
         />
         <Choice
           label="Relationship"
-          name={`relationship-${id}`}
           values={RELATIONSHIPS}
           chosen={relationship}
           onChoose={(value) =>
@@ -320,43 +319,27 @@ function Card({
         />
         <span className={styles.verbs}>
           {editing === null && (
-            <button
-              type="button"
-              className={rq.edit}
-              onClick={() => setEditing(criterion.text)}
-            >
-              edit
-            </button>
+            <Button onClick={() => setEditing(criterion.text)}>edit</Button>
           )}
-          <button
-            type="button"
-            className={rq.edit}
+          <Button
             onClick={() => {
               unmade.forget();
               setAttaching(true);
             }}
           >
             attach evidence
-          </button>
+          </Button>
           {tested && relationship !== "diagnostic" && (
             // The sanctioned way out of the rule, so it asks nothing: the
             // core marks it all the same (ADR 0031 decision 5).
-            <button
-              type="button"
-              className={rq.edit}
-              onClick={() => setRelationship("diagnostic")}
-            >
+            <Button onClick={() => setRelationship("diagnostic")}>
               make diagnostic
-            </button>
+            </Button>
           )}
           {!tested && (
-            <button
-              type="button"
-              className={rq.edit}
-              onClick={() => remove.mutate({ path, id, basedOn: hash })}
-            >
+            <Button onClick={() => remove.mutate({ path, id, basedOn: hash })}>
               delete
-            </button>
+            </Button>
           )}
         </span>
       </div>
@@ -418,28 +401,20 @@ function Warning({
         reason — the history will take a why.
       </p>
       <div className={styles.verbs}>
-        <button
-          type="button"
-          className={rq.action}
+        <Button
           // Keep the field's focus: a mouse-down here must not blur it first.
           onMouseDown={(event) => event.preventDefault()}
           onClick={onConfirm}
         >
           {confirm}
-        </button>
-        <button
-          type="button"
-          className={rq.edit}
+        </Button>
+        <Button
           onMouseDown={(event) => event.preventDefault()}
           onClick={onInstead}
         >
           add a new criterion instead
-        </button>
-        {onLeave !== undefined && (
-          <button type="button" className={rq.edit} onClick={onLeave}>
-            leave it
-          </button>
-        )}
+        </Button>
+        {onLeave !== undefined && <Button onClick={onLeave}>leave it</Button>}
       </div>
     </div>
   );
@@ -477,39 +452,29 @@ function Marks({ marks }: { marks: AfterEvidenceMark[] }) {
 }
 
 /**
- * A row of radio buttons for one field of a criterion. Native radios, so
- * the arrows move within the row as the platform's do; nothing is checked
+ * A row of radio buttons for one field of a criterion: the app's segmented
+ * control, so the arrows move within the row as in every one-of-N choice; nothing is checked
  * when the file records nothing, which is how *awaiting evidence* and a
  * criterion with no Relationship read.
  */
 function Choice<T extends string>({
   label,
-  name,
   values,
   chosen,
   onChoose,
 }: {
   label: string;
-  name: string;
   values: readonly T[];
   chosen: T | null;
   onChoose: (value: T) => void;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={styles.choice}>
-      {values.map((value) => (
-        <label key={value} className={styles.option}>
-          <input
-            type="radio"
-            name={name}
-            value={value}
-            checked={chosen === value}
-            onChange={() => onChoose(value)}
-          />
-          {value}
-        </label>
-      ))}
-    </div>
+    <SegmentedControl
+      label={label}
+      options={values.map((v) => ({ value: v, label: v }))}
+      value={chosen}
+      onChange={onChoose}
+    />
   );
 }
 
@@ -623,13 +588,9 @@ function AddCriterion({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        className={`${rq.edit} ${styles.addCriterion}`}
-        onClick={() => setOpen(true)}
-      >
-        + criterion
-      </button>
+      <span className={styles.addCriterion}>
+        <Button onClick={() => setOpen(true)}>+ criterion</Button>
+      </span>
     );
   }
   return (
@@ -663,14 +624,13 @@ function AddCriterion({
       <div className={styles.controls}>
         <Choice
           label="Relationship"
-          name="relationship-new"
           values={RELATIONSHIPS}
           chosen={relationship}
           onChoose={setRelationship}
         />
-        <button type="submit" className={rq.action} disabled={!ready}>
+        <Button tier="primary" disabled={!ready}>
           add
-        </button>
+        </Button>
       </div>
       <CriterionRefusal refusal={adding.refusal} />
     </form>
