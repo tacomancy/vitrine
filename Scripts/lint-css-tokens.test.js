@@ -107,6 +107,11 @@ describe("lint-css-tokens", () => {
       expect(p.message).toContain("fieldset");
     });
 
+    it("keeps line numbers true past a comment line", () => {
+      const [p] = lintMarkup(`// note\n\n// more\n<button/>`, "A.tsx");
+      expect(p.line).toBe(4);
+    });
+
     it("passes a surface that uses the primitives", () => {
       const src = `import { Button, FormSection } from "./Form";\nexport const A = () => (\n  <FormSection title="x"><Button>Go</Button></FormSection>\n);`;
       expect(lintMarkup(src, "A.tsx")).toEqual([]);

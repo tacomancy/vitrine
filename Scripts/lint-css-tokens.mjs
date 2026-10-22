@@ -88,7 +88,8 @@ export const ALLOWED = [
   ],
 ].map(([file, prop, value, reason]) => ({ file, prop, value, reason }));
 
-const BARE = "a surface not yet moved onto Form's Button (a later sweep)";
+const NOT_MIGRATED =
+  "a surface not yet moved onto Form's Button (a later sweep)";
 const CHOOSES =
   "a row or swatch that is itself the thing it names, an aria-pressed chooser (architecture.md, UI conventions: What stays as it is)";
 
@@ -97,27 +98,27 @@ const CHOOSES =
 export const ALLOWED_MARKUP = [
   ["AnnotationControls.tsx", 1, CHOOSES],
   ["AttentionPanel.tsx", 1, CHOOSES],
-  ["CadenceMenu.tsx", 1, BARE],
-  ["CandidateReview.tsx", 2, BARE],
-  ["Detail.tsx", 1, BARE],
-  ["Experiments.tsx", 6, BARE],
-  ["FirstRun.tsx", 1, BARE],
+  ["CadenceMenu.tsx", 1, NOT_MIGRATED],
+  ["CandidateReview.tsx", 2, NOT_MIGRATED],
+  ["Detail.tsx", 1, NOT_MIGRATED],
+  ["Experiments.tsx", 6, NOT_MIGRATED],
+  ["FirstRun.tsx", 1, NOT_MIGRATED],
   ["HighlightBar.tsx", 1, CHOOSES],
-  ["HomeInterrupt.tsx", 3, BARE],
-  ["Inbox.tsx", 1, BARE],
-  ["LooseEnds.tsx", 25, BARE],
+  ["HomeInterrupt.tsx", 3, NOT_MIGRATED],
+  ["Inbox.tsx", 1, NOT_MIGRATED],
+  ["LooseEnds.tsx", 25, NOT_MIGRATED],
   ["MuteRules.tsx", 1, CHOOSES],
-  ["Origins.tsx", 1, BARE],
-  ["PositionHistory.tsx", 4, BARE],
-  ["QuestionMap.tsx", 1, BARE],
-  ["Reader.tsx", 1, BARE],
-  ["Readings.tsx", 1, BARE],
-  ["Resurfaced.tsx", 3, BARE],
-  ["ReviewLinks.tsx", 1, BARE],
-  ["ScoutActivity.tsx", 8, BARE],
-  ["ScoutDropped.tsx", 4, BARE],
-  ["ScoutQueue.tsx", 15, BARE],
-  ["UnmatchedPanel.tsx", 1, BARE],
+  ["Origins.tsx", 1, NOT_MIGRATED],
+  ["PositionHistory.tsx", 4, NOT_MIGRATED],
+  ["QuestionMap.tsx", 1, NOT_MIGRATED],
+  ["Reader.tsx", 1, NOT_MIGRATED],
+  ["Readings.tsx", 1, NOT_MIGRATED],
+  ["Resurfaced.tsx", 3, NOT_MIGRATED],
+  ["ReviewLinks.tsx", 1, NOT_MIGRATED],
+  ["ScoutActivity.tsx", 8, NOT_MIGRATED],
+  ["ScoutDropped.tsx", 4, NOT_MIGRATED],
+  ["ScoutQueue.tsx", 15, NOT_MIGRATED],
+  ["UnmatchedPanel.tsx", 1, NOT_MIGRATED],
 ].map(([file, count, reason]) => ({ file, count, reason }));
 
 // The primitives themselves are where the bare elements live.
@@ -195,7 +196,7 @@ export function lintMarkup(src, file = "<tsx>", allowed = []) {
   // Block and line comments, newlines kept so line numbers stay true.
   const text = src
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
-    .replace(/^\s*\/\/.*$/gm, "");
+    .replace(/^[ \t]*\/\/.*$/gm, "");
   const found = [...text.matchAll(/<(button|fieldset)\b/g)].map((m) => ({
     tag: m[1],
     line: text.slice(0, m.index).split("\n").length,
