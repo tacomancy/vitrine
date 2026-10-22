@@ -11,13 +11,13 @@ import { useEffect, useRef, useState } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
-import { MutedView, MuteOffer, ruleWords } from "./MuteRules";
+import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { hashOf } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
-import { SegmentedControl } from "./Form";
+import { Button, SegmentedControl } from "./Form";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
@@ -123,6 +123,7 @@ export function ScoutQueue({
   // taken the place of the stack (ADR 0044 decision 4).
   const [muting, setMuting] = useState<Card | null>(null);
   const [mutedOpen, setMutedOpen] = useState(arrivedOnMuted);
+  const [byNameOpen, setByNameOpen] = useState(false);
   // The one line holds the latest thing that happened, of two kinds that are
   // heard differently: what was done is `said`, a polite status; what the core
   // turned down is `refusal`, an alert (ADR 0033 decision 1 and its 2026-10-15
@@ -593,6 +594,13 @@ export function ScoutQueue({
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
+        <Button
+          tier="toggle"
+          aria-pressed={byNameOpen}
+          onClick={() => setByNameOpen((was) => !was)}
+        >
+          Mute by name
+        </Button>
         <button
           type="button"
           onClick={() => setForm({ edit: null, values: null })}
@@ -822,6 +830,16 @@ export function ScoutQueue({
             )}
           </div>
         )}
+      {form === null && byNameOpen && (
+        <MuteByName
+          onSaved={(rule) => {
+            setByNameOpen(false);
+            acknowledge(`Muted ${ruleWords(rule)}.`);
+            void reread();
+          }}
+          onRefused={refuse}
+        />
+      )}
       {form === null && mutedOpen && muted.data !== undefined && (
         <MutedView
           rules={muted.data.rules}

@@ -105,6 +105,23 @@ export type OpenAlexFound = {
   creditsLeft: number | null;
 };
 
+/** A venue or publisher a name search found, labelled so near-identical names can be told apart (ADR 0051 decision 9). */
+export type NameResult = {
+  /** The short OpenAlex ID (`S…` or `P…`) a rule stores beside the name. */
+  id: string;
+  name: string;
+  /** A venue's publisher; null for a publisher result and where OpenAlex gave none. */
+  publisher: string | null;
+  /** A venue's linking ISSN, else its first; null for a publisher and where OpenAlex gave none. */
+  issn: string | null;
+  worksCount: number;
+};
+
+export type OpenAlexNames = {
+  results: NameResult[];
+  creditsLeft: number | null;
+};
+
 export type OpenAlexClient = {
   /**
    * Journal and conference work that is not retracted and matches `search`
@@ -117,6 +134,15 @@ export type OpenAlexClient = {
     window: { from: Date; to: Date } | null,
     options?: { limit: number }
   ) => Promise<OpenAlexFound>;
+  /**
+   * Published venues (journals and conferences) or publishers whose name
+   * matches. One list call of 10 credits, sent only when asked: nothing here
+   * runs as a name is typed (ADR 0051 decision 9).
+   */
+  searchNames: (
+    kind: "venue" | "publisher",
+    name: string
+  ) => Promise<OpenAlexNames>;
   /**
    * How many works the Terms match in each month (`YYYY-MM`), in the order
    * asked. One count per month, so a different growth definition recomputes
@@ -325,8 +351,44 @@ export function createOpenAlexClient({
     };
   };
 
+  const searchNames: OpenAlexClient["searchNames"] = async (kind, name) => {
+    const path = kind === "venue" ? "sources" : "publishers";
+    const params = new URLSearchParams({ search: name, "per-page": "25" });
+    if (kind === "venue") params.set("filter", "type:journal|conference");
+    // The endpoint names the works collection; the other collections are its siblings.
+    const base = endpoint.replace(/\/works$/, "");
+    const body = (await request(`${base}/${path}?${params.toString()}`)) as {
+      results?: unknown;
+    };
+    if (!Array.isArray(body?.results)) {
+      throw new OpenAlexError("parse", "the answer carried no results");
+    }
+    return {
+      results: body.results.flatMap((raw) => {
+        const r = rec(raw);
+        const id = openAlexId(r["id"]);
+        const found = text(r["display_name"]);
+        if (id === null || found === null) return [];
+        const issns = Array.isArray(r["issn"]) ? r["issn"] : [];
+        const works = r["works_count"];
+        return [
+          {
+            id,
+            name: found,
+            publisher: text(r["host_organization_name"]),
+            issn: text(r["issn_l"]) ?? text(issns[0]),
+            worksCount:
+              typeof works === "number" && Number.isFinite(works) ? works : 0,
+          },
+        ];
+      }),
+      creditsLeft,
+    };
+  };
+
   return {
     searchWorks,
+    searchNames,
     pausedFor: () =>
       clock.now() < reservedUntil ? reservedUntil - clock.now() : null,
     monthlyCounts: async (terms, months) => {

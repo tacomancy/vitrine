@@ -464,3 +464,175 @@ describe("arriving on the muted list from Scout Activity (#649)", () => {
     expect(list.textContent).toContain("Held by author");
   });
 });
+
+describe("Mute by name (#807, ADR 0051 decision 9)", () => {
+  const venues = {
+    outcome: "found" as const,
+    creditsLeft: 900,
+    results: [
+      {
+        id: "S1",
+        name: "Journal of Sleep",
+        publisher: "Sleep Press",
+        issn: "0000-0001",
+        worksCount: 12345,
+      },
+      {
+        id: "S2",
+        name: "Journal of Sleep",
+        publisher: "Other House",
+        issn: "0000-0002",
+        worksCount: 87,
+      },
+    ],
+  };
+
+  const opened = async (more: Record<string, unknown>) => {
+    renderApp(answers(more));
+    await inHand();
+    fireEvent.click(screen.getByRole("button", { name: "Mute by name" }));
+    return await screen.findByRole("group", { name: "Mute by name" });
+  };
+  const typeName = (form: HTMLElement, value: string) =>
+    fireEvent.change(within(form).getByRole("textbox", { name: "Name" }), {
+      target: { value },
+    });
+
+  it("searches only on a press of the button or enter, never as the name is typed", async () => {
+    const search = vi.fn(() => venues);
+    const form = await opened({ "scouts.searchNames": search });
+    typeName(form, "sle");
+    typeName(form, "sleep");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(search).not.toHaveBeenCalled();
+
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+    expect(search).toHaveBeenCalledWith({ kind: "venue", name: "sleep" });
+
+    fireEvent.submit(within(form).getByRole("textbox", { name: "Name" }));
+    await waitFor(() => expect(search).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows each result's publisher, ISSN and works count, so near-identical names can be told apart", async () => {
+    const form = await opened({ "scouts.searchNames": () => venues });
+    typeName(form, "sleep");
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+
+    const list = await within(form).findByRole("list", { name: "Results" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows[0]!.textContent).toContain("Sleep Press");
+    expect(rows[0]!.textContent).toContain("ISSN 0000-0001");
+    expect(rows[0]!.textContent).toContain("12,345 works");
+    expect(rows[1]!.textContent).toContain("Other House");
+    expect(rows[1]!.textContent).toContain("ISSN 0000-0002");
+    expect(rows[1]!.textContent).toContain("87 works");
+    expect(form.textContent).toContain("900 credits left");
+  });
+
+  it("stores the venue's ID and name together once the rule is saved", async () => {
+    const reach = vi.fn(() => ({ count: 4 }));
+    const mute = vi.fn(() => null);
+    const form = await opened({
+      "scouts.searchNames": () => venues,
+      "scouts.muteReach": reach,
+      "scouts.mute": mute,
+    });
+    typeName(form, "sleep");
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+    const rows = within(
+      await within(form).findByRole("list", { name: "Results" })
+    ).getAllByRole("listitem");
+    fireEvent.click(within(rows[1]!).getByRole("button", { name: /Mute/ }));
+
+    expect(
+      await screen.findByText(
+        /Mute venue “Journal of Sleep” \(by ID S2\)\. Saving it would mute 4 pending items/
+      )
+    ).toBeDefined();
+    const rule = { kind: "venue", value: "Journal of Sleep", id: "S2" };
+    expect(reach).toHaveBeenCalledWith(rule);
+    expect(mute).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+    await waitFor(() => expect(mute).toHaveBeenCalledWith(rule));
+    expect(await screen.findByRole("status")).toBeDefined();
+  });
+
+  it("searches publishers when asked to, and stores a publisher rule with its ID", async () => {
+    const search = vi.fn(() => ({
+      outcome: "found",
+      creditsLeft: null,
+      results: [
+        {
+          id: "P9",
+          name: "MDPI",
+          publisher: null,
+          issn: null,
+          worksCount: 500000,
+        },
+      ],
+    }));
+    const mute = vi.fn(() => null);
+    const form = await opened({
+      "scouts.searchNames": search,
+      "scouts.muteReach": () => ({ count: 0 }),
+      "scouts.mute": mute,
+    });
+    fireEvent.click(within(form).getByRole("radio", { name: "Publisher" }));
+    typeName(form, "mdpi");
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+    await waitFor(() =>
+      expect(search).toHaveBeenCalledWith({ kind: "publisher", name: "mdpi" })
+    );
+    fireEvent.click(
+      await within(form).findByRole("button", { name: "Mute MDPI" })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Save rule" }));
+    await waitFor(() =>
+      expect(mute).toHaveBeenCalledWith({
+        kind: "publisher",
+        value: "MDPI",
+        id: "P9",
+      })
+    );
+  });
+
+  it("says a failed or spent search as such and not as no results", async () => {
+    const sentence =
+      "OpenAlex's daily budget is used up, so this Scout is waiting. It resets at midnight UTC.";
+    const form = await opened({
+      "scouts.searchNames": () => ({ outcome: "failed", sentence }),
+    });
+    typeName(form, "sleep");
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+
+    expect((await within(form).findByRole("alert")).textContent).toContain(
+      sentence
+    );
+    expect(form.textContent).not.toMatch(/no (venues|publishers|results)/i);
+  });
+
+  it("says when nothing was found", async () => {
+    const form = await opened({
+      "scouts.searchNames": () => ({
+        outcome: "found",
+        results: [],
+        creditsLeft: 500,
+      }),
+    });
+    typeName(form, "zzzz");
+    fireEvent.click(within(form).getByRole("button", { name: "Search" }));
+    expect(await within(form).findByText(/No venues found/)).toBeDefined();
+  });
+
+  it("will not search for an empty name", async () => {
+    const search = vi.fn(() => venues);
+    const form = await opened({ "scouts.searchNames": search });
+    const button = within(form).getByRole("button", { name: "Search" });
+    expect(button).toHaveProperty("disabled", true);
+    fireEvent.submit(within(form).getByRole("textbox", { name: "Name" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(search).not.toHaveBeenCalled();
+  });
+});
