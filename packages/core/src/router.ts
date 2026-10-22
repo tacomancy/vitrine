@@ -402,6 +402,7 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
 const muteInput = z.object({
   kind: z.enum(MUTE_KINDS),
   value: z.string(),
+  id: z.string().optional(),
 });
 
 /** The one Provider there is (ADR 0017 decision 1): an id for any other is refused at the door. */

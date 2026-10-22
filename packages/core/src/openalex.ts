@@ -80,6 +80,12 @@ export type OpenAlexWork = {
   published: string;
   venue: string | null;
   venueType: "journal" | "conference" | null;
+  /** The venue's OpenAlex source ID (`S…`), which a venue Mute rule matches on when it has one (ADR 0051 decision 8). */
+  venueId: string | null;
+  /** The venue's publisher and every parent above it (`P…`), so a rule on a parent catches its imprints. Empty when OpenAlex named none. */
+  publisherLineage: string[];
+  /** The name of `publisherLineage[0]`, which a card shows beside the ID it would mute. Null when OpenAlex gave none. */
+  publisherName: string | null;
   /** Lower-cased, without the `doi.org` prefix. */
   doi: string | null;
   /** The primary location's landing page, else the DOI link, else OpenAlex's own id. */
@@ -413,6 +419,9 @@ function readWork(raw: unknown): OpenAlexWork {
     published: text(w["publication_date"]) ?? "",
     venue: text(source["display_name"]),
     venueType: type === "journal" || type === "conference" ? type : null,
+    venueId: openAlexId(source["id"]),
+    publisherLineage: lineageOf(source),
+    publisherName: publisherNameOf(source),
     doi:
       doiLink === null
         ? null
@@ -421,6 +430,30 @@ function readWork(raw: unknown): OpenAlexWork {
     abstract: abstractOf(w["abstract_inverted_index"]),
     arxivId: arxivIdOfLocations(w["locations"]),
   };
+}
+
+/** `https://openalex.org/S123` and `S123` are one ID; rules and rows keep the short form. */
+export function openAlexId(value: unknown): string | null {
+  const id = text(value)?.replace(/^https?:\/\/openalex\.org\//i, "");
+  return id === undefined || id === null || id === "" ? null : id;
+}
+
+function publisherNameOf(source: Raw): string | null {
+  const names = source["host_organization_lineage_names"];
+  return (
+    (Array.isArray(names) ? text(names[0]) : null) ??
+    text(source["host_organization_name"])
+  );
+}
+
+function lineageOf(source: Raw): string[] {
+  const lineage = Array.isArray(source["host_organization_lineage"])
+    ? (source["host_organization_lineage"] as unknown[])
+    : [source["host_organization"]];
+  return lineage.flatMap((p) => {
+    const id = openAlexId(p);
+    return id === null ? [] : [id];
+  });
 }
 
 /** OpenAlex ships an abstract as word → positions; sorting the positions gives the text back. Absent stays empty. */

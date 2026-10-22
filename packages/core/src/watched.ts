@@ -47,6 +47,11 @@ export type Arrival = {
   venue: string | null;
   /** Only an OpenAlex work says what kind of venue it was published in. */
   venueType?: "journal" | "conference" | null;
+  /** Likewise the OpenAlex source ID and publisher lineage Mute rules match on (ADR 0051 decision 8). */
+  venueId?: string | null;
+  publisherLineage?: string[];
+  /** The name of the lineage's first publisher; stored so the card can offer the rule by name without a second fetch (ADR 0051 decision 8). */
+  publisherName?: string | null;
   abstract: string;
   url: string;
 };

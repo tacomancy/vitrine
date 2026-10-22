@@ -527,6 +527,9 @@ async function readOpenAlex(
       published: w.published,
       venue: w.venue,
       venueType: w.venueType,
+      venueId: w.venueId,
+      publisherLineage: w.publisherLineage,
+      publisherName: w.publisherName,
       abstract: w.abstract,
       url: w.url,
     })),
@@ -579,8 +582,8 @@ function arrive(
   const at = iso(deps.now());
   const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
-    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, abstract, url, lane, state, first_seen, stub_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
@@ -619,6 +622,11 @@ function arrive(
           item.published,
           item.venue,
           item.venueType ?? null,
+          item.venueId ?? null,
+          item.publisherLineage === undefined
+            ? null
+            : JSON.stringify(item.publisherLineage),
+          item.publisherName ?? null,
           item.abstract,
           item.url,
           scout.lane,
@@ -830,6 +838,10 @@ export type Card = {
   venue: string | null;
   /** What OpenAlex typed the venue; the card says *journal* or *conference* and never *peer-reviewed* (ADR 0051 decision 3). `null` for arXiv and pages. */
   venueType: "journal" | "conference" | null;
+  /** The venue's OpenAlex source ID; a venue Mute rule built from the card carries it (ADR 0051 decision 8). `null` for arXiv and pages. */
+  venueId: string | null;
+  /** The venue's own publisher, the first of its lineage, which a publisher Mute rule would carry; the name is `null` when OpenAlex gave none. */
+  publisher: { id: string; name: string | null } | null;
   abstract: string;
   url: string;
   doi: string | null;
@@ -878,6 +890,13 @@ export type RankSignal =
   | { kind: "questions"; count: number };
 
 /** Review's sort: Rank by default, or `newest` for the order the stack has always had. */
+/** The venue's own publisher is the lineage's first; a row with no lineage has none to offer. */
+function publisherOf(row: ProposalRow): Card["publisher"] {
+  if (row.publisher_lineage === null) return null;
+  const [id] = JSON.parse(row.publisher_lineage) as string[];
+  return id === undefined ? null : { id, name: row.publisher_name };
+}
+
 export type QueueSort = "rank" | "newest";
 
 type ProposalRow = {
@@ -889,6 +908,10 @@ type ProposalRow = {
   published: string;
   venue: string | null;
   venue_type: "journal" | "conference" | null;
+  venue_source_id: string | null;
+  /** JSON list of publisher IDs, the venue's own first. */
+  publisher_lineage: string | null;
+  publisher_name: string | null;
   abstract: string;
   url: string;
   lane: "review" | "skim";
@@ -1140,6 +1163,8 @@ async function readCards(
       published: row.published,
       venue: row.venue,
       venueType: row.venue_type,
+      venueId: row.venue_source_id,
+      publisher: publisherOf(row),
       abstract: row.abstract,
       url: row.url,
       doi: row.doi,

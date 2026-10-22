@@ -41,8 +41,12 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 9: the Proposal state `capped`, what a Scout's cap cut (#647).
  * 10: the `tags` run error kind and a run's `note` (#678).
  * 11: `proposals.venue_type`, journal or conference, from OpenAlex (#801).
+ * 12: `proposals.venue_source_id` and `publisher_lineage`, what a venue or
+ *    publisher Mute rule matches on (#806).
+ * 13: `proposals.publisher_name`, the first publisher's name, so a card can
+ *    offer a publisher rule by name (#806).
  */
-export const QUEUE_SCHEMA_VERSION = 11;
+export const QUEUE_SCHEMA_VERSION = 13;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -271,6 +275,21 @@ const PROPOSAL_VENUE_TYPE = `
 ALTER TABLE proposals ADD COLUMN venue_type TEXT;
 `;
 
+// The venue's OpenAlex source ID and the publisher lineage (a JSON list of
+// publisher IDs, the venue's own first), for Mute rules by ID (ADR 0051
+// decision 8). Null on every earlier row and on anything from arXiv or a page.
+const PROPOSAL_VENUE_IDS = `
+ALTER TABLE proposals ADD COLUMN venue_source_id TEXT;
+ALTER TABLE proposals ADD COLUMN publisher_lineage TEXT;
+`;
+
+// The name of the lineage's first publisher: the lineage holds IDs only, and
+// a Mute rule keeps a name beside its ID so the rule can be read back. Null on
+// every earlier row and wherever OpenAlex gave no name.
+const PROPOSAL_PUBLISHER_NAME = `
+ALTER TABLE proposals ADD COLUMN publisher_name TEXT;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -289,6 +308,8 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_CAPPED,
   SCOUT_RUN_TAGS,
   PROPOSAL_VENUE_TYPE,
+  PROPOSAL_VENUE_IDS,
+  PROPOSAL_PUBLISHER_NAME,
 ];
 
 /**

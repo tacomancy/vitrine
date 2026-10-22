@@ -28,6 +28,8 @@ const card: Card = {
   published: "2026-09-29T10:00:00Z",
   venue: null,
   venueType: null,
+  venueId: null,
+  publisher: null,
   abstract: "A short abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
   doi: null,

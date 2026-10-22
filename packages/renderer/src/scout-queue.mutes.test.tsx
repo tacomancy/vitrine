@@ -27,6 +27,8 @@ const card = (rest: Partial<Card> = {}): Card => ({
   published: "2026-09-29T10:00:00Z",
   venue: "Journal of Sleep",
   venueType: null,
+  venueId: null,
+  publisher: null,
   abstract: "A short abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
   doi: null,
@@ -192,6 +194,155 @@ describe("M on a card", () => {
     expect((await screen.findByRole("alert")).textContent).toContain(
       "mutes.yaml"
     );
+  });
+});
+
+describe("M on a card from OpenAlex (#806, ADR 0051 decision 8)", () => {
+  const published = card({
+    venueId: "S1",
+    publisher: { id: "P1", name: "Sleep Press" },
+  });
+
+  it("mutes the venue by its ID, keeps the name beside it, and offers the publisher", async () => {
+    const reach = vi.fn(() => ({ count: 2 }));
+    const mute = vi.fn(() => null);
+    renderApp(
+      answers({
+        "scouts.queue": [published],
+        "scouts.muteReach": reach,
+        "scouts.mute": mute,
+      })
+    );
+    fireEvent.keyDown(await inHand(), { key: "m" });
+    const offer = await screen.findByRole("group", { name: "Mute" });
+    expect(
+      within(offer).getByRole("button", { name: "Mute publisher Sleep Press" })
+    ).toBeDefined();
+
+    fireEvent.click(
+      within(offer).getByRole("button", { name: "Mute venue Journal of Sleep" })
+    );
+    expect(
+      await screen.findByText(
+        /Mute venue “Journal of Sleep” \(by ID S1\)\. Saving it would mute 2 pending items/
+      )
+    ).toBeDefined();
+    const rule = { kind: "venue", value: "Journal of Sleep", id: "S1" };
+    expect(reach).toHaveBeenCalledWith(rule);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+    await waitFor(() => expect(mute).toHaveBeenCalledWith(rule));
+  });
+
+  it("mutes the publisher by ID with its name, and says it is by ID", async () => {
+    const mute = vi.fn(() => null);
+    renderApp(
+      answers({
+        "scouts.queue": [published],
+        "scouts.muteReach": () => ({ count: 1 }),
+        "scouts.mute": mute,
+      })
+    );
+    fireEvent.keyDown(await inHand(), { key: "m" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mute publisher Sleep Press" })
+    );
+    expect(
+      await screen.findByText(/Mute publisher “Sleep Press” \(by ID P1\)\./)
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+    await waitFor(() =>
+      expect(mute).toHaveBeenCalledWith({
+        kind: "publisher",
+        value: "Sleep Press",
+        id: "P1",
+      })
+    );
+  });
+
+  it("names a publisher OpenAlex gave no name by its ID", async () => {
+    const mute = vi.fn(() => null);
+    renderApp(
+      answers({
+        "scouts.queue": [
+          card({ venueId: "S1", publisher: { id: "P1", name: null } }),
+        ],
+        "scouts.muteReach": () => ({ count: 1 }),
+        "scouts.mute": mute,
+      })
+    );
+    fireEvent.keyDown(await inHand(), { key: "m" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mute publisher P1" })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Save rule" }));
+    await waitFor(() =>
+      expect(mute).toHaveBeenCalledWith({
+        kind: "publisher",
+        value: "P1",
+        id: "P1",
+      })
+    );
+  });
+
+  it("offers no publisher for a card without one, and the venue stays by name", async () => {
+    const reach = vi.fn(() => ({ count: 1 }));
+    renderApp(answers({ "scouts.muteReach": reach }));
+    fireEvent.keyDown(await inHand(), { key: "m" });
+    const offer = await screen.findByRole("group", { name: "Mute" });
+    expect(
+      within(offer).queryByRole("button", { name: /publisher/ })
+    ).toBeNull();
+    fireEvent.click(
+      within(offer).getByRole("button", { name: "Mute venue Journal of Sleep" })
+    );
+    await waitFor(() =>
+      expect(reach).toHaveBeenCalledWith({
+        kind: "venue",
+        value: "Journal of Sleep",
+      })
+    );
+  });
+
+  it("shows an ID rule as by ID in the muted view, and deletes it with its ID", async () => {
+    const unmute = vi.fn(() => null);
+    const rule = {
+      kind: "publisher" as const,
+      value: "Sleep Press",
+      id: "P1",
+    };
+    renderApp(
+      answers({
+        "scouts.muted": {
+          rules: [rule, { kind: "venue", value: "Journal of Sleep" }],
+          problem: null,
+          items: [
+            {
+              id: 1,
+              title: "Held by publisher",
+              authors: ["A"],
+              venue: null,
+              url: "http://x.example",
+              lane: "review",
+              state: "pending",
+              rule,
+            },
+          ],
+        },
+        "scouts.unmute": unmute,
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "1 muted" }));
+    const rules = await screen.findByRole("list", { name: "Mute rules" });
+    const rows = within(rules).getAllByRole("listitem");
+    expect(rows[0]!.textContent).toContain(
+      "publisher “Sleep Press” (by ID P1)"
+    );
+    expect(rows[1]!.textContent).not.toContain("by ID");
+    fireEvent.click(
+      within(rows[0]!).getByRole("button", { name: /Delete rule/ })
+    );
+    await waitFor(() => expect(unmute).toHaveBeenCalledWith(rule));
   });
 });
 
