@@ -400,6 +400,9 @@ async function refusing<T>(work: Promise<T>): Promise<T> {
   }
 }
 
+/** An allowlist entry as the form sends it; the core refuses an ID that is not a source's. */
+const venueInput = z.object({ id: z.string(), name: z.string() });
+
 const muteInput = z.object({
   kind: z.enum(MUTE_KINDS),
   value: z.string(),
@@ -765,6 +768,7 @@ export const router = t.router({
           watching: z.enum(["arxiv", "openalex", "watched"]).optional(),
           query: z.string(),
           tags: z.array(z.string()).optional(),
+          venues: z.array(venueInput).optional(),
           cadence: z.enum(CADENCES),
           assigned: z.array(z.string()),
           lane: z.enum(["review", "skim"]),
@@ -812,10 +816,18 @@ export const router = t.router({
         z.object({
           query: z.string(),
           watching: z.enum(["arxiv", "openalex"]).optional(),
+          venues: z.array(venueInput).optional(),
         })
       )
       .mutation(async ({ ctx, input }) =>
-        refusing(tryQuery(await scoutDeps(ctx), input.query, input.watching))
+        refusing(
+          tryQuery(
+            await scoutDeps(ctx),
+            input.query,
+            input.watching,
+            input.venues
+          )
+        )
       ),
     // A query, not a mutation: it reads the Lexicon and spends no request.
     previewTags: t.procedure
@@ -842,10 +854,18 @@ export const router = t.router({
         z.object({
           tags: z.array(z.string()),
           watching: z.enum(["arxiv", "openalex"]).optional(),
+          venues: z.array(venueInput).optional(),
         })
       )
       .mutation(async ({ ctx, input }) =>
-        refusing(tryTags(await scoutDeps(ctx), input.tags, input.watching))
+        refusing(
+          tryTags(
+            await scoutDeps(ctx),
+            input.tags,
+            input.watching,
+            input.venues
+          )
+        )
       ),
     // *Try over the last run's window*: a mutation like `tryQuery`, since it
     // spends a request, and it writes nothing (ADR 0042 decision 5).

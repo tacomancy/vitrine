@@ -218,3 +218,81 @@ describe("Scout Activity's recorded query for an OpenAlex Scout", () => {
     expect(activity.result!.data.rows[0]!.lastQuery).toBeUndefined();
   });
 });
+
+describe("the venue allowlist from the form", () => {
+  const venues = [
+    { id: "S111", name: "Journal of Sleep" },
+    { id: "S222", name: "Sleep Medicine" },
+  ];
+
+  it("stores each venue's ID and name under filter.venues, and reads them back", async () => {
+    const { c, vault } = await opened();
+    const saved = await c.mutate<{ id: string }>("scouts.save", {
+      ...form,
+      venues,
+    });
+    expect(saved.error).toBeUndefined();
+    const text = await readFile(
+      join(vault, `.vitrine/scouts/${saved.result!.data.id}.yaml`),
+      "utf8"
+    );
+    expect(text).toContain("id: S111");
+    expect(text).toContain("name: Journal of Sleep");
+    const list = await c.query<{ scouts: Array<{ venues?: unknown }> }>(
+      "scouts.list"
+    );
+    expect(list.result!.data.scouts[0]?.venues).toEqual(venues);
+  });
+
+  it("takes the key away when the list is emptied, and leaves it when the save says nothing", async () => {
+    const { c, vault } = await opened();
+    const saved = await c.mutate<{ id: string }>("scouts.save", {
+      ...form,
+      venues,
+    });
+    const file = join(vault, `.vitrine/scouts/${saved.result!.data.id}.yaml`);
+    await c.mutate("scouts.save", {
+      ...form,
+      id: saved.result!.data.id,
+      lane: "skim",
+    });
+    expect(await readFile(file, "utf8")).toContain("id: S111");
+    await c.mutate("scouts.save", {
+      ...form,
+      id: saved.result!.data.id,
+      venues: [],
+    });
+    expect(await readFile(file, "utf8")).not.toContain("venues");
+  });
+
+  it("refuses an allowlist on an arXiv Scout", async () => {
+    const { c } = await opened();
+    const r = await c.mutate("scouts.save", {
+      ...form,
+      watching: "arxiv",
+      venues,
+    });
+    expect(r.error?.message).toContain("OpenAlex");
+  });
+
+  it("refuses an entry that is not a source ID", async () => {
+    const { c } = await opened();
+    const r = await c.mutate("scouts.save", {
+      ...form,
+      venues: [{ id: "S1,is_oa:true", name: "X" }],
+    });
+    expect(r.error?.message).toContain("venue");
+  });
+
+  it("tries the Query over only those venues", async () => {
+    const { c, requests } = await opened();
+    await c.mutate("scouts.tryQuery", {
+      query: "sleep",
+      watching: "openalex",
+      venues,
+    });
+    expect(requests[0]!.searchParams.get("filter")).toContain(
+      "primary_location.source.id:S111|S222"
+    );
+  });
+});

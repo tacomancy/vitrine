@@ -203,7 +203,7 @@ export type {
   Volume,
 } from "./scout-activity.js";
 export type { ReviewDepth, StackAge } from "./review-depth.js";
-export type { Scout, UnreadableScout } from "./scout-file.js";
+export type { Scout, UnreadableScout, Venue } from "./scout-file.js";
 export type {
   NamesFound,
   TriedPage,

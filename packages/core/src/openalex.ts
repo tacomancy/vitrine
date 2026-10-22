@@ -128,11 +128,13 @@ export type OpenAlexClient = {
    * (OpenAlex search syntax), published inside the window. Never a
    * repository (ADR 0051 decision 3). With no window and a `limit` it is
    * *try*: one request for that many works and the total, nothing paged.
+   * `venues` are OpenAlex source IDs: the request asks only those (ADR 0051
+   * decision 9).
    */
   searchWorks: (
     search: string,
     window: { from: Date; to: Date } | null,
-    options?: { limit: number }
+    options?: { limit?: number; venues?: readonly string[] }
   ) => Promise<OpenAlexFound>;
   /**
    * Published venues (journals and conferences) or publishers whose name
@@ -315,6 +317,9 @@ export function createOpenAlexClient({
       "primary_location.source.type:journal|conference",
       "is_retracted:false",
       `title_and_abstract.search:${search}`,
+      ...(options?.venues === undefined || options.venues.length === 0
+        ? []
+        : [`primary_location.source.id:${options.venues.join("|")}`]),
       ...(window === null
         ? []
         : [
@@ -323,6 +328,7 @@ export function createOpenAlexClient({
           ]),
     ].join(",");
     const perPage = options?.limit ?? WORKS_PAGE;
+    const tried = options?.limit !== undefined;
     const works: OpenAlexWork[] = [];
     let total = 0;
     for (let n = 1; works.length < WORKS_CEILING; n++) {
@@ -341,7 +347,7 @@ export function createOpenAlexClient({
       total = count;
       for (const raw of body.results) works.push(readWork(raw));
       if (body.results.length < perPage || works.length >= total) break;
-      if (options !== undefined) break;
+      if (tried) break;
     }
     return {
       works: works.slice(0, WORKS_CEILING),
