@@ -183,46 +183,6 @@ textarea.claim {
   gap: var(--space-2) var(--space-4);
 }
 
-.choice {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.option {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  line-height: 1.8;
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-/* The native radio stays for the keyboard; the label is what is drawn. */
-.option input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.option:hover {
-  color: var(--color-fg);
-}
-
-.option:has(input:checked) {
-  color: var(--color-fg);
-  background: var(--color-bg-sunken);
-}
-
-.option:has(input:focus-visible) {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
-}
-
 .verbs {
   margin-left: auto;
   display: flex;
@@ -366,7 +326,7 @@ textarea.claim {
   color: var(--color-fg);
 }
 
-/* The small line under the rule: quiet until wanted, never beside the word. */
+/* Carries the offer's alignment: the shared Button takes no class, so the span does. Quiet until wanted, never beside the word. */
 .offer {
   align-self: flex-start;
 }
