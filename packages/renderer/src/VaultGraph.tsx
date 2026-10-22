@@ -7,6 +7,7 @@ import { markOf } from "./kinds";
 import { listKeys } from "./listKeys";
 import { hashOf, LOOSE_ENDS, pushRoute } from "./router";
 import { useTRPC } from "./trpc";
+import { Button, SegmentedControl } from "./Form";
 import styles from "./Vault.module.css";
 import { useVaultStatusLines } from "./VaultStatusLines";
 
@@ -118,28 +119,25 @@ export function VaultGraph({ path }: { path: string }) {
   const scale = hops;
   return (
     <>
-      <fieldset className={styles.hops}>
-        <legend>Hops</legend>
-        {HOPS.map((h) => (
-          <label key={h}>
-            <input
-              type="radio"
-              name="graph-hops"
-              checked={hops === h}
-              onChange={() => {
-                setHops(h);
-                setChosen(0); // the list's length changes with the hops
-              }}
-            />
-            {h}
-          </label>
-        ))}
-      </fieldset>
+      <div className={styles.hops}>
+        <span className={styles.hopsLabel} aria-hidden="true">
+          Hops
+        </span>
+        <SegmentedControl
+          label="Hops"
+          options={HOPS.map((h) => ({ value: String(h), label: String(h) }))}
+          value={String(hops)}
+          onChange={(h) => {
+            setHops(HOPS.find((x) => String(x) === h) ?? 1);
+            setChosen(0); // the list's length changes with the hops
+          }}
+        />
+      </div>
       <div className={styles.hops} role="group" aria-label="Kinds">
         {CHIPS.map(({ key, label }) => (
-          <button
+          <Button
             key={key}
-            type="button"
+            tier="toggle"
             aria-pressed={!off.has(key)}
             onClick={() => {
               setOff((was) => {
@@ -151,7 +149,7 @@ export function VaultGraph({ path }: { path: string }) {
             }}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
       <svg
@@ -263,9 +261,8 @@ function OverflowPanel({ overflow }: { overflow: GraphOverflow[] }) {
           const mark = markOf(file.kind ?? "note");
           return (
             <li key={file.path}>
-              <button
-                type="button"
-                className={styles.overflowRow}
+              <Button
+                tier="listRow"
                 onClick={() => pushRoute({ surface: "vault", path: file.path })}
               >
                 <span className={styles.name}>{nameOf(file.path)}</span>{" "}
@@ -278,7 +275,7 @@ function OverflowPanel({ overflow }: { overflow: GraphOverflow[] }) {
                 <span className={styles.kindLine}>
                   {file.links} {file.links === 1 ? "link" : "links"}
                 </span>
-              </button>
+              </Button>
             </li>
           );
         })}

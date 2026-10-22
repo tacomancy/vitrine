@@ -5,6 +5,7 @@ import {
   useIngestSummary,
 } from "./ingest-line";
 import { useTRPC } from "./trpc";
+import { Button } from "./Form";
 import styles from "./VaultStatusLines.module.css";
 
 /**
@@ -76,14 +77,13 @@ export function useVaultStatusLines(): {
         {!watching.ok && (
           <WarningLine label="not watching">
             {watching.reason} ·{" "}
-            <button
-              type="button"
-              className={styles.retry}
+            <Button
+              tier="inline"
               disabled={rewatch.isPending}
               onClick={() => rewatch.mutate()}
             >
               retry
-            </button>
+            </Button>
           </WarningLine>
         )}
         {ingest !== null && (
@@ -91,13 +91,9 @@ export function useVaultStatusLines(): {
             {/* The panel opens only when something could not be re-matched;
                 a clean line is text and has nothing to open. */}
             {ingest.unmatched > 0 ? (
-              <button
-                type="button"
-                className={styles.retry}
-                onClick={openUnmatchedPanel}
-              >
+              <Button tier="inline" onClick={openUnmatchedPanel}>
                 {ingestLine(ingest)}
-              </button>
+              </Button>
             ) : (
               ingestLine(ingest)
             )}
@@ -106,14 +102,13 @@ export function useVaultStatusLines(): {
         {pdfFault !== null && (
           <WarningLine label="papers not arriving">
             {pdfFault.reason} ·{" "}
-            <button
-              type="button"
-              className={styles.retry}
+            <Button
+              tier="inline"
               disabled={checkAgain.isPending}
               onClick={() => checkAgain.mutate()}
             >
               check again
-            </button>
+            </Button>
           </WarningLine>
         )}
       </>

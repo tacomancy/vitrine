@@ -15,6 +15,7 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./Form";
 import styles from "./Vault.module.css";
 import { WarningLine } from "./VaultStatusLines";
 import { vaultMarkdown } from "./vault-grammar";
@@ -502,12 +503,12 @@ export function VaultEditor({
             <>
               {" "}
               ·{" "}
-              <button type="button" onClick={() => void keepMine()}>
+              <Button tier="inline" onClick={() => void keepMine()}>
                 keep mine
-              </button>{" "}
-              <button type="button" onClick={() => void takeDisk()}>
+              </Button>{" "}
+              <Button tier="inline" onClick={() => void takeDisk()}>
                 take the disk copy
-              </button>
+              </Button>
             </>
           )}
         </WarningLine>
