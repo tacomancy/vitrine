@@ -69,7 +69,7 @@
    separates nothing (ADR 0023). */
 .row {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
+  grid-template-columns: 140px minmax(0, 1fr);
   align-items: baseline;
   column-gap: var(--space-4);
   padding: var(--space-2) 0;
@@ -180,6 +180,15 @@
   margin: 0;
   font-size: var(--text-base);
   font-weight: 600;
+}
+
+/* Typed-field rows (Form's FieldRow) beside the fact rows; the padding makes up the
+   fact rows' own, so the two read as one list. */
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) 0;
 }
 
 /* A typed field and the action that sends it, side by side in a row. */

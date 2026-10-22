@@ -139,6 +139,10 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
             )}
           </dd>
         </div>
+      </dl>
+      {/* Typed fields are form rows, not facts: they sit outside the <dl>, which
+          may hold only term/description groups. */}
+      <div className={styles.entries}>
         <FieldRow label={present ? "New key" : "Store a key"}>
           {(field) => (
             <span className={styles.entry}>
@@ -190,6 +194,8 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
             </span>
           )}
         </FieldRow>
+      </div>
+      <dl className={styles.rows}>
         {waiting.data !== undefined && waiting.data.length > 0 && (
           <div className={styles.row}>
             <dt className={styles.label}>Waiting</dt>

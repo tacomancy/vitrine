@@ -146,6 +146,7 @@ input[inputmode="numeric"].input {
   font-family: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
+  /* An action is one phrase: it never wraps inside a narrow row. */
   white-space: nowrap;
 }
 
