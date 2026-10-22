@@ -45,6 +45,15 @@ const REFUSED = {
   sentence:
     "The model provider refused the stored key, so nothing was checked.",
 };
+const WAITING = {
+  kind: "waiting-scout" as const,
+  subject: "pub",
+  path: ".vitrine/scouts/pub.yaml",
+  title: "Published sleep",
+  voice: "not yet" as const,
+  sentence:
+    "OpenAlex's daily budget is used up, so this Scout is waiting. It resets at midnight UTC.",
+};
 const FILE = {
   kind: "unreadable-scout" as const,
   subject: "broken.yaml",
@@ -64,7 +73,7 @@ const ends = (): LooseEnds => ({
   groups: [
     {
       group: "Broken plumbing",
-      rows: [FAILED, CHANGED, NO_KEY, REFUSED, FILE],
+      rows: [FAILED, CHANGED, NO_KEY, REFUSED, WAITING, FILE],
     },
     { group: "Unfinished reading", rows: [STUB] },
   ],
@@ -134,6 +143,19 @@ describe("the structure change row", () => {
     await vi.waitFor(() => expect(pause).toHaveBeenCalled());
     expect(run).toHaveBeenCalledWith({ scoutId: "lab" });
     expect(pause).toHaveBeenCalledWith({ scoutId: "lab" });
+  });
+});
+
+describe("the waiting Scout row", () => {
+  it("says the wait in the not-yet voice, with no glyph, and offers nothing to fix", async () => {
+    open();
+    const item = await rowFor("Published sleep");
+    expect(within(item).getByText(WAITING.sentence)).toBeDefined();
+    expect(within(item).queryByRole("img", { name: "not working" })).toBeNull();
+    expect(
+      within(item).queryByRole("link", { name: "open Settings" })
+    ).toBeNull();
+    expect(within(item).queryByRole("button", { name: "run now" })).toBeNull();
   });
 });
 

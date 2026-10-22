@@ -121,6 +121,14 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         </p>
       ) : (
         <>
+          {attention.data.paused !== null && (
+            <p className={styles.stated} role="status">
+              paused to leave room for Scouts — resumes after the reset at
+              midnight UTC
+              {attention.data.due > 0 &&
+                `, ${plural(attention.data.due, "tag", "tags")} waiting`}
+            </p>
+          )}
           <Failures tags={tags} due={attention.data.due} />
           {attention.data.synced && attention.data.due > 0 && (
             <p className={styles.stated} role="status">

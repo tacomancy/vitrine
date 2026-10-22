@@ -19,6 +19,7 @@ import type {
   UnmatchedAnnotation,
   UnreadablePdf,
   UnreadableScoutFile,
+  WaitingScout,
 } from "core";
 import { formatAge } from "./age";
 import { FirstSlot, voiceOf } from "./FirstSlot";
@@ -308,6 +309,8 @@ function Row(props: {
       return <ChangedPage row={props.row} resolution={props.resolution} />;
     case "blocked-on-credentials":
       return <BlockedScout row={props.row} resolution={props.resolution} />;
+    case "waiting-scout":
+      return <WaitingForBudget row={props.row} resolution={props.resolution} />;
     case "unreadable-scout":
       return <UnreadableScout row={props.row} resolution={props.resolution} />;
     case "stub-without-pdf":
@@ -724,6 +727,35 @@ function BlockedScout({
       actions={
         <a className={styles.primary} href={hashOf(SETTINGS_CREDENTIALS)}>
           open Settings
+        </a>
+      }
+    />
+  );
+}
+
+/**
+ * A Scout waiting on OpenAlex's daily credits (#805): the *not yet* voice and
+ * no glyph, since it is not broken. Nothing to fix and nothing to press — the
+ * credits come back at the reset and the Scout asks again by itself — so the
+ * only way out is to open the Scouts it is among.
+ */
+function WaitingForBudget({
+  row,
+  resolution,
+}: {
+  row: WaitingScout;
+  resolution: Resolution;
+}) {
+  return (
+    <RowShell
+      meta="scout · waiting"
+      title={row.title}
+      href={hashOf(SCOUTS)}
+      why={row.sentence}
+      resolution={resolution}
+      actions={
+        <a className={styles.primary} href={hashOf(SCOUTS)}>
+          open
         </a>
       }
     />

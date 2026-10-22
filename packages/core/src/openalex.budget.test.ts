@@ -117,10 +117,10 @@ async function opened(
     now: () => new Date(now),
     openalex: {
       clock,
-      fetch: async (input) => {
+      fetch: (input) => {
         const url = urlOf(input);
         requests.push(url);
-        return answer(url, requests.length);
+        return Promise.resolve(answer(url, requests.length));
       },
     },
   });
@@ -258,9 +258,7 @@ describe("a spent budget is a Scout waiting, not a fault", () => {
       kind: "budget",
       sentence: SENTENCE,
     });
-    expect(health).not.toMatchObject({
-      sentence: expect.stringMatching(/\byou/i),
-    });
+    expect(SENTENCE).not.toMatch(/\byou/i);
   });
 
   it("is not a failed Scout in Loose Ends and not a fault in Scout Activity", async () => {
