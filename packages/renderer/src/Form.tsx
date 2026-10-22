@@ -248,9 +248,6 @@ export function SegmentedControl<T extends string>({
             name={name}
             className={styles.segmentRadio}
             checked={value === option.value}
-            autoFocus={
-              autoFocus && (chosen === -1 ? index === 0 : index === chosen)
-            }
             // One Tab stop: the chosen segment, or the first when none is.
             tabIndex={(chosen === -1 ? index === 0 : index === chosen) ? 0 : -1}
             onChange={() => onChange(option.value)}
