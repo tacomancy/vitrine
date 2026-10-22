@@ -3,19 +3,6 @@
   cursor: default;
 }
 
-/* *retry* reads as part of its line, not as a control demanding a click. */
-.retry {
-  all: unset;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.retry:focus-visible {
-  outline: 1px solid var(--color-fg-muted);
-  outline-offset: 2px;
-}
-
 /* A line the vault could not keep: its glyph and label in the one warm
    colour, never red (prototype 12); the reason stays in the footer's grey. */
 .warning {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { PdfFolder, Vault, Watching } from "core";
 import { useEffect } from "react";
+import { Button } from "./Form";
 import { PROVIDER, WhatItTalksTo } from "./Credentials";
 import { voiceOf } from "./FirstSlot";
 import { hashOf, pushRoute, SETTINGS } from "./router";
@@ -75,21 +76,12 @@ export function Settings({
                     </span>
                   )}
                 </span>
-                <button
-                  type="button"
-                  className={styles.action}
-                  onClick={() => reveal.mutate({ folder: "vault" })}
-                >
+                <Button onClick={() => reveal.mutate({ folder: "vault" })}>
                   Reveal in Finder
-                </button>
-                <button
-                  type="button"
-                  className={styles.action}
-                  onClick={() => pick.mutate()}
-                  disabled={pick.isPending}
-                >
+                </Button>
+                <Button onClick={() => pick.mutate()} disabled={pick.isPending}>
                   Open a different folder…
-                </button>
+                </Button>
               </dd>
             </div>
             <div className={styles.row}>
@@ -191,13 +183,7 @@ function WhereThePdfsAre({
               )}
             </span>
             {folder?.exists === true && (
-              <button
-                type="button"
-                className={styles.action}
-                onClick={onReveal}
-              >
-                Reveal in Finder
-              </button>
+              <Button onClick={onReveal}>Reveal in Finder</Button>
             )}
           </dd>
         </div>
