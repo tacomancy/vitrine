@@ -128,7 +128,7 @@ export function VaultGraph({ path }: { path: string }) {
           options={HOPS.map((h) => ({ value: String(h), label: String(h) }))}
           value={String(hops)}
           onChange={(h) => {
-            setHops(h === "2" ? 2 : 1);
+            setHops(HOPS.find((x) => String(x) === h) ?? 1);
             setChosen(0); // the list's length changes with the hops
           }}
         />
@@ -262,7 +262,7 @@ function OverflowPanel({ overflow }: { overflow: GraphOverflow[] }) {
           return (
             <li key={file.path}>
               <Button
-                tier="row"
+                tier="listRow"
                 onClick={() => pushRoute({ surface: "vault", path: file.path })}
               >
                 <span className={styles.name}>{nameOf(file.path)}</span>{" "}

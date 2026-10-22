@@ -743,7 +743,7 @@ The rules a form is drawn by, written from the New Scout form (#783, spec #782) 
 
 **Sections.** Fields that belong together sit under a heading in small letterspaced mono caps (`FormSection`, a fieldset, so it is announced as a group with its name). Sections are always open: nothing that governs a thing is collapsed. A hairline seam separates sections within the one surface and nowhere between surfaces, which stay apart by gutters (ADR 0023).
 
-**Buttons.** Two tiers. One primary per form, filled sapphire (BRAND law 2), and it is the one that submits. Everything else is sapphire text with no box (`Button`, `tier="secondary"`, which never submits), in the shapes a surface needs: `inline` inside a sentence, `tab` in a tab strip, `toggle` for an on/off chip, `row` when a list row is itself the button. No grey boxed button, and no bare `<button>` in the Vault and its editor (#791).
+**Buttons.** Two tiers. One primary per form, filled sapphire (BRAND law 2), and it is the one that submits. Everything else is sapphire text with no box (`Button`, `tier="secondary"`, which never submits), in the shapes a surface needs: `inline` inside a sentence, `tab` in a tab strip, `toggle` for an on/off chip, `listRow` when a list row is itself the button. No grey boxed button, and no bare `<button>` in the Vault and its editor (#791).
 
 **One-of-N.** Every choice of one among a few (Filter, lane, sort, grouping) is a `SegmentedControl` (`SegmentedRow` when it has a label column): real radios drawn as touching segments, so the arrow keys move and select, Tab leaves the group, and the group is announced with its name as a radiogroup. No fieldset of loose radios and no grey boxed toggle; the chosen segment is sapphire text on the surface.
 

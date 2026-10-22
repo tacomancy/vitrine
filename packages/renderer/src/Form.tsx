@@ -120,9 +120,9 @@ type ButtonProps = Omit<
    * One primary per form (filled sapphire); everything else is sapphire text.
    * The rest are the same unboxed text in the shapes a surface needs: `inline`
    * inside a sentence, `tab` in a tab strip, `toggle` for an on/off chip
-   * (`aria-pressed`), `row` for a list row that is itself the button.
+   * (`aria-pressed`), `listRow` for a list row that is itself the button.
    */
-  tier?: "primary" | "secondary" | "inline" | "tab" | "toggle" | "row";
+  tier?: "primary" | "secondary" | "inline" | "tab" | "toggle" | "listRow";
 };
 
 export function Button({ tier = "secondary", ...rest }: ButtonProps) {
@@ -130,7 +130,7 @@ export function Button({ tier = "secondary", ...rest }: ButtonProps) {
     <button
       // A button inside a form submits it; only the primary is meant to.
       type={tier === "primary" ? "submit" : "button"}
-      className={styles[tier === "row" ? "listRow" : tier]}
+      className={styles[tier]}
       {...rest}
     />
   );
