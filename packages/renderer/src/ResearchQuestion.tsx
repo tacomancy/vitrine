@@ -19,6 +19,7 @@ import {
 } from "react";
 import { formatAge } from "./age";
 import { AttachSource } from "./AttachSource";
+import { Button } from "./Form";
 import { FrameLines, usePageFrame } from "./page-frame";
 import { addressOf } from "./kinds";
 import { PositionHistory } from "./PositionHistory";
@@ -419,26 +420,14 @@ function Resolving({
       <span className={styles.actions}>
         {status === "open" ? (
           <>
-            <button
-              type="button"
-              className={styles.action}
-              disabled={busy}
-              onClick={() => ask("answered")}
-            >
+            <Button disabled={busy} onClick={() => ask("answered")}>
               resolve
-            </button>
-            <button
-              type="button"
-              className={styles.action}
-              disabled={busy}
-              onClick={() => ask("abandoned")}
-            >
+            </Button>
+            <Button disabled={busy} onClick={() => ask("abandoned")}>
               abandon
-            </button>
-            <button
+            </Button>
+            <Button
               ref={promoteRef}
-              type="button"
-              className={styles.action}
               disabled={busy}
               onClick={() => {
                 sharpening.clear();
@@ -446,12 +435,10 @@ function Resolving({
               }}
             >
               promote to hypothesis
-            </button>
+            </Button>
           </>
         ) : (
-          <button
-            type="button"
-            className={styles.action}
+          <Button
             disabled={busy}
             onClick={() => {
               resolving.clear();
@@ -459,7 +446,7 @@ function Resolving({
             }}
           >
             reopen
-          </button>
+          </Button>
         )}
       </span>
       {claim !== null && (
@@ -733,9 +720,7 @@ function Sources({
         empty={empty}
         actions={(line) => (
           <span className={styles.lineActions}>
-            <button
-              type="button"
-              className={styles.edit}
+            <Button
               disabled={busy}
               onClick={() => {
                 detaching.clear();
@@ -748,10 +733,8 @@ function Sources({
               }}
             >
               move to {otherSide(side)}
-            </button>
-            <button
-              type="button"
-              className={styles.edit}
+            </Button>
+            <Button
               disabled={busy}
               onClick={() => {
                 moving.clear();
@@ -759,7 +742,7 @@ function Sources({
               }}
             >
               detach
-            </button>
+            </Button>
           </span>
         )}
       />
@@ -960,17 +943,15 @@ function Editable({
       action={
         present &&
         !editing && (
-          <button
+          <Button
             ref={editRef}
-            type="button"
-            className={styles.edit}
             onClick={() => {
               setBase({ hash, text });
               setDraft(text);
             }}
           >
             edit
-          </button>
+          </Button>
         )
       }
     >
@@ -1056,18 +1037,16 @@ function Threads({
         {threads.map((thread, i) => (
           <li key={i} className={styles.thread}>
             {thread.done !== null && (
-              <button
-                type="button"
+              <Button
                 role="checkbox"
                 aria-checked={thread.done}
                 aria-label={thread.text}
-                className={styles.box}
                 onClick={() =>
                   tick.mutate({ path, text: thread.text, done: !thread.done })
                 }
               >
                 {thread.done ? "☑" : "☐"}
-              </button>
+              </Button>
             )}
             <span className={thread.done === true ? styles.done : undefined}>
               {thread.text}
