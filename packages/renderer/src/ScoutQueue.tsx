@@ -1138,6 +1138,16 @@ function Proposal({
             </a>
           )}
         </dd>
+        {card.alsoOnArxiv !== null && (
+          <>
+            <dt>also on arXiv</dt>
+            <dd>
+              <a href={card.alsoOnArxiv} target="_blank" rel="noreferrer">
+                {card.alsoOnArxiv}
+              </a>
+            </dd>
+          </>
+        )}
       </dl>
       <RefusalLine refusal={refusal} />
       <p className={styles.abstract}>{card.abstract}</p>
