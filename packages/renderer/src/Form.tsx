@@ -184,8 +184,11 @@ export function SegmentedControl<T extends string>({
 }: SegmentedProps<T>) {
   const name = useId();
   const radios = useRef<(HTMLInputElement | null)[]>([]);
+  const chosen = options.findIndex((o) => o.value === value);
 
-  function onKeyDown(event: KeyboardEvent, at: number) {
+  function onKeyDown(event: KeyboardEvent, index: number) {
+    // Alt/Cmd+arrow are the browser's (back, forward), not ours.
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
     const step =
       event.key === "ArrowRight" || event.key === "ArrowDown"
         ? 1
@@ -194,7 +197,7 @@ export function SegmentedControl<T extends string>({
           : 0;
     if (step === 0) return;
     event.preventDefault();
-    const next = (at + step + options.length) % options.length;
+    const next = (index + step + options.length) % options.length;
     onChange(options[next]!.value);
     radios.current[next]?.focus();
   }
@@ -206,20 +209,20 @@ export function SegmentedControl<T extends string>({
       aria-labelledby={labelledBy}
       className={styles.segments}
     >
-      {options.map((option, at) => (
+      {options.map((option, index) => (
         <label key={option.value} className={styles.segment}>
           <input
             ref={(el) => {
-              radios.current[at] = el;
+              radios.current[index] = el;
             }}
             type="radio"
             name={name}
             className={styles.segmentRadio}
             checked={value === option.value}
-            // One Tab stop: the chosen segment.
-            tabIndex={value === option.value ? 0 : -1}
+            // One Tab stop: the chosen segment, or the first when none is.
+            tabIndex={(chosen === -1 ? index === 0 : index === chosen) ? 0 : -1}
             onChange={() => onChange(option.value)}
-            onKeyDown={(event) => onKeyDown(event, at)}
+            onKeyDown={(event) => onKeyDown(event, index)}
           />
           <span>{option.label}</span>
         </label>

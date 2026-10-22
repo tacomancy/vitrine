@@ -74,4 +74,14 @@ describe("SegmentedControl", () => {
     expect(tab).toBe(true);
     expect(radio("Rank").checked).toBe(true);
   });
+
+  it("leaves Alt+arrow to the browser", () => {
+    render(<Harness />);
+    const kept = fireEvent.keyDown(radio("Rank"), {
+      key: "ArrowLeft",
+      altKey: true,
+    });
+    expect(kept).toBe(true);
+    expect(radio("Rank").checked).toBe(true);
+  });
 });
