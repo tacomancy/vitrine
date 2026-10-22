@@ -51,6 +51,8 @@ export type OpenAlexWork = {
   venueId: string | null;
   /** The venue's publisher and every parent above it (`P…`), so a rule on a parent catches its imprints. Empty when OpenAlex named none. */
   publisherLineage: string[];
+  /** The name of `publisherLineage[0]`, which a card shows beside the ID it would mute. Null when OpenAlex gave none. */
+  publisherName: string | null;
   /** Lower-cased, without the `doi.org` prefix. */
   doi: string | null;
   /** The primary location's landing page, else the DOI link, else OpenAlex's own id. */
@@ -332,6 +334,7 @@ function readWork(raw: unknown): OpenAlexWork {
     venueType: type === "journal" || type === "conference" ? type : null,
     venueId: openAlexId(source["id"]),
     publisherLineage: lineageOf(source),
+    publisherName: publisherNameOf(source),
     doi:
       doiLink === null
         ? null
@@ -346,6 +349,14 @@ function readWork(raw: unknown): OpenAlexWork {
 export function openAlexId(value: unknown): string | null {
   const id = text(value)?.replace(/^https?:\/\/openalex\.org\//i, "");
   return id === undefined || id === null || id === "" ? null : id;
+}
+
+function publisherNameOf(source: Raw): string | null {
+  const names = source["host_organization_lineage_names"];
+  return (
+    (Array.isArray(names) ? text(names[0]) : null) ??
+    text(source["host_organization_name"])
+  );
 }
 
 function lineageOf(source: Raw): string[] {

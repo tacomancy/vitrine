@@ -42,6 +42,7 @@ const work = (
       display_name: venue,
       type: "journal",
       host_organization: `https://openalex.org/${lineage[0]}`,
+      host_organization_name: `Press ${lineage[0]}`,
       host_organization_lineage: lineage.map(
         (p) => `https://openalex.org/${p}`
       ),
@@ -86,6 +87,7 @@ async function opened(results: Work[], mutes?: string) {
       (await read<Card[]>("scouts.queue", { sort: "newest" }))
         .map((card) => card.title)
         .sort(),
+    cards: () => read<Card[]>("scouts.queue", { sort: "newest" }),
     muted: () => read<Muted>("scouts.muted"),
     reach: async (rule: Record<string, string>) =>
       (await read<{ count: number }>("scouts.muteReach", rule)).count,
@@ -140,6 +142,52 @@ describe("a venue rule that carries an OpenAlex source ID", () => {
     expect((await q.muted()).rules).toEqual([
       { kind: "venue", value: "A", id: "S1" },
     ]);
+  });
+});
+
+describe("what a card offers to mute by ID", () => {
+  it("carries the venue's source ID and its own publisher, id and name", async () => {
+    const q = await opened([work(1, "A", "S1", ["P2", "P1"])]);
+    const [card] = await q.cards();
+    expect(card!.venueId).toBe("S1");
+    expect(card!.publisher).toEqual({ id: "P2", name: "Press P2" });
+  });
+
+  it("offers the publisher by ID alone when OpenAlex gave no name", async () => {
+    const w = work(1, "A");
+    const source = (
+      w["primary_location"] as { source: Record<string, unknown> }
+    ).source;
+    delete source["host_organization_name"];
+    const [card] = await (await opened([w])).cards();
+    expect(card!.publisher).toEqual({ id: "P1", name: null });
+  });
+
+  it("offers neither for a work whose source gave no ID or publisher", async () => {
+    const [card] = await (
+      await opened([
+        {
+          ...work(1, "A"),
+          primary_location: { source: { display_name: "A", type: "journal" } },
+        },
+      ])
+    ).cards();
+    expect(card!.venueId).toBeNull();
+    expect(card!.publisher).toBeNull();
+  });
+
+  it("is what a rule built from the card catches", async () => {
+    const q = await opened([
+      work(1, "A", "S1", ["P2", "P1"]),
+      work(2, "B", "S2"),
+    ]);
+    const [card] = (await q.cards()).filter((c) => c.title === "Work 1");
+    await q.mute({
+      kind: "publisher",
+      value: card!.publisher!.name!,
+      id: card!.publisher!.id,
+    });
+    expect(await q.titles()).toEqual(["Work 2"]);
   });
 });
 

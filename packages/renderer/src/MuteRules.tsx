@@ -4,8 +4,13 @@ import { useEffect, useState } from "react";
 import styles from "./ScoutQueue.module.css";
 import { useTRPC } from "./trpc";
 
-/** A rule in words, the same way wherever it is named. */
-export const ruleWords = (rule: MuteRule) => `${rule.kind} “${rule.value}”`;
+/** A rule in words, the same way wherever it is named; one that matches by an OpenAlex ID says so. */
+export const ruleWords = (rule: MuteRule) =>
+  `${rule.kind} “${rule.value}”${rule.id === undefined ? "" : ` (by ID ${rule.id})`}`;
+
+/** OpenAlex does not always name a publisher; its ID is then the name. */
+const publisherName = (publisher: NonNullable<Card["publisher"]>) =>
+  publisher.name ?? publisher.id;
 
 const pendingItems = (count: number) =>
   count === 0
@@ -14,7 +19,8 @@ const pendingItems = (count: number) =>
 
 /**
  * `M` on a card (ADR 0044 decision 4): the rules the card offers — each of its
- * authors, its venue if it has one, a keyword typed in — and, once one is
+ * authors, its venue if it has one, its publisher if it has one, a keyword
+ * typed in — and, once one is
  * chosen, how many pending items saving it would hold. Nothing is written
  * until *Save rule*; the core owns what a rule catches, so the count is asked
  * and never worked out here.
@@ -83,9 +89,32 @@ export function MuteOffer({
               <button
                 type="button"
                 aria-label={`Mute venue ${card.venue}`}
-                onClick={() => setChoice({ kind: "venue", value: card.venue! })}
+                onClick={() =>
+                  setChoice({
+                    kind: "venue",
+                    value: card.venue!,
+                    // The name stays beside the ID so the rule reads back in words;
+                    // with an ID the rule survives the venue being spelled another way.
+                    ...(card.venueId === null ? {} : { id: card.venueId }),
+                  })
+                }
               >
                 Mute venue {card.venue}
+              </button>
+            )}
+            {card.publisher !== null && (
+              <button
+                type="button"
+                aria-label={`Mute publisher ${publisherName(card.publisher)}`}
+                onClick={() =>
+                  setChoice({
+                    kind: "publisher",
+                    value: publisherName(card.publisher!),
+                    id: card.publisher!.id,
+                  })
+                }
+              >
+                Mute publisher {publisherName(card.publisher)}
               </button>
             )}
           </p>
