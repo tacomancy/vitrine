@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TriedQuery } from "./scout-form.js";
@@ -161,7 +161,6 @@ describe("try for OpenAlex", () => {
 describe("the compiled query shown for OpenAlex Tags", () => {
   it("is the OpenAlex search, not arXiv's", async () => {
     const vault = await fixtureCopy("obsidian-vault");
-    const { writeFile, mkdir } = await import("node:fs/promises");
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     await writeFile(
       join(vault, ".vitrine/lexicon.json"),
@@ -177,5 +176,45 @@ describe("the compiled query shown for OpenAlex Tags", () => {
     expect(r.result!.data.query).toBe(
       'filter=title_and_abstract.search:("alpha")'
     );
+  });
+});
+
+describe("Scout Activity's recorded query for an OpenAlex Scout", () => {
+  it("is what the newest run sent, not what the Tags would compile to now", async () => {
+    const { c, vault } = await opened();
+    await mkdir(join(vault, ".vitrine"), { recursive: true });
+    await writeFile(
+      join(vault, ".vitrine/lexicon.json"),
+      JSON.stringify({ ml: { seeds: ["alpha"], excluded: [] } })
+    );
+    const saved = await c.mutate<{ id: string }>("scouts.save", {
+      ...form,
+      query: "",
+      tags: ["ml"],
+    });
+    expect(saved.error).toBeUndefined();
+    await c.mutate("scouts.runNow", { scoutId: saved.result!.data.id });
+    // A Seed made after the run changes the next query, not this record.
+    await writeFile(
+      join(vault, ".vitrine/lexicon.json"),
+      JSON.stringify({ ml: { seeds: ["alpha", "beta"], excluded: [] } })
+    );
+
+    const activity = await c.query<{ rows: Array<{ lastQuery?: string }> }>(
+      "scouts.activity"
+    );
+
+    expect(activity.result!.data.rows[0]!.lastQuery).toBe(
+      'filter=title_and_abstract.search:("alpha")'
+    );
+  });
+
+  it("is absent before any run", async () => {
+    const { c } = await opened();
+    await c.mutate("scouts.save", form);
+    const activity = await c.query<{ rows: Array<{ lastQuery?: string }> }>(
+      "scouts.activity"
+    );
+    expect(activity.result!.data.rows[0]!.lastQuery).toBeUndefined();
   });
 });

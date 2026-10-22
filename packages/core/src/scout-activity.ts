@@ -184,6 +184,13 @@ export type ActivityRow =
        * gives that moment two wordings.
        */
       lastRun: { finished: string; ago: string } | null;
+      /**
+       * What the newest finished run sent, as the run recorded it (ADR 0051
+       * decision 12; spec #800 story 46): for a Tag Filter the compiled query
+       * of that day, which a later Lexicon edit does not change. Absent for a
+       * Scout with no run that asked anything, and for a page.
+       */
+      lastQuery?: string;
       health: Health;
       acceptRate: AcceptRate;
       /**
@@ -674,6 +681,7 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
                 finished: newest.finished,
                 ago: ago(now.getTime() - Date.parse(newest.finished)),
               },
+        ...recorded(deps.queue, scout),
         health: healthByScout.get(scout.id)!,
         acceptRate: acceptRateOf(
           scout,
@@ -710,4 +718,18 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
     ),
     dropped: droppedRows(dropped),
   };
+}
+
+/** The query the newest finished run of a Structured Scout recorded; a page records its address, which the row already shows. */
+function recorded(
+  queue: DatabaseSync,
+  scout: Scout
+): { lastQuery: string } | Record<string, never> {
+  if (scout.source.kind === "watched") return {};
+  const run = queue
+    .prepare(
+      "SELECT query FROM scout_runs WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL ORDER BY id DESC LIMIT 1"
+    )
+    .get(scout.id) as { query: string } | undefined;
+  return run === undefined ? {} : { lastQuery: run.query };
 }
