@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "./Form";
 import type { CandidateLink, CandidateQuestion } from "core";
 import { useEffect, useRef, useState } from "react";
 import { useChosenInView } from "./chosen";
@@ -273,10 +274,7 @@ export function CandidateReview({
       </p>
       {lastRejected !== undefined && (
         <p className={styles.keys}>
-          <button type="button" onClick={undo}>
-            Undo reject
-          </button>{" "}
-          <kbd>⌘Z</kbd>
+          <Button onClick={undo}>Undo reject</Button> <kbd>⌘Z</kbd>
         </p>
       )}
       {refused !== null && (
@@ -284,11 +282,7 @@ export function CandidateReview({
           {refused}
         </p>
       )}
-      {settled && hasNext && (
-        <button type="button" className={styles.next} onClick={next}>
-          next question
-        </button>
-      )}
+      {settled && hasNext && <Button onClick={next}>next question</Button>}
     </section>
   );
 }

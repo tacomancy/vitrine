@@ -1,4 +1,4 @@
-import styles from "./ReviewLinks.module.css";
+import { Button } from "./Form";
 
 /** The row action that opens the review at a Question (#493). */
 export function ReviewLinks({
@@ -9,13 +9,8 @@ export function ReviewLinks({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={styles.review}
-      aria-label={`review links for ${question}`}
-      onClick={onClick}
-    >
+    <Button aria-label={`review links for ${question}`} onClick={onClick}>
       review links
-    </button>
+    </Button>
   );
 }

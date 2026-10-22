@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "./Form";
 import type {
   AmbiguousLinks,
   ConflictCopy,
@@ -390,13 +391,7 @@ function RowShell({
         )}
       </div>
       <div className={styles.actions}>
-        {resolved ? (
-          <button type="button" className={styles.action} onClick={onUndo}>
-            undo
-          </button>
-        ) : (
-          actions
-        )}
+        {resolved ? <Button onClick={onUndo}>undo</Button> : actions}
       </div>
     </li>
   );
@@ -423,9 +418,7 @@ function Stalled({
       resolution={resolution}
       actions={
         <>
-          <button type="button" className={styles.primary} onClick={onAttach}>
-            attach a source
-          </button>
+          <Button onClick={onAttach}>attach a source</Button>
           <Deliberate onDismiss={resolution.onDismiss} />
         </>
       }
@@ -475,11 +468,7 @@ function QuietHypothesis({
  * opened. Shared so no later row kind can ship without it.
  */
 function Deliberate({ onDismiss }: { onDismiss: () => void }) {
-  return (
-    <button type="button" className={styles.action} onClick={onDismiss}>
-      mark deliberate
-    </button>
-  );
+  return <Button onClick={onDismiss}>mark deliberate</Button>;
 }
 
 /**
@@ -611,22 +600,18 @@ function BrokenScout({
       resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
       actions={
         <>
-          <button
-            type="button"
-            className={styles.primary}
+          <Button
             disabled={run.isPending}
             onClick={() => run.mutate({ scoutId: row.subject })}
           >
             run now
-          </button>
-          <button
-            type="button"
-            className={styles.action}
+          </Button>
+          <Button
             disabled={pause.isPending}
             onClick={() => pause.mutate({ scoutId: row.subject })}
           >
             pause
-          </button>
+          </Button>
           <a className={styles.action} href={hashOf(SCOUTS)}>
             open
           </a>
@@ -671,22 +656,18 @@ function ChangedPage({
               open the page
             </a>
           )}
-          <button
-            type="button"
-            className={styles.action}
+          <Button
             disabled={run.isPending}
             onClick={() => run.mutate({ scoutId: row.subject })}
           >
             run now
-          </button>
-          <button
-            type="button"
-            className={styles.action}
+          </Button>
+          <Button
             disabled={pause.isPending}
             onClick={() => pause.mutate({ scoutId: row.subject })}
           >
             pause
-          </button>
+          </Button>
         </>
       }
     />
@@ -832,16 +813,14 @@ function BareStub({
       actions={
         attached === null && (
           <>
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               onClick={() => {
                 setRefusal(undefined);
                 setChoosing(true);
               }}
             >
               attach to a stub
-            </button>
+            </Button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
         )
@@ -851,13 +830,9 @@ function BareStub({
         <ul aria-label="PDFs no Source names">
           {(waiting.data ?? []).map((pdf) => (
             <li key={pdf}>
-              <button
-                type="button"
-                className={styles.action}
-                onClick={() => attach.mutate({ pdf, stub: row.path })}
-              >
+              <Button onClick={() => attach.mutate({ pdf, stub: row.path })}>
                 {pdf.replace(/^.*\//, "")}
-              </button>
+              </Button>
             </li>
           ))}
           {waiting.data?.length === 0 && (
@@ -1032,26 +1007,22 @@ function NoSourcePdf({
       actions={
         !done && (
           <>
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               onClick={() => {
                 setRefusal(undefined);
                 setPicking(true);
               }}
             >
               attach to a stub
-            </button>
-            <button
-              type="button"
-              className={styles.primary}
+            </Button>
+            <Button
               onClick={() => {
                 setRefusal(undefined);
                 create.mutate({ pdf: row.path });
               }}
             >
               create a Source
-            </button>
+            </Button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
         )
@@ -1112,9 +1083,7 @@ function UnreadablePdfRow({
       actions={
         <>
           {answer?.readable !== true && (
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               disabled={retry.isPending}
               onClick={() => {
                 setRefusal(undefined);
@@ -1122,7 +1091,7 @@ function UnreadablePdfRow({
               }}
             >
               try again
-            </button>
+            </Button>
           )}
           <Deliberate onDismiss={resolution.onDismiss} />
         </>
@@ -1174,26 +1143,22 @@ function ConflictCopyRow({
       actions={
         outcome === null && (
           <>
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               disabled={resolve.isPending}
               onClick={() =>
                 resolve.mutate({ copy: row.path, resolution: "use" })
               }
             >
               use this copy
-            </button>
-            <button
-              type="button"
-              className={styles.primary}
+            </Button>
+            <Button
               disabled={resolve.isPending}
               onClick={() =>
                 resolve.mutate({ copy: row.path, resolution: "discard" })
               }
             >
               discard
-            </button>
+            </Button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
         )
@@ -1260,23 +1225,19 @@ function PdfMissingRow({
       actions={
         outcome === null && (
           <>
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               disabled={busy || row.candidates.length === 0}
               aria-expanded={choosing}
               onClick={() => setChoosing(!choosing)}
             >
               locate
-            </button>
-            <button
-              type="button"
-              className={styles.primary}
+            </Button>
+            <Button
               disabled={busy}
               onClick={() => detach.mutate({ source: row.path })}
             >
               detach
-            </button>
+            </Button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
         )
@@ -1286,14 +1247,12 @@ function PdfMissingRow({
         <ul className={styles.matches} aria-label="locate as">
           {row.candidates.map((c) => (
             <li key={c.path} className={styles.match}>
-              <button
-                type="button"
-                className={styles.action}
+              <Button
                 disabled={busy}
                 onClick={() => locate.mutate({ source: row.path, pdf: c.path })}
               >
                 {c.title}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -1429,38 +1388,24 @@ function UnmatchedChoices({
   const one = { source: row.path, annotations: [row.annotation] };
   return (
     <>
-      <button
-        type="button"
-        className={styles.primary}
+      <Button
         disabled={busy || row.candidates.length === 0}
         aria-expanded={choosing}
         onClick={() => setChoosing(!choosing)}
       >
         relink
-      </button>
-      <button
-        type="button"
-        className={styles.primary}
-        disabled={busy}
-        onClick={() => acts.drop.mutate(one)}
-      >
+      </Button>
+      <Button disabled={busy} onClick={() => acts.drop.mutate(one)}>
         drop the links
-      </button>
-      <button
-        type="button"
-        className={styles.primary}
-        disabled={busy}
-        onClick={() => acts.treat.mutate(one)}
-      >
+      </Button>
+      <Button disabled={busy} onClick={() => acts.treat.mutate(one)}>
         treat as new
-      </button>
+      </Button>
       {choosing && (
         <ul className={styles.matches} aria-label="relink to">
           {row.candidates.map((c) => (
             <li key={c.ref} className={styles.match}>
-              <button
-                type="button"
-                className={styles.action}
+              <Button
                 disabled={busy}
                 onClick={() =>
                   acts.relink.mutate({
@@ -1471,7 +1416,7 @@ function UnmatchedChoices({
                 }
               >
                 p.{c.page} · “{c.quote}”
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -1563,20 +1508,8 @@ function ChangedDocument({
         acts.outcome === null &&
         (asking === null ? (
           <>
-            <button
-              type="button"
-              className={styles.primary}
-              onClick={() => setAsking("drop")}
-            >
-              drop the links
-            </button>
-            <button
-              type="button"
-              className={styles.primary}
-              onClick={() => setAsking("treat")}
-            >
-              treat as new
-            </button>
+            <Button onClick={() => setAsking("drop")}>drop the links</Button>
+            <Button onClick={() => setAsking("treat")}>treat as new</Button>
             <Deliberate onDismiss={resolution.onDismiss} />
           </>
         ) : (
@@ -1586,23 +1519,15 @@ function ChangedDocument({
                 ? `drop the links on all ${count}?`
                 : `treat all ${count} as new?`}
             </span>
-            <button
-              type="button"
-              className={styles.primary}
+            <Button
               disabled={acts.drop.isPending || acts.treat.isPending}
               onClick={() =>
                 (asking === "drop" ? acts.drop : acts.treat).mutate(all)
               }
             >
               yes, all {count}
-            </button>
-            <button
-              type="button"
-              className={styles.action}
-              onClick={() => setAsking(null)}
-            >
-              cancel
-            </button>
+            </Button>
+            <Button onClick={() => setAsking(null)}>cancel</Button>
           </>
         ))
       }

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "./Form";
 import { useEffect } from "react";
 import { closeUnmatchedPanel, useUnmatchedPanelOpen } from "./ingest-line";
 import { UnmatchedRows } from "./LooseEnds";
@@ -41,13 +42,7 @@ function Panel() {
     >
       <header className={styles.header}>
         <h2 className={styles.title}>Could not be re-matched</h2>
-        <button
-          type="button"
-          className={styles.close}
-          onClick={closeUnmatchedPanel}
-        >
-          close
-        </button>
+        <Button onClick={closeUnmatchedPanel}>close</Button>
       </header>
       <div className={styles.body}>
         {ends.isError && (

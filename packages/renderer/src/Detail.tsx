@@ -1,4 +1,5 @@
 import type { ListedQuestion } from "core";
+import { Button } from "./Form";
 import styles from "./Detail.module.css";
 import {
   localDateTime,
@@ -54,16 +55,12 @@ export function Detail({
               <ul className={styles.sitting} aria-labelledby="sitting-label">
                 {others.map((other) => (
                   <li key={other.path}>
-                    <button
-                      type="button"
-                      className={styles.other}
-                      onClick={() => onSelect(other.path)}
-                    >
+                    <Button tier="listRow" onClick={() => onSelect(other.path)}>
                       <span className={styles.otherText}>{other.question}</span>
                       <span className={styles.otherWhen}>
                         {localTime(other.captured)}
                       </span>
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>

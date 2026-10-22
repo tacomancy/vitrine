@@ -1,4 +1,5 @@
 import type { Revision } from "core";
+import { Button } from "./Form";
 import { useState, type ReactNode } from "react";
 import {
   historyRows,
@@ -177,14 +178,12 @@ function Row({
                   Override, and a why added later would make it one that
                   nothing it came after has voided (the core refuses too). */}
               {explaining !== undefined && loud !== "override" && (
-                <button
-                  type="button"
-                  className={styles.addWhy}
+                <Button
                   aria-expanded={explaining.open === id}
                   onClick={() => explaining.toggle(id)}
                 >
                   + why
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -252,15 +251,14 @@ function Quiet({
       />
       <div className={styles.body}>
         {named && rail && <p className={styles.field}>{newest.field}</p>}
-        <button
-          type="button"
-          className={styles.trail}
+        <Button
+          tier="listRow"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
           <span className={styles.rule} aria-hidden="true" />
           {quietLabel(revisions)}
-        </button>
+        </Button>
         {open && (
           <ul className={styles.expanded}>
             {revisions.map((revision) => (
@@ -270,14 +268,12 @@ function Quiet({
                     {rail ? dayMonth(revision.at) : localDate(revision.at)}
                   </span>
                   {explaining !== undefined && (
-                    <button
-                      type="button"
-                      className={styles.addWhy}
+                    <Button
                       aria-expanded={explaining.open === idOf(revision)}
                       onClick={() => explaining.toggle(idOf(revision))}
                     >
                       + why
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <From from={revision.from} />

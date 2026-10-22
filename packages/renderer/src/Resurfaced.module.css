@@ -60,16 +60,6 @@
   color: var(--color-fg-muted);
 }
 
-.act {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--text-xs);
-  color: var(--color-link);
-  cursor: pointer;
-}
-
 .said {
   grid-column: 1 / -1;
   margin: 0;

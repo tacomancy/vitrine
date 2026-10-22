@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "./Form";
 import styles from "./FirstRun.module.css";
 import { useTRPC } from "./trpc";
 
@@ -26,14 +27,9 @@ export function FirstRun() {
           Your files stay plain Markdown on disk. Vitrine keeps its own state in
           one folder beside them.
         </p>
-        <button
-          type="button"
-          className={styles.action}
-          onClick={() => pick.mutate()}
-          disabled={pick.isPending}
-        >
+        <Button onClick={() => pick.mutate()} disabled={pick.isPending}>
           Open a vault
-        </button>
+        </Button>
         {pick.isError && (
           <p className={styles.message} role="alert">
             {pick.error.message}

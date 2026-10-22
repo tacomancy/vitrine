@@ -64,15 +64,3 @@
   font-size: var(--text-sm);
   color: var(--color-fg-muted);
 }
-
-.next {
-  align-self: flex-start;
-  font: inherit;
-  font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-raised);
-  color: var(--color-fg);
-  cursor: pointer;
-}

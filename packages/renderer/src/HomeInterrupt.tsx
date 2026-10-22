@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "./Form";
 import type { ActivityRow, ScoutRow } from "core";
 import styles from "./Home.module.css";
 import { RefusalLine } from "./refusal-line";
@@ -80,22 +81,18 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
               · found {row.volume.proposals} in the last 30 days
             </span>
             <span className={styles.acts}>
-              <button
-                type="button"
-                className={styles.act}
+              <Button
                 aria-label={`${row.name}: run now`}
                 onClick={() => acts.runNow(row)}
               >
                 run now
-              </button>
-              <button
-                type="button"
-                className={styles.act}
+              </Button>
+              <Button
                 aria-label={`${row.name}: pause`}
                 onClick={() => pause(row)}
               >
                 pause
-              </button>
+              </Button>
             </span>
             <Said name={row.name} id={row.id} acts={acts} />
           </li>
@@ -122,14 +119,12 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
             <span className={styles.brokenName}>{row.name}</span>
             <Said name={row.name} id={row.id} acts={acts} />
             <span className={styles.acts}>
-              <button
-                type="button"
-                className={styles.act}
+              <Button
                 aria-label={`${row.name}: undo`}
                 onClick={() => undo(row)}
               >
                 undo
-              </button>
+              </Button>
             </span>
           </li>
         ))}
