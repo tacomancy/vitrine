@@ -173,6 +173,7 @@ export function ScoutForm({
     ]
   );
   const page = watching === "watched";
+  const openalex = watching === "openalex";
   // A refused Save is the user's act turned down, so it is an alert, said where
   // their typing is with the form still open (ADR 0033 decision 1 and its
   // 2026-10-15 Update). Its look is the form's own register: no class, unstyled.
@@ -251,6 +252,9 @@ export function ScoutForm({
   const result = attempt.data;
   const pageResult = triedPage.data;
   const tryable = byTags ? tags.length > 0 : query.trim() !== "";
+  const where = openalex
+    ? "journals and conferences in OpenAlex"
+    : "all of arXiv";
   const needed = byTags ? "a Tag" : page ? "an Address" : "a Query";
   return (
     <form
@@ -275,8 +279,10 @@ export function ScoutForm({
           // changed it would turn one Scout's history into another's.
           note={
             scout === undefined
-              ? undefined
-              : `A Scout keeps its kind of source. To watch ${page ? "arXiv" : "a page"} instead, make a new Scout.`
+              ? openalex
+                ? OPENALEX_NOTE
+                : undefined
+              : `A Scout keeps its kind of source. To watch ${page ? "arXiv" : openalex ? "another source" : "a page"} instead, make a new Scout.`
           }
         >
           {(field) => (
@@ -287,10 +293,12 @@ export function ScoutForm({
               onChange={(e) => {
                 setWatching(e.target.value as FormValues["watching"]);
                 tried.reset();
+                triedTags.reset();
                 triedPage.reset();
               }}
             >
               <option value="arxiv">arXiv</option>
+              <option value="openalex">OpenAlex</option>
               <option value="watched">a web page</option>
             </Select>
           )}
@@ -309,6 +317,7 @@ export function ScoutForm({
         {byTags && (
           <TagsFilter
             chosen={tags}
+            source={openalex ? "openalex" : "arxiv"}
             onChange={(next) => {
               setTags(next);
               // What was tried was the old list.
@@ -364,8 +373,14 @@ export function ScoutForm({
               page
                 ? triedPage.mutate({ address: query })
                 : byTags
-                  ? triedTags.mutate({ tags })
-                  : tried.mutate({ query })
+                  ? triedTags.mutate({
+                      tags,
+                      watching: openalex ? "openalex" : "arxiv",
+                    })
+                  : tried.mutate({
+                      query,
+                      watching: openalex ? "openalex" : "arxiv",
+                    })
             }
           >
             Try
@@ -382,12 +397,14 @@ export function ScoutForm({
               )}
               {result?.outcome === "found" && result.total === 0 && (
                 <span role="status">
-                  0 results across all of arXiv for this query
+                  0 results across {where} for this query
                 </span>
               )}
               {result?.outcome === "found" && result.total > 0 && (
                 <span role="status">
-                  {result.total} results across all of arXiv
+                  {result.total} results across {where}
+                  {result.creditsLeft != null &&
+                    ` · ${result.creditsLeft.toLocaleString("en-US")} credits left today`}
                   <ol aria-label="First results" className={styles.titles}>
                     {result.titles.map((title, i) => (
                       <li key={i}>{title}</li>
@@ -511,6 +528,10 @@ export function ScoutForm({
     </form>
   );
 }
+
+/** ADR 0051 decision 3: the card says *journal* or *conference*, so a work found only as a preprint is not here, and that must not be read as a gap in the search. */
+const OPENALEX_NOTE =
+  "OpenAlex searches journals and conferences only. A work that only exists as a preprint will not appear; an arXiv Scout is where to find those.";
 
 /** What *try* learned about a page, in the words the Scout would use for it. */
 function PageResult({ result }: { result: TriedPage }) {
