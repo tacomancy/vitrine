@@ -144,13 +144,33 @@ describe("a venue rule that carries an OpenAlex source ID", () => {
 });
 
 describe("a name-only venue rule", () => {
-  it("still matches by name, and an ID rule falls back to the name for a Proposal with no ID", async () => {
+  it("still matches by name, whatever the Proposal's source ID", async () => {
     const q = await opened(
       [work(1, "Journal of Sleep"), work(2, "Journal of Sleep", "S2")],
       "venues:\n  - journal of sleep\n"
     );
     expect(await q.titles()).toEqual([]);
     expect((await q.muted()).problem).toBeNull();
+  });
+
+  it("is a different rule from an ID rule of the same name, so unmuting one leaves the other", async () => {
+    const q = await opened([work(1, "A"), work(2, "B", "S2")]);
+    await q.mute({ kind: "venue", value: "A" });
+    await q.mute({ kind: "venue", value: "A", id: "S2" });
+    await q.unmute({ kind: "venue", value: "A", id: "S2" });
+    expect(await q.titles()).toEqual(["Work 2"]);
+  });
+
+  it("is the fallback for an ID rule when the Proposal has no source ID", async () => {
+    const q = await opened([
+      {
+        ...work(1, "A"),
+        primary_location: { source: { display_name: "A", type: "journal" } },
+      },
+      work(2, "B", "S2"),
+    ]);
+    await q.mute({ kind: "venue", value: "a", id: "S9" });
+    expect(await q.titles()).toEqual(["Work 2"]);
   });
 });
 
@@ -185,6 +205,11 @@ describe("the mutes file", () => {
     const m = await q.muted();
     expect(m.problem).toContain('"source"');
     expect(await q.titles()).toEqual(["Work 1"]);
+  });
+
+  it("reads a venue written as a name alone as a name-only rule", async () => {
+    const q = await opened([work(1, "A")], "venues:\n  - name: A\n");
+    expect(await q.titles()).toEqual([]);
   });
 
   it("names a publisher entry with no id", async () => {

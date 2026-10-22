@@ -71,8 +71,14 @@ function entryOf(kind: MuteKind, raw: unknown): MuteRule | string {
   }
   const id = openAlexId(entry["id"]);
   const name = entry["name"];
-  if (id === null || (name !== undefined && typeof name !== "string")) {
-    return `${list} must each give an id${name === undefined ? "" : " and a name in text"}`;
+  if (name !== undefined && typeof name !== "string") {
+    return `${list} must each give a name in text`;
+  }
+  // A venue named without an id is the name-only rule it always was.
+  if (id === null) {
+    return kind === "venue" && name !== undefined
+      ? { kind, value: name }
+      : `${list} must each give an id`;
   }
   return { kind, value: name ?? id, id };
 }
@@ -142,6 +148,8 @@ export async function readMutes(vaultPath: string): Promise<ReadMutes> {
 }
 
 const fold = (text: string) => text.trim().toLowerCase();
+// A rule with an id and a name-only rule for the same name are two rules: unmuting one
+// must not delete the other, and they catch different Proposals.
 const same = (a: MuteRule, b: MuteRule) =>
   a.kind === b.kind &&
   (a.id !== undefined || b.id !== undefined

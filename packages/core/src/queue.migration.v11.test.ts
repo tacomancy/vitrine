@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { openQueue } from "./queue.js";
 
@@ -23,8 +22,6 @@ describe("the queue database, version 11 to 12", () => {
     first.exec("PRAGMA user_version = 11");
     first.close();
 
-    const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
-    db.close();
     const migrated = await openQueue(vault);
     expect(
       migrated
