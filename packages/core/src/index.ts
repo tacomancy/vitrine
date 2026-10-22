@@ -83,6 +83,7 @@ export type {
   StructureChange,
   BlockedOnCredentials,
   UnreadableScoutFile,
+  WaitingScout,
   StubWithoutPdf,
   UnreadablePdf,
   StalledResearchQuestion,

@@ -37,8 +37,8 @@ export type RunErrorKind =
 export type Health =
   /** `kind` is null for a Scout file that does not parse or could not be read: no run exists to carry one (ADR 0039 decision 7). */
   | { voice: "wrong"; kind: RunErrorKind | null; sentence: string }
-  /** `kind` is set only for a Scout waiting on a key, which Loose Ends draws as its own row. */
-  | { voice: "not yet"; sentence: string; kind?: "credentials" }
+  /** `kind` is set only for a Scout waiting on something that is not its fault, which Loose Ends draws as its own row: `credentials` for a key never stored, `budget` for OpenAlex's daily credits being used up. */
+  | { voice: "not yet"; sentence: string; kind?: "credentials" | "budget" }
   | { voice: "claim"; warrant: Warrant | null };
 
 /** A Quiet field's evidence: the three fragments, in the order they are read. */
@@ -165,6 +165,18 @@ export function isWaitingOnKey(
   return health.voice === "not yet" && health.kind === "credentials";
 }
 
+/**
+ * An OpenAlex Scout whose daily credits are used up. Credits are shared by
+ * everyone on the same network, so this is *not yet* and never *wrong*, and
+ * its sentence does not say who spent them (ADR 0051 decision 5). Only
+ * OpenAlex: arXiv's rate limit stays a fault it asked to be slowed for.
+ */
+export function isWaitingOnBudget(
+  health: Health
+): health is Extract<Health, { voice: "not yet" }> & { kind: "budget" } {
+  return health.voice === "not yet" && health.kind === "budget";
+}
+
 export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
   // A claim about the page rests on the runs that read it (ADR 0043 d.2).
   const runs = finishedRunsAtPage(queue, scout);
@@ -213,6 +225,13 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
           false,
           scout.source.kind
         ),
+      };
+    }
+    if (scout.source.kind === "openalex" && kind === "rate_limited") {
+      return {
+        voice: "not yet",
+        kind: "budget",
+        sentence: SPENT_SENTENCE,
       };
     }
     // Only known when a clean run recorded what it asked: a run from before
@@ -289,6 +308,9 @@ export function faultSentence(
     : sentence;
 }
 
+const SPENT_SENTENCE =
+  "OpenAlex's daily budget is used up, so this Scout is waiting. It resets at midnight UTC.";
+
 function baseFaultSentence(
   kind: RunErrorKind,
   message: string | null,
@@ -341,9 +363,8 @@ function baseFaultSentence(
       return `${name} answered with an error${status === undefined ? "" : ` (HTTP ${status})`}, so nothing was checked.`;
     }
     case "rate_limited":
-      // No status for OpenAlex: a spent daily budget is refused unsent, so there was no 429 to quote.
       return source === "openalex"
-        ? "OpenAlex asked Vitrine to slow down, so nothing was checked."
+        ? SPENT_SENTENCE
         : "arXiv asked Vitrine to slow down (HTTP 429), so nothing was checked.";
     case "parse":
       return (

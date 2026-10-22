@@ -23,11 +23,44 @@ export class OpenAlexError extends Error {
   constructor(
     readonly kind: OpenAlexErrorKind,
     message: string,
-    readonly status?: number
+    readonly status?: number,
+    /** For `rate_limited`: how long until the budget is back, on the client's clock. A run turns it into a time on its own clock. */
+    readonly retryAfterMs?: number
   ) {
     super(message);
   }
 }
+
+/**
+ * The sync stopped on its own account: the credits left are under `RESERVE`
+ * and Scouts need them. Not an `OpenAlexError` because nothing failed (it is
+ * no Measurement's fault and is recorded as none), and nothing was sent.
+ */
+export class OpenAlexPaused extends Error {
+  constructor(
+    /** How long until the budget is back over the reserve, on the client's clock. Durations, not instants: the caller's clock need not be the client's. */
+    readonly resumesInMs: number
+  ) {
+    super("paused to leave room for Scouts");
+  }
+}
+
+/**
+ * What a run row's message begins with for a spent budget, followed by the
+ * instant (ISO) it is back. The row is the only memory a Scout has, so the
+ * scheduler reads the wait from it rather than guessing at a cadence.
+ */
+export const SPENT_UNTIL = "budget spent until ";
+
+/** The instant a run row says the budget is back, or null for a message that says none (a row from before this one). */
+export function spentUntilOf(message: string | null): Date | null {
+  if (message === null || !message.startsWith(SPENT_UNTIL)) return null;
+  const at = new Date(message.slice(SPENT_UNTIL.length));
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/** Credits the scatter's sync leaves unspent for Scouts (ADR 0051 decision 6). A search list call costs 10, so this is thirty of them. */
+export const RESERVE = 300;
 
 /** Where OpenAlex's own arXiv repository record lives: a location from it is the arXiv copy (ADR 0051 decision 10). */
 const ARXIV_SOURCE = "https://openalex.org/S4306400194";
@@ -84,6 +117,8 @@ export type OpenAlexClient = {
    * from what is stored without another request (ADR 0045 decision 1).
    */
   monthlyCounts: (terms: string[], months: string[]) => Promise<number[]>;
+  /** How long until the credits are back over the reserve; null when they are not under it. */
+  pausedFor: () => number | null;
 };
 
 const ENDPOINT = "https://api.openalex.org/works";
@@ -125,6 +160,10 @@ export function createOpenAlexClient({
   let exhaustedUntil = 0;
   // The budget as the last good answer stated it.
   let creditsLeft: number | null = null;
+  // Set when a response says fewer than `RESERVE` credits remain. Only the
+  // sync (`monthlyCounts`) honours it; a Scout may spend the reserve, which is
+  // what it is kept for. Cleared by any later answer that says otherwise.
+  let reservedUntil = 0;
 
   const urlFor = (terms: string[], month: string, extra: string) => {
     const { from, to } = monthBounds(month);
@@ -132,10 +171,13 @@ export function createOpenAlexClient({
     return `${endpoint}?${new URLSearchParams({ filter }).toString()}&${extra}`;
   };
 
-  const request = (url: string) =>
+  const request = (url: string, { leaveRoom = false } = {}) =>
     serially(async () => {
       if (clock.now() < exhaustedUntil) {
-        throw new OpenAlexError("rate_limited", "the daily budget is spent");
+        throw spentError(exhaustedUntil - clock.now());
+      }
+      if (leaveRoom && clock.now() < reservedUntil) {
+        throw new OpenAlexPaused(reservedUntil - clock.now());
       }
       if (last !== null) {
         const wait = last + GAP_MS - clock.now();
@@ -150,9 +192,16 @@ export function createOpenAlexClient({
       } catch {
         throw new OpenAlexError("network", "OpenAlex could not be reached");
       }
+      // Read before the status is judged: a refused answer says what is left too.
+      const remaining = response.headers.get("x-ratelimit-remaining");
+      if (remaining !== null && Number.isFinite(Number(remaining))) {
+        reservedUntil =
+          Number(remaining) < RESERVE ? clock.now() + resetMs(response) : 0;
+      }
       if (response.status === 429) {
-        exhaustedUntil = clock.now() + resetMs(response);
-        throw new OpenAlexError("rate_limited", "HTTP 429", 429);
+        const wait = resetMs(response);
+        exhaustedUntil = clock.now() + wait;
+        throw spentError(wait, 429);
       }
       if (!response.ok) {
         throw new OpenAlexError(
@@ -161,16 +210,15 @@ export function createOpenAlexClient({
           response.status
         );
       }
-      const stated = response.headers.get("x-ratelimit-remaining");
       creditsLeft =
-        stated !== null &&
-        stated.trim() !== "" &&
-        Number.isFinite(Number(stated))
-          ? Number(stated)
+        remaining !== null &&
+        remaining.trim() !== "" &&
+        Number.isFinite(Number(remaining))
+          ? Number(remaining)
           : null;
       // This answer is good; the budget behind it may be spent, and the next
       // request must not be sent into a 429.
-      if (response.headers.get("x-ratelimit-remaining") === "0") {
+      if (remaining === "0") {
         exhaustedUntil = clock.now() + resetMs(response);
       }
       try {
@@ -181,7 +229,9 @@ export function createOpenAlexClient({
     });
 
   const count = async (terms: string[], month: string) => {
-    const body = (await request(urlFor(terms, month, "per-page=1"))) as {
+    const body = (await request(urlFor(terms, month, "per-page=1"), {
+      leaveRoom: true,
+    })) as {
       meta?: { count?: unknown };
     };
     const n = body?.meta?.count;
@@ -203,7 +253,8 @@ export function createOpenAlexClient({
             chunk,
             month,
             `select=id&per-page=${ID_PAGE}&cursor=${encodeURIComponent(cursor)}`
-          )
+          ),
+          { leaveRoom: true }
         )) as {
           results?: Array<{ id?: unknown }>;
           meta?: { next_cursor?: unknown };
@@ -270,6 +321,8 @@ export function createOpenAlexClient({
 
   return {
     searchWorks,
+    pausedFor: () =>
+      clock.now() < reservedUntil ? reservedUntil - clock.now() : null,
     monthlyCounts: async (terms, months) => {
       const chunks = splitToFit(
         terms,
@@ -286,6 +339,16 @@ export function createOpenAlexClient({
       return counts;
     },
   };
+}
+
+/** A refused request, for a budget that is back in `wait` ms. The message is the run row's, and names no time: a run writes its own (`SPENT_UNTIL`). */
+function spentError(wait: number, status?: number): OpenAlexError {
+  return new OpenAlexError(
+    "rate_limited",
+    "the daily budget is spent",
+    status,
+    wait
+  );
 }
 
 /** How long the budget stays spent, from `X-RateLimit-Reset` (seconds) or `Retry-After`; a day when neither says. */

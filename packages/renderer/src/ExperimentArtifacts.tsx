@@ -8,10 +8,10 @@ import type {
   StoredArtifact,
 } from "core";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./Form";
 import styles from "./Experiment.module.css";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { Outline, Section } from "./ResearchQuestion";
-import rq from "./ResearchQuestion.module.css";
 import { useTRPC } from "./trpc";
 import { TypedLine, type TypedLinePurpose } from "./TypedLine";
 
@@ -156,9 +156,9 @@ export function Artifacts({
       name="Artifacts"
       present={section.present}
       action={
-        <button ref={addRef} type="button" className={rq.edit} onClick={choose}>
+        <Button ref={addRef} onClick={choose}>
           + artifact
-        </button>
+        </Button>
       }
     >
       {adding !== null && (
@@ -204,9 +204,7 @@ export function Artifacts({
                 pagePath={path}
                 item={item}
                 action={
-                  <button
-                    type="button"
-                    className={rq.edit}
+                  <Button
                     onClick={(event) => {
                       showRef.current = event.currentTarget;
                       refusal.forget();
@@ -214,7 +212,7 @@ export function Artifacts({
                     }}
                   >
                     show it here
-                  </button>
+                  </Button>
                 }
               />
               {showing === item.file && (
@@ -288,13 +286,9 @@ function AddingLine({
           {as === "stored" ? "copied into the vault" : "linked, not copied"}
         </span>
         {!url && (
-          <button
-            type="button"
-            className={rq.edit}
-            onClick={() => setChose(other)}
-          >
+          <Button onClick={() => setChose(other)}>
             {other === "stored" ? "copy it in instead" : "link it instead"}
-          </button>
+          </Button>
         )}
       </div>
       {as === "linked" && <p className={styles.warning}>{warningFor(url)}</p>}

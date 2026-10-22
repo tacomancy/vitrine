@@ -1718,7 +1718,15 @@ export const router = t.router({
         if (view.depth !== view.deepest) {
           await refusing(recordViewedDepth(vault.path, view.depth));
         }
-        return { ...view, measuring: measuringOf(vault.path) };
+        const pausedFor = ctx.openalex.pausedFor();
+        return {
+          ...view,
+          measuring: measuringOf(vault.path),
+          paused:
+            pausedFor === null
+              ? null
+              : new Date(ctx.now().getTime() + pausedFor).toISOString(),
+        };
       }),
     // What the page skipped, for its footer (#492).
     unread: t.procedure.query(async ({ ctx }) => {

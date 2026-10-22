@@ -26,6 +26,7 @@ import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
 import {
   finishedRunsAtPage,
   healthOf,
+  isWaitingOnBudget,
   isWaitingOnKey,
   type RunErrorKind,
 } from "./scout-health.js";
@@ -238,6 +239,21 @@ export type BlockedOnCredentials = {
   sentence: string;
 };
 
+/**
+ * A Scout waiting on OpenAlex's daily credits (#805): the *not yet* voice, no
+ * glyph, and no action that would help — the wait ends at the reset, and the
+ * Scout asks again by itself. Its own kind so the row never offers Settings
+ * for a thing no setting changes.
+ */
+export type WaitingScout = {
+  kind: "waiting-scout";
+  subject: string;
+  path: string;
+  title: string;
+  voice: "not yet";
+  sentence: string;
+};
+
 /** A Scout file that does not parse, or could not be read: named by its file, with the rail's sentence and no error kind (no run exists to carry one). */
 export type UnreadableScoutFile = {
   kind: "unreadable-scout";
@@ -264,6 +280,7 @@ export type LooseEndRow =
   | FailedScout
   | StructureChange
   | BlockedOnCredentials
+  | WaitingScout
   | UnreadableScoutFile
   | StubWithoutPdf
   | UnmatchedRow
@@ -439,7 +456,11 @@ async function scoutRows(
   now: Date
 ): Promise<{
   rows: Array<
-    FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
+    | FailedScout
+    | StructureChange
+    | BlockedOnCredentials
+    | WaitingScout
+    | UnreadableScoutFile
   >;
   problems: string[];
 }> {
@@ -456,7 +477,11 @@ async function scoutRows(
   }
   const { scouts, unreadable } = read;
   const rows: Array<
-    FailedScout | StructureChange | BlockedOnCredentials | UnreadableScoutFile
+    | FailedScout
+    | StructureChange
+    | BlockedOnCredentials
+    | WaitingScout
+    | UnreadableScoutFile
   > = [];
   for (const scout of scouts) {
     const health = healthOf(queue, scout, now);
@@ -466,6 +491,17 @@ async function scoutRows(
     if (isWaitingOnKey(health)) {
       rows.push({
         kind: "blocked-on-credentials",
+        subject: scout.id,
+        path,
+        title: scout.name,
+        voice: "not yet",
+        sentence: health.sentence,
+      });
+      continue;
+    }
+    if (isWaitingOnBudget(health)) {
+      rows.push({
+        kind: "waiting-scout",
         subject: scout.id,
         path,
         title: scout.name,
