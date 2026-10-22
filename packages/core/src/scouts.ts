@@ -510,6 +510,8 @@ async function readOpenAlex(
       published: w.published,
       venue: w.venue,
       venueType: w.venueType,
+      venueId: w.venueId,
+      publisherLineage: w.publisherLineage,
       abstract: w.abstract,
       url: w.url,
     })),
@@ -562,8 +564,8 @@ function arrive(
   const at = iso(deps.now());
   const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
-    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, abstract, url, lane, state, first_seen, stub_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, abstract, url, lane, state, first_seen, stub_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
@@ -602,6 +604,10 @@ function arrive(
           item.published,
           item.venue,
           item.venueType ?? null,
+          item.venueId ?? null,
+          item.publisherLineage === undefined
+            ? null
+            : JSON.stringify(item.publisherLineage),
           item.abstract,
           item.url,
           scout.lane,

@@ -47,6 +47,9 @@ export type Arrival = {
   venue: string | null;
   /** Only an OpenAlex work says what kind of venue it was published in. */
   venueType?: "journal" | "conference" | null;
+  /** Likewise the OpenAlex source ID and publisher lineage Mute rules match on (ADR 0051 decision 8). */
+  venueId?: string | null;
+  publisherLineage?: string[];
   abstract: string;
   url: string;
 };

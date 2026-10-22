@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessage, errorMessageWithoutPath, VaultError } from "./errors.js";
+import { openAlexId } from "./openalex.js";
 import { serialised } from "./serialise.js";
 
 /**
@@ -14,9 +15,18 @@ import { serialised } from "./serialise.js";
  * held one is a decision already made, and muting must not hide it.
  */
 
-export const MUTE_KINDS = ["author", "venue", "keyword"] as const;
+export const MUTE_KINDS = ["author", "venue", "publisher", "keyword"] as const;
 export type MuteKind = (typeof MUTE_KINDS)[number];
-export type MuteRule = { kind: MuteKind; value: string };
+/**
+ * `id` is an OpenAlex source (`S…`) or publisher (`P…`) ID, kept beside the
+ * name (ADR 0051 decision 8). A venue rule without one matches by name as it
+ * always did; a publisher rule has nothing to match on without one.
+ */
+export type MuteRule = {
+  kind: MuteKind;
+  value: string;
+  id?: string | undefined;
+};
 
 const FILE = ".vitrine/mutes.yaml";
 
@@ -24,6 +34,7 @@ const FILE = ".vitrine/mutes.yaml";
 const KEYS: Record<MuteKind, string> = {
   author: "authors",
   venue: "venues",
+  publisher: "publishers",
   keyword: "keywords",
 };
 
@@ -35,6 +46,36 @@ export type ReadMutes = {
   /** Null when the file parsed or is not there. A rules file that does not parse is named, never read as no rules (ADR 0044 decision 4). */
   problem: string | null;
 };
+
+/** An entry is a bare name, or for a venue or publisher a name with its OpenAlex ID. */
+function entryOf(kind: MuteKind, raw: unknown): MuteRule | string {
+  const list = KEYS[kind];
+  if (typeof raw === "string") {
+    return kind === "publisher"
+      ? `${list} must each give a name and an id, as "name: …" and "id: P…"`
+      : { kind, value: raw };
+  }
+  const idKinds: MuteKind[] = ["venue", "publisher"];
+  if (
+    !idKinds.includes(kind) ||
+    typeof raw !== "object" ||
+    raw === null ||
+    Array.isArray(raw)
+  ) {
+    return `${list} must be a list of text`;
+  }
+  const entry = raw as Record<string, unknown>;
+  const stray = Object.keys(entry).find((k) => k !== "name" && k !== "id");
+  if (stray !== undefined) {
+    return `"${stray}" is not one of name, id in ${list}`;
+  }
+  const id = openAlexId(entry["id"]);
+  const name = entry["name"];
+  if (id === null || (name !== undefined && typeof name !== "string")) {
+    return `${list} must each give an id${name === undefined ? "" : " and a name in text"}`;
+  }
+  return { kind, value: name ?? id, id };
+}
 
 /**
  * Read as found (ADR 0009). A key it does not know is a problem and not an
@@ -80,15 +121,21 @@ export async function readMutes(vaultPath: string): Promise<ReadMutes> {
   for (const kind of MUTE_KINDS) {
     const list = found[KEYS[kind]];
     if (list === undefined || list === null) continue;
-    if (!Array.isArray(list) || list.some((v) => typeof v !== "string")) {
+    if (!Array.isArray(list)) {
       return {
         rules: [],
         problem: unreadable(`${KEYS[kind]} must be a list of text`),
       };
     }
-    for (const value of list as string[]) {
+    for (const raw of list as unknown[]) {
+      const entry = entryOf(kind, raw);
+      if (typeof entry === "string") {
+        return { rules: [], problem: unreadable(entry) };
+      }
       // A blank entry would match every venue-less or empty field; it is a typo.
-      if (value.trim() !== "") rules.push({ kind, value: value.trim() });
+      if (entry.value.trim() !== "") {
+        rules.push({ ...entry, value: entry.value.trim() });
+      }
     }
   }
   return { rules, problem: null };
@@ -96,17 +143,23 @@ export async function readMutes(vaultPath: string): Promise<ReadMutes> {
 
 const fold = (text: string) => text.trim().toLowerCase();
 const same = (a: MuteRule, b: MuteRule) =>
-  a.kind === b.kind && fold(a.value) === fold(b.value);
+  a.kind === b.kind &&
+  (a.id !== undefined || b.id !== undefined
+    ? a.id === b.id
+    : fold(a.value) === fold(b.value));
 
 type Row = {
   id: number;
   title: string;
   authors: string;
   venue: string | null;
+  venue_source_id: string | null;
+  /** JSON list of publisher IDs; null where the source gave no lineage. */
+  publisher_lineage: string | null;
   abstract: string;
 };
 
-/** Author and venue match whole after trim and case-fold; a keyword is a substring of title or abstract (there are no keywords on a Proposal). */
+/** Author and venue name match whole after trim and case-fold; a keyword is a substring of title or abstract (there are no keywords on a Proposal). */
 function catches(rule: MuteRule, row: Row): boolean {
   const wanted = fold(rule.value);
   switch (rule.kind) {
@@ -115,7 +168,21 @@ function catches(rule: MuteRule, row: Row): boolean {
         (name) => fold(name) === wanted
       );
     case "venue":
+      // The ID decides when both sides have one, so a renamed journal is still
+      // caught; a Proposal with none (arXiv, a page, older rows) falls back to
+      // the name, which is what every rule did before OpenAlex.
+      if (rule.id !== undefined && row.venue_source_id !== null) {
+        return row.venue_source_id === rule.id;
+      }
       return row.venue !== null && fold(row.venue) === wanted;
+    case "publisher":
+      // The lineage holds the parent organisations too, so a rule on a parent
+      // catches its imprints.
+      return (
+        rule.id !== undefined &&
+        row.publisher_lineage !== null &&
+        (JSON.parse(row.publisher_lineage) as string[]).includes(rule.id)
+      );
     case "keyword":
       return (
         row.title.toLowerCase().includes(wanted) ||
@@ -128,7 +195,7 @@ function catches(rule: MuteRule, row: Row): boolean {
 function mutable(queue: DatabaseSync): Row[] {
   return queue
     .prepare(
-      "SELECT id, title, authors, venue, abstract FROM proposals WHERE state IN ('pending', 'deferred')"
+      "SELECT id, title, authors, venue, venue_source_id, publisher_lineage, abstract FROM proposals WHERE state IN ('pending', 'deferred')"
     )
     .all() as Row[];
 }
@@ -215,13 +282,20 @@ export async function muteReach(
 }
 
 function checked(rule: MuteRule): MuteRule {
-  if (!MUTE_KINDS.includes(rule.kind) || rule.value.trim() === "") {
+  const id = rule.id === undefined ? null : openAlexId(rule.id);
+  if (
+    !MUTE_KINDS.includes(rule.kind) ||
+    rule.value.trim() === "" ||
+    (rule.kind === "publisher" && id === null)
+  ) {
     throw new VaultError(
       "refused",
-      "A mute rule needs an author, a venue or a keyword to match."
+      "A mute rule needs an author, a venue, a publisher (with its OpenAlex id) or a keyword to match."
     );
   }
-  return { kind: rule.kind, value: rule.value.trim() };
+  return id === null
+    ? { kind: rule.kind, value: rule.value.trim() }
+    : { kind: rule.kind, value: rule.value.trim(), id };
 }
 
 // Read, change, write the whole file: two changes that both read before either
@@ -263,9 +337,14 @@ async function change(
   }
   const next = plan(rules);
   if (next === null) return;
-  const lists: Record<string, string[]> = {};
+  const lists: Record<
+    string,
+    Array<string | { name: string; id: string }>
+  > = {};
   for (const kind of MUTE_KINDS) {
-    const values = next.filter((r) => r.kind === kind).map((r) => r.value);
+    const values = next
+      .filter((r) => r.kind === kind)
+      .map((r) => (r.id === undefined ? r.value : { name: r.value, id: r.id }));
     if (values.length > 0) lists[KEYS[kind]] = values;
   }
   const path = join(vaultPath, FILE);

@@ -173,7 +173,7 @@ export function MutedView({
       {rules.length > 0 && (
         <ul aria-label="Mute rules">
           {rules.map((rule) => (
-            <li key={`${rule.kind}:${rule.value}`}>
+            <li key={`${rule.kind}:${rule.id ?? rule.value}`}>
               {ruleWords(rule)}{" "}
               <button
                 type="button"
