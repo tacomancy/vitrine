@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "./Form";
 import type { ReaderAnnotation, SourcePage } from "core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnnotationControls } from "./AnnotationControls";
@@ -164,12 +163,14 @@ function Header({ source }: { source: Readable }) {
           {link.kind === "refused" ? (
             // Drawn as plainly not a link, and it says so when asked (story
             // 88): a click that did nothing would look like one that worked.
-            <Button
+            <button
+              type="button"
+              className={styles.notLink}
               aria-label={`not a link: ${source.url}`}
               onClick={() => refusal.say(linkRefusal(link.scheme))}
             >
               {source.url}
-            </Button>
+            </button>
           ) : (
             <a
               href={link.href}

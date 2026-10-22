@@ -1124,12 +1124,14 @@ function Proposal({
         <dt>link</dt>
         <dd>
           {link.kind === "refused" ? (
-            <Button
+            <button
+              type="button"
+              className={styles.notLink}
               aria-label={`not a link: ${card.url}`}
               onClick={() => refusal.say(linkRefusal(link.scheme))}
             >
               {card.url}
-            </Button>
+            </button>
           ) : (
             <a href={link.href} target="_blank" rel="noreferrer">
               {card.url}

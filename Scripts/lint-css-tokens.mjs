@@ -88,8 +88,10 @@ export const ALLOWED = [
   ],
 ].map(([file, prop, value, reason]) => ({ file, prop, value, reason }));
 
+const REFUSED =
+  "a refused link drawn as plainly not a link (architecture.md, UI conventions: What stays as it is)";
 const CHOOSES =
-  "a row, swatch or aria-pressed chooser that is itself the thing it names (architecture.md, UI conventions: What stays as it is)";
+  "a row, swatch or chooser (aria-pressed, aria-current, menu item) that is itself the thing it names (architecture.md, UI conventions: What stays as it is)";
 
 // Bare controls that stay: choosers and rows that are what they name. Each
 // count is exact; the test fails if the source has fewer, so the list can
@@ -103,7 +105,8 @@ export const ALLOWED_MARKUP = [
   ["Inbox.tsx", 1, CHOOSES],
   ["PositionHistory.tsx", 1, CHOOSES],
   ["QuestionMap.tsx", 1, CHOOSES],
-  ["ScoutQueue.tsx", 4, CHOOSES],
+  ["Reader.tsx", 1, REFUSED],
+  ["ScoutQueue.tsx", 5, CHOOSES],
 ].map(([file, count, reason]) => ({ file, count, reason }));
 
 // The primitives themselves are where the bare elements live.

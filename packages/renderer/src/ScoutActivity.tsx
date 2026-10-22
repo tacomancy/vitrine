@@ -468,7 +468,12 @@ function SortHeader({
             : "ascending"
       }
     >
-      <Button onClick={() => onSort(column)}>{label}</Button>
+      <Button onClick={() => onSort(column)}>
+        {label}
+        {sort?.column === column && (
+          <span aria-hidden="true">{sort.descending ? " ↓" : " ↑"}</span>
+        )}
+      </Button>
     </th>
   );
 }
