@@ -1,5 +1,10 @@
 import { syntaxHighlighting } from "@codemirror/language";
-import { history, historyKeymap, isolateHistory } from "@codemirror/commands";
+import {
+  history,
+  historyKeymap,
+  insertNewlineAndIndent,
+  isolateHistory,
+} from "@codemirror/commands";
 import {
   Annotation,
   ChangeSet,
@@ -16,7 +21,7 @@ import { vaultMarkdown } from "./vault-grammar";
 import { vaultHighlight } from "./vault-highlight";
 import { forgetResolutions, vaultLinks, type LinkHooks } from "./vault-links";
 import { vaultEmbeds } from "./vault-embeds";
-import { livePreview } from "./vault-live-preview";
+import { livePreview, restPreview } from "./vault-live-preview";
 
 /** Obsidian's pause: typing that stops for this long is saved. */
 export const IDLE_MS = 2000;
@@ -310,6 +315,14 @@ export function VaultEditor({
           history(),
           keymap.of([
             ...historyKeymap,
+            // Not the whole default keymap: the browser already owns caret
+            // movement and deletion, but a contenteditable CodeMirror owns
+            // Enter, and with no binding it types nothing (#777).
+            {
+              key: "Enter",
+              shift: insertNewlineAndIndent,
+              run: insertNewlineAndIndent,
+            },
             {
               key: "Mod-s",
               preventDefault: true,
@@ -407,7 +420,9 @@ export function VaultEditor({
     if (changes.length === 0 && !switching) return;
     current.dispatch({
       changes,
-      effects: forgetResolutions.of(null),
+      effects: switching
+        ? [forgetResolutions.of(null), restPreview.of(null)]
+        : forgetResolutions.of(null),
       annotations: notUserEdit,
     });
   }, [path, text, hash]);
