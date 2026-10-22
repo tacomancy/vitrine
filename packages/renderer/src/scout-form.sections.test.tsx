@@ -48,7 +48,7 @@ describe("the New Scout form's sections", () => {
       expect(within(watches).getByLabelText(label)).toBeDefined();
     }
     expect(
-      within(watches).getByRole("group", { name: "Filter" })
+      within(watches).getByRole("radiogroup", { name: "Filter" })
     ).toBeDefined();
     expect(within(watches).getByRole("button", { name: "Try" })).toBeDefined();
     for (const label of ["Cadence", "Starting lane", "Also search back to"]) {

@@ -192,3 +192,42 @@ input[inputmode="numeric"].input {
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
+
+/* One-of-N: touching segments on a sunken ground, the chosen one raised to
+   sapphire text on the surface. The radio is visually hidden but still the
+   control, so focus and selection are the platform's. */
+.segments {
+  display: inline-flex;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
+.segment {
+  position: relative;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.segmentRadio {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segment:has(:checked) {
+  background: var(--color-bg);
+  color: var(--color-link);
+  font-weight: 600;
+}
+
+.segment:has(:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}

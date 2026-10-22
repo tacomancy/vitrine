@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import styles from "./Form.module.css";
 
 /**
@@ -154,5 +154,102 @@ export function Select(
     <span className={styles.selectWrap}>
       <select className={styles.input} {...props} />
     </span>
+  );
+}
+
+type Segment<T extends string> = { value: T; label: string };
+
+type SegmentedProps<T extends string> = {
+  options: readonly Segment<T>[];
+  value: T;
+  onChange: (value: T) => void;
+} & (
+  | { label: string; labelledBy?: undefined }
+  | { labelledBy: string; label?: undefined }
+);
+
+/**
+ * Every one-of-N choice: real radios underneath, drawn as touching segments.
+ * The arrow keys move and select (wrapping), Tab leaves the group from the
+ * chosen segment, and the group is announced with its name. The arrows are
+ * handled here, not left to the browser, so the behaviour is the same wherever
+ * it runs.
+ */
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  labelledBy,
+}: SegmentedProps<T>) {
+  const name = useId();
+  const radios = useRef<(HTMLInputElement | null)[]>([]);
+  const chosen = options.findIndex((o) => o.value === value);
+
+  function onKeyDown(event: KeyboardEvent, index: number) {
+    // Alt/Cmd+arrow are the browser's (back, forward), not ours.
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = (index + step + options.length) % options.length;
+    onChange(options[next]!.value);
+    radios.current[next]?.focus();
+  }
+
+  return (
+    <span
+      role="radiogroup"
+      aria-label={label}
+      aria-labelledby={labelledBy}
+      className={styles.segments}
+    >
+      {options.map((option, index) => (
+        <label key={option.value} className={styles.segment}>
+          <input
+            ref={(el) => {
+              radios.current[index] = el;
+            }}
+            type="radio"
+            name={name}
+            className={styles.segmentRadio}
+            checked={value === option.value}
+            // One Tab stop: the chosen segment, or the first when none is.
+            tabIndex={(chosen === -1 ? index === 0 : index === chosen) ? 0 : -1}
+            onChange={() => onChange(option.value)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+          />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </span>
+  );
+}
+
+/** A labelled row holding a segmented control, the label tying to the group. */
+export function SegmentedRow<T extends string>({
+  label,
+  note,
+  ...control
+}: { label: string; note?: ReactNode } & Omit<
+  SegmentedProps<T>,
+  "label" | "labelledBy"
+>) {
+  const id = useId();
+  return (
+    <div className={styles.row}>
+      <span id={id} className={styles.label}>
+        {label}
+      </span>
+      <div className={styles.control}>
+        <SegmentedControl {...control} labelledBy={id} />
+        {note !== undefined && <small className={styles.note}>{note}</small>}
+      </div>
+    </div>
   );
 }

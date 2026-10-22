@@ -130,7 +130,7 @@ describe("a refused act in the Scout Queue", () => {
       name: "promote to Review",
       run: async (more) => {
         renderApp(answers([card()], { "scouts.promote": refuse, ...more }));
-        fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+        fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
         fireEvent.keyDown(await cardInHand(), { key: "t" });
       },
     },

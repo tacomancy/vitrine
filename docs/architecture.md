@@ -745,6 +745,8 @@ The rules a form is drawn by, written from the New Scout form (#783, spec #782) 
 
 **Buttons.** Two tiers. One primary per form, filled sapphire (BRAND law 2), and it is the one that submits. Everything else is sapphire text with no box (`Button`, `tier="secondary"`, which never submits). No grey boxed button.
 
+**One-of-N.** Every choice of one among a few (Filter, lane, sort, grouping) is a `SegmentedControl` (`SegmentedRow` when it has a label column): real radios drawn as touching segments, so the arrow keys move and select, Tab leaves the group, and the group is announced with its name as a radiogroup. No fieldset of loose radios and no grey boxed toggle; the chosen segment is sapphire text on the surface.
+
 **Native controls.** Inputs, textareas, selects and the date field stay the native elements, restyled with the tokens (`Input`, `TextArea`, `Select`): no native border, a sunken ground, a chevron drawn on the select. A custom control is built only where a native one cannot do the job.
 
 **Disabled and empty.** A disabled control keeps muted-text contrast (never a faded one) and sits beside a sentence saying what unlocks it (`Unlocks`: *Save needs a name and a Query.*). An empty optional field shows its default as an italic placeholder, and its note says what empty means.

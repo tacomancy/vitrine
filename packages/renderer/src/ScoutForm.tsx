@@ -32,7 +32,7 @@ import {
   Button,
   FieldRow,
   FormSection,
-  GroupRow,
+  SegmentedRow,
   Input,
   Select,
   TextArea,
@@ -296,28 +296,15 @@ export function ScoutForm({
           )}
         </FieldRow>
         {!page && (
-          <GroupRow label="Filter">
-            <div className={styles.filter}>
-              <label>
-                <input
-                  type="radio"
-                  name="filter"
-                  checked={filter === "query"}
-                  onChange={() => setFilter("query")}
-                />
-                by Query
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="filter"
-                  checked={filter === "tags"}
-                  onChange={() => setFilter("tags")}
-                />
-                by Tags
-              </label>
-            </div>
-          </GroupRow>
+          <SegmentedRow
+            label="Filter"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "query", label: "by Query" },
+              { value: "tags", label: "by Tags" },
+            ]}
+          />
         )}
         {byTags && (
           <TagsFilter
