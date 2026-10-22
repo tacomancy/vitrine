@@ -27,6 +27,17 @@ const queueText = (value: number | null | undefined, standard?: string) =>
     ? ""
     : String(value);
 import { useEffect, useRef, useState } from "react";
+import {
+  ActionRow,
+  Button,
+  FieldRow,
+  FormSection,
+  GroupRow,
+  Input,
+  Select,
+  TextArea,
+  Unlocks,
+} from "./Form";
 import { TagsFilter } from "./TagsFilter";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { RefusalLine, useRefusal } from "./refusal-line";
@@ -239,249 +250,277 @@ export function ScoutForm({
   const attempt = byTags ? triedTags : tried;
   const result = attempt.data;
   const pageResult = triedPage.data;
+  const tryable = byTags ? tags.length > 0 : query.trim() !== "";
+  const needed = byTags ? "a Tag" : page ? "an Address" : "a Query";
   return (
     <form
       className={styles.form}
       aria-label={scout === undefined ? "New Scout" : `Edit ${scout.name}`}
       onSubmit={submit}
     >
-      <label>
-        Name
-        <input
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <label>
-        Watching
-        {/* What a Scout watches is fixed when it is made: an edit that
-            changed it would turn one Scout's history into another's. */}
-        <select
-          value={watching}
-          disabled={scout !== undefined}
-          aria-describedby={scout === undefined ? undefined : "watching-fixed"}
-          onChange={(e) => {
-            setWatching(e.target.value as FormValues["watching"]);
-            tried.reset();
-            triedPage.reset();
-          }}
+      <FormSection title="What it watches">
+        <FieldRow label="Name">
+          {(field) => (
+            <Input
+              {...field}
+              ref={nameRef}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
+        </FieldRow>
+        <FieldRow
+          label="Watching"
+          // What a Scout watches is fixed when it is made: an edit that
+          // changed it would turn one Scout's history into another's.
+          note={
+            scout === undefined
+              ? undefined
+              : `A Scout keeps its kind of source. To watch ${page ? "arXiv" : "a page"} instead, make a new Scout.`
+          }
         >
-          <option value="arxiv">arXiv</option>
-          <option value="watched">a web page</option>
-        </select>
-      </label>
-      {scout !== undefined && (
-        <small id="watching-fixed">
-          A Scout keeps its kind of source. To watch {page ? "arXiv" : "a page"}{" "}
-          instead, make a new Scout.
-        </small>
-      )}
-      {!page && (
-        <fieldset>
-          <legend>Filter</legend>
-          <label>
-            <input
-              type="radio"
-              name="filter"
-              checked={filter === "query"}
-              onChange={() => setFilter("query")}
-            />
-            by Query
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="filter"
-              checked={filter === "tags"}
-              onChange={() => setFilter("tags")}
-            />
-            by Tags
-          </label>
-        </fieldset>
-      )}
-      {byTags && (
-        <TagsFilter
-          chosen={tags}
-          onChange={(next) => {
-            setTags(next);
-            // What was tried was the old list.
-            triedTags.reset();
-          }}
-        />
-      )}
-      {!page && !byTags && (
-        <label>
-          Query
-          <textarea
-            value={query}
-            rows={2}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              // What was tried was the old text.
-              tried.reset();
+          {(field) => (
+            <Select
+              {...field}
+              value={watching}
+              disabled={scout !== undefined}
+              onChange={(e) => {
+                setWatching(e.target.value as FormValues["watching"]);
+                tried.reset();
+                triedPage.reset();
+              }}
+            >
+              <option value="arxiv">arXiv</option>
+              <option value="watched">a web page</option>
+            </Select>
+          )}
+        </FieldRow>
+        {!page && (
+          <GroupRow label="Filter">
+            <div className={styles.filter}>
+              <label>
+                <input
+                  type="radio"
+                  name="filter"
+                  checked={filter === "query"}
+                  onChange={() => setFilter("query")}
+                />
+                by Query
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="filter"
+                  checked={filter === "tags"}
+                  onChange={() => setFilter("tags")}
+                />
+                by Tags
+              </label>
+            </div>
+          </GroupRow>
+        )}
+        {byTags && (
+          <TagsFilter
+            chosen={tags}
+            onChange={(next) => {
+              setTags(next);
+              // What was tried was the old list.
+              triedTags.reset();
             }}
           />
-        </label>
-      )}
-      {page && (
-        <label>
-          Address
-          <input
-            type="url"
-            value={query}
-            placeholder="https://"
-            aria-describedby={
-              scout === undefined ? undefined : "address-change"
+        )}
+        {!page && !byTags && (
+          <FieldRow label="Query">
+            {(field) => (
+              <TextArea
+                {...field}
+                value={query}
+                rows={2}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  // What was tried was the old text.
+                  tried.reset();
+                }}
+              />
+            )}
+          </FieldRow>
+        )}
+        {page && (
+          <FieldRow
+            label="Address"
+            note={
+              scout === undefined
+                ? undefined
+                : "Changing the page points this Scout at another one: the next check reads it as a first look, and everything it lists arrives as Retroactive. Its Proposals, stubs and Accept rate go on."
             }
-            onChange={(e) => {
-              setQuery(e.target.value);
-              triedPage.reset();
-            }}
-          />
-        </label>
-      )}
-      {page && scout !== undefined && (
-        <small id="address-change">
-          Changing the page points this Scout at another one: the next check
-          reads it as a first look, and everything it lists arrives as
-          Retroactive. Its Proposals, stubs and Accept rate go on.
-        </small>
-      )}
-      {!page && (
-        <p className={styles.try}>
-          <button
-            type="button"
+          >
+            {(field) => (
+              <Input
+                {...field}
+                type="url"
+                value={query}
+                placeholder="https://"
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  triedPage.reset();
+                }}
+              />
+            )}
+          </FieldRow>
+        )}
+        <ActionRow>
+          <Button
             disabled={
-              (byTags ? tags.length === 0 : query.trim() === "") ||
-              attempt.isPending
+              !tryable || (page ? triedPage.isPending : attempt.isPending)
             }
             onClick={() =>
-              byTags ? triedTags.mutate({ tags }) : tried.mutate({ query })
+              page
+                ? triedPage.mutate({ address: query })
+                : byTags
+                  ? triedTags.mutate({ tags })
+                  : tried.mutate({ query })
             }
           >
             Try
-          </button>{" "}
-          {attempt.isPending && <span>trying…</span>}
-          {attempt.isError && <span role="alert">{attempt.error.message}</span>}
-          {result?.outcome === "failed" && (
-            <span role="alert">{result.sentence}</span>
+          </Button>
+          {!tryable && <Unlocks>Try needs {needed}.</Unlocks>}
+          {!page && (
+            <>
+              {attempt.isPending && <span>trying…</span>}
+              {attempt.isError && (
+                <span role="alert">{attempt.error.message}</span>
+              )}
+              {result?.outcome === "failed" && (
+                <span role="alert">{result.sentence}</span>
+              )}
+              {result?.outcome === "found" && result.total === 0 && (
+                <span role="status">
+                  0 results across all of arXiv for this query
+                </span>
+              )}
+              {result?.outcome === "found" && result.total > 0 && (
+                <span role="status">
+                  {result.total} results across all of arXiv
+                  <ol aria-label="First results" className={styles.titles}>
+                    {result.titles.map((title, i) => (
+                      <li key={i}>{title}</li>
+                    ))}
+                  </ol>
+                </span>
+              )}
+            </>
           )}
-          {result?.outcome === "found" && result.total === 0 && (
-            <span role="status">
-              0 results across all of arXiv for this query
-            </span>
+          {page && (
+            <>
+              {triedPage.isPending && <span>trying…</span>}
+              {triedPage.isError && (
+                <span role="alert">{triedPage.error.message}</span>
+              )}
+              {pageResult !== undefined && <PageResult result={pageResult} />}
+            </>
           )}
-          {result?.outcome === "found" && result.total > 0 && (
-            <span role="status">
-              {result.total} results across all of arXiv
-              <ol aria-label="First results">
-                {result.titles.map((title, i) => (
-                  <li key={i}>{title}</li>
-                ))}
-              </ol>
-            </span>
+        </ActionRow>
+      </FormSection>
+      <FormSection title="When">
+        <FieldRow label="Cadence">
+          {(field) => (
+            <Select
+              {...field}
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value as Scout["cadence"])}
+            >
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly">monthly</option>
+            </Select>
           )}
-        </p>
-      )}
-      {page && (
-        <p className={styles.try}>
-          <button
-            type="button"
-            disabled={query.trim() === "" || triedPage.isPending}
-            onClick={() => triedPage.mutate({ address: query })}
-          >
-            Try
-          </button>{" "}
-          {triedPage.isPending && <span>trying…</span>}
-          {triedPage.isError && (
-            <span role="alert">{triedPage.error.message}</span>
+        </FieldRow>
+        <FieldRow label="Starting lane">
+          {(field) => (
+            <Select
+              {...field}
+              value={lane}
+              onChange={(e) => setLane(e.target.value as Scout["lane"])}
+            >
+              <option value="review">Review</option>
+              <option value="skim">Skim</option>
+            </Select>
           )}
-          {pageResult !== undefined && <PageResult result={pageResult} />}
-        </p>
-      )}
-      <label>
-        Cadence
-        <select
-          value={cadence}
-          onChange={(e) => setCadence(e.target.value as Scout["cadence"])}
+        </FieldRow>
+        {scout === undefined && !page && (
+          <FieldRow label="Also search back to">
+            {(field) => (
+              <Input
+                {...field}
+                type="date"
+                value={back}
+                onChange={(e) => setBack(e.target.value)}
+              />
+            )}
+          </FieldRow>
+        )}
+      </FormSection>
+      <FormSection title="Queue behaviour">
+        <AssignedQuestions
+          questions={questions}
+          assigned={assigned}
+          onChange={setAssigned}
+        />
+        <FieldRow
+          label="Cap"
+          note="Empty means no Cap. A Cap is not active until this Scout has enough triage behind it to rank by; until then it keeps everything."
         >
-          <option value="daily">daily</option>
-          <option value="weekly">weekly</option>
-          <option value="monthly">monthly</option>
-        </select>
-      </label>
-      <label>
-        Starting lane
-        <select
-          value={lane}
-          onChange={(e) => setLane(e.target.value as Scout["lane"])}
+          {(field) => (
+            <Input
+              {...field}
+              inputMode="numeric"
+              value={cap}
+              placeholder="none"
+              onChange={(e) => setCap(e.target.value)}
+            />
+          )}
+        </FieldRow>
+        <FieldRow
+          label="Review days"
+          note={`Empty keeps ${REVIEW_DAYS_DEFAULT} days.`}
         >
-          <option value="review">Review</option>
-          <option value="skim">Skim</option>
-        </select>
-      </label>
-      {scout === undefined && !page && (
-        <label>
-          Also search back to
-          <input
-            type="date"
-            value={back}
-            onChange={(e) => setBack(e.target.value)}
-          />
-        </label>
-      )}
-      <AssignedQuestions
-        questions={questions}
-        assigned={assigned}
-        onChange={setAssigned}
-      />
-      <fieldset className={styles.queueBehaviour}>
-        <legend>Queue behaviour</legend>
-        <label>
-          Cap
-          <input
-            inputMode="numeric"
-            value={cap}
-            placeholder="none"
-            onChange={(e) => setCap(e.target.value)}
-          />
-        </label>
-        <small>
-          A Cap is not active until this Scout has enough triage behind it to
-          rank by; until then it keeps everything.
-        </small>
-        <label>
-          Review days
-          <input
-            inputMode="numeric"
-            value={reviewDays}
-            placeholder={REVIEW_DAYS_DEFAULT}
-            onChange={(e) => setReviewDays(e.target.value)}
-          />
-        </label>
-        <label>
-          Skim days
-          <input
-            inputMode="numeric"
-            value={skimDays}
-            placeholder={SKIM_DAYS_DEFAULT}
-            onChange={(e) => setSkimDays(e.target.value)}
-          />
-        </label>
-      </fieldset>
+          {(field) => (
+            <Input
+              {...field}
+              inputMode="numeric"
+              value={reviewDays}
+              placeholder={REVIEW_DAYS_DEFAULT}
+              onChange={(e) => setReviewDays(e.target.value)}
+            />
+          )}
+        </FieldRow>
+        <FieldRow
+          label="Skim days"
+          note={`Empty keeps ${SKIM_DAYS_DEFAULT} days.`}
+        >
+          {(field) => (
+            <Input
+              {...field}
+              inputMode="numeric"
+              value={skimDays}
+              placeholder={SKIM_DAYS_DEFAULT}
+              onChange={(e) => setSkimDays(e.target.value)}
+            />
+          )}
+        </FieldRow>
+      </FormSection>
       <RefusalLine refusal={refusal} />
-      {/* Names what Save lacks; a disabled button alone says nothing. */}
-      {!ready && <p>Save needs {missing.join(" and ")}.</p>}
-      <p className={styles.actions}>
-        <button type="submit" disabled={!ready || save.isPending}>
+      <div className={styles.formActions}>
+        <Button tier="primary" disabled={!ready || save.isPending}>
           Save
-        </button>{" "}
-        <button type="button" onClick={() => onDone(null)}>
-          Cancel
-        </button>{" "}
-        <kbd>Esc</kbd> back to the stack
-      </p>
+        </Button>
+        <Button onClick={() => onDone(null)}>Cancel</Button>
+        {/* Names what Save lacks; a disabled button alone says nothing. */}
+        {!ready && <Unlocks>Save needs {missing.join(" and ")}.</Unlocks>}
+        <span className={styles.escape}>
+          <kbd>Esc</kbd> back to the stack
+        </span>
+      </div>
     </form>
   );
 }
@@ -496,9 +535,7 @@ function PageResult({ result }: { result: TriedPage }) {
       <span role="alert">
         {result.sentence}{" "}
         {/* The form is kept by the window, so back returns to it as left. */}
-        <button type="button" onClick={() => pushRoute(SETTINGS)}>
-          Add a key
-        </button>
+        <Button onClick={() => pushRoute(SETTINGS)}>Add a key</Button>
       </span>
     );
   }
