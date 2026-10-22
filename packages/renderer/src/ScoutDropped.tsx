@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "./Form";
 import type { DroppedRow } from "core";
 import { useId, useState } from "react";
 import styles from "./ScoutDropped.module.css";
@@ -91,14 +92,9 @@ export function DropButton({
   onDrop: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={styles.drop}
-      aria-label={`${name}: drop`}
-      onClick={onDrop}
-    >
+    <Button aria-label={`${name}: drop`} onClick={onDrop}>
       drop
-    </button>
+    </Button>
   );
 }
 
@@ -121,9 +117,7 @@ export function DroppedInPlace({
         <span role="status">{DROPPED}</span>
       </td>
       <td>
-        <button type="button" className={styles.undo} onClick={onUndo}>
-          undo
-        </button>
+        <Button onClick={onUndo}>undo</Button>
       </td>
     </>
   );
@@ -163,28 +157,24 @@ export function DroppedLine({
   if (dropped.length === 0) return null;
   return (
     <div className={styles.line}>
-      <button
-        type="button"
-        className={styles.count}
+      <Button
         aria-expanded={open}
         aria-controls={open ? list : undefined}
         onClick={() => setOpen((was) => !was)}
       >
         {dropped.length} dropped
-      </button>
+      </Button>
       {open && (
         <ul id={list} className={styles.names} aria-label="Dropped Scouts">
           {dropped.map((scout) => (
             <li key={scout.id}>
               <span>{scout.name}</span> <span aria-hidden="true">·</span>{" "}
-              <button
-                type="button"
-                className={styles.undo}
+              <Button
                 aria-label={`${scout.name}: restore`}
                 onClick={() => onRestore(scout.id)}
               >
                 restore
-              </button>
+              </Button>
               {refused[scout.id] !== undefined && (
                 <DropRefused message={refused[scout.id]!} />
               )}

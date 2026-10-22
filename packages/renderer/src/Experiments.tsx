@@ -1,3 +1,4 @@
+import { Button } from "./Form";
 import {
   keepPreviousData,
   useMutation,
@@ -513,23 +514,23 @@ function RunDetail({
           )}
           <p className={styles.label}>Triage — or leave it</p>
           <div className={styles.actions}>
-            <button type="button" onClick={() => act.observe(row)}>
+            <Button onClick={() => act.observe(row)}>
               Write observations
               <kbd aria-hidden>O</kbd>
-            </button>
-            <button type="button" onClick={() => act.attach(row)}>
+            </Button>
+            <Button onClick={() => act.attach(row)}>
               Attach to a criterion
               <kbd aria-hidden>E</kbd>
-            </button>
-            <button type="button" onClick={() => act.capture(row)}>
+            </Button>
+            <Button onClick={() => act.capture(row)}>
               Capture a question from it
               <kbd aria-hidden>Q</kbd>
-            </button>
+            </Button>
             {row.status !== "abandoned" && (
-              <button type="button" onClick={() => act.abandon(row)}>
+              <Button onClick={() => act.abandon(row)}>
                 Abandon
                 <kbd aria-hidden>D</kbd>
-              </button>
+              </Button>
             )}
           </div>
           <p className={styles.label}>Where it ran</p>

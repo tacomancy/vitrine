@@ -145,8 +145,7 @@ export function MuteOffer({
               </Button>
             )}
             {card.publisher !== null && (
-              <button
-                type="button"
+              <Button
                 aria-label={`Mute publisher ${publisherName(card.publisher)}`}
                 onClick={() =>
                   setChoice({
@@ -157,7 +156,7 @@ export function MuteOffer({
                 }
               >
                 Mute publisher {publisherName(card.publisher)}
-              </button>
+              </Button>
             )}
           </p>
           <p className={styles.actions}>

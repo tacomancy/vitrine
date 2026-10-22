@@ -129,12 +129,6 @@
   color: var(--color-fg-muted);
 }
 
-.notLink {
-  all: unset;
-  cursor: pointer;
-  text-decoration: underline dotted;
-}
-
 .railRow {
   display: inline-flex;
   gap: var(--space-2);

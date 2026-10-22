@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "./Form";
 import {
   Fragment,
   useId,
@@ -396,14 +397,12 @@ function Gap({
         />
       </span>
       {assign !== null && (
-        <button
-          type="button"
-          className={styles.action}
+        <Button
           aria-label={`brief a scout: ${gap.question}`}
           onClick={() => onBrief(assign)}
         >
           brief a scout
-        </button>
+        </Button>
       )}
     </li>
   );
@@ -469,13 +468,7 @@ function SortHeader({
             : "ascending"
       }
     >
-      <button
-        type="button"
-        className={styles.sort}
-        onClick={() => onSort(column)}
-      >
-        {label}
-      </button>
+      <Button onClick={() => onSort(column)}>{label}</Button>
     </th>
   );
 }
@@ -531,11 +524,7 @@ function NoRows({
       voice="not yet"
       claim=""
       fragment={droppedCount > 0 ? "no scouts watching" : "no scouts yet"}
-      action={
-        <button type="button" className={styles.action} onClick={onNewScout}>
-          new scout
-        </button>
-      }
+      action={<Button onClick={onNewScout}>new scout</Button>}
     />
   );
 }
@@ -888,10 +877,8 @@ function Row({
                 row that is doing worst than on the one that is doing best
                 (ADR 0042 decision 8). */}
             <span className={styles.actions}>
-              <button
+              <Button
                 ref={editButton}
-                type="button"
-                className={styles.act}
                 aria-expanded={editing}
                 aria-controls={editing ? `${id}-edit` : undefined}
                 aria-keyshortcuts="e"
@@ -899,16 +886,14 @@ function Row({
                 onClick={() => acts.toggleEdit(key)}
               >
                 edit
-              </button>
-              <button
-                type="button"
-                className={styles.act}
+              </Button>
+              <Button
                 aria-keyshortcuts="p"
                 aria-label={`${row.name}: ${row.paused ? "resume" : "pause"}`}
                 onClick={() => acts.pauseOrResume(row)}
               >
                 {row.paused ? "resume" : "pause"}
-              </button>
+              </Button>
               <DropButton name={row.name} onDrop={() => drops.onDrop(row.id)} />
             </span>
           </span>
@@ -919,10 +904,8 @@ function Row({
           {watching}
         </td>
         <td>
-          <button
+          <Button
             ref={cadenceButton}
-            type="button"
-            className={styles.menuButton}
             aria-haspopup="menu"
             aria-expanded={cadenceOpen}
             aria-controls={cadenceOpen ? `${id}-cadence` : undefined}
@@ -931,7 +914,7 @@ function Row({
             onClick={() => acts.toggleCadence(key)}
           >
             {row.cadence}
-          </button>
+          </Button>
         </td>
         <td>
           {row.lastRun === null ? (
@@ -941,16 +924,14 @@ function Row({
           )}
         </td>
         <td className={styles.wraps}>
-          <button
-            type="button"
-            className={styles.open}
+          <Button
             aria-expanded={open}
             aria-controls={open ? detail : undefined}
             aria-label={`${row.name}: accept rate, ${rate}`}
             onClick={onToggle}
           >
             {rate}
-          </button>
+          </Button>
         </td>
         <td className={styles.wraps}>
           <Parts
@@ -963,15 +944,13 @@ function Row({
           {/* A Scout that never called a model has no runs to list: the figure
               already says so. */}
           {row.cost.kind !== "no model call" && (
-            <button
-              type="button"
-              className={styles.link}
+            <Button
               aria-expanded={showRuns}
               aria-label={`${row.name}: each run`}
               onClick={() => setShowRuns((was) => !was)}
             >
               each run
-            </button>
+            </Button>
           )}
         </td>
         <ReviewCell depth={row.review} health={row.health}>

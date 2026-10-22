@@ -88,37 +88,22 @@ export const ALLOWED = [
   ],
 ].map(([file, prop, value, reason]) => ({ file, prop, value, reason }));
 
-const NOT_MIGRATED =
-  "a surface not yet moved onto Form's Button (follow-up #822)";
 const CHOOSES =
-  "a row or swatch that is itself the thing it names, an aria-pressed chooser (architecture.md, UI conventions: What stays as it is)";
+  "a row, swatch or aria-pressed chooser that is itself the thing it names (architecture.md, UI conventions: What stays as it is)";
 
-// Bare controls that predate the check. Each count is exact; the test fails
-// if the source has fewer, so the list can only shrink.
+// Bare controls that stay: choosers and rows that are what they name. Each
+// count is exact; the test fails if the source has fewer, so the list can
+// only shrink.
 export const ALLOWED_MARKUP = [
   ["AnnotationControls.tsx", 1, CHOOSES],
   ["AttentionPanel.tsx", 1, CHOOSES],
-  ["CadenceMenu.tsx", 1, NOT_MIGRATED],
-  ["CandidateReview.tsx", 2, NOT_MIGRATED],
-  ["Detail.tsx", 1, NOT_MIGRATED],
-  ["Experiments.tsx", 6, NOT_MIGRATED],
-  ["FirstRun.tsx", 1, NOT_MIGRATED],
+  ["CadenceMenu.tsx", 1, CHOOSES],
+  ["Experiments.tsx", 2, CHOOSES],
   ["HighlightBar.tsx", 1, CHOOSES],
-  ["HomeInterrupt.tsx", 3, NOT_MIGRATED],
-  ["Inbox.tsx", 1, NOT_MIGRATED],
-  ["LooseEnds.tsx", 25, NOT_MIGRATED],
-  ["MuteRules.tsx", 1, CHOOSES],
-  ["Origins.tsx", 1, NOT_MIGRATED],
-  ["PositionHistory.tsx", 4, NOT_MIGRATED],
-  ["QuestionMap.tsx", 1, NOT_MIGRATED],
-  ["Reader.tsx", 1, NOT_MIGRATED],
-  ["Readings.tsx", 1, NOT_MIGRATED],
-  ["Resurfaced.tsx", 3, NOT_MIGRATED],
-  ["ReviewLinks.tsx", 1, NOT_MIGRATED],
-  ["ScoutActivity.tsx", 8, NOT_MIGRATED],
-  ["ScoutDropped.tsx", 4, NOT_MIGRATED],
-  ["ScoutQueue.tsx", 15, NOT_MIGRATED],
-  ["UnmatchedPanel.tsx", 1, NOT_MIGRATED],
+  ["Inbox.tsx", 1, CHOOSES],
+  ["PositionHistory.tsx", 1, CHOOSES],
+  ["QuestionMap.tsx", 1, CHOOSES],
+  ["ScoutQueue.tsx", 4, CHOOSES],
 ].map(([file, count, reason]) => ({ file, count, reason }));
 
 // The primitives themselves are where the bare elements live.
