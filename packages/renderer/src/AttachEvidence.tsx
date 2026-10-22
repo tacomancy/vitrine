@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ArtifactCheck, CriteriaToAttach, CriterionToAttach } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import form from "./AttachSource.module.css";
+import { ActionRow, Button, FieldRow, Input, Unlocks } from "./Form";
 import styles from "./AttachEvidence.module.css";
 import { useChosenInView } from "./chosen";
 import { useRestoreFocus } from "./focus";
@@ -357,42 +358,39 @@ function Note({
         <span className={styles.text}>{criterion.text}</span>
       </p>
       <ArtifactChecks experiment={experiment} />
-      <div className={form.field}>
-        <span className={form.fieldLabel} aria-hidden>
-          What this run shows for {name}
-        </span>
-        <input
-          ref={noteRef}
-          type="text"
-          aria-label={`What this run shows for ${name}`}
-          className={form.note}
-          placeholder="the reading — the same run can mean different things to different criteria"
-          value={note}
-          onChange={(event) => {
-            setNote(event.target.value);
-            refusal.forget();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-        />
-      </div>
-      <div className={form.row}>
-        <button
-          type="button"
-          className={form.attach}
+      <FieldRow label={`What this run shows for ${name}`}>
+        {(row) => (
+          <Input
+            {...row}
+            ref={noteRef}
+            wide
+            placeholder="the reading — the same run can mean different things to different criteria"
+            value={note}
+            onChange={(event) => {
+              setNote(event.target.value);
+              refusal.forget();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                submit();
+              }
+            }}
+          />
+        )}
+      </FieldRow>
+      <ActionRow>
+        <Button
+          tier="primary"
           disabled={!ready || attach.isPending}
           onClick={submit}
         >
           attach
-        </button>
-        <span className={form.hint}>
+        </Button>
+        <Unlocks>
           records no Outcome; judging the criterion stays its own act
-        </span>
-      </div>
+        </Unlocks>
+      </ActionRow>
       <RefusalLine refusal={refusal} className={form.refusal} />
     </div>
   );

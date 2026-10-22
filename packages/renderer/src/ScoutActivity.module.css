@@ -398,27 +398,6 @@
   color: var(--color-fg);
 }
 
-.edit label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.edit textarea {
-  font: inherit;
-}
-
-.formActions {
-  margin: 0;
-  display: flex;
-  gap: var(--space-2);
-}
-
-/* A sentence in the edit, in the page's own type like the form around it. */
-.line {
-  margin: 0;
-}
-
 /* Coverage gaps: a surface on the pane's ground, set off by its gutter and
    never by a rule (ADR 0023 decision 1), and as quiet as the rows below it —
    no tint, since a gap is worth knowing and not broken (ADR 0042 decisions 8 and 11). */

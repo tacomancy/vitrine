@@ -305,7 +305,7 @@ describe("running an OpenAlex Scout", () => {
     [
       "rate_limited",
       () => Promise.resolve(new Response("", { status: 429 })),
-      /OpenAlex asked Vitrine to slow down/,
+      /OpenAlex's daily budget is used up, so this Scout is waiting/,
     ],
     [
       "parse",

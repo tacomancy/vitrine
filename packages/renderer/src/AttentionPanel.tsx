@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { AttentionTag, LexiconView, SyncResult } from "core";
 import { Scatter, growthOf } from "./charts/scatter";
+import { Button, Input } from "./Form";
 import { FirstSlot } from "./FirstSlot";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./AttentionPanel.module.css";
@@ -73,17 +74,17 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         <span className={styles.stated}>
           {asOfLine(attention.data.asOf, attention.data.synced)}
         </span>
-        <button
-          type="button"
-          className={styles.sync}
-          disabled={sync.isPending}
-          onClick={() => {
-            if (attention.data.synced) sync.mutate({});
-            else setAsking(true);
-          }}
-        >
-          Sync now
-        </button>
+        <span className={styles.syncNow}>
+          <Button
+            disabled={sync.isPending}
+            onClick={() => {
+              if (attention.data.synced) sync.mutate({});
+              else setAsking(true);
+            }}
+          >
+            Sync now
+          </Button>
+        </span>
       </div>
       {asking && !attention.data.synced && (
         <div role="group" aria-label="Confirm sync" className={styles.confirm}>
@@ -91,23 +92,16 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
             Sync sends each placed Tag&rsquo;s Terms, and nothing else from your
             vault, to OpenAlex (api.openalex.org). No account or key.
           </span>
-          <button
-            type="button"
-            className={styles.sync}
+          <Button
+            tier="primary"
             onClick={() => {
               setAsking(false);
               sync.mutate({ confirm: true });
             }}
           >
             Sync
-          </button>
-          <button
-            type="button"
-            className={styles.sync}
-            onClick={() => setAsking(false)}
-          >
-            Not now
-          </button>
+          </Button>
+          <Button onClick={() => setAsking(false)}>Not now</Button>
         </div>
       )}
       <SyncLine sync={sync} />
@@ -121,6 +115,13 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         </p>
       ) : (
         <>
+          {attention.data.paused !== null && (
+            <p className={styles.stated} role="status">
+              paused to leave room for Scouts — resumes after the reset
+              {attention.data.due > 0 &&
+                `, ${plural(attention.data.due, "tag", "tags")} waiting`}
+            </p>
+          )}
           <Failures tags={tags} due={attention.data.due} />
           {attention.data.synced && attention.data.due > 0 && (
             <p className={styles.stated} role="status">
@@ -375,23 +376,19 @@ function LexiconEditor({ view }: { view: LexiconView }) {
                   <span>{t.term}</span>
                   <span className={styles.origin}>{t.origin}</span>
                   {t.origin === "seeded" ? (
-                    <button
-                      type="button"
-                      className={styles.edit}
+                    <Button
                       aria-label={`Remove ${t.term}`}
                       onClick={() => edit(restore, t.term)}
                     >
                       Remove
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      type="button"
-                      className={styles.edit}
+                    <Button
                       aria-label={`Exclude ${t.term}`}
                       onClick={() => edit(exclude, t.term)}
                     >
                       Exclude
-                    </button>
+                    </Button>
                   )}
                 </li>
               ))}
@@ -413,14 +410,12 @@ function LexiconEditor({ view }: { view: LexiconView }) {
             <li key={term} className={styles.term}>
               <span>{term}</span>
               <span className={styles.origin}>excluded</span>
-              <button
-                type="button"
-                className={styles.edit}
+              <Button
                 aria-label={`Restore ${term}`}
                 onClick={() => edit(restore, term)}
               >
                 Restore
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -433,17 +428,14 @@ function LexiconEditor({ view }: { view: LexiconView }) {
           edit(seed, typed);
         }}
       >
-        <input
+        <Input
           type="text"
-          className={styles.seedBox}
           aria-label="Seed a term"
           placeholder="Seed a term"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
         />
-        <button type="submit" className={styles.edit}>
-          Seed
-        </button>
+        <Button tier="primary">Seed</Button>
       </form>
       <RefusalLine refusal={refusal} className={styles.refusal} />
     </section>

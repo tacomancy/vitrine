@@ -6,6 +6,7 @@ import {
   compileOpenAlexQuery,
   LOOKBACK_DAYS,
   SEARCH_FILTER,
+  SPENT_UNTIL,
   OpenAlexError,
   type OpenAlexClient,
 } from "./openalex.js";
@@ -243,7 +244,16 @@ export async function runScout(
       .prepare(
         "UPDATE scout_runs SET finished = ?, outcome = 'failed', error_kind = ?, error_message = ? WHERE id = ?"
       )
-      .run(iso(deps.now()), cause.kind, cause.message, runId);
+      .run(
+        iso(deps.now()),
+        cause.kind,
+        // A spent budget records when it is back, on this clock, so the
+        // scheduler waits for the reset and not a cadence.
+        cause instanceof OpenAlexError && cause.retryAfterMs !== undefined
+          ? `${SPENT_UNTIL}${iso(new Date(deps.now().getTime() + cause.retryAfterMs))}`
+          : cause.message,
+        runId
+      );
     summary = {
       runId,
       outcome: "failed",

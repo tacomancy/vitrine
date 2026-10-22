@@ -141,39 +141,9 @@
   overflow-wrap: anywhere;
 }
 
-/* The editor's small actions are quiet text buttons: gutters and soft fills,
-   not boxes (ADR 0023). */
-.edit {
-  padding: var(--space-1) var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-fg-muted);
-  font: inherit;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.edit:hover {
-  background: var(--color-bg-raised);
-  color: var(--color-fg);
-}
-
 .seed {
   display: flex;
   gap: var(--space-2);
-}
-
-.seedBox {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-1) var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-raised);
-  color: inherit;
-  font: inherit;
-  font-size: var(--text-sm);
 }
 
 /* A refused edit, in the footer's register: a reason, never red. */
@@ -188,29 +158,10 @@
   flex: 1;
 }
 
-/* Sync now and its confirm: quiet text buttons, sapphire only on hover/focus
-   as the rest of the panel's controls; the confirm is a line in the panel,
-   not a floating layer. */
-.sync {
+/* Sync now sits at the head's end; the confirm is a line in the panel, not a
+   floating layer. */
+.syncNow {
   margin-left: auto;
-  padding: var(--space-1) var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-sunken);
-  color: inherit;
-  font: inherit;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.sync:hover:not(:disabled) {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.sync:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .confirm {
@@ -222,9 +173,4 @@
   border-radius: var(--radius-md);
   background: var(--color-bg-sunken);
   font-size: var(--text-xs);
-}
-
-.confirm .sync {
-  margin-left: 0;
-  background: var(--color-bg-raised);
 }

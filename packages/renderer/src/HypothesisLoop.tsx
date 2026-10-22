@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Loop } from "core";
+import { Button } from "./Form";
 import styles from "./Hypothesis.module.css";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import rq from "./ResearchQuestion.module.css";
@@ -52,17 +53,17 @@ export function LoopLine({
     })
   );
   const offer = (label: string) => (
-    <button
-      type="button"
-      className={`${rq.edit} ${styles.offer}`}
-      disabled={close.isPending}
-      onClick={() => {
-        refusal.forget();
-        close.mutate({ path, basedOn: hash });
-      }}
-    >
-      {label}
-    </button>
+    <span className={styles.offer}>
+      <Button
+        disabled={close.isPending}
+        onClick={() => {
+          refusal.forget();
+          close.mutate({ path, basedOn: hash });
+        }}
+      >
+        {label}
+      </Button>
+    </span>
   );
 
   return (

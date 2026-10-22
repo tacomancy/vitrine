@@ -112,6 +112,10 @@ input:not([type]).input {
   max-width: 40ch;
 }
 
+input.input.wide {
+  max-width: 60ch;
+}
+
 input[inputmode="numeric"].input {
   width: 8ch;
 }
@@ -146,6 +150,8 @@ input[inputmode="numeric"].input {
   font-family: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
+  /* An action is one phrase: it never wraps inside a narrow row. */
+  white-space: nowrap;
 }
 
 /* Sapphire is every action (BRAND law 2); the one filled button is the one
@@ -186,6 +192,68 @@ input[inputmode="numeric"].input {
 /* Not a grey box either: a disabled primary gives up its fill. */
 .primary:disabled {
   background: transparent;
+}
+
+/* The same unboxed text in the shapes a list, a tab strip or a sentence needs. */
+.inline,
+.tab,
+.toggle,
+.listRow {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.inline {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.inline:disabled {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.tab {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+/* The open tab is the one in the body colour; no underline, no box
+   (ADR 0023 decision 1). */
+.tab[aria-selected="true"] {
+  color: var(--color-fg);
+}
+
+/* Off reads as struck through as well as dimmed, so it is not colour alone. */
+.toggle[aria-pressed="false"] {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.toggle {
+  color: var(--color-fg-muted);
+}
+
+.listRow {
+  color: inherit;
+  text-align: left;
+}
+
+.inline:focus-visible,
+.tab:focus-visible,
+.toggle:focus-visible,
+.listRow:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .unlocks {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Card, MuteRule, MutedItem } from "core";
 import { useEffect, useState } from "react";
+import { Button, Input } from "./Form";
 import styles from "./ScoutQueue.module.css";
 import { useTRPC } from "./trpc";
 
@@ -76,18 +77,16 @@ export function MuteOffer({
         <>
           <p className={styles.actions}>
             {card.authors.map((name) => (
-              <button
+              <Button
                 key={name}
-                type="button"
                 aria-label={`Mute author ${name}`}
                 onClick={() => setChoice({ kind: "author", value: name })}
               >
                 Mute author {name}
-              </button>
+              </Button>
             ))}
             {card.venue !== null && (
-              <button
-                type="button"
+              <Button
                 aria-label={`Mute venue ${card.venue}`}
                 onClick={() =>
                   setChoice({
@@ -100,7 +99,7 @@ export function MuteOffer({
                 }
               >
                 Mute venue {card.venue}
-              </button>
+              </Button>
             )}
             {card.publisher !== null && (
               <button
@@ -119,22 +118,21 @@ export function MuteOffer({
             )}
           </p>
           <p className={styles.actions}>
-            <input
+            <Input
               type="text"
               aria-label="Keyword"
               placeholder="a word in the title or abstract"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />{" "}
-            <button
-              type="button"
+            <Button
               disabled={keyword.trim() === ""}
               onClick={() =>
                 setChoice({ kind: "keyword", value: keyword.trim() })
               }
             >
               Mute keyword
-            </button>
+            </Button>
           </p>
         </>
       ) : (
@@ -148,16 +146,14 @@ export function MuteOffer({
                 : "Counting what it would catch…"}
           </p>
           <p className={styles.actions}>
-            <button
-              type="button"
+            <Button
+              tier="primary"
               disabled={save.isPending}
               onClick={() => save.mutate(choice)}
             >
               Save rule
-            </button>{" "}
-            <button type="button" onClick={() => setChoice(null)}>
-              Back
-            </button>
+            </Button>{" "}
+            <Button onClick={() => setChoice(null)}>Back</Button>
           </p>
         </>
       )}
@@ -204,14 +200,13 @@ export function MutedView({
           {rules.map((rule) => (
             <li key={`${rule.kind}:${rule.id ?? rule.value}`}>
               {ruleWords(rule)}{" "}
-              <button
-                type="button"
+              <Button
                 disabled={deleting}
                 aria-label={`Delete rule ${ruleWords(rule)}`}
                 onClick={() => onDelete(rule)}
               >
                 Delete rule
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

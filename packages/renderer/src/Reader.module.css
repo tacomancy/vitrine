@@ -260,33 +260,6 @@
   outline-offset: 2px;
 }
 
-.barNote {
-  flex: 1;
-  min-width: 200px;
-  resize: vertical;
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--color-fg);
-  background: var(--color-bg-surface);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-2);
-}
-
-.barAction {
-  all: unset;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-fg);
-  padding: var(--space-2) var(--space-3);
-}
-
-.barAction:hover,
-.barAction:focus-visible {
-  background: var(--color-bg-surface);
-}
-
 .barSaid {
   flex-basis: 100%;
   margin: 0;
