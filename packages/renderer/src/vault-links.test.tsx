@@ -1,3 +1,4 @@
+import { EditorView } from "@codemirror/view";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
@@ -44,7 +45,11 @@ const open = (text: string, links: Record<string, unknown> = {}) => {
 
 /** The drawn thing a click lands on: CodeMirror splits text into spans, so find it by what it says. */
 const drawn = async (text: string) => {
-  await screen.findByRole("textbox", { name: "Editor" });
+  const box = await screen.findByRole("textbox", { name: "Editor" });
+  // A fresh note hides its brackets (#776); these tests follow the drawn `[[x]]`.
+  EditorView.findFromDOM(box.closest(".cm-editor") as HTMLElement)!.dispatch({
+    selection: { anchor: 0 },
+  });
   const found = await waitFor(() => {
     const el = Array.from(document.querySelectorAll<HTMLElement>(".cm-line *"))
       .filter((e) => e.textContent === text && e.dataset["follow"])

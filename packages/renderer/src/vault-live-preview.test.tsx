@@ -76,6 +76,14 @@ describe("hiding marks off the cursor's line", () => {
     ]);
   });
 
+  it("hides them all on open, the cursor's line included, until the user puts the cursor somewhere (#776)", async () => {
+    const { box, view } = await open(DOC);
+    expect(lines(box)[0]).toBe("Title");
+    expect(lines(box)[1]).toBe("a bold and soft and code");
+    cursorAt(view, 2);
+    expect(lines(box)[0]).toBe("# Title");
+  });
+
   it("shows the marks on the line the cursor is on, and hides them again when it leaves", async () => {
     const { box, view } = await open(DOC);
     cursorAt(view, DOC.indexOf("bold"));
