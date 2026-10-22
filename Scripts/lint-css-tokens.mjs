@@ -1,8 +1,13 @@
-// Phase one of the UI-token lint (#785): the renderer's CSS reaches spacing,
+// The UI lint. Phase one (#785): the renderer's CSS reaches spacing,
 // font size, radius and colour through tokens, never a raw `px` or hex value.
 // Layout dimensions (width, height, grid tracks, offsets) are exempt: no token
 // scale covers them. Where a raw value is deliberate it goes in ALLOWED below,
 // each with the reason, so a drive-by value cannot slip in unseen.
+//
+// Phase two (#792): a component reaches a button or a fieldset through the
+// shared primitives in Form.tsx, never a bare `<button>` or `<fieldset>`.
+// ALLOWED_MARKUP below is a ratchet, not a licence: a count per file, so a new
+// bare control in any file fails, and a migrated one forces the count down.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,6 +88,41 @@ export const ALLOWED = [
   ],
 ].map(([file, prop, value, reason]) => ({ file, prop, value, reason }));
 
+const BARE = "a surface not yet moved onto Form's Button (a later sweep)";
+const CHOOSES =
+  "a row or swatch that is itself the thing it names, an aria-pressed chooser (architecture.md, UI conventions: What stays as it is)";
+
+// Bare controls that predate the check. Each count is exact; the test fails
+// if the source has fewer, so the list can only shrink.
+export const ALLOWED_MARKUP = [
+  ["AnnotationControls.tsx", 1, CHOOSES],
+  ["AttentionPanel.tsx", 1, CHOOSES],
+  ["CadenceMenu.tsx", 1, BARE],
+  ["CandidateReview.tsx", 2, BARE],
+  ["Detail.tsx", 1, BARE],
+  ["Experiments.tsx", 6, BARE],
+  ["FirstRun.tsx", 1, BARE],
+  ["HighlightBar.tsx", 1, CHOOSES],
+  ["HomeInterrupt.tsx", 3, BARE],
+  ["Inbox.tsx", 1, BARE],
+  ["LooseEnds.tsx", 25, BARE],
+  ["MuteRules.tsx", 1, CHOOSES],
+  ["Origins.tsx", 1, BARE],
+  ["PositionHistory.tsx", 4, BARE],
+  ["QuestionMap.tsx", 1, BARE],
+  ["Reader.tsx", 1, BARE],
+  ["Readings.tsx", 1, BARE],
+  ["Resurfaced.tsx", 3, BARE],
+  ["ReviewLinks.tsx", 1, BARE],
+  ["ScoutActivity.tsx", 8, BARE],
+  ["ScoutDropped.tsx", 4, BARE],
+  ["ScoutQueue.tsx", 15, BARE],
+  ["UnmatchedPanel.tsx", 1, BARE],
+].map(([file, count, reason]) => ({ file, count, reason }));
+
+// The primitives themselves are where the bare elements live.
+const PRIMITIVES = "Form.tsx";
+
 function strip(css) {
   // Keep newlines so reported line numbers stay true.
   return css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
@@ -134,16 +174,49 @@ export function lintCss(css, file = "<css>", allowed = []) {
   return problems;
 }
 
-function cssFiles(dir) {
+function filesWith(dir, keep) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory()
       ? e.name === "node_modules" || e.name === "dist"
         ? []
-        : cssFiles(join(dir, e.name))
-      : e.name.endsWith(".css")
+        : filesWith(join(dir, e.name), keep)
+      : keep(e.name)
         ? [join(dir, e.name)]
         : []
   );
+}
+
+const cssFiles = (dir) => filesWith(dir, (n) => n.endsWith(".css"));
+// Tests render whatever they like; only shipped components are held to it.
+const componentFiles = (dir) =>
+  filesWith(dir, (n) => n.endsWith(".tsx") && !/\.test\.tsx$/.test(n));
+
+export function lintMarkup(src, file = "<tsx>", allowed = []) {
+  // Block and line comments, newlines kept so line numbers stay true.
+  const text = src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/^\s*\/\/.*$/gm, "");
+  const found = [...text.matchAll(/<(button|fieldset)\b/g)].map((m) => ({
+    tag: m[1],
+    line: text.slice(0, m.index).split("\n").length,
+  }));
+  const tolerated = allowed.find((a) => a.file === file)?.count ?? 0;
+  // Over the count, report every site: which of them is the new one is not
+  // something a count can say.
+  if (found.length <= tolerated) return [];
+  return found.map(({ tag, line }) => ({
+    file,
+    line,
+    message: `${file}:${line}: bare <${tag}>; use the primitives in ${PRIMITIVES}`,
+  }));
+}
+
+export function lintMarkupTree(root, allowed = ALLOWED_MARKUP) {
+  return componentFiles(root)
+    .filter((f) => relative(root, f) !== PRIMITIVES)
+    .flatMap((f) =>
+      lintMarkup(readFileSync(f, "utf8"), relative(root, f), allowed)
+    );
 }
 
 export function lintTree(root, allowed = ALLOWED) {
@@ -153,7 +226,10 @@ export function lintTree(root, allowed = ALLOWED) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const problems = lintTree("packages/renderer/src");
+  const problems = [
+    ...lintTree("packages/renderer/src"),
+    ...lintMarkupTree("packages/renderer/src"),
+  ];
   for (const p of problems) console.error(p.message);
   process.exit(problems.length ? 1 : 0);
 }

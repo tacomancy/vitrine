@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { ALLOWED, lintCss, lintTree } from "./lint-css-tokens.mjs";
+import {
+  ALLOWED,
+  ALLOWED_MARKUP,
+  lintCss,
+  lintMarkup,
+  lintMarkupTree,
+  lintTree,
+} from "./lint-css-tokens.mjs";
 
 // Built, not written, so the repo's own colour-literal rule has nothing to flag.
 const HEX = "#" + "1a2b3c";
@@ -83,5 +90,57 @@ describe("lint-css-tokens", () => {
         `${a.file} ${a.prop}: ${a.value}`
       ).toBe(true);
     }
+  });
+
+  describe("phase two: no bare button or fieldset (#792)", () => {
+    it("fails a bare button", () => {
+      const src = `export const A = () => <button type="button">Go</button>;`;
+      const [p] = lintMarkup(src, "A.tsx");
+      expect(p.message).toContain("A.tsx:1");
+      expect(p.message).toContain("button");
+    });
+
+    it("fails a bare fieldset", () => {
+      const src = `export const A = () => (\n  <fieldset>\n    <legend>x</legend>\n  </fieldset>\n);`;
+      const [p] = lintMarkup(src, "A.tsx");
+      expect(p.message).toContain("A.tsx:2");
+      expect(p.message).toContain("fieldset");
+    });
+
+    it("passes a surface that uses the primitives", () => {
+      const src = `import { Button, FormSection } from "./Form";\nexport const A = () => (\n  <FormSection title="x"><Button>Go</Button></FormSection>\n);`;
+      expect(lintMarkup(src, "A.tsx")).toEqual([]);
+    });
+
+    it("ignores a button named in a comment", () => {
+      expect(lintMarkup(`// a <button> here\nconst a = 1;`, "A.tsx")).toEqual(
+        []
+      );
+    });
+
+    it("tolerates only as many as the allow-list counts for the file", () => {
+      const two = `<button/>\n<button/>`;
+      const allowed = [{ file: "A.tsx", count: 2, reason: "r" }];
+      expect(lintMarkup(two, "A.tsx", allowed)).toEqual([]);
+      expect(lintMarkup(`${two}\n<button/>`, "A.tsx", allowed)).toHaveLength(3);
+    });
+
+    it("holds the renderer's own components to it", () => {
+      expect(lintMarkupTree("packages/renderer/src")).toEqual([]);
+    });
+
+    it("gives every allow-list entry a reason", () => {
+      for (const a of ALLOWED_MARKUP)
+        expect(a.reason.length).toBeGreaterThan(10);
+    });
+
+    it("keeps no allow-list count the source has outgrown", () => {
+      const found = lintMarkupTree("packages/renderer/src", []);
+      for (const a of ALLOWED_MARKUP) {
+        expect(found.filter((p) => p.file === a.file).length, a.file).toBe(
+          a.count
+        );
+      }
+    });
   });
 });
