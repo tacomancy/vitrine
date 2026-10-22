@@ -2,7 +2,12 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
 import { ArxivError } from "./arxiv.js";
-import { OpenAlexError, SEARCH_FILTER } from "./openalex.js";
+import {
+  OpenAlexError,
+  SEARCH_FILTER,
+  type NameResult,
+  type OpenAlexClient,
+} from "./openalex.js";
 import { NO_KEY, WatchedError, readWatched } from "./watched.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
@@ -389,6 +394,39 @@ export function setDropped(
     else doc.delete("dropped");
     await writeScoutFile(deps.vaultPath, found.file, scoutText(doc));
   });
+}
+
+export type NamesFound =
+  | {
+      outcome: "found";
+      results: NameResult[];
+      creditsLeft: number | null;
+    }
+  | { outcome: "failed"; sentence: string };
+
+/**
+ * The name search behind a venue or publisher rule (ADR 0051 decision 9). A
+ * failed or spent search is said as one with the fault's own sentence, never
+ * an empty list: nothing found and nothing asked must not look alike.
+ */
+export async function searchNames(
+  client: OpenAlexClient,
+  kind: "venue" | "publisher",
+  name: string
+): Promise<NamesFound> {
+  if (name.trim() === "") {
+    throw new VaultError("refused", "There is no name to search for.");
+  }
+  try {
+    const found = await client.searchNames(kind, name.trim());
+    return { outcome: "found", ...found };
+  } catch (cause) {
+    if (!(cause instanceof OpenAlexError)) throw cause;
+    return {
+      outcome: "failed",
+      sentence: faultSentence(cause.kind, cause.message, false, "openalex"),
+    };
+  }
 }
 
 export type TriedQuery =

@@ -58,6 +58,7 @@ Skill names below are the vendored ones in `.agents/skills/` (CI fails if one st
 Overrides `code-review`'s default smell baseline:
 - Prefer the obvious solution over the clever one. No abstraction until a second real use case needs it.
 - Comment the *why*, not the *what*. Skip anything that restates the code.
+- UI: grouping and alignment follow `docs/architecture.md` § UI conventions — related fields sit under one section heading, labels align in the row column, controls are content-width, and a button or choice comes from the `Form.tsx` primitives. `pnpm lint:tokens` refuses a bare `<button>` or `<fieldset>`; what it cannot see (grouping, alignment) is the review's to check.
 - Extra weight near load-bearing spots: annotation re-matching, Scout source-health, derived Hypothesis state. A future reader should see why that logic exists without re-deriving it from the brief.
 
 ## Review cadence
