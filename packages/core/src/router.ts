@@ -93,6 +93,7 @@ import { changedWhileAway } from "./home-changed.js";
 import { readFleetClaim, readHealth } from "./scout-health.js";
 import {
   saveScout,
+  searchNames,
   setCadence,
   setDropped,
   setPaused,
@@ -826,6 +827,15 @@ export const router = t.router({
       )
       .query(async ({ ctx, input }) =>
         refusing(previewTags(await scoutDeps(ctx), input.tags, input.source))
+      ),
+    // A venue or publisher by name, on an explicit press (ADR 0051 decision
+    // 9): a mutation, since each call spends credits, and it writes nothing.
+    searchNames: t.procedure
+      .input(
+        z.object({ kind: z.enum(["venue", "publisher"]), name: z.string() })
+      )
+      .mutation(async ({ ctx, input }) =>
+        refusing(searchNames(ctx.openalex, input.kind, input.name))
       ),
     tryTags: t.procedure
       .input(
