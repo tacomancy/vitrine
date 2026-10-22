@@ -228,6 +228,28 @@ describe("attaching a source", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("chooses the side with the arrow keys, from the first side the keyboard lands on", async () => {
+    const attach = vi.fn(() => ({ written: true, hash: "def", shape: [] }));
+    open(page([], []), { "researchQuestions.attachSource": attach });
+    const form = await chooseSource();
+
+    const supporting = within(form).getByRole("radio", { name: "supporting" });
+    expect(document.activeElement).toBe(supporting);
+    fireEvent.keyDown(supporting, { key: "ArrowRight" });
+
+    const opposing = within(form).getByRole<HTMLInputElement>("radio", {
+      name: "opposing",
+    });
+    expect(opposing.checked).toBe(true);
+    expect(document.activeElement).toBe(opposing);
+    fireEvent.click(within(form).getByRole("button", { name: /attach/i }));
+    await waitFor(() =>
+      expect(attach).toHaveBeenCalledWith(
+        expect.objectContaining({ side: "opposing" })
+      )
+    );
+  });
+
   it("attaches with no note at all, and there is no third side to pick", async () => {
     const attach = vi.fn(() => ({ written: true, hash: "def", shape: [] }));
     open(page([], []), { "researchQuestions.attachSource": attach });

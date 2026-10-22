@@ -112,6 +112,10 @@ input:not([type]).input {
   max-width: 40ch;
 }
 
+input.input.wide {
+  max-width: 60ch;
+}
+
 input[inputmode="numeric"].input {
   width: 8ch;
 }
