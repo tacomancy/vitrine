@@ -6,6 +6,7 @@ import {
   snapColour,
   type HighlightColour,
 } from "./highlight-colour";
+import { Button, TextArea } from "./Form";
 import styles from "./Reader.module.css";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
@@ -70,6 +71,8 @@ export function AnnotationControls({
       {isMarkup && (
         <div className={styles.swatches} role="group" aria-label="Recolour">
           {HIGHLIGHT_COLOURS.map((name: HighlightColour) => (
+            // A swatch is the colour it names, not a labelled action: it
+            // stays a plain button (docs/architecture.md § UI conventions).
             <button
               key={name}
               type="button"
@@ -102,42 +105,25 @@ export function AnnotationControls({
             });
           }}
         >
-          <textarea
-            className={styles.barNote}
+          <TextArea
             aria-label="Margin note"
             rows={2}
             value={editing}
             onChange={(event) => setEditing(event.target.value)}
           />
-          <button
-            type="submit"
-            className={styles.barAction}
-            disabled={amend.isPending}
-          >
+          <Button tier="primary" disabled={amend.isPending}>
             Save note
-          </button>
-          <button
-            type="button"
-            className={styles.barAction}
-            onClick={() => setEditing(null)}
-          >
-            Cancel
-          </button>
+          </Button>
+          <Button onClick={() => setEditing(null)}>Cancel</Button>
         </form>
       ) : (
         <div className={styles.controlsRow}>
           {isMarkup && (
-            <button
-              type="button"
-              className={styles.barAction}
-              onClick={() => setEditing(annotation.note)}
-            >
+            <Button onClick={() => setEditing(annotation.note)}>
               Edit note
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className={styles.barAction}
+          <Button
             disabled={remove.isPending}
             onClick={() => {
               refusal.forget();
@@ -149,7 +135,7 @@ export function AnnotationControls({
             }}
           >
             Remove
-          </button>
+          </Button>
         </div>
       )}
       {asking !== null && (
@@ -168,9 +154,7 @@ export function AnnotationControls({
             ))}
           </ul>
           <div className={styles.controlsRow}>
-            <button
-              type="button"
-              className={styles.barAction}
+            <Button
               onClick={() => {
                 refusal.forget();
                 remove.mutate({
@@ -181,14 +165,8 @@ export function AnnotationControls({
               }}
             >
               Remove it
-            </button>
-            <button
-              type="button"
-              className={styles.barAction}
-              onClick={() => remove.reset()}
-            >
-              Keep it
-            </button>
+            </Button>
+            <Button onClick={() => remove.reset()}>Keep it</Button>
           </div>
         </div>
       )}
