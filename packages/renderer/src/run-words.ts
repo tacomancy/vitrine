@@ -13,7 +13,9 @@ export function runWords(summary: RunSummary): string {
         `${summary.new} new`,
         ...(summary.held > 0 ? [`${summary.held} already in your vault`] : []),
         ...(summary.truncated > 0
-          ? [`stopped at 500 — ${summary.truncated} more matched`]
+          ? [
+              `stopped at ${summary.ceiling} — ${summary.truncated} more matched`,
+            ]
           : []),
       ].join(" · ");
 }
