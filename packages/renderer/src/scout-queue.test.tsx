@@ -27,6 +27,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   venue: null,
   venueType: null,
   venueId: null,
+  alsoOnArxiv: null,
   publisher: null,
   abstract: "A short abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
@@ -169,6 +170,36 @@ describe("the Scout Queue", () => {
     });
     expect(journal.textContent).toContain("Journal of Sleep (journal)");
     expect(journal.textContent).not.toMatch(/peer-reviewed/i);
+  });
+
+  it("leads with the journal link and keeps the arXiv copy as also on arXiv", async () => {
+    renderApp(
+      answers([
+        card({
+          url: "https://journal.example/slow",
+          alsoOnArxiv: "https://arxiv.org/abs/2609.05678",
+        }),
+      ])
+    );
+
+    const article = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    const links = within(article).getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "https://journal.example/slow",
+      "https://arxiv.org/abs/2609.05678",
+    ]);
+    expect(article.textContent).toContain("also on arXiv");
+  });
+
+  it("says nothing of arXiv when the card has no other copy", async () => {
+    renderApp(answers([card()]));
+
+    const article = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    expect(article.textContent).not.toContain("also on arXiv");
   });
 
   it("names the Rank signals that fired and says nothing for a card with none", async () => {

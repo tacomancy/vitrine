@@ -10,7 +10,7 @@ import {
   OpenAlexError,
   type OpenAlexClient,
 } from "./openalex.js";
-import { sourceKeyOf } from "./source-key.js";
+import { arxivIdOf, sourceKeyOf } from "./source-key.js";
 import {
   readWatched,
   WatchedError,
@@ -577,10 +577,10 @@ function arrive(
   items: Arrival[],
   rules: MuteRule[]
 ): { new: number; held: number } {
-  const muted = mutedBy(deps.queue, rules);
+  let muted = mutedBy(deps.queue, rules);
   const { queue } = deps;
   const at = iso(deps.now());
-  const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
+  const known = queue.prepare("SELECT * FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
     `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -610,7 +610,14 @@ function arrive(
   const revisited: number[] = [];
   for (const item of items) {
     const key = item.key;
-    let id = (known.get(key) as { id: number } | undefined)?.id;
+    const seen = known.get(key) as ProposalRow | undefined;
+    let id = seen?.id;
+    if (seen !== undefined && fillFrom(queue, seen, item)) {
+      // A learned venue or publisher can bring a Mute rule to bear on a card
+      // that arrived unmuted; the rules are applied when read (ADR 0051
+      // decision 11), so the set is read again.
+      muted = mutedBy(deps.queue, rules);
+    }
     if (id === undefined) {
       const heldBy = vaultHas(key, item.doi);
       id = Number(
@@ -670,6 +677,55 @@ function arrive(
   );
   releaseCounterweight(deps, revisited);
   return { new: fresh, held };
+}
+
+/**
+ * A later sighting of a known paper fills what the card lacks and overwrites
+ * nothing (ADR 0051 decision 11); the one thing it replaces is an arXiv main
+ * link, since the journal link leads once any Appearance has one. A card
+ * already accepted is left alone: its stub is a file the researcher may have
+ * edited, and the row is what that stub was written from. Returns whether a
+ * field changed.
+ */
+function fillFrom(
+  queue: DatabaseSync,
+  row: ProposalRow,
+  item: Arrival
+): boolean {
+  if (row.stub_path !== null) return false;
+  const fills: Record<string, string | null> = {};
+  const fill = (
+    column: keyof ProposalRow,
+    found: string | null | undefined
+  ) => {
+    const has = row[column];
+    if (found !== undefined && found !== null && (has === null || has === ""))
+      fills[column] = found;
+  };
+  fill("doi", item.doi);
+  fill("venue", item.venue);
+  fill("venue_type", item.venueType);
+  fill("venue_source_id", item.venueId);
+  fill(
+    "publisher_lineage",
+    item.publisherLineage === undefined
+      ? null
+      : JSON.stringify(item.publisherLineage)
+  );
+  fill("publisher_name", item.publisherName);
+  fill("published", item.published);
+  fill("abstract", item.abstract);
+  if (arxivIdOf(row.url) !== null && arxivIdOf(item.url) === null) {
+    fills["url"] = item.url;
+  }
+  const columns = Object.keys(fills);
+  if (columns.length === 0) return false;
+  queue
+    .prepare(
+      `UPDATE proposals SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`
+    )
+    .run(...columns.map((c) => fills[c]!), row.id);
+  return true;
 }
 
 /**
@@ -840,6 +896,8 @@ export type Card = {
   venueType: "journal" | "conference" | null;
   /** The venue's OpenAlex source ID; a venue Mute rule built from the card carries it (ADR 0051 decision 8). `null` for arXiv and pages. */
   venueId: string | null;
+  /** The arXiv copy of a work whose main link is a journal's, shown as *also on arXiv* (ADR 0051 decision 11); `null` when the main link is the arXiv one or there is no arXiv copy. */
+  alsoOnArxiv: string | null;
   /** The venue's own publisher, the first of its lineage, which a publisher Mute rule would carry; the name is `null` when OpenAlex gave none. */
   publisher: { id: string; name: string | null } | null;
   abstract: string;
@@ -895,6 +953,13 @@ function publisherOf(row: ProposalRow): Card["publisher"] {
   if (row.publisher_lineage === null) return null;
   const [id] = JSON.parse(row.publisher_lineage) as string[];
   return id === undefined ? null : { id, name: row.publisher_name };
+}
+
+function alsoOnArxiv(row: ProposalRow): string | null {
+  if (!row.source_key.startsWith("arxiv:") || arxivIdOf(row.url) !== null) {
+    return null;
+  }
+  return `https://arxiv.org/abs/${row.source_key.slice("arxiv:".length)}`;
 }
 
 export type QueueSort = "rank" | "newest";
@@ -1167,6 +1232,7 @@ async function readCards(
       publisher: publisherOf(row),
       abstract: row.abstract,
       url: row.url,
+      alsoOnArxiv: alsoOnArxiv(row),
       doi: row.doi,
       lane: row.lane,
       scouts: scoutIds.flatMap((id) => {
