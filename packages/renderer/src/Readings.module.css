@@ -17,18 +17,6 @@
   column-gap: var(--space-3);
 }
 
-.count {
-  all: unset;
-  cursor: pointer;
-  font-size: var(--text-sm);
-  color: var(--color-fg);
-}
-
-.count:hover,
-.count:focus-visible {
-  text-decoration: underline;
-}
-
 .note,
 .meta {
   font-family: var(--font-mono);

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "./Form";
 import { useState } from "react";
 import { addressOf } from "./kinds";
 import styles from "./Origins.module.css";
@@ -60,13 +61,7 @@ export function Origins() {
       {total > rows.length && (
         <p className={styles.quiet}>
           top {rows.length} of {total} ·{" "}
-          <button
-            type="button"
-            className={styles.more}
-            onClick={() => setAll(true)}
-          >
-            show all {total}
-          </button>
+          <Button onClick={() => setAll(true)}>show all {total}</Button>
         </p>
       )}
     </section>

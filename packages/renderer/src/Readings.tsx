@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Button } from "./Form";
 import type { Readings } from "core";
 import { hashOf, type Route } from "./router";
 import { markOf, routeOf } from "./kinds";
@@ -110,14 +111,9 @@ function Reading({
   if (count === 0) return null;
   return (
     <section className={styles.reading}>
-      <button
-        type="button"
-        className={styles.count}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
+      <Button aria-expanded={open} onClick={() => setOpen(!open)}>
         {label}
-      </button>
+      </Button>
       {note !== undefined && <span className={styles.note}>{note}</span>}
       {open && children}
     </section>

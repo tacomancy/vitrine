@@ -583,13 +583,12 @@ export function ScoutQueue({
         )}
         {((muted.data?.items.length ?? 0) > 0 ||
           (muted.data?.rules.length ?? 0) > 0) && (
-          <button
-            type="button"
+          <Button
             aria-pressed={mutedOpen}
             onClick={() => setMutedOpen((was) => !was)}
           >
             {muted.data?.items.length} muted
-          </button>
+          </Button>
         )}
         {lane === "review" && card !== undefined && form === null && (
           <span className={styles.count}>card 1 of {stack.length}</span>
@@ -601,12 +600,9 @@ export function ScoutQueue({
         >
           Mute by name
         </Button>
-        <button
-          type="button"
-          onClick={() => setForm({ edit: null, values: null })}
-        >
+        <Button onClick={() => setForm({ edit: null, values: null })}>
           + New Scout
-        </button>
+        </Button>
       </header>
       {byQuestion && (
         <>
@@ -664,13 +660,12 @@ export function ScoutQueue({
                 )}
               </button>
               {row.id !== null && (
-                <button
-                  type="button"
+                <Button
                   disabled={run.isPending}
                   onClick={() => run.mutate({ scoutId: row.id })}
                 >
                   Run now
-                </button>
+                </Button>
               )}
               {/* On the row as well as in the header, so a broken Scout cannot
                 hide in a group nobody selects (spec #447 story 42). */}
@@ -737,14 +732,12 @@ export function ScoutQueue({
             </ul>
           )}
           <p className={styles.actions}>
-            <button
-              type="button"
+            <Button
               onClick={() => setForm({ edit: selectedScout.id, values: null })}
             >
               Edit
-            </button>{" "}
-            <button
-              type="button"
+            </Button>{" "}
+            <Button
               disabled={pause.isPending}
               onClick={() =>
                 pause.mutate({
@@ -754,7 +747,7 @@ export function ScoutQueue({
               }
             >
               {selectedScout.paused ? "Resume" : "Pause"}
-            </button>
+            </Button>
           </p>
         </div>
       )}
@@ -809,24 +802,22 @@ export function ScoutQueue({
             {selected !== null && (group.capped ?? 0) > 0 && (
               <p className={styles.line}>
                 {group.capped} below your cap of {group.cap}{" "}
-                <button
-                  type="button"
+                <Button
                   disabled={showCapped.isPending}
                   onClick={() => showCapped.mutate({ scoutId: selected })}
                 >
                   Show them
-                </button>
+                </Button>
               </p>
             )}
             {runId !== null && group.runPending > 0 && (
-              <button
-                type="button"
+              <Button
                 disabled={rejectRun.isPending}
                 onClick={() => rejectRun.mutate({ runId })}
               >
                 Reject this run{groupName !== undefined && ` of ${groupName}`} (
                 {group.runPending})
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -858,10 +849,10 @@ export function ScoutQueue({
       <RefusalLine refusal={refusal} className={styles.line} />
       {last !== undefined && (
         <p className={styles.line}>
-          <button type="button" onClick={onUndo}>
+          <Button onClick={onUndo}>
             Undo {last.action === "rejected" ? "reject" : "defer"}
             {"bulk" in last && ` of ${last.count}`}
-          </button>{" "}
+          </Button>{" "}
           <kbd>⌘Z</kbd>
         </p>
       )}
@@ -893,9 +884,9 @@ export function ScoutQueue({
           )}
           {!showOlder && older.length > 0 && (
             <p className={styles.line}>
-              <button type="button" onClick={() => setShowOlder(true)}>
+              <Button onClick={() => setShowOlder(true)}>
                 show older ({older.length})
-              </button>
+              </Button>
             </p>
           )}
           {lines.length === 0 &&
@@ -977,13 +968,12 @@ export function ScoutQueue({
       )}
       {stackShown && lane === "review" && digest.length > 0 && (
         <div className={styles.line}>
-          <button
-            type="button"
+          <Button
             aria-expanded={digestOpen}
             onClick={() => setDigestOpen((was) => !was)}
           >
             {digest.length} older than the window
-          </button>
+          </Button>
           {digestOpen && (
             <ol aria-label="Older than the window">
               {digest.map((aged) => (

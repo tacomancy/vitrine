@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { Button } from "./Form";
 import { useState } from "react";
 import type { ListedQuestion } from "core";
 import { formatAge } from "./age";
@@ -88,13 +89,7 @@ export function Resurfaced({ vaultPath }: { vaultPath: string }) {
         <span className={styles.tone}>
           Asked a while ago. Nothing here is owed an answer.
         </span>
-        <button
-          type="button"
-          className={styles.act}
-          onClick={() => setSeed((s) => s + 1)}
-        >
-          ↻ others
-        </button>
+        <Button onClick={() => setSeed((s) => s + 1)}>↻ others</Button>
       </div>
       <ul className={styles.list}>
         {questions.map((q) => (
@@ -146,13 +141,9 @@ function Row({
       <span className={styles.provenance}>{provenanceOf(q)}</span>
       <span className={styles.age}>{formatAge(q.captured, now)}</span>
       {marked ? (
-        <button type="button" className={styles.act} onClick={onUndo}>
-          undo
-        </button>
+        <Button onClick={onUndo}>undo</Button>
       ) : (
-        <button type="button" className={styles.act} onClick={onDismiss}>
-          dismiss
-        </button>
+        <Button onClick={onDismiss}>dismiss</Button>
       )}
       {marked && (
         <p className={styles.said}>

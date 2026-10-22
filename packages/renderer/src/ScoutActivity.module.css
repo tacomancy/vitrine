@@ -94,32 +94,6 @@
   width: 21%;
 }
 
-/* A column header that sorts: its text, in the header's own type, with the
-   direction said by the glyph and by aria-sort, never by colour. */
-.sort {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  color: inherit;
-  background: none;
-  cursor: pointer;
-}
-
-.sort:hover {
-  color: var(--color-fg);
-}
-
-.table thead th[aria-sort="ascending"] .sort::after {
-  content: " ↑";
-}
-
-.table thead th[aria-sort="descending"] .sort::after {
-  content: " ↓";
-}
-
 .srOnly {
   position: absolute;
   width: 1px;
@@ -172,8 +146,7 @@
 /* The link to the Scout's stack, and what a row can be told to do: quiet words
    that are buttons or links. A link sits in a cell and has its type; an act sits
    in the first cell, which is not in the data type, so it says which to wear. */
-.link,
-.act {
+.link {
   appearance: none;
   border: 0;
   padding: 0;
@@ -187,13 +160,7 @@
   font: inherit;
 }
 
-.act {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.link:hover,
-.act:hover {
+.link:hover {
   color: var(--color-fg);
 }
 
@@ -289,53 +256,6 @@
   padding: var(--space-2) var(--space-5) var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--color-fg-muted);
-}
-
-/* An action beside the first slot's fragment, and *brief a scout* on a
-   coverage gap: a button wearing the quiet clothes a resolution wears on Loose
-   Ends. */
-.action {
-  appearance: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-2);
-  font: inherit;
-  font-size: var(--text-sm);
-  background: var(--color-bg-raised);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-}
-
-.action:hover {
-  color: var(--color-fg);
-}
-
-/* The rate cell's button opens the row, for a keyboard and a screen reader:
-   the cell's own type, so it weighs no more on one row than another. Its text
-   wraps with the cell, as every cell that speaks in words does. */
-.open,
-.menuButton {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.open:hover,
-.menuButton:hover {
-  color: var(--color-fg);
-}
-
-/* The cadence word opens a menu, which a word in a table does not say by
-   itself: a caret beside it does, drawn and not typed, so the cell still reads
-   as the cadence and nothing but the cadence. */
-.menuButton::after {
-  content: " ▾";
   color: var(--color-fg-muted);
 }
 
