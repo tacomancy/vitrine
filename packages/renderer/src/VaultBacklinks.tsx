@@ -8,6 +8,7 @@ import { markOf } from "./kinds";
 import { listKeys } from "./listKeys";
 import { pushRoute } from "./router";
 import { useTRPC } from "./trpc";
+import { Button } from "./Form";
 import styles from "./Vault.module.css";
 import { Marked } from "./VaultMarked";
 import { VaultGraph } from "./VaultGraph";
@@ -79,18 +80,17 @@ export function VaultBacklinks({ path }: { path: string }) {
       <div className={styles.header}>
         <div role="tablist" aria-label="Link views" className={styles.tabs}>
           {VIEWS.map((name) => (
-            <button
+            <Button
               key={name}
-              type="button"
+              tier="tab"
               role="tab"
               id={`vault-links-tab-${name}`}
               aria-selected={view === name}
               aria-controls={`vault-links-panel-${name}`}
-              className={styles.tab}
               onClick={() => setView(name)}
             >
               {name}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

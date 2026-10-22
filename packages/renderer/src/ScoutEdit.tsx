@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import type { RunSummary, ScoutRow } from "core";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
+import {
+  ActionRow,
+  Button,
+  FieldRow,
+  SegmentedRow,
+  TextArea,
+  Unlocks,
+} from "./Form";
 import { runWords } from "./run-words";
 import styles from "./ScoutActivity.module.css";
 import { useTRPC } from "./trpc";
@@ -134,6 +142,7 @@ export function ScoutEdit({
     );
   }
 
+  const needed = byTags ? "a Tag" : "a Query";
   return (
     <form
       className={styles.edit}
@@ -142,104 +151,102 @@ export function ScoutEdit({
       onSubmit={submit}
     >
       {arxiv && (
-        <div role="radiogroup" aria-label="Filter" className={styles.line}>
-          {(["query", "tags"] as const).map((which) => (
-            <label key={which}>
-              <input
-                type="radio"
-                name="filter"
-                checked={filter === which}
-                onChange={() => {
-                  setFilter(which);
-                  tried.reset();
-                }}
-              />
-              {which === "query" ? "by Query" : "by Tags"}
-            </label>
-          ))}
-        </div>
+        <SegmentedRow
+          label="Filter"
+          value={filter}
+          onChange={(which) => {
+            setFilter(which);
+            tried.reset();
+          }}
+          options={[
+            { value: "query", label: "by Query" },
+            { value: "tags", label: "by Tags" },
+          ]}
+        />
       )}
       {byTags ? (
         <>
-          <label>
-            Tags
-            <textarea
-              rows={Math.min(Math.max(tags.length, 2), 6)}
-              autoFocus
-              value={tagText}
-              onChange={(event) => {
-                setTagText(event.target.value);
-                setShowCompiled(false);
-              }}
-            />
-          </label>
-          <p className={styles.line}>
-            <button
-              type="button"
+          <FieldRow label="Tags">
+            {(field) => (
+              <TextArea
+                {...field}
+                rows={Math.min(Math.max(tags.length, 2), 6)}
+                autoFocus
+                value={tagText}
+                onChange={(event) => {
+                  setTagText(event.target.value);
+                  setShowCompiled(false);
+                }}
+              />
+            )}
+          </FieldRow>
+          <ActionRow>
+            <Button
               disabled={tags.length === 0}
               onClick={() => setShowCompiled(true)}
             >
               Show the compiled query
-            </button>
-          </p>
+            </Button>
+          </ActionRow>
           {showCompiled && compiled.data !== undefined && (
-            <code className={styles.line}>
-              {compiled.data.query ?? "No chosen Tag has a Term to search."}
-            </code>
+            <ActionRow>
+              <code>
+                {compiled.data.query ?? "No chosen Tag has a Term to search."}
+              </code>
+            </ActionRow>
           )}
-          {compiled.isError && <p role="alert">{compiled.error.message}</p>}
+          {compiled.isError && (
+            <ActionRow>
+              <span role="alert">{compiled.error.message}</span>
+            </ActionRow>
+          )}
         </>
       ) : arxiv ? (
-        <label>
-          Query
-          <textarea
-            rows={2}
-            autoFocus
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              tried.reset();
-            }}
-          />
-        </label>
+        <FieldRow label="Query">
+          {(field) => (
+            <TextArea
+              {...field}
+              rows={2}
+              autoFocus
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                tried.reset();
+              }}
+            />
+          )}
+        </FieldRow>
       ) : (
-        <p className={styles.line}>
-          Its address is changed on the form.{" "}
-          <button type="button" onClick={onEditOnForm}>
-            open the form
-          </button>
-        </p>
+        <ActionRow>
+          <span>Its address is changed on the form.</span>
+          <Button onClick={onEditOnForm}>open the form</Button>
+        </ActionRow>
       )}
       {/* The window comparison is arXiv's: an OpenAlex run re-asks 60 days, so its window is not the span a Query is compared over. */}
       {arxiv && !byTags && row.source.kind === "arxiv" && (
-        <div className={styles.line}>
+        <ActionRow>
           {row.lastWindow === null ? (
-            <p className={styles.line}>
-              It has no completed run to try over yet.
-            </p>
+            <span>It has no completed run to try over yet.</span>
           ) : (
-            <button
-              type="button"
+            <Button
               disabled={!ready || tried.isPending}
               onClick={() => tried.mutate({ scoutId: row.id, query })}
             >
               Try over the last run&apos;s window
-            </button>
+            </Button>
           )}
-          {tried.isPending && <span> trying…</span>}
+          {tried.isPending && <span>trying…</span>}
           {tried.isError && <span role="alert">{tried.error.message}</span>}
           {result?.outcome === "found" && (
-            <p role="status" className={styles.line}>
+            <span role="status">
               Over the last run&apos;s window this Query matches {result.would};
               that run fetched {result.fetched}.
-            </p>
+            </span>
           )}
           {result?.outcome === "failed" && (
-            <p role="alert" className={styles.line}>
-              {result.sentence}
-            </p>
+            <span role="alert">{result.sentence}</span>
           )}
-        </div>
+        </ActionRow>
       )}
       {/* Drawn once the Questions have been read: before that the Scout's own
           would show as bare ids. What it is Assigned to is kept either way. */}
@@ -251,22 +258,28 @@ export function ScoutEdit({
         />
       )}
       {questions.failed && (
-        <p className={styles.line}>
-          The Questions could not be read, so none are offered. What this Scout
-          is Assigned to is kept.
-        </p>
+        <ActionRow>
+          <span>
+            The Questions could not be read, so none are offered. What this
+            Scout is Assigned to is kept.
+          </span>
+        </ActionRow>
       )}
-      {refused !== null && <p role="alert">{refused}</p>}
-      <p className={styles.formActions}>
-        <button type="submit" disabled={!ready || save.isPending}>
+      {refused !== null && (
+        <ActionRow>
+          <span role="alert">{refused}</span>
+        </ActionRow>
+      )}
+      <ActionRow>
+        <Button tier="primary" disabled={!ready || save.isPending}>
           Save
-        </button>
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
+        </Button>
+        <Button onClick={onClose}>Cancel</Button>
+        {/* Names what Save lacks; a disabled button alone says nothing. */}
+        {!ready && <Unlocks>Save needs {needed}.</Unlocks>}
         {/* Progress, with no live region of its own (ADR 0033 decision 1). */}
         {save.isPending && <span>saving…</span>}
-      </p>
+      </ActionRow>
     </form>
   );
 }
