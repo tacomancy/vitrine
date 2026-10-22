@@ -1,5 +1,10 @@
 import { syntaxTree } from "@codemirror/language";
-import type { EditorState, Range } from "@codemirror/state";
+import {
+  StateEffect,
+  StateField,
+  type EditorState,
+  type Range,
+} from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
@@ -94,14 +99,32 @@ function inlineMarks(
   });
 }
 
+/**
+ * A note just opened has no cursor the user put there: the one at the top is
+ * where the document happened to start, and showing its line's marks makes a
+ * fresh note look like source (#776). Until the user moves the cursor or
+ * types, no line counts as the cursor's.
+ */
+export const restPreview = StateEffect.define<null>();
+const resting = StateField.define<boolean>({
+  create: () => true,
+  update(value, tr) {
+    if (tr.effects.some((e) => e.is(restPreview))) return true;
+    // Disk-pushed text maps the selection; only the user sets one.
+    return value && tr.selection === undefined;
+  },
+});
+
 function build(view: EditorView): DecorationSet {
   const { state } = view;
   // Every line a selection touches counts as the cursor's: a multi-line
   // selection is being edited across, so its marks are shown.
-  const spans = state.selection.ranges.map((r) => ({
-    from: state.doc.lineAt(r.from).from,
-    to: state.doc.lineAt(r.to).to,
-  }));
+  const spans = state.field(resting)
+    ? []
+    : state.selection.ranges.map((r) => ({
+        from: state.doc.lineAt(r.from).from,
+        to: state.doc.lineAt(r.to).to,
+      }));
   const onCursorLine = (from: number, to: number) =>
     spans.some((s) => from <= s.to && to >= s.from);
   const out: Range<Decoration>[] = [];
@@ -123,6 +146,7 @@ const plugin = ViewPlugin.fromClass(
       if (
         update.docChanged ||
         update.selectionSet ||
+        update.startState.field(resting) !== update.state.field(resting) ||
         update.viewportChanged ||
         // The parse of a long note finishes in the background.
         syntaxTree(update.startState) !== syntaxTree(update.state)
@@ -141,4 +165,4 @@ const plugin = ViewPlugin.fromClass(
   }
 );
 
-export const livePreview = () => plugin;
+export const livePreview = () => [resting, plugin];

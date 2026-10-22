@@ -59,7 +59,8 @@ describe("opening a file", () => {
   it("shows the file's text in the editor and its path, edited date and word count in the header", async () => {
     const read = vi.fn(() => FILE("# Idea\n\nthree small words\n"));
     open({ "vault.read": read }, "#/vault/notes/Idea.md");
-    expect(textOf(await editor())).toBe("# Idea\n\nthree small words\n");
+    // A fresh note rests in preview: the heading's mark is not drawn (#776).
+    expect(textOf(await editor())).toBe("Idea\n\nthree small words\n");
     expect(read).toHaveBeenCalledWith({ path: "notes/Idea.md" });
     const header = screen.getByRole("heading", { name: "notes/Idea.md" });
     expect(header.parentElement?.textContent).toContain("5 Aug");
@@ -208,6 +209,18 @@ const SAVED = (hash: string, content: string) => ({
 });
 
 describe("typing saves", () => {
+  it("Enter inserts a line break at the cursor, so a blank line can be typed (#777)", async () => {
+    open({ "vault.read": FILE("one\ntwo") }, "#/vault/plain.md");
+    const box = await editor();
+    const view = EditorView.findFromDOM(
+      box.closest(".cm-editor") as HTMLElement
+    )!;
+    view.dispatch({ selection: { anchor: 3 } });
+    fireEvent.keyDown(box, { key: "Enter", code: "Enter", keyCode: 13 });
+    fireEvent.keyDown(box, { key: "Enter", code: "Enter", keyCode: 13 });
+    expect(view.state.doc.toString()).toBe("one\n\n\ntwo");
+  });
+
   it("saves a pause after the last keystroke, basedOn the hash it read, and not before", async () => {
     const replace = vi.fn(() => SAVED("h2", "one two\n"));
     open(
