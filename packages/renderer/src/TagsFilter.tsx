@@ -27,15 +27,18 @@ const ROW_ID = "scout-tag-";
  */
 export function TagsFilter({
   chosen,
+  source,
   onChange,
 }: {
   chosen: string[];
+  /** Whose search the Tags compile to; the query shown is that source's. */
+  source?: "arxiv" | "openalex";
   onChange: (tags: string[]) => void;
 }) {
   const trpc = useTRPC();
   const tree = useQuery(trpc.vault.tags.queryOptions());
   const preview = useQuery({
-    ...trpc.scouts.previewTags.queryOptions({ tags: chosen }),
+    ...trpc.scouts.previewTags.queryOptions({ tags: chosen, source }),
     enabled: chosen.length > 0,
   });
   const [at, setAt] = useState(0);

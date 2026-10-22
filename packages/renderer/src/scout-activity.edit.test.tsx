@@ -1664,3 +1664,67 @@ describe("a Scout whose Filter is Tags", () => {
     ]);
   });
 });
+
+// #802 (spec #800 stories 45, 46): an OpenAlex Scout's row names its source and
+// Filter, and its edit shows the query the Tags compile to for OpenAlex.
+describe("an OpenAlex Scout's row", () => {
+  const openalex = (over: Partial<ScoutRow> = {}) =>
+    scout({
+      source: { kind: "openalex", query: '"sleep"', tags: null },
+      lastWindow: {
+        from: "2026-07-01T00:00:00.000Z",
+        to: "2026-09-30T00:00:00.000Z",
+        fetched: 12,
+      },
+      ...over,
+    });
+
+  it("names OpenAlex and the Query, and offers no arXiv window comparison in its edit", async () => {
+    open(() => fleet([openalex()]));
+    const [row] = await tableRows();
+    expect(row!.textContent).toContain('OpenAlex · "sleep"');
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Sleep and memory: edit/ })
+    );
+    await screen.findByLabelText("Query");
+    expect(
+      screen.queryByRole("button", { name: /Try over the last run/ })
+    ).toBeNull();
+  });
+
+  it("asks the core for the compiled query as OpenAlex's", async () => {
+    const asked: unknown[] = [];
+    open(
+      () =>
+        fleet([
+          openalex({
+            source: { kind: "openalex", query: "", tags: ["#sleep"] },
+          }),
+        ]),
+      {
+        "scouts.previewTags": (input: unknown) => {
+          asked.push(input);
+          return {
+            tags: [{ tag: "#sleep", terms: ["sleep"] }],
+            query: 'filter=title_and_abstract.search:("sleep")',
+          };
+        },
+      }
+    );
+    const [row] = await tableRows();
+    expect(row!.textContent).toContain("OpenAlex · Tags: #sleep");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Sleep and memory: edit/ })
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Show the compiled query" })
+    );
+
+    expect(
+      await screen.findByText('filter=title_and_abstract.search:("sleep")')
+    ).toBeDefined();
+    expect(asked.at(-1)).toEqual({ tags: ["#sleep"], source: "openalex" });
+  });
+});

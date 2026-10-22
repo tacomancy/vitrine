@@ -62,17 +62,21 @@ export type OpenAlexFound = {
   total: number;
   /** How many matched beyond the ceiling and were not fetched; 0 when nothing was cut. */
   moreMatched: number;
+  /** `x-ratelimit-remaining` on the last answer: the shared daily budget as OpenAlex states it; null when it did not say. */
+  creditsLeft: number | null;
 };
 
 export type OpenAlexClient = {
   /**
    * Journal and conference work that is not retracted and matches `search`
    * (OpenAlex search syntax), published inside the window. Never a
-   * repository (ADR 0051 decision 3).
+   * repository (ADR 0051 decision 3). With no window and a `limit` it is
+   * *try*: one request for that many works and the total, nothing paged.
    */
   searchWorks: (
     search: string,
-    window: { from: Date; to: Date }
+    window: { from: Date; to: Date } | null,
+    options?: { limit: number }
   ) => Promise<OpenAlexFound>;
   /**
    * How many works the Terms match in each month (`YYYY-MM`), in the order
@@ -119,6 +123,8 @@ export function createOpenAlexClient({
   // Set when a response says the budget is spent: every request until then
   // fails as rate_limited without being sent, so the sync stops cleanly.
   let exhaustedUntil = 0;
+  // The budget as the last good answer stated it.
+  let creditsLeft: number | null = null;
 
   const urlFor = (terms: string[], month: string, extra: string) => {
     const { from, to } = monthBounds(month);
@@ -155,6 +161,13 @@ export function createOpenAlexClient({
           response.status
         );
       }
+      const stated = response.headers.get("x-ratelimit-remaining");
+      creditsLeft =
+        stated !== null &&
+        stated.trim() !== "" &&
+        Number.isFinite(Number(stated))
+          ? Number(stated)
+          : null;
       // This answer is good; the budget behind it may be spent, and the next
       // request must not be sent into a 429.
       if (response.headers.get("x-ratelimit-remaining") === "0") {
@@ -209,20 +222,29 @@ export function createOpenAlexClient({
     return ids.size;
   };
 
-  const searchWorks: OpenAlexClient["searchWorks"] = async (search, window) => {
+  const searchWorks: OpenAlexClient["searchWorks"] = async (
+    search,
+    window,
+    options
+  ) => {
     const day = (d: Date) => d.toISOString().slice(0, 10);
     const filter = [
       "primary_location.source.type:journal|conference",
       "is_retracted:false",
       `title_and_abstract.search:${search}`,
-      `from_publication_date:${day(window.from)}`,
-      `to_publication_date:${day(window.to)}`,
+      ...(window === null
+        ? []
+        : [
+            `from_publication_date:${day(window.from)}`,
+            `to_publication_date:${day(window.to)}`,
+          ]),
     ].join(",");
+    const perPage = options?.limit ?? WORKS_PAGE;
     const works: OpenAlexWork[] = [];
     let total = 0;
     for (let n = 1; works.length < WORKS_CEILING; n++) {
       const body = (await request(
-        `${endpoint}?${new URLSearchParams({ filter, "per-page": String(WORKS_PAGE), page: String(n) }).toString()}`
+        `${endpoint}?${new URLSearchParams({ filter, "per-page": String(perPage), page: String(n) }).toString()}`
       )) as { meta?: { count?: unknown }; results?: unknown };
       const count = body?.meta?.count;
       if (
@@ -235,12 +257,14 @@ export function createOpenAlexClient({
       }
       total = count;
       for (const raw of body.results) works.push(readWork(raw));
-      if (body.results.length < WORKS_PAGE || works.length >= total) break;
+      if (body.results.length < perPage || works.length >= total) break;
+      if (options !== undefined) break;
     }
     return {
       works: works.slice(0, WORKS_CEILING),
       total,
       moreMatched: Math.max(0, total - WORKS_CEILING),
+      creditsLeft,
     };
   };
 

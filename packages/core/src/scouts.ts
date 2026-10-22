@@ -310,9 +310,10 @@ const WAY_OUT = "Seed a Term in its Lexicon, or give the Scout a Query.";
 /** A Tag with nothing to compile refused where a researcher is choosing it (save, *try*): the reason and the way out. */
 export async function compileTagsOrRefuse(
   deps: Pick<ScoutDeps, "vaultPath" | "index">,
-  tags: readonly string[]
+  tags: readonly string[],
+  source: Scout["source"]["kind"] = "arxiv"
 ): Promise<string> {
-  const { query, left } = await compileTags(deps, tags);
+  const { query, left } = await compileTags(deps, tags, source);
   if (left.length > 0 || query === null) {
     throw new VaultError("refused", `${left.join("; ")}. ${WAY_OUT}`);
   }
@@ -355,7 +356,8 @@ export type TagsPreview = {
  */
 export async function previewTags(
   deps: Pick<ScoutDeps, "vaultPath" | "index">,
-  tags: readonly string[]
+  tags: readonly string[],
+  source: Scout["source"]["kind"] = "arxiv"
 ): Promise<TagsPreview> {
   const edits = await readEdits(deps.vaultPath);
   const shown = tags.map((tag) => ({
@@ -365,7 +367,12 @@ export async function previewTags(
   const all = new Set(shown.flatMap((t) => t.terms));
   return {
     tags: shown,
-    query: all.size === 0 ? null : compileArxivQuery([...all]),
+    query:
+      all.size === 0
+        ? null
+        : source === "openalex"
+          ? compileOpenAlexQuery([...all])
+          : compileArxivQuery([...all]),
   };
 }
 

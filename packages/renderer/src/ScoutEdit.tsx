@@ -69,7 +69,10 @@ export function ScoutEdit({
   // The compiled query is the Lexicon's to say, so it is read when asked for
   // and never kept on the row, where it would go stale as a Seed is made.
   const compiled = useQuery({
-    ...trpc.scouts.previewTags.queryOptions({ tags }),
+    ...trpc.scouts.previewTags.queryOptions({
+      tags,
+      source: row.source.kind === "openalex" ? "openalex" : "arxiv",
+    }),
     enabled: showCompiled && byTags && tags.length > 0,
     retry: false,
   });
@@ -207,7 +210,8 @@ export function ScoutEdit({
           </button>
         </p>
       )}
-      {arxiv && !byTags && (
+      {/* The window comparison is arXiv's: an OpenAlex run re-asks 60 days, so its window is not the span a Query is compared over. */}
+      {arxiv && !byTags && row.source.kind === "arxiv" && (
         <div className={styles.line}>
           {row.lastWindow === null ? (
             <p className={styles.line}>
