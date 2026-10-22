@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KeyStatus, KeyTest } from "core";
 import { useEffect, useRef, useState } from "react";
+import { Button, FieldRow, Input } from "./Form";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./Settings.module.css";
 import { hashOf, SCOUTS } from "./router";
@@ -122,81 +123,73 @@ export function WhatItTalksTo({ scrollTo = false }: { scrollTo?: boolean }) {
             </span>
             {present && (
               <>
-                <button
-                  type="button"
-                  className={styles.action}
+                <Button
                   onClick={() => test.mutate(PROVIDER)}
                   disabled={test.isPending}
                 >
                   Test
-                </button>
-                <button
-                  type="button"
-                  className={styles.action}
+                </Button>
+                <Button
                   onClick={() => remove.mutate(PROVIDER)}
                   disabled={remove.isPending}
                 >
                   Remove
-                </button>
+                </Button>
               </>
             )}
           </dd>
         </div>
-        <div className={styles.row}>
-          <dt className={styles.label}>
-            {present ? "New key" : "Store a key"}
-          </dt>
-          <dd className={styles.value}>
-            <input
-              className={styles.input}
-              type="password"
-              aria-label="Key"
-              autoComplete="off"
-              spellCheck={false}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && typed.trim() !== "") {
-                  set.mutate({ ...PROVIDER, key: typed });
+        <FieldRow label={present ? "New key" : "Store a key"}>
+          {(field) => (
+            <span className={styles.entry}>
+              <Input
+                {...field}
+                type="password"
+                aria-label="Key"
+                autoComplete="off"
+                spellCheck={false}
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && typed.trim() !== "") {
+                    set.mutate({ ...PROVIDER, key: typed });
+                  }
+                }}
+              />
+              <Button
+                onClick={() => set.mutate({ ...PROVIDER, key: typed })}
+                disabled={typed.trim() === "" || set.isPending}
+              >
+                {present ? "Replace" : "Store"}
+              </Button>
+            </span>
+          )}
+        </FieldRow>
+        <FieldRow label="Model">
+          {(field) => (
+            <span className={styles.entry}>
+              <Input
+                {...field}
+                aria-label="Model"
+                spellCheck={false}
+                value={modelText}
+                onChange={(event) => setModelEdit(event.target.value)}
+              />
+              <Button
+                onClick={() =>
+                  saveModel.mutate({ ...PROVIDER, model: modelText })
                 }
-              }}
-            />
-            <button
-              type="button"
-              className={styles.action}
-              onClick={() => set.mutate({ ...PROVIDER, key: typed })}
-              disabled={typed.trim() === "" || set.isPending}
-            >
-              {present ? "Replace" : "Store"}
-            </button>
-          </dd>
-        </div>
-        <div className={styles.row}>
-          <dt className={styles.label}>Model</dt>
-          <dd className={styles.value}>
-            <input
-              className={styles.input}
-              aria-label="Model"
-              spellCheck={false}
-              value={modelText}
-              onChange={(event) => setModelEdit(event.target.value)}
-            />
-            <button
-              type="button"
-              className={styles.action}
-              onClick={() =>
-                saveModel.mutate({ ...PROVIDER, model: modelText })
-              }
-              disabled={
-                modelEdit === null ||
-                modelEdit.trim() === "" ||
-                saveModel.isPending
-              }
-            >
-              Save model
-            </button>
-          </dd>
-        </div>
+                disabled={
+                  modelEdit === null ||
+                  modelEdit.trim() === "" ||
+                  saveModel.isPending
+                }
+              >
+                Save model
+              </Button>
+            </span>
+          )}
+        </FieldRow>
         {waiting.data !== undefined && waiting.data.length > 0 && (
           <div className={styles.row}>
             <dt className={styles.label}>Waiting</dt>

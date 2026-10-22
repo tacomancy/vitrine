@@ -146,6 +146,7 @@ input[inputmode="numeric"].input {
   font-family: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 /* Sapphire is every action (BRAND law 2); the one filled button is the one
