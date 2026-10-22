@@ -653,6 +653,20 @@ describe("editing a Query and its Assigned Questions in the row", () => {
     ]);
   });
 
+  it("says what a disabled Save is waiting for, as the New Scout form does", async () => {
+    open(() => fleet([scout()]), { "questions.list": QUESTIONS });
+
+    await edit();
+
+    const panel = within(await form());
+    expect(panel.queryByText("Save needs a Query.")).toBeNull();
+    fireEvent.change(panel.getByLabelText("Query"), { target: { value: "" } });
+    expect(
+      panel.getByRole("button", { name: "Save" }).hasAttribute("disabled")
+    ).toBe(true);
+    expect(panel.getByText("Save needs a Query.")).toBeDefined();
+  });
+
   it("closes on the same word, and on Cancel, and on Escape, writing nothing", async () => {
     const writes: unknown[] = [];
     open(() => fleet([scout()]), {
