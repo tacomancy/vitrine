@@ -89,7 +89,7 @@ export const ALLOWED = [
 ].map(([file, prop, value, reason]) => ({ file, prop, value, reason }));
 
 const NOT_MIGRATED =
-  "a surface not yet moved onto Form's Button (a later sweep)";
+  "a surface not yet moved onto Form's Button (follow-up #822)";
 const CHOOSES =
   "a row or swatch that is itself the thing it names, an aria-pressed chooser (architecture.md, UI conventions: What stays as it is)";
 
@@ -201,10 +201,12 @@ export function lintMarkup(src, file = "<tsx>", allowed = []) {
     tag: m[1],
     line: text.slice(0, m.index).split("\n").length,
   }));
+  // Only buttons are tolerated: no surface has a bare fieldset to ratchet.
+  const buttons = found.filter((f) => f.tag === "button").length;
   const tolerated = allowed.find((a) => a.file === file)?.count ?? 0;
+  if (buttons <= tolerated && buttons === found.length) return [];
   // Over the count, report every site: which of them is the new one is not
   // something a count can say.
-  if (found.length <= tolerated) return [];
   return found.map(({ tag, line }) => ({
     file,
     line,

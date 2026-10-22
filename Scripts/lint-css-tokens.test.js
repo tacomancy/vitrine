@@ -130,6 +130,13 @@ describe("lint-css-tokens", () => {
       expect(lintMarkup(`${two}\n<button/>`, "A.tsx", allowed)).toHaveLength(3);
     });
 
+    it("never tolerates a fieldset, even in a file with spare button allowance", () => {
+      const allowed = [{ file: "A.tsx", count: 3, reason: "r" }];
+      expect(
+        lintMarkup(`<button/>\n<fieldset/>`, "A.tsx", allowed)
+      ).not.toEqual([]);
+    });
+
     it("holds the renderer's own components to it", () => {
       expect(lintMarkupTree("packages/renderer/src")).toEqual([]);
     });
@@ -142,6 +149,7 @@ describe("lint-css-tokens", () => {
     it("keeps no allow-list count the source has outgrown", () => {
       const found = lintMarkupTree("packages/renderer/src", []);
       for (const a of ALLOWED_MARKUP) {
+        expect(a.count, a.file).toBeGreaterThan(0);
         expect(found.filter((p) => p.file === a.file).length, a.file).toBe(
           a.count
         );
