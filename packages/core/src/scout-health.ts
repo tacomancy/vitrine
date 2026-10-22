@@ -341,6 +341,7 @@ function baseFaultSentence(
       return `${name} answered with an error${status === undefined ? "" : ` (HTTP ${status})`}, so nothing was checked.`;
     }
     case "rate_limited":
+      // No status for OpenAlex: a spent daily budget is refused unsent, so there was no 429 to quote.
       return source === "openalex"
         ? "OpenAlex asked Vitrine to slow down, so nothing was checked."
         : "arXiv asked Vitrine to slow down (HTTP 429), so nothing was checked.";

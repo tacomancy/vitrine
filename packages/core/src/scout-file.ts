@@ -249,6 +249,7 @@ function readScout(id: string, text: string): Read {
     query = url.trim();
     source = { kind: "watched", url: query };
   } else if (kind === "arxiv" || kind === "openalex") {
+    // A filter that is not a map is named, not read as "neither".
     const rawFilter = file["filter"];
     if (
       rawFilter !== undefined &&

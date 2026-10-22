@@ -93,8 +93,10 @@ const ID_PAGE = 200;
 const DAY_MS = 86_400_000;
 
 /** The compiled query, verbatim as the editor shows it and a Measurement stores it. */
+/** What `compileOpenAlexQuery` begins with; a run sends the rest as its search, so both read this one constant. */
+export const SEARCH_FILTER = "filter=title_and_abstract.search:";
 export const compileOpenAlexQuery = (terms: readonly string[]) =>
-  `filter=title_and_abstract.search:(${terms.map((t) => `"${t}"`).join(" OR ")})`;
+  `${SEARCH_FILTER}(${terms.map((t) => `"${t}"`).join(" OR ")})`;
 
 /** First and last day of a `YYYY-MM`, as OpenAlex's date filters take them. */
 function monthBounds(month: string): { from: string; to: string } {
@@ -340,6 +342,7 @@ function abstractOf(index: unknown): string {
   for (const [word, at] of Object.entries(rec(index))) {
     if (Array.isArray(at)) for (const i of at) words[Number(i)] = word;
   }
+  // Positions can leave holes (a missing index), which join would print as blanks.
   return words.filter((w) => w !== undefined).join(" ");
 }
 

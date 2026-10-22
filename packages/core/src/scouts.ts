@@ -5,6 +5,7 @@ import { ArxivError, compileArxivQuery, type ArxivClient } from "./arxiv.js";
 import {
   compileOpenAlexQuery,
   LOOKBACK_DAYS,
+  SEARCH_FILTER,
   OpenAlexError,
   type OpenAlexClient,
 } from "./openalex.js";
@@ -491,8 +492,8 @@ async function readOpenAlex(
   fetched: number;
   facts?: undefined;
 }> {
-  const prefix = "filter=title_and_abstract.search:";
-  const search = scout.tags === undefined ? asked : asked.slice(prefix.length);
+  const search =
+    scout.tags === undefined ? asked : asked.slice(SEARCH_FILTER.length);
   const found = await openalex.searchWorks(search, { from, to });
   return {
     items: found.works.map((w) => ({
