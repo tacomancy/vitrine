@@ -111,7 +111,7 @@ describe("the Scout Queue — a dropped Scout", () => {
         },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
 
     const lines = await screen.findByRole("list", { name: "Skim" });
 
@@ -258,7 +258,7 @@ describe("the Scout Queue — a dropped Scout", () => {
         "Every Scout is dropped, so nothing is being watched."
       )
     ).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Skim" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Skim" }));
     expect(
       await screen.findByText(
         "Every Scout is dropped, so nothing is being watched."

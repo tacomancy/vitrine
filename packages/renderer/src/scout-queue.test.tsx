@@ -208,15 +208,14 @@ describe("the Scout Queue", () => {
     await screen.findByRole("article", {
       name: "Slow Oscillations Reconsidered",
     });
-    const sort = screen.getByRole("group", { name: "Sort" });
+    const sort = screen.getByRole("radiogroup", { name: "Sort" });
     expect(
-      within(sort)
-        .getByRole("button", { name: "Rank" })
-        .getAttribute("aria-pressed")
-    ).toBe("true");
+      within(sort).getByRole<HTMLInputElement>("radio", { name: "Rank" })
+        .checked
+    ).toBe(true);
     expect(queue).toHaveBeenLastCalledWith({ sort: "rank" });
 
-    fireEvent.click(within(sort).getByRole("button", { name: "Newest" }));
+    fireEvent.click(within(sort).getByRole("radio", { name: "Newest" }));
     await waitFor(() =>
       expect(queue).toHaveBeenLastCalledWith({ sort: "newest" })
     );
@@ -228,9 +227,12 @@ describe("the Scout Queue", () => {
     });
     expect(queue).toHaveBeenLastCalledWith({ sort: "newest" });
     fireEvent.click(
-      within(screen.getByRole("group", { name: "Sort" })).getByRole("button", {
-        name: "Rank",
-      })
+      within(screen.getByRole("radiogroup", { name: "Sort" })).getByRole(
+        "radio",
+        {
+          name: "Rank",
+        }
+      )
     );
   });
 
@@ -718,7 +720,7 @@ describe("the Scout Queue", () => {
         ...more,
       });
     const toSkim = async () =>
-      fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+      fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
 
     it("draws the lines as a list, and a click selects one and opens its card without promoting", async () => {
       const promote = vi.fn(() => undefined);
@@ -832,7 +834,7 @@ describe("the Scout Queue", () => {
     ];
     const surface = () => screen.findByRole("region", { name: "Scout Queue" });
     const lane = (name: "Review" | "Skim") =>
-      fireEvent.click(screen.getByRole("button", { name }));
+      fireEvent.click(screen.getByRole("radio", { name }));
 
     describe.each([
       { name: "Review", reads },

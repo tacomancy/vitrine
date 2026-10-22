@@ -166,15 +166,6 @@
   padding-bottom: 0;
 }
 
-.lanes {
-  display: inline-flex;
-  gap: var(--space-1);
-}
-
-.lanes button[aria-pressed="true"] {
-  font-weight: 600;
-}
-
 /* Single lines: a feed to scroll past, so no boxes and no dividers (ADR 0023). */
 .skim {
   margin: 0;
@@ -247,17 +238,6 @@
   border-radius: var(--radius-lg);
   background: var(--color-bg-raised);
   font-size: var(--text-sm);
-}
-
-.filter {
-  display: flex;
-  gap: var(--space-4);
-}
-
-.filter label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 
 .titles {

@@ -169,7 +169,7 @@ describe("M on a card", () => {
         "scouts.skim": { recent: [card({ lane: "skim" })], older: [] },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Skim" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
     fireEvent.keyDown(await inHand(), { key: "m" });
 
     expect(await screen.findByRole("group", { name: "Mute" })).toBeDefined();

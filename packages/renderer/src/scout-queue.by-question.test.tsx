@@ -57,7 +57,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
 
 const grouped = async () => {
   await screen.findByRole("article");
-  fireEvent.click(screen.getByRole("button", { name: "Question" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Question" }));
 };
 
 describe("group by Question", () => {
@@ -65,10 +65,10 @@ describe("group by Question", () => {
     renderApp(answers());
     await screen.findByRole("article");
 
-    const control = screen.getByRole("group", { name: "Group by" });
-    const [scout, question] = Array.from(control.querySelectorAll("button"));
-    expect(scout!.getAttribute("aria-pressed")).toBe("true");
-    expect(question!.getAttribute("aria-pressed")).toBe("false");
+    const control = screen.getByRole("radiogroup", { name: "Group by" });
+    const [scout, question] = Array.from(control.querySelectorAll("input"));
+    expect(scout!.checked).toBe(true);
+    expect(question!.checked).toBe(false);
   });
 
   it("lists each Question and Unassigned with its own count, and says a paper can be in several", async () => {

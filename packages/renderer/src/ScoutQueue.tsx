@@ -17,6 +17,7 @@ import { RefusalLine, useRefusal } from "./refusal-line";
 import { hashOf } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
+import { SegmentedControl } from "./Form";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
@@ -548,45 +549,36 @@ export function ScoutQueue({
     <section className={styles.surface} aria-label="Scout Queue">
       <header className={styles.header}>
         <h1 className={styles.title}>Scout Queue</h1>
-        <span role="group" aria-label="Lane" className={styles.lanes}>
-          {(["review", "skim"] as const).map((name) => (
-            <button
-              key={name}
-              type="button"
-              aria-pressed={lane === name}
-              onClick={() => setLane(name)}
-            >
-              {name === "review" ? "Review" : "Skim"}
-            </button>
-          ))}
-        </span>
+        <SegmentedControl
+          label="Lane"
+          value={lane}
+          onChange={setLane}
+          options={[
+            { value: "review", label: "Review" },
+            { value: "skim", label: "Skim" },
+          ]}
+        />
         {lane === "review" && (
-          <span role="group" aria-label="Sort" className={styles.lanes}>
-            {(["rank", "newest"] as const).map((name) => (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={sort === name}
-                onClick={() => setSort(name)}
-              >
-                {name === "rank" ? "Rank" : "Newest"}
-              </button>
-            ))}
-          </span>
+          <SegmentedControl
+            label="Sort"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: "rank", label: "Rank" },
+              { value: "newest", label: "Newest" },
+            ]}
+          />
         )}
         {lane === "review" && (
-          <span role="group" aria-label="Group by" className={styles.lanes}>
-            {(["scout", "question"] as const).map((name) => (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={groupBy === name}
-                onClick={() => chooseGroupBy(name)}
-              >
-                {name === "scout" ? "Scout" : "Question"}
-              </button>
-            ))}
-          </span>
+          <SegmentedControl
+            label="Group by"
+            value={groupBy}
+            onChange={chooseGroupBy}
+            options={[
+              { value: "scout", label: "Scout" },
+              { value: "question", label: "Question" },
+            ]}
+          />
         )}
         {((muted.data?.items.length ?? 0) > 0 ||
           (muted.data?.rules.length ?? 0) > 0) && (
