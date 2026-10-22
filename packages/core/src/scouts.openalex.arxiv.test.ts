@@ -213,6 +213,39 @@ describe("a later sighting fills what is missing", () => {
   });
 });
 
+describe("a link that is missing", () => {
+  it("never replaces the arXiv link", async () => {
+    const q = await opened(
+      entry(),
+      published({
+        primary_location: {
+          landing_page_url: null,
+          source: { display_name: "Journal of Sleep", type: "journal" },
+        },
+        doi: null,
+        id: "",
+      })
+    );
+    await q.run("arx");
+    await q.run("pub");
+    expect((await q.cards())[0]).toMatchObject({ url: `${ARXIV_URL}v1` });
+  });
+});
+
+describe("a publisher learned later", () => {
+  it("moves an arXiv-first card to the muted view", async () => {
+    const q = await opened(
+      entry(),
+      published(),
+      "publishers:\n  - name: Press Seven\n    id: P7\n"
+    );
+    await q.run("arx");
+    expect(await q.cards()).toHaveLength(1);
+    await q.run("pub");
+    expect(await q.cards()).toHaveLength(0);
+  });
+});
+
 describe("an accepted stub", () => {
   it("is not rewritten by a later sighting", async () => {
     const q = await opened(entry(), published());

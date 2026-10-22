@@ -713,9 +713,11 @@ function fillFrom(
       : JSON.stringify(item.publisherLineage)
   );
   fill("publisher_name", item.publisherName);
-  fill("published", item.published);
-  fill("abstract", item.abstract);
-  if (arxivIdOf(row.url) !== null && arxivIdOf(item.url) === null) {
+  if (
+    arxivIdOf(row.url) !== null &&
+    item.url !== "" &&
+    arxivIdOf(item.url) === null
+  ) {
     fills["url"] = item.url;
   }
   const columns = Object.keys(fills);
