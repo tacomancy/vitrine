@@ -749,6 +749,8 @@ The rules a form is drawn by, written from the New Scout form (#783, spec #782) 
 
 **Native controls.** Inputs, textareas, selects and the date field stay the native elements, restyled with the tokens (`Input`, `TextArea`, `Select`): no native border, a sunken ground, a chevron drawn on the select. A custom control is built only where a native one cannot do the job.
 
+**What stays as it is.** A command line (Capture, the Global command, the Typed line, the Why line, the Picker's Find) keeps its borderless inline input beside its hint: it is prototype-drawn and not a form row. A colour swatch and a row that chooses (an Attention Tag) stay plain `button`s with `aria-pressed`: they are the thing they name, not a labelled action. Every labelled action, wherever it sits (Mute rules, the annotation bar, the Position field's *changed on disk*, the Attention panel, the Picker's offer), is a `Button`.
+
 **Disabled and empty.** A disabled control keeps muted-text contrast (never a faded one) and sits beside a sentence saying what unlocks it (`Unlocks`: *Save needs a name and a Query.*). An empty optional field shows its default as an italic placeholder, and its note says what empty means.
 
 ## Open, in the order they block work

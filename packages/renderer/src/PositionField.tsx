@@ -11,6 +11,7 @@ import {
   type Base,
   type EditedPosition,
 } from "./page-procedures";
+import { Button } from "./Form";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import styles from "./ResearchQuestion.module.css";
 import { WhyLine } from "./WhyLine";
@@ -274,12 +275,8 @@ export function ChangedOnDisk({
           focus, so the two choices sit outside the live region, beside it
           (ADR 0033 Update, decision 7). */}
       <span role="alert">changed on disk</span>
-      <button type="button" className={styles.edit} onClick={keepMine}>
-        keep mine
-      </button>
-      <button type="button" className={styles.edit} onClick={takeTheDiskCopy}>
-        take the disk copy
-      </button>
+      <Button onClick={keepMine}>keep mine</Button>
+      <Button onClick={takeTheDiskCopy}>take the disk copy</Button>
     </p>
   );
 }
