@@ -19,6 +19,7 @@ import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { markOf, routeOf } from "./kinds";
 import { hashOf, pushRoute, replaceRoute } from "./router";
 import { useTRPC } from "./trpc";
+import { Button } from "./Form";
 import styles from "./Vault.module.css";
 import { Marked } from "./VaultMarked";
 import { VaultBacklinks } from "./VaultBacklinks";
@@ -415,16 +416,12 @@ function useFollow(path: string) {
           <ul className={styles.candidates}>
             {choice.candidates.map((c) => (
               <li key={c.path}>
-                <button
-                  type="button"
-                  className={styles.candidate}
-                  onClick={() => land(c.kind, c.path)}
-                >
+                <Button tier="inline" onClick={() => land(c.kind, c.path)}>
                   <span aria-hidden="true">
                     {markOf(c.kind ?? "note")?.glyph}
                   </span>{" "}
                   {c.path}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -466,28 +463,23 @@ function LeftPane({
       <div className={styles.header}>
         <div role="tablist" aria-label="Vault views" className={styles.tabs}>
           {TABS.map((name) => (
-            <button
+            <Button
               key={name}
-              type="button"
+              tier="tab"
               role="tab"
               id={`vault-tab-${name}`}
               aria-selected={tab === name}
               aria-controls={`vault-panel-${name}`}
-              className={styles.tab}
               onClick={() => setTab(name)}
             >
               {name}
-            </button>
+            </Button>
           ))}
         </div>
         {tab === "files" && (
-          <button
-            type="button"
-            className={styles.newNote}
-            onClick={() => setNaming(true)}
-          >
-            New note
-          </button>
+          <span className={styles.newNote}>
+            <Button onClick={() => setNaming(true)}>New note</Button>
+          </span>
         )}
       </div>
       <div
@@ -676,28 +668,26 @@ function Files({
                   <span className={styles.count}>{annotations}</span>
                 )}
                 {row.type === "file" && row.file.kind === "source" && (
-                  <button
-                    type="button"
-                    className={styles.command}
+                  <Button
+                    tier="inline"
                     onClick={(event) => {
                       event.stopPropagation();
                       pushRoute({ surface: "source", path: row.file.path });
                     }}
                   >
                     open in reader
-                  </button>
+                  </Button>
                 )}
                 {row.type === "file" && row.file.kind === "source-stub" && (
-                  <button
-                    type="button"
-                    className={styles.command}
+                  <Button
+                    tier="inline"
                     onClick={(event) => {
                       event.stopPropagation();
                       setAttaching(row.file.path);
                     }}
                   >
                     attach a PDF
-                  </button>
+                  </Button>
                 )}
               </li>
             );
@@ -745,16 +735,15 @@ function AttachPdf({ stub, onDone }: { stub: string; onDone: () => void }) {
         <ul className={styles.pdfs}>
           {(waiting.data ?? []).map((pdf) => (
             <li key={pdf}>
-              <button
-                type="button"
-                className={styles.command}
+              <Button
+                tier="inline"
                 onClick={() => {
                   refusal.forget();
                   if (!attach.isPending) attach.mutate({ pdf, stub });
                 }}
               >
                 {leaf(pdf)}
-              </button>
+              </Button>
             </li>
           ))}
           {waiting.data?.length === 0 && (
@@ -763,9 +752,7 @@ function AttachPdf({ stub, onDone }: { stub: string; onDone: () => void }) {
         </ul>
       )}
       <RefusalLine refusal={refusal} className={styles.refusal} />
-      <button type="button" className={styles.command} onClick={onDone}>
-        {attached === null ? "cancel" : "done"}
-      </button>
+      <Button onClick={onDone}>{attached === null ? "cancel" : "done"}</Button>
     </div>
   );
 }

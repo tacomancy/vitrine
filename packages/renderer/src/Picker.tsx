@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Candidate, CandidateKind } from "core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useChosenInView } from "./chosen";
+import { Button } from "./Form";
 import { markOf } from "./kinds";
 import styles from "./Picker.module.css";
 import { useTRPC } from "./trpc";
@@ -168,13 +169,11 @@ export function Picker({
         <p className={styles.message}>
           Nothing in the vault matches that name.
           {offered !== undefined && (
-            <button
-              type="button"
-              className={styles.new}
-              onClick={offered.onChoose}
-            >
-              {offered.label}
-            </button>
+            <span className={styles.new}>
+              <Button tier="primary" onClick={offered.onChoose}>
+                {offered.label}
+              </Button>
+            </span>
           )}
         </p>
       )}

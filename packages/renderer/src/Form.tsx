@@ -116,8 +116,13 @@ type ButtonProps = Omit<
   React.ComponentProps<"button">,
   "className" | "type"
 > & {
-  /** One primary per form (filled sapphire); everything else is sapphire text. */
-  tier?: "primary" | "secondary";
+  /**
+   * One primary per form (filled sapphire); everything else is sapphire text.
+   * The rest are the same unboxed text in the shapes a surface needs: `inline`
+   * inside a sentence, `tab` in a tab strip, `toggle` for an on/off chip
+   * (`aria-pressed`), `listRow` for a list row that is itself the button.
+   */
+  tier?: "primary" | "secondary" | "inline" | "tab" | "toggle" | "listRow";
 };
 
 export function Button({ tier = "secondary", ...rest }: ButtonProps) {
@@ -125,7 +130,7 @@ export function Button({ tier = "secondary", ...rest }: ButtonProps) {
     <button
       // A button inside a form submits it; only the primary is meant to.
       type={tier === "primary" ? "submit" : "button"}
-      className={tier === "primary" ? styles.primary : styles.secondary}
+      className={styles[tier]}
       {...rest}
     />
   );
