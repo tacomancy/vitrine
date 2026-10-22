@@ -180,12 +180,14 @@ describe("the form's venue allowlist", () => {
   });
 
   it("sends no venues for a Scout with none", async () => {
-    const save = vi.fn((_input: unknown) => ({ id: "pub", run: null }));
+    const save = vi.fn(() => ({ id: "pub", run: null }));
     await open({ "scouts.save": save });
     type("Name", "Published sleep");
     type("Query", "sleep");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    expect(save.mock.calls[0]![0] as object).not.toHaveProperty("venues");
+    expect(
+      (save.mock.calls as unknown[][])[0]![0] as object
+    ).not.toHaveProperty("venues");
   });
 });
