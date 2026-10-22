@@ -39,8 +39,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  * 8: `triage.bulk`, the id one reject-group or defer-group gesture writes on
  *    every row it makes, so one `⌘Z` can take the whole gesture back (#644).
  * 9: the Proposal state `capped`, what a Scout's cap cut (#647).
+ * 10: the `tags` run error kind and a run's `note` (#678).
+ * 11: `proposals.venue_type`, journal or conference, from OpenAlex (#801).
  */
-export const QUEUE_SCHEMA_VERSION = 10;
+export const QUEUE_SCHEMA_VERSION = 11;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -262,6 +264,13 @@ ALTER TABLE scout_runs_new RENAME TO scout_runs;
 CREATE INDEX scout_runs_scout ON scout_runs (scout_id);
 `;
 
+// What kind of venue a Proposal was published in, as OpenAlex typed it
+// (`journal` or `conference`; ADR 0051 decision 3). Null on every earlier row
+// and on anything from arXiv or a page, which say no such thing.
+const PROPOSAL_VENUE_TYPE = `
+ALTER TABLE proposals ADD COLUMN venue_type TEXT;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -279,6 +288,7 @@ const MIGRATIONS: readonly string[] = [
   TRIAGE_BULK,
   PROPOSAL_CAPPED,
   SCOUT_RUN_TAGS,
+  PROPOSAL_VENUE_TYPE,
 ];
 
 /**

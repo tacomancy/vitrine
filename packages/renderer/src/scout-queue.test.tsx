@@ -25,6 +25,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   authors: ["Ana van der Meer"],
   published: "2026-09-29T10:00:00Z",
   venue: null,
+  venueType: null,
   abstract: "A short abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
   doi: null,
@@ -154,6 +155,18 @@ describe("the Scout Queue", () => {
     });
     // arXiv never supplies keywords: the row is not drawn, not shown missing.
     expect(fields).not.toHaveProperty("keywords");
+  });
+
+  it("says a published venue is a journal or a conference, never peer-reviewed", async () => {
+    renderApp(
+      answers([card({ venue: "Journal of Sleep", venueType: "journal" })])
+    );
+
+    const journal = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    expect(journal.textContent).toContain("Journal of Sleep (journal)");
+    expect(journal.textContent).not.toMatch(/peer-reviewed/i);
   });
 
   it("names the Rank signals that fired and says nothing for a card with none", async () => {

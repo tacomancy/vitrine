@@ -237,6 +237,7 @@ export function createApp({
         index: opened.index,
         queue: opened.queue,
         arxiv: context.arxiv,
+        openalex: context.openalex,
         watched: context.watched,
         events,
         now: context.now,

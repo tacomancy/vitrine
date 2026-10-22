@@ -43,7 +43,7 @@ export type ScoutForm = {
   id?: string | undefined;
   name: string;
   /** What it watches; a page's *Address* travels in `query`, so one field is one field (ADR 0040 d.4). */
-  watching?: "arxiv" | "watched" | undefined;
+  watching?: "arxiv" | "openalex" | "watched" | undefined;
   query: string;
   /**
    * The Filter as Tags, as written (spec #678): present and non-empty makes it
@@ -147,7 +147,9 @@ async function write(
     doc.set("name", name);
     doc.set(
       "source",
-      watched ? { kind: "watched", url: query } : { kind: "arxiv" }
+      watched
+        ? { kind: "watched", url: query }
+        : { kind: form.watching === "openalex" ? "openalex" : "arxiv" }
     );
     doc.set("created", deps.now().toISOString());
     // A page has no date window: its first run proposes all it lists.
@@ -166,10 +168,14 @@ async function write(
     // Activity row saves a page's Assigned Questions through here with the
     // address it has.
     const wasWatched = before.scout.source.kind === "watched";
-    if (wasWatched !== watched) {
+    const wasOpenAlex = before.scout.source.kind === "openalex";
+    if (
+      wasWatched !== watched ||
+      wasOpenAlex !== (form.watching === "openalex")
+    ) {
       throw new VaultError(
         "refused",
-        `A Scout keeps its kind of source. To watch ${watched ? "a page" : "arXiv"} instead, make a new Scout.`
+        `A Scout keeps its kind of source. To watch ${watched ? "a page" : form.watching === "openalex" ? "OpenAlex" : "arXiv"} instead, make a new Scout.`
       );
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));

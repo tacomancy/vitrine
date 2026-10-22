@@ -45,6 +45,8 @@ export type Arrival = {
   /** Missing is the empty string, never a guess. */
   published: string;
   venue: string | null;
+  /** Only an OpenAlex work says what kind of venue it was published in. */
+  venueType?: "journal" | "conference" | null;
   abstract: string;
   url: string;
 };

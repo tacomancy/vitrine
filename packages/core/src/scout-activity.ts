@@ -150,7 +150,11 @@ export type ActivityRow =
        * since it is the Lexicon's to say and changes as the Lexicon does.
        */
       source:
-        | { kind: "arxiv"; query: string; tags: string[] | null }
+        | {
+            kind: "arxiv" | "openalex";
+            query: string;
+            tags: string[] | null;
+          }
         | { kind: "watched"; url: string };
       cadence: Scout["cadence"];
       /**
@@ -649,14 +653,18 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
         source:
           scout.source.kind === "watched"
             ? { kind: "watched", url: scout.source.url }
-            : { kind: "arxiv", query: scout.query, tags: scout.tags ?? null },
+            : {
+                kind: scout.source.kind,
+                query: scout.query,
+                tags: scout.tags ?? null,
+              },
         cadence: scout.cadence,
         dueUnder: dueUnder(deps.queue, scout, now),
         assigned: scout.assigned,
         lane: scout.lane,
         paused: scout.paused,
         lastWindow:
-          scout.source.kind === "arxiv"
+          scout.source.kind !== "watched"
             ? lastWindow(deps.queue, scout.id)
             : null,
         lastRun:

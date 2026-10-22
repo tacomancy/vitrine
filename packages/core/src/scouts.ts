@@ -3,6 +3,14 @@ import { isTagCharacter, parseTag } from "markdown";
 import { stringify } from "yaml";
 import { ArxivError, compileArxivQuery, type ArxivClient } from "./arxiv.js";
 import {
+  compileOpenAlexQuery,
+  LOOKBACK_DAYS,
+  SEARCH_FILTER,
+  OpenAlexError,
+  type OpenAlexClient,
+} from "./openalex.js";
+import { sourceKeyOf } from "./source-key.js";
+import {
   readWatched,
   WatchedError,
   type Arrival,
@@ -54,6 +62,7 @@ export type ScoutDeps = {
   index: VaultIndex;
   queue: DatabaseSync;
   arxiv: ArxivClient;
+  openalex: OpenAlexClient;
   /** What reading a page needs: fetch, model and key (ADR 0017). */
   watched: WatchedDeps;
   events: Events;
@@ -76,6 +85,7 @@ export type RunSummary = {
 };
 
 const iso = (date: Date) => date.toISOString();
+const DAY_MS = 86_400_000;
 
 /** A clean run that asked the Scout's current page; a run from before the column (no page) is taken as belonging, as in `finishedRunsAtPage`. */
 function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
@@ -109,7 +119,9 @@ export async function runScout(
   // a Seed or Exclusion made since the last run changes this query and
   // nothing else (spec #678 decisions 2 and 6).
   const compiled =
-    scout.tags === undefined ? undefined : await compileTags(deps, scout.tags);
+    scout.tags === undefined
+      ? undefined
+      : await compileTags(deps, scout.tags, scout.source.kind);
   const asked = compiled === undefined ? scout.query : compiled.query;
   const note =
     compiled === undefined || compiled.left.length === 0 || asked === null
@@ -124,10 +136,15 @@ export async function runScout(
   const watched = scout.source.kind === "watched";
   // A page has no date window: "new" is an unseen `source_key`, so its first
   // run proposes everything the page lists, all Retroactive (spec #463).
+  // OpenAlex dates a work by publication, which can precede the day it was
+  // indexed, so each run re-asks the days before its window; identity absorbs
+  // the repeats (ADR 0051 decision 7).
+  const lookback =
+    scout.source.kind === "openalex" ? LOOKBACK_DAYS * DAY_MS : 0;
   const from = watched
     ? now
     : last !== undefined
-      ? new Date(last.window_to)
+      ? new Date(new Date(last.window_to).getTime() - lookback)
       : scout.searchBackTo !== null && scout.searchBackTo < scout.created
         ? scout.searchBackTo
         : scout.created;
@@ -169,7 +186,9 @@ export async function runScout(
             id: scout.id,
             url: scout.source.url,
           })
-        : await readArxiv(arxiv, asked, from, now);
+        : scout.source.kind === "openalex"
+          ? await readOpenAlex(deps.openalex, scout, asked, from, now)
+          : await readArxiv(arxiv, asked, from, now);
     // One transaction: a failure part-way must not leave Proposals behind
     // that the next run, finding them known, would not count as new.
     // Read before the transaction: it is async, and a muted line must not be
@@ -210,6 +229,7 @@ export async function runScout(
     // module and must not be filed as "the answer did not read".
     if (!(
       cause instanceof ArxivError ||
+      cause instanceof OpenAlexError ||
       cause instanceof WatchedError ||
       cause instanceof TagsError
     )) {
@@ -254,7 +274,8 @@ export type TagsCompiled = { query: string | null; left: string[] };
  */
 export async function compileTags(
   deps: Pick<ScoutDeps, "vaultPath" | "index">,
-  tags: readonly string[]
+  tags: readonly string[],
+  source: Scout["source"]["kind"] = "arxiv"
 ): Promise<TagsCompiled> {
   const edits = await readEdits(deps.vaultPath);
   const terms = new Set<string>();
@@ -274,7 +295,12 @@ export async function compileTags(
     for (const term of used) terms.add(term);
   }
   return {
-    query: terms.size === 0 ? null : compileArxivQuery([...terms]),
+    query:
+      terms.size === 0
+        ? null
+        : source === "openalex"
+          ? compileOpenAlexQuery([...terms])
+          : compileArxivQuery([...terms]),
     left,
   };
 }
@@ -449,6 +475,49 @@ async function readArxiv(
   };
 }
 
+/**
+ * What an OpenAlex Scout asks: a Tag Filter's compiled `filter=` string, or
+ * the Query as written. The client sends only the search part and adds the
+ * published-venue, retraction and window filters itself.
+ */
+async function readOpenAlex(
+  openalex: OpenAlexClient,
+  scout: Scout,
+  asked: string,
+  from: Date,
+  to: Date
+): Promise<{
+  items: Arrival[];
+  moreMatched: number;
+  fetched: number;
+  facts?: undefined;
+}> {
+  const search =
+    scout.tags === undefined ? asked : asked.slice(SEARCH_FILTER.length);
+  const found = await openalex.searchWorks(search, { from, to });
+  return {
+    items: found.works.map((w) => ({
+      // The arXiv id first, then the DOI, then the link (ADR 0051 decision 10).
+      key:
+        w.arxivId !== null
+          ? `arxiv:${w.arxivId}`
+          : w.doi !== null
+            ? `doi:${w.doi}`
+            : sourceKeyOf(w.url),
+      doi: w.doi,
+      title: w.title,
+      authors: w.authors,
+      published: w.published,
+      venue: w.venue,
+      venueType: w.venueType,
+      abstract: w.abstract,
+      url: w.url,
+    })),
+    moreMatched: found.moreMatched,
+    fetched: found.works.length,
+  };
+}
+
 /** What a model-read run spent and saw, written whether it ended clean or not: a failed extraction still cost tokens. */
 function record(
   queue: DatabaseSync,
@@ -493,8 +562,8 @@ function arrive(
   const at = iso(deps.now());
   const known = queue.prepare("SELECT id FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
-    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, abstract, url, lane, state, first_seen, stub_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, abstract, url, lane, state, first_seen, stub_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
@@ -532,6 +601,7 @@ function arrive(
           JSON.stringify(item.authors),
           item.published,
           item.venue,
+          item.venueType ?? null,
           item.abstract,
           item.url,
           scout.lane,
@@ -741,6 +811,8 @@ export type Card = {
   published: string;
   /** `null` is shown as missing; keywords are never supplied by arXiv and so are not on the card at all. */
   venue: string | null;
+  /** What OpenAlex typed the venue; the card says *journal* or *conference* and never *peer-reviewed* (ADR 0051 decision 3). `null` for arXiv and pages. */
+  venueType: "journal" | "conference" | null;
   abstract: string;
   url: string;
   doi: string | null;
@@ -799,6 +871,7 @@ type ProposalRow = {
   authors: string;
   published: string;
   venue: string | null;
+  venue_type: "journal" | "conference" | null;
   abstract: string;
   url: string;
   lane: "review" | "skim";
@@ -1049,6 +1122,7 @@ async function readCards(
       authors,
       published: row.published,
       venue: row.venue,
+      venueType: row.venue_type,
       abstract: row.abstract,
       url: row.url,
       doi: row.doi,

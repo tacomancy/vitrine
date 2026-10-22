@@ -52,7 +52,7 @@ import { useTRPC } from "./trpc";
  */
 export type FormValues = {
   name: string;
-  watching: "arxiv" | "watched";
+  watching: "arxiv" | "openalex" | "watched";
   query: string;
   /** Which Filter the form is on; the other's text is kept, so switching back loses nothing. */
   filter: "query" | "tags";

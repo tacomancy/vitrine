@@ -313,6 +313,8 @@ function baseFaultSentence(
       : `The page answered with an error${status === undefined ? "" : ` (HTTP ${status})`} or was too large to read, ` +
           "so nothing was checked.";
   }
+  // The Structured source a fault is about, named in its sentence (ADR 0051 decision 2).
+  const name = source === "openalex" ? "OpenAlex" : "arXiv";
   switch (kind) {
     case "credentials":
       return message === NO_KEY
@@ -333,16 +335,19 @@ function baseFaultSentence(
             ? "Fewer than half of what the model returned appears on the page, so nothing was proposed."
             : "The model found no papers listed on this page.";
     case "network":
-      return "arXiv could not be reached, so nothing was checked.";
+      return `${name} could not be reached, so nothing was checked.`;
     case "http": {
       const status = /HTTP (\d{3})/.exec(message ?? "")?.[1];
-      return `arXiv answered with an error${status === undefined ? "" : ` (HTTP ${status})`}, so nothing was checked.`;
+      return `${name} answered with an error${status === undefined ? "" : ` (HTTP ${status})`}, so nothing was checked.`;
     }
     case "rate_limited":
-      return "arXiv asked Vitrine to slow down (HTTP 429), so nothing was checked.";
+      // No status for OpenAlex: a spent daily budget is refused unsent, so there was no 429 to quote.
+      return source === "openalex"
+        ? "OpenAlex asked Vitrine to slow down, so nothing was checked."
+        : "arXiv asked Vitrine to slow down (HTTP 429), so nothing was checked.";
     case "parse":
       return (
-        "arXiv's answer did not read as a search result: the query may be malformed, or arXiv changed what it returns." +
+        `${name}'s answer did not read as a search result: the query may be malformed, or ${name} changed what it returns.` +
         (queryEdited ? " Its query changed since it last ran cleanly." : "")
       );
     case "interrupted":

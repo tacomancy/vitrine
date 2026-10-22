@@ -341,11 +341,11 @@ describe("queue.sqlite", () => {
 
     const db = new DatabaseSync(file);
     try {
-      expect(QUEUE_SCHEMA_VERSION).toBe(10);
+      expect(QUEUE_SCHEMA_VERSION).toBe(11);
       expect(
         (db.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(10);
+      ).toBe(11);
       expect(db.prepare("SELECT * FROM last_arrival").all()).toEqual([]);
       // The Scout tables arrive empty beside the rows the older database held.
       expect(db.prepare("SELECT * FROM scout_runs").all()).toEqual([]);

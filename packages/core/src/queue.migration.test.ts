@@ -65,7 +65,7 @@ describe("the queue database, version 5 to 6", () => {
       expect(
         (queue.prepare("PRAGMA user_version").get() as { user_version: number })
           .user_version
-      ).toBe(10);
+      ).toBe(11);
       expect(
         queue
           .prepare(
