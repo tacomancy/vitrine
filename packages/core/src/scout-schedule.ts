@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CADENCES, readScouts, type Scout } from "./scout-file.js";
 import { CADENCE_MS, finishedRunsAtPage } from "./scout-health.js";
+import { spentUntilOf } from "./openalex.js";
 import { runScout, type ScoutDeps } from "./scouts.js";
 import { serialised } from "./serialise.js";
 
@@ -49,6 +50,14 @@ export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
   // No key is asked again by the key being set or *Run now*, never by the
   // hour: nothing about the Scout has changed since it last said so.
   if (newest.error_kind === "credentials") return false;
+  // A spent OpenAlex budget says when it is back, and nothing about the Scout
+  // has changed until then; after it, the next check is the first to ask. A row
+  // that names no time waits a cadence like any other rate limit.
+  const budgetBack =
+    newest.error_kind === "rate_limited"
+      ? spentUntilOf(newest.error_message)
+      : null;
+  if (budgetBack !== null) return now >= budgetBack;
   if (
     newest.error_kind === "rate_limited" ||
     newest.error_kind === "parse" ||

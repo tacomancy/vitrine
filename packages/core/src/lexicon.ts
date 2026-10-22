@@ -104,6 +104,8 @@ export type Attention = {
   due: number;
   /** A sync running now: Tags measured so far, of those it set out to; null when none is. In memory only, so a restart shows none. */
   measuring: { done: number; of: number } | null;
+  /** The instant (ISO) the sync, stopped to leave credits for Scouts, may go on; null while it is not stopped. In memory, from the one client both read. */
+  paused: string | null;
   /** Most papers first, then by name. */
   tags: AttentionTag[];
   /** Where the scatter's axes cross; null while fewer than `QUADRANT_MIN` Tags are placed. */
@@ -119,6 +121,8 @@ export type SyncResult = {
   failed: Array<{ tag: string; kind: OpenAlexErrorKind }>;
   /** Tags still to measure after a rate limit stopped the sync. */
   waiting: number;
+  /** When the sync stopped to leave credits for Scouts, the instant they are back (ISO); null when it did not. */
+  paused: string | null;
 };
 
 export type LexiconView = {
@@ -358,6 +362,7 @@ export function attention(
     synced: store.consentedAt !== null,
     due: tags.filter((t) => isDue(t, now)).length,
     measuring: null,
+    paused: null,
     tags,
     crossing: crossingOf(tags),
   };
