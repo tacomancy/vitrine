@@ -41,9 +41,9 @@ export function ScoutEdit({
   const queryClient = useQueryClient();
   // A page has no Query to edit here: its address is the form's (ADR 0042
   // decision 5), so the field is not offered rather than offered and refused.
-  const savedQuery = row.source.kind === "arxiv" ? row.source.query : null;
+  const savedQuery = row.source.kind !== "watched" ? row.source.query : null;
   const arxiv = savedQuery !== null;
-  const savedTags = row.source.kind === "arxiv" ? row.source.tags : null;
+  const savedTags = row.source.kind !== "watched" ? row.source.tags : null;
   // Which Filter the edit writes; a Scout has one or the other (spec #678
   // decision 1). The Tags are typed one to a line, as written in the file.
   const [filter, setFilter] = useState<"query" | "tags">(
@@ -114,7 +114,11 @@ export function ScoutEdit({
         name: row.name,
         watching: row.source.kind,
         query:
-          row.source.kind === "arxiv" ? (byTags ? "" : query) : row.source.url,
+          row.source.kind !== "watched"
+            ? byTags
+              ? ""
+              : query
+            : row.source.url,
         // Absent leaves a Query Scout's Filter alone; empty is the switch
         // back from Tags to a Query (the core's `ScoutForm.tags`).
         ...(byTags ? { tags } : savedTags !== null ? { tags: [] } : {}),

@@ -16,8 +16,8 @@ export type Scout = {
   /** The file's own name, `.vitrine/scouts/<id>.yaml`: what a run row refers to. */
   id: string;
   name: string;
-  /** What it watches: arXiv through its API, or one web page (ADR 0017). */
-  source: { kind: "arxiv" } | { kind: "watched"; url: string };
+  /** What it watches: arXiv or OpenAlex through their APIs, or one web page (ADR 0017, ADR 0051). */
+  source: { kind: "arxiv" | "openalex" } | { kind: "watched"; url: string };
   /** The arXiv Query; for a Watched source, the address — what a run asked, so an edit to it overrides a wait. */
   query: string;
   /**
@@ -248,8 +248,17 @@ function readScout(id: string, text: string): Read {
     }
     query = url.trim();
     source = { kind: "watched", url: query };
-  } else if (kind === "arxiv") {
-    const filter = file["filter"] as Record<string, unknown> | undefined;
+  } else if (kind === "arxiv" || kind === "openalex") {
+    const rawFilter = file["filter"];
+    if (
+      rawFilter !== undefined &&
+      (typeof rawFilter !== "object" ||
+        rawFilter === null ||
+        Array.isArray(rawFilter))
+    ) {
+      return { ok: false, problem: "filter is not a map of keys" };
+    }
+    const filter = rawFilter as Record<string, unknown> | undefined;
     const asked = filter?.["query"];
     const named = filter?.["tags"];
     // Exclusive, and refused by name, so "what does it search?" has one answer.
@@ -281,9 +290,12 @@ function readScout(id: string, text: string): Read {
     } else {
       query = asked;
     }
-    source = { kind: "arxiv" };
+    source = { kind };
   } else {
-    return { ok: false, problem: "source.kind is not arxiv or watched" };
+    return {
+      ok: false,
+      problem: "source.kind is not arxiv, openalex or watched",
+    };
   }
   const cadence = file["cadence"];
   if (!CADENCES.includes(cadence as never)) {

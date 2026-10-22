@@ -348,6 +348,7 @@ async function scoutDeps(ctx: Context): Promise<ScoutDeps> {
     index,
     queue,
     arxiv: ctx.arxiv,
+    openalex: ctx.openalex,
     watched: ctx.watched,
     events: ctx.events,
     now: ctx.now,
@@ -759,7 +760,7 @@ export const router = t.router({
         z.object({
           id: z.string().min(1).optional(),
           name: z.string(),
-          watching: z.enum(["arxiv", "watched"]).optional(),
+          watching: z.enum(["arxiv", "openalex", "watched"]).optional(),
           query: z.string(),
           tags: z.array(z.string()).optional(),
           cadence: z.enum(CADENCES),

@@ -1,5 +1,6 @@
 import type { ArxivClock } from "./arxiv.js";
 import { serialised } from "./serialise.js";
+import { arxivIdOf } from "./source-key.js";
 
 /**
  * The one OpenAlex client (ADR 0045; `docs/architecture.md` § Lexicon). It
@@ -28,7 +29,51 @@ export class OpenAlexError extends Error {
   }
 }
 
+/** Where OpenAlex's own arXiv repository record lives: a location from it is the arXiv copy (ADR 0051 decision 10). */
+const ARXIV_SOURCE = "https://openalex.org/S4306400194";
+
+/** Works a request asks for; OpenAlex's largest page. */
+export const WORKS_PAGE = 200;
+/** A safety limit, not a ranking cap: a broad Query must be loud (ADR 0051 decision 7). */
+export const WORKS_CEILING = 400;
+/** The days before a run's window that every run asks again, so work OpenAlex indexed late is not missed (ADR 0051 decision 7). */
+export const LOOKBACK_DAYS = 60;
+
+/** A work as the Scout runner needs it. A field OpenAlex did not supply is empty or `null`, never composed. */
+export type OpenAlexWork = {
+  title: string;
+  authors: string[];
+  /** `YYYY-MM-DD` as OpenAlex dates it; empty when it gave none. */
+  published: string;
+  venue: string | null;
+  venueType: "journal" | "conference" | null;
+  /** Lower-cased, without the `doi.org` prefix. */
+  doi: string | null;
+  /** The primary location's landing page, else the DOI link, else OpenAlex's own id. */
+  url: string;
+  /** Rebuilt from OpenAlex's inverted index; empty when it has none. */
+  abstract: string;
+  /** The id of an arXiv-repository copy, when one of the work's locations is. */
+  arxivId: string | null;
+};
+
+export type OpenAlexFound = {
+  works: OpenAlexWork[];
+  total: number;
+  /** How many matched beyond the ceiling and were not fetched; 0 when nothing was cut. */
+  moreMatched: number;
+};
+
 export type OpenAlexClient = {
+  /**
+   * Journal and conference work that is not retracted and matches `search`
+   * (OpenAlex search syntax), published inside the window. Never a
+   * repository (ADR 0051 decision 3).
+   */
+  searchWorks: (
+    search: string,
+    window: { from: Date; to: Date }
+  ) => Promise<OpenAlexFound>;
   /**
    * How many works the Terms match in each month (`YYYY-MM`), in the order
    * asked. One count per month, so a different growth definition recomputes
@@ -162,7 +207,43 @@ export function createOpenAlexClient({
     return ids.size;
   };
 
+  const searchWorks: OpenAlexClient["searchWorks"] = async (search, window) => {
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const filter = [
+      "primary_location.source.type:journal|conference",
+      "is_retracted:false",
+      `title_and_abstract.search:${search}`,
+      `from_publication_date:${day(window.from)}`,
+      `to_publication_date:${day(window.to)}`,
+    ].join(",");
+    const works: OpenAlexWork[] = [];
+    let total = 0;
+    for (let n = 1; works.length < WORKS_CEILING; n++) {
+      const body = (await request(
+        `${endpoint}?${new URLSearchParams({ filter, "per-page": String(WORKS_PAGE), page: String(n) }).toString()}`
+      )) as { meta?: { count?: unknown }; results?: unknown };
+      const count = body?.meta?.count;
+      if (
+        !Array.isArray(body?.results) ||
+        typeof count !== "number" ||
+        !Number.isInteger(count) ||
+        count < 0
+      ) {
+        throw new OpenAlexError("parse", "the answer carried no results");
+      }
+      total = count;
+      for (const raw of body.results) works.push(readWork(raw));
+      if (body.results.length < WORKS_PAGE || works.length >= total) break;
+    }
+    return {
+      works: works.slice(0, WORKS_CEILING),
+      total,
+      moreMatched: Math.max(0, total - WORKS_CEILING),
+    };
+  };
+
   return {
+    searchWorks,
     monthlyCounts: async (terms, months) => {
       const chunks = splitToFit(
         terms,
@@ -207,4 +288,71 @@ function splitToFit(
   }
   if (current.length > 0) chunks.push(current);
   return chunks;
+}
+
+type Raw = Record<string, unknown>;
+
+/** A value as a map, or an empty one: every field of a work is optional. */
+const rec = (value: unknown): Raw =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Raw)
+    : {};
+const text = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
+function readWork(raw: unknown): OpenAlexWork {
+  if (typeof raw !== "object" || raw === null) {
+    throw new OpenAlexError("parse", "a work was not an object");
+  }
+  const w = raw as Raw;
+  const title = text(w["title"])?.trim();
+  if (title === undefined || title === "") {
+    throw new OpenAlexError("parse", "a work carried no title");
+  }
+  const primary = rec(w["primary_location"]);
+  const source = rec(primary["source"]);
+  const doiLink = text(w["doi"]);
+  const type = source["type"];
+  return {
+    title,
+    authors: (Array.isArray(w["authorships"]) ? w["authorships"] : []).flatMap(
+      (a: unknown) => {
+        const name = text(rec(rec(a)["author"])["display_name"]);
+        return name === null ? [] : [name];
+      }
+    ),
+    published: text(w["publication_date"]) ?? "",
+    venue: text(source["display_name"]),
+    venueType: type === "journal" || type === "conference" ? type : null,
+    doi:
+      doiLink === null
+        ? null
+        : doiLink.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "").toLowerCase(),
+    url: text(primary["landing_page_url"]) ?? doiLink ?? text(w["id"]) ?? "",
+    abstract: abstractOf(w["abstract_inverted_index"]),
+    arxivId: arxivIdOfLocations(w["locations"]),
+  };
+}
+
+/** OpenAlex ships an abstract as word → positions; sorting the positions gives the text back. Absent stays empty. */
+function abstractOf(index: unknown): string {
+  const words: string[] = [];
+  for (const [word, at] of Object.entries(rec(index))) {
+    if (Array.isArray(at)) for (const i of at) words[Number(i)] = word;
+  }
+  return words.filter((w) => w !== undefined).join(" ");
+}
+
+function arxivIdOfLocations(locations: unknown): string | null {
+  if (!Array.isArray(locations)) return null;
+  for (const location of locations) {
+    const l = rec(location);
+    if (rec(l["source"])["id"] !== ARXIV_SOURCE) continue;
+    for (const field of ["landing_page_url", "pdf_url"]) {
+      const url = text(l[field]);
+      const id = url === null ? null : arxivIdOf(url);
+      if (id !== null) return id;
+    }
+  }
+  return null;
 }

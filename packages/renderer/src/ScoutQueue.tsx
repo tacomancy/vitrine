@@ -1112,7 +1112,14 @@ function Proposal({
       <dl className={styles.fields}>
         <Field label="authors" value={card.authors.join(", ") || null} />
         <Field label="published" value={card.published.slice(0, 10)} />
-        <Field label="venue" value={card.venue} />
+        <Field
+          label="venue"
+          value={
+            card.venue !== null && card.venueType !== null
+              ? `${card.venue} (${card.venueType})`
+              : card.venue
+          }
+        />
         <Field label="doi" value={card.doi} />
         <dt>link</dt>
         <dd>
