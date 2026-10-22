@@ -14,7 +14,11 @@ import {
 } from "./measurements.js";
 import { readEdits } from "./lexicon-edits.js";
 import { readPrintedKeywords } from "./lexicon-printed.js";
-import { OpenAlexError, type OpenAlexClient } from "./openalex.js";
+import {
+  OpenAlexError,
+  OpenAlexPaused,
+  type OpenAlexClient,
+} from "./openalex.js";
 import { serialised } from "./serialise.js";
 import type { VaultIndex } from "./vault-index.js";
 
@@ -42,6 +46,14 @@ const oneAtATime = serialised();
 // in memory beside the queue it describes: it is true only while the sync is
 // running, so a restart rightly shows none.
 const running = new Map<string, { done: number; of: number }>();
+
+// Vaults whose last sync stopped to leave room for Scouts. Kept so the hourly
+// check can finish it once the budget is back, with no one pressing anything
+// (ADR 0051 decision 6); in memory, like the sync it resumes: a restart's
+// sync on open does the same job.
+const pausedVaults = new Set<string>();
+
+export const syncPaused = (vaultPath: string) => pausedVaults.has(vaultPath);
 
 export const measuringOf = (vaultPath: string) =>
   running.get(vaultPath) ?? null;
@@ -145,12 +157,19 @@ async function sync(deps: Deps): Promise<SyncResult> {
       ),
     }));
 
-  const result: SyncResult = { measured: 0, failed: [], waiting: 0 };
+  const result: SyncResult = {
+    measured: 0,
+    failed: [],
+    waiting: 0,
+    paused: null,
+  };
   if (due.length > 0) running.set(vaultPath, { done: 0, of: due.length });
   try {
     await measureAll();
   } finally {
     running.delete(vaultPath);
+    if (result.paused === null) pausedVaults.delete(vaultPath);
+    else pausedVaults.add(vaultPath);
     deps.onProgress?.();
   }
   return result;
@@ -167,7 +186,7 @@ async function sync(deps: Deps): Promise<SyncResult> {
     }
   }
 
-  /** False when the sync should stop: the rate limit has been reached. */
+  /** False when the sync should stop: the rate limit has been reached, or the reserve. */
   async function measureOne(tag: string, terms: string[], query: string) {
     try {
       const counts = await client.monthlyCounts(terms, months);
@@ -180,6 +199,14 @@ async function sync(deps: Deps): Promise<SyncResult> {
       result.measured += 1;
       return true;
     } catch (cause) {
+      if (cause instanceof OpenAlexPaused) {
+        // Not a failure: the Tag is not at fault and keeps asking nothing of
+        // the store, so it stays due and is measured when the sync resumes.
+        result.paused = new Date(
+          now.getTime() + cause.resumesInMs
+        ).toISOString();
+        return false;
+      }
       if (!(cause instanceof OpenAlexError)) throw cause;
       result.failed.push({ tag, kind: cause.kind });
       // Stored, not only returned: the sync on open has no caller to tell, and

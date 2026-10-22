@@ -14,7 +14,7 @@ import { createAnthropicProvider } from "./model-provider.js";
 import { createProviderSettings } from "./providers.js";
 import type { WatchedDeps } from "./watched.js";
 import { createEvents } from "./events.js";
-import { syncWhenOpened } from "./lexicon-sync.js";
+import { syncPaused, syncWhenOpened } from "./lexicon-sync.js";
 import { checkDue } from "./scout-schedule.js";
 import { createPdfEngine } from "./pdf-engine.js";
 import type { Host } from "./host.js";
@@ -270,10 +270,22 @@ export function createApp({
       );
     }
   }
+  // A sync that stopped to leave room for Scouts goes on at the first check
+  // after the budget is back; before then the client refuses it unsent, so
+  // asking early costs nothing (ADR 0051 decision 6).
+  async function resumePausedSync(): Promise<void> {
+    const opened = await vault.opened();
+    if (opened !== null && syncPaused(opened.vault.path)) {
+      await syncLexiconsOnOpen();
+    }
+  }
   const hourly =
     scoutCheckMs === null
       ? null
-      : setInterval(() => void checkScouts(), scoutCheckMs);
+      : setInterval(
+          () => void checkScouts().then(resumePausedSync),
+          scoutCheckMs
+        );
   // The timer alone must never keep the process alive.
   hourly?.unref();
 

@@ -56,6 +56,7 @@ const NO_ATTENTION: Attention = {
   synced: false,
   due: 0,
   measuring: null,
+  paused: null,
   tags: [],
   crossing: null,
 };
@@ -1236,6 +1237,30 @@ describe("the Attention panel — Sync now", () => {
     const panel = await attentionSlot();
     expect(await within(panel).findByText(/measuring 1 of 3/)).toBeDefined();
     expect(panel.textContent).not.toMatch(/waiting/);
+  });
+
+  it("says a sync paused to leave room for Scouts, as a status and not a fault", async () => {
+    open({
+      "questionMap.attention": {
+        ...SYNCED,
+        due: 3,
+        paused: "2026-10-23T00:00:00.000Z",
+        tags: [tag("sleep", 4)],
+      },
+    });
+    const panel = await attentionSlot();
+    const line = await within(panel).findByText(/paused to leave room/);
+    expect(line.getAttribute("role")).toBe("status");
+    expect(line.textContent).toMatch(/resumes after the reset/);
+    expect(line.textContent).toMatch(/3 tags waiting/);
+    expect(within(panel).queryByRole("alert")).toBeNull();
+  });
+
+  it("does not say paused when the sync is not", async () => {
+    open({ "questionMap.attention": { ...SYNCED, tags: [tag("sleep", 4)] } });
+    const panel = await attentionSlot();
+    await within(panel).findByRole("button", { name: /sleep/ });
+    expect(panel.textContent).not.toMatch(/paused/);
   });
 
   it("does not say measuring when no sync runs", async () => {
