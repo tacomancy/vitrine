@@ -13,6 +13,7 @@ import { hypothesisFilters } from "./history";
 import { Criteria } from "./HypothesisCriteria";
 import { FollowUp } from "./HypothesisFollowUp";
 import { LoopLine } from "./HypothesisLoop";
+import { Button } from "./Form";
 import { OverrideForm } from "./HypothesisOverride";
 import { Related } from "./HypothesisRelated";
 import { FrameLines, usePageFrame } from "./page-frame";
@@ -328,13 +329,11 @@ function State({
         <li>diagnostic criteria never decide</li>
       </ul>
       {overridable && !overriding && (
-        <button
-          type="button"
-          className={`${rq.edit} ${styles.offer}`}
-          onClick={() => setOverriding(true)}
-        >
-          disagree with this? override…
-        </button>
+        <span className={styles.offer}>
+          <Button onClick={() => setOverriding(true)}>
+            disagree with this? override…
+          </Button>
+        </span>
       )}
       {derivation.state === "falsified" && (
         <p className={styles.offerNote}>

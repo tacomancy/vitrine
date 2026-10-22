@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CriterionRead, SavedAnswer } from "core";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./Form";
 import styles from "./Hypothesis.module.css";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import rq from "./ResearchQuestion.module.css";
@@ -117,12 +118,10 @@ export function OverrideForm({
         }}
       />
       <div className={styles.controls}>
-        <button type="submit" className={rq.action} disabled={!ready}>
+        <Button tier="primary" disabled={!ready}>
           override and record
-        </button>
-        <button type="button" className={rq.edit} onClick={onClose}>
-          cancel
-        </button>
+        </Button>
+        <Button onClick={onClose}>cancel</Button>
         <span className={styles.overrideHint}>
           the page will read supported · overrides inconclusive
         </span>
