@@ -7,8 +7,9 @@ import type {
   ExperimentStatus,
   RelatedQuestion,
 } from "core";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AttachEvidence, criterionName, standing } from "./AttachEvidence";
+import { Button, SegmentedControl } from "./Form";
 import styles from "./Experiment.module.css";
 import { addressOf, markOf } from "./kinds";
 import { Artifacts } from "./ExperimentArtifacts";
@@ -281,9 +282,9 @@ function Header({
           status={frontmatter.status}
           unreadable={frontmatter.statusUnreadable}
         />
-        <button type="button" className={styles.action} onClick={onAttach}>
-          attach as evidence
-        </button>
+        <span className={styles.action}>
+          <Button onClick={onAttach}>attach as evidence</Button>
+        </span>
       </div>
       <p className={styles.name}>
         <span>{frontmatter.name}</span>
@@ -328,8 +329,6 @@ function StatusChips({
   // decision 1 and its 2026-10-15 Update), forgotten as the next attempt
   // begins. Its look is the kicker's register: `rq.inKicker`, unchanged.
   const refusal = useRefusal();
-  // One group per page mounted, whatever else the window holds.
-  const group = useId();
   const set = useMutation(
     trpc.experiments.setStatus.mutationOptions({
       onSuccess: (result) => {
@@ -347,23 +346,15 @@ function StatusChips({
   );
   return (
     <>
-      <div role="radiogroup" aria-label="Status" className={styles.chips}>
-        {STATUSES.map((value) => (
-          <label key={value} className={styles.chip}>
-            <input
-              type="radio"
-              name={group}
-              value={value}
-              checked={status === value}
-              onChange={() => {
-                refusal.forget();
-                set.mutate({ path, status: value, basedOn: hash });
-              }}
-            />
-            {value}
-          </label>
-        ))}
-      </div>
+      <SegmentedControl
+        label="Status"
+        options={STATUSES.map((value) => ({ value, label: value }))}
+        value={status}
+        onChange={(value) => {
+          refusal.forget();
+          set.mutate({ path, status: value, basedOn: hash });
+        }}
+      />
       <span className={styles.caption}>
         you set this — the app never changes it
       </span>
@@ -406,14 +397,9 @@ function WhereItRan({
       present={section.present}
       action={
         reading && (
-          <button
-            ref={editRef}
-            type="button"
-            className={rq.edit}
-            onClick={() => setEditing(true)}
-          >
+          <Button ref={editRef} onClick={() => setEditing(true)}>
             edit
-          </button>
+          </Button>
         )
       }
     >

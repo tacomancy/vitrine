@@ -6,9 +6,16 @@ import {
   useState,
   type ChangeEvent,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
 import styles from "./AttachSource.module.css";
+import {
+  ActionRow,
+  Button,
+  FieldRow,
+  Input,
+  SegmentedRow,
+  Unlocks,
+} from "./Form";
 import { useRestoreFocus } from "./focus";
 import { ATTACHABLE } from "./kinds";
 import { Picker } from "./Picker";
@@ -162,65 +169,57 @@ function NewStub({
         <span className={styles.hint}>↵ makes it · esc leaves</span>
       </div>
 
-      <Field label="Title">
-        <input
-          ref={titleRef}
-          type="text"
-          className={styles.text}
-          aria-label="Title"
-          placeholder="the paper, as it is titled"
-          {...field("title")}
-        />
-      </Field>
-
-      <div className={styles.rest}>
-        <Field label="Authors">
-          <input
-            type="text"
-            className={styles.text}
-            aria-label="Authors"
+      <FieldRow label="Title">
+        {(row) => (
+          <Input
+            {...row}
+            ref={titleRef}
+            wide
+            placeholder="the paper, as it is titled"
+            {...field("title")}
+          />
+        )}
+      </FieldRow>
+      <FieldRow label="Authors">
+        {(row) => (
+          <Input
+            {...row}
+            wide
             // Semicolons, because a comma already means surname-first
             // inside one name (`sources.ts`).
             placeholder="Klinzing, Jens G.; Niethard, Niels"
             {...field("authors")}
           />
-        </Field>
-        <Field label="Year">
-          <input
-            type="text"
-            className={styles.text}
-            aria-label="Year"
-            placeholder="2019"
-            {...field("year")}
+        )}
+      </FieldRow>
+      <FieldRow label="Year">
+        {(row) => <Input {...row} placeholder="2019" {...field("year")} />}
+      </FieldRow>
+      <FieldRow label="URL">
+        {(row) => (
+          <Input
+            {...row}
+            wide
+            placeholder="where it can be read"
+            {...field("url")}
           />
-        </Field>
-      </div>
+        )}
+      </FieldRow>
 
-      <Field label="URL">
-        <input
-          type="text"
-          className={styles.text}
-          aria-label="URL"
-          placeholder="where it can be read"
-          {...field("url")}
-        />
-      </Field>
-
-      <div className={styles.row}>
-        <button
-          type="button"
-          className={styles.attach}
+      <ActionRow>
+        <Button
+          tier="primary"
           disabled={!ready || create.isPending}
           onClick={submit}
         >
           make it
-        </button>
-        <span className={styles.hint}>
+        </Button>
+        <Unlocks>
           {ready
             ? "then the side it goes on"
             : "a title is what names the paper"}
-        </span>
-      </div>
+        </Unlocks>
+      </ActionRow>
       <RefusalLine refusal={refusal} className={styles.refusal} />
     </div>
   );
@@ -248,11 +247,6 @@ function SideAndNote({
   const [note, setNote] = useState("");
   // An alert for the same reason as the stub form's (ADR 0033 decision 1).
   const refusal = useRefusal();
-  const firstRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-
   const attach = useMutation(
     trpc.researchQuestions.attachSource.mutationOptions({
       onSuccess: (result) => {
@@ -295,67 +289,48 @@ function SideAndNote({
         <span className={styles.hint}>esc leaves</span>
       </div>
 
-      <Field label="Which side">
-        <div className={styles.sides} role="radiogroup" aria-label="Which side">
-          {SIDES.map((value, index) => (
-            <label key={value} className={styles.side}>
-              <input
-                ref={index === 0 ? firstRef : undefined}
-                type="radio"
-                name="side"
-                value={value}
-                checked={side === value}
-                onChange={() => setSide(value)}
-              />
-              <span>{value}</span>
-            </label>
-          ))}
-        </div>
-      </Field>
+      <SegmentedRow
+        label="Which side"
+        options={SIDES.map((value) => ({ value, label: value }))}
+        value={side}
+        onChange={setSide}
+        // The first side takes the keyboard; there is no default to start on.
+        autoFocus
+      />
 
-      <Field label="Why it is here">
-        <input
-          type="text"
-          className={styles.note}
-          aria-label="Why it is here"
-          placeholder="optional — the finding that puts it on this side"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              submit();
-            }
-          }}
-        />
-      </Field>
+      <FieldRow label="Why it is here">
+        {(row) => (
+          <Input
+            {...row}
+            wide
+            placeholder="optional — the finding that puts it on this side"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                submit();
+              }
+            }}
+          />
+        )}
+      </FieldRow>
 
-      <div className={styles.row}>
-        <button
-          type="button"
-          className={styles.attach}
+      <ActionRow>
+        <Button
+          tier="primary"
           disabled={side === null || attach.isPending}
           onClick={submit}
         >
           attach
-        </button>
-        <span className={styles.hint}>
+        </Button>
+        <Unlocks>
           {side === null
             ? "choose a side — attaching is the judgement"
             : `lands in ${side} sources`}
-        </span>
-      </div>
+        </Unlocks>
+      </ActionRow>
       <RefusalLine refusal={refusal} className={styles.refusal} />
-    </div>
-  );
-}
-
-/** One labelled step of the form, in the picker's voice. */
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className={styles.field}>
-      <span className={styles.fieldLabel}>{label}</span>
-      {children}
     </div>
   );
 }

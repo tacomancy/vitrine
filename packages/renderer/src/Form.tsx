@@ -1,4 +1,10 @@
-import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import styles from "./Form.module.css";
 
 /**
@@ -136,8 +142,19 @@ export function Unlocks({ children }: { children: ReactNode }) {
   return <span className={styles.unlocks}>{children}</span>;
 }
 
-export function Input(props: Omit<React.ComponentProps<"input">, "className">) {
-  return <input className={styles.input} {...props} />;
+export function Input({
+  wide,
+  ...rest
+}: Omit<React.ComponentProps<"input">, "className"> & {
+  /** For a sentence rather than a word: as wide as a TextArea. */
+  wide?: boolean;
+}) {
+  return (
+    <input
+      className={wide ? `${styles.input} ${styles.wide}` : styles.input}
+      {...rest}
+    />
+  );
 }
 
 export function TextArea(
@@ -161,8 +178,11 @@ type Segment<T extends string> = { value: T; label: string };
 
 type SegmentedProps<T extends string> = {
   options: readonly Segment<T>[];
-  value: T;
+  /** Null when nothing is chosen yet: a choice with no default. */
+  value: T | null;
   onChange: (value: T) => void;
+  /** Focus the segment that holds the tab stop as the control mounts. */
+  autoFocus?: boolean;
 } & (
   | { label: string; labelledBy?: undefined }
   | { labelledBy: string; label?: undefined }
@@ -179,12 +199,20 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  autoFocus,
   label,
   labelledBy,
 }: SegmentedProps<T>) {
   const name = useId();
   const radios = useRef<(HTMLInputElement | null)[]>([]);
   const chosen = options.findIndex((o) => o.value === value);
+  // An effect, not the autoFocus attribute: a form that opens as another
+  // one closes would have its focus handed back to the page by that one.
+  useEffect(() => {
+    if (autoFocus) radios.current[Math.max(chosen, 0)]?.focus();
+    // Only as the control mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onKeyDown(event: KeyboardEvent, index: number) {
     // Alt/Cmd+arrow are the browser's (back, forward), not ours.
@@ -216,9 +244,13 @@ export function SegmentedControl<T extends string>({
               radios.current[index] = el;
             }}
             type="radio"
+            value={option.value}
             name={name}
             className={styles.segmentRadio}
             checked={value === option.value}
+            autoFocus={
+              autoFocus && (chosen === -1 ? index === 0 : index === chosen)
+            }
             // One Tab stop: the chosen segment, or the first when none is.
             tabIndex={(chosen === -1 ? index === 0 : index === chosen) ? 0 : -1}
             onChange={() => onChange(option.value)}
