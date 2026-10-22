@@ -65,8 +65,9 @@ async function opened(
     await writeFile(join(vault, file), text);
   }
   const requests: URL[] = [];
+  let now = NOW;
   const c = await core({
-    now: () => NOW,
+    now: () => now,
     openalex: {
       clock: virtualClock(),
       fetch: async (input) => {
@@ -81,6 +82,9 @@ async function opened(
   return {
     c,
     requests,
+    setNow: (at: Date) => {
+      now = at;
+    },
     run: async (scoutId = "pub") => {
       const r = await c.mutate<RunSummary>("scouts.runNow", { scoutId });
       expect(r.error).toBeUndefined();
@@ -289,6 +293,53 @@ describe("running an OpenAlex Scout", () => {
       "1",
       "2",
     ]);
+  });
+
+  it("says which ceiling it stopped at, so the Queue need not guess", async () => {
+    const c = await opened(() => page([work()], 450));
+    expect(await c.run()).toMatchObject({ truncated: 50, ceiling: 400 });
+  });
+
+  it("re-asks the 60 days before the last run's end and catches late-indexed work", async () => {
+    const late = work({
+      id: "https://openalex.org/W9",
+      doi: null,
+      publication_date: "2026-09-25",
+    });
+    let answer: Work[] = [];
+    const c = await opened(() => page(answer));
+    await c.run();
+    expect(await c.cards()).toEqual([]);
+    // Published 09-25, before the first run ended (09-30), but indexed after.
+    answer = [late];
+    c.setNow(new Date("2026-10-07T00:00:00Z"));
+    expect(await c.run()).toMatchObject({ new: 1 });
+    expect(c.requests.at(-1)!.searchParams.get("filter")).toContain(
+      "from_publication_date:2026-08-01"
+    );
+    expect(await c.cards()).toHaveLength(1);
+  });
+
+  it("absorbs a repeat from the lookback: no second card", async () => {
+    const c = await opened(() => page([work()]));
+    await c.run();
+    c.setNow(new Date("2026-10-07T00:00:00Z"));
+    expect(await c.run()).toMatchObject({ new: 0 });
+    expect(await c.cards()).toHaveLength(1);
+  });
+
+  it("searches back to the chosen date, and what it finds is Retroactive", async () => {
+    const c = await opened(() => page([work()]), {
+      "pub.yaml": QUERY.replace(
+        "filter:",
+        "search_back_to: 2026-06-01\nfilter:"
+      ),
+    });
+    await c.run();
+    expect(c.requests[0]!.searchParams.get("filter")).toContain(
+      "from_publication_date:2026-06-01"
+    );
+    expect((await c.cards()).map((card) => card.retroactive)).toEqual([true]);
   });
 
   it.each([

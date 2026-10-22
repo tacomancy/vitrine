@@ -1,10 +1,16 @@
 import type { DatabaseSync } from "node:sqlite";
 import { isTagCharacter, parseTag } from "markdown";
 import { stringify } from "yaml";
-import { ArxivError, compileArxivQuery, type ArxivClient } from "./arxiv.js";
+import {
+  ArxivError,
+  CEILING,
+  compileArxivQuery,
+  type ArxivClient,
+} from "./arxiv.js";
 import {
   compileOpenAlexQuery,
   LOOKBACK_DAYS,
+  WORKS_CEILING,
   SEARCH_FILTER,
   SPENT_UNTIL,
   OpenAlexError,
@@ -83,6 +89,8 @@ export type RunSummary = {
   unverified: number;
   /** How many more matched than the ceiling let through; 0 when the run was not cut. */
   truncated: number;
+  /** The most a run of this Scout's source lets through, so *stopped at N* names the right N. */
+  ceiling: number;
 };
 
 const iso = (date: Date) => date.toISOString();
@@ -128,6 +136,7 @@ export async function runScout(
     compiled === undefined || compiled.left.length === 0 || asked === null
       ? null
       : `Left out: ${compiled.left.join("; ")}.`;
+  const ceiling = scout.source.kind === "openalex" ? WORKS_CEILING : CEILING;
   const now = deps.now();
   const last = queue
     .prepare(
@@ -223,6 +232,7 @@ export async function runScout(
       ...arrived,
       unverified: read.facts?.unverified ?? 0,
       truncated: read.moreMatched,
+      ceiling,
       note,
     };
   } catch (cause) {
@@ -264,6 +274,7 @@ export async function runScout(
       unverified:
         cause instanceof WatchedError ? (cause.facts.unverified ?? 0) : 0,
       truncated: 0,
+      ceiling,
       note,
     };
   }

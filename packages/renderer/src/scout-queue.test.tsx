@@ -326,6 +326,7 @@ describe("the Scout Queue", () => {
       new: 3,
       held: 1,
       truncated: 230,
+      ceiling: 400,
     }));
     renderApp(answers([], { "scouts.runNow": runNow }));
     const list = await screen.findByRole("list", { name: "Scouts" });
@@ -336,7 +337,7 @@ describe("the Scout Queue", () => {
 
     expect(
       await screen.findByText(
-        "3 new · 1 already in your vault · stopped at 500 — 230 more matched"
+        "3 new · 1 already in your vault · stopped at 400 — 230 more matched"
       )
     ).toBeDefined();
     expect(runNow).toHaveBeenCalledWith({ scoutId: "sleep" });

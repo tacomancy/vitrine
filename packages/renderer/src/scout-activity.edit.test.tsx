@@ -708,6 +708,7 @@ describe("saving an edit from the row", () => {
     held: 1,
     unverified: 0,
     truncated: 0,
+    ceiling: 500,
   };
 
   /** The row's edit open, the Query retyped, and Save pressed. */
