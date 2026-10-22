@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parse, YAMLParseError } from "yaml";
 import { writeAtomically } from "./atomic-write.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
+import { openAlexId } from "./openalex.js";
 
 /**
  * A Scout as its file says it (ADR 0016 decision 4; `docs/architecture.md`
@@ -27,6 +28,13 @@ export type Scout = {
    * stored on the Scout, only on the runs that asked it.
    */
   tags?: string[];
+  /**
+   * An OpenAlex Scout's venue allowlist (ADR 0051 decision 9): the only
+   * venues it asks, each by OpenAlex source ID with the name the researcher
+   * chose it by. It narrows what is asked, so it is not a mute. Absent for no
+   * allowlist; never empty, since an empty list would ask nothing.
+   */
+  venues?: Venue[];
   cadence: "daily" | "weekly" | "monthly";
   /** Question ids (§ Vault layout: `assigned: [question ids]`). */
   assigned: string[];
@@ -49,6 +57,12 @@ export type Scout = {
   /** Days before a Skim line sits behind *show older*. */
   skimDays: number;
 };
+
+/** An OpenAlex source ID, short form: what a request's filter carries as it is, so nothing else may reach it. */
+export const VENUE_ID = /^S\d+$/;
+
+/** A venue on an allowlist: the short source ID (`S…`) a request carries, and its name. */
+export type Venue = { id: string; name: string };
 
 export const DEFAULT_REVIEW_DAYS = 14;
 export const DEFAULT_SKIM_DAYS = 30;
@@ -241,6 +255,7 @@ function readScout(id: string, text: string): Read {
   let source: Scout["source"];
   let query: string;
   let tags: string[] | undefined;
+  let venues: Venue[] | undefined;
   if (kind === "watched") {
     const url = declared?.["url"];
     if (typeof url !== "string" || !/^https?:\/\/\S+$/i.test(url.trim())) {
@@ -290,6 +305,18 @@ function readScout(id: string, text: string): Read {
       };
     } else {
       query = asked;
+    }
+    const listed = filter?.["venues"];
+    if (listed !== undefined) {
+      if (kind !== "openalex") {
+        return {
+          ok: false,
+          problem: "filter.venues is for an OpenAlex Scout only",
+        };
+      }
+      const read = readVenues(listed);
+      if (typeof read === "string") return { ok: false, problem: read };
+      venues = read;
     }
     source = { kind };
   } else {
@@ -345,6 +372,7 @@ function readScout(id: string, text: string): Read {
       source,
       query: query.trim(),
       ...(tags === undefined ? {} : { tags }),
+      ...(venues === undefined ? {} : { venues }),
       cadence: cadence as Scout["cadence"],
       assigned,
       lane: lane as Scout["lane"],
@@ -357,6 +385,38 @@ function readScout(id: string, text: string): Read {
       skimDays: queue[QUEUE_KEYS.skimDays] ?? DEFAULT_SKIM_DAYS,
     },
   };
+}
+
+/**
+ * The allowlist as written, or the sentence naming what is wrong with it. An
+ * entry that is not an ID with a name is named and never skipped: a skipped
+ * entry would narrow the Scout to fewer venues than its file lists, or to none.
+ * The ID is checked for shape because it goes into a request's filter as it is.
+ */
+function readVenues(listed: unknown): Venue[] | string {
+  const problem =
+    "filter.venues is not a list of venues, each with an id and a name";
+  if (!Array.isArray(listed) || listed.length === 0) return problem;
+  const venues: Venue[] = [];
+  for (const raw of listed as unknown[]) {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+      return problem;
+    }
+    const entry = raw as Record<string, unknown>;
+    const id = openAlexId(entry["id"]);
+    const name = entry["name"];
+    if (
+      id === null ||
+      !VENUE_ID.test(id) ||
+      typeof name !== "string" ||
+      name.trim() === "" ||
+      Object.keys(entry).some((k) => k !== "id" && k !== "name")
+    ) {
+      return problem;
+    }
+    venues.push({ id, name: name.trim() });
+  }
+  return venues;
 }
 
 function date(value: unknown): Date | null {

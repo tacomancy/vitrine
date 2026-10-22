@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Document, isMap, parseDocument } from "yaml";
 import { ArxivError } from "./arxiv.js";
 import {
+  openAlexId,
   OpenAlexError,
   SEARCH_FILTER,
   type NameResult,
@@ -20,8 +21,10 @@ import {
   readScoutFile,
   scoutIdOf,
   SCOUTS_FOLDER,
+  VENUE_ID,
   writeScoutFile,
   type Scout,
+  type Venue,
 } from "./scout-file.js";
 import { faultSentence, lastWindow } from "./scout-health.js";
 import { dueUnder } from "./scout-schedule.js";
@@ -59,6 +62,12 @@ export type ScoutForm = {
    * with a `query` is the switch back to a Query.
    */
   tags?: string[] | undefined;
+  /**
+   * An OpenAlex Scout's venue allowlist (ADR 0051 decision 9). Absent leaves
+   * the file's `filter.venues` alone, as a Scout Activity row's save must;
+   * empty takes the key away, which is no allowlist.
+   */
+  venues?: Venue[] | undefined;
   cadence: Scout["cadence"];
   assigned: string[];
   lane: Scout["lane"];
@@ -148,6 +157,7 @@ async function write(
       form.watching === "openalex" ? "openalex" : "arxiv"
     );
   }
+  const venues = checkedVenues(form.venues, form.watching);
   const queueEdits = queueBehaviour(form);
   const folder = join(deps.vaultPath, SCOUTS_FOLDER);
 
@@ -210,7 +220,18 @@ async function write(
     if (value === null) doc.delete(key);
     else doc.set(key, value);
   }
-  if (!watched) writeFilter(doc, query, tags, before?.scout.tags);
+  const venuesChanged =
+    venues !== undefined && !sameVenues(before?.scout.venues ?? [], venues);
+  if (!watched) {
+    writeFilter(
+      doc,
+      query,
+      tags,
+      before?.scout.tags,
+      venuesChanged ? venues : undefined
+    );
+    if (venuesChanged) writeVenues(doc, venues);
+  }
 
   await mkdir(folder, { recursive: true }).catch((cause: unknown) => {
     throw new VaultError(
@@ -228,13 +249,15 @@ async function write(
   // *resume* — pausing is how a researcher retires one, and an edit must
   // not quietly undo it.
   // A page is never run by a save: its first read may spend (ADR 0040 d.5).
+  // A changed allowlist changes what is asked as a changed Query does.
   const edited =
     before !== undefined &&
     !watched &&
-    (tags === undefined
-      ? before.scout.tags !== undefined || before.scout.query !== query
-      : before.scout.tags === undefined ||
-        !sameList(before.scout.tags, tags)) &&
+    (venuesChanged ||
+      (tags === undefined
+        ? before.scout.tags !== undefined || before.scout.query !== query
+        : before.scout.tags === undefined ||
+          !sameList(before.scout.tags, tags))) &&
     !before.scout.paused;
   return { id, runAfter: edited };
 }
@@ -248,11 +271,17 @@ function writeFilter(
   doc: Document,
   query: string,
   tags: string[] | undefined,
-  was: string[] | undefined
+  was: string[] | undefined,
+  venues?: Venue[]
 ) {
   const filter = doc.get("filter");
   if (!isMap(filter)) {
-    doc.set("filter", tags === undefined ? { query } : { tags });
+    // A filter made here is a plain object, not yet a node `writeVenues` can
+    // edit, so the allowlist (new Scouts only get here with one) rides along.
+    doc.set("filter", {
+      ...(tags === undefined ? { query } : { tags }),
+      ...(venues === undefined || venues.length === 0 ? {} : { venues }),
+    });
   } else if (tags === undefined) {
     filter.delete("tags");
     filter.set("query", query);
@@ -260,6 +289,50 @@ function writeFilter(
     filter.delete("query");
     filter.set("tags", tags);
   }
+}
+
+/**
+ * The allowlist the form sent, refused by name where it cannot be sent: only
+ * an OpenAlex Scout has one, and an ID goes into a request's filter as it is.
+ */
+function checkedVenues(
+  venues: Venue[] | undefined,
+  watching: ScoutForm["watching"]
+): Venue[] | undefined {
+  if (venues === undefined || venues.length === 0) return venues;
+  if (watching !== "openalex") {
+    throw new VaultError(
+      "refused",
+      "Only an OpenAlex Scout has a venue allowlist."
+    );
+  }
+  const seen = new Set<string>();
+  const checked: Venue[] = [];
+  for (const venue of venues) {
+    const id = openAlexId(venue.id);
+    if (id === null || !VENUE_ID.test(id) || venue.name.trim() === "") {
+      throw new VaultError(
+        "refused",
+        `A venue needs an OpenAlex id like S123 and a name (${venue.name || venue.id}).`
+      );
+    }
+    if (!seen.has(id)) checked.push({ id, name: venue.name.trim() });
+    seen.add(id);
+  }
+  return checked;
+}
+
+const sameVenues = (a: readonly Venue[], b: readonly Venue[]) =>
+  a.length === b.length &&
+  a.every((v, at) => v.id === b[at]?.id && v.name === b[at]?.name);
+
+/** `filter.venues` written whole when it changed and not otherwise, so a comment on it survives a save that left it alone (ADR 0009); empty takes the key away. */
+function writeVenues(doc: Document, venues: Venue[]) {
+  const filter = doc.get("filter");
+  // `writeFilter` wrote a new filter with the allowlist in it.
+  if (!isMap(filter)) return;
+  if (venues.length === 0) filter.delete("venues");
+  else filter.set("venues", venues);
 }
 
 /**
@@ -447,7 +520,8 @@ export type TriedQuery =
 export async function tryQuery(
   deps: ScoutDeps,
   query: string,
-  source: "arxiv" | "openalex" = "arxiv"
+  source: "arxiv" | "openalex" = "arxiv",
+  venues: readonly Venue[] = []
 ): Promise<TriedQuery> {
   if (query.trim() === "") {
     throw new VaultError("refused", "There is no Query to try.");
@@ -456,6 +530,7 @@ export async function tryQuery(
     try {
       const found = await deps.openalex.searchWorks(query.trim(), null, {
         limit: 5,
+        venues: checkedVenues([...venues], "openalex")?.map((v) => v.id) ?? [],
       });
       return {
         outcome: "found",
@@ -496,7 +571,8 @@ export async function tryQuery(
 export async function tryTags(
   deps: ScoutDeps,
   tags: readonly string[],
-  source: "arxiv" | "openalex" = "arxiv"
+  source: "arxiv" | "openalex" = "arxiv",
+  venues: readonly Venue[] = []
 ): Promise<TriedQuery> {
   if (tags.length === 0) {
     throw new VaultError("refused", "There are no Tags to try.");
@@ -506,7 +582,8 @@ export async function tryTags(
   return tryQuery(
     deps,
     source === "openalex" ? compiled.slice(SEARCH_FILTER.length) : compiled,
-    source
+    source,
+    venues
   );
 }
 

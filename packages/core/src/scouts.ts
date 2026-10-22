@@ -28,6 +28,7 @@ import {
   readScouts,
   scoutIdOf,
   type Scout,
+  type Venue,
 } from "./scout-file.js";
 import {
   applied as mutedBy,
@@ -124,7 +125,7 @@ export async function runScout(
       ? undefined
       : await compileTags(deps, scout.tags, scout.source.kind);
   const asked = compiled === undefined ? scout.query : compiled.query;
-  const note =
+  let note =
     compiled === undefined || compiled.left.length === 0 || asked === null
       ? null
       : `Left out: ${compiled.left.join("; ")}.`;
@@ -196,6 +197,16 @@ export async function runScout(
     // raised by a second Scout (that would write a row for an item no one
     // is shown).
     const { rules } = await readMutes(deps.vaultPath);
+    // An allowlist that leaves nothing is said on the run, so an over-narrow
+    // list cannot pass for a quiet field (ADR 0051 decision 9).
+    if (scout.venues !== undefined && read.fetched === 0) {
+      note = [note, allowlistLeftNothing(scout.venues)]
+        .filter((n) => n !== null)
+        .join(" ");
+      queue
+        .prepare("UPDATE scout_runs SET note = ? WHERE id = ?")
+        .run(note, runId);
+    }
     const arrived = inTransaction(queue, () => {
       const arrived = arrive(deps, scout, runId, read.items, rules);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
@@ -270,6 +281,10 @@ export async function runScout(
   events.emit({ type: "scoutFinished", scoutId, runId });
   return summary;
 }
+
+/** The run's note when an allowlist is in force and no work came back: the list did it, or may have, and the way out. */
+const allowlistLeftNothing = (venues: readonly Venue[]) =>
+  `Nothing came back from this Scout's venue allowlist (${venues.map((v) => v.name).join("; ")}). Add a venue to widen it, or remove it to ask every journal and conference.`;
 
 /** What a Tag Filter compiles to now: the query (null when no Tag has Terms) and why each Tag that did not compile was left out. */
 export type TagsCompiled = { query: string | null; left: string[] };
@@ -511,7 +526,13 @@ async function readOpenAlex(
 }> {
   const search =
     scout.tags === undefined ? asked : asked.slice(SEARCH_FILTER.length);
-  const found = await openalex.searchWorks(search, { from, to });
+  const found = await openalex.searchWorks(
+    search,
+    { from, to },
+    scout.venues === undefined
+      ? undefined
+      : { venues: scout.venues.map((v) => v.id) }
+  );
   return {
     items: found.works.map((w) => ({
       // The arXiv id first, then the DOI, then the link (ADR 0051 decision 10).

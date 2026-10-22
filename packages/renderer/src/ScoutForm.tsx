@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Scout, TriedPage } from "core";
+import type { Scout, TriedPage, Venue } from "core";
 
 /** What the form edits of a Scout, as the wire carries it (dates arrive as strings). */
 type Editable = Pick<
@@ -8,6 +8,7 @@ type Editable = Pick<
   | "name"
   | "query"
   | "tags"
+  | "venues"
   | "cadence"
   | "assigned"
   | "lane"
@@ -39,6 +40,7 @@ import {
   Unlocks,
 } from "./Form";
 import { TagsFilter } from "./TagsFilter";
+import { VenueAllowlist } from "./VenueAllowlist";
 import { AssignedQuestions, type QuestionChoice } from "./AssignedQuestions";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { pushRoute, SETTINGS } from "./router";
@@ -57,6 +59,8 @@ export type FormValues = {
   /** Which Filter the form is on; the other's text is kept, so switching back loses nothing. */
   filter: "query" | "tags";
   tags: string[];
+  /** An OpenAlex Scout's allowlist; empty is every journal and conference. */
+  venues: Venue[];
   cadence: Scout["cadence"];
   lane: Scout["lane"];
   assigned: string[];
@@ -114,6 +118,9 @@ export function ScoutForm({
     values?.filter ?? (scout?.tags === undefined ? "query" : "tags")
   );
   const [tags, setTags] = useState<string[]>(values?.tags ?? scout?.tags ?? []);
+  const [venues, setVenues] = useState<Venue[]>(
+    values?.venues ?? scout?.venues ?? []
+  );
   const [cadence, setCadence] = useState(
     values?.cadence ?? scout?.cadence ?? "daily"
   );
@@ -148,6 +155,7 @@ export function ScoutForm({
         query,
         filter,
         tags,
+        venues,
         cadence,
         lane,
         assigned,
@@ -163,6 +171,7 @@ export function ScoutForm({
       query,
       filter,
       tags,
+      venues,
       cadence,
       lane,
       assigned,
@@ -219,6 +228,11 @@ export function ScoutForm({
       // an empty list is how an existing Tag Scout is switched back to a Query.
       query: byTags ? "" : query,
       ...(byTags ? { tags } : scout?.tags === undefined ? {} : { tags: [] }),
+      // An allowlist is sent when there is one, and when emptying a saved
+      // one: the core leaves a key alone it is not told about.
+      ...(openalex && (venues.length > 0 || scout?.venues !== undefined)
+        ? { venues }
+        : {}),
       cadence,
       assigned,
       lane,
@@ -255,6 +269,8 @@ export function ScoutForm({
   const where = openalex
     ? "journals and conferences in OpenAlex"
     : "all of arXiv";
+  // What *try* is told of the allowlist, so it counts what a run would.
+  const asked = openalex && venues.length > 0 ? { venues } : {};
   const needed = byTags ? "a Tag" : page ? "an Address" : "a Query";
   return (
     <form
@@ -376,10 +392,12 @@ export function ScoutForm({
                   ? triedTags.mutate({
                       tags,
                       watching: openalex ? "openalex" : "arxiv",
+                      ...asked,
                     })
                   : tried.mutate({
                       query,
                       watching: openalex ? "openalex" : "arxiv",
+                      ...asked,
                     })
             }
           >
@@ -425,6 +443,17 @@ export function ScoutForm({
           )}
         </ActionRow>
       </FormSection>
+      {openalex && (
+        <VenueAllowlist
+          venues={venues}
+          onChange={(next) => {
+            setVenues(next);
+            // What was tried was the old list.
+            tried.reset();
+            triedTags.reset();
+          }}
+        />
+      )}
       <FormSection title="When">
         <FieldRow label="Cadence">
           {(field) => (
