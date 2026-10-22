@@ -123,8 +123,7 @@ export function AttentionPanel({ depth }: { depth: number | undefined }) {
         <>
           {attention.data.paused !== null && (
             <p className={styles.stated} role="status">
-              paused to leave room for Scouts — resumes after the reset at
-              midnight UTC
+              paused to leave room for Scouts — resumes after the reset
               {attention.data.due > 0 &&
                 `, ${plural(attention.data.due, "tag", "tags")} waiting`}
             </p>

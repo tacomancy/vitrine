@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MEASURED_MONTHS, type Attention, type SyncResult } from "./lexicon.js";
 import type { LooseEnds } from "./loose-ends.js";
 import type { ScoutActivity } from "./scout-activity.js";
@@ -104,7 +104,8 @@ const spent = (reset = 3600) =>
 
 async function opened(
   answer: (url: URL, nth: number) => Response,
-  scout = SCOUT
+  scout = SCOUT,
+  scoutCheckMs: number | null = null
 ) {
   const vault = await vaultWith({
     ...PAPERS,
@@ -114,6 +115,7 @@ async function opened(
   const clock = virtualClock();
   let now = NOW.getTime();
   const c = await core({
+    scoutCheckMs,
     now: () => new Date(now),
     openalex: {
       clock,
@@ -221,7 +223,7 @@ describe("the sync leaves a reserve of 300 credits for Scouts", () => {
     expect(await o.run()).toMatchObject({ outcome: "ok" });
   });
 
-  it("is lifted by a Scout's answer too: the reserve is read from any response", async () => {
+  it("is read from a Scout's answer too: the reserve is the budget's, not the sync's", async () => {
     const o = await opened((url) =>
       isSearch(url) ? searched(299, 3600) : counted(5000, 3600)
     );
@@ -242,6 +244,26 @@ describe("the sync leaves a reserve of 300 credits for Scouts", () => {
     const result = await o.sync();
     expect(result).toMatchObject({ measured: 1, waiting: 0, paused: null });
     expect((await o.attention()).paused).toBeNull();
+  });
+});
+
+describe("a paused sync", () => {
+  it("is finished by the periodic check once the budget is back, with no press", async () => {
+    // Counted here, not by request: the periodic check sends Scout searches too.
+    let counts = 0;
+    let answers = (url: URL) => {
+      if (isSearch(url)) return searched();
+      counts += 1;
+      return counted(counts < MONTHS ? 300 : 299, 3600);
+    };
+    const o = await opened((url) => answers(url), SCOUT, 20);
+    await o.sync();
+    expect((await o.attention()).due).toBe(1);
+    answers = (url) => (isSearch(url) ? searched() : counted(900, 3600));
+    await o.clock.sleep(HOUR + 1000);
+    await vi.waitFor(async () => expect((await o.attention()).due).toBe(0), {
+      timeout: 3000,
+    });
   });
 });
 
