@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { HIGHLIGHT_COLOURS, type HighlightColour } from "./highlight-colour";
 import type { PageSelection } from "./pdf-document";
+import { Button, TextArea } from "./Form";
 import styles from "./Reader.module.css";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { useTRPC } from "./trpc";
@@ -76,21 +77,16 @@ export function HighlightBar({
           />
         ))}
       </div>
-      <textarea
-        className={styles.barNote}
+      <TextArea
         aria-label="Margin note"
         placeholder="Margin note (optional)"
         rows={1}
         value={note}
         onChange={(event) => setNote(event.target.value)}
       />
-      <button
-        type="submit"
-        className={styles.barAction}
-        disabled={make.isPending}
-      >
+      <Button tier="primary" disabled={make.isPending}>
         Highlight
-      </button>
+      </Button>
       <RefusalLine refusal={refusal} className={styles.barSaid} />
     </form>
   );
