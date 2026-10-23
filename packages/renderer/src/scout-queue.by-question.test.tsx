@@ -68,7 +68,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
 
 const grouped = async () => {
   await screen.findByRole("article");
-  fireEvent.click(screen.getByRole("radio", { name: "Question" }));
+  fireEvent.click(screen.getByRole("button", { name: "group: scout" }));
 };
 
 // What the list on screen holds: the group's cards, not the whole queue.
@@ -78,14 +78,25 @@ const finds = () =>
   );
 
 describe("group by Question", () => {
-  it("offers Scout, pressed by default, and Question", async () => {
+  it("starts on Scout and flips to Question and back", async () => {
     renderApp(answers());
     await screen.findByRole("article");
 
-    const control = screen.getByRole("radiogroup", { name: "Group by" });
-    const [scout, question] = Array.from(control.querySelectorAll("input"));
-    expect(scout!.checked).toBe(true);
-    expect(question!.checked).toBe(false);
+    expect(screen.getByRole("button", { name: "group: scout" })).toBeDefined();
+    expect(screen.queryByRole("list", { name: "Questions" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "group: scout" }));
+    expect(
+      await screen.findByRole("button", { name: "group: question" })
+    ).toBeDefined();
+    expect(screen.getByRole("list", { name: "Questions" })).toBeDefined();
+    expect(screen.queryByRole("list", { name: "Scouts" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "group: question" }));
+    expect(
+      await screen.findByRole("button", { name: "group: scout" })
+    ).toBeDefined();
+    expect(screen.getByRole("list", { name: "Scouts" })).toBeDefined();
   });
 
   it("lists each Question and Unassigned with its own count, and says a paper can be in several", async () => {

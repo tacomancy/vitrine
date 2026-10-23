@@ -255,17 +255,14 @@ describe("the Scout Queue", () => {
     await screen.findByRole("article", {
       name: "Slow Oscillations Reconsidered",
     });
-    const sort = screen.getByRole("radiogroup", { name: "Sort" });
-    expect(
-      within(sort).getByRole<HTMLInputElement>("radio", { name: "Rank" })
-        .checked
-    ).toBe(true);
+    const toggle = screen.getByRole("button", { name: "sort: rank" });
     expect(queue).toHaveBeenLastCalledWith({ sort: "rank" });
 
-    fireEvent.click(within(sort).getByRole("radio", { name: "Newest" }));
+    fireEvent.click(toggle);
     await waitFor(() =>
       expect(queue).toHaveBeenLastCalledWith({ sort: "newest" })
     );
+    expect(screen.getByRole("button", { name: "sort: newest" })).toBeDefined();
 
     first.unmount();
     renderApp(answers([], { "scouts.queue": queue }));
@@ -273,13 +270,9 @@ describe("the Scout Queue", () => {
       name: "Slow Oscillations Reconsidered",
     });
     expect(queue).toHaveBeenLastCalledWith({ sort: "newest" });
-    fireEvent.click(
-      within(screen.getByRole("radiogroup", { name: "Sort" })).getByRole(
-        "radio",
-        {
-          name: "Rank",
-        }
-      )
+    fireEvent.click(screen.getByRole("button", { name: "sort: newest" }));
+    await waitFor(() =>
+      expect(queue).toHaveBeenLastCalledWith({ sort: "rank" })
     );
   });
 
