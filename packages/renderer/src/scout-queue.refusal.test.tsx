@@ -133,7 +133,7 @@ describe("a refused act in the Scout Queue", () => {
       name: "promote to Review",
       run: async (more) => {
         renderApp(answers([card()], { "scouts.promote": refuse, ...more }));
-        fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
+        fireEvent.click(await screen.findByRole("tab", { name: /^Skim/ }));
         fireEvent.keyDown(await cardInHand(), { key: "t" });
       },
     },
@@ -209,7 +209,10 @@ describe("a refused act in the Scout Queue", () => {
     fireEvent.keyDown(await cardInHand(), { key: "a" });
     await screen.findByRole("status");
 
-    fireEvent.keyDown(await cardInHand(), { key: "a" });
+    // The accept moved the selection on.
+    fireEvent.keyDown(await screen.findByRole("article", { name: "Another" }), {
+      key: "a",
+    });
 
     expect((await screen.findByRole("alert")).textContent).toBe(refused);
     expect(screen.queryByRole("status")).toBeNull();

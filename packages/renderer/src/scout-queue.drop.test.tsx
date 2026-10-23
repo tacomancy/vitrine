@@ -115,7 +115,7 @@ describe("the Scout Queue — a dropped Scout", () => {
         },
       })
     );
-    fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /^Skim/ }));
 
     const lines = await screen.findByRole("list", { name: "Skim" });
 
@@ -148,7 +148,11 @@ describe("the Scout Queue — a dropped Scout", () => {
     expect(
       (await screen.findByRole("article")).getAttribute("aria-label")
     ).toBe("Link rot in lab blogs");
-    expect(screen.getByText("card 1 of 2")).toBeDefined();
+    expect(
+      within(screen.getByRole("list", { name: "New finds" })).getAllByRole(
+        "listitem"
+      )
+    ).toHaveLength(2);
   });
 
   it("can be cleared with *Reject this run*, which works on what its newest run found as on any other Scout's", async () => {
@@ -262,7 +266,7 @@ describe("the Scout Queue — a dropped Scout", () => {
         "Every Scout is dropped, so nothing is being watched."
       )
     ).toBeDefined();
-    fireEvent.click(screen.getByRole("radio", { name: "Skim" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Skim/ }));
     expect(
       await screen.findByText(
         "Every Scout is dropped, so nothing is being watched."

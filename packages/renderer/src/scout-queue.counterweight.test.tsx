@@ -85,8 +85,8 @@ describe("the Scout Queue — the counterweight slot", () => {
     );
     await open();
 
-    const next = await screen.findByRole("list", { name: "Next in the stack" });
-    const [second, third] = within(next).getAllByRole("listitem");
+    const next = await screen.findByRole("list", { name: "New finds" });
+    const [, second, third] = within(next).getAllByRole("listitem");
     expect(second?.textContent).toContain("Outside one");
     expect(second?.textContent).toContain("outside the usual");
     expect(third?.textContent).not.toContain("outside the usual");

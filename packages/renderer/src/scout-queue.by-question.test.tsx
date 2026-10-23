@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { Card } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderApp, vault } from "./fake-core";
@@ -64,6 +70,12 @@ const grouped = async () => {
   fireEvent.click(screen.getByRole("radio", { name: "Question" }));
 };
 
+// What the list on screen holds: the group's cards, not the whole queue.
+const finds = () =>
+  within(screen.getByRole("list", { name: "New finds" })).getAllByRole(
+    "listitem"
+  );
+
 describe("group by Question", () => {
   it("offers Scout, pressed by default, and Question", async () => {
     renderApp(answers());
@@ -102,11 +114,13 @@ describe("group by Question", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /What is a trace/ })
     );
-    expect(await screen.findByText("Paper 2")).toBeDefined();
-    expect(screen.getByText("card 1 of 1")).toBeDefined();
+    expect(
+      await screen.findByRole("article", { name: "Paper 2" })
+    ).toBeDefined();
+    expect(finds()).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Does sleep help/ }));
-    await waitFor(() => expect(screen.getByText("card 1 of 2")).toBeDefined());
+    await waitFor(() => expect(finds()).toHaveLength(2));
   });
 
   it("⇧R in a Question group rejects only that group's cards", async () => {
@@ -116,7 +130,7 @@ describe("group by Question", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Does sleep help/ })
     );
-    await screen.findByText("card 1 of 2");
+    await waitFor(() => expect(finds()).toHaveLength(2));
 
     fireEvent.keyDown(document.body, { key: "R", shiftKey: true });
 
@@ -131,7 +145,9 @@ describe("group by Question", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Unassigned/ }));
 
-    expect(await screen.findByText("Paper 3")).toBeDefined();
-    expect(screen.getByText("card 1 of 1")).toBeDefined();
+    expect(
+      await screen.findByRole("article", { name: "Paper 3" })
+    ).toBeDefined();
+    expect(finds()).toHaveLength(1);
   });
 });
