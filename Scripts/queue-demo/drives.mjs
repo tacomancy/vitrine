@@ -27,9 +27,9 @@ const META = 4;
 /** The Queue, after the launch's two due Scouts have answered and the page has stopped changing. */
 async function openQueue(page) {
   await page.eval("location.hash='#/scouts'");
-  await page.wait("!!document.querySelector('#scout-rail-sleep')", 20000);
+  await page.wait("!!document.querySelector('#scout-tile-sleep')", 20000);
   // Two Scouts run at launch, three seconds apart at the earliest, and the
-  // rail changes as each answers: quiet is the page saying the same twice.
+  // strip changes as each answers: quiet is the page saying the same twice.
   for (let was = await body(page), i = 0; i < 12; i++) {
     await page.sleep(2500);
     const now = await body(page);
@@ -39,73 +39,83 @@ async function openQueue(page) {
   throw new Error("demo: the Queue never settled");
 }
 
-const choose = async (page, id) => {
-  await page.eval(`document.querySelector('#scout-rail-${id}').click()`);
+/** A tile filters to its Scout; a second click on it would clear the filter. */
+const tile = async (page, id) => {
+  await page.eval(`document.querySelector('#scout-tile-${id}').click()`);
   await page.sleep(500);
 };
 
-const stackTitles = (page) =>
-  page.eval(
-    `[...document.querySelectorAll('[aria-label="Next in the stack"] li')].map(li => li.innerText.trim())`
+const tab = async (page, name) => {
+  await page.eval(
+    `[...document.querySelectorAll('[role="tab"]')].find(b => b.textContent.trim().startsWith(${JSON.stringify(name)})).click()`
   );
-const handTitle = (page) =>
-  page.eval(`document.querySelector('article h2')?.innerText ?? ''`);
+  await page.sleep(600);
+};
+
+/** The list's rows in order, each its title and the line saying why it sits there. */
+const rows = (page) =>
+  page.eval(
+    `[...document.querySelectorAll('[aria-label="New finds"] li button')].map(b => b.innerText.replace(/\\s+/g, ' ').trim())`
+  );
+const selectedTitle = (page) =>
+  page.eval(
+    `document.querySelector('[aria-label="New finds"] [aria-current="true"]')?.getAttribute('aria-label') ?? ''`
+  );
+const detail = (page) =>
+  page.eval(`document.querySelector('article')?.innerText ?? ''`);
 
 export const steps = {
   // Rank puts the paper by an author the vault has accepted from first and
   // says why; the counterweight slot's paper is second and says what it is.
   async rank(page) {
     await openQueue(page);
-    await choose(page, "sleep");
+    await tile(page, "sleep");
     expect(
-      (await page.eval(
-        `document.querySelector('[aria-label="Sort"] [aria-pressed="true"]').innerText`
-      )) === "Rank",
+      (await body(page)).includes("sort: rank"),
       "Rank is the default sort"
     );
-    const hand = await page.eval(`document.querySelector('article').innerText`);
     expect(
-      hand.includes("Spindle-locked replay predicts overnight gain"),
-      "the arrival by Jan Born is first"
+      (await selectedTitle(page)) ===
+        "Spindle-locked replay predicts overnight gain",
+      "the arrival by Jan Born is first, and selected"
     );
     expect(
-      /by Jan Born, whose work you have accepted/.test(hand),
+      /by Jan Born, whose work you have accepted/.test(await detail(page)),
       "the card names the signal that raised it"
     );
-    const next = await stackTitles(page);
-    console.log(
-      `RANK: ${await handTitle(page)} | ${next.slice(0, 3).join(" | ")}`
-    );
+    const ranked = await rows(page);
+    console.log(`RANK: ${ranked.slice(0, 3).join(" | ")}`);
     expect(
-      next[0]?.startsWith("Cortical spindles across species"),
+      ranked[1]?.startsWith("Cortical spindles across species"),
       "the corroborated paper is second"
     );
-    expect(next[0]?.includes("outside the usual"), "the slot says what it is");
     expect(
-      next.filter((t) => t.includes("outside the usual")).length === 1,
+      ranked[1]?.includes("outside the usual"),
+      "the slot says what it is"
+    );
+    expect(
+      ranked.filter((t) => t.includes("outside the usual")).length === 1,
       "one slot, not several"
     );
-    // Newest is one control away and carries no slot.
-    await press(page, "Newest");
+    // Newest is one click away and carries no slot.
+    await press(page, "sort: rank");
+    await page.wait("/sort: newest/.test(document.body.innerText)", 5000);
     await page.sleep(500);
-    const newest = [await handTitle(page), ...(await stackTitles(page))];
+    const newest = await rows(page);
     console.log(`NEWEST: ${newest.slice(0, 4).join(" | ")}`);
     expect(
       !newest.some((t) => t.includes("outside the usual")),
       "Newest carries no slot"
     );
-    expect(
-      newest.length === (await stackTitles(page)).length + 1,
-      "the same cards, reordered"
-    );
-    await press(page, "Rank");
+    expect(newest.length === ranked.length, "the same cards, reordered");
+    await press(page, "sort: newest");
     await page.sleep(500);
   },
 
   // The two past-window papers sit behind one line, still counted.
   async digest(page) {
     await openQueue(page);
-    await choose(page, "sleep");
+    await tile(page, "sleep");
     const text = await body(page);
     expect(
       /2 older than the window/.test(text),
@@ -113,11 +123,13 @@ export const steps = {
     );
     expect(
       !text.includes("An older sleep paper (1)"),
-      "aged papers are not in the stack"
+      "aged papers are not in the list"
     );
     await press(page, "2 older than the window");
     await page.sleep(400);
-    const open = await body(page);
+    const open = await page.eval(
+      `document.querySelector('[aria-label="Older than the window"]')?.innerText ?? ''`
+    );
     expect(
       open.includes("An older sleep paper (1)") &&
         open.includes("An older sleep paper (2)"),
@@ -128,33 +140,30 @@ export const steps = {
   // The Cap kept two of four, said so, and gave the rest back on a click.
   async cap(page) {
     await openQueue(page);
-    await choose(page, "sleep");
+    await tile(page, "sleep");
     expect(
       /2 below your cap of 2/.test(await body(page)),
       "the Cap says what it cut"
     );
-    const count = async () => (await body(page)).match(/card 1 of (\d+)/)?.[1];
-    const before = await count();
+    const before = (await rows(page)).length;
     await press(page, "Show them");
     await page.wait("!/below your cap/.test(document.body.innerText)", 5000);
-    const after = await count();
-    console.log(`CAP: card 1 of ${before} -> card 1 of ${after}`);
-    expect(
-      Number(after) === Number(before) + 2,
-      "the two come back into the stack"
-    );
-    const all = [await handTitle(page), ...(await stackTitles(page))].join("|");
+    await page.sleep(500);
+    const shown = await rows(page);
+    console.log(`CAP: ${before} rows -> ${shown.length} rows`);
+    expect(shown.length === before + 2, "the two come back into the list");
+    const all = shown.join("|");
     expect(
       all.includes("Slow-wave amplitude and word-pair recall") &&
         all.includes("Napping and the fate of weak memories"),
-      "the two capped papers are in the stack"
+      "the two capped papers are in the list"
     );
   },
 
-  // A keyword rule: its reach before it is saved, then the muted view.
+  // A keyword rule: its reach before it is saved, then the Muted tab.
   async mute(page) {
     await openQueue(page);
-    await choose(page, "sleep");
+    await tile(page, "sleep");
     await letter(page, "m");
     await page.wait(
       "!!document.querySelector('input[aria-label=\"Keyword\"]')"
@@ -175,12 +184,12 @@ export const steps = {
       "the reach is said before the rule is saved"
     );
     await press(page, "Save rule");
+    // The tab's count is the muted view's own read, so 3 is the rule's catch.
     await page.wait(
-      "[...document.querySelectorAll('button')].some(b => /^3 muted$/.test(b.textContent.trim()))",
+      "[...document.querySelectorAll('[role=\"tab\"]')].some(b => /^Muted 3$/.test(b.textContent.trim()))",
       5000
     );
-    await press(page, "3 muted");
-    await page.sleep(500);
+    await tab(page, "Muted");
     const view = await body(page);
     expect(
       view.includes("keyword “listicle”"),
@@ -195,23 +204,25 @@ export const steps = {
   // Deferred a third time, the paper drops to Skim and says why.
   async demote(page) {
     await openQueue(page);
-    await choose(page, "tmr");
+    await tile(page, "tmr");
     expect(
-      (await handTitle(page)) === "Targeted reactivation in naps",
-      "the twice-deferred paper is in hand"
+      (await selectedTitle(page)) === "Targeted reactivation in naps",
+      "the twice-deferred paper is selected"
     );
     await letter(page, "d");
-    await page.sleep(1000);
-    await press(page, "Skim");
-    await page.sleep(600);
+    await page.wait("/Deferred “/.test(document.body.innerText)", 5000);
+    await tab(page, "Skim");
     await page.eval(
       `[...document.querySelectorAll('button[id^="skim-line-"]')].find(b => b.innerText.includes('Targeted reactivation in naps')).click()`
     );
     await page.sleep(500);
-    const hand = await page.eval(`document.querySelector('article').innerText`);
-    console.log(`DEMOTED: ${hand.split("\n")[0]}`);
+    const hand = await detail(page);
+    console.log(
+      `DEMOTED: ${hand.split("\n").filter(Boolean).slice(0, 2).join(" | ")}`
+    );
     expect(
-      hand.includes("moved to Skim after three defers"),
+      hand.includes("Targeted reactivation in naps") &&
+        hand.includes("moved to Skim after three defers"),
       "the card says why it moved"
     );
   },
@@ -219,13 +230,13 @@ export const steps = {
   // A Skim paper a second Scout found at launch is in Review and says so.
   async raise(page) {
     await openQueue(page);
-    await choose(page, "skim");
-    const hand = await page.eval(
-      `document.querySelector('article')?.innerText ?? ''`
+    await tile(page, "skim");
+    const hand = await detail(page);
+    console.log(
+      `RAISED: ${hand.split("\n").filter(Boolean).slice(0, 2).join(" | ")}`
     );
-    console.log(`RAISED: ${hand.split("\n")[0]}`);
     expect(
-      hand.includes("Cueing in the skim lane"),
+      (await selectedTitle(page)) === "Cueing in the skim lane",
       "the Skim paper is in Review"
     );
     expect(
@@ -237,45 +248,48 @@ export const steps = {
   // ⇧R clears the group on screen; the act says what it did; ⌘Z undoes it as one.
   async bulk(page) {
     await openQueue(page);
-    await choose(page, "dreams");
-    expect(
-      /card 1 of 4/.test(await body(page)),
-      "four Dream reports are on screen"
-    );
+    await tile(page, "dreams");
+    expect((await rows(page)).length === 4, "four Dream reports are on screen");
     await letter(page, "r", SHIFT);
     await page.wait(
-      "[...document.querySelectorAll('button')].some(b => /^Undo reject of 4$/.test(b.textContent.trim()))",
+      "!!document.querySelector('[aria-label=\"Undo reject of 4\"]')",
       5000
     );
     expect(
-      !(await body(page)).includes("card 1 of"),
-      "no card is left in the group"
+      /Rejected 4 in this group\. ⌘Z puts them all back\./.test(
+        await body(page)
+      ),
+      "the act says what it did and how to take it back"
     );
+    expect((await rows(page)).length === 0, "no row is left in the group");
     await letter(page, "z", META);
-    await page.wait("/card 1 of 4/.test(document.body.innerText)", 5000);
+    await page.wait(
+      "document.querySelectorAll('[aria-label=\"New finds\"] li').length === 4",
+      5000
+    );
   },
 
-  // The same stack by Question: a paper in every group it belongs to.
+  // The same Queue by Question: a paper in every group it belongs to.
   async question(page) {
     await openQueue(page);
-    await press(page, "Question");
+    await press(page, "group: scout");
     await page.wait(
       "document.querySelectorAll('[aria-label=\"Questions\"] button').length > 1",
       10000
     );
-    const rail = await page.eval(
-      `[...document.querySelectorAll('[aria-label="Questions"] button')].map(b => b.innerText.replace(/\\s+/g, ' '))`
+    const strip = await page.eval(
+      `[...document.querySelectorAll('[aria-label="Questions"] button')].map(b => b.innerText.replace(/\\s+/g, ' ').trim())`
     );
-    console.log(`QUESTIONS: ${rail.join(" | ")}`);
+    console.log(`QUESTIONS: ${strip.join(" | ")}`);
     expect(
-      rail.some((r) => r.startsWith("Does sleep consolidate")),
+      strip.some((r) => r.startsWith("Does sleep consolidate")),
       "Question one is a group"
     );
     expect(
-      rail.some((r) => r.startsWith("Unassigned")),
+      strip.some((r) => r.startsWith("Unassigned")),
       "Unassigned is a group"
     );
-    const counts = rail.map((r) => Number(r.match(/(\d+)$/)?.[1]));
+    const counts = strip.map((r) => Number(r.match(/(\d+)$/)?.[1]));
     expect(
       counts.slice(1).reduce((a, b) => a + b, 0) > counts[0],
       "the groups add up to more than the total, and the page says so"
