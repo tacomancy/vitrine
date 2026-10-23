@@ -10,7 +10,7 @@
 //    the counterweight slot's paper second, labelled; Newest one click away.
 // 2. The digest: two aged papers behind one counted line, opened.
 // 3. A Cap: two of four kept, *2 below your cap of 2*, and *Show them*.
-// 4. A mute rule: its reach before saving, then the muted view.
+// 4. A mute rule: its reach before saving, then the Muted tab.
 // 5. A demote (5a) and a raise (5b), each saying why on the card.
 // 6. Reject group (⇧R) and its undo (⌘Z) as one.
 // 7. The Queue grouped by Question.
