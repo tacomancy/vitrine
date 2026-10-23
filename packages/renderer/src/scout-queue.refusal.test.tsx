@@ -53,6 +53,7 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
     unreadable: [],
   },
   "scouts.queue": queue,
+  "scouts.batches": [],
   "scouts.groups": [
     { id: "sleep", runId: 3, runPending: queue.length, held: [] },
   ],
@@ -160,8 +161,22 @@ describe("a refused act in the Scout Queue", () => {
     {
       name: "reject this run",
       run: async (more) => {
-        renderApp(answers([card()], { "scouts.rejectRun": refuse, ...more }));
-        await chooseScout();
+        // A first look at a page is the only run with a button of its own.
+        renderApp(
+          answers([card()], {
+            "scouts.batches": [
+              {
+                scoutId: "sleep",
+                runId: 3,
+                pending: 1,
+                costUsd: null,
+                proposalIds: [7],
+              },
+            ],
+            "scouts.rejectRun": refuse,
+            ...more,
+          })
+        );
         fireEvent.click(
           await screen.findByRole("button", { name: /Reject this run/ })
         );

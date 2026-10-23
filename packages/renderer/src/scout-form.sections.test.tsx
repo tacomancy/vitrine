@@ -19,6 +19,7 @@ const open = async () => {
     "vault.tags": { tags: [], invalid: [] },
     "scouts.list": { scouts: [], unreadable: [] },
     "scouts.queue": [],
+    "scouts.batches": [],
     "scouts.groups": [],
     "scouts.health": { scouts: [], unreadable: [] },
     "scouts.muted": { rules: [], problem: null, items: [] },

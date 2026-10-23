@@ -46,6 +46,7 @@ const base = (more: Record<string, unknown> = {}) => ({
   "vault.tags": tagTree,
   "scouts.list": { scouts: [], unreadable: [] },
   "scouts.queue": [],
+  "scouts.batches": [],
   "scouts.groups": [],
   "scouts.health": { scouts: [], unreadable: [] },
   "scouts.muted": { rules: [], problem: null, items: [] },

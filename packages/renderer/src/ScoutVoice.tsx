@@ -60,9 +60,9 @@ export const DROPPED =
  */
 export function CostLine({ usd }: { usd: number | null }) {
   if (usd === null) return null;
-  return (
-    <span className={styles.voice}>
-      last run cost ${usd < 0.1 ? usd.toFixed(4) : usd.toFixed(2)}
-    </span>
-  );
+  return <span className={styles.voice}>last run cost {dollars(usd)}</span>;
 }
+
+/** A run's spend, to the precision a small run needs to be seen at all. */
+export const dollars = (usd: number) =>
+  `$${usd < 0.1 ? usd.toFixed(4) : usd.toFixed(2)}`;

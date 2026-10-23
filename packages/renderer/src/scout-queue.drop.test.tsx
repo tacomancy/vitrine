@@ -59,6 +59,7 @@ const answers = (
   "vault.current": vault,
   "scouts.list": { scouts: [SLEEP], dropped: [BLOG], unreadable: [] },
   "scouts.queue": queue,
+  "scouts.batches": [],
   "scouts.groups": [
     { id: "sleep", runId: 3, runPending: 1, deferred: 0, held: [] },
     { id: "blog", runId: 5, runPending: 2, deferred: 0, held: [] },
@@ -76,6 +77,15 @@ const stack = () => [
   card(8, "Link rot in lab blogs", FROM_BLOG),
   card(9, "Feeds that go quiet", FROM_BLOG),
 ];
+
+// Its stack as a first look: the one run with a *Reject this run* of its own.
+const blogBatch = {
+  scoutId: "blog",
+  runId: 5,
+  pending: 2,
+  costUsd: null,
+  proposalIds: [8, 9],
+};
 
 const rail = () => screen.findByRole("list", { name: "Scouts" });
 
@@ -166,16 +176,25 @@ describe("the Scout Queue — a dropped Scout", () => {
     const rejectRun = vi.fn<(input: unknown) => unknown>(() => ({
       rejected: 2,
     }));
-    renderApp(answers(stack(), { "scouts.rejectRun": rejectRun }));
-    fireEvent.click(await screen.findByRole("button", { name: /Blog ring/ }));
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Reject this run of Blog ring (2)",
+    renderApp(
+      answers(stack(), {
+        "scouts.batches": [blogBatch],
+        "scouts.rejectRun": rejectRun,
       })
     );
+    fireEvent.click(
+      await within(await rail()).findByRole("button", { name: /Blog ring/ })
+    );
 
-    expect(await screen.findByText("Rejected 2 from this run.")).toBeDefined();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reject this run" })
+    );
+
+    expect(
+      await screen.findByText(
+        "Rejected this run of Blog ring (2) · not counted toward accept rate"
+      )
+    ).toBeDefined();
     expect(rejectRun).toHaveBeenCalledWith({ runId: 5 });
   });
 
@@ -188,6 +207,7 @@ describe("the Scout Queue — a dropped Scout", () => {
 
     renderApp(
       answers(stack(), {
+        "scouts.batches": [],
         "scouts.groups": [
           { id: "blog", runId: 5, runPending: 2, deferred: 2, held: [] },
         ],
@@ -207,6 +227,7 @@ describe("the Scout Queue — a dropped Scout", () => {
   it("says nothing of what a Scout that is still looking deferred, which comes back with its next run by itself", async () => {
     renderApp(
       answers(stack(), {
+        "scouts.batches": [],
         "scouts.groups": [
           { id: "sleep", runId: 3, runPending: 1, deferred: 3, held: [] },
           { id: "blog", runId: 5, runPending: 2, deferred: 0, held: [] },
@@ -235,19 +256,20 @@ describe("the Scout Queue — a dropped Scout", () => {
     renderApp(
       answers([], {
         "scouts.queue": () => waiting,
+        "scouts.batches": [blogBatch],
         "scouts.rejectRun": () => {
           waiting = stack().slice(0, 1);
           return { rejected: 2 };
         },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: /Blog ring/ }));
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Reject this run of Blog ring (2)",
-      })
+      await within(await rail()).findByRole("button", { name: /Blog ring/ })
     );
-    await screen.findByText("Rejected 2 from this run.");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reject this run" })
+    );
+    await screen.findByText(/^Rejected this run of Blog ring \(2\)/);
 
     // Nothing waits under it now, but the pane the researcher is in has not moved.
     const tile = within(await rail()).getByRole("button", {

@@ -20,7 +20,13 @@ import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { Button, SegmentedControl } from "./Form";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
-import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
+import {
+  CostLine,
+  DROPPED,
+  NOTHING_PENDING,
+  VoiceLine,
+  dollars,
+} from "./ScoutVoice";
 import { percent } from "./charts/line";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
@@ -98,6 +104,9 @@ export function ScoutQueue({
   };
   const queue = useQuery(trpc.scouts.queue.queryOptions({ sort }));
   const groups = useQuery(trpc.scouts.groups.queryOptions());
+  // Retroactive runs as units (ADR 0052 decision 3): the core says which cards
+  // belong to a first look, so the Queue never guesses from `Card.retroactive`.
+  const batchRead = useQuery(trpc.scouts.batches.queryOptions());
   // *Group by Question* (ADR 0044 decision 10): Scout is the default, and the
   // Question view is Review's alone. The core says which cards each group holds.
   const [groupBy, setGroupBy] = useState<"scout" | "question">("scout");
@@ -122,6 +131,9 @@ export function ScoutQueue({
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
+  // Batches opened to their titles; a collapsed batch's titles are not rows,
+  // so J and K do not enter it.
+  const [openBatches, setOpenBatches] = useState<number[]>([]);
   // The card a mute rule is being offered for, and whether the muted view has
   // taken the place of the stack (ADR 0044 decision 4).
   const [muting, setMuting] = useState<Card | null>(null);
@@ -168,6 +180,7 @@ export function ScoutQueue({
     Array<
       | { id: number; title: string; action: "rejected" | "deferred" }
       | { bulk: number; count: number; action: "rejected" | "deferred" }
+      | { run: number; count: number; action: "rejected" }
     >
   >([]);
   const reread = () => queryClient.invalidateQueries(trpc.scouts.pathFilter());
@@ -233,6 +246,7 @@ export function ScoutQueue({
     })
   );
   const undoBulk = useMutation(trpc.scouts.undoBulk.mutationOptions(acts));
+  const undoRun = useMutation(trpc.scouts.undoRun.mutationOptions(acts));
   const rejectGroup = useMutation({
     ...trpc.scouts.rejectGroup.mutationOptions(),
     ...acts,
@@ -251,8 +265,21 @@ export function ScoutQueue({
   );
   const rejectRun = useMutation(
     trpc.scouts.rejectRun.mutationOptions({
-      onSuccess: ({ rejected }) => {
-        acknowledge(`Rejected ${rejected} from this run.`);
+      onSuccess: ({ rejected }, { runId }) => {
+        const owner = batchRead.data?.find((b) => b.runId === runId)?.scoutId;
+        if (rejected === 0) {
+          acknowledge("Nothing was left in that run to reject.");
+        } else {
+          // A Retroactive reject is no verdict on the brief, so it is not in
+          // the Accept rate; said here so a rate that did not move is expected.
+          acknowledge(
+            `Rejected this run of ${scoutName(owner)} (${rejected}) · not counted toward accept rate`
+          );
+          setUndoable((was) => [
+            ...was,
+            { run: runId, count: rejected, action: "rejected" },
+          ]);
+        }
         void reread();
       },
       ...acts,
@@ -271,6 +298,7 @@ export function ScoutQueue({
         scouts,
         queue,
         groups,
+        batchRead,
         fleet,
         health,
         muted,
@@ -309,18 +337,34 @@ export function ScoutQueue({
       ? selectedQuestion === null || inQuestion.has(card.id)
       : selected === null || card.scouts.some((scout) => scout.id === selected)
   );
+  // A card in a Retroactive batch is listed under it and never among the new
+  // finds, so a first look of forty papers cannot bury today's five.
+  const inBatch = new Set((batchRead.data ?? []).flatMap((b) => b.proposalIds));
+  const newInGroup = inScoutGroup.filter((card) => !inBatch.has(card.id));
   // Past-window cards leave the dealt stack for the digest line at its foot;
   // opening the digest deals them after the live ones, so a digested card is
   // triaged like any other (ADR 0044 decision 3).
-  const digest = inScoutGroup.filter((card) => card.pastWindow);
-  const liveInGroup = inScoutGroup.filter((card) => !card.pastWindow);
+  const digest = newInGroup.filter((card) => card.pastWindow);
+  const liveInGroup = newInGroup.filter((card) => !card.pastWindow);
   const inGroup = digestOpen ? [...liveInGroup, ...digest] : liveInGroup;
+  // Each batch with the cards of it the filter lets through; one left with
+  // none is not drawn.
+  const inView = new Map(inScoutGroup.map((card) => [card.id, card]));
+  const batches = (batchRead.data ?? []).flatMap((batch) => {
+    const cards = batch.proposalIds.flatMap((id) => inView.get(id) ?? []);
+    return cards.length === 0 ? [] : [{ ...batch, cards }];
+  });
+  const titlesShown = batches
+    .filter((batch) => openBatches.includes(batch.runId))
+    .flatMap((batch) => batch.cards);
   // The session's order: what has not been passed, then what has, in the
-  // order it was passed — so passing the last card wraps to the first.
-  const stack = [
+  // order it was passed — so passing the last card wraps to the first. An
+  // opened batch's titles follow the new finds, in the order they are drawn.
+  const dealt = [
     ...inGroup.filter((card) => !passed.includes(card.id)),
     ...passed.flatMap((id) => inGroup.filter((card) => card.id === id)),
   ];
+  const stack = [...dealt, ...titlesShown];
   const card = stack.find((c) => c.id === chosen) ?? stack[0];
   const cardAt = card === undefined ? -1 : stack.indexOf(card);
   // Where the selection goes once the card in the detail has been acted on.
@@ -342,11 +386,11 @@ export function ScoutQueue({
           cap: null,
         }
       : groups.data?.find((g) => g.id === selected);
-  const runId = group?.runId ?? null;
-  const groupName = [
-    ...(scouts.data?.scouts ?? []),
-    ...(scouts.data?.dropped ?? []),
-  ].find((s) => s.id === selected)?.name;
+  const scoutName = (id: string | undefined) =>
+    [...(scouts.data?.scouts ?? []), ...(scouts.data?.dropped ?? [])].find(
+      (s) => s.id === id
+    )?.name ?? id;
+  const groupName = scoutName(selected ?? undefined);
 
   // Skim: newest first as the core hands it, narrowed by the rail's choice
   // like Review is, with the 30-day tail only once asked for.
@@ -525,7 +569,28 @@ export function ScoutQueue({
   }
   const last = undoable.at(-1);
   function onUndo() {
-    if (last === undefined || undo.isPending || undoBulk.isPending) return;
+    if (
+      last === undefined ||
+      undo.isPending ||
+      undoBulk.isPending ||
+      undoRun.isPending
+    )
+      return;
+    if ("run" in last) {
+      undoRun.mutate(
+        { runId: last.run },
+        {
+          onSuccess: ({ count }) => {
+            setUndoable((was) => was.slice(0, -1));
+            acknowledge(`Put ${count} back.`);
+            void reread();
+          },
+          // As for a group: a run brought the cards back, so the entry goes.
+          onError: () => setUndoable((was) => was.slice(0, -1)),
+        }
+      );
+      return;
+    }
     if ("bulk" in last) {
       undoBulk.mutate(
         { bulk: last.bulk },
@@ -581,7 +646,10 @@ export function ScoutQueue({
         if (lane === "review" && card !== undefined) {
           event.preventDefault();
           // The rows on screen: a closed digest's cards are not among them.
-          const visible = digestOpen ? stack : live(stack);
+          const visible = [
+            ...(digestOpen ? dealt : live(dealt)),
+            ...titlesShown,
+          ];
           const at = visible.indexOf(card);
           setChosen(visible[clamp(at + step, visible.length)]!.id);
         } else if (lane === "skim" && line !== undefined) {
@@ -882,15 +950,6 @@ export function ScoutQueue({
                 </Button>
               </p>
             )}
-            {runId !== null && group.runPending > 0 && (
-              <Button
-                disabled={rejectRun.isPending}
-                onClick={() => rejectRun.mutate({ runId })}
-              >
-                Reject this run{groupName !== undefined && ` of ${groupName}`} (
-                {group.runPending})
-              </Button>
-            )}
           </div>
         )}
       {form === null && byNameOpen && (
@@ -976,6 +1035,7 @@ export function ScoutQueue({
         queue.isSuccess &&
         inGroup.length === 0 &&
         digest.length === 0 &&
+        batches.length === 0 &&
         !unread && (
           <ReviewQuiet
             scout={
@@ -987,12 +1047,12 @@ export function ScoutQueue({
         )}
       {stackShown &&
         lane === "review" &&
-        (card !== undefined || digest.length > 0) && (
+        (card !== undefined || digest.length > 0 || batches.length > 0) && (
           <div className={styles.panes}>
             <div className={styles.listPane}>
-              {live(stack).length > 0 && (
+              {live(dealt).length > 0 && (
                 <ol className={styles.rows} aria-label="New finds">
-                  {live(stack).map((next) => (
+                  {live(dealt).map((next) => (
                     <ReviewRow
                       key={next.id}
                       card={next}
@@ -1026,6 +1086,68 @@ export function ScoutQueue({
                     </ol>
                   )}
                 </div>
+              )}
+              {batches.length > 0 && (
+                <section
+                  className={styles.batches}
+                  aria-labelledby="retroactive-heading"
+                >
+                  <h2 id="retroactive-heading" className={styles.sectionHead}>
+                    Retroactive
+                  </h2>
+                  {batches.map((batch) => {
+                    const open = openBatches.includes(batch.runId);
+                    return (
+                      <div key={batch.runId} className={styles.batch}>
+                        <div className={styles.batchHead}>
+                          <Button
+                            tier="listRow"
+                            aria-expanded={open}
+                            onClick={() =>
+                              setOpenBatches((was) =>
+                                open
+                                  ? was.filter((id) => id !== batch.runId)
+                                  : [...was, batch.runId]
+                              )
+                            }
+                          >
+                            <span className={styles.rowTitle}>
+                              {scoutName(batch.scoutId)}
+                            </span>
+                            <span className={styles.rowMeta}>
+                              {batch.cards.length} left · first look at the page
+                              {batch.costUsd !== null &&
+                                ` · ${dollars(batch.costUsd)}`}
+                            </span>
+                          </Button>
+                          <Button
+                            disabled={rejectRun.isPending}
+                            onClick={() =>
+                              rejectRun.mutate({ runId: batch.runId })
+                            }
+                          >
+                            Reject this run
+                          </Button>
+                        </div>
+                        {open && (
+                          <ol
+                            className={styles.rows}
+                            aria-label={`${scoutName(batch.scoutId)} first look`}
+                          >
+                            {batch.cards.map((title) => (
+                              <ReviewRow
+                                key={title.id}
+                                card={title}
+                                current={title === card}
+                                onChoose={() => setChosen(title.id)}
+                              />
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    );
+                  })}
+                </section>
               )}
             </div>
             <div className={styles.detailPane}>
@@ -1067,7 +1189,7 @@ export function ScoutQueue({
                 <Button
                   tier="inline"
                   aria-label={`Undo ${last.action === "rejected" ? "reject" : "defer"}${
-                    "bulk" in last ? ` of ${last.count}` : ""
+                    "count" in last ? ` of ${last.count}` : ""
                   }`}
                   onClick={onUndo}
                 >

@@ -615,6 +615,7 @@ describe("a vault with no Scouts", () => {
     open(NONE, {
       "scouts.list": { scouts: [], unreadable: [] },
       "scouts.queue": [],
+      "scouts.batches": [],
       "scouts.groups": [],
       "scouts.muted": { rules: [], problem: null, items: [] },
       "scouts.fleet": { claim: null, naming: [] },
@@ -920,6 +921,7 @@ describe("a row's link", () => {
         unreadable: [],
       },
       "scouts.queue": [],
+      "scouts.batches": [],
       "scouts.groups": [{ id: "quiet", runId: null, runPending: 0, held: [] }],
       "scouts.muted": { rules: [], problem: null, items: [] },
       "scouts.fleet": { claim: null, naming: [] },
@@ -1200,6 +1202,7 @@ describe("coverage gaps", () => {
       },
       "scouts.list": { scouts: [], unreadable: [] },
       "scouts.queue": [],
+      "scouts.batches": [],
       "scouts.groups": [],
       "scouts.muted": { rules: [], problem: null, items: [] },
       "scouts.fleet": { claim: null, naming: [] },

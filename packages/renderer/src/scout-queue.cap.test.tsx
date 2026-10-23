@@ -65,6 +65,7 @@ const answers = (groups: unknown[], more: Record<string, unknown> = {}) => ({
   "vault.current": vault,
   "scouts.list": { scouts: [SLEEP], dropped: [], unreadable: [] },
   "scouts.queue": [card],
+  "scouts.batches": [],
   "scouts.groups": groups,
   "scouts.health": { scouts: [] },
   "scouts.fleet": { claim: null, naming: [] },

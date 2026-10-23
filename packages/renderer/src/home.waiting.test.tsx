@@ -168,6 +168,7 @@ describe("Waiting — Skim", () => {
     renderApp({
       ...answers,
       "scouts.queue": [],
+      "scouts.batches": [],
       "scouts.groups": [],
       "scouts.list": { scouts: [], unreadable: [] },
       "scouts.skim": { recent: [], older: [] },

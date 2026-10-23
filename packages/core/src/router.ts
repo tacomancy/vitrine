@@ -121,6 +121,8 @@ import {
   readGroups,
   rejectProposal,
   rejectRun,
+  readRetroBatches,
+  undoRun,
   showCapped,
   undoTriage,
   actOnGroup,
@@ -931,6 +933,15 @@ export const router = t.router({
       .input(z.object({ scoutId: z.string().min(1) }))
       .mutation(({ ctx, input }) =>
         triaged(ctx, (deps) => ({ released: showCapped(deps, input.scoutId) }))
+      ),
+    // Retroactive runs as batches, apart from new finds (#839).
+    batches: t.procedure.query(async ({ ctx }) =>
+      refusing(readRetroBatches(await scoutDeps(ctx)))
+    ),
+    undoRun: t.procedure
+      .input(z.object({ runId: z.number().int() }))
+      .mutation(({ ctx, input }) =>
+        triaged(ctx, (deps) => undoRun(deps, input.runId))
       ),
     rejectRun: t.procedure
       .input(z.object({ runId: z.number().int() }))

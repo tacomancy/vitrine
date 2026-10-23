@@ -56,6 +56,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
     unreadable: [],
   },
   "scouts.queue": [card()],
+  "scouts.batches": [],
   "scouts.groups": [{ id: "sleep", runId: 3, runPending: 1, held: [] }],
   "scouts.health": { scouts: [] },
   "scouts.fleet": { claim: null, naming: [] },
