@@ -37,3 +37,7 @@ ADR 0016 decision 6 put the Queue's history-dependent mechanics on a Wait list a
 - **−** Author overlap reads the vault's Sources on each read; the Source index makes it a query, but it is the cost of not storing a score.
 - **−** Until the Lexicon lands, "outside the usual" means *corroborated by authors you have not accepted*, which on one source is a narrow slot.
 - **−** As built (#648), the counterweight slot is a Rank placement: the Newest sort carries none, and a qualifying card that already ranks in the top two stays where it is rather than being pushed down. A Cap's exemption can only act when a second Scout later finds a capped paper, since a Proposal has one Appearance on the run that cuts it; and a qualifying card sitting in the digest still blocks that release.
+
+## Update (2026-10-23, ADR 0052)
+
+Decision 9 says bulk rejects count toward Accept rate "as reject-this-run's do". Read that as *each is one id per gesture*, not as *a Retroactive batch counts*: a *Reject this run* on a Retroactive run is left out of Accept rate (`COUNTED` in `triage.ts`), and the group act `⇧R` counts, as any reject on an ordinary run does. *Reject this run* is now offered on a Retroactive batch only (ADR 0052 decision 4; #839), and is undone as a unit by `undoRun`, which compensates each card whose last act is that run's reject.

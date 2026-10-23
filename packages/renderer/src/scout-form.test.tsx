@@ -62,6 +62,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
   "vault.current": vault,
   "scouts.list": { scouts: [scout()], unreadable: [] },
   "scouts.queue": [],
+  "scouts.batches": [],
   "scouts.groups": [{ id: "sleep", runId: null, runPending: 0, held: [] }],
   "scouts.health": {
     scouts: [{ id: "sleep", health: quiet }],

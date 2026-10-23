@@ -50,6 +50,7 @@ const answers = (queue: Card[]) => ({
   "vault.current": vault,
   "scouts.list": { scouts: [SLEEP], dropped: [], unreadable: [] },
   "scouts.queue": queue,
+  "scouts.batches": [],
   "scouts.groups": [
     {
       id: "sleep",

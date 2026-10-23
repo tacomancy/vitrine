@@ -67,6 +67,7 @@ const answers = (
     unreadable: [{ file: "broken.md", sentence: "Line 3 is not a field." }],
   },
   "scouts.queue": queue,
+  "scouts.batches": [],
   "scouts.groups": [
     { id: "sleep", runId: 3, runPending: 2, deferred: 0, held: [] },
     { id: "slow", runId: null, runPending: 0, deferred: 0, held: [] },
@@ -303,6 +304,7 @@ describe("filtering by a tile", () => {
     const showCapped = vi.fn(() => ({}));
     renderApp(
       answers(stack(), {
+        "scouts.batches": [],
         "scouts.groups": [
           {
             id: "sleep",

@@ -336,16 +336,7 @@ export async function rejectRun(
   // A muted Proposal is not in the stack the button counts, so it is not
   // rejected: that would write a verdict nobody gave (ADR 0044 decision 4).
   const { caught } = await readMuteState(deps);
-  const ids = (
-    queue
-      .prepare(
-        `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
-          WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review' ORDER BY p.id`
-      )
-      .all(runId) as Array<{ id: number }>
-  )
-    .map((row) => row.id)
-    .filter((id) => !caught.has(id));
+  const ids = runMembers(queue, runId).filter((id) => !caught.has(id));
   const at = stamp(deps);
   inTransaction(queue, () => {
     for (const id of ids) {
@@ -360,6 +351,110 @@ export async function rejectRun(
     }
   });
   return ids.length;
+}
+
+/**
+ * The pending Review Proposals a run owns, newest first. A Retroactive run
+ * owns only what it found first: a paper an earlier run already brought is a
+ * new find however many times a first look saw it again, and the batch must
+ * list exactly what *Reject this run* rejects. Any other run owns everything
+ * it saw, as the button has always counted.
+ */
+function runMembers(queue: DatabaseSync, runId: number): number[] {
+  const retroactive =
+    (
+      queue
+        .prepare("SELECT retroactive FROM scout_runs WHERE id = ?")
+        .get(runId) as { retroactive: number } | undefined
+    )?.retroactive === 1;
+  return (
+    queue
+      .prepare(
+        `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
+          WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'
+            AND (? = 0 OR a.run_id = (SELECT MIN(f.run_id) FROM appearances f WHERE f.proposal_id = p.id))
+          ORDER BY p.first_seen DESC, p.id DESC`
+      )
+      .all(runId, +retroactive) as Array<{ id: number }>
+  ).map((row) => row.id);
+}
+
+/** A Retroactive run as the Queue lists it: what is left of a first look, and what it cost. */
+export type RetroBatch = {
+  scoutId: string;
+  runId: number;
+  pending: number;
+  /** What the run spent; `null` when it was not priced. */
+  costUsd: number | null;
+  /** In the order the list shows them: newest first, unranked (ADR 0052 decision 3). */
+  proposalIds: number[];
+};
+
+/**
+ * Retroactive runs read as units. Nothing is stored: a batch is the run plus
+ * what of it is still pending, minus what a Mute rule holds (a Cap needs no
+ * filter: a capped Proposal is not pending). A run with nothing left has no
+ * batch. The renderer takes its NEW FINDS from the cards a batch does not
+ * list, so the two cannot disagree about whose a card is.
+ */
+export async function readRetroBatches(deps: ScoutDeps): Promise<RetroBatch[]> {
+  const { queue } = deps;
+  const { caught } = await readMuteState(deps);
+  const runs = queue
+    .prepare(
+      `SELECT id, scout_id, cost_usd FROM scout_runs WHERE retroactive = 1 ORDER BY id DESC`
+    )
+    .all() as Array<{ id: number; scout_id: string; cost_usd: number | null }>;
+  return runs.flatMap((run) => {
+    const proposalIds = runMembers(queue, run.id).filter(
+      (id) => !caught.has(id)
+    );
+    return proposalIds.length === 0
+      ? []
+      : [
+          {
+            scoutId: run.scout_id,
+            runId: run.id,
+            pending: proposalIds.length,
+            costUsd: run.cost_usd,
+            proposalIds,
+          },
+        ];
+  });
+}
+
+/**
+ * Undo *Reject this run* as one gesture: a compensating `undo` row for each
+ * card whose last act is that run's reject. A card put back and decided again
+ * since is left alone, as `undoBulk` leaves one. Only cards still in the
+ * session's stack are the window's to offer, as for the other undos.
+ */
+export function undoRun(deps: ScoutDeps, runId: number): { count: number } {
+  const { queue } = deps;
+  const ids = (
+    queue
+      .prepare(
+        `SELECT DISTINCT proposal_id AS id FROM triage
+          WHERE batch = ? AND action = 'reject' ORDER BY proposal_id`
+      )
+      .all(runId) as Array<{ id: number }>
+  )
+    .map((row) => row.id)
+    .filter((id) => {
+      const last = queue
+        .prepare(
+          "SELECT action, batch FROM triage WHERE proposal_id = ? ORDER BY rowid DESC LIMIT 1"
+        )
+        .get(id) as { action: string; batch: number | null };
+      return last.action === "reject" && last.batch === runId;
+    });
+  if (ids.length === 0) {
+    throw new VaultError("refused", "There is nothing to undo for that run.");
+  }
+  inTransaction(queue, () => {
+    for (const id of ids) undoTriage(deps, id);
+  });
+  return { count: ids.length };
 }
 
 /**

@@ -65,6 +65,7 @@ const answers = (queue: Card[], more: Record<string, unknown> = {}) => ({
   "vault.current": vault,
   "scouts.list": scouts,
   "scouts.queue": queue,
+  "scouts.batches": [],
   "scouts.groups": [
     { id: "sleep", runId: 3, runPending: queue.length, held: [] },
   ],
@@ -594,20 +595,33 @@ describe("the Scout Queue", () => {
       expect(screen.queryByRole("button", { name: /^Undo/ })).toBeNull();
     });
 
-    it("Reject this run clears the Scout's run in one act", async () => {
+    // Only a Retroactive batch carries it now (ADR 0052 decision 4); the
+    // batch suite covers the footer line and the undo.
+    it("Reject this run clears a Retroactive run in one act", async () => {
       const rejectRun = vi.fn(() => ({ rejected: 2 }));
-      renderApp(answers(two(), { "scouts.rejectRun": rejectRun }));
-      await hand();
-
-      fireEvent.click(screen.getByRole("button", { name: /Sleep and memory/ }));
-      fireEvent.click(
-        await screen.findByRole("button", {
-          name: "Reject this run of Sleep and memory (2)",
+      renderApp(
+        answers(two(), {
+          "scouts.batches": [
+            {
+              scoutId: "sleep",
+              runId: 3,
+              pending: 2,
+              costUsd: null,
+              proposalIds: [7, 8],
+            },
+          ],
+          "scouts.rejectRun": rejectRun,
         })
       );
 
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Reject this run" })
+      );
+
       expect(
-        await screen.findByText("Rejected 2 from this run.")
+        await screen.findByText(
+          "Rejected this run of Sleep and memory (2) · not counted toward accept rate"
+        )
       ).toBeDefined();
       expect(rejectRun).toHaveBeenCalledWith({ runId: 3 });
     });
@@ -615,6 +629,7 @@ describe("the Scout Queue", () => {
     it("counts what the vault already held across every Scout under All Scouts", async () => {
       renderApp(
         answers(two(), {
+          "scouts.batches": [],
           "scouts.groups": [
             {
               id: "sleep",
@@ -633,6 +648,7 @@ describe("the Scout Queue", () => {
     it("counts what the vault already held, each linking to its file", async () => {
       renderApp(
         answers(two(), {
+          "scouts.batches": [],
           "scouts.groups": [
             {
               id: "sleep",

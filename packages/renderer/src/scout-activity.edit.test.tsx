@@ -992,6 +992,7 @@ describe("a Scout that watches a page", () => {
         unreadable: [],
       },
       "scouts.queue": [],
+      "scouts.batches": [],
       "scouts.groups": [{ id: "lab", runId: null, runPending: 0, held: [] }],
       "scouts.health": {
         scouts: [{ id: "lab", health: LOOKING }],
