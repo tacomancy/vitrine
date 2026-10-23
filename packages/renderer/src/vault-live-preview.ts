@@ -11,7 +11,9 @@ import {
   EditorView,
   ViewPlugin,
   type ViewUpdate,
+  WidgetType,
 } from "@codemirror/view";
+import styles from "./VaultEditor.module.css";
 
 // Inline-only live preview (docs/architecture.md § Vault surface, *Editor*;
 // spec #680, stories 16–18). The marks that make prose — `**`, `_`, backticks,
@@ -24,6 +26,32 @@ import {
 // slice renders none of them, and a mark inside them is source, not prose.
 
 const hide = Decoration.replace({});
+
+/** A glyph standing in for a list or task mark: bullets and boxes are prose. */
+class Glyph extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  eq(other: Glyph) {
+    return other.text === this.text;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = styles.glyph ?? "";
+    span.textContent = this.text;
+    return span;
+  }
+}
+
+const bullet = Decoration.replace({ widget: new Glyph("•") });
+const box = (done: boolean) =>
+  Decoration.replace({ widget: new Glyph(done ? "☑" : "☐") });
+
+const lineClass = (name: string) =>
+  Decoration.line({ class: styles[name] ?? "" });
+const listLine = lineClass("listLine");
+const quoteLine = lineClass("quoteLine");
+const fenceLine = lineClass("fenceLine");
 
 /** A callout is a blockquote whose first line opens `[!type]`. */
 const CALLOUT = /^>[ \t]*\[!/;
@@ -39,6 +67,12 @@ function inlineMarks(
   seen: Set<number>,
   out: Range<Decoration>[]
 ) {
+  // A line decoration sits at the line's start, where a mark may also begin.
+  const addLine = (deco: Decoration, at: number) => {
+    if (seen.has(-at - 1)) return;
+    seen.add(-at - 1);
+    out.push(deco.range(at));
+  };
   const add = (start: number, end: number) => {
     // Visible ranges are disjoint, but a mark may straddle two of them.
     if (end <= start || seen.has(start)) return;
@@ -51,11 +85,65 @@ function inlineMarks(
     enter(node) {
       switch (node.name) {
         // Skipped whole, so nothing inside them is ever mistaken for prose.
-        // A fenced block is code, not inline: its fences stay.
         case "Table":
         case "Frontmatter":
-        case "FencedCode":
+        // An image is drawn (or named) by the embed layer, not by its marks.
+        case "Image":
           return false;
+        // A fenced block is code, not inline: its fences stay and its lines
+        // are set in the code face.
+        case "FencedCode": {
+          const last = state.doc.lineAt(node.to).number;
+          for (let n = state.doc.lineAt(node.from).number; n <= last; n++) {
+            addLine(fenceLine, state.doc.line(n).from);
+          }
+          return false;
+        }
+        case "ListMark": {
+          // The line is styled whether or not the cursor is on it; only the
+          // mark itself turns to source under the cursor.
+          addLine(listLine, state.doc.lineAt(node.from).from);
+          const text = state.sliceDoc(node.from, node.to);
+          // An ordered item's number is already how it reads.
+          if (/^[-*+]$/.test(text) && !onCursorLine(node.from, node.to)) {
+            seen.add(node.from);
+            out.push(bullet.range(node.from, node.to));
+          }
+          return;
+        }
+        case "TaskMarker":
+          if (!onCursorLine(node.from, node.to)) {
+            const done = /\[[xX]\]/.test(state.sliceDoc(node.from, node.to));
+            seen.add(node.from);
+            out.push(box(done).range(node.from, node.to));
+          }
+          return;
+        case "QuoteMark": {
+          addLine(quoteLine, state.doc.lineAt(node.from).from);
+          if (onCursorLine(node.from, node.to)) return;
+          const space = state.sliceDoc(node.to, node.to + 1) === " " ? 1 : 0;
+          add(node.from, node.to + space);
+          return;
+        }
+        case "StrikethroughMark":
+          if (!onCursorLine(node.from, node.to)) add(node.from, node.to);
+          return;
+        case "Link": {
+          // `[text](url)` is its text; a reference link has no URL here and
+          // keeps its brackets, since its label is not prose.
+          const parts: { from: number; to: number }[] = [];
+          let hasUrl = false;
+          for (let c = node.node.firstChild; c; c = c.nextSibling) {
+            if (c.name === "URL") hasUrl = true;
+            if (["LinkMark", "URL", "LinkTitle"].includes(c.name))
+              parts.push(c);
+          }
+          if (!hasUrl) return;
+          for (const part of parts) {
+            if (!onCursorLine(part.from, part.to)) add(part.from, part.to);
+          }
+          return;
+        }
         case "Blockquote":
           if (CALLOUT.test(state.doc.lineAt(node.from).text.trimStart())) {
             return false;

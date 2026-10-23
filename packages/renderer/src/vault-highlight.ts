@@ -17,6 +17,7 @@ export const vaultHighlight = HighlightStyle.define([
   },
   { tag: t.strong, class: cls("strong") },
   { tag: t.emphasis, class: cls("emphasis") },
+  { tag: t.strikethrough, class: cls("strike") },
   { tag: t.monospace, class: cls("code") },
   { tag: t.quote, class: cls("quote") },
   { tag: [t.processingInstruction, t.contentSeparator], class: cls("mark") },
