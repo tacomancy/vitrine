@@ -141,8 +141,8 @@ describe("block marks (the bug: only headings rendered)", () => {
     const { box } = await open(DOC);
     expect(lines(box)).toEqual([
       "• one",
-      "  • nested",
-      "    • deeper",
+      "• nested",
+      "• deeper",
       "• star",
       "1. first",
       "2. second",
@@ -165,6 +165,34 @@ describe("block marks (the bug: only headings rendered)", () => {
     expect(at(8).className).toMatch(/quoteLine/);
     expect(at(11).className).toMatch(/fenceLine/);
     expect(at(13).className).not.toMatch(/Line/);
+  });
+
+  it("indents an item by its depth and hangs a wrapped line under its text", async () => {
+    const { box, view } = await open(
+      "- top\n  - two\n\t- tab\n    - four\n1. one\n   1. nested"
+    );
+    const at = (i: number) => box.querySelectorAll<HTMLElement>(".cm-line")[i]!;
+    const pad = (i: number) => parseFloat(at(i).style.paddingLeft);
+    const hang = (i: number) => -parseFloat(at(i).style.textIndent);
+    expect(lines(box)).toEqual([
+      "• top",
+      "• two",
+      "• tab",
+      "• four",
+      "1. one",
+      "1. nested",
+    ]);
+    // Two spaces, a tab and four spaces are each one level deeper than the last.
+    expect(pad(1)).toBeGreaterThan(pad(0));
+    expect(pad(2)).toBe(pad(3));
+    expect(pad(3)).toBeGreaterThan(pad(1));
+    // The wrapped line starts where the text does, past the mark.
+    for (const i of [0, 1, 4]) expect(hang(i)).toBeGreaterThan(0);
+    expect(hang(4)).toBeGreaterThan(hang(0)); // "1." is wider than a bullet
+    // Under the cursor the line is source: its spaces show, nothing is set.
+    cursorAt(view, 8);
+    expect(lines(box)[1]).toBe("  - two");
+    expect(at(1).style.paddingLeft).toBe("");
   });
 
   it("shows the marks on the cursor's line", async () => {
