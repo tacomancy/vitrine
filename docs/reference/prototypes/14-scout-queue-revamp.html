@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#09111D;-webkit-font-smoothing:antialiased}
+a{color:#9ABFFA;text-decoration:none}
+a:hover{color:#C5DBFC;text-decoration:underline}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#09111D;color:#D0D8E4;font-family:Inter,sans-serif;font-size:14px;display:flex;flex-direction:column">
+  <header style="min-height:52px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:8px 24px">
+    <div style="font-size:16px;font-weight:600;letter-spacing:-0.011em">Scout Queue</div>
+    <div style="display:flex;gap:16px;font-size:13px">
+      <span style="color:#9ABFFA;font-weight:600">Review {{ pendingTotal }}</span>
+      <span style="color:#9099A7">Skim 12</span>
+      <span style="color:#9099A7">Muted 3</span>
+    </div>
+    <div style="flex:1"></div>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9099A7">sort: rank</span>
+    <span style="font-size:13px;color:#9ABFFA">Mute rules</span>
+    <span style="font-size:13px;color:#9ABFFA">+ New Scout</span>
+  </header>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));background:#121A25;border-top:1px solid #2C333E;border-bottom:1px solid #2C333E;margin-bottom:-1px">
+    <sc-for list="{{ tiles }}" as="s" hint-placeholder-count="6">
+      <div onClick="{{ s.onClick }}" style="background:{{ s.bg }};padding:12px 16px;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;border-right:1px solid #2C333E;border-bottom:1px solid #2C333E;box-shadow:{{ s.ring }}" style-hover="background:#1C232F">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="flex:1;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px">{{ s.pending }}</span></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ s.voice }}">{{ s.voice }}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:3px;background:#2C333E;border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ s.ratePct }};background:#3C7FE5"></div></div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7">{{ s.rate }}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="flex:1;display:flex;flex-wrap:wrap;min-height:0">
+    <div style="flex:1 1 340px;max-width:480px;border-right:1px solid #2C333E;padding:12px 0 24px;display:flex;flex-direction:column">
+      <sc-if value="{{ filterName }}">
+        <div style="display:flex;gap:10px;align-items:baseline;padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#B2BBC9"><span>only {{ filterName }}</span><button onClick="{{ clearFilter }}" style="border:0;background:none;padding:0;color:#9ABFFA;font-size:12px">show all</button></div>
+      </sc-if>
+      <div style="padding:10px 20px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#E5B64A">New finds · {{ freshCount }}</div>
+      <sc-for list="{{ freshRows }}" as="r" hint-placeholder-count="5">
+        <div onClick="{{ r.pick }}" style="padding:9px 20px 9px 18px;display:flex;flex-direction:column;gap:3px;cursor:pointer;background:{{ r.bg }};border-left:2px solid {{ r.edge }}" style-hover="background:#121A25">
+          <span style="font-size:13px;line-height:1.4">{{ r.title }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7">{{ r.scout }} · {{ r.signal }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ freshEmpty }}">
+        <div style="padding:8px 20px;font-size:13px;color:#9099A7">Nothing new left. The Scouts run again tomorrow.</div>
+      </sc-if>
+      <div style="padding:20px 20px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#9099A7">Retroactive · {{ retroCount }}</div>
+      <sc-for list="{{ batchRows }}" as="bt" hint-placeholder-count="2">
+        <div style="border-top:1px solid #2C333E;display:flex;flex-direction:column">
+          <div style="padding:10px 20px;display:flex;align-items:center;gap:10px">
+            <button onClick="{{ bt.toggle }}" style="flex:1;min-width:0;border:0;background:none;padding:0;color:inherit;display:flex;align-items:center;gap:10px;text-align:left">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9099A7;width:10px">{{ bt.caret }}</span>
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:13px">{{ bt.scout }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7">{{ bt.left }} left · {{ bt.what }}</span></span>
+            </button>
+            <sc-if value="{{ bt.canReject }}"><button onClick="{{ bt.rejectRun }}" style="border:0;background:none;padding:0;font-size:12px;color:#9ABFFA">Reject this run</button></sc-if>
+          </div>
+          <sc-if value="{{ bt.open }}">
+            <div style="display:flex;flex-direction:column;padding-bottom:8px">
+              <sc-for list="{{ bt.rows }}" as="r">
+                <div onClick="{{ r.pick }}" style="padding:6px 20px 6px 38px;font-size:13px;line-height:1.4;color:#B2BBC9;cursor:pointer;background:{{ r.bg }};border-left:2px solid {{ r.edge }}" style-hover="background:#121A25">{{ r.title }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex:1 1 420px;min-width:0;padding:32px 40px 24px;display:flex;flex-direction:column;gap:18px;background:#121A25">
+      <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ true }}">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9099A7">{{ card.scout }} · {{ card.dateLine }}</div>
+        <div style="font-family:'Source Serif 4',serif;font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.01em;text-wrap:pretty;max-width:680px">{{ card.title }}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <sc-for list="{{ card.chips }}" as="c"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid #836202;color:#E5B64A;padding:3px 8px;border-radius:999px">{{ c }}</span></sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 16px;font-size:13px;max-width:680px">
+          <sc-for list="{{ card.fields }}" as="f">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9099A7">{{ f.k }}</span>
+            <span style="color:{{ f.color }};font-style:{{ f.style }};overflow-wrap:anywhere">{{ f.v }}</span>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showAbstract }}">
+          <div style="font-family:'Source Serif 4',serif;font-size:16px;line-height:1.6;color:#B2BBC9;max-width:680px;text-wrap:pretty">{{ card.abstract }}</div>
+        </sc-if>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
+          <button onClick="{{ act.accept }}" style="border:0;border-radius:3px;background:#2062C7;color:#fff;padding:9px 16px;font-size:13px;font-weight:500;display:flex;gap:10px;align-items:center" style-hover="background:#2E70D6">Accept <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.75">A</span></button>
+          <button onClick="{{ act.defer }}" style="border:1px solid #3F4550;border-radius:3px;background:transparent;color:#D0D8E4;padding:9px 14px;font-size:13px;display:flex;gap:10px" style-hover="background:#2C333E">Defer <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7">D</span></button>
+          <button onClick="{{ act.reject }}" style="border:1px solid #3F4550;border-radius:3px;background:transparent;color:#D0D8E4;padding:9px 14px;font-size:13px;display:flex;gap:10px" style-hover="background:#2C333E">Reject <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9099A7">R</span></button>
+          <button onClick="{{ act.pass }}" style="border:0;background:transparent;color:#9099A7;padding:9px 8px;font-size:13px">Pass · P</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ noCard }}">
+        <div style="padding:48px 0;display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:'Source Serif 4',serif;font-size:26px">Queue clear.</div>
+          <div style="font-size:14px;color:#B2BBC9">Everything pending here has been triaged.</div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="position:sticky;bottom:0;background:#09111D;border-top:1px solid #2C333E;display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;padding:10px 24px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9099A7">
+    <sc-if value="{{ last }}">
+      <span style="color:#B2BBC9">{{ last.text }}</span>
+      <sc-if value="{{ last.canUndo }}"><button onClick="{{ undo }}" style="border:0;background:none;padding:0;font-family:inherit;font-size:12px;color:#9ABFFA">undo · U</button></sc-if>
+    </sc-if>
+    <div style="flex:1"></div>
+    <span>J/K move · A accept · D defer · R reject · P pass</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showAbstracts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const FRESH = [
+  { title: 'Sparse feature circuits persist across scale in reasoning models', scout: 'arXiv · interpretability', date: '21 Oct 2026', venue: 'arXiv preprint', authors: 'M. Chen, R. Okafor, L. Haas', signal: '2 authors known · 2 Scouts', chips: ['2 authors in your vault', 'found by 2 Scouts'], question: 'Do SAE features stay monosemantic as models grow?', link: 'arxiv.org/abs/2610.11842', abstract: 'We trace sparse feature circuits through a family of reasoning models spanning two orders of magnitude in parameters and find that most circuits identified at small scale reappear, with predictable changes in depth and fan-in.' },
+  { title: 'Welfare-relevant states in language models: a measurement agenda', scout: 'OpenAlex · model welfare', date: '18 Oct 2026', venue: 'journal · Philosophy & Technology', authors: 'A. Varga, J. Lindqvist', signal: '2 Questions', chips: ['assigned to 2 Questions'], question: 'What would count as evidence of welfare in an LLM?', link: 'doi.org/10.1007/s13347-026-0912', abstract: 'We propose behavioural and internal measures that could bear on whether a language model has welfare-relevant states, and argue for which of them are robust to training on human self-report.' },
+  { title: 'Probing for latent goals in long agentic transcripts', scout: 'arXiv · interpretability', date: '20 Oct 2026', venue: 'arXiv preprint', authors: 'S. Iyer, D. Moreau', signal: '1 author known', chips: ['1 author in your vault'], question: 'Can goals be read off activations mid-task?', link: 'arxiv.org/abs/2610.10977', abstract: 'Linear probes trained on short episodes recover an agent’s stated sub-goal in transcripts up to forty times longer, but degrade sharply once the agent revises its plan.' },
+  { title: 'On the moral status of AI systems: a survey of positions', scout: 'OpenAlex · model welfare', date: '15 Oct 2026', venue: 'conference · FAccT', authors: 'K. Osei, P. Brandt, M. Ruiz', signal: '1 Question', chips: ['assigned to 1 Question'], question: 'What would count as evidence of welfare in an LLM?', link: 'doi.org/10.1145/3715.2026', abstract: 'We survey 74 published positions on the moral status of AI systems and organise them by the evidence each treats as decisive.' },
+  { title: 'Auditing reward models with counterfactual prompts', scout: 'arXiv · interpretability', date: '22 Oct 2026', venue: 'arXiv preprint', authors: 'T. Nakamura', signal: 'newest', chips: [], question: 'Do SAE features stay monosemantic as models grow?', link: 'arxiv.org/abs/2610.12203', abstract: 'Counterfactual prompt pairs expose reward-model preferences that standard preference benchmarks miss.' }
+];
+const ALIGN = ['Exploring model welfare', 'SHADE-Arena: Evaluating sabotage and monitoring in LLM agents', 'Agentic misalignment: How LLMs could be insider threats', 'How people use Claude for support, advice, and companionship', 'Claude Opus 4 and 4.1 can now end a rare subset of conversations', 'Petri: An open-source auditing tool to accelerate AI safety research', 'A small number of samples can poison LLMs of any size', 'From shortcuts to sabotage: Natural emergent misalignment from reward hacking', 'Mitigating the risk of prompt injections in browser use', 'Introducing Bloom: an open source tool for automated behavioral evaluations', 'Next-generation Constitutional Classifiers: More efficient protection against universal jailbreaks', "Claude's Constitution", 'Disempowerment patterns in real-world AI usage', 'How AI assistance impacts the formation of coding skills', 'Automated Alignment Researchers: Using large language models to scale scalable oversight', 'Donating our open-source alignment tool', 'Teaching Claude why', 'An off switch for dual-use knowledge in AI models', 'Automated researchers can reliably mitigate alignment failures', 'Illuminating the frontier', 'An alignment assessment of the UK AISI cybertesting incident', 'The persona selection model', 'An alignment assessment of recent cybersecurity incidents', 'Investigating unintended model actions in our evaluations and internal use'];
+const INTERP = ['Signs of introspection in large language models', 'Tracing the thoughts of a large language model', 'Circuit tracing: Revealing computational graphs in language models', 'On the biology of a large language model', 'Open-sourcing circuit tracing tools', 'Persona vectors: Monitoring and controlling character traits', 'Auditing language models for hidden objectives', 'Sparse crosscoders for cross-layer features', 'Evaluating feature steering', 'Using dictionary learning features as classifiers', 'Mapping the mind of a large language model', 'Scaling monosemanticity', 'Golden Gate Claude', 'Towards monosemanticity', 'Toy models of superposition', 'Interpretability dreams', 'Circuits updates'];
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const ITEMS = [
+  ...FRESH.map((f, i) => ({ ...f, id: 'f' + i, kind: 'fresh' })),
+  ...ALIGN.map((t, i) => ({ id: 'a' + i, kind: 'retro', batch: 'A', title: t, scout: 'Anthropic Alignment Lab', link: 'anthropic.com/research/' + slug(t) })),
+  ...INTERP.map((t, i) => ({ id: 'i' + i, kind: 'retro', batch: 'I', title: t, scout: 'Anthropic Interpretability Lab', link: 'anthropic.com/research/' + slug(t) }))
+];
+const BATCHES = [
+  { key: 'A', scout: 'Anthropic Alignment Lab', what: 'first look at the page · $0.07' },
+  { key: 'I', scout: 'Anthropic Interpretability Lab', what: 'first look at the page · $0.05' }
+];
+const SCOUTS = [
+  { name: 'arXiv · interpretability', voice: 'ran 3h ago · no model call', rate: '38%' },
+  { name: 'OpenAlex · model welfare', voice: 'ran today · no model call', rate: '50%' },
+  { name: 'Anthropic Alignment Lab', voice: 'first look · parsed cleanly · $0.07', rate: '—' },
+  { name: 'Anthropic Interpretability Lab', voice: 'quiet as usual · ~1 a week', rate: '—' },
+  { name: 'Redwood blog', voice: 'waiting for a key', rate: '—' },
+  { name: 'arXiv · RLHF', voice: 'paused since 2 Oct', rate: '22%' }
+];
+const VERB = { accepted: 'Accepted', rejected: 'Rejected', deferred: 'Deferred' };
+
+class Component extends DCLogic {
+  state = { status: {}, sel: 'f0', open: {}, filter: null, last: null, passed: [] };
+
+  componentDidMount() {
+    this.onKey = e => {
+      if (e.target.closest && e.target.closest('input,textarea,[contenteditable="true"]')) return;
+      const k = e.key.toLowerCase();
+      const v = this.vals;
+      if (!v) return;
+      if (k === 'j' || k === 'k') this.move(k === 'j' ? 1 : -1);
+      else if (k === 'a') v.act.accept();
+      else if (k === 'd') v.act.defer();
+      else if (k === 'r') v.act.reject();
+      else if (k === 'p') v.act.pass();
+      else if (k === 'u') v.undo();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); }
+
+  pending() {
+    const { status, filter, passed } = this.state;
+    let list = ITEMS.filter(i => !status[i.id] && (!filter || i.scout === filter));
+    const fresh = list.filter(i => i.kind === 'fresh');
+    const order = a => passed.indexOf(a.id);
+    fresh.sort((a, b) => order(a) - order(b));
+    return { all: list, fresh, retro: list.filter(i => i.kind === 'retro') };
+  }
+  navOrder() {
+    const p = this.pending();
+    const out = [...p.fresh];
+    BATCHES.forEach(b => { if (this.state.open[b.key]) out.push(...p.retro.filter(i => i.batch === b.key)); });
+    return out.length ? out : p.all;
+  }
+  move(d) {
+    const order = this.navOrder();
+    if (!order.length) return;
+    const i = order.findIndex(x => x.id === this.state.sel);
+    const n = order[Math.max(0, Math.min(order.length - 1, i + d))];
+    this.setState({ sel: n.id });
+  }
+  nextAfter(ids) {
+    const order = this.navOrder();
+    const i = order.findIndex(x => x.id === this.state.sel);
+    const rest = order.filter(x => !ids.includes(x.id));
+    const after = order.slice(i + 1).find(x => !ids.includes(x.id));
+    return (after || rest[rest.length - 1] || {}).id || null;
+  }
+  triage(verb) {
+    const id = this.state.sel;
+    if (!id || this.state.status[id]) return;
+    const item = ITEMS.find(i => i.id === id);
+    const next = this.nextAfter([id]);
+    const text = verb === 'accepted' ? `Accepted “${item.title}” · stub written to Sources/` : `${VERB[verb]} “${item.title}”`;
+    this.setState(s => ({ status: { ...s.status, [id]: verb }, sel: next, last: { text, ids: [id], canUndo: verb !== 'accepted', prevSel: id } }));
+  }
+
+  renderVals() {
+    const { status, sel, open, filter, last } = this.state;
+    const p = this.pending();
+    const rowOf = i => ({ ...i, bg: i.id === sel ? '#1C232F' : 'transparent', edge: i.id === sel ? '#E5B64A' : 'transparent', pick: () => this.setState({ sel: i.id }) });
+    const allPending = ITEMS.filter(i => !status[i.id]);
+    const tiles = SCOUTS.map(s => {
+      const n = allPending.filter(i => i.scout === s.name).length;
+      const on = filter === s.name;
+      return { ...s, pending: n, ratePct: s.rate === '—' ? '0%' : s.rate, bg: on ? '#1C232F' : '#121A25', ring: on ? 'inset 0 -2px 0 #E5B64A' : 'none', onClick: () => this.setState({ filter: on ? null : s.name }) };
+    });
+    const batchRows = BATCHES.filter(b => !filter || BATCHES.find(x => x.key === b.key).scout === filter).map(b => {
+      const items = p.retro.filter(i => i.batch === b.key);
+      return {
+        ...b, left: items.length, open: !!open[b.key], caret: open[b.key] ? '▾' : '▸', canReject: items.length > 0,
+        rows: items.map(rowOf),
+        toggle: () => this.setState(s => ({ open: { ...s.open, [b.key]: !s.open[b.key] }, sel: !s.open[b.key] && items[0] && !p.fresh.length ? items[0].id : s.sel })),
+        rejectRun: () => {
+          const ids = items.map(i => i.id);
+          const st = { ...this.state.status }; ids.forEach(id => st[id] = 'rejected');
+          const selGone = ids.includes(this.state.sel);
+          this.setState({ status: st, sel: selGone ? this.nextAfter(ids) : this.state.sel, last: { text: `Rejected this run of ${b.scout} (${ids.length}) · not counted toward accept rate`, ids, canUndo: true, prevSel: this.state.sel } });
+        }
+      };
+    });
+    const item = ITEMS.find(i => i.id === sel && !status[i.id]);
+    let card = null;
+    if (item) {
+      const miss = v => v ? { v, color: '#D0D8E4', style: 'normal' } : { v: 'missing', color: '#9099A7', style: 'italic' };
+      const retro = item.kind === 'retro';
+      card = {
+        ...item,
+        dateLine: retro ? 'retroactive · first look at the page' : item.date,
+        chips: retro ? ['retroactive'] : item.chips,
+        fields: [
+          { k: 'authors', ...miss(item.authors) },
+          { k: 'venue', ...miss(item.venue) },
+          ...(item.question ? [{ k: 'for', v: item.question, color: '#B2BBC9', style: 'normal' }] : []),
+          { k: 'link', v: item.link, color: '#9ABFFA', style: 'normal' }
+        ]
+      };
+    }
+    const vals = {
+      pendingTotal: allPending.length,
+      tiles, batchRows,
+      freshRows: p.fresh.map(rowOf), freshCount: p.fresh.length, freshEmpty: p.fresh.length === 0,
+      retroCount: p.retro.length,
+      filterName: filter, clearFilter: () => this.setState({ filter: null }),
+      hasCard: !!card, noCard: !card, card: card || {},
+      showAbstract: !!(card && card.abstract) && (this.props.showAbstracts ?? true),
+      last,
+      act: {
+        accept: () => this.triage('accepted'), defer: () => this.triage('deferred'), reject: () => this.triage('rejected'),
+        pass: () => {
+          const id = this.state.sel; if (!id) return;
+          const next = this.nextAfter([id]);
+          this.setState(s => ({ passed: [...s.passed.filter(x => x !== id), id], sel: next || id }));
+        }
+      },
+      undo: () => {
+        const l = this.state.last; if (!l || !l.canUndo) return;
+        const st = { ...this.state.status }; l.ids.forEach(id => delete st[id]);
+        this.setState({ status: st, sel: l.prevSel, last: { text: 'Undone', ids: [], canUndo: false } });
+      }
+    };
+    this.vals = vals;
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

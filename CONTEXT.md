@@ -433,6 +433,14 @@ Which Scout found it, which Questions that Scout is Assigned to, and whether it 
 Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run at that page. Shown as such so the batch can be triaged or rejected together.
 _Avoid_: Backfill, historical, catch-up
 
+**New find**:
+A pending Review Proposal that is not Retroactive. The Queue lists new finds in Rank order and names them as such, apart from Retroactive batches, so a first look at a page of forty papers cannot bury the five an ongoing run found today.
+_Avoid_: Fresh, unread
+
+**Retroactive batch**:
+The Proposals one Retroactive run found, listed together under their Scout with what is left of them and what the run cost, and rejectable as a unit by *reject this run*. It is the only place *reject this run* is offered; a run that was not Retroactive is cleared by the group act on the stack.
+_Avoid_: Backlog, import
+
 **Appearance**:
 One run returning a Proposal — the Scout, the run, when, and the link. A Proposal keeps every Appearance; a revised preprint or a second Scout's find is a new Appearance on the same card, never a second card. The mechanism Corroboration is built on.
 _Avoid_: Duplicate, hit, occurrence
