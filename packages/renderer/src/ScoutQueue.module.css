@@ -1,7 +1,8 @@
 /*
  * The Scout Queue's tracer (#448): the Scouts' own files, one card in hand,
  * one key. A pane on the window's gutter, never a line between panes
- * (ADR 0023 decision 1); the rail, the Lanes and the rest are later tickets'.
+ * (ADR 0023 decision 1). Since beat 14 (ADR 0052) it is a strip of Scouts
+ * over a list and a detail.
  */
 .surface {
   flex: 1;
@@ -17,6 +18,7 @@
   min-height: 52px;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   padding: 0 var(--space-5);
@@ -33,27 +35,6 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
-}
-
-.scouts {
-  margin: 0;
-  padding: 0 var(--space-5) var(--space-3);
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.scout {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  font-size: var(--text-sm);
-}
-
-.scout button {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 
 .line {
@@ -357,9 +338,16 @@
 .strip {
   margin: 0;
   padding: 0 var(--space-5) var(--space-3);
+  flex: none;
   list-style: none;
+  /* One row that scrolls sideways, as prototype 14 draws it, at every width:
+     a fleet that wraps to three rows leaves the panes beneath a row tall,
+     and in a narrow window stacks into a column with no list in view. */
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min(100%, 13rem), 1fr);
+  overflow-x: auto;
+  scroll-padding-inline: var(--space-5);
   gap: var(--space-3);
 }
 
@@ -461,4 +449,21 @@
   flex-direction: column;
   gap: var(--space-1);
   text-align: left;
+}
+
+/* Side by side, each pane scrolls on its own under the header and strip
+   (prototype 14), so J/K deep in a long list never scrolls the strip away.
+   Stacked, the surface scrolls as one. */
+@media (min-width: 60rem) {
+  .panes {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .listPane,
+  .detailPane {
+    overflow-y: auto;
+  }
 }
