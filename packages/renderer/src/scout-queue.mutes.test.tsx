@@ -494,6 +494,18 @@ describe("Mute by name (#807, ADR 0051 decision 9)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mute by name" }));
     return await screen.findByRole("group", { name: "Mute by name" });
   };
+  // A disclosure, not an on/off chip: closed must not read as struck through
+  // or switched off (the toggle tier draws aria-pressed=false that way).
+  it("is a disclosure that says whether it is open", async () => {
+    renderApp(answers({}));
+    await inHand();
+    const button = screen.getByRole("button", { name: "Mute by name" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(button.hasAttribute("aria-pressed")).toBe(false);
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+  });
+
   const typeName = (form: HTMLElement, value: string) =>
     fireEvent.change(within(form).getByRole("textbox", { name: "Name" }), {
       target: { value },
