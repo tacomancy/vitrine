@@ -572,7 +572,10 @@ export function ScoutQueue({
         const step = key === "j" ? 1 : -1;
         if (lane === "review" && card !== undefined) {
           event.preventDefault();
-          setChosen(stack[clamp(cardAt + step, stack.length)]!.id);
+          // The rows on screen: a closed digest's cards are not among them.
+          const visible = digestOpen ? stack : live(stack);
+          const at = visible.indexOf(card);
+          setChosen(visible[clamp(at + step, visible.length)]!.id);
         } else if (lane === "skim" && line !== undefined) {
           event.preventDefault();
           setLineChosen(
@@ -1114,7 +1117,13 @@ function ReviewRow({
         <span className={styles.rowTitle}>{card.title}</span>
         <span className={styles.rowMeta}>
           {whose(card.scouts)}
-          {card.counterweight && ` · ${OUTSIDE_THE_USUAL}`}
+          {/* The counterweight's label stands in for the rank summary. */}
+          {card.counterweight
+            ? ` · ${OUTSIDE_THE_USUAL}`
+            : card.signals
+                .filter((signal) => signal.kind !== "questions")
+                .map((signal) => ` · ${signalWords(signal)}`)
+                .join("")}
           {card.retroactive && " · retroactive"}
         </span>
       </Button>

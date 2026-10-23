@@ -383,7 +383,7 @@ describe("the muted view", () => {
 
     renderApp(answers());
     await inHand();
-    expect(screen.queryByRole("tab", { name: /^Muted [1-9]/ })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Muted 0" })).toBeDefined();
   });
 
   it("lists each item with the rule that caught it", async () => {

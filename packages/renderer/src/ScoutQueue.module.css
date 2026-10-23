@@ -162,8 +162,7 @@
   font-size: var(--text-sm);
 }
 
-.heldList,
-.rest {
+.heldList {
   margin: 0;
   padding: 0 var(--space-5) var(--space-4) var(--space-6);
   font-size: var(--text-sm);

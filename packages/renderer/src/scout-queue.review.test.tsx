@@ -108,6 +108,20 @@ describe("the list and the detail", () => {
     await detail("Paper 2");
   });
 
+  it("steps over the rows on screen only, not a closed digest's cards", async () => {
+    renderApp(answers([card(1), card(2, { pastWindow: true })]));
+    await detail("Paper 1");
+
+    fireEvent.keyDown(document.body, { key: "j" });
+    await detail("Paper 1");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /1 older than the window/ })
+    );
+    fireEvent.keyDown(document.body, { key: "j" });
+    await detail("Paper 2");
+  });
+
   it("ignores its keys in a field", async () => {
     renderApp(answers(three()));
     await detail("Paper 1");
