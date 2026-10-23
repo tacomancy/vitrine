@@ -49,7 +49,15 @@ const box = (done: boolean) =>
 
 const lineClass = (name: string) =>
   Decoration.line({ class: styles[name] ?? "" });
-const listLine = lineClass("listLine");
+/** The first line of a list item: its depth as padding, its mark as the hang. */
+const listLine = (indent: number, hang: number) =>
+  Decoration.line({
+    class: styles.listLine ?? "",
+    attributes: {
+      style: `padding-left:${indent + hang}em;text-indent:-${hang}em`,
+    },
+  });
+const listLineSource = lineClass("listLine");
 const quoteLine = lineClass("quoteLine");
 const fenceLine = lineClass("fenceLine");
 
@@ -102,10 +110,26 @@ function inlineMarks(
         case "ListMark": {
           // The line is styled whether or not the cursor is on it; only the
           // mark itself turns to source under the cursor.
-          addLine(listLine, state.doc.lineAt(node.from).from);
+          const line = state.doc.lineAt(node.from);
           const text = state.sliceDoc(node.from, node.to);
+          if (onCursorLine(node.from, node.to)) {
+            addLine(listLineSource, line.from);
+            return;
+          }
+          // Depth is the leading whitespace (a tab is four columns), drawn as
+          // padding so a wrapped line hangs under its text, not the margin.
+          const lead = state.sliceDoc(line.from, node.from);
+          const cols = [...lead].reduce((n, c) => n + (c === "\t" ? 4 : 1), 0);
+          const bulleted = /^[-*+]$/.test(text);
+          const task = /^\[[ xX]\]/.test(
+            state.sliceDoc(node.to + 1, node.to + 5)
+          );
+          const hang =
+            (bulleted ? 1.1 : 0.6 * (text.length - 1) + 1.5) + (task ? 1.4 : 0);
+          addLine(listLine(cols * 0.5, hang), line.from);
+          add(line.from, node.from);
           // An ordered item's number is already how it reads.
-          if (/^[-*+]$/.test(text) && !onCursorLine(node.from, node.to)) {
+          if (bulleted) {
             seen.add(node.from);
             out.push(bullet.range(node.from, node.to));
           }
