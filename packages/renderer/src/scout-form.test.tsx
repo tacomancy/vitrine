@@ -159,7 +159,7 @@ describe("the rail's voices", () => {
         .getAllByRole("listitem")
         .map((li) => [
           (
-            li.querySelector("button")?.textContent ??
+            li.querySelector("button span")?.textContent ??
             li.textContent ??
             ""
           ).replace(/\d+$/, ""),

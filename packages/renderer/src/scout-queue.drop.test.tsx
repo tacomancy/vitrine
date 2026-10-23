@@ -80,7 +80,7 @@ const stack = () => [
 const rail = () => screen.findByRole("list", { name: "Scouts" });
 
 describe("the Scout Queue — a dropped Scout", () => {
-  it("is not in the rail, which lists only the Scouts that are looking", async () => {
+  it("has a tile only while cards wait under it, since it is not looking", async () => {
     renderApp(answers(stack()));
 
     const scouts = await rail();
@@ -90,12 +90,17 @@ describe("the Scout Queue — a dropped Scout", () => {
       await within(scouts).findByRole("button", { name: /Sleep and memory/ })
     ).toBeDefined();
     expect(
-      within(scouts).queryByRole("button", { name: /Blog ring/ })
-    ).toBeNull();
-    // Its cards are still in the stack: the rail's *All Scouts* counts them.
+      within(scouts).getByRole("button", { name: /Blog ring/ }).textContent
+    ).toContain("dropped");
+    cleanup();
+
+    renderApp(answers(stack().slice(0, 1)));
+    await within(await rail()).findByRole("button", {
+      name: /Sleep and memory/,
+    });
     expect(
-      within(scouts).getByRole("button", { name: /All Scouts/ }).textContent
-    ).toBe("All Scouts3");
+      within(await rail()).queryByRole("button", { name: /Blog ring/ })
+    ).toBeNull();
   });
 
   it("says on each of its cards whose it was, marked as dropped", async () => {
@@ -124,12 +129,14 @@ describe("the Scout Queue — a dropped Scout", () => {
     );
   });
 
-  it("keeps its stack under its own name, marked dropped and apart from the rail, for as long as anything waits under it", async () => {
+  it("keeps its stack under a tile of its own, marked dropped, for as long as anything waits under it", async () => {
     renderApp(answers(stack()));
-    const dropped = await screen.findByRole("list", { name: "Dropped Scouts" });
-    const entry = within(dropped).getByRole("button", { name: /Blog ring/ });
-    expect(entry.textContent).toBe("Blog ring2");
-    expect(within(dropped).getByText("dropped")).toBeDefined();
+    const scouts = await rail();
+    const entry = await within(scouts).findByRole("button", {
+      name: /Blog ring/,
+    });
+    expect(entry.textContent).toContain("2");
+    expect(within(entry).getByText("dropped")).toBeDefined();
 
     fireEvent.click(entry);
 
@@ -220,7 +227,7 @@ describe("the Scout Queue — a dropped Scout", () => {
     renderApp(answers(stack().slice(0, 1)));
     await screen.findByRole("article");
 
-    expect(screen.queryByRole("list", { name: "Dropped Scouts" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Blog ring/ })).toBeNull();
   });
 
   it("stays in its place while it is the one chosen, though the last of its stack has gone, and leaves when another is", async () => {
@@ -243,14 +250,19 @@ describe("the Scout Queue — a dropped Scout", () => {
     await screen.findByText("Rejected 2 from this run.");
 
     // Nothing waits under it now, but the pane the researcher is in has not moved.
-    const dropped = await screen.findByRole("list", { name: "Dropped Scouts" });
-    expect(
-      within(dropped).getByRole("button", { name: /Blog ring/ }).textContent
-    ).toBe("Blog ring0");
-    fireEvent.click(screen.getByRole("button", { name: /All Scouts/ }));
+    const tile = within(await rail()).getByRole("button", {
+      name: /Blog ring/,
+    });
+    expect(tile.textContent).toBe("Blog ringdropped—");
+    fireEvent.click(screen.getByRole("button", { name: "show all" }));
 
     await vi.waitFor(() =>
-      expect(screen.queryByRole("list", { name: "Dropped Scouts" })).toBeNull()
+      expect(
+        within(screen.getByRole("list", { name: "Scouts" })).queryByRole(
+          "button",
+          { name: /Blog ring/ }
+        )
+      ).toBeNull()
     );
   });
 

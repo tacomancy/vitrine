@@ -77,6 +77,11 @@ const chooseScout = async () =>
       name: /Sleep and memory/,
     })
   );
+// Run now is on the Scout header a tile's filter opens (ADR 0052 decision 2).
+const runNowOf = async () => {
+  await chooseScout();
+  return screen.findByRole("button", { name: "Run now" });
+};
 const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
 
 /** An answer held until the test settles it: a macrotask is the only way the in-flight state is on screen. */
@@ -149,9 +154,7 @@ describe("a refused act in the Scout Queue", () => {
       name: "run now",
       run: async (more) => {
         renderApp(answers([], { "scouts.runNow": refuse, ...more }));
-        fireEvent.click(
-          await within(await rail()).findByRole("button", { name: "Run now" })
-        );
+        fireEvent.click(await runNowOf());
       },
     },
     {
@@ -253,9 +256,7 @@ describe("a refused act in the Scout Queue", () => {
         },
       })
     );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", { name: "Run now" })
-    );
+    fireEvent.click(await runNowOf());
 
     expect((await screen.findByRole("status")).textContent).toBe(
       "This run failed: http."
