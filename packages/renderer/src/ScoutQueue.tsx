@@ -594,8 +594,7 @@ export function ScoutQueue({
           <span className={styles.count}>card 1 of {stack.length}</span>
         )}
         <Button
-          tier="toggle"
-          aria-pressed={byNameOpen}
+          aria-expanded={byNameOpen}
           onClick={() => setByNameOpen((was) => !was)}
         >
           Mute by name

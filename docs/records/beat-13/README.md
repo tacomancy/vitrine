@@ -21,9 +21,9 @@ Sample content differs from the prototypes' (fixture vault, not the mockup's), s
 | First run (empty vault) | [![](../../reference/prototypes/12-empty-vault.png)](../../reference/prototypes/12-empty-vault.png) | [![](12-empty-vault-dark.png)](12-empty-vault-dark.png) | [![](12-empty-vault-light.png)](12-empty-vault-light.png) |
 | Settings | [![](../../reference/prototypes/13-settings.png)](../../reference/prototypes/13-settings.png) | [![](13-settings-dark.png)](13-settings-dark.png) | [![](13-settings-light.png)](13-settings-light.png) |
 
-## What the pictures show that the spec did not promise
+## What the pictures showed, and what was done
 
-Read by eye against the prototypes, not fixed here (this ticket changes no behaviour):
+The first pass of this record showed two things no ticket had promised; both are fixed in this PR and the pictures above are the second pass.
 
-- **Scout Queue rail.** The Scout chips (*All Scouts*, *Memory replay* …) are still grey boxes, and *Mute by name* is drawn struck through. They are choosers kept as plain `aria-pressed` buttons under UI conventions § What stays as it is, but they read as the grey boxed buttons the beat set out to remove. A follow-up should decide whether they become segments or plain text rows.
-- **Vault Backlinks pane.** At this width the empty-state sentence wraps into a three-line column beside the *read in full · watching* meta, so the pane looks cramped.
+- **Scout Queue rail.** The Scout chips were native grey boxes (`.railRow` had no button reset) and *Mute by name* was drawn struck through (the toggle tier's off look, on what is a disclosure). The rows are now text, the chosen one sapphire and bold, and *Mute by name* is a secondary button carrying `aria-expanded`.
+- **Vault Backlinks pane.** The empty-state sentence was squeezed to a three-line column beside its Warrant. The First slot now lets the Warrant drop under the claim when the pane is narrow.
