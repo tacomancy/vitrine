@@ -22,17 +22,20 @@ export default async (page) => {
     card.includes("Sleep preprints") && card.includes("Sleep published"),
     "both Scouts are named"
   );
+  // Journal first: the journal's address is the card's link and the arXiv
+  // copy follows it as *also on arXiv*, whichever Scout saw the work first.
+  const journal = card.indexOf("https://journal.example/w5");
+  const arxiv = card.indexOf("https://arxiv.org/abs/2610.00001");
   expect(
-    card.includes("https://journal.example/w5"),
-    "the journal link is the link"
+    journal !== -1 && arxiv !== -1 && journal < arxiv,
+    "the journal link comes before the arXiv one"
   );
   expect(
     card.includes("also on arXiv") && card.includes("arxiv.org/abs/2610.00001"),
     "the arXiv copy is kept"
   );
   expect(
-    card.includes("conference") ||
-      card.includes("Proceedings of Sleep Science"),
-    "the venue is the journal's"
+    card.includes("Proceedings of Sleep Science (conference)"),
+    "the venue is the journal's, not arXiv's"
   );
 };

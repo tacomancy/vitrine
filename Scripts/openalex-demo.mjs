@@ -6,7 +6,7 @@
 // never the real ones. No key is stored and the credential store is held in
 // memory. Needs both packages built.
 //
-//   node Scripts/openalex-demo.mjs <out-folder>      ONLY=3 runs one step
+//   node Scripts/openalex-demo.mjs <out-folder>      ONLY=3 runs one step; 4 needs 1, 7 needs 6
 //
 // 1. An OpenAlex Scout by Query: Try answers with the total, five titles and
 //    the credits left; saved.
@@ -120,7 +120,16 @@ try {
     console.log(`1. TRY SENT: ${asked[0].filter}`);
   }
   if (wanted("2")) await launch("2-tags-scout.png", "tags.mjs");
-  if (wanted("3")) await launch("3-venue-allowlist.png", "allowlist.mjs");
+  if (wanted("3")) {
+    await launch("3-venue-allowlist.png", "allowlist.mjs");
+    // The list is sent as source IDs, never as a post-filter (ADR 0051 d.9).
+    expect(
+      sent("works").some((r) =>
+        r.filter.includes("primary_location.source.id:S1")
+      ),
+      "Try sent the allowlist as primary_location.source.id"
+    );
+  }
   if (wanted("4")) await launch("4-mute-by-name.png", "mutes.mjs");
   if (wanted("5")) {
     writeScout(

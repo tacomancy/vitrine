@@ -41,6 +41,11 @@ export default async (page) => {
   await page.wait(
     "!!document.querySelector('ul[aria-label=\"Allowed venues\"]')"
   );
-  await tryIt(page, "1 results across");
+  await tryIt(page, "results across");
+  const narrowed = await page.eval("document.body.innerText");
+  expect(
+    /(^|\D)1 results across/.test(narrowed),
+    "Try asks only the allowed venue, and one work answers"
+  );
   await save(page);
 };

@@ -9,7 +9,7 @@ const ARXIV_SOURCE = "https://openalex.org/S4306400194";
 const oa = (id) => `https://openalex.org/${id}`;
 
 /** Venues and the publishers behind them; an imprint (P2) sits under its parent (P3). */
-export const VENUES = {
+const VENUES = {
   S1: {
     name: "Journal of Interpretability",
     type: "journal",
@@ -111,7 +111,7 @@ const OSCILLATIONS_ENTRY = `<entry><id>http://arxiv.org/abs/2610.00001v1</id><pu
 export function startStandin() {
   // `open`: plenty left. `low`: under the sync's reserve, so the scatter yields
   // while a Scout may still spend it. `spent`: every OpenAlex request is a 429.
-  const state = { budget: "open", requests: [], searches: [] };
+  const state = { budget: "open", requests: [] };
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (url.pathname === "/__budget") {
@@ -163,7 +163,7 @@ export function startStandin() {
         .end(JSON.stringify({ meta: { count: 40 }, results: [] }));
       return;
     }
-    const search_ =
+    const worksTerm =
       /title_and_abstract\.search:([^,]*)/.exec(filter)?.[1] ?? "";
     const venues =
       /primary_location\.source\.id:([^,]*)/.exec(filter)?.[1]?.split("|") ??
@@ -177,7 +177,7 @@ export function startStandin() {
     });
     let results;
     let total;
-    if (search_.toLowerCase().includes("ceiling")) {
+    if (worksTerm.toLowerCase().includes("ceiling")) {
       // 650 match; a page is 200 and a run keeps 400.
       const page = Number(url.searchParams.get("page") ?? 1);
       const per = Number(url.searchParams.get("per-page") ?? 200);
@@ -191,7 +191,7 @@ export function startStandin() {
       );
     } else {
       const hits = Object.entries(CATALOGUE).flatMap(([word, ws]) =>
-        search_.toLowerCase().includes(word) ? ws : []
+        worksTerm.toLowerCase().includes(word) ? ws : []
       );
       results = hits.filter(
         (w) =>
