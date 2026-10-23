@@ -18,7 +18,7 @@ import { RefusalLine, useRefusal } from "./refusal-line";
 import { hashOf } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
-import { Button, SegmentedControl } from "./Form";
+import { Button } from "./Form";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import {
   CostLine,
@@ -703,27 +703,21 @@ export function ScoutQueue({
             </Button>
           ))}
         </div>
+        {/* Text toggles, not segments: each reads as the order it is in now
+            and flips on a click (ADR 0052 decision 5). */}
         {lane === "review" && (
-          <SegmentedControl
-            label="Sort"
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: "rank", label: "Rank" },
-              { value: "newest", label: "Newest" },
-            ]}
-          />
+          <Button onClick={() => setSort(sort === "rank" ? "newest" : "rank")}>
+            {`sort: ${sort}`}
+          </Button>
         )}
         {lane === "review" && (
-          <SegmentedControl
-            label="Group by"
-            value={groupBy}
-            onChange={chooseGroupBy}
-            options={[
-              { value: "scout", label: "Scout" },
-              { value: "question", label: "Question" },
-            ]}
-          />
+          <Button
+            onClick={() =>
+              chooseGroupBy(groupBy === "scout" ? "question" : "scout")
+            }
+          >
+            {`group: ${groupBy}`}
+          </Button>
         )}
         <Button
           aria-expanded={byNameOpen}
@@ -737,7 +731,7 @@ export function ScoutQueue({
       </header>
       {byQuestion && (
         <>
-          <ul className={styles.scouts} aria-label="Questions">
+          <ul className={styles.strip} aria-label="Questions">
             {[
               { key: null, name: "All Questions", count: everything.length },
               ...questionRows.map((g) => ({
@@ -746,19 +740,18 @@ export function ScoutQueue({
                 count: g.proposalIds.length,
               })),
             ].map((row) => (
-              <li key={row.key ?? "all"} className={styles.scout}>
-                <button
-                  type="button"
+              <li key={row.key ?? "all"} className={styles.tile}>
+                <Button
+                  tier="listRow"
                   id={`question-rail-${row.key ?? "all"}`}
-                  className={styles.railRow}
-                  aria-current={
-                    row.key === selectedQuestion ? "true" : undefined
-                  }
+                  aria-pressed={row.key === selectedQuestion}
                   onClick={() => chooseQuestion(row.key)}
                 >
-                  <span>{row.name}</span>
-                  <span className={styles.count}>{row.count}</span>
-                </button>
+                  <span className={styles.tileHead}>
+                    <span className={styles.tileName}>{row.name}</span>
+                    <span className={styles.count}>{row.count}</span>
+                  </span>
+                </Button>
               </li>
             ))}
           </ul>
