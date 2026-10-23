@@ -126,12 +126,18 @@ describe("the list and the detail", () => {
   it("ignores its keys in a field", async () => {
     renderApp(answers(three()));
     await detail("Paper 1");
-    fireEvent.click(screen.getByRole("button", { name: "Mute by name" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mute rules" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mute by name" })
+    );
     const field = await screen.findByRole("textbox");
 
     fireEvent.keyDown(field, { key: "j" });
+    fireEvent.click(screen.getByRole("tab", { name: /^Review/ }));
 
-    expect(screen.getByRole("article", { name: "Paper 1" })).toBeDefined();
+    expect(
+      await screen.findByRole("article", { name: "Paper 1" })
+    ).toBeDefined();
   });
 
   it("scrolls the selected row into view", async () => {

@@ -465,6 +465,24 @@ describe("arriving on the muted list from Scout Activity (#649)", () => {
   });
 });
 
+describe("Muted as a tab of the frame (#841, ADR 0052 decision 6)", () => {
+  it("opens from the header's Mute rules and holds Mute by name inside it", async () => {
+    renderApp(answers({}));
+    await inHand();
+    // Not in the header any more: only the tab has it.
+    expect(screen.queryByRole("button", { name: "Mute by name" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mute rules" }));
+
+    expect(
+      (await screen.findByRole("tab", { name: /^Muted/ })).getAttribute(
+        "aria-selected"
+      )
+    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Mute by name" })).toBeDefined();
+  });
+});
+
 describe("Mute by name (#807, ADR 0051 decision 9)", () => {
   const venues = {
     outcome: "found" as const,
@@ -490,7 +508,10 @@ describe("Mute by name (#807, ADR 0051 decision 9)", () => {
   const opened = async (more: Record<string, unknown>) => {
     renderApp(answers(more));
     await inHand();
-    fireEvent.click(screen.getByRole("button", { name: "Mute by name" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mute rules" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mute by name" })
+    );
     return await screen.findByRole("group", { name: "Mute by name" });
   };
   // A disclosure, not an on/off chip: closed must not read as struck through
@@ -498,7 +519,8 @@ describe("Mute by name (#807, ADR 0051 decision 9)", () => {
   it("is a disclosure that says whether it is open", async () => {
     renderApp(answers({}));
     await inHand();
-    const button = screen.getByRole("button", { name: "Mute by name" });
+    fireEvent.click(screen.getByRole("button", { name: "Mute rules" }));
+    const button = await screen.findByRole("button", { name: "Mute by name" });
     expect(button.getAttribute("aria-expanded")).toBe("false");
     expect(button.hasAttribute("aria-pressed")).toBe(false);
     fireEvent.click(button);
