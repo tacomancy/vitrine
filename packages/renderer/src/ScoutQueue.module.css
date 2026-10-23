@@ -162,8 +162,7 @@
   font-size: var(--text-sm);
 }
 
-.heldList,
-.rest {
+.heldList {
   margin: 0;
   padding: 0 var(--space-5) var(--space-4) var(--space-6);
   font-size: var(--text-sm);
@@ -290,4 +289,89 @@
   all: unset;
   cursor: pointer;
   text-decoration: underline dotted;
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Two panes on the window's gutter, not a line between them (ADR 0023); a
+   narrow window stacks them. */
+.panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.listPane,
+.detailPane {
+  min-width: 0;
+}
+
+.rows {
+  margin: 0;
+  padding: 0 var(--space-3);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.rows button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.rows button[aria-current="true"] {
+  background: var(--color-bg-raised);
+}
+
+.rowTitle {
+  font-size: var(--text-sm);
+}
+
+.rowMeta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.decide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.last {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+}
+
+.keys {
+  margin-left: auto;
 }

@@ -34,6 +34,9 @@ const sessionSort = (() => {
   return { get: () => sort, set: (next: QueueSort) => void (sort = next) };
 })();
 
+const clamp = (at: number, length: number) =>
+  Math.min(Math.max(at, 0), length - 1);
+
 /** A fired Rank signal in words; a card with none says nothing (ADR 0044). */
 function signalWords(signal: RankSignal): string {
   switch (signal.kind) {
@@ -104,10 +107,8 @@ export function ScoutQueue({
     arrivedOnSkim ? "skim" : "review"
   );
   const byQuestion = groupBy === "question" && lane === "review";
-  const skim = useQuery({
-    ...trpc.scouts.skim.queryOptions(),
-    enabled: lane === "skim",
-  });
+  // Read in both lanes: the Skim tab counts what it holds.
+  const skim = useQuery(trpc.scouts.skim.queryOptions());
   const fleet = useQuery(trpc.scouts.fleet.queryOptions());
   const health = useQuery(trpc.scouts.health.queryOptions());
   const muted = useQuery(trpc.scouts.muted.queryOptions());
@@ -155,6 +156,9 @@ export function ScoutQueue({
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.
   const [passed, setPassed] = useState<number[]>([]);
+  // The Proposal in the detail, by id: it follows a click and J/K, and falls
+  // back to the head of the order when its card has left (acted on).
+  const [chosen, setChosen] = useState<number | null>(null);
   // Rejects and defers made this session that can still be taken back
   // (ADR 0016's update of 2026-09-26); accept is never on it.
   // A group act is one entry, undone as one (ADR 0044 decision 9).
@@ -315,7 +319,10 @@ export function ScoutQueue({
     ...inGroup.filter((card) => !passed.includes(card.id)),
     ...passed.flatMap((id) => inGroup.filter((card) => card.id === id)),
   ];
-  const card = stack[0];
+  const card = stack.find((c) => c.id === chosen) ?? stack[0];
+  const cardAt = card === undefined ? -1 : stack.indexOf(card);
+  // Where the selection goes once the card in the detail has been acted on.
+  const nextAfter = stack[cardAt + 1] ?? stack[cardAt - 1];
   const passedThrough =
     inGroup.length > 0 && inGroup.every((c) => passed.includes(c.id));
   const group =
@@ -352,6 +359,35 @@ export function ScoutQueue({
   // act on and a line that leaves (accepted, promoted) hands the choice on.
   const line = lines.find((l) => l.id === lineChosen) ?? lines[0];
 
+  // A count is only drawn once its read has answered: a 0 beside a read that
+  // failed would read as all clear.
+  const tabs = [
+    {
+      id: "review",
+      label: `Review${queue.isSuccess ? ` ${everything.length}` : ""}`,
+      selected: !mutedOpen && lane === "review",
+      open: () => {
+        setMutedOpen(false);
+        setLane("review");
+      },
+    },
+    {
+      id: "skim",
+      label: `Skim${skim.isSuccess ? ` ${skim.data.recent.length + skim.data.older.length}` : ""}`,
+      selected: !mutedOpen && lane === "skim",
+      open: () => {
+        setMutedOpen(false);
+        setLane("skim");
+      },
+    },
+    {
+      id: "muted",
+      label: `Muted${muted.isSuccess ? ` ${muted.data.items.length}` : ""}`,
+      selected: mutedOpen,
+      open: () => setMutedOpen(true),
+    },
+  ];
+
   const railRows = [
     { id: null, name: "All Scouts" },
     ...(scouts.data?.scouts ?? []),
@@ -385,9 +421,7 @@ export function ScoutQueue({
       : `scout-rail-${selected ?? "all"}`
   );
   useChosenInView(
-    lane === "review" && card !== undefined
-      ? `scout-card-${card.id}`
-      : undefined
+    lane === "review" && card !== undefined ? `scout-row-${card.id}` : undefined
   );
   useChosenInView(
     lane === "skim" && line !== undefined ? `skim-line-${line.id}` : undefined
@@ -410,6 +444,15 @@ export function ScoutQueue({
   }
   function onPass(id: number) {
     setPassed((was) => [...was.filter((p) => p !== id), id]);
+    // The last card passes to where it already is, so the next is the head.
+    setChosen((stack[cardAt + 1] ?? stack[0])?.id ?? null);
+  }
+  function onAccept(id: number) {
+    if (accept.isPending) return;
+    accept.mutate(
+      { proposalId: id },
+      { onSuccess: () => setChosen(nextAfter?.id ?? null) }
+    );
   }
   function onDecide(
     kind: "rejected" | "deferred",
@@ -421,6 +464,7 @@ export function ScoutQueue({
       { proposalId: id },
       {
         onSuccess: () => {
+          setChosen(nextAfter?.id ?? null);
           setUndoable((was) => [...was, { id, title, action: kind }]);
           acknowledge(
             kind === "rejected"
@@ -518,6 +562,27 @@ export function ScoutQueue({
         event.preventDefault();
         onUndo();
       }
+      const bare = !event.metaKey && !event.ctrlKey && !event.altKey;
+      const key = event.key.toLowerCase();
+      if (bare && !event.shiftKey && key === "u") {
+        event.preventDefault();
+        onUndo();
+      }
+      if (bare && form === null && !mutedOpen && (key === "j" || key === "k")) {
+        const step = key === "j" ? 1 : -1;
+        if (lane === "review" && card !== undefined) {
+          event.preventDefault();
+          // The rows on screen: a closed digest's cards are not among them.
+          const visible = digestOpen ? stack : live(stack);
+          const at = visible.indexOf(card);
+          setChosen(visible[clamp(at + step, visible.length)]!.id);
+        } else if (lane === "skim" && line !== undefined) {
+          event.preventDefault();
+          setLineChosen(
+            lines[clamp(lines.indexOf(line) + step, lines.length)]!.id
+          );
+        }
+      }
       if (
         form === null &&
         lane === "review" &&
@@ -526,7 +591,6 @@ export function ScoutQueue({
         !event.ctrlKey &&
         !event.altKey
       ) {
-        const key = event.key.toLowerCase();
         if (key === "r" || key === "d") {
           event.preventDefault();
           onDecideGroup(key === "r" ? "rejected" : "deferred");
@@ -539,7 +603,7 @@ export function ScoutQueue({
       ) {
         event.preventDefault();
         const at = lines.indexOf(line) + (event.key === "ArrowDown" ? 1 : -1);
-        setLineChosen(lines[Math.min(Math.max(at, 0), lines.length - 1)]!.id);
+        setLineChosen(lines[clamp(at, lines.length)]!.id);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -550,15 +614,19 @@ export function ScoutQueue({
     <section className={styles.surface} aria-label="Scout Queue">
       <header className={styles.header}>
         <h1 className={styles.title}>Scout Queue</h1>
-        <SegmentedControl
-          label="Lane"
-          value={lane}
-          onChange={setLane}
-          options={[
-            { value: "review", label: "Review" },
-            { value: "skim", label: "Skim" },
-          ]}
-        />
+        <div role="tablist" aria-label="Lane" className={styles.tabs}>
+          {tabs.map((tab) => (
+            <Button
+              key={tab.id}
+              tier="tab"
+              role="tab"
+              aria-selected={tab.selected}
+              onClick={tab.open}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
         {lane === "review" && (
           <SegmentedControl
             label="Sort"
@@ -580,18 +648,6 @@ export function ScoutQueue({
               { value: "question", label: "Question" },
             ]}
           />
-        )}
-        {((muted.data?.items.length ?? 0) > 0 ||
-          (muted.data?.rules.length ?? 0) > 0) && (
-          <Button
-            aria-pressed={mutedOpen}
-            onClick={() => setMutedOpen((was) => !was)}
-          >
-            {muted.data?.items.length} muted
-          </Button>
-        )}
-        {lane === "review" && card !== undefined && form === null && (
-          <span className={styles.count}>card 1 of {stack.length}</span>
         )}
         <Button
           aria-expanded={byNameOpen}
@@ -838,23 +894,6 @@ export function ScoutQueue({
           onDelete={(rule) => unmute.mutate(rule)}
         />
       )}
-      {said !== null && (
-        <p className={styles.line} role="status">
-          {said}
-        </p>
-      )}
-      {/* Quiet to look at, an alert to hear: a refusal of the user's own act
-          (ADR 0033 decision 5). */}
-      <RefusalLine refusal={refusal} className={styles.line} />
-      {last !== undefined && (
-        <p className={styles.line}>
-          <Button onClick={onUndo}>
-            Undo {last.action === "rejected" ? "reject" : "defer"}
-            {"bulk" in last && ` of ${last.count}`}
-          </Button>{" "}
-          <kbd>⌘Z</kbd>
-        </p>
-      )}
       {stackShown && lane === "review" && passedThrough && (
         <p className={styles.line}>
           You have passed through every card{" "}
@@ -904,9 +943,7 @@ export function ScoutQueue({
               card={line}
               lane="skim"
               onMute={() => setMuting(line)}
-              onAccept={() => {
-                if (!accept.isPending) accept.mutate({ proposalId: line.id });
-              }}
+              onAccept={() => onAccept(line.id)}
               onPromote={() => {
                 if (!promote.isPending) promote.mutate({ proposalId: line.id });
               }}
@@ -933,59 +970,95 @@ export function ScoutQueue({
         )}
       {stackShown &&
         lane === "review" &&
-        card !== undefined &&
-        muting?.id === card.id && <MuteOffer {...muteOffer(card)} />}
-      {stackShown &&
-        lane === "review" &&
-        card !== undefined &&
-        muting?.id !== card.id && (
-          <Proposal
-            key={card.id}
-            card={card}
-            lane="review"
-            onMute={() => setMuting(card)}
-            onAccept={() => {
-              if (!accept.isPending) accept.mutate({ proposalId: card.id });
-            }}
-            onPass={() => onPass(card.id)}
-            onReject={() => onDecide("rejected", reject, card.id, card.title)}
-            onDefer={() => onDecide("deferred", defer, card.id, card.title)}
-          />
+        (card !== undefined || digest.length > 0) && (
+          <div className={styles.panes}>
+            <div className={styles.listPane}>
+              {live(stack).length > 0 && (
+                <ol className={styles.rows} aria-label="New finds">
+                  {live(stack).map((next) => (
+                    <ReviewRow
+                      key={next.id}
+                      card={next}
+                      current={next === card}
+                      onChoose={() => setChosen(next.id)}
+                    />
+                  ))}
+                </ol>
+              )}
+              {digest.length > 0 && (
+                <div className={styles.line}>
+                  <Button
+                    aria-expanded={digestOpen}
+                    onClick={() => setDigestOpen((was) => !was)}
+                  >
+                    {digest.length} older than the window
+                  </Button>
+                  {digestOpen && (
+                    <ol
+                      className={styles.rows}
+                      aria-label="Older than the window"
+                    >
+                      {digest.map((aged) => (
+                        <ReviewRow
+                          key={aged.id}
+                          card={aged}
+                          current={aged === card}
+                          onChoose={() => setChosen(aged.id)}
+                        />
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className={styles.detailPane}>
+              {card !== undefined && muting?.id === card.id && (
+                <MuteOffer {...muteOffer(card)} />
+              )}
+              {card !== undefined && muting?.id !== card.id && (
+                <Proposal
+                  key={card.id}
+                  card={card}
+                  lane="review"
+                  onMute={() => setMuting(card)}
+                  onAccept={() => onAccept(card.id)}
+                  onPass={() => onPass(card.id)}
+                  onReject={() =>
+                    onDecide("rejected", reject, card.id, card.title)
+                  }
+                  onDefer={() =>
+                    onDecide("deferred", defer, card.id, card.title)
+                  }
+                />
+              )}
+            </div>
+          </div>
         )}
-      {stackShown && lane === "review" && stack.length > 1 && (
-        <ol className={styles.rest} aria-label="Next in the stack">
-          {stack
-            .slice(1)
-            .filter((next) => !next.pastWindow)
-            .map((next) => (
-              <li key={next.id} id={`scout-card-${next.id}`}>
-                {next.title}
-                {next.counterweight && ` — ${OUTSIDE_THE_USUAL}`}
-              </li>
-            ))}
-        </ol>
-      )}
-      {stackShown && lane === "review" && digest.length > 0 && (
-        <div className={styles.line}>
-          <Button
-            aria-expanded={digestOpen}
-            onClick={() => setDigestOpen((was) => !was)}
-          >
-            {digest.length} older than the window
-          </Button>
-          {digestOpen && (
-            <ol aria-label="Older than the window">
-              {digest.map((aged) => (
-                <li key={aged.id}>{aged.title}</li>
-              ))}
-            </ol>
+      {/* The one footer channel (ADR 0052 decision 8; ADR 0033): the last act
+          and its undo on the left, the keys on the right. A refusal takes the
+          act's place as an alert and is never beside an undo link, so it cannot
+          be read as something that can be taken back. A failed read is said by
+          name, polite: a state the app is in, not a refusal of an act. */}
+      <footer className={styles.footer}>
+        <div className={styles.last}>
+          {refusal.words !== null ? (
+            <RefusalLine refusal={refusal} as="span" />
+          ) : (
+            <>
+              {said !== null && <span role="status">{said}</span>}
+              {last !== undefined && (
+                <Button
+                  tier="inline"
+                  aria-label={`Undo ${last.action === "rejected" ? "reject" : "defer"}${
+                    "bulk" in last ? ` of ${last.count}` : ""
+                  }`}
+                  onClick={onUndo}
+                >
+                  undo · U
+                </Button>
+              )}
+            </>
           )}
-        </div>
-      )}
-      {/* The footer channel, polite: a state the app is in, not a refusal of
-          something the user did (ADR 0033). */}
-      {(unread || muted.data?.problem != null) && (
-        <footer className={styles.footer}>
           {reasons.map((reason) => (
             <WarningLine key={reason} label="not read">
               {reason}
@@ -998,8 +1071,13 @@ export function ScoutQueue({
               {muted.data.problem}
             </WarningLine>
           )}
-        </footer>
-      )}
+        </div>
+        <span className={styles.keys}>
+          {lane === "review"
+            ? "J/K move · A accept · D defer · R reject · P pass"
+            : "J/K move · A accept · T to Review · O open"}
+        </span>
+      </footer>
     </section>
   );
 }
@@ -1013,6 +1091,45 @@ const whose = (scouts: Card["scouts"]) =>
   scouts
     .map((scout) => (scout.dropped ? `${scout.name} (dropped)` : scout.name))
     .join(" · ");
+
+/** What the list shows: the live finds, never the digest's. */
+const live = (stack: Card[]) => stack.filter((c) => !c.pastWindow);
+
+/** One find in the list: a click selects it, and the second line says why it sits here. */
+function ReviewRow({
+  card,
+  current,
+  onChoose,
+}: {
+  card: Card;
+  current: boolean;
+  onChoose: () => void;
+}) {
+  return (
+    <li>
+      <Button
+        tier="listRow"
+        id={`scout-row-${card.id}`}
+        aria-label={card.title}
+        aria-current={current ? "true" : undefined}
+        onClick={onChoose}
+      >
+        <span className={styles.rowTitle}>{card.title}</span>
+        <span className={styles.rowMeta}>
+          {whose(card.scouts)}
+          {/* The counterweight's label stands in for the rank summary. */}
+          {card.counterweight
+            ? ` · ${OUTSIDE_THE_USUAL}`
+            : card.signals
+                .filter((signal) => signal.kind !== "questions")
+                .map((signal) => ` · ${signalWords(signal)}`)
+                .join("")}
+          {card.retroactive && " · retroactive"}
+        </span>
+      </Button>
+    </li>
+  );
+}
 
 /** The card in hand. It takes the keyboard when it arrives, so a key acts on what is on screen. */
 function Proposal({
@@ -1041,6 +1158,18 @@ function Proposal({
   // next act key is pressed on this card (ADR 0033 decisions 5–6).
   const refusal = useRefusal();
   const link = classifyLink(card.url);
+  const chips = [
+    ...card.signals
+      .filter((signal) => signal.kind !== "questions")
+      .map(signalWords),
+    ...(card.moved === null ? [] : [movedWords(card.moved)]),
+    ...(card.counterweight ? [OUTSIDE_THE_USUAL] : []),
+  ];
+  // A button does what its key does, so the two cannot come apart.
+  const press = (act: (() => void) | undefined) => () => {
+    refusal.forget();
+    act?.();
+  };
 
   function onKeyDown(event: globalThis.KeyboardEvent) {
     const target = event.target;
@@ -1099,15 +1228,19 @@ function Proposal({
             .map((q) => q.name ?? q.id)
             .join(", ")}`}
         {card.retroactive && " · retroactive"}
-        {/* The Questions signal is the *assigned to* clause above. */}
-        {card.signals
-          .filter((signal) => signal.kind !== "questions")
-          .map((signal) => ` · ${signalWords(signal)}`)
-          .join("")}
-        {card.moved !== null && ` · ${movedWords(card.moved)}`}
-        {card.counterweight && ` · ${OUTSIDE_THE_USUAL}`}
       </p>
       <h2 className={styles.cardTitle}>{card.title}</h2>
+      {/* Only what fired: a chip is never decoration (ADR 0044 decision 2).
+          The Questions signal is the *assigned to* clause above. */}
+      {chips.length > 0 && (
+        <ul className={styles.chips} aria-label="Why">
+          {chips.map((chip) => (
+            <li key={chip} className={styles.chip}>
+              {chip}
+            </li>
+          ))}
+        </ul>
+      )}
       <dl className={styles.fields}>
         <Field label="authors" value={card.authors.join(", ") || null} />
         <Field label="published" value={card.published.slice(0, 10)} />
@@ -1150,19 +1283,32 @@ function Proposal({
       </dl>
       <RefusalLine refusal={refusal} />
       <p className={styles.abstract}>{card.abstract}</p>
-      <p className={styles.actions}>
-        {lane === "skim" ? (
-          <>
-            <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>T</kbd> to Review ·{" "}
-            <kbd>M</kbd> mute…
-          </>
-        ) : (
-          <>
-            <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>P</kbd> pass ·{" "}
-            <kbd>R</kbd> reject · <kbd>D</kbd> defer · <kbd>M</kbd> mute…
-          </>
-        )}
-      </p>
+      {lane === "skim" ? (
+        <p className={styles.actions}>
+          <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>T</kbd> to Review ·{" "}
+          <kbd>M</kbd> mute…
+        </p>
+      ) : (
+        <>
+          <div className={styles.decide}>
+            <Button tier="primary" onClick={press(onAccept)}>
+              Accept <kbd>A</kbd>
+            </Button>
+            <Button onClick={press(onDefer)}>
+              Defer <kbd>D</kbd>
+            </Button>
+            <Button onClick={press(onReject)}>
+              Reject <kbd>R</kbd>
+            </Button>
+            <Button tier="inline" onClick={press(onPass)}>
+              Pass <kbd>P</kbd>
+            </Button>
+          </div>
+          <p className={styles.actions}>
+            <kbd>O</kbd> open · <kbd>M</kbd> mute…
+          </p>
+        </>
+      )}
     </article>
   );
 }

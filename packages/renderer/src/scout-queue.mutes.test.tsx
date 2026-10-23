@@ -173,7 +173,7 @@ describe("M on a card", () => {
         "scouts.skim": { recent: [card({ lane: "skim" })], older: [] },
       })
     );
-    fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /^Skim/ }));
     fireEvent.keyDown(await inHand(), { key: "m" });
 
     expect(await screen.findByRole("group", { name: "Mute" })).toBeDefined();
@@ -333,7 +333,7 @@ describe("M on a card from OpenAlex (#806, ADR 0051 decision 8)", () => {
         "scouts.unmute": unmute,
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: "1 muted" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Muted 1" }));
     const rules = await screen.findByRole("list", { name: "Mute rules" });
     const rows = within(rules).getAllByRole("listitem");
     expect(rows[0]!.textContent).toContain(
@@ -378,19 +378,17 @@ describe("the muted view", () => {
   it("counts what is muted beside the stack and says nothing when nothing is", async () => {
     renderApp(answers({ "scouts.muted": some }));
     await inHand();
-    expect(
-      await screen.findByRole("button", { name: "2 muted" })
-    ).toBeDefined();
+    expect(await screen.findByRole("tab", { name: "Muted 2" })).toBeDefined();
     cleanup();
 
     renderApp(answers());
     await inHand();
-    expect(screen.queryByRole("button", { name: /muted/ })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Muted 0" })).toBeDefined();
   });
 
   it("lists each item with the rule that caught it", async () => {
     renderApp(answers({ "scouts.muted": some }));
-    fireEvent.click(await screen.findByRole("button", { name: "2 muted" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Muted 2" }));
 
     const list = await screen.findByRole("list", { name: "Muted" });
     const rows = within(list).getAllByRole("listitem");
@@ -403,7 +401,7 @@ describe("the muted view", () => {
   it("deletes a rule from the view and reads the Queue again", async () => {
     const unmute = vi.fn(() => null);
     renderApp(answers({ "scouts.muted": some, "scouts.unmute": unmute }));
-    fireEvent.click(await screen.findByRole("button", { name: "2 muted" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Muted 2" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Delete rule keyword “mesa”" })
     );
@@ -457,8 +455,8 @@ describe("arriving on the muted list from Scout Activity (#649)", () => {
     );
 
     expect(
-      (await screen.findByRole("button", { name: "1 muted" })).getAttribute(
-        "aria-pressed"
+      (await screen.findByRole("tab", { name: "Muted 1" })).getAttribute(
+        "aria-selected"
       )
     ).toBe("true");
     const list = await screen.findByRole("list", { name: "Muted" });

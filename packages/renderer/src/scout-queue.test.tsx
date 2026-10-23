@@ -89,8 +89,8 @@ describe("the Review digest", () => {
     });
 
     // Not in the stack the card is dealt from; only the digest line holds it.
-    expect(screen.getByText("card 1 of 2")).toBeDefined();
-    const next = screen.getByRole("list", { name: "Next in the stack" });
+    expect(screen.getByRole("tab", { name: "Review 3" })).toBeDefined();
+    const next = screen.getByRole("list", { name: "New finds" });
     expect(next.textContent).not.toContain("Aged one");
     expect(screen.queryByText("Aged one")).toBeNull();
     const line = screen.getByRole("button", {
@@ -139,7 +139,7 @@ describe("the Scout Queue", () => {
       name: "Slow Oscillations Reconsidered",
     });
 
-    expect(screen.getByText("card 1 of 2")).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Review 2" })).toBeDefined();
     expect(article.textContent).toContain("Sleep and memory");
     // *assigned to*, never *matches*: nothing has scored a match.
     expect(article.textContent).toContain("assigned to Is it consolidation?");
@@ -412,12 +412,12 @@ describe("the Scout Queue", () => {
 
       await hand();
 
-      const rest = screen.getByRole("list", { name: "Next in the stack" });
+      const rest = screen.getByRole("list", { name: "New finds" });
       expect(
         within(rest)
-          .getAllByRole("listitem")
-          .map((li) => li.textContent)
-      ).toEqual(["Another", "Elsewhere"]);
+          .getAllByRole("button")
+          .map((row) => row.getAttribute("aria-label"))
+      ).toEqual(["Slow Oscillations Reconsidered", "Another", "Elsewhere"]);
       const rail = screen.getByRole("list", { name: "Scouts" });
       expect(
         within(rail).getByRole("button", { name: /Sleep and memory/ })
@@ -524,7 +524,7 @@ describe("the Scout Queue", () => {
 
       fireEvent.keyDown(article, { key: "p" });
       article = await screen.findByRole("article", { name: "Another" });
-      expect(screen.getByText("card 1 of 2")).toBeDefined();
+      expect(screen.getByRole("tab", { name: "Review 2" })).toBeDefined();
       fireEvent.keyDown(article, { key: "p" });
 
       // Both have been passed; the first comes round again.
@@ -767,7 +767,7 @@ describe("the Scout Queue", () => {
         ...more,
       });
     const toSkim = async () =>
-      fireEvent.click(await screen.findByRole("radio", { name: "Skim" }));
+      fireEvent.click(await screen.findByRole("tab", { name: /^Skim/ }));
 
     it("draws the lines as a list, and a click selects one and opens its card without promoting", async () => {
       const promote = vi.fn(() => undefined);
@@ -820,7 +820,7 @@ describe("the Scout Queue", () => {
 
       expect(reject).not.toHaveBeenCalled();
       expect(defer).not.toHaveBeenCalled();
-      expect(screen.queryByText(/card 1 of/)).toBeNull();
+      expect(screen.queryByRole("list", { name: "New finds" })).toBeNull();
     });
 
     it("tucks lines older than 30 days behind *show older*", async () => {
@@ -881,7 +881,9 @@ describe("the Scout Queue", () => {
     ];
     const surface = () => screen.findByRole("region", { name: "Scout Queue" });
     const lane = (name: "Review" | "Skim") =>
-      fireEvent.click(screen.getByRole("radio", { name }));
+      fireEvent.click(
+        screen.getByRole("tab", { name: new RegExp(`^${name}`) })
+      );
 
     describe.each([
       { name: "Review", reads },
@@ -952,7 +954,7 @@ describe("the Scout Queue", () => {
           "Review cleared — 1 scout watching · all parsed cleanly."
         )
       ).toBeDefined();
-      expect(within(view).queryByRole("contentinfo")).toBeNull();
+      expect(within(view).queryByText(/not read/)).toBeNull();
       expect(view.textContent).not.toContain("not known");
     });
 

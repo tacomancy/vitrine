@@ -179,9 +179,10 @@ describe("Waiting — Skim", () => {
     fireEvent.click(link);
     const queue = await screen.findByRole("region", { name: "Scout Queue" });
     expect(
-      within(queue).getByRole<HTMLInputElement>("radio", { name: "Skim" })
-        .checked
-    ).toBe(true);
+      within(queue)
+        .getByRole("tab", { name: /^Skim/ })
+        .getAttribute("aria-selected")
+    ).toBe("true");
     expect(window.location.hash).toBe("#/scouts?view=skim");
   });
 });
