@@ -119,6 +119,65 @@ describe("hiding marks off the cursor's line", () => {
   });
 });
 
+describe("block marks (the bug: only headings rendered)", () => {
+  const DOC = [
+    "- one",
+    "  - nested",
+    "    - deeper",
+    "* star",
+    "1. first",
+    "2. second",
+    "- [ ] todo",
+    "- [x] done",
+    "> quoted **bold**",
+    "~~gone~~ and [site](https://x.test/a)",
+    "```ts",
+    "const a = 1;",
+    "```",
+    "end",
+  ].join("\n");
+
+  it("draws bullets, task boxes, quotes, strikethrough and links as prose off the cursor's line", async () => {
+    const { box } = await open(DOC);
+    expect(lines(box)).toEqual([
+      "• one",
+      "  • nested",
+      "    • deeper",
+      "• star",
+      "1. first",
+      "2. second",
+      "• ☐ todo",
+      "• ☑ done",
+      "quoted bold",
+      "gone and site",
+      "```ts",
+      "const a = 1;",
+      "```",
+      "end",
+    ]);
+  });
+
+  it("styles the line a quote, a list item and a fenced line sit on", async () => {
+    const { box } = await open(DOC);
+    const at = (i: number) => box.querySelectorAll(".cm-line")[i]!;
+    expect(at(0).className).toMatch(/listLine/);
+    expect(at(1).className).toMatch(/listLine/);
+    expect(at(8).className).toMatch(/quoteLine/);
+    expect(at(11).className).toMatch(/fenceLine/);
+    expect(at(13).className).not.toMatch(/Line/);
+  });
+
+  it("shows the marks on the cursor's line", async () => {
+    const { box, view } = await open(DOC);
+    cursorAt(view, DOC.indexOf("nested"));
+    expect(lines(box)[1]).toBe("  - nested");
+    cursorAt(view, DOC.indexOf("quoted"));
+    expect(lines(box)[8]).toBe("> quoted **bold**");
+    cursorAt(view, DOC.indexOf("gone"));
+    expect(lines(box)[9]).toBe("~~gone~~ and [site](https://x.test/a)");
+  });
+});
+
 describe("what stays as text", () => {
   it("leaves frontmatter, a table, an embed that is not an image and a callout exactly as written", async () => {
     const doc = [

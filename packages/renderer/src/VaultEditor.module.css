@@ -27,6 +27,34 @@
   font-size: 0.9em;
 }
 
+.strike {
+  text-decoration: line-through;
+  color: var(--color-fg-secondary);
+}
+
+/* Block shapes the live preview draws as prose. Soft geometry: a quote is
+   set in from the margin in the serif, not boxed or ruled. */
+.listLine {
+  padding-left: 0.25em;
+  /* An outline's depth is its leading spaces; they must not collapse. */
+  white-space: pre-wrap;
+}
+
+.quoteLine {
+  padding-left: 1.25em;
+  font-family: var(--font-serif);
+  color: var(--color-fg-secondary);
+}
+
+.fenceLine {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.glyph {
+  color: var(--color-fg-muted);
+}
+
 .mark {
   color: var(--color-fg-muted);
 }

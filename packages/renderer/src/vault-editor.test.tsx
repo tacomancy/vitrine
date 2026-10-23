@@ -329,12 +329,12 @@ describe("typing saves", () => {
     fireEvent.keyDown(box, { key: "s", ctrlKey: true });
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
     // Typed while the save was out, before the history it will gain.
-    act(() => view.dispatch({ changes: { from: 0, insert: ">" } }));
+    act(() => view.dispatch({ changes: { from: 0, insert: "+" } }));
     finish(SAVED("h2", "answer!\n\nhistory\n- 2026 · answer\n"));
     await waitFor(() =>
-      expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n")
+      expect(textOf(box)).toBe("+answer!\n\nhistory\n• 2026 · answer\n")
     );
-    expect(textOf(box)).toBe(">answer!\n\nhistory\n- 2026 · answer\n");
+    expect(textOf(box)).toBe("+answer!\n\nhistory\n• 2026 · answer\n");
   });
 
   it("saves the typing of the file being left before the next replaces the document", async () => {
