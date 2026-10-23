@@ -9,15 +9,19 @@
 //
 //   node Scripts/scout-queue-demo.mjs <out-folder>
 //
-// 1. Triage by keys: J/K, reject and its undo, accept (no undo), defer.
+// 1. Triage by keys: J/K, reject and its undo, accept (no undo), defer; the
+//    strip still in view after six J.
 // 2. A Scout tile filters; its header holds the Cap and Run now; show all.
 // 3. A Retroactive batch apart from new finds, expanded, a title selected;
 //    another rejected as a run, said not counted toward Accept rate, undone.
-// 4. The same run rejected again: a row per paper under the run id, and no
-//    bulk id (it is not a group act).
-// 5. Skim, Muted, and the Queue by Question.
-// 6. A Scout file that cannot be read keeps a tile; a rules file that cannot
-//    be read is named in the footer.
+//    A second launch rejects it again and leaves it: the queue holds a row
+//    per paper under the run id and no bulk id (it is not a group act).
+// 4. Skim (three lines seeded, since beat 6b's is raised at launch).
+// 5. Muted, from Mute rules.
+// 6. The Queue by Question.
+// 7. A Scout file that cannot be read keeps a tile; a rules file that cannot
+//    be read is named in the footer. A failed read of one of the Queue's six
+//    reads is scout-queue.test.tsx's, since a hidden launch cannot fail one.
 //
 // KEEP=1 leaves the scratch vault behind.
 import { spawn } from "node:child_process";

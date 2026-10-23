@@ -1,6 +1,6 @@
 # Beat 14 record: the Scout Queue revamp beside prototype 14
 
-Spec #836, beat #834, closing ticket #842. Produced by `node Scripts/scout-queue-demo.mjs docs/records/beat-14`: nine hidden launches on one scratch vault (beat 6b's six Scouts and triage history, two Retroactive batches, three Skim lines, a Scout file that does not parse), against beat 6b's arXiv stand-in. Each drive throws when the page does not show what its step claims, so these pictures are from a green run. The prototype is [`14-scout-queue-revamp.png`](../../reference/prototypes/14-scout-queue-revamp.png) (with [batch expanded](../../reference/prototypes/14-scout-queue-revamp-batch-expanded.png) and [run rejected](../../reference/prototypes/14-scout-queue-revamp-run-rejected.png)), drawn dark at a wide window.
+Spec #836, beat #834, closing ticket #842. Produced by `node Scripts/scout-queue-demo.mjs docs/records/beat-14`: eight hidden launches on one scratch vault (beat 6b's six Scouts and triage history, two Retroactive batches, three Skim lines, a Scout file that does not parse), against beat 6b's arXiv stand-in. Each drive throws when the page does not show what its step claims, so these pictures are from a green run. The prototype is [`14-scout-queue-revamp.png`](../../reference/prototypes/14-scout-queue-revamp.png) (with [batch expanded](../../reference/prototypes/14-scout-queue-revamp-batch-expanded.png) and [run rejected](../../reference/prototypes/14-scout-queue-revamp-run-rejected.png)), drawn dark at a wide window.
 
 Sample content differs from the prototype's (fixture vault, not the mockup's), so compare layout and treatment, not words. The narrow column is a 640px window.
 
@@ -17,14 +17,25 @@ Sample content differs from the prototype's (fixture vault, not the mockup's), s
 
 ## What the pictures showed, and what was done
 
-- **The surface scrolled as one page.** Moving through a long list with J scrolled the header and the strip out of view, and the detail went with them. In a window wide enough for two panes, each pane now scrolls on its own under a strip drawn as one row (scrolling sideways when the fleet is wider than the window), as the prototype draws it; stacked, the surface still scrolls as one. Step 1's drive asserts the strip is still in view after six J.
-- **Dead CSS.** The old rail's `.scouts` / `.scout` rules had no reader left; removed.
+- **The surface scrolled as one page.** Moving through a long list with J scrolled the header and the strip out of view, and the detail went with them. In a window wide enough for two panes (60rem), each pane now scrolls on its own; stacked, the surface still scrolls as one. Step 1's drive asserts the strip is still in view after six J.
+- **The strip wrapped.** Nine tiles wrapped to three rows, leaving the panes under a filtered Scout's header a row tall, and in a 640px window they stacked into a column with no list in view. The strip is now one row at every width, as the prototype draws it, scrolling sideways when the fleet is wider than the window.
+- **The header clipped in a narrow window.** At 640px the controls ran off the right edge; the header row now wraps.
+- **Dead CSS.** The old rail's `.scouts` / `.scout` rules had no reader left; removed, with the module's header comment that still promised a rail.
+
+## Not shown here
+
+- **A failed read of the Queue's own data** (spec #836 story 44: the slot drawn *wrong*, `‖ not read — <reason>` in the footer). A hidden launch has no seam to fail `queue`, `groups`, `fleet`, `health`, `scouts.list` or `skim`; `scout-queue.test.tsx` fails each in turn and asserts the slot and the footer line. Step 7 shows the neighbouring case a launch can make: a rules file that does not parse, named in the footer.
 
 ## Divergences left open
 
 These are visible beside the prototype and none breaks a behaviour the spec states; they are listed on the beat's `Shipped:` comment.
 
 - No `NEW FINDS · N` heading over the new finds, and `RETROACTIVE` carries no count.
-- The Scout header sits above both panes, not at the top of the list pane (ADR 0052 decision 2), and its *Run now · Edit · Pause* run together with no separator.
+- The Scout header sits above both panes, not at the top of the list pane (ADR 0052 decision 2); its *Run now · Edit · Pause* run together with no separator; a tall header (many Assigned Questions, a held list) leaves the panes short.
+- The tabs are uppercase and tracked (`REVIEW 25`) where the prototype sets `Review 46`.
+- A tile for a Scout whose last run found something shows no Voice line, only the rate or `—`, where the prototype gives every tile one (*ran 3h ago · no model call*).
+- A strip wider than the window scrolls sideways, so a tile — the unreadable Scout's included, since it is last — can be off screen until scrolled to (step 7's drive brings it into view).
 - The selected row is a raised background with no accent bar; a batch row has no disclosure glyph.
-- The detail is a raised card, its actions the inline tier (`Defer D`) rather than the prototype's bordered buttons.
+- The detail is a raised card with the focus ring as an accent border, its actions the inline tier (`Defer D`) rather than the prototype's bordered buttons.
+- The sticky footer covers the list pane's last line until scrolled.
+- Beat 6b's `Scripts/queue-demo.mjs` still waits on the old rail (`#scout-rail-sleep`) and no longer runs; pointing its drives at the strip is a follow-up.

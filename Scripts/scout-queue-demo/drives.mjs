@@ -84,6 +84,12 @@ const selectedTitle = (page) =>
   page.eval(
     `document.querySelector('[aria-current="true"]')?.getAttribute('aria-label') ?? ''`
   );
+/** *Reject this run* on the batch of the Scout named. */
+const rejectRunOf = (page, scout) =>
+  page.eval(`(() => {
+    const head = [...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes(${JSON.stringify(scout)})).parentElement;
+    [...head.querySelectorAll('button')].find(b => b.textContent.trim() === 'Reject this run').click();
+  })()`);
 const footer = (page) =>
   page.eval(`document.querySelector('footer')?.innerText ?? ''`);
 
@@ -194,9 +200,7 @@ export const steps = {
     );
     await shootThreeWays(page, "3-batch-expanded");
     // Reject the other run as a unit.
-    await page.eval(
-      `(() => { const head = [...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes('Back catalogue')).parentElement; [...head.querySelectorAll('button')].find(b => b.textContent.trim() === 'Reject this run').click(); })()`
-    );
+    await rejectRunOf(page, "Back catalogue");
     await page.wait(
       "/Rejected this run of Back catalogue \\(4\\) · not counted toward accept rate/.test(document.body.innerText)",
       5000
@@ -221,9 +225,7 @@ export const steps = {
   // Reject the whole batch and leave it rejected, so the queue can be read.
   async batchReject(page) {
     await openQueue(page);
-    await page.eval(
-      `(() => { const head = [...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes('Back catalogue')).parentElement; [...head.querySelectorAll('button')].find(b => b.textContent.trim() === 'Reject this run').click(); })()`
-    );
+    await rejectRunOf(page, "Back catalogue");
     await page.wait(
       "/not counted toward accept rate/.test(document.body.innerText)",
       5000
@@ -285,6 +287,10 @@ export const steps = {
     expect(
       /broken\.yaml/.test(strip),
       "the broken Scout keeps a tile by file name"
+    );
+    // The strip is one row that scrolls sideways; bring the tile into the picture.
+    await page.eval(
+      `[...document.querySelectorAll('[aria-label="Scouts"] li')].find(li => li.innerText.includes('broken.yaml')).scrollIntoView({ inline: 'center' })`
     );
     expect(
       /mute rules not read/.test(await footer(page)),
