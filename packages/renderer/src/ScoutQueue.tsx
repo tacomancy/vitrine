@@ -273,7 +273,7 @@ export function ScoutQueue({
           // A Retroactive reject is no verdict on the brief, so it is not in
           // the Accept rate; said here so a rate that did not move is expected.
           acknowledge(
-            `Rejected this run of ${scoutName(owner)} (${rejected}) · not counted toward accept rate`
+            `Rejected this run of ${scoutName(owner) ?? "that Scout"} (${rejected}) · not counted toward accept rate`
           );
           setUndoable((was) => [
             ...was,
