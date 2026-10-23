@@ -710,19 +710,17 @@ export function ScoutQueue({
               <FirstSlot voice="wrong" claim="" />
             </li>
           )}
-          {(scouts.data?.scouts ?? []).map((tileScout) => (
+          {(scouts.data?.scouts ?? []).map((listed) => (
             <ScoutTile
-              key={tileScout.id}
-              name={tileScout.name}
-              id={tileScout.id}
-              pending={queue.isError ? null : countFor(tileScout.id)}
-              chosen={tileScout.id === selected}
-              onChoose={() =>
-                choose(tileScout.id === selected ? null : tileScout.id)
-              }
-              rate={rateOf(tileScout.id)}
+              key={listed.id}
+              name={listed.name}
+              id={listed.id}
+              pending={queue.isError ? null : countFor(listed.id)}
+              chosen={listed.id === selected}
+              onChoose={() => choose(listed.id === selected ? null : listed.id)}
+              rate={rateOf(listed.id)}
             >
-              <VoiceLine health={healthOf(tileScout.id)} />
+              <VoiceLine health={healthOf(listed.id)} />
             </ScoutTile>
           ))}
           {droppedStacks.map((dropped) => (
@@ -748,6 +746,13 @@ export function ScoutQueue({
               <VoiceLine
                 health={{ voice: "wrong", kind: null, sentence: file.sentence }}
               />
+              <span
+                data-accept="none"
+                title="This Scout file cannot be read, so it has no rate."
+                className={styles.rate}
+              >
+                —
+              </span>
             </li>
           ))}
         </ul>
@@ -1128,7 +1133,7 @@ function ScoutTile({
   rate: AcceptRate | "unread";
   children: ReactNode;
 }) {
-  const said =
+  const rateTitle =
     rate === "unread"
       ? "Accept rate could not be read."
       : rate.kind === "rate"
@@ -1153,14 +1158,14 @@ function ScoutTile({
         </span>
         {children}
         {rate !== "unread" && rate.kind === "rate" ? (
-          <span data-accept="rate" title={said} className={styles.rate}>
+          <span data-accept="rate" title={rateTitle} className={styles.rate}>
             <span className={styles.bar} aria-hidden="true">
               <span style={{ width: percent(rate.rate) }} />
             </span>
             <span>{percent(rate.rate)}</span>
           </span>
         ) : (
-          <span data-accept="none" title={said} className={styles.rate}>
+          <span data-accept="none" title={rateTitle} className={styles.rate}>
             —
           </span>
         )}
