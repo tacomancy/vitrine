@@ -864,6 +864,29 @@ describe("the Scout Queue", () => {
       );
     });
 
+    it("opens on the Skim tab when the window arrives from Home's Skim line", async () => {
+      window.location.hash = "#/scouts?view=skim";
+      renderApp(feed([line(1, "First line")]));
+
+      expect(
+        await screen.findByRole("article", { name: "First line" })
+      ).toBeDefined();
+      expect(
+        screen.getByRole("tab", { name: /^Skim/ }).getAttribute("aria-selected")
+      ).toBe("true");
+    });
+
+    it("moves with the arrow keys", async () => {
+      renderApp(feed([line(1, "First line"), line(2, "Second line")]));
+      await toSkim();
+      await screen.findByRole("article", { name: "First line" });
+
+      fireEvent.keyDown(document.body, { key: "ArrowDown" });
+      await screen.findByRole("article", { name: "Second line" });
+      fireEvent.keyDown(document.body, { key: "ArrowUp" });
+      await screen.findByRole("article", { name: "First line" });
+    });
+
     it("J and K move through the lines as the arrows do", async () => {
       renderApp(feed([line(1, "First line"), line(2, "Second line")]));
       await toSkim();

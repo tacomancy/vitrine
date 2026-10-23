@@ -1414,13 +1414,13 @@ function Proposal({
       act();
     } else if (key === "o") {
       event.preventDefault();
-      open();
+      openLink();
     }
   }
   // Looking records nothing; a link the rule refuses says which scheme it
   // had instead of doing nothing (§ Invariants, no silent failures), as an
   // alert because it answers the user's own `O` (ADR 0033 decision 5).
-  function open() {
+  function openLink() {
     if (link.kind === "refused") refusal.say(linkRefusal(link.scheme));
     else window.open(link.href, "_blank", "noopener,noreferrer");
   }
@@ -1509,7 +1509,7 @@ function Proposal({
             <Button tier="primary" onClick={press(onAccept)}>
               Accept <kbd>A</kbd>
             </Button>
-            <Button onClick={press(open)}>
+            <Button onClick={press(openLink)}>
               Open <kbd>O</kbd>
             </Button>
             <Button onClick={press(onPromote)}>
