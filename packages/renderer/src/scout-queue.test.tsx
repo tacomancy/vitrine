@@ -332,8 +332,9 @@ describe("the Scout Queue", () => {
     const list = await screen.findByRole("list", { name: "Scouts" });
 
     fireEvent.click(
-      await within(list).findByRole("button", { name: "Run now" })
+      await within(list).findByRole("button", { name: /Sleep and memory/ })
     );
+    fireEvent.click(await screen.findByRole("button", { name: "Run now" }));
 
     expect(
       await screen.findByText(
@@ -360,8 +361,9 @@ describe("the Scout Queue", () => {
     const list = await screen.findByRole("list", { name: "Scouts" });
 
     fireEvent.click(
-      await within(list).findByRole("button", { name: "Run now" })
+      await within(list).findByRole("button", { name: /Sleep and memory/ })
     );
+    fireEvent.click(await screen.findByRole("button", { name: "Run now" }));
 
     expect(await screen.findByText("This run failed: http.")).toBeDefined();
   });
@@ -390,7 +392,7 @@ describe("the Scout Queue", () => {
     const two = () => [card(), card({ id: 8, title: "Another" })];
     const hand = () => screen.findByRole("article");
 
-    it("lists the rest of the stack under the card in hand, and the rail counts per Scout", async () => {
+    it("lists the rest of the stack under the card in hand, and the strip counts per Scout", async () => {
       renderApp(
         answers([
           card(),
@@ -422,10 +424,7 @@ describe("the Scout Queue", () => {
       expect(
         within(rail).getByRole("button", { name: /Sleep and memory/ })
           .textContent
-      ).toBe("Sleep and memory2");
-      expect(
-        within(rail).getByRole("button", { name: /All Scouts/ }).textContent
-      ).toBe("All Scouts3");
+      ).toBe("Sleep and memory2—");
     });
 
     it("groups the stack by the Scout chosen on the rail", async () => {
@@ -919,18 +918,26 @@ describe("the Scout Queue", () => {
       );
     });
 
-    it("withholds the rail's counts when the stack could not be read, since a 0 would read as all clear", async () => {
-      renderApp(answers([], { "scouts.queue": fail("queue unreadable") }));
-      const rail = await screen.findByRole("list", { name: "Scouts" });
+    it("withholds the strip's counts when the stack could not be read, since a count would read as all clear", async () => {
+      renderApp(
+        answers([card()], { "scouts.queue": fail("queue unreadable") })
+      );
+      const strip = await screen.findByRole("list", { name: "Scouts" });
       await within(await surface()).findByText("not known");
 
-      expect(within(rail).queryAllByText("0")).toHaveLength(0);
+      expect(
+        (await within(strip).findByRole("button", { name: /Sleep and memory/ }))
+          .textContent
+      ).toBe("Sleep and memory—");
       cleanup();
 
-      renderApp(answers([]));
+      renderApp(answers([card()]));
       const answered = await screen.findByRole("list", { name: "Scouts" });
       await vi.waitFor(() =>
-        expect(within(answered).getAllByText("0")).toHaveLength(2)
+        expect(
+          within(answered).getByRole("button", { name: /Sleep and memory/ })
+            .textContent
+        ).toBe("Sleep and memory1—")
       );
     });
 
@@ -989,7 +996,7 @@ describe("the Scout Queue", () => {
       ).toHaveLength(1);
     });
 
-    it("the rail says the Scouts are not known rather than showing All Scouts alone", async () => {
+    it("the strip says the Scouts are not known rather than showing no tiles", async () => {
       renderApp(answers([], { "scouts.list": fail("list unreadable") }));
       const rail = await screen.findByRole("list", { name: "Scouts" });
 

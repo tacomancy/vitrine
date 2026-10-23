@@ -106,7 +106,7 @@ export const ALLOWED_MARKUP = [
   ["PositionHistory.tsx", 1, CHOOSES],
   ["QuestionMap.tsx", 1, CHOOSES],
   ["Reader.tsx", 1, REFUSED],
-  ["ScoutQueue.tsx", 5, CHOOSES],
+  ["ScoutQueue.tsx", 3, CHOOSES],
 ].map(([file, count, reason]) => ({ file, count, reason }));
 
 // The primitives themselves are where the bare elements live.

@@ -936,7 +936,7 @@ describe("a row's link", () => {
     expect(
       (
         await within(rail).findByRole("button", { name: /Quiet by design/ })
-      ).getAttribute("aria-current")
+      ).getAttribute("aria-pressed")
     ).toBe("true");
   });
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AcceptRate,
   Card,
   Health,
   LaneMove,
@@ -7,7 +8,7 @@ import type {
   QueueSort,
   RankSignal,
 } from "core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { questionChoices } from "./AssignedQuestions";
 import { useChosenInView } from "./chosen";
 import { FirstSlot } from "./FirstSlot";
@@ -20,6 +21,7 @@ import styles from "./ScoutQueue.module.css";
 import { Button, SegmentedControl } from "./Form";
 import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import { CostLine, DROPPED, NOTHING_PENDING, VoiceLine } from "./ScoutVoice";
+import { percent } from "./charts/line";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -388,23 +390,27 @@ export function ScoutQueue({
     },
   ];
 
-  const railRows = [
-    { id: null, name: "All Scouts" },
-    ...(scouts.data?.scouts ?? []),
-  ];
   const countFor = (id: string | null) =>
     id === null
       ? everything.length
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
   const costOf = (id: string): number | null =>
     health.data?.scouts.find((h) => h.id === id)?.lastCostUsd ?? null;
+  // Accept rate rides on Scout Activity's read; a tile cannot say a rate that
+  // read has not given, and says that instead of drawing a bare gap.
+  const activity = useQuery(trpc.scouts.activity.queryOptions());
+  const rateOf = (id: string): AcceptRate | "unread" => {
+    const row = activity.data?.rows.find(
+      (r) => r.kind === "scout" && r.id === id
+    );
+    return row?.kind === "scout" ? row.acceptRate : "unread";
+  };
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
   const questions = questionChoices(questionList.data);
-  // A dropped Scout is not looking, so the rail does not list it. What it
+  // A dropped Scout is not looking, so it has no Voice of its own. What it
   // found stays in Review under its name (ADR 0042 decision 1), so while
-  // anything waits under it, or while it is the stack the researcher is in, it
-  // has an entry of its own beside the rail, marked.
+  // anything waits under it, or while it is the filter, it keeps a tile, marked.
   const droppedScouts = scouts.data?.dropped ?? [];
   const droppedStacks = droppedScouts.filter(
     (d) => countFor(d.id) > 0 || d.id === selected
@@ -418,7 +424,9 @@ export function ScoutQueue({
   useChosenInView(
     byQuestion
       ? `question-rail-${selectedQuestion ?? "all"}`
-      : `scout-rail-${selected ?? "all"}`
+      : selected === null
+        ? undefined
+        : `scout-tile-${selected}`
   );
   useChosenInView(
     lane === "review" && card !== undefined ? `scout-row-${card.id}` : undefined
@@ -692,118 +700,127 @@ export function ScoutQueue({
           </p>
         </>
       )}
+      {/* The health strip (ADR 0052 decision 1): a tile per Scout, drawn from the
+          same Health Loose Ends reads, that only filters. A broken Scout keeps
+          its tile so it cannot hide in a strip nobody filters. */}
       {!byQuestion && (
-        <ul className={styles.scouts} aria-label="Scouts">
+        <ul className={styles.strip} aria-label="Scouts">
           {scouts.isError && (
-            <li className={styles.scout}>
+            <li>
               <FirstSlot voice="wrong" claim="" />
             </li>
           )}
-          {railRows.map((row) => (
-            <li key={row.id ?? "all"} className={styles.scout}>
-              <button
-                type="button"
-                id={`scout-rail-${row.id ?? "all"}`}
-                className={styles.railRow}
-                aria-current={row.id === selected ? "true" : undefined}
-                onClick={() => choose(row.id)}
-              >
-                <span>{row.name}</span>
-                {/* A 0 beside a read that failed would read as all clear. */}
-                {!queue.isError && (
-                  <span className={styles.count}>{countFor(row.id)}</span>
-                )}
-              </button>
-              {row.id !== null && (
-                <Button
-                  disabled={run.isPending}
-                  onClick={() => run.mutate({ scoutId: row.id })}
-                >
-                  Run now
-                </Button>
-              )}
-              {/* On the row as well as in the header, so a broken Scout cannot
-                hide in a group nobody selects (spec #447 story 42). */}
-              {row.id !== null && <VoiceLine health={healthOf(row.id)} />}
-            </li>
+          {(scouts.data?.scouts ?? []).map((listed) => (
+            <ScoutTile
+              key={listed.id}
+              name={listed.name}
+              id={listed.id}
+              pending={queue.isError ? null : countFor(listed.id)}
+              chosen={listed.id === selected}
+              onChoose={() => choose(listed.id === selected ? null : listed.id)}
+              rate={rateOf(listed.id)}
+            >
+              <VoiceLine health={healthOf(listed.id)} />
+            </ScoutTile>
+          ))}
+          {droppedStacks.map((dropped) => (
+            <ScoutTile
+              key={dropped.id}
+              name={dropped.name}
+              id={dropped.id}
+              pending={queue.isError ? null : countFor(dropped.id)}
+              chosen={dropped.id === selected}
+              onChoose={() =>
+                choose(dropped.id === selected ? null : dropped.id)
+              }
+              rate={rateOf(dropped.id)}
+            >
+              <span className={styles.voice}>dropped</span>
+            </ScoutTile>
           ))}
           {/* A file that does not parse is a Scout the researcher made, not one
             nobody did: named, with what is wrong. */}
           {(scouts.data?.unreadable ?? []).map((file) => (
-            <li key={file.file} className={styles.scout}>
-              <span>{file.file}</span>
+            <li key={file.file} className={styles.tile}>
+              <span className={styles.tileName}>{file.file}</span>
               <VoiceLine
                 health={{ voice: "wrong", kind: null, sentence: file.sentence }}
               />
-            </li>
-          ))}
-        </ul>
-      )}
-      {!byQuestion && droppedStacks.length > 0 && (
-        <ul className={styles.scouts} aria-label="Dropped Scouts">
-          {droppedStacks.map((dropped) => (
-            <li key={dropped.id} className={styles.scout}>
-              <button
-                type="button"
-                id={`scout-rail-${dropped.id}`}
-                className={styles.railRow}
-                aria-current={dropped.id === selected ? "true" : undefined}
-                onClick={() => choose(dropped.id)}
+              <span
+                data-accept="none"
+                title="This Scout file cannot be read, so it has no rate."
+                className={styles.rate}
               >
-                <span>{dropped.name}</span>
-                {!queue.isError && (
-                  <span className={styles.count}>{countFor(dropped.id)}</span>
-                )}
-              </button>
-              <span className={styles.voice}>dropped</span>
+                —
+              </span>
             </li>
           ))}
         </ul>
       )}
-      {!byQuestion && selectedDropped !== undefined && form === null && (
+      {!byQuestion && selected !== null && form === null && (
         <div className={styles.scoutHeader}>
-          <h2 className={styles.scoutName}>{selectedDropped.name}</h2>
-          <VoiceLine health={{ voice: "not yet", sentence: DROPPED }} />
-        </div>
-      )}
-      {!byQuestion && selectedScout !== undefined && form === null && (
-        <div className={styles.scoutHeader}>
-          <h2 className={styles.scoutName}>{selectedScout.name}</h2>
-          <VoiceLine health={healthOf(selectedScout.id)} />
-          <CostLine usd={costOf(selectedScout.id)} />
-          {selectedScout.assigned.length > 0 && (
-            <ul className={styles.assigned} aria-label="Assigned Questions">
-              {selectedScout.assigned.map((id) => {
-                const q = questions.find((candidate) => candidate.id === id);
-                // A closed Question gets no nag: it is drawn with its glyph
-                // like any other and the Scout keeps running (story 23).
-                return (
-                  <li key={id}>
-                    {q !== undefined && <StatusGlyph status={q.status} />}{" "}
-                    {q?.question ?? id}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className={styles.actions}>
-            <Button
-              onClick={() => setForm({ edit: selectedScout.id, values: null })}
-            >
-              Edit
-            </Button>{" "}
-            <Button
-              disabled={pause.isPending}
-              onClick={() =>
-                pause.mutate({
-                  scoutId: selectedScout.id,
-                  paused: !selectedScout.paused,
-                })
-              }
-            >
-              {selectedScout.paused ? "Resume" : "Pause"}
+          <p className={styles.filterLine}>
+            only {groupName ?? selected} ·{" "}
+            <Button tier="inline" onClick={() => choose(null)}>
+              show all
             </Button>
           </p>
+          {selectedDropped !== undefined && (
+            <>
+              <h2 className={styles.scoutName}>{selectedDropped.name}</h2>
+              <VoiceLine health={{ voice: "not yet", sentence: DROPPED }} />
+            </>
+          )}
+          {selectedScout !== undefined && (
+            <>
+              <h2 className={styles.scoutName}>{selectedScout.name}</h2>
+              <VoiceLine health={healthOf(selectedScout.id)} />
+              <CostLine usd={costOf(selectedScout.id)} />
+              {selectedScout.assigned.length > 0 && (
+                <ul className={styles.assigned} aria-label="Assigned Questions">
+                  {selectedScout.assigned.map((id) => {
+                    const q = questions.find(
+                      (candidate) => candidate.id === id
+                    );
+                    // A closed Question gets no nag: it is drawn with its glyph
+                    // like any other and the Scout keeps running (story 23).
+                    return (
+                      <li key={id}>
+                        {q !== undefined && <StatusGlyph status={q.status} />}{" "}
+                        {q?.question ?? id}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <p className={styles.actions}>
+                <Button
+                  disabled={run.isPending}
+                  onClick={() => run.mutate({ scoutId: selectedScout.id })}
+                >
+                  Run now
+                </Button>{" "}
+                <Button
+                  onClick={() =>
+                    setForm({ edit: selectedScout.id, values: null })
+                  }
+                >
+                  Edit
+                </Button>{" "}
+                <Button
+                  disabled={pause.isPending}
+                  onClick={() =>
+                    pause.mutate({
+                      scoutId: selectedScout.id,
+                      paused: !selectedScout.paused,
+                    })
+                  }
+                >
+                  {selectedScout.paused ? "Resume" : "Pause"}
+                </Button>
+              </p>
+            </>
+          )}
         </div>
       )}
       {form !== null && (form.edit === null || editing !== undefined) && (
@@ -1091,6 +1108,71 @@ const whose = (scouts: Card["scouts"]) =>
   scouts
     .map((scout) => (scout.dropped ? `${scout.name} (dropped)` : scout.name))
     .join(" · ");
+
+/**
+ * One Scout's tile: a filter and nothing else (ADR 0052 decision 1). The
+ * Accept rate is a thin bar, or `—` with the reason in its title when nothing
+ * has been triaged or the rate cannot be said, never a 0% (ADR 0042 decisions
+ * 2 and 3).
+ */
+function ScoutTile({
+  id,
+  name,
+  pending,
+  chosen,
+  onChoose,
+  rate,
+  children,
+}: {
+  id: string;
+  name: string;
+  /** Null while the stack could not be read: a count beside a failed read would read as all clear. */
+  pending: number | null;
+  chosen: boolean;
+  onChoose: () => void;
+  rate: AcceptRate | "unread";
+  children: ReactNode;
+}) {
+  const rateTitle =
+    rate === "unread"
+      ? "Accept rate could not be read."
+      : rate.kind === "rate"
+        ? `${rate.accepted} of ${rate.triaged} triaged were accepted.`
+        : rate.kind === "unavailable"
+          ? rate.reason
+          : "Nothing triaged yet.";
+  return (
+    <li className={styles.tile}>
+      <Button
+        tier="listRow"
+        id={`scout-tile-${id}`}
+        aria-pressed={chosen}
+        onClick={onChoose}
+      >
+        <span className={styles.tileHead}>
+          <span className={styles.tileName}>{name}</span>
+          {/* A quiet Scout is said by its Voice; a bare 0 would read as the claim without its Warrant. */}
+          {pending !== null && pending > 0 && (
+            <span className={styles.count}>{pending}</span>
+          )}
+        </span>
+        {children}
+        {rate !== "unread" && rate.kind === "rate" ? (
+          <span data-accept="rate" title={rateTitle} className={styles.rate}>
+            <span className={styles.bar} aria-hidden="true">
+              <span style={{ width: percent(rate.rate) }} />
+            </span>
+            <span>{percent(rate.rate)}</span>
+          </span>
+        ) : (
+          <span data-accept="none" title={rateTitle} className={styles.rate}>
+            —
+          </span>
+        )}
+      </Button>
+    </li>
+  );
+}
 
 /** What the list shows: the live finds, never the digest's. */
 const live = (stack: Card[]) => stack.filter((c) => !c.pastWindow);
