@@ -831,6 +831,50 @@ describe("the Scout Queue", () => {
       expect(screen.queryByRole("list", { name: "New finds" })).toBeNull();
     });
 
+    it("offers Accept, Open and Send to Review as buttons beside the list, and no reject, defer or pass", async () => {
+      const promote = vi.fn(() => undefined);
+      const accept = vi.fn(() => ({ path: "sources/x.md", held: false }));
+      renderApp(
+        feed([line(1, "First line")], [], {
+          "scouts.promote": promote,
+          "scouts.accept": accept,
+        })
+      );
+      await toSkim();
+      const article = await screen.findByRole("article", {
+        name: "First line",
+      });
+
+      const names = within(article)
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+      expect(names).toEqual(
+        expect.arrayContaining(["Accept A", "Open O", "Send to Review T"])
+      );
+      expect(names.join()).not.toMatch(/reject|defer|pass/i);
+      fireEvent.click(
+        within(article).getByRole("button", { name: /Send to Review/ })
+      );
+      await waitFor(() =>
+        expect(promote).toHaveBeenCalledWith({ proposalId: 1 })
+      );
+      fireEvent.click(within(article).getByRole("button", { name: /Accept/ }));
+      await waitFor(() =>
+        expect(accept).toHaveBeenCalledWith({ proposalId: 1 })
+      );
+    });
+
+    it("J and K move through the lines as the arrows do", async () => {
+      renderApp(feed([line(1, "First line"), line(2, "Second line")]));
+      await toSkim();
+      await screen.findByRole("article", { name: "First line" });
+
+      fireEvent.keyDown(document.body, { key: "j" });
+      await screen.findByRole("article", { name: "Second line" });
+      fireEvent.keyDown(document.body, { key: "k" });
+      await screen.findByRole("article", { name: "First line" });
+    });
+
     it("tucks lines older than 30 days behind *show older*", async () => {
       renderApp(feed([line(1, "Fresh")], [line(2, "Stale")]));
       await toSkim();

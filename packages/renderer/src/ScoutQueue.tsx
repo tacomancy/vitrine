@@ -719,12 +719,7 @@ export function ScoutQueue({
             {`group: ${groupBy}`}
           </Button>
         )}
-        <Button
-          aria-expanded={byNameOpen}
-          onClick={() => setByNameOpen((was) => !was)}
-        >
-          Mute by name
-        </Button>
+        <Button onClick={() => setMutedOpen(true)}>Mute rules</Button>
         <Button onClick={() => setForm({ edit: null, values: null })}>
           + New Scout
         </Button>
@@ -945,23 +940,37 @@ export function ScoutQueue({
             )}
           </div>
         )}
-      {form === null && byNameOpen && (
-        <MuteByName
-          onSaved={(rule) => {
-            setByNameOpen(false);
-            acknowledge(`Muted ${ruleWords(rule)}.`);
-            void reread();
-          }}
-          onRefused={refuse}
-        />
-      )}
-      {form === null && mutedOpen && muted.data !== undefined && (
-        <MutedView
-          rules={muted.data.rules}
-          items={muted.data.items}
-          deleting={unmute.isPending}
-          onDelete={(rule) => unmute.mutate(rule)}
-        />
+      {/* Muted is a tab of the frame: the rules and what they hold, with
+       *Mute by name* inside it (ADR 0052 decision 6). */}
+      {form === null && mutedOpen && (
+        <>
+          <p className={styles.actions}>
+            <Button
+              aria-expanded={byNameOpen}
+              onClick={() => setByNameOpen((was) => !was)}
+            >
+              Mute by name
+            </Button>
+          </p>
+          {byNameOpen && (
+            <MuteByName
+              onSaved={(rule) => {
+                setByNameOpen(false);
+                acknowledge(`Muted ${ruleWords(rule)}.`);
+                void reread();
+              }}
+              onRefused={refuse}
+            />
+          )}
+          {muted.data !== undefined && (
+            <MutedView
+              rules={muted.data.rules}
+              items={muted.data.items}
+              deleting={unmute.isPending}
+              onDelete={(rule) => unmute.mutate(rule)}
+            />
+          )}
+        </>
       )}
       {stackShown && lane === "review" && passedThrough && (
         <p className={styles.line}>
@@ -971,31 +980,6 @@ export function ScoutQueue({
       )}
       {stackShown && lane === "skim" && (
         <>
-          {lines.length > 0 && (
-            <ul className={styles.skim} aria-label="Skim">
-              {lines.map((l) => (
-                <li key={l.id}>
-                  <button
-                    type="button"
-                    id={`skim-line-${l.id}`}
-                    className={styles.skimLine}
-                    aria-current={l === line ? "true" : undefined}
-                    onClick={() => setLineChosen(l.id)}
-                  >
-                    <span>{l.title}</span>
-                    <span className={styles.count}>{whose(l.scouts)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!showOlder && older.length > 0 && (
-            <p className={styles.line}>
-              <Button onClick={() => setShowOlder(true)}>
-                show older ({older.length})
-              </Button>
-            </p>
-          )}
           {lines.length === 0 &&
             older.length === 0 &&
             (unread ? (
@@ -1003,20 +987,56 @@ export function ScoutQueue({
             ) : (
               <SkimQuiet claim={fleet.data} dropped={droppedScouts.length} />
             ))}
-          {line !== undefined && muting?.id === line.id && (
-            <MuteOffer {...muteOffer(line)} />
-          )}
-          {line !== undefined && muting?.id !== line.id && (
-            <Proposal
-              key={line.id}
-              card={line}
-              lane="skim"
-              onMute={() => setMuting(line)}
-              onAccept={() => onAccept(line.id)}
-              onPromote={() => {
-                if (!promote.isPending) promote.mutate({ proposalId: line.id });
-              }}
-            />
+          {(lines.length > 0 || older.length > 0) && (
+            <div className={styles.panes}>
+              <div className={styles.listPane}>
+                {lines.length > 0 && (
+                  <ul className={styles.skim} aria-label="Skim">
+                    {lines.map((l) => (
+                      <li key={l.id}>
+                        <button
+                          type="button"
+                          id={`skim-line-${l.id}`}
+                          className={styles.skimLine}
+                          aria-current={l === line ? "true" : undefined}
+                          onClick={() => setLineChosen(l.id)}
+                        >
+                          <span>{l.title}</span>
+                          <span className={styles.count}>
+                            {whose(l.scouts)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!showOlder && older.length > 0 && (
+                  <p className={styles.line}>
+                    <Button onClick={() => setShowOlder(true)}>
+                      show older ({older.length})
+                    </Button>
+                  </p>
+                )}
+              </div>
+              <div className={styles.detailPane}>
+                {line !== undefined && muting?.id === line.id && (
+                  <MuteOffer {...muteOffer(line)} />
+                )}
+                {line !== undefined && muting?.id !== line.id && (
+                  <Proposal
+                    key={line.id}
+                    card={line}
+                    lane="skim"
+                    onMute={() => setMuting(line)}
+                    onAccept={() => onAccept(line.id)}
+                    onPromote={() => {
+                      if (!promote.isPending)
+                        promote.mutate({ proposalId: line.id });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
           )}
         </>
       )}
@@ -1394,12 +1414,15 @@ function Proposal({
       act();
     } else if (key === "o") {
       event.preventDefault();
-      // Looking records nothing; a link the rule refuses says which scheme it
-      // had instead of doing nothing (§ Invariants, no silent failures), as an
-      // alert because it answers the user's own `O` (ADR 0033 decision 5).
-      if (link.kind === "refused") refusal.say(linkRefusal(link.scheme));
-      else window.open(link.href, "_blank", "noopener,noreferrer");
+      open();
     }
+  }
+  // Looking records nothing; a link the rule refuses says which scheme it
+  // had instead of doing nothing (§ Invariants, no silent failures), as an
+  // alert because it answers the user's own `O` (ADR 0033 decision 5).
+  function open() {
+    if (link.kind === "refused") refusal.say(linkRefusal(link.scheme));
+    else window.open(link.href, "_blank", "noopener,noreferrer");
   }
 
   // Heard on the document, not only on the card: clicking the rail, *Undo* or
@@ -1481,10 +1504,22 @@ function Proposal({
       <RefusalLine refusal={refusal} />
       <p className={styles.abstract}>{card.abstract}</p>
       {lane === "skim" ? (
-        <p className={styles.actions}>
-          <kbd>A</kbd> accept · <kbd>O</kbd> open · <kbd>T</kbd> to Review ·{" "}
-          <kbd>M</kbd> mute…
-        </p>
+        <>
+          <div className={styles.decide}>
+            <Button tier="primary" onClick={press(onAccept)}>
+              Accept <kbd>A</kbd>
+            </Button>
+            <Button onClick={press(open)}>
+              Open <kbd>O</kbd>
+            </Button>
+            <Button onClick={press(onPromote)}>
+              Send to Review <kbd>T</kbd>
+            </Button>
+          </div>
+          <p className={styles.actions}>
+            <kbd>M</kbd> mute…
+          </p>
+        </>
       ) : (
         <>
           <div className={styles.decide}>
