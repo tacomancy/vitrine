@@ -456,19 +456,18 @@
 
 /* Side by side, each pane scrolls on its own under the header and rail
    (prototype 14), so J/K deep in a long list never scrolls the rail away.
-   Stacked, the surface scrolls as one. */
-@media (min-width: 60rem) {
-  .panes {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    flex: 1;
-    min-height: 0;
-    align-items: stretch;
-  }
+   Stacked, the surface scrolls as one. Which one is the Queue's own width
+   (`queue-width.ts`, ADR 0054 decision 2), not the window's. */
+.surface[data-layout="wide"] .panes {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
 
-  .listPane,
-  .detailPane {
-    overflow-y: auto;
-  }
+.surface[data-layout="wide"] .listPane,
+.surface[data-layout="wide"] .detailPane {
+  overflow-y: auto;
 }
 
 /* The form's own page (ADR 0053 decision 5): the pane the Queue's stack was in, now the form alone. */
