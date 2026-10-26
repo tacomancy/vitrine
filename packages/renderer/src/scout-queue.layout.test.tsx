@@ -17,10 +17,6 @@ beforeEach(() => {
   window.location.hash = "#/scouts";
 });
 
-// Review as a ranked list beside a detail pane (#837; ADR 0052 decisions 3,
-// 7 and 8): the selection is by Proposal id, the keys act on it and move on,
-// and one footer line holds the last act with its undo.
-
 const card = (id: number, rest: Partial<Card> = {}): Card => ({
   id,
   title: `Paper ${id}`,
