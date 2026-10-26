@@ -347,6 +347,20 @@
   gap: var(--space-3);
 }
 
+/* The line above the list: plain text on the gutter, one item per marked Scout.
+   No colour grade and no box — what says it needs you is the words and the
+   marker's shape (ADR 0053 decision 3). */
+.needsYou {
+  padding: 0 var(--space-5) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.needsYou ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .railFoot {
   margin: 0;
   padding: 0 var(--space-5) var(--space-3);

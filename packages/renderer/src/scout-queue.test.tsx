@@ -376,10 +376,17 @@ describe("the Scout Queue", () => {
       },
     });
 
-    expect(await screen.findByText("broken.yaml")).toBeDefined();
+    // In the rail, where it is a tile by file name, and in the line above the
+    // list that names every Scout needing the researcher.
+    const line = await screen.findByRole("region", { name: "Needs you" });
+    const rail = screen.getByRole("list", { name: "Scouts" });
+    expect(within(rail).getByText("broken.yaml")).toBeDefined();
     expect(
-      screen.getByText("This file could not be read: line 2 is not valid YAML.")
+      within(rail).getByText(
+        "This file could not be read: line 2 is not valid YAML."
+      )
     ).toBeDefined();
+    expect(within(line).getByText(/broken\.yaml/)).toBeDefined();
   });
 
   describe("Review, worked from the keyboard", () => {

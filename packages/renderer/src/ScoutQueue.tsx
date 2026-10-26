@@ -15,11 +15,18 @@ import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
 import { useQueueLayout } from "./queue-width";
-import { hashOf, SCOUT_MANAGEMENT } from "./router";
+import { hashOf, SCOUT_MANAGEMENT, scoutRow } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { Button } from "./Form";
-import { DROPPED, NOTHING_PENDING, VoiceLine, dollars } from "./ScoutVoice";
+import {
+  DROPPED,
+  HEALTH_UNREAD,
+  NOTHING_PENDING,
+  VoiceLine,
+  dollars,
+  needsYou,
+} from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -417,6 +424,30 @@ export function ScoutQueue({
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
+  // Derived from the same read as the rail's markers and never held, so the
+  // line goes when the cause does and has no way to be dismissed (ADR 0053
+  // decision 3). A file that will not parse is *wrong* too, and has no row id.
+  const needing = [
+    ...(scouts.data?.scouts ?? []).flatMap((listed) => {
+      const h = healthOf(listed.id);
+      return needsYou(h)
+        ? [
+            {
+              key: listed.id,
+              name: listed.name,
+              cause: h.sentence,
+              to: scoutRow(listed.id),
+            },
+          ]
+        : [];
+    }),
+    ...(scouts.data?.unreadable ?? []).map((file) => ({
+      key: file.file,
+      name: file.file,
+      cause: file.sentence,
+      to: SCOUT_MANAGEMENT,
+    })),
+  ];
   const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so it has no Voice of its own. What it
   // found stays in Review under its name (ADR 0042 decision 1), so while
@@ -714,6 +745,17 @@ export function ScoutQueue({
         )}
         <Button onClick={() => setMutedOpen(true)}>Mute rules</Button>
       </header>
+      {needing.length > 0 && (
+        <section className={styles.needsYou} aria-label="Needs you">
+          <ul>
+            {needing.map((n) => (
+              <li key={n.key}>
+                <a href={hashOf(n.to)}>{n.name}</a> — {n.cause}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {/* The rail (ADR 0053 decision 2): an entry per Scout, drawn from the same
           Health Loose Ends reads, that only filters, under every grouping. A
           broken Scout keeps its entry so it cannot hide in a rail nobody
@@ -733,7 +775,11 @@ export function ScoutQueue({
             chosen={listed.id === selected}
             onChoose={() => choose(listed.id === selected ? null : listed.id)}
           >
-            <VoiceLine health={healthOf(listed.id)} />
+            {health.isError ? (
+              <span className={styles.voice}>{HEALTH_UNREAD}</span>
+            ) : (
+              <VoiceLine health={healthOf(listed.id)} />
+            )}
           </RailEntry>
         ))}
         {droppedStacks.map((dropped) => (

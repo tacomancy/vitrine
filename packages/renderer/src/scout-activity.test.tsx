@@ -911,6 +911,22 @@ describe("the keyboard", () => {
   });
 });
 
+describe("arriving on a row", () => {
+  it("chooses the Scout the Queue's *needs you* line linked to, and keeps its address", async () => {
+    window.location.hash = "#/scout-management?scout=quiet";
+    renderApp(answers(fleet([BROKEN, RESTING, QUIET]), {}));
+    await tableRows();
+
+    const id = screen
+      .getByRole("group", { name: "Scout rows" })
+      .getAttribute("aria-activedescendant");
+    expect(document.getElementById(id!)!.textContent).toContain(
+      "Quiet by design"
+    );
+    expect(window.location.hash).toBe("#/scout-management?scout=quiet");
+  });
+});
+
 describe("a row's link", () => {
   it("opens the Queue on that Scout's stack", async () => {
     open(fleet([QUIET]), {

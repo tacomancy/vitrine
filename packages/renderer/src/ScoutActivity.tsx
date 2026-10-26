@@ -127,9 +127,12 @@ function inHeldOrder(rows: ActivityRow[], held: readonly string[] | null) {
  * only its own labels and the empty fleet.
  */
 export function ScoutActivity({
+  arriveOn,
   onNewScout,
   onEditOnForm,
 }: {
+  /** The Scout whose row the window arrived on (the Queue's *needs you* line); the researcher's own choice takes over from there. */
+  arriveOn?: string | undefined;
   /** With a Question id, the form opens with it Assigned. */
   onNewScout: (assigning?: string) => void;
   /** A page's address is changed on the form: this opens it on this Scout. */
@@ -141,7 +144,9 @@ export function ScoutActivity({
   const [sort, setSort] = useState<Sort | null>(null);
   // Held by the row's key and not its place, so a re-sort leaves the choice on
   // the Scout it was on.
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(
+    arriveOn === undefined ? null : scoutKey(arriveOn)
+  );
   // Nothing starts open: *edit* and the line weigh the same on every row, so
   // no row is singled out by being expanded (ADR 0042 decision 8). Held by the
   // row's key, as the choice is, so a re-sort leaves a row open.
