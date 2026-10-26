@@ -62,7 +62,7 @@ async function openQueue(page) {
     features: [{ name: "prefers-color-scheme", value: "dark" }],
   });
   await page.eval("location.hash='#/scouts'");
-  await page.wait("!!document.querySelector('#scout-tile-sleep')", 20000);
+  await page.wait("!!document.querySelector('#scout-rail-sleep')", 20000);
   for (let was = await body(page), i = 0; i < 12; i++) {
     await page.sleep(2500);
     const now = await body(page);
@@ -72,8 +72,8 @@ async function openQueue(page) {
   throw new Error("demo: the Queue never settled");
 }
 
-const tile = async (page, id) => {
-  await page.eval(`document.querySelector('#scout-tile-${id}').click()`);
+const railEntry = async (page, id) => {
+  await page.eval(`document.querySelector('#scout-rail-${id}').click()`);
   await page.sleep(500);
 };
 const rows = (page, label) =>
@@ -98,7 +98,7 @@ export const steps = {
   // the next; the footer says the last act and offers its undo.
   async triage(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     const body0 = await body(page);
     expect(
       /only Sleep and consolidation/.test(body0),
@@ -143,7 +143,7 @@ export const steps = {
   // A filter opens the Scout's header; show all clears it.
   async filter(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     const body1 = await body(page);
     expect(/below your cap of 2/.test(body1), "the Scout header holds the Cap");
     expect(/Run now/.test(body1), "the Scout header holds Run now");
@@ -153,13 +153,13 @@ export const steps = {
       !/only Sleep and consolidation/.test(await body(page)),
       "show all clears"
     );
-    await tile(page, "sleep");
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
+    await railEntry(page, "sleep");
     expect(
       !/only Sleep and consolidation/.test(await body(page)),
       "a second click clears"
     );
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     await shootThreeWays(page, "2-filter");
   },
 
@@ -261,12 +261,12 @@ export const steps = {
     await shootThreeWays(page, "5-muted");
   },
 
-  // Group by Question: the strip becomes Question tiles.
+  // Group by Question: the rail stays Scouts and Questions head the list.
   async question(page) {
     await openQueue(page);
     await press(page, "group: scout");
     await page.wait(
-      "document.querySelectorAll('[aria-label=\"Questions\"] button').length > 1",
+      "document.querySelectorAll('section[aria-labelledby^=\"heading-\"]').length > 1",
       10000
     );
     expect(
@@ -277,7 +277,7 @@ export const steps = {
     await press(page, "group: question");
   },
 
-  // A Scout file that does not parse keeps its tile, and a rules file that
+  // A Scout file that does not parse keeps its rail entry, and a rules file that
   // does not parse is said by name in the footer: neither looks like quiet.
   async broken(page) {
     await openQueue(page);
@@ -286,9 +286,9 @@ export const steps = {
     );
     expect(
       /broken\.yaml/.test(strip),
-      "the broken Scout keeps a tile by file name"
+      "the broken Scout keeps a rail entry by file name"
     );
-    // The strip is one row that scrolls sideways; bring the tile into the picture.
+    // The rail wraps; bring the entry into the picture.
     await page.eval(
       `[...document.querySelectorAll('[aria-label="Scouts"] li')].find(li => li.innerText.includes('broken.yaml')).scrollIntoView({ inline: 'center' })`
     );
