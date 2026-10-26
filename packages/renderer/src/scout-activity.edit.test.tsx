@@ -971,7 +971,7 @@ describe("a Scout that watches a page", () => {
     ]);
   });
 
-  it("takes the researcher to this Scout's form in the Queue when they ask for it", async () => {
+  it("takes the researcher to this Scout's form when they ask for it", async () => {
     open(() => fleet([PAGE]), {
       "questions.list": QUESTIONS,
       "scouts.list": {
@@ -1005,8 +1005,8 @@ describe("a Scout that watches a page", () => {
 
     fireEvent.click(edit.getByRole("button", { name: "open the form" }));
 
-    expect(window.location.hash).toBe("#/scouts?scout=lab");
-    // The Queue's form, which is the one with an Address in it.
+    expect(window.location.hash).toBe("#/scout-management/lab/edit");
+    // The form, which is the one with an Address in it.
     expect(await screen.findByLabelText("Address")).toBeDefined();
     expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(LAB);
   });
