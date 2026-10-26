@@ -20,6 +20,7 @@ import {
   readScouts,
   readScoutFile,
   scoutIdOf,
+  takenIdOf,
   SCOUTS_FOLDER,
   VENUE_ID,
   writeScoutFile,
@@ -457,6 +458,15 @@ export function setDropped(
 ): Promise<void> {
   return saving(async () => {
     const read = await readScouts(deps.vaultPath);
+    // An erased Scout has no file to change: drop or restore, the answer is
+    // the reason, said beside the name (ADR 0053 decision 6).
+    const gone = read.erased.find((t) => t.id === scoutId);
+    if (gone !== undefined) {
+      throw new VaultError(
+        "refused",
+        `${gone.name} was erased and cannot be ${dropped ? "dropped" : "restored"}.`
+      );
+    }
     // A dropped Scout is a file too, and restoring one has to find it.
     const found = fileOf(
       [...read.scouts, ...read.dropped],
@@ -741,7 +751,7 @@ function fileOf(scouts: Scout[], id: string, names: string[]) {
 }
 
 function freeId(name: string, names: string[]): string {
-  const taken = new Set(names.map(scoutIdOf));
+  const taken = new Set(names.map(takenIdOf));
   const base =
     name
       .normalize("NFKD")

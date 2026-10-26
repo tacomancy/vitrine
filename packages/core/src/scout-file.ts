@@ -117,6 +117,19 @@ const SCOUT_FILE = /\.ya?ml$/i;
 export const isScoutFile = (name: string) => SCOUT_FILE.test(name);
 export const scoutIdOf = (file: string) => file.replace(SCOUT_FILE, "");
 
+/**
+ * What an erased Scout leaves in place of its file (ADR 0053 decision 6): its
+ * name and id, nothing else, in `<id>.erased`. The extension is not a Scout's,
+ * so every reader that lists Scouts passes over it without being told to; only
+ * a reader that names a Scout by id asks for it, through `readScouts`.
+ */
+export type Tombstone = { id: string; name: string };
+const TOMBSTONE_FILE = /\.erased$/;
+export const isTombstoneFile = (name: string) => TOMBSTONE_FILE.test(name);
+/** The id a name in the Scouts folder takes, whichever kind of file it is: what a new Scout's id must not repeat. */
+export const takenIdOf = (file: string) =>
+  scoutIdOf(file).replace(TOMBSTONE_FILE, "");
+
 /** Shortest first, the order `dueUnder` names them in. The renderer takes types from `core` and no values, so its menu keeps a list of its own. */
 export const CADENCES = ["daily", "weekly", "monthly"] as const;
 const LANES = ["review", "skim"] as const;
@@ -156,6 +169,8 @@ export async function listScoutsFolder(vaultPath: string): Promise<string[]> {
 export async function readScouts(vaultPath: string): Promise<{
   scouts: Scout[];
   dropped: Scout[];
+  /** Tombstones: never a row, never restorable, only a name for a record that still points at the id. */
+  erased: Tombstone[];
   unreadable: UnreadableScout[];
 }> {
   const folder = join(vaultPath, SCOUTS_FOLDER);
@@ -163,6 +178,13 @@ export async function readScouts(vaultPath: string): Promise<{
   const scouts: Scout[] = [];
   const dropped: Scout[] = [];
   const unreadable: UnreadableScout[] = [];
+  const erased: Tombstone[] = [];
+  for (const file of names.filter(isTombstoneFile).sort()) {
+    const id = file.replace(TOMBSTONE_FILE, "");
+    // A tombstone that cannot be read still says the Scout is gone: the id is
+    // the name it can give, so what points at it does not dangle.
+    erased.push({ id, name: await tombstoneName(folder, file, id) });
+  }
   for (const file of names.filter(isScoutFile).sort()) {
     let text: string;
     try {
@@ -180,7 +202,29 @@ export async function readScouts(vaultPath: string): Promise<{
     else if (read.scout.dropped !== null) dropped.push(read.scout);
     else scouts.push(read.scout);
   }
-  return { scouts, dropped, unreadable };
+  // A Scout file and a tombstone for one id (only by hand) is a Scout: the
+  // file is the later word, and it must not be called erased.
+  const live = new Set([...scouts, ...dropped].map((s) => s.id));
+  return {
+    scouts,
+    dropped,
+    erased: erased.filter((t) => !live.has(t.id)),
+    unreadable,
+  };
+}
+
+async function tombstoneName(
+  folder: string,
+  file: string,
+  id: string
+): Promise<string> {
+  try {
+    const doc: unknown = parse(await readFile(join(folder, file), "utf8"));
+    const name = (doc as Record<string, unknown> | null)?.["name"];
+    return typeof name === "string" && name.trim() !== "" ? name.trim() : id;
+  } catch {
+    return id;
+  }
 }
 
 // Editing a Scout's own file — the form's save, and pause and resume from the
