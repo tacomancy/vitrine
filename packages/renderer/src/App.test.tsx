@@ -96,7 +96,7 @@ describe("the window with a vault open", () => {
       "Vault",
       "Loose Ends",
       "Question Map",
-      "Scout Activity",
+      "Scouts",
     ]);
     // The rail's links only: Home's own foot carries the dashboards' names too.
     const links = within(nav).getAllByRole("link");
@@ -110,7 +110,7 @@ describe("the window with a vault open", () => {
       ["Vault", "#/vault"],
       ["Loose Ends", "#/loose-ends"],
       ["Question Map", "#/question-map"],
-      ["Scout Activity", "#/scout-activity"],
+      ["Scouts", "#/scout-management"],
     ]);
     expect(within(nav).getByRole("link", { current: "page" }).textContent).toBe(
       "Home"

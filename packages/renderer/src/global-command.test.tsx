@@ -182,7 +182,7 @@ const RECENT = [
   row("▪", "Vault", "surface"),
   row("▦", "Loose Ends", "dashboard"),
   row("▦", "Question Map", "dashboard"),
-  row("▦", "Scout Activity", "dashboard"),
+  row("▦", "Scouts", "dashboard"),
   row("⚙", "Settings", "settings"),
   row("■", "Does slow-wave density predict recall gain?", "research question"),
   row("◆", "Is replay necessary for consolidation?", "question"),
@@ -513,16 +513,14 @@ describe("the choice, and where ↵ takes it", () => {
     expect(document.activeElement).toBe(away);
   });
 
-  it("goes to Scout Activity by name: a prefix of it is strong enough to mean go", async () => {
+  it("goes to Scouts by name: a prefix of it is strong enough to mean go", async () => {
     const dialog = await openCommand();
-    type(dialog, "scout act");
+    type(dialog, "scouts");
     const { destinations } = await settled(dialog, 1);
-    expect(said(destinations)).toEqual([
-      row("▦", "Scout Activity", "dashboard"),
-    ]);
-    expect(verbOf(dialog)).toBe("↵Go toScout Activity");
+    expect(said(destinations)).toEqual([row("▦", "Scouts", "dashboard")]);
+    expect(verbOf(dialog)).toBe("↵Go toScouts");
     press(dialog, "Enter");
-    expect(window.location.hash).toBe("#/scout-activity");
+    expect(window.location.hash).toBe("#/scout-management");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
