@@ -88,7 +88,7 @@ const open = (
   activity: unknown,
   more: Record<string, unknown> = {}
 ): ReturnType<typeof renderApp> => {
-  window.location.hash = "#/scout-activity";
+  window.location.hash = "#/scout-management";
   return renderApp({
     "vault.current": vault,
     "questions.list": empty,
@@ -114,7 +114,7 @@ const DROPPED = "dropped — it no longer runs; what it found stays in Review";
 /** A moment for any re-read the page was going to make to land: the tests below pin that none is made. */
 const letAReadLand = () => new Promise((resolve) => setTimeout(resolve, 50));
 
-describe("Scout Activity — drop", () => {
+describe("Scouts screen — drop", () => {
   it("is offered on every Scout's row, and on nothing that is not a Scout", async () => {
     open(read([SLEEP, BLOG, TORN]));
 
@@ -259,7 +259,7 @@ describe("Scout Activity — drop", () => {
   });
 });
 
-describe("Scout Activity — the dropped line", () => {
+describe("Scouts screen — the dropped line", () => {
   const GONE = { id: "gone", name: "Gone" };
   const SLEEPING = { id: "sleep", name: "Sleep and memory" };
 

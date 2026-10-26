@@ -89,7 +89,7 @@ describe("the dashboards foot", () => {
     expect(links.map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
       ["Loose Ends", "#/loose-ends"],
       ["Question Map", "#/question-map"],
-      ["Scout Activity", "#/scout-activity"],
+      ["Scouts", "#/scout-management"],
     ]);
     // Nothing summarised: the foot holds the three names and no digit.
     expect(foot.textContent).not.toMatch(/\d/);
@@ -152,7 +152,7 @@ describe("the dashboards foot", () => {
     ).toHaveLength(0);
     const focusable = [...page.querySelectorAll("a[href], button")];
     const last = focusable.slice(-3).map((e) => e.textContent);
-    expect(last).toEqual(["Loose Ends", "Question Map", "Scout Activity"]);
+    expect(last).toEqual(["Loose Ends", "Question Map", "Scouts"]);
   });
 });
 

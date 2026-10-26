@@ -19,7 +19,7 @@ export type Route =
   | { surface: "experiments" }
   | { surface: "loose-ends" }
   | { surface: "question-map" }
-  | { surface: "scout-activity" }
+  | { surface: "scout-management" }
   | { surface: "scouts"; scout?: string; view?: "muted" | "skim" }
   | { surface: "settings"; section?: "credentials" }
   | { surface: "vault"; path?: string };
@@ -47,8 +47,8 @@ export const INBOX: Route = { surface: "inbox" };
 export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 /** The Question Map (ADR 0041): a Dashboard, opened deliberately. */
 export const QUESTION_MAP: Route = { surface: "question-map" };
-/** Scout Activity (ADR 0042): the Dashboard that asks whether the Scouts earn their keep. */
-export const SCOUT_ACTIVITY: Route = { surface: "scout-activity" };
+/** The Scouts screen (ADR 0053, formerly Scout Activity, ADR 0042): the Dashboard that asks whether the Scouts earn their keep. */
+export const SCOUT_MANAGEMENT: Route = { surface: "scout-management" };
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
 /** The Vault (spec #680): the ordinary note-taking surface, with the file open when it names one. */
@@ -107,8 +107,8 @@ export function hashOf(route: Route): string {
       return "#/loose-ends";
     case "question-map":
       return "#/question-map";
-    case "scout-activity":
-      return "#/scout-activity";
+    case "scout-management":
+      return "#/scout-management";
     case "experiments":
       return "#/experiments";
     case "vault":
@@ -210,7 +210,10 @@ function parseHash(hash: string): Route {
   if (hash === "" || hash === "#/home") return HOME;
   if (hash === "#/loose-ends") return LOOSE_ENDS;
   if (hash === "#/question-map") return QUESTION_MAP;
-  if (hash === "#/scout-activity") return SCOUT_ACTIVITY;
+  // The address Scout Activity had (ADR 0053): a saved link still lands here, and
+  // the canonicalising replace below rewrites the window to the new one.
+  if (hash === "#/scout-management") return SCOUT_MANAGEMENT;
+  if (hash === "#/scout-activity") return SCOUT_MANAGEMENT;
   if (hash === "#/experiments") return EXPERIMENTS;
   if (hash === "#/vault") return VAULT;
   if (hash === "#/settings") return SETTINGS;
