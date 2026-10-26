@@ -14,6 +14,7 @@ import { FirstSlot } from "./FirstSlot";
 import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
+import { useQueueLayout } from "./queue-width";
 import { hashOf, SCOUT_MANAGEMENT } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
@@ -83,6 +84,7 @@ export function ScoutQueue({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const { ref: queueRef, layout } = useQueueLayout();
   const scouts = useQuery(trpc.scouts.list.queryOptions());
   const [sort, setSortState] = useState<QueueSort>(sessionSort.get);
   const setSort = (next: QueueSort) => {
@@ -635,7 +637,12 @@ export function ScoutQueue({
   });
 
   return (
-    <section className={styles.surface} aria-label="Scout Queue">
+    <section
+      ref={queueRef}
+      className={styles.surface}
+      data-layout={layout}
+      aria-label="Scout Queue"
+    >
       <header className={styles.header}>
         <h1 className={styles.title}>Scout Queue</h1>
         <div role="tablist" aria-label="Lane" className={styles.tabs}>
