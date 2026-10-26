@@ -27,7 +27,7 @@ const META = 4;
 /** The Queue, after the launch's two due Scouts have answered and the page has stopped changing. */
 async function openQueue(page) {
   await page.eval("location.hash='#/scouts'");
-  await page.wait("!!document.querySelector('#scout-tile-sleep')", 20000);
+  await page.wait("!!document.querySelector('#scout-rail-sleep')", 20000);
   // Two Scouts run at launch, three seconds apart at the earliest, and the
   // strip changes as each answers: quiet is the page saying the same twice.
   for (let was = await body(page), i = 0; i < 12; i++) {
@@ -41,7 +41,7 @@ async function openQueue(page) {
 
 /** A tile filters to its Scout; a second click on it would clear the filter. */
 const tile = async (page, id) => {
-  await page.eval(`document.querySelector('#scout-tile-${id}').click()`);
+  await page.eval(`document.querySelector('#scout-rail-${id}').click()`);
   await page.sleep(500);
 };
 

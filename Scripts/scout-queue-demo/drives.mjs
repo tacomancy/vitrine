@@ -62,7 +62,7 @@ async function openQueue(page) {
     features: [{ name: "prefers-color-scheme", value: "dark" }],
   });
   await page.eval("location.hash='#/scouts'");
-  await page.wait("!!document.querySelector('#scout-tile-sleep')", 20000);
+  await page.wait("!!document.querySelector('#scout-rail-sleep')", 20000);
   for (let was = await body(page), i = 0; i < 12; i++) {
     await page.sleep(2500);
     const now = await body(page);
@@ -73,7 +73,7 @@ async function openQueue(page) {
 }
 
 const tile = async (page, id) => {
-  await page.eval(`document.querySelector('#scout-tile-${id}').click()`);
+  await page.eval(`document.querySelector('#scout-rail-${id}').click()`);
   await page.sleep(500);
 };
 const rows = (page, label) =>

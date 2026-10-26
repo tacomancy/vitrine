@@ -275,7 +275,7 @@ describe("the Scout Queue — a dropped Scout", () => {
     const tile = within(await rail()).getByRole("button", {
       name: /Blog ring/,
     });
-    expect(tile.textContent).toBe("Blog ringdropped—");
+    expect(tile.textContent).toBe("Blog ringdropped");
     fireEvent.click(screen.getByRole("button", { name: "show all" }));
 
     await vi.waitFor(() =>
