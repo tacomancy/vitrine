@@ -104,6 +104,7 @@ const EXPERIMENT = "#/experiment/";
 const SOURCE = "#/source/";
 const VAULT_FILE = "#/vault/";
 const SCOUT_FORM = "#/scout-management/";
+const SCOUT_ROW = "#/scout-management?scout=";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -269,11 +270,14 @@ function parseHash(hash: string): Route {
   // The address Scout Activity had (ADR 0053): a saved link still lands here, and
   // the canonicalising replace below rewrites the window to the new one.
   if (hash === "#/scout-management") return SCOUT_MANAGEMENT;
-  if (hash.startsWith("#/scout-management?scout=")) {
-    const scout = decodeURIComponent(
-      hash.slice("#/scout-management?scout=".length)
-    );
-    return scout === "" ? SCOUT_MANAGEMENT : scoutRow(scout);
+  if (hash.startsWith(SCOUT_ROW)) {
+    // A malformed escape lands on the screen itself, as an empty id does.
+    try {
+      const scout = decodeURIComponent(hash.slice(SCOUT_ROW.length));
+      return scout === "" ? SCOUT_MANAGEMENT : scoutRow(scout);
+    } catch {
+      return SCOUT_MANAGEMENT;
+    }
   }
   if (hash === "#/scout-activity") return SCOUT_MANAGEMENT;
   if (hash.startsWith(SCOUT_FORM)) return parseScoutForm(hash);

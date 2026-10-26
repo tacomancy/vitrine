@@ -160,6 +160,54 @@ describe("the marker beside a Scout that needs you", () => {
   });
 });
 
+describe("a dropped Scout with cards waiting", () => {
+  it("keeps its entry, marked dropped, and is neither marked nor named in the line", async () => {
+    const dropped = { ...scout("old", "Old one"), dropped: "2026-09-25" };
+    renderApp(
+      answersFor([["Quiet", QUIET, null]], {
+        "scouts.list": {
+          scouts: [scout("quiet", "Quiet")],
+          dropped: [dropped],
+          unreadable: [],
+        },
+        "scouts.queue": [
+          {
+            id: 1,
+            title: "Paper 1",
+            authors: [],
+            published: "2026-09-29T10:00:00Z",
+            venue: null,
+            venueType: null,
+            venueId: null,
+            alsoOnArxiv: null,
+            publisher: null,
+            abstract: "An abstract.",
+            url: "http://arxiv.org/abs/2609.05678v1",
+            doi: null,
+            lane: "review",
+            scouts: [
+              { id: "old", name: "Old one", dropped: true, assigned: [] },
+            ],
+            retroactive: false,
+            signals: [],
+            moved: null,
+            pastWindow: false,
+            counterweight: false,
+          },
+        ],
+        "scouts.groups": [
+          { id: "old", runId: 5, runPending: 1, deferred: 0, held: [] },
+        ],
+      })
+    );
+    const li = await entry("Old one");
+
+    expect(li.textContent).toContain("dropped");
+    expect(markers(li)).toEqual([]);
+    expect(screen.queryByRole("region", { name: "Needs you" })).toBeNull();
+  });
+});
+
 describe("the line above the list", () => {
   const line = () => screen.queryByRole("region", { name: "Needs you" });
 

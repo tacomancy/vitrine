@@ -25,7 +25,7 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
   if (health.voice === "not yet") {
     return (
       <span className={styles.voice} data-voice="not yet">
-        {health.kind === "credentials" && (
+        {needsYou(health) && (
           <span
             role="img"
             aria-label="waiting for a key"
@@ -81,6 +81,9 @@ export const NOTHING_PENDING = "Nothing pending.";
  */
 export const DROPPED =
   "dropped — it no longer runs; what it found stays in Review";
+
+/** A Scout's Voice when the read of its health failed: said in words, never as silence that looks like a quiet field. */
+export const HEALTH_UNREAD = "health could not be read";
 
 /** A run's spend, to the precision a small run needs to be seen at all. */
 export const dollars = (usd: number) =>

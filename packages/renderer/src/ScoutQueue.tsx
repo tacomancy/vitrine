@@ -20,6 +20,7 @@ import styles from "./ScoutQueue.module.css";
 import { Button } from "./Form";
 import {
   DROPPED,
+  HEALTH_UNREAD,
   NOTHING_PENDING,
   VoiceLine,
   dollars,
@@ -699,10 +700,6 @@ export function ScoutQueue({
         )}
         <Button onClick={() => setMutedOpen(true)}>Mute rules</Button>
       </header>
-      {/* The rail (ADR 0053 decision 2): an entry per Scout, drawn from the same
-          Health Loose Ends reads, that only filters, under every grouping. A
-          broken Scout keeps its entry so it cannot hide in a rail nobody
-          filters. */}
       {needing.length > 0 && (
         <section className={styles.needsYou} aria-label="Needs you">
           <ul>
@@ -714,6 +711,10 @@ export function ScoutQueue({
           </ul>
         </section>
       )}
+      {/* The rail (ADR 0053 decision 2): an entry per Scout, drawn from the same
+          Health Loose Ends reads, that only filters, under every grouping. A
+          broken Scout keeps its entry so it cannot hide in a rail nobody
+          filters. */}
       <ul className={styles.rail} aria-label="Scouts">
         {scouts.isError && (
           <li>
@@ -730,7 +731,7 @@ export function ScoutQueue({
             onChoose={() => choose(listed.id === selected ? null : listed.id)}
           >
             {health.isError ? (
-              <span className={styles.voice}>health could not be read</span>
+              <span className={styles.voice}>{HEALTH_UNREAD}</span>
             ) : (
               <VoiceLine health={healthOf(listed.id)} />
             )}

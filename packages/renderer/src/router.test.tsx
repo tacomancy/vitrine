@@ -43,6 +43,13 @@ describe("the window's location is the URL hash", () => {
     expect(window.location.hash).toBe("#/scout-management");
   });
 
+  it("lands a row address with a malformed escape on the Scouts screen instead of throwing", async () => {
+    window.location.hash = "#/scout-management?scout=%E0%A4%A";
+    renderApp(answers);
+    expect(await screen.findByRole("region", { name: "Scouts" })).toBeDefined();
+    expect(window.location.hash).toBe("#/scout-management");
+  });
+
   it("treats a hash it does not know as the Inbox", async () => {
     window.location.hash = "#/nowhere";
     renderApp(answers);
