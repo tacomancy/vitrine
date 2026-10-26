@@ -740,6 +740,8 @@ The window's landing at `#/home` (spec #728, beat 12, ADR 0050; the route and Si
 
 **What Home never has:** a total, a count beside Loose Ends or any Dashboard, a badge or number on its Sidebar entry, a `role="alert"` for a state, *nothing is broken* in any form, or a figure for the older Questions. The Dashboards foot (Loose Ends, Question Map, Scouts as three bare links) is ticket #735.
 
+**The Queue's layout** (#868, ADR 0054 decisions 2 and 5). The Queue reads its own width, not the window's, through one hook, `useQueueLayout` (`queue-width.ts`), which sets `data-layout="wide"` or `"narrow"` on the surface; the stylesheet selects on the attribute and the component reads the same value, so the threshold is written once, `WIDE_FROM` = 960px. That is where the abstract keeps about 60 characters of line at a 1280px window with the 238px sidebar open and the rail present (the detail takes 3 of 5 parts). Wide, the list and the detail sit side by side and scroll on their own; narrow, they stack and the surface scrolls as one. When room runs out the rail yields first, then the list, then the detail. jsdom has no `ResizeObserver` and cannot evaluate a container query, so `jsdom-gaps.ts` installs a stand-in (`queue-width.stub.ts`) a test sets with `setQueueWidth`.
+
 ## UI conventions
 
 The rules a form is drawn by, written from the New Scout form (#783, spec #782) and grown by each surface moved onto them; `packages/renderer/src/Form.tsx` carries them so a surface follows them by using the components. They compose the tokens of `docs/reference/branding/`; no divergence from `BRAND.md` has been needed yet, so none has an ADR.

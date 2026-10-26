@@ -1,3 +1,5 @@
+import { installStubResizeObserver } from "./queue-width.stub";
+
 /**
  * What jsdom leaves out, supplied for the suite and nowhere else.
  *
@@ -16,3 +18,7 @@
 Element.prototype.scrollIntoView = function scrollIntoView() {
   // Nothing to scroll: jsdom gives every element a zero-sized box.
 };
+
+// The browser's width signal, standing in for what a container query reads
+// (`queue-width.stub.ts`).
+installStubResizeObserver();
