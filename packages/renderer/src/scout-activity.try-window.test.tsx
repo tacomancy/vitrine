@@ -76,7 +76,7 @@ const fleet = (row: ScoutRow): ScoutActivity => ({
 });
 
 const opened = async (row: ScoutRow, more: Record<string, unknown> = {}) => {
-  window.location.hash = "#/scout-activity";
+  window.location.hash = "#/scout-management";
   renderApp({
     "vault.current": vault,
     "questions.list": empty,

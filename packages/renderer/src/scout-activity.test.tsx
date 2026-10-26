@@ -78,11 +78,11 @@ const answers = (
 });
 
 const open = (activity: unknown, more: Record<string, unknown> = {}) => {
-  window.location.hash = "#/scout-activity";
+  window.location.hash = "#/scout-management";
   return renderApp(answers(activity, more));
 };
 
-const page = () => screen.findByRole("region", { name: "Scout Activity" });
+const page = () => screen.findByRole("region", { name: "Scouts" });
 
 // Three Scouts of three different health and a file that will not parse, as
 // the core hands them over: the words in `health` are the core's, copied from
@@ -216,7 +216,7 @@ const reviewParts = (row: HTMLElement) =>
 
 const HEADER_NOTE = "Skim is a feed and has no depth";
 
-describe("Scout Activity — Review depth and age", () => {
+describe("Scouts screen — Review depth and age", () => {
   it("states a Scout's stack in neutral facts, the ages beside the pending figure and what is deferred apart after them", async () => {
     open(fleet([BROKEN]));
 
@@ -321,15 +321,15 @@ describe("Scout Activity — Review depth and age", () => {
   });
 });
 
-describe("Scout Activity", () => {
+describe("Scouts", () => {
   it("opens at its Address, with the Sidebar entry among the Dashboards lit", async () => {
     open(NONE);
 
     const view = await page();
 
-    expect(view.querySelector("h1")?.textContent).toBe("Scout Activity");
+    expect(view.querySelector("h1")?.textContent).toBe("Scouts");
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe(
-      "Scout Activity"
+      "Scouts"
     );
   });
 
@@ -338,10 +338,10 @@ describe("Scout Activity", () => {
     renderApp(answers(NONE));
     await screen.findByRole("region", { name: "Question Inbox" });
 
-    fireEvent.click(screen.getByRole("link", { name: "Scout Activity" }));
+    fireEvent.click(screen.getByRole("link", { name: "Scouts" }));
 
     expect(await page()).toBeDefined();
-    expect(window.location.hash).toBe("#/scout-activity");
+    expect(window.location.hash).toBe("#/scout-management");
   });
 });
 

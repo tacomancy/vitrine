@@ -207,7 +207,7 @@ function Workspace({ vault }: { vault: Vault }) {
           )}
           {route.surface === "question-map" && <QuestionMap />}
           {route.surface === "vault" && <VaultSurface path={route.path} />}
-          {route.surface === "scout-activity" && (
+          {route.surface === "scout-management" && (
             <ScoutActivity
               onNewScout={(assigning) => {
                 // The Queue holds the form, and the window holds what it is
