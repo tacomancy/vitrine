@@ -9,9 +9,9 @@ beforeEach(() => {
   window.location.hash = "#/scouts";
 });
 
-// The health strip (#838; ADR 0052 decisions 1 and 2): one tile per Scout,
-// carrying its Voice and Accept rate, that only filters; and the Scout header a
-// filter opens, holding everything the old rail's selected Scout offered.
+// The rail (#857; ADR 0053 decision 2, amending ADR 0052 decision 1): one entry
+// per Scout, carrying its Voice, that only filters under every grouping; and the
+// Scout header a filter opens.
 
 const SLEEP = {
   id: "sleep",
@@ -111,27 +111,27 @@ const answers = (
 });
 
 const stack = () => [card(1), card(2), card(3, FROM_BLOG)];
-const strip = () => screen.findByRole("list", { name: "Scouts" });
-const tile = async (name: RegExp) =>
-  within(await strip()).findByRole("button", { name });
+const rail = () => screen.findByRole("list", { name: "Scouts" });
+const entry = async (name: RegExp) =>
+  within(await rail()).findByRole("button", { name });
 
-describe("the health strip", () => {
-  it("gives every Scout a tile — paused, dropped with cards waiting, and unreadable — each with its Voice", async () => {
+describe("the rail", () => {
+  it("gives every Scout an entry — paused, dropped with cards waiting, and unreadable — each with its Voice", async () => {
     renderApp(answers(stack()));
-    const scouts = await strip();
+    const scouts = await rail();
 
-    const sleep = await tile(/Sleep and memory/);
+    const sleep = await entry(/Sleep and memory/);
     expect(sleep.textContent).toContain("2");
     expect(sleep.textContent).toContain(
       "newest run 2h ago · parsed cleanly · usually ~4 a week"
     );
-    expect((await tile(/Slow waves/)).textContent).toContain(
+    expect((await entry(/Slow waves/)).textContent).toContain(
       "paused since 2 Oct"
     );
-    const blog = await tile(/Blog ring/);
+    const blog = await entry(/Blog ring/);
     expect(blog.textContent).toContain("1");
     expect(blog.textContent).toContain("dropped");
-    // A file that will not parse keeps its tile, with what is wrong, and is not a filter.
+    // A file that will not parse keeps its entry, with what is wrong, and is not a filter.
     const broken = within(scouts).getByText("broken.md").closest("li")!;
     expect(broken.textContent).toContain("Line 3 is not a field.");
     expect(within(broken).queryByRole("button")).toBeNull();
@@ -156,68 +156,17 @@ describe("the health strip", () => {
       })
     );
 
-    const waiting = await tile(/Sleep and memory/);
+    const waiting = await entry(/Sleep and memory/);
 
     expect(waiting.textContent).toContain("waiting for a key");
+    // A Scout waiting on a key has not failed: no warning glyph (ADR 0032).
     expect(waiting.textContent).not.toContain("⚠");
     expect(waiting.textContent).not.toMatch(/Sleep and memory\s*0/);
   });
-
-  it("draws the Accept rate as a bar, and `—` with the reason in its title when there is none", async () => {
-    renderApp(
-      answers(stack(), {
-        "scouts.activity": {
-          rows: [
-            row("sleep", { acceptRate: rateOver(3, 4) }),
-            row("slow", { acceptRate: { kind: "nothing triaged" } }),
-            row("blog", {
-              acceptRate: {
-                kind: "unavailable",
-                reason: "Most of this Scout's papers arrive without authors.",
-              },
-            }),
-          ],
-        },
-      })
-    );
-
-    const rate = (await tile(/Sleep and memory/)).querySelector(
-      "[data-accept]"
-    )!;
-    expect(rate.getAttribute("data-accept")).toBe("rate");
-    expect(rate.textContent).toContain("75%");
-    expect(rate.getAttribute("title")).toContain("3 of 4");
-
-    const none = (await tile(/Slow waves/)).querySelector("[data-accept]")!;
-    expect(none.textContent).toBe("—");
-    expect(none.getAttribute("title")).toBe("Nothing triaged yet.");
-
-    const gone = (await tile(/Blog ring/)).querySelector("[data-accept]")!;
-    expect(gone.textContent).toBe("—");
-    expect(gone.getAttribute("title")).toBe(
-      "Most of this Scout's papers arrive without authors."
-    );
-  });
-
-  it("draws `—` and says why when the rate could not be read", async () => {
-    renderApp(
-      answers(stack(), {
-        "scouts.activity": () => {
-          throw new Error("disk gone");
-        },
-      })
-    );
-
-    const none = (await tile(/Sleep and memory/)).querySelector(
-      "[data-accept]"
-    )!;
-    expect(none.textContent).toBe("—");
-    expect(none.getAttribute("title")).toContain("could not be read");
-  });
 });
 
-describe("filtering by a tile", () => {
-  it("narrows both lanes to the Scout, names it, and clears by the tile again or by show all", async () => {
+describe("filtering by the rail", () => {
+  it("narrows both lanes to the Scout, names it, and clears by the entry again or by show all", async () => {
     renderApp(
       answers(stack(), {
         "scouts.skim": {
@@ -229,7 +178,7 @@ describe("filtering by a tile", () => {
         },
       })
     );
-    const sleep = await tile(/Sleep and memory/);
+    const sleep = await entry(/Sleep and memory/);
     expect(
       within(
         await screen.findByRole("list", { name: "New finds" })
@@ -250,7 +199,7 @@ describe("filtering by a tile", () => {
     expect(within(lines).getAllByRole("button")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("tab", { name: /^Review/ }));
-    fireEvent.click(await tile(/Sleep and memory/));
+    fireEvent.click(await entry(/Sleep and memory/));
     expect(screen.queryByText(/only Sleep and memory/)).toBeNull();
     expect(
       within(screen.getByRole("list", { name: "New finds" })).getAllByRole(
@@ -258,7 +207,7 @@ describe("filtering by a tile", () => {
       )
     ).toHaveLength(3);
 
-    fireEvent.click(await tile(/Blog ring/));
+    fireEvent.click(await entry(/Blog ring/));
     fireEvent.click(screen.getByRole("button", { name: "show all" }));
     expect(screen.queryByText(/only Blog ring/)).toBeNull();
   });
@@ -284,7 +233,7 @@ describe("filtering by a tile", () => {
         "scouts.runNow": runNow,
       })
     );
-    fireEvent.click(await tile(/Sleep and memory/));
+    fireEvent.click(await entry(/Sleep and memory/));
 
     expect(
       await screen.findByRole("heading", { name: "Sleep and memory" })
@@ -320,7 +269,7 @@ describe("filtering by a tile", () => {
         "scouts.showCapped": showCapped,
       })
     );
-    fireEvent.click(await tile(/Sleep and memory/));
+    fireEvent.click(await entry(/Sleep and memory/));
 
     expect(await screen.findByText("1 already in your vault")).toBeDefined();
     expect(screen.getByRole("link", { name: "Held A" })).toBeDefined();
@@ -328,7 +277,7 @@ describe("filtering by a tile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show them" }));
     await vi.waitFor(() => expect(showCapped).toHaveBeenCalled());
 
-    fireEvent.click(await tile(/Blog ring/));
+    fireEvent.click(await entry(/Blog ring/));
     expect(await screen.findByText(/2 deferred/)).toBeDefined();
     // A dropped Scout is not looking: no Run now, Edit or Pause for it.
     expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();

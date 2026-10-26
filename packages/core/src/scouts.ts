@@ -55,6 +55,7 @@ import {
   inTransaction,
   returnDeferred,
 } from "./triage.js";
+import { scoutNamesOf } from "./scout-names.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -945,6 +946,8 @@ export type Card = {
     assigned: Array<{ id: string; name: string | null }>;
     /** A Scout the researcher retired: its Proposals stay in Review under its name, marked, until they are triaged (ADR 0042 decision 1). */
     dropped: boolean;
+    /** The Scout is erased and only its tombstone names it (ADR 0053 decision 6). */
+    erased?: boolean;
   }>;
   retroactive: boolean;
   /**
@@ -974,7 +977,8 @@ export type Card = {
 };
 
 export type LaneMove =
-  { kind: "demoted" } | { kind: "raised"; by: { id: string; name: string } };
+  | { kind: "demoted" }
+  | { kind: "raised"; by: { id: string; name: string; erased?: boolean } };
 
 export type RankSignal =
   | { kind: "authors"; names: string[] }
@@ -1177,10 +1181,14 @@ async function readCards(
   lane: "review" | "skim"
 ): Promise<Card[]> {
   const { queue, index } = deps;
-  const { scouts, dropped } = await readScouts(deps.vaultPath);
+  const read = await readScouts(deps.vaultPath);
+  const { scouts, dropped } = read;
   // A dropped Scout is not in `scouts` and the rail does not list it, but its
   // Proposals stay in Review under its name, so the card has to know it.
   const byId = new Map([...scouts, ...dropped].map((s) => [s.id, s]));
+  // An erased Scout is neither, and a card that still names it says so.
+  const named = scoutNamesOf(read);
+  const erasedIds = new Set(read.erased.map((t) => t.id));
   // Only Review is ranked, so only Review reads the vault's accepted authors.
   const accepted = lane === "review" ? acceptedAuthors(index) : null;
   const old =
@@ -1248,7 +1256,7 @@ async function readCards(
         : last === "raise" && row.lane === "review" && raiser !== undefined
           ? {
               kind: "raised",
-              by: { id: raiser, name: byId.get(raiser)?.name ?? raiser },
+              by: named(raiser),
             }
           : null;
     return {
@@ -1269,10 +1277,20 @@ async function readCards(
       alsoOnArxiv: alsoOnArxiv(row),
       doi: row.doi,
       lane: row.lane,
-      scouts: scoutIds.flatMap((id) => {
+      scouts: scoutIds.flatMap((id): Card["scouts"] => {
         const scout = byId.get(id);
         return scout === undefined
-          ? []
+          ? erasedIds.has(id)
+            ? [
+                {
+                  id,
+                  name: named(id).name,
+                  assigned: [],
+                  dropped: false,
+                  erased: true,
+                },
+              ]
+            : []
           : [
               {
                 id,
@@ -1282,6 +1300,7 @@ async function readCards(
                   name: questionFile(index, q)?.display ?? null,
                 })),
                 dropped: scout.dropped !== null,
+                erased: false,
               },
             ];
       }),
