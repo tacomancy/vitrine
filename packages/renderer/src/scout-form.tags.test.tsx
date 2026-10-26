@@ -66,7 +66,7 @@ const base = (more: Record<string, unknown> = {}) => ({
 
 const open = async (more: Record<string, unknown> = {}) => {
   renderApp(base(more));
-  fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+  window.location.hash = "#/scout-management/new";
   await screen.findByRole("form", { name: "New Scout" });
 };
 const pickTags = () => fireEvent.click(screen.getByLabelText("by Tags"));

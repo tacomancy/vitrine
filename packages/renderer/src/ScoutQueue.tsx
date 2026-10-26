@@ -14,7 +14,7 @@ import { FirstSlot } from "./FirstSlot";
 import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
-import { hashOf, newScout, pushRoute, SCOUT_MANAGEMENT } from "./router";
+import { hashOf, SCOUT_MANAGEMENT } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { Button } from "./Form";
@@ -668,7 +668,6 @@ export function ScoutQueue({
           </Button>
         )}
         <Button onClick={() => setMutedOpen(true)}>Mute rules</Button>
-        <Button onClick={() => pushRoute(newScout())}>+ New Scout</Button>
       </header>
       {/* The rail (ADR 0053 decision 2): an entry per Scout, drawn from the same
           Health Loose Ends reads, that only filters, under every grouping. A

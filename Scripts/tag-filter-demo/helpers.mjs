@@ -17,7 +17,7 @@ export const expect = (ok, what) => {
 /** New Scout ▸ named ▸ by Tags ▸ the `probing` Tag chosen, its compiled query on the form. */
 export async function chooseProbing(page) {
   await openQueue(page);
-  await page.eval(`${button("+ New Scout")}.click()`);
+  await page.eval(`location.hash = "#/scout-management/new"`);
   await page.wait("!!document.querySelector('form[aria-label=\"New Scout\"]')");
   await page.type(NAME); // the form focuses Name on mount
   await page.eval(

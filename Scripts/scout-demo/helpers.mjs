@@ -16,7 +16,7 @@ export async function openQueue(page) {
 }
 
 export async function fillNewScout(page, { name, query, lane }) {
-  await page.eval(`${button("+ New Scout")}.click()`);
+  await page.eval(`location.hash = "#/scout-management/new"`);
   await page.wait("!!document.querySelector('form[aria-label=\"New Scout\"]')");
   await page.type(name); // the form focuses Name on mount
   await page.eval("document.querySelector('textarea').focus()");

@@ -243,6 +243,7 @@ describe("filtering by the rail", () => {
     ).toBeDefined();
     // Edit, Pause/Resume and the cost are the Scouts screen's (ADR 0053).
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ New Scout" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /^(Pause|Resume)$/ })
     ).toBeNull();

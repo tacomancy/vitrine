@@ -51,9 +51,7 @@ export default async (page) => {
     await page.eval(`location.hash=${JSON.stringify(hash)}`);
     await page.sleep(name === "06b-new-scout-form" ? 500 : 3000);
     if (extra === "new-scout") {
-      await page.eval(
-        `[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='+ New Scout').click()`
-      );
+      await page.eval(`location.hash = "#/scout-management/new"`);
       await page.wait(
         "!!document.querySelector('form[aria-label=\"New Scout\"]')"
       );

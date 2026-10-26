@@ -217,7 +217,7 @@ describe("the rail's voices", () => {
 describe("the form", () => {
   const open = async (more: Record<string, unknown> = {}) => {
     renderApp(answers(more));
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     return screen.findByRole("form", { name: "New Scout" });
   };
   const type = (label: string, value: string) =>
@@ -273,9 +273,9 @@ describe("the form", () => {
       name: "Assigned Questions",
     });
     expect(
-      within(picker)
-        .getAllByRole("checkbox")
-        .map((box) => box.parentElement!.textContent)
+      (await within(picker).findAllByRole("checkbox")).map(
+        (box) => box.parentElement!.textContent
+      )
     ).toEqual([expect.stringContaining("Is it consolidation?") as string]);
 
     // Heard on the document, so it works after focus has left the form.
@@ -300,7 +300,7 @@ describe("the form", () => {
     type("Query", "all:sleep");
     expect((save as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /Is it consolidation/ })
+      await screen.findByRole("checkbox", { name: /Is it consolidation/ })
     );
     type("Cadence", "weekly");
     type("Starting lane", "skim");
@@ -441,7 +441,7 @@ describe("a refused Save", () => {
         },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
     fill();
 
@@ -492,7 +492,7 @@ describe("a refused Save", () => {
         },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
     fill();
     fireEvent.click(save());
@@ -512,7 +512,7 @@ describe("a refused Save", () => {
 
   it("closes the form and shows no refusal when the Save lands", async () => {
     renderApp(answers({ "scouts.save": () => ({ id: "new-one", run: null }) }));
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
     fill();
 
@@ -526,7 +526,7 @@ describe("a refused Save", () => {
 describe("the form, watching a page", () => {
   const open = async (more: Record<string, unknown> = {}) => {
     renderApp(answers(more));
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
   };
   const type = (label: string, value: string) =>
@@ -641,7 +641,7 @@ describe("the form, watching a page", () => {
     type("Address", "https://lab.example/publications");
     type("Cadence", "monthly");
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /Is it consolidation/ })
+      await screen.findByRole("checkbox", { name: /Is it consolidation/ })
     );
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
     expect(await screen.findByText(/No model key is stored/)).toBeDefined();
@@ -778,7 +778,7 @@ describe("the form, editing a Scout that watches a page", () => {
 
   it("says nothing about a page on a new Scout", async () => {
     renderApp(answers());
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
     fireEvent.change(screen.getByLabelText("Watching"), {
       target: { value: "watched" },
@@ -894,7 +894,7 @@ describe("empty stacks, in the three voices", () => {
 describe("the form's Try, announced", () => {
   const open = async (more: Record<string, unknown>, watched = false) => {
     renderApp(answers(more));
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    window.location.hash = "#/scout-management/new";
     await screen.findByRole("form", { name: "New Scout" });
     if (watched) {
       fireEvent.change(screen.getByLabelText("Watching"), {
