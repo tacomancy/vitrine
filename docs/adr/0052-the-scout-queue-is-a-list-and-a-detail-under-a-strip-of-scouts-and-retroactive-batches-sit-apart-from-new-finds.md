@@ -29,3 +29,7 @@ The Review lane drew one card with every other pending title in a flat list bene
 - **−** The core must hand the renderer a Retroactive run as a unit (its Scout, pending count, run cost and titles); `Card.retroactive` is only a flag and `Group.runId` is the newest clean run, which need not be the Retroactive one.
 - **−** Reject this run on a non-Retroactive run is gone as a button; the group act replaces it and counts toward Accept rate.
 - **−** The Queue grows its own tests per slice because the surface is rebuilt behind unchanged behaviour: the existing `scout-queue.*.test.tsx` suites are the contract.
+
+## Update (2026-10-26, ADR 0053)
+
+Decisions 1 and 2 are amended: the tile strip becomes a rail of Scout names that only filters, and the Scout header gives up Edit, Pause/Resume and cost to the Scouts screen (keeping *Run now* and the facts about the papers). Decision 5 is amended: under *Group by Question* the rail stays Scouts, and Questions become headings in the list. ADR 0053 decisions 1 to 3.

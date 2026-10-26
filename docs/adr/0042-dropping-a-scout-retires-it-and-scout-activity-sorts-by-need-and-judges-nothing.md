@@ -38,3 +38,7 @@ Beat 9 (#176) is the Scout Activity dashboard (`design-brief.md` § Scout Activi
 ## Update (2026-10-07, ADR 0043)
 
 Decision 5's last sentence is resolved by **ADR 0043**: a changed page is the same Scout pointed at another page, `page_hash` needs no invalidation (it is a hash of the reduced text, compared only within a page), and the structure-change test reads within the page. The address stays on the form, for a reason this ADR did not give: *try* exists only there.
+
+## Update (2026-10-26, ADR 0053)
+
+Decision 1 gains one exception: a dropped Scout can now be **erased**, which removes its file and leaves a tombstone (name and id), so its runs, `triage` rows and `origin_scout` still resolve. Erase is refused while it has pending or deferred Proposals. ADR 0053 decision 6; nothing else here changes.
