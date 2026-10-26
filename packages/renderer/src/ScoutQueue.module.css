@@ -274,7 +274,9 @@
   flex-direction: column;
 }
 
-.rows button {
+/* The row's own button only: where the panes stack the open row holds the
+   detail, whose buttons are not rows. */
+.rows > li > button {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -283,7 +285,7 @@
   border-radius: var(--radius-md);
 }
 
-.rows button[aria-current="true"] {
+.rows > li > button[aria-current="true"] {
   background: var(--color-bg-raised);
 }
 
