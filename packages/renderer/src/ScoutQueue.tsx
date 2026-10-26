@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  AcceptRate,
   Card,
   Health,
   LaneMove,
@@ -27,7 +26,6 @@ import {
   VoiceLine,
   dollars,
 } from "./ScoutVoice";
-import { percent } from "./charts/line";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -164,8 +162,6 @@ export function ScoutQueue({
     onError: refuse,
   };
   const [selected, setSelected] = useState<string | null>(scout ?? null);
-  // The Question group on screen: a Question id, `UNASSIGNED`, or null for all.
-  const [pickedQuestion, setSelectedQuestion] = useState<string | null>(null);
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.
@@ -314,28 +310,10 @@ export function ScoutQueue({
   const stackShown = form === null && !mutedOpen;
   const everything = queue.data ?? [];
   const questionRows = questionGroups.data ?? [];
-  // A group that empties (its last card acted on) leaves the rail, so the
-  // choice falls back to all rather than pointing at a row that is gone.
-  const selectedQuestion = questionRows.some(
-    (g) => (g.question?.id ?? UNASSIGNED) === pickedQuestion
-  )
-    ? pickedQuestion
-    : null;
-  const noneChosen = (byQuestion ? selectedQuestion : selected) === null;
-  const questionKey = (g: { question: { id: string } | null }) =>
-    g.question?.id ?? UNASSIGNED;
-  // The cards of the Question group on screen; a paper in several Questions is
-  // in each, and one acted on is gone from `everything` and so from all.
-  const inQuestion = new Set(
-    selectedQuestion === null
-      ? null
-      : questionRows.find((g) => questionKey(g) === selectedQuestion)
-          ?.proposalIds
-  );
-  const inScoutGroup = everything.filter((card) =>
-    byQuestion
-      ? selectedQuestion === null || inQuestion.has(card.id)
-      : selected === null || card.scouts.some((scout) => scout.id === selected)
+  const noneChosen = selected === null;
+  const inScoutGroup = everything.filter(
+    (card) =>
+      selected === null || card.scouts.some((scout) => scout.id === selected)
   );
   // A card in a Retroactive batch is listed under it and never among the new
   // finds, so a first look of forty papers cannot bury today's five.
@@ -360,10 +338,26 @@ export function ScoutQueue({
   // The session's order: what has not been passed, then what has, in the
   // order it was passed — so passing the last card wraps to the first. An
   // opened batch's titles follow the new finds, in the order they are drawn.
-  const dealt = [
+  const ordered = [
     ...inGroup.filter((card) => !passed.includes(card.id)),
     ...passed.flatMap((id) => inGroup.filter((card) => card.id === id)),
   ];
+  // Group by Question heads the list with each Question (ADR 0053 decision 2).
+  // A paper in several is under each, so the stack is the first time each is
+  // met reading down: J/K and the next card follow what is drawn. Until the
+  // groups have been read the list stays flat, and the failed read is said in
+  // the footer.
+  const sections =
+    byQuestion && questionGroups.isSuccess
+      ? questionSections(live(ordered), questionRows)
+      : null;
+  const dealt =
+    sections === null
+      ? ordered
+      : [
+          ...new Set(sections.flatMap((section) => section.cards)),
+          ...ordered.filter((card) => card.pastWindow),
+        ];
   const stack = [...dealt, ...titlesShown];
   const card = stack.find((c) => c.id === chosen) ?? stack[0];
   const cardAt = card === undefined ? -1 : stack.indexOf(card);
@@ -440,21 +434,12 @@ export function ScoutQueue({
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
   const costOf = (id: string): number | null =>
     health.data?.scouts.find((h) => h.id === id)?.lastCostUsd ?? null;
-  // Accept rate rides on Scout Activity's read; a tile cannot say a rate that
-  // read has not given, and says that instead of drawing a bare gap.
-  const activity = useQuery(trpc.scouts.activity.queryOptions());
-  const rateOf = (id: string): AcceptRate | "unread" => {
-    const row = activity.data?.rows.find(
-      (r) => r.kind === "scout" && r.id === id
-    );
-    return row?.kind === "scout" ? row.acceptRate : "unread";
-  };
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
   const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so it has no Voice of its own. What it
   // found stays in Review under its name (ADR 0042 decision 1), so while
-  // anything waits under it, or while it is the filter, it keeps a tile, marked.
+  // anything waits under it, or while it is the filter, it keeps an entry, marked.
   const droppedScouts = scouts.data?.dropped ?? [];
   const droppedStacks = droppedScouts.filter(
     (d) => countFor(d.id) > 0 || d.id === selected
@@ -465,13 +450,7 @@ export function ScoutQueue({
     form?.edit == null
       ? undefined
       : scouts.data?.scouts.find((s) => s.id === form.edit);
-  useChosenInView(
-    byQuestion
-      ? `question-rail-${selectedQuestion ?? "all"}`
-      : selected === null
-        ? undefined
-        : `scout-tile-${selected}`
-  );
+  useChosenInView(selected === null ? undefined : `scout-rail-${selected}`);
   useChosenInView(
     lane === "review" && card !== undefined ? `scout-row-${card.id}` : undefined
   );
@@ -485,13 +464,8 @@ export function ScoutQueue({
     setSelected(id);
     setPassed([]);
   }
-  function chooseQuestion(key: string | null) {
-    setSelectedQuestion(key);
-    setPassed([]);
-  }
   function chooseGroupBy(next: "scout" | "question") {
     setGroupBy(next);
-    setSelectedQuestion(null);
     setPassed([]);
   }
   function onPass(id: number) {
@@ -724,96 +698,52 @@ export function ScoutQueue({
           + New Scout
         </Button>
       </header>
-      {byQuestion && (
-        <>
-          <ul className={styles.strip} aria-label="Questions">
-            {[
-              { key: null, name: "All Questions", count: everything.length },
-              ...questionRows.map((g) => ({
-                key: questionKey(g),
-                name: g.question?.name ?? "Unassigned",
-                count: g.proposalIds.length,
-              })),
-            ].map((row) => (
-              <li key={row.key ?? "all"} className={styles.tile}>
-                <Button
-                  tier="listRow"
-                  id={`question-rail-${row.key ?? "all"}`}
-                  aria-pressed={row.key === selectedQuestion}
-                  onClick={() => chooseQuestion(row.key)}
-                >
-                  <span className={styles.tileHead}>
-                    <span className={styles.tileName}>{row.name}</span>
-                    <span className={styles.count}>{row.count}</span>
-                  </span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <p className={styles.line}>
-            A paper can be in several groups, so these counts may add up to more
-            than the total.
-          </p>
-        </>
-      )}
-      {/* The health strip (ADR 0052 decision 1): a tile per Scout, drawn from the
-          same Health Loose Ends reads, that only filters. A broken Scout keeps
-          its tile so it cannot hide in a strip nobody filters. */}
-      {!byQuestion && (
-        <ul className={styles.strip} aria-label="Scouts">
-          {scouts.isError && (
-            <li>
-              <FirstSlot voice="wrong" claim="" />
-            </li>
-          )}
-          {(scouts.data?.scouts ?? []).map((listed) => (
-            <ScoutTile
-              key={listed.id}
-              name={listed.name}
-              id={listed.id}
-              pending={queue.isError ? null : countFor(listed.id)}
-              chosen={listed.id === selected}
-              onChoose={() => choose(listed.id === selected ? null : listed.id)}
-              rate={rateOf(listed.id)}
-            >
-              <VoiceLine health={healthOf(listed.id)} />
-            </ScoutTile>
-          ))}
-          {droppedStacks.map((dropped) => (
-            <ScoutTile
-              key={dropped.id}
-              name={dropped.name}
-              id={dropped.id}
-              pending={queue.isError ? null : countFor(dropped.id)}
-              chosen={dropped.id === selected}
-              onChoose={() =>
-                choose(dropped.id === selected ? null : dropped.id)
-              }
-              rate={rateOf(dropped.id)}
-            >
-              <span className={styles.voice}>dropped</span>
-            </ScoutTile>
-          ))}
-          {/* A file that does not parse is a Scout the researcher made, not one
+      {/* The rail (ADR 0053 decision 2): an entry per Scout, drawn from the same
+          Health Loose Ends reads, that only filters, under every grouping. A
+          broken Scout keeps its entry so it cannot hide in a rail nobody
+          filters. */}
+      <ul className={styles.rail} aria-label="Scouts">
+        {scouts.isError && (
+          <li>
+            <FirstSlot voice="wrong" claim="" />
+          </li>
+        )}
+        {(scouts.data?.scouts ?? []).map((listed) => (
+          <RailEntry
+            key={listed.id}
+            name={listed.name}
+            id={listed.id}
+            pending={queue.isError ? null : countFor(listed.id)}
+            chosen={listed.id === selected}
+            onChoose={() => choose(listed.id === selected ? null : listed.id)}
+          >
+            <VoiceLine health={healthOf(listed.id)} />
+          </RailEntry>
+        ))}
+        {droppedStacks.map((dropped) => (
+          <RailEntry
+            key={dropped.id}
+            name={dropped.name}
+            id={dropped.id}
+            pending={queue.isError ? null : countFor(dropped.id)}
+            chosen={dropped.id === selected}
+            onChoose={() => choose(dropped.id === selected ? null : dropped.id)}
+          >
+            <span className={styles.voice}>dropped</span>
+          </RailEntry>
+        ))}
+        {/* A file that does not parse is a Scout the researcher made, not one
             nobody did: named, with what is wrong. */}
-          {(scouts.data?.unreadable ?? []).map((file) => (
-            <li key={file.file} className={styles.tile}>
-              <span className={styles.tileName}>{file.file}</span>
-              <VoiceLine
-                health={{ voice: "wrong", kind: null, sentence: file.sentence }}
-              />
-              <span
-                data-accept="none"
-                title="This Scout file cannot be read, so it has no rate."
-                className={styles.rate}
-              >
-                —
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {!byQuestion && selected !== null && form === null && (
+        {(scouts.data?.unreadable ?? []).map((file) => (
+          <li key={file.file} className={styles.entry}>
+            <span className={styles.entryName}>{file.file}</span>
+            <VoiceLine
+              health={{ voice: "wrong", kind: null, sentence: file.sentence }}
+            />
+          </li>
+        ))}
+      </ul>
+      {selected !== null && form === null && (
         <div className={styles.scoutHeader}>
           <p className={styles.filterLine}>
             only {groupName ?? selected} ·{" "}
@@ -893,53 +823,50 @@ export function ScoutQueue({
           }}
         />
       )}
-      {stackShown &&
-        lane === "review" &&
-        !byQuestion &&
-        group !== undefined && (
-          <div className={styles.group}>
-            {group.held.length > 0 && (
-              <div>
-                <p className={styles.line}>
-                  {group.held.length} already in your vault
-                </p>
-                <ul
-                  className={styles.heldList}
-                  aria-label="Already in your vault"
-                >
-                  {group.held.map((held) => (
-                    <li key={held.path}>
-                      <a href={hashOf({ surface: "source", path: held.path })}>
-                        {held.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {/* A deferred card comes back with its Scout's next clean run, which a
+      {stackShown && lane === "review" && group !== undefined && (
+        <div className={styles.group}>
+          {group.held.length > 0 && (
+            <div>
+              <p className={styles.line}>
+                {group.held.length} already in your vault
+              </p>
+              <ul
+                className={styles.heldList}
+                aria-label="Already in your vault"
+              >
+                {group.held.map((held) => (
+                  <li key={held.path}>
+                    <a href={hashOf({ surface: "source", path: held.path })}>
+                      {held.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {/* A deferred card comes back with its Scout's next clean run, which a
               dropped Scout does not make, and nothing else lists the card:
               said here so it is not left invisible (ADR 0042 decision 1). A
               Scout that is looking brings its own back. */}
-            {selectedDropped !== undefined && (group.deferred ?? 0) > 0 && (
-              <p className={styles.line}>
-                {group.deferred} deferred — they come back with its next run, if
-                it is restored
-              </p>
-            )}
-            {selected !== null && (group.capped ?? 0) > 0 && (
-              <p className={styles.line}>
-                {group.capped} below your cap of {group.cap}{" "}
-                <Button
-                  disabled={showCapped.isPending}
-                  onClick={() => showCapped.mutate({ scoutId: selected })}
-                >
-                  Show them
-                </Button>
-              </p>
-            )}
-          </div>
-        )}
+          {selectedDropped !== undefined && (group.deferred ?? 0) > 0 && (
+            <p className={styles.line}>
+              {group.deferred} deferred — they come back with its next run, if
+              it is restored
+            </p>
+          )}
+          {selected !== null && (group.capped ?? 0) > 0 && (
+            <p className={styles.line}>
+              {group.capped} below your cap of {group.cap}{" "}
+              <Button
+                disabled={showCapped.isPending}
+                onClick={() => showCapped.mutate({ scoutId: selected })}
+              >
+                Show them
+              </Button>
+            </p>
+          )}
+        </div>
+      )}
       {/* Muted is a tab of the frame: the rules and what they hold, with
        *Mute by name* inside it (ADR 0052 decision 6). */}
       {form === null && mutedOpen && (
@@ -1051,9 +978,7 @@ export function ScoutQueue({
         batches.length === 0 &&
         !unread && (
           <ReviewQuiet
-            scout={
-              byQuestion || selected === null ? undefined : healthOf(selected)
-            }
+            scout={selected === null ? undefined : healthOf(selected)}
             claim={noneChosen ? fleet.data : undefined}
             dropped={droppedScouts.length}
           />
@@ -1063,7 +988,43 @@ export function ScoutQueue({
         (card !== undefined || digest.length > 0 || batches.length > 0) && (
           <div className={styles.panes}>
             <div className={styles.listPane}>
-              {live(dealt).length > 0 && (
+              {sections !== null && sections.length > 0 && (
+                <p className={styles.line}>
+                  A paper can be in several groups, so these counts may add up
+                  to more than the total.
+                </p>
+              )}
+              {sections?.map((section) => (
+                <section
+                  key={section.key}
+                  aria-labelledby={`heading-${section.key}`}
+                >
+                  <div className={styles.sectionLine}>
+                    <h2
+                      id={`heading-${section.key}`}
+                      className={styles.sectionHead}
+                    >
+                      {section.name}
+                    </h2>
+                    <span className={styles.count}>{section.cards.length}</span>
+                  </div>
+                  <ol className={styles.rows}>
+                    {section.cards.map((next) => (
+                      <ReviewRow
+                        key={next.id}
+                        rowId={section.rowIds.get(next.id)}
+                        card={next}
+                        current={
+                          next === card &&
+                          section.rowIds.get(next.id) === rowIdOf(next.id)
+                        }
+                        onChoose={() => setChosen(next.id)}
+                      />
+                    ))}
+                  </ol>
+                </section>
+              ))}
+              {sections === null && live(dealt).length > 0 && (
                 <ol className={styles.rows} aria-label="New finds">
                   {live(dealt).map((next) => (
                     <ReviewRow
@@ -1245,18 +1206,15 @@ const whose = (scouts: Card["scouts"]) =>
     .join(" · ");
 
 /**
- * One Scout's tile: a filter and nothing else (ADR 0052 decision 1). The
- * Accept rate is a thin bar, or `—` with the reason in its title when nothing
- * has been triaged or the rate cannot be said, never a 0% (ADR 0042 decisions
- * 2 and 3).
+ * One Scout's entry in the rail: a filter and nothing else (ADR 0053
+ * decision 2). Its Accept rate is on the Scouts screen, not here.
  */
-function ScoutTile({
+function RailEntry({
   id,
   name,
   pending,
   chosen,
   onChoose,
-  rate,
   children,
 }: {
   id: string;
@@ -1265,49 +1223,79 @@ function ScoutTile({
   pending: number | null;
   chosen: boolean;
   onChoose: () => void;
-  rate: AcceptRate | "unread";
   children: ReactNode;
 }) {
-  const rateTitle =
-    rate === "unread"
-      ? "Accept rate could not be read."
-      : rate.kind === "rate"
-        ? `${rate.accepted} of ${rate.triaged} triaged were accepted.`
-        : rate.kind === "unavailable"
-          ? rate.reason
-          : "Nothing triaged yet.";
   return (
-    <li className={styles.tile}>
+    <li className={styles.entry}>
       <Button
         tier="listRow"
-        id={`scout-tile-${id}`}
+        id={`scout-rail-${id}`}
         aria-pressed={chosen}
         onClick={onChoose}
       >
-        <span className={styles.tileHead}>
-          <span className={styles.tileName}>{name}</span>
+        <span className={styles.entryHead}>
+          <span className={styles.entryName}>{name}</span>
           {/* A quiet Scout is said by its Voice; a bare 0 would read as the claim without its Warrant. */}
           {pending !== null && pending > 0 && (
             <span className={styles.count}>{pending}</span>
           )}
         </span>
         {children}
-        {rate !== "unread" && rate.kind === "rate" ? (
-          <span data-accept="rate" title={rateTitle} className={styles.rate}>
-            <span className={styles.bar} aria-hidden="true">
-              <span style={{ width: percent(rate.rate) }} />
-            </span>
-            <span>{percent(rate.rate)}</span>
-          </span>
-        ) : (
-          <span data-accept="none" title={rateTitle} className={styles.rate}>
-            —
-          </span>
-        )}
       </Button>
     </li>
   );
 }
+
+/**
+ * The cards under each Question heading, in the Questions' order. A paper in
+ * several Questions is under each, its later rows given a distinct id so no
+ * two elements share one; a paper no Question claims goes under Unassigned
+ * rather than vanishing.
+ */
+function questionSections(
+  cards: Card[],
+  groups: {
+    question: { id: string; name: string } | null;
+    proposalIds: number[];
+  }[]
+) {
+  const sections = groups.map((group) => {
+    const key = group.question?.id ?? UNASSIGNED;
+    const members = new Set(group.proposalIds);
+    return {
+      key,
+      name: group.question?.name ?? "Unassigned",
+      cards: cards.filter((card) => members.has(card.id)),
+    };
+  });
+  const claimed = new Set(sections.flatMap((s) => s.cards.map((c) => c.id)));
+  const orphans = cards.filter((card) => !claimed.has(card.id));
+  if (orphans.length > 0) {
+    const unassigned = sections.find((s) => s.key === UNASSIGNED);
+    if (unassigned === undefined) {
+      sections.push({ key: UNASSIGNED, name: "Unassigned", cards: orphans });
+    } else unassigned.cards.push(...orphans); // the core files every paper; this only guards a read that disagrees
+  }
+  // A paper in several Questions is drawn under each: its first row keeps the
+  // plain id (what the chosen-in-view hook looks for) and the rest are suffixed.
+  const seen = new Set<number>();
+  return sections
+    .filter((section) => section.cards.length > 0)
+    .map((section) => {
+      const rowIds = new Map<number, string>();
+      for (const card of section.cards) {
+        rowIds.set(
+          card.id,
+          rowIdOf(card.id, seen.has(card.id) ? section.key : undefined)
+        );
+        seen.add(card.id);
+      }
+      return { ...section, rowIds };
+    });
+}
+
+const rowIdOf = (card: number, section?: string) =>
+  section === undefined ? `scout-row-${card}` : `scout-row-${card}-${section}`;
 
 /** What the list shows: the live finds, never the digest's. */
 const live = (stack: Card[]) => stack.filter((c) => !c.pastWindow);
@@ -1317,7 +1305,9 @@ function ReviewRow({
   card,
   current,
   onChoose,
+  rowId = rowIdOf(card.id),
 }: {
+  rowId?: string | undefined;
   card: Card;
   current: boolean;
   onChoose: () => void;
@@ -1326,7 +1316,7 @@ function ReviewRow({
     <li>
       <Button
         tier="listRow"
-        id={`scout-row-${card.id}`}
+        id={rowId}
         aria-label={card.title}
         aria-current={current ? "true" : undefined}
         onClick={onChoose}

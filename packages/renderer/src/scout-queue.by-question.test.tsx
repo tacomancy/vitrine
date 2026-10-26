@@ -15,10 +15,11 @@ beforeEach(() => {
   window.location.hash = "#/scouts";
 });
 
-// Group by Question (#645; ADR 0044 decision 10): the control, the rail of
-// Questions with their own counts and the note that a paper can be in several,
-// and `⇧R` reaching only the group on screen. Which paper is in which group
-// is the core's (scouts.by-question.test.ts); the window draws what it is told.
+// Group by Question (#645; ADR 0044 decision 10; #857, ADR 0053 decision 2):
+// the control, Questions as headings in the list with the note that a paper can
+// be in several, the rail of Scouts unchanged, and `⇧R` reaching only the cards
+// on screen. Which paper is in which group is the core's
+// (scouts.by-question.test.ts); the window draws what it is told.
 
 const card = (id: number): Card => ({
   id,
@@ -71,95 +72,140 @@ const grouped = async () => {
   fireEvent.click(screen.getByRole("button", { name: "group: scout" }));
 };
 
-// What the list on screen holds: the group's cards, not the whole queue.
+// What the list on screen holds: every row under every heading.
 const finds = () =>
-  within(screen.getByRole("list", { name: "New finds" })).getAllByRole(
-    "listitem"
+  within(screen.getByRole("region", { name: "Scout Queue" })).queryAllByRole(
+    "button",
+    {
+      name: /^Paper /,
+    }
   );
 
+const heading = (name: string) => screen.findByRole("heading", { name });
+
+const under = async (name: string) =>
+  within((await heading(name)).closest("section")!).queryAllByRole("button", {
+    name: /^Paper /,
+  });
+
 describe("group by Question", () => {
-  it("starts on Scout and flips to Question and back", async () => {
+  it("starts on Scout and flips to Question and back, the rail of Scouts staying through both", async () => {
     renderApp(answers());
     await screen.findByRole("article");
 
     expect(screen.getByRole("button", { name: "group: scout" })).toBeDefined();
-    expect(screen.queryByRole("list", { name: "Questions" })).toBeNull();
+    expect(screen.getByRole("list", { name: "Scouts" })).toBeDefined();
+    expect(
+      screen.queryByRole("heading", { name: "Does sleep help?" })
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "group: scout" }));
     expect(
       await screen.findByRole("button", { name: "group: question" })
     ).toBeDefined();
-    expect(screen.getByRole("list", { name: "Questions" })).toBeDefined();
-    expect(screen.queryByRole("list", { name: "Scouts" })).toBeNull();
+    expect(screen.getByRole("list", { name: "Scouts" })).toBeDefined();
+    expect(screen.queryByRole("list", { name: "Questions" })).toBeNull();
+    expect(await heading("Does sleep help?")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "group: question" }));
     expect(
       await screen.findByRole("button", { name: "group: scout" })
     ).toBeDefined();
-    expect(screen.getByRole("list", { name: "Scouts" })).toBeDefined();
+    expect(
+      screen.queryByRole("heading", { name: "Does sleep help?" })
+    ).toBeNull();
   });
 
-  it("lists each Question and Unassigned with its own count, and says a paper can be in several", async () => {
+  it("heads the list with each Question and Unassigned, a paper in several under each, and says so", async () => {
     renderApp(answers());
     await grouped();
 
-    const rail = await screen.findByRole("list", { name: "Questions" });
-    await waitFor(() =>
+    await waitFor(async () =>
       expect(
-        Array.from(rail.querySelectorAll("button")).map((b) => b.textContent)
-      ).toEqual([
-        "All Questions3",
-        "Does sleep help?2",
-        "What is a trace?1",
-        "Unassigned1",
-      ])
+        (await under("Does sleep help?")).map((b) =>
+          b.getAttribute("aria-label")
+        )
+      ).toEqual(["Paper 1", "Paper 2"])
     );
+    expect(
+      (await under("What is a trace?")).map((b) => b.getAttribute("aria-label"))
+    ).toEqual(["Paper 2"]);
+    expect(
+      (await under("Unassigned")).map((b) => b.getAttribute("aria-label"))
+    ).toEqual(["Paper 3"]);
     expect(
       screen.getByText(/can be in several groups, so these counts may add up/)
     ).toBeDefined();
   });
 
-  it("deals only the chosen Question's cards, a shared paper in both", async () => {
+  it("marks a paper in several Questions as current once, and gives each row its own id", async () => {
     renderApp(answers());
     await grouped();
+    await waitFor(() => expect(finds()).toHaveLength(4));
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: /What is a trace/ })
+    const rows = finds().filter(
+      (b) => b.getAttribute("aria-label") === "Paper 2"
     );
+    expect(rows).toHaveLength(2);
+    expect(new Set(finds().map((b) => b.id)).size).toBe(4);
     expect(
-      await screen.findByRole("article", { name: "Paper 2" })
-    ).toBeDefined();
-    expect(finds()).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: /Does sleep help/ }));
-    await waitFor(() => expect(finds()).toHaveLength(2));
+      finds().filter((b) => b.getAttribute("aria-current") === "true")
+    ).toHaveLength(1);
   });
 
-  it("⇧R in a Question group rejects only that group's cards", async () => {
-    const rejectGroup = vi.fn(() => ({ bulk: 5, count: 2 }));
+  it("filters by a Scout while grouped, and show all clears it", async () => {
+    renderApp(
+      answers({
+        "scouts.list": {
+          scouts: [
+            {
+              id: "sleep",
+              name: "Sleep and memory",
+              assigned: [],
+              paused: false,
+            },
+            { id: "slow", name: "Slow waves", assigned: [], paused: false },
+          ],
+          unreadable: [],
+        },
+        "scouts.queue": [
+          card(1),
+          card(2),
+          {
+            ...card(3),
+            scouts: [
+              { id: "slow", name: "Slow waves", assigned: [], dropped: false },
+            ],
+          },
+        ],
+      })
+    );
+    await grouped();
+    await waitFor(() => expect(finds()).toHaveLength(4));
+
+    fireEvent.click(
+      await within(screen.getByRole("list", { name: "Scouts" })).findByRole(
+        "button",
+        { name: /Slow waves/ }
+      )
+    );
+    await waitFor(() => expect(finds()).toHaveLength(1));
+    expect((await under("Unassigned")).length).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "show all" }));
+    await waitFor(() => expect(finds()).toHaveLength(4));
+  });
+
+  it("⇧R rejects exactly the cards on screen, each once", async () => {
+    const rejectGroup = vi.fn(() => ({ bulk: 5, count: 3 }));
     renderApp(answers({ "scouts.rejectGroup": rejectGroup }));
     await grouped();
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Does sleep help/ })
-    );
-    await waitFor(() => expect(finds()).toHaveLength(2));
+    await waitFor(() => expect(finds()).toHaveLength(4));
 
     fireEvent.keyDown(document.body, { key: "R", shiftKey: true });
 
     await waitFor(() =>
-      expect(rejectGroup).toHaveBeenCalledWith({ proposalIds: [1, 2] })
+      expect(rejectGroup).toHaveBeenCalledWith({ proposalIds: [1, 2, 3] })
     );
-  });
-
-  it("Unassigned holds what no Question claims", async () => {
-    renderApp(answers());
-    await grouped();
-
-    fireEvent.click(await screen.findByRole("button", { name: /Unassigned/ }));
-
-    expect(
-      await screen.findByRole("article", { name: "Paper 3" })
-    ).toBeDefined();
-    expect(finds()).toHaveLength(1);
   });
 });
