@@ -328,6 +328,7 @@ export function ScoutActivity({
         dropped={activity.data?.dropped ?? []}
         refused={drops.refused}
         onRestore={drops.onRestore}
+        onErase={drops.onErase}
       />
       {/* The footer channel, as every Dashboard draws it: only when there is
           something to say, and polite — a state the app is in, not a refusal
