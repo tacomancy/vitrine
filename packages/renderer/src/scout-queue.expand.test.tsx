@@ -224,6 +224,62 @@ describe("narrow: the chosen paper opens in its row", () => {
   });
 });
 
+describe("narrow: where one paper has several rows", () => {
+  beforeEach(() => setQueueWidth(WIDE_FROM - 1));
+  afterEach(resetQueueWidth);
+
+  it("opens only the row the choice is on, not its copy under another Question", async () => {
+    renderApp(
+      answers(three(), {
+        "scouts.questionGroups": [
+          {
+            question: { id: "q1", name: "Does sleep help?" },
+            proposalIds: [1, 2],
+          },
+          {
+            question: { id: "q2", name: "What is a trace?" },
+            proposalIds: [2, 3],
+          },
+        ],
+      })
+    );
+    await screen.findByRole("article", { name: "Paper 1" });
+    fireEvent.click(screen.getByRole("button", { name: "group: scout" }));
+    await screen.findByRole("heading", { name: "What is a trace?" });
+
+    fireEvent.click(
+      within(
+        (
+          await screen.findByRole("heading", { name: "What is a trace?" })
+        ).closest("section")!
+      ).getByRole("button", { name: "Paper 2" })
+    );
+
+    await screen.findByRole("article", { name: "Paper 2" });
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+  });
+});
+
+describe("narrow: the mute offer", () => {
+  beforeEach(() => setQueueWidth(WIDE_FROM - 1));
+  afterEach(resetQueueWidth);
+
+  it("takes the open row's place and leaves one row open", async () => {
+    renderApp(answers(three()));
+    await screen.findByRole("article", { name: "Paper 1" });
+    key("j");
+    await screen.findByRole("article", { name: "Paper 2" });
+
+    key("m");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("article", { name: "Paper 2" })).toBeNull()
+    );
+    expect(rows()[1]!.querySelectorAll("button").length).toBeGreaterThan(1);
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
+  });
+});
+
 describe("wide: nothing opens in the list", () => {
   afterEach(() => {
     resetQueueWidth();
@@ -278,6 +334,7 @@ describe("one detail in both layouts", () => {
     expect(narrow).toContain("A long abstract worth reading.");
     expect(narrow).toContain("assigned to Does sleep help?");
     expect(narrow).toContain("outside the usual");
+    expect(narrow).toContain("moved to Skim after three defers");
   });
 
   it("keeps the same paper open when the Queue crosses the threshold", async () => {
