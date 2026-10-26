@@ -232,10 +232,10 @@ export function ScoutActivity({
   }
 
   return (
-    <section className={styles.page} aria-labelledby="scout-activity-title">
+    <section className={styles.page} aria-labelledby="scout-management-title">
       <div className={styles.header}>
-        <h1 id="scout-activity-title" className={styles.title}>
-          Scout Activity
+        <h1 id="scout-management-title" className={styles.title}>
+          Scouts
         </h1>
         {activity.data !== undefined && (
           <div className={styles.facts}>

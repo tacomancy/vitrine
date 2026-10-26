@@ -82,7 +82,7 @@ const fleet = (rows: ActivityRow[]): ScoutActivity => ({
 });
 
 const open = (activity: unknown, more: Record<string, unknown> = {}) => {
-  window.location.hash = "#/scout-activity";
+  window.location.hash = "#/scout-management";
   return renderApp({
     "vault.current": vault,
     "questions.list": empty,

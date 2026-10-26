@@ -9,7 +9,7 @@ import {
   hashOf,
   LOOSE_ENDS,
   QUESTION_MAP,
-  SCOUT_ACTIVITY,
+  SCOUT_MANAGEMENT,
   SCOUTS,
   SKIM_LANE,
 } from "./router";
@@ -153,8 +153,8 @@ function Dashboards() {
       <a className={styles.way} href={hashOf(QUESTION_MAP)}>
         Question Map
       </a>
-      <a className={styles.way} href={hashOf(SCOUT_ACTIVITY)}>
-        Scout Activity
+      <a className={styles.way} href={hashOf(SCOUT_MANAGEMENT)}>
+        Scouts
       </a>
     </nav>
   );
