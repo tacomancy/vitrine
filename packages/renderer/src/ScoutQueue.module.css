@@ -275,9 +275,7 @@
 }
 
 /* The row's own button only: where the panes stack the open row holds the
-   detail, whose buttons are not rows. The detail appears in place without an
-   animated height, so nothing below it moves under the researcher's eyes, with
-   reduced motion or without (ADR 0054). */
+   detail, whose buttons are not rows. */
 .rows > li > button {
   width: 100%;
   display: flex;

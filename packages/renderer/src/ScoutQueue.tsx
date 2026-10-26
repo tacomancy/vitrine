@@ -636,8 +636,8 @@ export function ScoutQueue({
     return () => document.removeEventListener("keydown", onKeyDown);
   });
 
-  // One detail serves the wide pane and the stacked row, so the chips, whose
-  // and abstract cannot drift (ADR 0054 decisions 1 and 3). Where the panes
+  // One detail serves the wide pane and the stacked row, so the chips, the
+  // Scout line and the abstract cannot drift (ADR 0054 decisions 1 and 3). Where the panes
   // stack, the chosen row holds it and no pane exists, so chosen and open are
   // one state: only the row `current` marks ever receives it.
   const stacked = layout === "narrow";
@@ -671,7 +671,7 @@ export function ScoutQueue({
         }}
       />
     );
-  const openIn = (current: boolean) =>
+  const detailIfOpen = (current: boolean) =>
     stacked && current ? reviewDetail : undefined;
 
   return (
@@ -992,7 +992,7 @@ export function ScoutQueue({
                           section.rowIds.get(next.id) === rowIdOf(next.id)
                         }
                         onChoose={() => setChosen(next.id)}
-                        detail={openIn(
+                        detail={detailIfOpen(
                           next === card &&
                             section.rowIds.get(next.id) === rowIdOf(next.id)
                         )}
@@ -1009,7 +1009,7 @@ export function ScoutQueue({
                       card={next}
                       current={next === card}
                       onChoose={() => setChosen(next.id)}
-                      detail={openIn(next === card)}
+                      detail={detailIfOpen(next === card)}
                     />
                   ))}
                 </ol>
@@ -1033,7 +1033,7 @@ export function ScoutQueue({
                           card={aged}
                           current={aged === card}
                           onChoose={() => setChosen(aged.id)}
-                          detail={openIn(aged === card)}
+                          detail={detailIfOpen(aged === card)}
                         />
                       ))}
                     </ol>
@@ -1093,7 +1093,7 @@ export function ScoutQueue({
                                 card={title}
                                 current={title === card}
                                 onChoose={() => setChosen(title.id)}
-                                detail={openIn(title === card)}
+                                detail={detailIfOpen(title === card)}
                               />
                             ))}
                           </ol>
