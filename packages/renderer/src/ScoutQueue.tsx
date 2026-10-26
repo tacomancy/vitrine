@@ -14,17 +14,11 @@ import { FirstSlot } from "./FirstSlot";
 import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
-import { editScout, hashOf, newScout, pushRoute } from "./router";
+import { hashOf, newScout, pushRoute, SCOUT_MANAGEMENT } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { Button } from "./Form";
-import {
-  CostLine,
-  DROPPED,
-  NOTHING_PENDING,
-  VoiceLine,
-  dollars,
-} from "./ScoutVoice";
+import { DROPPED, NOTHING_PENDING, VoiceLine, dollars } from "./ScoutVoice";
 import { StatusGlyph } from "./StatusGlyph";
 import { useTRPC } from "./trpc";
 import { WarningLine } from "./VaultStatusLines";
@@ -193,12 +187,6 @@ export function ScoutQueue({
         );
         void reread();
       },
-      ...acts,
-    })
-  );
-  const pause = useMutation(
-    trpc.scouts.setPaused.mutationOptions({
-      onSuccess: () => void reread(),
       ...acts,
     })
   );
@@ -425,8 +413,6 @@ export function ScoutQueue({
     id === null
       ? everything.length
       : everything.filter((c) => c.scouts.some((s) => s.id === id)).length;
-  const costOf = (id: string): number | null =>
-    health.data?.scouts.find((h) => h.id === id)?.lastCostUsd ?? null;
   const healthOf = (id: string): Health | undefined =>
     health.data?.scouts.find((h) => h.id === id)?.health;
   const questions = questionChoices(questionList.data);
@@ -729,6 +715,11 @@ export function ScoutQueue({
           </li>
         ))}
       </ul>
+      {/* The Scouts are managed on their own screen (ADR 0053 decision 1); the
+          way there is always at the rail's foot, filtered or not. */}
+      <p className={styles.railFoot}>
+        <a href={hashOf(SCOUT_MANAGEMENT)}>Scouts screen</a>
+      </p>
       {selected !== null && (
         <div className={styles.scoutHeader}>
           <p className={styles.filterLine}>
@@ -747,7 +738,6 @@ export function ScoutQueue({
             <>
               <h2 className={styles.scoutName}>{selectedScout.name}</h2>
               <VoiceLine health={healthOf(selectedScout.id)} />
-              <CostLine usd={costOf(selectedScout.id)} />
               {selectedScout.assigned.length > 0 && (
                 <ul className={styles.assigned} aria-label="Assigned Questions">
                   {selectedScout.assigned.map((id) => {
@@ -771,20 +761,6 @@ export function ScoutQueue({
                   onClick={() => run.mutate({ scoutId: selectedScout.id })}
                 >
                   Run now
-                </Button>{" "}
-                <Button onClick={() => pushRoute(editScout(selectedScout.id))}>
-                  Edit
-                </Button>{" "}
-                <Button
-                  disabled={pause.isPending}
-                  onClick={() =>
-                    pause.mutate({
-                      scoutId: selectedScout.id,
-                      paused: !selectedScout.paused,
-                    })
-                  }
-                >
-                  {selectedScout.paused ? "Resume" : "Pause"}
                 </Button>
               </p>
             </>

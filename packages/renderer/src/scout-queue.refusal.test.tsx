@@ -144,14 +144,6 @@ describe("a refused act in the Scout Queue", () => {
       },
     },
     {
-      name: "pause",
-      run: async (more) => {
-        renderApp(answers([], { "scouts.setPaused": refuse, ...more }));
-        await chooseScout();
-        fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
-      },
-    },
-    {
       name: "run now",
       run: async (more) => {
         renderApp(answers([], { "scouts.runNow": refuse, ...more }));
@@ -241,12 +233,11 @@ describe("a refused act in the Scout Queue", () => {
     renderApp(
       answers([card()], {
         "scouts.accept": () => accepting.promise,
-        "scouts.setPaused": refuse,
+        "scouts.runNow": refuse,
       })
     );
     fireEvent.keyDown(await cardInHand(), { key: "a" });
-    await chooseScout();
-    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    fireEvent.click(await runNowOf());
     await screen.findByRole("alert");
 
     accepting.settle({ ok: { path: "sources/x.md", held: false } });
@@ -335,28 +326,6 @@ describe("a refused act in the Scout Queue", () => {
     expect(again.textContent).toBe(refused);
     expect(first.isConnected).toBe(false);
     expect(again).not.toBe(first);
-  });
-
-  it("is forgotten by a pause that succeeds and says nothing", async () => {
-    let attempts = 0;
-    renderApp(
-      answers([], {
-        "scouts.setPaused": () => {
-          if (attempts++ === 0) refuse();
-          return {};
-        },
-      })
-    );
-    await chooseScout();
-    const pause = await screen.findByRole("button", { name: "Pause" });
-    fireEvent.click(pause);
-    await screen.findByRole("alert");
-
-    fireEvent.click(pause);
-
-    await waitFor(() => expect(attempts).toBe(2));
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-    expect(screen.queryByRole("status")).toBeNull();
   });
 });
 

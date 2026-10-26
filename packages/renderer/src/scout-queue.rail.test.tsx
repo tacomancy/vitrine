@@ -212,7 +212,7 @@ describe("filtering by the rail", () => {
     expect(screen.queryByText(/only Blog ring/)).toBeNull();
   });
 
-  it("opens a Scout header with Run now, Edit, Pause, the cost and Assigned Questions, and runs the Scout", async () => {
+  it("opens a Scout header with Run now and Assigned Questions, and runs only that Scout", async () => {
     const runNow = vi.fn(() => ({
       runId: 1,
       outcome: "ok",
@@ -238,15 +238,32 @@ describe("filtering by the rail", () => {
     expect(
       await screen.findByRole("heading", { name: "Sleep and memory" })
     ).toBeDefined();
-    expect(screen.getByText(/last run cost \$0\.0123/)).toBeDefined();
     expect(
       screen.getByRole("list", { name: "Assigned Questions" })
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Pause" })).toBeDefined();
+    // Edit, Pause/Resume and the cost are the Scouts screen's (ADR 0053).
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^(Pause|Resume)$/ })
+    ).toBeNull();
+    expect(screen.queryByText(/last run cost/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Run now" }));
     await vi.waitFor(() => expect(runNow).toHaveBeenCalled());
     expect(runNow.mock.calls[0]).toEqual([{ scoutId: "sleep" }]);
+    expect(runNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no Run now with no Scout filtered, and a link to the Scouts screen either way", async () => {
+    renderApp(answers(stack()));
+    await entry(/Sleep and memory/);
+
+    expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
+    const link = screen.getByRole("link", { name: "Scouts screen" });
+    expect(link.getAttribute("href")).toBe("#/scout-management");
+
+    fireEvent.click(await entry(/Sleep and memory/));
+    expect(screen.getByRole("button", { name: "Run now" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Scouts screen" })).toBeDefined();
   });
 
   it("puts the held links, the cap line and Show them in the header, and the deferred line on a dropped Scout's", async () => {
@@ -279,7 +296,7 @@ describe("filtering by the rail", () => {
 
     fireEvent.click(await entry(/Blog ring/));
     expect(await screen.findByText(/2 deferred/)).toBeDefined();
-    // A dropped Scout is not looking: no Run now, Edit or Pause for it.
+    // A dropped Scout is not looking: no Run now for it.
     expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
   });
 

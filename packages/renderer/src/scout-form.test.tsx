@@ -89,39 +89,6 @@ const answers = (more: Record<string, unknown> = {}) => ({
   ...more,
 });
 
-describe("the header's cost line", () => {
-  const withCost = (lastCostUsd: number | null) =>
-    answers({
-      "scouts.health": {
-        scouts: [{ id: "sleep", health: quiet, lastCostUsd }],
-        unreadable: [],
-      },
-    });
-
-  it("shows what the last run cost", async () => {
-    renderApp(withCost(0.0123));
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-    await screen.findByRole("heading", { name: "Sleep and memory" });
-    expect(await screen.findByText("last run cost $0.0123")).toBeDefined();
-  });
-
-  it("says nothing for a run that cost nothing", async () => {
-    renderApp(withCost(null));
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-    await screen.findByRole("heading", { name: "Sleep and memory" });
-    await screen.findAllByText(/parsed cleanly/);
-    expect(screen.queryByText(/last run cost/)).toBeNull();
-  });
-});
-
 const rail = () => screen.findByRole("list", { name: "Scouts" });
 
 describe("the rail's voices", () => {
@@ -244,62 +211,6 @@ describe("the rail's voices", () => {
       items.map((li) => within(li).getByRole("img").getAttribute("aria-label"))
     ).toEqual(["open", "answered", "promoted"]);
     expect(screen.queryByText(/closed|finished|no longer/i)).toBeNull();
-  });
-});
-
-describe("pause and resume", () => {
-  it("pauses from the header and resumes a paused Scout", async () => {
-    const calls: unknown[] = [];
-    renderApp(
-      answers({
-        "scouts.setPaused": (input: unknown) => {
-          calls.push(input);
-          return null;
-        },
-      })
-    );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-
-    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
-
-    await waitFor(() =>
-      expect(calls).toEqual([{ scoutId: "sleep", paused: true }])
-    );
-    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
-  });
-
-  it("offers Resume on a paused Scout, which speaks not yet with its reason", async () => {
-    renderApp(
-      answers({
-        "scouts.list": { scouts: [scout({ paused: true })], unreadable: [] },
-        "scouts.health": {
-          scouts: [
-            {
-              id: "sleep",
-              health: {
-                voice: "not yet",
-                sentence: "Paused — it is not looking.",
-              },
-            },
-          ],
-          unreadable: [],
-        },
-      })
-    );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-
-    expect(await screen.findByRole("button", { name: "Resume" })).toBeDefined();
-    expect(
-      screen.getAllByText("Paused — it is not looking.").length
-    ).toBeGreaterThan(0);
   });
 });
 
@@ -477,13 +388,7 @@ describe("the form", () => {
         },
       })
     );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    window.location.hash = "#/scout-management/sleep/edit";
 
     expect((await screen.findByLabelText<HTMLInputElement>("Name")).value).toBe(
       "Sleep and memory"
@@ -561,12 +466,7 @@ describe("a refused Save", () => {
         },
       })
     );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    window.location.hash = "#/scout-management/sleep/edit";
     await screen.findByRole("form", { name: "Edit Sleep and memory" });
     type("Query", "all:sleep AND all:rem");
 
@@ -817,12 +717,7 @@ describe("the form, editing a Scout that watches a page", () => {
         ...more,
       })
     );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    window.location.hash = "#/scout-management/sleep/edit";
     await screen.findByRole("form", { name: "Edit Sleep and memory" });
     return saves;
   };
@@ -973,7 +868,7 @@ describe("empty stacks, in the three voices", () => {
         name: /Sleep and memory/,
       })
     );
-    await screen.findByRole("button", { name: "Pause" });
+    await screen.findByRole("button", { name: "Run now" });
     expect(screen.queryByText("Nothing pending.")).toBeNull();
     expect(screen.getAllByText(wrong.sentence).length).toBeGreaterThan(1);
   });
@@ -1129,12 +1024,7 @@ describe("the form's Queue behaviour", () => {
         "scouts.save": save,
       })
     );
-    fireEvent.click(
-      await within(await rail()).findByRole("button", {
-        name: /Sleep and memory/,
-      })
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    window.location.hash = "#/scout-management/sleep/edit";
     await screen.findByRole("form", { name: "Edit Sleep and memory" });
   };
 

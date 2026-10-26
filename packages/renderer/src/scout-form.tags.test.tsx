@@ -193,8 +193,7 @@ describe("the Tags Filter", () => {
         },
       })
     );
-    fireEvent.click(await screen.findByRole("button", { name: /Sleep/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    window.location.hash = "#/scout-management/sleep/edit";
     await screen.findByRole("form", { name: "Edit Sleep" });
     expect(screen.getByRole("radio", { name: "by Query" })).toHaveProperty(
       "checked",
