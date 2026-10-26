@@ -203,6 +203,7 @@ function Workspace({ vault }: { vault: Vault }) {
           {route.surface === "vault" && <VaultSurface path={route.path} />}
           {route.surface === "scout-management" && (
             <ScoutActivity
+              arriveOn={route.scout}
               onNewScout={(assigning) => pushRoute(newScout(assigning))}
               onEditOnForm={(scoutId) => pushRoute(editScout(scoutId))}
             />

@@ -19,7 +19,7 @@ export type Route =
   | { surface: "experiments" }
   | { surface: "loose-ends" }
   | { surface: "question-map" }
-  | { surface: "scout-management" }
+  | { surface: "scout-management"; scout?: string }
   | { surface: "scout-form"; scout?: string; assigning?: string }
   | { surface: "scouts"; scout?: string; view?: "muted" | "skim" }
   | { surface: "settings"; section?: "credentials" }
@@ -50,6 +50,11 @@ export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 export const QUESTION_MAP: Route = { surface: "question-map" };
 /** The Scouts screen (ADR 0053, formerly Scout Activity, ADR 0042): the Dashboard that asks whether the Scouts earn their keep. */
 export const SCOUT_MANAGEMENT: Route = { surface: "scout-management" };
+/** The Scouts screen arriving on one Scout's row, as the Queue's *needs you* line links it (ADR 0053 decision 3). */
+export const scoutRow = (scout: string): Route => ({
+  surface: "scout-management",
+  scout,
+});
 /**
  * A Scout's form (ADR 0053 decision 5): a new Scout's, optionally starting
  * Assigned to a Question, or an existing Scout's by id. Under the Scouts
@@ -123,7 +128,9 @@ export function hashOf(route: Route): string {
     case "question-map":
       return "#/question-map";
     case "scout-management":
-      return "#/scout-management";
+      return route.scout === undefined
+        ? "#/scout-management"
+        : `#/scout-management?scout=${encodeURIComponent(route.scout)}`;
     case "scout-form":
       return route.scout !== undefined
         ? `${SCOUT_FORM}${encodeURIComponent(route.scout)}/edit`
@@ -262,6 +269,12 @@ function parseHash(hash: string): Route {
   // The address Scout Activity had (ADR 0053): a saved link still lands here, and
   // the canonicalising replace below rewrites the window to the new one.
   if (hash === "#/scout-management") return SCOUT_MANAGEMENT;
+  if (hash.startsWith("#/scout-management?scout=")) {
+    const scout = decodeURIComponent(
+      hash.slice("#/scout-management?scout=".length)
+    );
+    return scout === "" ? SCOUT_MANAGEMENT : scoutRow(scout);
+  }
   if (hash === "#/scout-activity") return SCOUT_MANAGEMENT;
   if (hash.startsWith(SCOUT_FORM)) return parseScoutForm(hash);
   if (hash === "#/experiments") return EXPERIMENTS;

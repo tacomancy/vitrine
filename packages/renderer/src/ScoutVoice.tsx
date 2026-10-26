@@ -25,6 +25,15 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
   if (health.voice === "not yet") {
     return (
       <span className={styles.voice} data-voice="not yet">
+        {health.kind === "credentials" && (
+          <span
+            role="img"
+            aria-label="waiting for a key"
+            className={styles.glyph}
+          >
+            ◇
+          </span>
+        )}
         <span>{health.sentence}</span>
       </span>
     );
@@ -34,6 +43,26 @@ export function VoiceLine({ health }: { health: Health | undefined }) {
     <span className={styles.voice} data-voice="claim">
       <span>{health.warrant.fragments.join(" · ")}</span>
     </span>
+  );
+}
+
+/**
+ * Whether a Scout needs the researcher (ADR 0053 decision 3): it is *wrong*,
+ * or it is waiting on a key it was never given. Nothing else qualifies — not
+ * paused, not quiet, not *not yet*, and never a low Accept rate, which is not
+ * a Health at all (ADR 0042 decision 8). The rail's marker (drawn by
+ * `VoiceLine`) and the line above the list both read this, so a Scout is
+ * never marked in one and unnamed in the other.
+ */
+export function needsYou(
+  health: Health | undefined
+): health is
+  | Extract<Health, { voice: "wrong" }>
+  | (Extract<Health, { voice: "not yet" }> & { kind: "credentials" }) {
+  return (
+    health !== undefined &&
+    (health.voice === "wrong" ||
+      (health.voice === "not yet" && health.kind === "credentials"))
   );
 }
 
