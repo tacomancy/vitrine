@@ -73,9 +73,9 @@ function movedWords(moved: LaneMove): string {
  * guesses: a field the source did not supply is said to be missing, and the
  * card says *assigned to* because nothing has scored a match. Skim (#452) is
  * the second lane: single lines with nothing to clear, offering `A`, `O` and
- * `T` (to Review) and no reject, defer or pass. The form (#451) has its own
- * Address (ADR 0053), and every short place — a rail row, a
- * Scout's header, an empty stack — speaks in one of ADR 0032's three voices.
+ * `T` (to Review) and no reject, defer or pass. Every short place — a rail
+ * row, a Scout's header, an empty stack — speaks in one of ADR 0032's three
+ * voices. The Scout's form is not here: it has its own Address (ADR 0053).
  */
 export function ScoutQueue({
   scout,

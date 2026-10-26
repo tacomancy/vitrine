@@ -55,6 +55,17 @@ export function ScoutFormPage({
     });
   }, [missing, scout]);
 
+  // A failed read is said, not drawn as an empty page: no silent failures.
+  if (scout !== undefined && scouts.isError) {
+    return (
+      <div className={styles.formPage}>
+        <p role="alert">
+          {hashOf({ surface: "scout-form", scout })} — the Scouts could not be
+          read: {scouts.error.message}
+        </p>
+      </div>
+    );
+  }
   if (scout !== undefined && editing === undefined) return null;
 
   const keep = (values: FormValues, tried: Tried | null) => {

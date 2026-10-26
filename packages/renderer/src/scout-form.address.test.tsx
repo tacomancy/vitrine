@@ -129,6 +129,21 @@ describe("the form's Addresses", () => {
     ).toBeDefined();
   });
 
+  it("says so when the Scouts cannot be read, rather than drawing an empty page", async () => {
+    window.location.hash = "#/scout-management/sleep/edit";
+    renderApp(
+      answers({
+        "scouts.list": () => {
+          throw new Error("core down");
+        },
+      })
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("#/scout-management/sleep/edit");
+    expect(alert.textContent).toContain("core down");
+  });
+
   it("keeps an unsaved draft across a reload", async () => {
     window.location.hash = "#/scout-management/new";
     const first = renderApp(answers());
