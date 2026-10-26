@@ -312,8 +312,31 @@ describe("the form", () => {
   const type = (label: string, value: string) =>
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-  it("opens in place of the stack, offers open Questions only, and Esc returns to the stack", async () => {
+  it("opens at its own Address, offers open Questions only, and Esc returns to the Scouts screen", async () => {
     const form = await open({
+      "scouts.activity": {
+        rows: [],
+        fleet: {
+          parsingCleanly: 0,
+          notParsing: 0,
+          notReached: 0,
+          keyRejected: 0,
+          noKey: 0,
+        },
+        review: {
+          pending: 0,
+          pastWindow: 0,
+          deferred: 0,
+          median: null,
+          oldest: null,
+        },
+        coverageGaps: {
+          kind: "covered",
+          warrant: { questions: 0, scouts: 0 },
+          notLooking: [],
+        },
+        dropped: [],
+      },
       "scouts.queue": [
         {
           id: 7,
@@ -333,6 +356,7 @@ describe("the form", () => {
       ],
     });
 
+    expect(window.location.hash).toBe("#/scout-management/new");
     expect(screen.queryByRole("article")).toBeNull();
     const picker = within(form).getByRole("group", {
       name: "Assigned Questions",
@@ -346,7 +370,7 @@ describe("the form", () => {
     // Heard on the document, so it works after focus has left the form.
     fireEvent.keyDown(document.body, { key: "Escape" });
 
-    expect(await screen.findByRole("article")).toBeDefined();
+    expect(await screen.findByRole("region", { name: "Scouts" })).toBeDefined();
     expect(screen.queryByRole("form")).toBeNull();
   });
 
@@ -726,8 +750,12 @@ describe("the form, watching a page", () => {
 
     expect(window.location.hash).toBe("#/settings");
     await screen.findByRole("region", { name: "Settings" });
-    // Back, as the browser's back would.
-    window.location.hash = "#/scouts";
+    // Back, as the browser's back would: to the form's own Address, where the
+    // draft is kept (ADR 0053 decision 5).
+    window.history.back();
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/scout-management/new")
+    );
 
     await screen.findByRole("form", { name: "New Scout" });
     expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
@@ -753,7 +781,10 @@ describe("the form, watching a page", () => {
     await open();
     type("Name", "Half done");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+    await waitFor(() =>
+      expect(window.location.hash).toBe("#/scout-management")
+    );
+    window.location.hash = "#/scout-management/new";
 
     expect((await screen.findByLabelText<HTMLInputElement>("Name")).value).toBe(
       ""

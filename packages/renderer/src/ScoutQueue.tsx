@@ -15,11 +15,10 @@ import { FirstSlot } from "./FirstSlot";
 import { MuteByName, MutedView, MuteOffer, ruleWords } from "./MuteRules";
 import { classifyLink, refusal as linkRefusal } from "./link-rule";
 import { RefusalLine, useRefusal } from "./refusal-line";
-import { hashOf } from "./router";
+import { editScout, hashOf, newScout, pushRoute } from "./router";
 import { runWords } from "./run-words";
 import styles from "./ScoutQueue.module.css";
 import { Button } from "./Form";
-import { ScoutForm, type ScoutDraft } from "./ScoutForm";
 import {
   CostLine,
   DROPPED,
@@ -74,19 +73,15 @@ function movedWords(moved: LaneMove): string {
  * guesses: a field the source did not supply is said to be missing, and the
  * card says *assigned to* because nothing has scored a match. Skim (#452) is
  * the second lane: single lines with nothing to clear, offering `A`, `O` and
- * `T` (to Review) and no reject, defer or pass. The form (#451) opens in the
- * centre pane in place of the stack, and every short place — a rail row, a
+ * `T` (to Review) and no reject, defer or pass. The form (#451) has its own
+ * Address (ADR 0053), and every short place — a rail row, a
  * Scout's header, an empty stack — speaks in one of ADR 0032's three voices.
  */
 export function ScoutQueue({
-  form,
-  setForm,
   scout,
   mutedOpen: arrivedOnMuted = false,
   skimOpen: arrivedOnSkim = false,
 }: {
-  form: ScoutDraft | null;
-  setForm: (form: ScoutDraft | null) => void;
   /** Arrived from Scout Activity's *N muted*: the muted view starts open, and the button closes it as it would any other time. */
   mutedOpen?: boolean | undefined;
   /** Arrived from Home's Skim line: the Skim lane starts chosen, and the lane buttons move off it as they would any other time. */
@@ -126,8 +121,6 @@ export function ScoutQueue({
   const questionList = useQuery(
     trpc.questions.list.queryOptions({ order: "newest" })
   );
-  // The form, or null for the stack. Held by the window and not here: *Add a
-  // key* leaves for Settings, and this surface unmounts on the way.
   const [lineChosen, setLineChosen] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
@@ -310,8 +303,8 @@ export function ScoutQueue({
     ),
   ];
   const unread = reasons.length > 0;
-  // The stack, or what has taken its place: the form, or the muted view.
-  const stackShown = form === null && !mutedOpen;
+  // The stack, or what has taken its place: the muted view.
+  const stackShown = !mutedOpen;
   const everything = queue.data ?? [];
   const questionRows = questionGroups.data ?? [];
   // A group that empties (its last card acted on) leaves the rail, so the
@@ -461,10 +454,6 @@ export function ScoutQueue({
   );
   const selectedDropped = droppedScouts.find((d) => d.id === selected);
   const selectedScout = scouts.data?.scouts.find((s) => s.id === selected);
-  const editing =
-    form?.edit == null
-      ? undefined
-      : scouts.data?.scouts.find((s) => s.id === form.edit);
   useChosenInView(
     byQuestion
       ? `question-rail-${selectedQuestion ?? "all"}`
@@ -641,7 +630,7 @@ export function ScoutQueue({
         event.preventDefault();
         onUndo();
       }
-      if (bare && form === null && !mutedOpen && (key === "j" || key === "k")) {
+      if (bare && !mutedOpen && (key === "j" || key === "k")) {
         const step = key === "j" ? 1 : -1;
         if (lane === "review" && card !== undefined) {
           event.preventDefault();
@@ -660,7 +649,6 @@ export function ScoutQueue({
         }
       }
       if (
-        form === null &&
         lane === "review" &&
         event.shiftKey &&
         !event.metaKey &&
@@ -720,9 +708,7 @@ export function ScoutQueue({
           </Button>
         )}
         <Button onClick={() => setMutedOpen(true)}>Mute rules</Button>
-        <Button onClick={() => setForm({ edit: null, values: null })}>
-          + New Scout
-        </Button>
+        <Button onClick={() => pushRoute(newScout())}>+ New Scout</Button>
       </header>
       {byQuestion && (
         <>
@@ -813,7 +799,7 @@ export function ScoutQueue({
           ))}
         </ul>
       )}
-      {!byQuestion && selected !== null && form === null && (
+      {!byQuestion && selected !== null && (
         <div className={styles.scoutHeader}>
           <p className={styles.filterLine}>
             only {groupName ?? selected} ·{" "}
@@ -856,11 +842,7 @@ export function ScoutQueue({
                 >
                   Run now
                 </Button>{" "}
-                <Button
-                  onClick={() =>
-                    setForm({ edit: selectedScout.id, values: null })
-                  }
-                >
+                <Button onClick={() => pushRoute(editScout(selectedScout.id))}>
                   Edit
                 </Button>{" "}
                 <Button
@@ -878,20 +860,6 @@ export function ScoutQueue({
             </>
           )}
         </div>
-      )}
-      {form !== null && (form.edit === null || editing !== undefined) && (
-        <ScoutForm
-          key={form.edit ?? "new"}
-          {...(editing === undefined ? {} : { scout: editing })}
-          values={form.values}
-          onChange={(values) => setForm({ edit: form.edit, values })}
-          questions={questions}
-          assigning={form.assigning}
-          onDone={(saved) => {
-            setForm(null);
-            if (saved !== null) setSelected(saved);
-          }}
-        />
       )}
       {stackShown &&
         lane === "review" &&
@@ -942,7 +910,7 @@ export function ScoutQueue({
         )}
       {/* Muted is a tab of the frame: the rules and what they hold, with
        *Mute by name* inside it (ADR 0052 decision 6). */}
-      {form === null && mutedOpen && (
+      {mutedOpen && (
         <>
           <p className={styles.actions}>
             <Button
@@ -1043,8 +1011,7 @@ export function ScoutQueue({
       {stackShown && lane === "review" && inGroup.length === 0 && unread && (
         <FirstSlot voice="wrong" claim="" />
       )}
-      {form === null &&
-        lane === "review" &&
+      {lane === "review" &&
         queue.isSuccess &&
         inGroup.length === 0 &&
         digest.length === 0 &&

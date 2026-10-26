@@ -15,11 +15,11 @@ import { LooseEnds } from "./LooseEnds";
 import { QuestionMap } from "./QuestionMap";
 import { ScoutActivity } from "./ScoutActivity";
 import { ScoutQueue } from "./ScoutQueue";
-import type { ScoutDraft } from "./ScoutForm";
+import { ScoutFormPage } from "./ScoutFormPage";
 import { Reader } from "./Reader";
 import { PublishReading, type Reading } from "./reading";
 import { ResearchQuestion } from "./ResearchQuestion";
-import { pushRoute, SCOUTS, scoutStack, useRoute } from "./router";
+import { editScout, newScout, pushRoute, useRoute } from "./router";
 import { Settings, SettingsChord } from "./Settings";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -86,10 +86,6 @@ function Workspace({ vault }: { vault: Vault }) {
     path: string;
     field: WriteOnArrival;
   } | null>(null);
-
-  // The Scout form as the window holds it, so a trip to Settings and back
-  // (its *Add a key*) finds what was typed (ADR 0025 decision 3).
-  const [scoutDraft, setScoutDraft] = useState<ScoutDraft | null>(null);
 
   const onCaptured = (question: Question) => {
     void queryClient.invalidateQueries(trpc.questions.list.pathFilter());
@@ -195,8 +191,6 @@ function Workspace({ vault }: { vault: Vault }) {
           )}
           {route.surface === "scouts" && (
             <ScoutQueue
-              form={scoutDraft}
-              setForm={setScoutDraft}
               scout={route.scout}
               mutedOpen={route.view === "muted"}
               skimOpen={route.view === "skim"}
@@ -209,22 +203,16 @@ function Workspace({ vault }: { vault: Vault }) {
           {route.surface === "vault" && <VaultSurface path={route.path} />}
           {route.surface === "scout-management" && (
             <ScoutActivity
-              onNewScout={(assigning) => {
-                // The Queue holds the form, and the window holds what it is
-                // showing, so one gesture across two surfaces: a fresh draft,
-                // and the Queue it opens in.
-                setScoutDraft({
-                  edit: null,
-                  values: null,
-                  ...(assigning === undefined ? {} : { assigning }),
-                });
-                pushRoute(SCOUTS);
-              }}
-              onEditOnForm={(scoutId) => {
-                // The same crossing, to this Scout's form on its own stack.
-                setScoutDraft({ edit: scoutId, values: null });
-                pushRoute(scoutStack(scoutId));
-              }}
+              onNewScout={(assigning) => pushRoute(newScout(assigning))}
+              onEditOnForm={(scoutId) => pushRoute(editScout(scoutId))}
+            />
+          )}
+          {route.surface === "scout-form" && (
+            <ScoutFormPage
+              key={route.scout ?? "new"}
+              vaultPath={vault.path}
+              scout={route.scout}
+              assigning={route.assigning}
             />
           )}
           {route.surface === "loose-ends" && (
