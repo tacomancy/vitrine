@@ -36,6 +36,13 @@ describe("the window's location is the URL hash", () => {
     expect(window.location.hash).toBe("#/home");
   });
 
+  it("keeps the retired #/scout-activity address landing on the Scouts screen, and rewrites the hash to the new one", async () => {
+    window.location.hash = "#/scout-activity";
+    renderApp(answers);
+    expect(await screen.findByRole("region", { name: "Scouts" })).toBeDefined();
+    expect(window.location.hash).toBe("#/scout-management");
+  });
+
   it("treats a hash it does not know as the Inbox", async () => {
     window.location.hash = "#/nowhere";
     renderApp(answers);
