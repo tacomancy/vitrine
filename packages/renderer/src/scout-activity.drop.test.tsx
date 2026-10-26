@@ -291,7 +291,12 @@ describe("Scouts screen — the dropped line", () => {
       within(names)
         .getAllByRole("button")
         .map((b) => b.getAttribute("aria-label"))
-    ).toEqual(["Sleep and memory: restore", "Gone: restore"]);
+    ).toEqual([
+      "Sleep and memory: restore",
+      "Sleep and memory: erase",
+      "Gone: restore",
+      "Gone: erase",
+    ]);
   });
 
   it("restores a Scout from the line: the core is asked, the table is read again, and the Scout is a row once more", async () => {

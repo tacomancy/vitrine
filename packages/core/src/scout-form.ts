@@ -1,6 +1,6 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { Document, isMap, parseDocument } from "yaml";
+import { Document, isMap, parseDocument, stringify } from "yaml";
 import { ArxivError } from "./arxiv.js";
 import {
   openAlexId,
@@ -484,6 +484,98 @@ export function setDropped(
     else doc.delete("dropped");
     await writeScoutFile(deps.vaultPath, found.file, scoutText(doc));
   });
+}
+
+/**
+ * Erase a dropped Scout (ADR 0053 decision 6): its file removed and a tombstone
+ * — its name, nothing else — written in its place, so every record that names
+ * the Scout by id keeps resolving. Nothing else is touched: no `triage` row, no
+ * run, no stub. The queue is the one `setDropped` and the form's save join, so
+ * an erase overlapping a restore of the same Scout cannot interleave; the
+ * preconditions are read inside it for the same reason. Pending or deferred
+ * Proposals refuse the erase rather than being rejected for the researcher
+ * (ADR 0042 decision 1), and every one of them is counted by an Appearance of
+ * the Scout, in either lane, since each is on the Queue under its name.
+ */
+export function eraseScout(deps: ScoutDeps, scoutId: string): Promise<void> {
+  return saving(async () => {
+    const read = await readScouts(deps.vaultPath);
+    const gone = read.erased.find((t) => t.id === scoutId);
+    if (gone !== undefined) {
+      throw new VaultError("refused", `${gone.name} was already erased.`);
+    }
+    const names = await listScoutsFolder(deps.vaultPath);
+    const live = fileOf(read.scouts, scoutId, names);
+    if (live !== undefined) {
+      throw new VaultError(
+        "refused",
+        `${live.scout.name} is not dropped. Drop it first; only a dropped Scout can be erased.`
+      );
+    }
+    const found = fileOf(read.dropped, scoutId, names);
+    if (found === undefined) {
+      throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
+    }
+    const waiting = proposalsWaitingOn(deps, scoutId);
+    const total = waiting.pending + waiting.deferred;
+    if (total > 0) {
+      // A deferred Proposal comes back when the Scout next looks, so the way
+      // out of one is a restore as well as a triage.
+      const way =
+        waiting.deferred > 0
+          ? ", or restore the Scout so it can look again,"
+          : "";
+      throw new VaultError(
+        "refused",
+        `${found.scout.name} still has ${waitingSentence(waiting)} in the Queue. Triage ${total === 1 ? "it" : "them"}${way} before erasing.`
+      );
+    }
+    // The tombstone first: a write that fails here leaves the file exactly as
+    // it was, and a Scout file beside a tombstone reads as the Scout.
+    const tombstone = `${scoutId}.erased`;
+    await writeScoutFile(
+      deps.vaultPath,
+      tombstone,
+      stringify({ name: found.scout.name })
+    );
+    try {
+      await rm(join(deps.vaultPath, SCOUTS_FOLDER, found.file));
+    } catch (cause) {
+      // Half done is worse than not done: take the tombstone back, so the
+      // dropped Scout is still on its line to try again.
+      await rm(join(deps.vaultPath, SCOUTS_FOLDER, tombstone), {
+        force: true,
+      }).catch(() => undefined);
+      throw new VaultError(
+        "writeFailed",
+        `Couldn't remove ${SCOUTS_FOLDER}/${found.file}: ${errorMessageWithoutPath(cause)}`
+      );
+    }
+  });
+}
+
+function proposalsWaitingOn(deps: ScoutDeps, scoutId: string) {
+  const counts = deps.queue
+    .prepare(
+      `SELECT p.state AS state, COUNT(DISTINCT p.id) AS n
+         FROM proposals p JOIN appearances a ON a.proposal_id = p.id
+        WHERE a.scout_id = ? AND p.state IN ('pending', 'deferred')
+        GROUP BY p.state`
+    )
+    .all(scoutId) as Array<{ state: string; n: number }>;
+  const of = (state: string) => counts.find((c) => c.state === state)?.n ?? 0;
+  return { pending: of("pending"), deferred: of("deferred") };
+}
+
+function waitingSentence(w: { pending: number; deferred: number }): string {
+  const say = (n: number, state: string) =>
+    `${n} ${state} Proposal${n === 1 ? "" : "s"}`;
+  return [
+    w.pending > 0 ? say(w.pending, "pending") : null,
+    w.deferred > 0 ? say(w.deferred, "deferred") : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" and ");
 }
 
 export type NamesFound =

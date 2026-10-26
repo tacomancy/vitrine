@@ -30,3 +30,14 @@
   gap: var(--space-1);
   color: var(--color-fg-secondary);
 }
+
+/* The question beneath a name, in the line's own type and nothing heavier: an
+   erase is confirmed in words, and the Scout's row carries no alarm. */
+.ask {
+  margin: var(--space-1) 0 0;
+  color: var(--color-fg);
+}
+
+.ask p {
+  margin: 0 0 var(--space-1);
+}

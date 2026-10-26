@@ -97,6 +97,7 @@ import {
   searchNames,
   setCadence,
   setDropped,
+  eraseScout,
   setPaused,
   tryPage,
   tryQuery,
@@ -831,6 +832,13 @@ export const router = t.router({
       .input(z.object({ scoutId: z.string().min(1) }))
       .mutation(async ({ ctx, input }) =>
         refusing(setDropped(await scoutDeps(ctx), input.scoutId, false))
+      ),
+    // Take a dropped Scout out for good, leaving its tombstone (ADR 0053
+    // decision 6): refused unless it is dropped and nothing of its is waiting.
+    erase: t.procedure
+      .input(z.object({ scoutId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) =>
+        refusing(eraseScout(await scoutDeps(ctx), input.scoutId))
       ),
     tryQuery: t.procedure
       .input(
