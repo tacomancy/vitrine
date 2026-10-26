@@ -83,6 +83,7 @@ import {
   readRunCosts,
 } from "./scout-activity.js";
 import { CADENCES, readScouts } from "./scout-file.js";
+import { readRunLines, readStubOrigin } from "./scout-names.js";
 import {
   awaySince,
   dismissResurfaced,
@@ -674,8 +675,26 @@ export const router = t.router({
   scouts: t.router({
     list: t.procedure.query(async ({ ctx }) => {
       const { vault } = await requireVault(ctx);
-      return refusing(readScouts(vault.path));
+      // Without `erased`: a tombstone is not a Scout, so the list of Scouts
+      // does not carry it; only a record that names its id reads it.
+      return refusing(
+        readScouts(vault.path).then(({ scouts, dropped, unreadable }) => ({
+          scouts,
+          dropped,
+          unreadable,
+        }))
+      );
     }),
+    // The Scout a stub says found it, and the newest runs, each named: a
+    // Scout since erased reads as its tombstone's name, marked erased.
+    origin: t.procedure
+      .input(z.object({ path: z.string().min(1) }))
+      .query(async ({ ctx, input }) =>
+        refusing(readStubOrigin(await scoutDeps(ctx), input.path))
+      ),
+    runs: t.procedure.query(async ({ ctx }) =>
+      refusing(readRunLines(await scoutDeps(ctx)))
+    ),
     runNow: t.procedure
       .input(z.object({ scoutId: z.string().min(1) }))
       .mutation(async ({ ctx, input }) =>

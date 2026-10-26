@@ -231,7 +231,7 @@ describe("raise", () => {
     expect(cards).toHaveLength(before.length);
     expect(cards[0]!.moved).toEqual({
       kind: "raised",
-      by: { id: "loud", name: "Loud" },
+      by: { id: "loud", name: "Loud", erased: false },
     });
   });
 

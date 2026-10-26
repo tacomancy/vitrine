@@ -283,6 +283,7 @@ describe("Run now", () => {
           },
         ],
         dropped: false,
+        erased: false,
       },
     ]);
   });
