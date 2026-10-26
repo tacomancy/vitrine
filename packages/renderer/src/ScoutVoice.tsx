@@ -53,16 +53,6 @@ export const NOTHING_PENDING = "Nothing pending.";
 export const DROPPED =
   "dropped — it no longer runs; what it found stays in Review";
 
-/**
- * The last run's cost, on the header and nowhere else (ADR 0040 decision 6):
- * the visibility is the guard, so there is no cap and no running total. A
- * run that cost nothing draws nothing.
- */
-export function CostLine({ usd }: { usd: number | null }) {
-  if (usd === null) return null;
-  return <span className={styles.voice}>last run cost {dollars(usd)}</span>;
-}
-
 /** A run's spend, to the precision a small run needs to be seen at all. */
 export const dollars = (usd: number) =>
   `$${usd < 0.1 ? usd.toFixed(4) : usd.toFixed(2)}`;

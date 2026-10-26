@@ -13,7 +13,7 @@ const setSelect = (value) => `(() => {
 
 /** The form for a Scout that watches a web page, filled and not yet saved. */
 export async function fillPageScout(page, { name, path }) {
-  await page.eval(`${button("+ New Scout")}.click()`);
+  await page.eval(`location.hash = "#/scout-management/new"`);
   await page.wait("!!document.querySelector('form[aria-label=\"New Scout\"]')");
   await page.type(name);
   await page.eval(setSelect("watched"));

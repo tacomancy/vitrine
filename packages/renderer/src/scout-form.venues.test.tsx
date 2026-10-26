@@ -54,7 +54,7 @@ const answers = (more: Record<string, unknown> = {}) => ({
 
 const open = async (more: Record<string, unknown> = {}) => {
   renderApp(answers(more));
-  fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+  window.location.hash = "#/scout-management/new";
   const form = await screen.findByRole("form", { name: "New Scout" });
   fireEvent.change(screen.getByLabelText("Watching"), {
     target: { value: "openalex" },

@@ -16,7 +16,7 @@ export const select = (page, optionValue) =>
 /** + New Scout ▸ named ▸ watching OpenAlex. */
 export async function newOpenAlexScout(page, name) {
   await openQueue(page);
-  await page.eval(`${button("+ New Scout")}.click()`);
+  await page.eval(`location.hash = "#/scout-management/new"`);
   await page.wait("!!document.querySelector('form[aria-label=\"New Scout\"]')");
   await page.type(name); // the form focuses Name on mount
   await select(page, "openalex");

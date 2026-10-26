@@ -31,7 +31,7 @@ const open = async () => {
       shape: [],
     },
   });
-  fireEvent.click(await screen.findByRole("button", { name: "+ New Scout" }));
+  window.location.hash = "#/scout-management/new";
   return screen.findByRole("form", { name: "New Scout" });
 };
 
