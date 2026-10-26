@@ -636,6 +636,44 @@ export function ScoutQueue({
     return () => document.removeEventListener("keydown", onKeyDown);
   });
 
+  // One detail serves the wide pane and the stacked row, so the chips, whose
+  // and abstract cannot drift (ADR 0054 decisions 1 and 3). Where the panes
+  // stack, the chosen row holds it and no pane exists, so chosen and open are
+  // one state: only the row `current` marks ever receives it.
+  const stacked = layout === "narrow";
+  const reviewDetail =
+    card === undefined ? null : muting?.id === card.id ? (
+      <MuteOffer {...muteOffer(card)} />
+    ) : (
+      <Proposal
+        key={card.id}
+        card={card}
+        lane="review"
+        onMute={() => setMuting(card)}
+        onAccept={() => onAccept(card.id)}
+        onPass={() => onPass(card.id)}
+        onReject={() => onDecide("rejected", reject, card.id, card.title)}
+        onDefer={() => onDecide("deferred", defer, card.id, card.title)}
+      />
+    );
+  const skimDetail =
+    line === undefined ? null : muting?.id === line.id ? (
+      <MuteOffer {...muteOffer(line)} />
+    ) : (
+      <Proposal
+        key={line.id}
+        card={line}
+        lane="skim"
+        onMute={() => setMuting(line)}
+        onAccept={() => onAccept(line.id)}
+        onPromote={() => {
+          if (!promote.isPending) promote.mutate({ proposalId: line.id });
+        }}
+      />
+    );
+  const openIn = (current: boolean) =>
+    stacked && current ? reviewDetail : undefined;
+
   return (
     <section
       ref={queueRef}
@@ -883,6 +921,7 @@ export function ScoutQueue({
                             {whose(l.scouts)}
                           </span>
                         </button>
+                        {stacked && l === line && skimDetail}
                       </li>
                     ))}
                   </ul>
@@ -895,24 +934,9 @@ export function ScoutQueue({
                   </p>
                 )}
               </div>
-              <div className={styles.detailPane}>
-                {line !== undefined && muting?.id === line.id && (
-                  <MuteOffer {...muteOffer(line)} />
-                )}
-                {line !== undefined && muting?.id !== line.id && (
-                  <Proposal
-                    key={line.id}
-                    card={line}
-                    lane="skim"
-                    onMute={() => setMuting(line)}
-                    onAccept={() => onAccept(line.id)}
-                    onPromote={() => {
-                      if (!promote.isPending)
-                        promote.mutate({ proposalId: line.id });
-                    }}
-                  />
-                )}
-              </div>
+              {!stacked && (
+                <div className={styles.detailPane}>{skimDetail}</div>
+              )}
             </div>
           )}
         </>
@@ -968,6 +992,10 @@ export function ScoutQueue({
                           section.rowIds.get(next.id) === rowIdOf(next.id)
                         }
                         onChoose={() => setChosen(next.id)}
+                        detail={openIn(
+                          next === card &&
+                            section.rowIds.get(next.id) === rowIdOf(next.id)
+                        )}
                       />
                     ))}
                   </ol>
@@ -981,6 +1009,7 @@ export function ScoutQueue({
                       card={next}
                       current={next === card}
                       onChoose={() => setChosen(next.id)}
+                      detail={openIn(next === card)}
                     />
                   ))}
                 </ol>
@@ -1004,6 +1033,7 @@ export function ScoutQueue({
                           card={aged}
                           current={aged === card}
                           onChoose={() => setChosen(aged.id)}
+                          detail={openIn(aged === card)}
                         />
                       ))}
                     </ol>
@@ -1063,6 +1093,7 @@ export function ScoutQueue({
                                 card={title}
                                 current={title === card}
                                 onChoose={() => setChosen(title.id)}
+                                detail={openIn(title === card)}
                               />
                             ))}
                           </ol>
@@ -1073,27 +1104,9 @@ export function ScoutQueue({
                 </section>
               )}
             </div>
-            <div className={styles.detailPane}>
-              {card !== undefined && muting?.id === card.id && (
-                <MuteOffer {...muteOffer(card)} />
-              )}
-              {card !== undefined && muting?.id !== card.id && (
-                <Proposal
-                  key={card.id}
-                  card={card}
-                  lane="review"
-                  onMute={() => setMuting(card)}
-                  onAccept={() => onAccept(card.id)}
-                  onPass={() => onPass(card.id)}
-                  onReject={() =>
-                    onDecide("rejected", reject, card.id, card.title)
-                  }
-                  onDefer={() =>
-                    onDecide("deferred", defer, card.id, card.title)
-                  }
-                />
-              )}
-            </div>
+            {!stacked && (
+              <div className={styles.detailPane}>{reviewDetail}</div>
+            )}
           </div>
         )}
       {/* The one footer channel (ADR 0052 decision 8; ADR 0033): the last act
@@ -1254,12 +1267,15 @@ function ReviewRow({
   card,
   current,
   onChoose,
+  detail,
   rowId = rowIdOf(card.id),
 }: {
   rowId?: string | undefined;
   card: Card;
   current: boolean;
   onChoose: () => void;
+  /** The detail, given only to the chosen row where the panes stack. */
+  detail?: ReactNode;
 }) {
   return (
     <li>
@@ -1283,6 +1299,7 @@ function ReviewRow({
           {card.retroactive && " · retroactive"}
         </span>
       </Button>
+      {detail}
     </li>
   );
 }
