@@ -208,4 +208,39 @@ describe("the collapsed rail", () => {
         .getAttribute("aria-expanded")
     ).toBe("true");
   });
+
+  it("leaves the key to a field being typed in", async () => {
+    renderApp(answers());
+    const strip = await collapse();
+    const field = document.createElement("input");
+    document.body.append(field);
+
+    fireEvent.keyDown(field, { key: "[" });
+    expect(within(strip).queryByText("paused since 2 Oct")).toBeNull();
+    field.remove();
+  });
+
+  it("keeps a click under the pointer open", async () => {
+    renderApp(answers());
+    const strip = await collapse();
+
+    fireEvent.mouseEnter(strip.parentElement!);
+    fireEvent.click(screen.getByRole("button", { name: /open the rail/i }));
+    fireEvent.mouseLeave(strip.parentElement!);
+    expect(within(await rail()).getByText("paused since 2 Oct")).toBeTruthy();
+  });
+
+  it("says a health that could not be read, not a quiet field", async () => {
+    renderApp({
+      ...answers(),
+      "scouts.health": () => {
+        throw new Error("unreadable");
+      },
+    });
+    const strip = await collapse();
+
+    await within(strip).findAllByRole("img", {
+      name: "health could not be read",
+    });
+  });
 });

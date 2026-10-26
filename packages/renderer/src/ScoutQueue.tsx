@@ -453,9 +453,9 @@ export function ScoutQueue({
   ];
   // Collapsing is the researcher's own and outlasts a filter change; hover
   // only lends the names while the pointer is over the strip (ADR 0054
-  // decision 4). The button and the key both flip what is on screen, so a
-  // toggle while the names are lent pins them open instead of vanishing when
-  // the pointer leaves.
+  // decision 4). The button and the key both flip the researcher's own
+  // choice, never the lent names, so a click under the pointer pins the strip
+  // open instead of shutting it.
   const showNames = railOpen || railHovered;
   const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so it has no Voice of its own. What it
@@ -636,8 +636,7 @@ export function ScoutQueue({
       // never reachable by pointer alone (ADR 0054 decision 4).
       if (bare && key === "[") {
         event.preventDefault();
-        setRailHovered(false);
-        setRailOpen(!showNames);
+        setRailOpen((was) => !was);
       }
       if (bare && !mutedOpen && (key === "j" || key === "k")) {
         const step = key === "j" ? 1 : -1;
@@ -781,14 +780,8 @@ export function ScoutQueue({
         onMouseEnter={() => setRailHovered(true)}
         onMouseLeave={() => setRailHovered(false)}
       >
-        <Button
-          aria-expanded={showNames}
-          onClick={() => {
-            setRailHovered(false);
-            setRailOpen(!showNames);
-          }}
-        >
-          {showNames ? "Collapse the rail" : "Open the rail"}
+        <Button aria-expanded={railOpen} onClick={() => setRailOpen(!railOpen)}>
+          {railOpen ? "Collapse the rail" : "Open the rail"}
         </Button>
         <ul
           className={styles.rail}
@@ -808,7 +801,16 @@ export function ScoutQueue({
               pending={queue.isError ? null : countFor(listed.id)}
               chosen={listed.id === selected}
               collapsed={!showNames}
-              marker={<Marker health={healthOf(listed.id)} />}
+              marker={
+                health.isError ? (
+                  // A failed read must not look like a quiet Scout.
+                  <span role="img" aria-label={HEALTH_UNREAD}>
+                    ?
+                  </span>
+                ) : (
+                  <Marker health={healthOf(listed.id)} />
+                )
+              }
               onChoose={() => choose(listed.id === selected ? null : listed.id)}
             >
               {health.isError ? (
