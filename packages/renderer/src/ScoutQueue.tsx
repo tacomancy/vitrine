@@ -453,7 +453,9 @@ export function ScoutQueue({
   ];
   // Collapsing is the researcher's own and outlasts a filter change; hover
   // only lends the names while the pointer is over the strip (ADR 0054
-  // decision 4).
+  // decision 4). The button and the key both flip what is on screen, so a
+  // toggle while the names are lent pins them open instead of vanishing when
+  // the pointer leaves.
   const showNames = railOpen || railHovered;
   const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so it has no Voice of its own. What it
@@ -635,7 +637,7 @@ export function ScoutQueue({
       if (bare && key === "[") {
         event.preventDefault();
         setRailHovered(false);
-        setRailOpen((was) => !was);
+        setRailOpen(!showNames);
       }
       if (bare && !mutedOpen && (key === "j" || key === "k")) {
         const step = key === "j" ? 1 : -1;
@@ -840,6 +842,8 @@ export function ScoutQueue({
               kind: null,
               sentence: file.sentence,
             };
+            // The strip's face here mirrors RailEntry's; it is not a filter, so
+            // it is not a Button.
             return showNames ? (
               <li key={file.file} className={styles.entry}>
                 <span className={styles.entryName}>{file.file}</span>
