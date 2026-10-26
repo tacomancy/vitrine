@@ -58,6 +58,16 @@ export function useDrops(readAt: number) {
       },
     })
   );
+  // An erase takes the Scout off the line, so the table is read again for the
+  // line to lose it; a refusal or a failed write is said beside the name and
+  // the Scout stays as it was (ADR 0053 decision 6).
+  const erase = useMutation(
+    trpc.scouts.erase.mutationOptions({
+      ...answers,
+      onSuccess: () =>
+        void queryClient.invalidateQueries(trpc.scouts.activity.pathFilter()),
+    })
+  );
   return {
     /** Dropped here, from the read the table still shows. */
     justDropped: (scoutId: string) => dropped.get(scoutId) === readAt,
@@ -74,6 +84,7 @@ export function useDrops(readAt: number) {
     // The undo on a row dropped a moment ago and the *restore* on the line are
     // one act: the key cleared, whichever way the researcher came to it.
     onRestore: (scoutId: string) => restore.mutate({ scoutId }),
+    onErase: (scoutId: string) => erase.mutate({ scoutId }),
   };
 }
 
@@ -140,19 +151,26 @@ export function DropRefused({ message }: { message: string }) {
  * of the dropped, opening to their names with *restore* on each. Absent when
  * none are dropped, since a line that says *0 dropped* is something to look at
  * that has no use. It is the way back once a row has left the screen; the row's
- * own *undo* is the way back while it is still there.
+ * own *undo* is the way back while it is still there. *erase* is the way out
+ * for good, and asks first: the brief goes with the file, and nothing brings it
+ * back (ADR 0053 decision 6).
  */
 export function DroppedLine({
   dropped,
   refused,
   onRestore,
+  onErase,
 }: {
   dropped: DroppedRow[];
   /** What the core refused of a restore, by Scout: said beside the name it was about, since the line is the only row a restore from it has. */
   refused: Readonly<Record<string, string>>;
   onRestore: (scoutId: string) => void;
+  onErase: (scoutId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // The Scout being asked about: one at a time, so a question never sits
+  // unanswered beside another.
+  const [asking, setAsking] = useState<string | null>(null);
   const list = useId();
   if (dropped.length === 0) return null;
   return (
@@ -174,7 +192,35 @@ export function DroppedLine({
                 onClick={() => onRestore(scout.id)}
               >
                 restore
+              </Button>{" "}
+              <Button
+                aria-label={`${scout.name}: erase`}
+                onClick={() => setAsking(scout.id)}
+              >
+                erase
               </Button>
+              {asking === scout.id && (
+                <div
+                  role="alertdialog"
+                  aria-label={`Erase ${scout.name}?`}
+                  className={styles.ask}
+                >
+                  <p>
+                    Its brief — the Query, Tags and Assigned Questions — is
+                    lost, and this cannot be undone. What it found keeps its
+                    record, under its name marked erased.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setAsking(null);
+                      onErase(scout.id);
+                    }}
+                  >
+                    erase it
+                  </Button>{" "}
+                  <Button onClick={() => setAsking(null)}>keep it</Button>
+                </div>
+              )}
               {refused[scout.id] !== undefined && (
                 <DropRefused message={refused[scout.id]!} />
               )}
