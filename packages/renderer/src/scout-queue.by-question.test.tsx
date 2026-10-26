@@ -138,6 +138,21 @@ describe("group by Question", () => {
     ).toBeDefined();
   });
 
+  it("marks a paper in several Questions as current once, and gives each row its own id", async () => {
+    renderApp(answers());
+    await grouped();
+    await waitFor(() => expect(finds()).toHaveLength(4));
+
+    const rows = finds().filter(
+      (b) => b.getAttribute("aria-label") === "Paper 2"
+    );
+    expect(rows).toHaveLength(2);
+    expect(new Set(finds().map((b) => b.id)).size).toBe(4);
+    expect(
+      finds().filter((b) => b.getAttribute("aria-current") === "true")
+    ).toHaveLength(1);
+  });
+
   it("filters by a Scout while grouped, and show all clears it", async () => {
     renderApp(
       answers({

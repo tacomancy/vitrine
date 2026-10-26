@@ -162,7 +162,6 @@ export function ScoutQueue({
     onError: refuse,
   };
   const [selected, setSelected] = useState<string | null>(scout ?? null);
-  // The Question group on screen: a Question id, `UNASSIGNED`, or null for all.
   // Cards passed this session, oldest pass first. A pass records nothing
   // (ADR 0039 decision 6), so this lives here and the next open is
   // newest-first again.
@@ -1015,7 +1014,10 @@ export function ScoutQueue({
                         key={next.id}
                         rowId={section.rowIds.get(next.id)}
                         card={next}
-                        current={next === card}
+                        current={
+                          next === card &&
+                          section.rowIds.get(next.id) === rowIdOf(next.id)
+                        }
                         onChoose={() => setChosen(next.id)}
                       />
                     ))}
@@ -1257,7 +1259,6 @@ function questionSections(
     proposalIds: number[];
   }[]
 ) {
-  const seen = new Set<number>();
   const sections = groups.map((group) => {
     const key = group.question?.id ?? UNASSIGNED;
     const members = new Set(group.proposalIds);
@@ -1273,26 +1274,28 @@ function questionSections(
     const unassigned = sections.find((s) => s.key === UNASSIGNED);
     if (unassigned === undefined) {
       sections.push({ key: UNASSIGNED, name: "Unassigned", cards: orphans });
-    } else unassigned.cards.push(...orphans);
+    } else unassigned.cards.push(...orphans); // the core files every paper; this only guards a read that disagrees
   }
+  // A paper in several Questions is drawn under each: its first row keeps the
+  // plain id (what the chosen-in-view hook looks for) and the rest are suffixed.
+  const seen = new Set<number>();
   return sections
     .filter((section) => section.cards.length > 0)
-    .map((section) => ({
-      ...section,
-      rowIds: new Map(
-        section.cards.map((card) => {
-          const first = !seen.has(card.id);
-          seen.add(card.id);
-          return [
-            card.id,
-            first
-              ? `scout-row-${card.id}`
-              : `scout-row-${card.id}-${section.key}`,
-          ] as const;
-        })
-      ),
-    }));
+    .map((section) => {
+      const rowIds = new Map<number, string>();
+      for (const card of section.cards) {
+        rowIds.set(
+          card.id,
+          rowIdOf(card.id, seen.has(card.id) ? section.key : undefined)
+        );
+        seen.add(card.id);
+      }
+      return { ...section, rowIds };
+    });
 }
+
+const rowIdOf = (card: number, section?: string) =>
+  section === undefined ? `scout-row-${card}` : `scout-row-${card}-${section}`;
 
 /** What the list shows: the live finds, never the digest's. */
 const live = (stack: Card[]) => stack.filter((c) => !c.pastWindow);
@@ -1302,7 +1305,7 @@ function ReviewRow({
   card,
   current,
   onChoose,
-  rowId = `scout-row-${card.id}`,
+  rowId = rowIdOf(card.id),
 }: {
   rowId?: string | undefined;
   card: Card;

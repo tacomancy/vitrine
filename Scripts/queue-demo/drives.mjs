@@ -39,8 +39,8 @@ async function openQueue(page) {
   throw new Error("demo: the Queue never settled");
 }
 
-/** A tile filters to its Scout; a second click on it would clear the filter. */
-const tile = async (page, id) => {
+/** A rail entry filters to its Scout; a second click on it would clear the filter. */
+const railEntry = async (page, id) => {
   await page.eval(`document.querySelector('#scout-rail-${id}').click()`);
   await page.sleep(500);
 };
@@ -69,7 +69,7 @@ export const steps = {
   // says why; the counterweight slot's paper is second and says what it is.
   async rank(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     expect(
       (await body(page)).includes("sort: rank"),
       "Rank is the default sort"
@@ -115,7 +115,7 @@ export const steps = {
   // The two past-window papers sit behind one line, still counted.
   async digest(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     const text = await body(page);
     expect(
       /2 older than the window/.test(text),
@@ -140,7 +140,7 @@ export const steps = {
   // The Cap kept two of four, said so, and gave the rest back on a click.
   async cap(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     expect(
       /2 below your cap of 2/.test(await body(page)),
       "the Cap says what it cut"
@@ -163,7 +163,7 @@ export const steps = {
   // A keyword rule: its reach before it is saved, then the Muted tab.
   async mute(page) {
     await openQueue(page);
-    await tile(page, "sleep");
+    await railEntry(page, "sleep");
     await letter(page, "m");
     await page.wait(
       "!!document.querySelector('input[aria-label=\"Keyword\"]')"
@@ -204,7 +204,7 @@ export const steps = {
   // Deferred a third time, the paper drops to Skim and says why.
   async demote(page) {
     await openQueue(page);
-    await tile(page, "tmr");
+    await railEntry(page, "tmr");
     expect(
       (await selectedTitle(page)) === "Targeted reactivation in naps",
       "the twice-deferred paper is selected"
@@ -230,7 +230,7 @@ export const steps = {
   // A Skim paper a second Scout found at launch is in Review and says so.
   async raise(page) {
     await openQueue(page);
-    await tile(page, "skim");
+    await railEntry(page, "skim");
     const hand = await detail(page);
     console.log(
       `RAISED: ${hand.split("\n").filter(Boolean).slice(0, 2).join(" | ")}`
@@ -248,7 +248,7 @@ export const steps = {
   // ⇧R clears the group on screen; the act says what it did; ⌘Z undoes it as one.
   async bulk(page) {
     await openQueue(page);
-    await tile(page, "dreams");
+    await railEntry(page, "dreams");
     expect((await rows(page)).length === 4, "four Dream reports are on screen");
     await letter(page, "r", SHIFT);
     await page.wait(
@@ -274,7 +274,7 @@ export const steps = {
     await openQueue(page);
     await press(page, "group: scout");
     await page.wait(
-      "document.querySelectorAll('[aria-label=\"Questions\"] button').length > 1",
+      "document.querySelectorAll('section[aria-labelledby^=\"heading-\"]').length > 1",
       10000
     );
     const strip = await page.eval(
