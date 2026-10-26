@@ -132,7 +132,7 @@ export function ScoutActivity({
 }: {
   /** With a Question id, the form opens with it Assigned. */
   onNewScout: (assigning?: string) => void;
-  /** The Queue holds the form, so a page's address is changed there: one gesture across two surfaces, as a new Scout's is. */
+  /** A page's address is changed on the form: this opens it on this Scout. */
   onEditOnForm: (scoutId: string) => void;
 }) {
   const trpc = useTRPC();

@@ -79,7 +79,12 @@ export const SURFACES: readonly Entry[] = [
 export const DASHBOARDS: readonly Entry[] = [
   { name: "Loose Ends", to: LOOSE_ENDS },
   { name: "Question Map", to: QUESTION_MAP },
-  { name: "Scouts", to: SCOUT_MANAGEMENT },
+  {
+    name: "Scouts",
+    to: SCOUT_MANAGEMENT,
+    // A Scout's form lives under it (ADR 0053 decision 5).
+    lit: (at) => at.surface === "scout-form",
+  },
 ];
 
 /**
