@@ -611,7 +611,7 @@ describe("a vault with no Scouts", () => {
     expect(within(view).queryByRole("table")).toBeNull();
   });
 
-  it("opens the Queue's new-Scout form when asked for one", async () => {
+  it("opens the new-Scout form at its own Address when asked for one", async () => {
     open(NONE, {
       "scouts.list": { scouts: [], unreadable: [] },
       "scouts.queue": [],
@@ -625,7 +625,7 @@ describe("a vault with no Scouts", () => {
     fireEvent.click(await screen.findByRole("button", { name: "new scout" }));
 
     const form = await screen.findByRole("form", { name: "New Scout" });
-    expect(window.location.hash).toBe("#/scouts");
+    expect(window.location.hash).toBe("#/scout-management/new");
     // Nothing is Assigned: only *brief a scout* starts a Scout on a Question,
     // and the click that opened this one is not an id.
     expect(
@@ -1216,8 +1216,10 @@ describe("coverage gaps", () => {
     );
 
     const form = await screen.findByRole("form", { name: "New Scout" });
-    expect(window.location.hash).toBe("#/scouts");
-    // The form lists Questions once the Queue has read them.
+    expect(window.location.hash).toBe(
+      "#/scout-management/new?assign=id-Nobody%20has%20this%20one%3F"
+    );
+    // The form lists Questions once they have been read.
     await within(form).findByRole("checkbox", { name: /Nor this one/ });
     const checked = within(form)
       .getAllByRole("checkbox")

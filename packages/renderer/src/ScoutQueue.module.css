@@ -450,3 +450,12 @@
     overflow-y: auto;
   }
 }
+
+/* The form's own page (ADR 0053 decision 5): the pane the Queue's stack was in, now the form alone. */
+.formPage {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Scout, TriedPage, Venue } from "core";
+import type { Scout, TriedPage, TriedQuery, Venue } from "core";
 
 /** What the form edits of a Scout, as the wire carries it (dates arrive as strings). */
 type Editable = Pick<
@@ -70,13 +70,15 @@ export type FormValues = {
   skimDays: string;
 };
 
-/** The form as the window keeps it: which Scout, or null for a new one, and what has been typed. */
-export type ScoutDraft = {
-  edit: string | null;
-  values: FormValues | null;
-  /** A Question to start a new Scout Assigned to (*brief a scout* on a coverage gap); every other default is the form's own. Spent once the form has written its values. */
-  assigning?: string;
-};
+/**
+ * What *try* last said, and which of the form's three tries said it. It is
+ * kept with the draft because it is about the draft's text: a reload that
+ * restored the text and not the answer would make the researcher spend
+ * another request to read what they had already read.
+ */
+export type Tried =
+  | { kind: "query" | "tags"; result: TriedQuery }
+  | { kind: "page"; result: TriedPage };
 
 const DAY_MS = 24 * 3_600_000;
 /** The default *also search back to* (ADR 0016 decision 5), a day-granular date. */
@@ -92,6 +94,7 @@ const BACK_DAYS = 90;
 export function ScoutForm({
   scout,
   values,
+  tried: triedBefore,
   onChange,
   questions,
   assigning,
@@ -101,7 +104,9 @@ export function ScoutForm({
   scout?: Editable;
   /** What was typed before the form last left the screen. */
   values: FormValues | null;
-  onChange: (values: FormValues) => void;
+  /** What *try* said before the form last left the screen. */
+  tried: Tried | null;
+  onChange: (values: FormValues, tried: Tried | null) => void;
   questions: QuestionChoice[];
   /** A Question a new Scout starts Assigned to. */
   assigning?: string | undefined;
@@ -147,23 +152,27 @@ export function ScoutForm({
   const [skimDays, setSkimDays] = useState(
     values?.skimDays ?? opening.skimDays
   );
+  const [last, setLast] = useState<Tried | null>(triedBefore);
   useEffect(
     () =>
-      onChange({
-        name,
-        watching,
-        query,
-        filter,
-        tags,
-        venues,
-        cadence,
-        lane,
-        assigned,
-        back,
-        cap,
-        reviewDays,
-        skimDays,
-      }),
+      onChange(
+        {
+          name,
+          watching,
+          query,
+          filter,
+          tags,
+          venues,
+          cadence,
+          lane,
+          assigned,
+          back,
+          cap,
+          reviewDays,
+          skimDays,
+        },
+        last
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `onChange` is new each render
     [
       name,
@@ -179,6 +188,7 @@ export function ScoutForm({
       cap,
       reviewDays,
       skimDays,
+      last,
     ]
   );
   const page = watching === "watched";
@@ -199,9 +209,29 @@ export function ScoutForm({
       onError: (error) => refusal.say(error.message),
     })
   );
-  const tried = useMutation(trpc.scouts.tryQuery.mutationOptions());
-  const triedTags = useMutation(trpc.scouts.tryTags.mutationOptions());
-  const triedPage = useMutation(trpc.scouts.tryWatched.mutationOptions());
+  const tried = useMutation(
+    trpc.scouts.tryQuery.mutationOptions({
+      onSuccess: (result) => setLast({ kind: "query", result }),
+    })
+  );
+  const triedTags = useMutation(
+    trpc.scouts.tryTags.mutationOptions({
+      onSuccess: (result) => setLast({ kind: "tags", result }),
+    })
+  );
+  const triedPage = useMutation(
+    trpc.scouts.tryWatched.mutationOptions({
+      onSuccess: (result) => setLast({ kind: "page", result }),
+    })
+  );
+  // What was tried was the old text, so its answer goes: the mutation's and
+  // the copy kept for a reload.
+  const forget = (...kinds: Tried["kind"][]) => {
+    if (kinds.includes("query")) tried.reset();
+    if (kinds.includes("tags")) triedTags.reset();
+    if (kinds.includes("page")) triedPage.reset();
+    setLast((was) => (was !== null && kinds.includes(was.kind) ? null : was));
+  };
 
   const byTags = !page && filter === "tags";
   const missing = [
@@ -263,8 +293,13 @@ export function ScoutForm({
   });
 
   const attempt = byTags ? triedTags : tried;
-  const result = attempt.data;
-  const pageResult = triedPage.data;
+  const result =
+    last !== null &&
+    last.kind !== "page" &&
+    last.kind === (byTags ? "tags" : "query")
+      ? last.result
+      : undefined;
+  const pageResult = last?.kind === "page" ? last.result : undefined;
   const tryable = byTags ? tags.length > 0 : query.trim() !== "";
   const where = openalex
     ? "journals and conferences in OpenAlex"
@@ -308,9 +343,7 @@ export function ScoutForm({
               disabled={scout !== undefined}
               onChange={(e) => {
                 setWatching(e.target.value as FormValues["watching"]);
-                tried.reset();
-                triedTags.reset();
-                triedPage.reset();
+                forget("query", "tags", "page");
               }}
             >
               <option value="arxiv">arXiv</option>
@@ -336,8 +369,7 @@ export function ScoutForm({
             source={openalex ? "openalex" : "arxiv"}
             onChange={(next) => {
               setTags(next);
-              // What was tried was the old list.
-              triedTags.reset();
+              forget("tags");
             }}
           />
         )}
@@ -350,8 +382,7 @@ export function ScoutForm({
                 rows={2}
                 onChange={(e) => {
                   setQuery(e.target.value);
-                  // What was tried was the old text.
-                  tried.reset();
+                  forget("query");
                 }}
               />
             )}
@@ -374,7 +405,7 @@ export function ScoutForm({
                 placeholder="https://"
                 onChange={(e) => {
                   setQuery(e.target.value);
-                  triedPage.reset();
+                  forget("page");
                 }}
               />
             )}
@@ -385,8 +416,9 @@ export function ScoutForm({
             disabled={
               !tryable || (page ? triedPage.isPending : attempt.isPending)
             }
-            onClick={() =>
-              page
+            onClick={() => {
+              forget(page ? "page" : byTags ? "tags" : "query");
+              return page
                 ? triedPage.mutate({ address: query })
                 : byTags
                   ? triedTags.mutate({
@@ -398,8 +430,8 @@ export function ScoutForm({
                       query,
                       watching: openalex ? "openalex" : "arxiv",
                       ...asked,
-                    })
-            }
+                    });
+            }}
           >
             Try
           </Button>
@@ -448,9 +480,7 @@ export function ScoutForm({
           venues={venues}
           onChange={(next) => {
             setVenues(next);
-            // What was tried was the old list.
-            tried.reset();
-            triedTags.reset();
+            forget("query", "tags");
           }}
         />
       )}
@@ -551,7 +581,7 @@ export function ScoutForm({
         {/* Names what Save lacks; a disabled button alone says nothing. */}
         {!ready && <Unlocks>Save needs {missing.join(" and ")}.</Unlocks>}
         <span className={styles.escape}>
-          <kbd>Esc</kbd> back to the stack
+          <kbd>Esc</kbd> back to the Scouts
         </span>
       </div>
     </form>
@@ -571,7 +601,7 @@ function PageResult({ result }: { result: TriedPage }) {
     return (
       <span role="alert">
         {result.sentence}{" "}
-        {/* The form is kept by the window, so back returns to it as left. */}
+        {/* The draft is kept under the form's Address, so back returns to it as left. */}
         <Button onClick={() => pushRoute(SETTINGS)}>Add a key</Button>
       </span>
     );

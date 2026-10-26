@@ -20,6 +20,7 @@ export type Route =
   | { surface: "loose-ends" }
   | { surface: "question-map" }
   | { surface: "scout-management" }
+  | { surface: "scout-form"; scout?: string; assigning?: string }
   | { surface: "scouts"; scout?: string; view?: "muted" | "skim" }
   | { surface: "settings"; section?: "credentials" }
   | { surface: "vault"; path?: string };
@@ -49,6 +50,19 @@ export const LOOSE_ENDS: Route = { surface: "loose-ends" };
 export const QUESTION_MAP: Route = { surface: "question-map" };
 /** The Scouts screen (ADR 0053, formerly Scout Activity, ADR 0042): the Dashboard that asks whether the Scouts earn their keep. */
 export const SCOUT_MANAGEMENT: Route = { surface: "scout-management" };
+/**
+ * A Scout's form (ADR 0053 decision 5): a new Scout's, optionally starting
+ * Assigned to a Question, or an existing Scout's by id. Under the Scouts
+ * screen's own address so a reload and the back button find it.
+ */
+export const newScout = (assigning?: string): Route => ({
+  surface: "scout-form",
+  ...(assigning === undefined ? {} : { assigning }),
+});
+export const editScout = (scout: string): Route => ({
+  surface: "scout-form",
+  scout,
+});
 /** The Experiment surface: where a run is made by name (#364). */
 export const EXPERIMENTS: Route = { surface: "experiments" };
 /** The Vault (spec #680): the ordinary note-taking surface, with the file open when it names one. */
@@ -84,6 +98,7 @@ const HYPOTHESIS = "#/hypothesis/";
 const EXPERIMENT = "#/experiment/";
 const SOURCE = "#/source/";
 const VAULT_FILE = "#/vault/";
+const SCOUT_FORM = "#/scout-management/";
 
 /**
  * `#/questions/` addressed a *Research* Question — the prefix and the Kind
@@ -109,6 +124,12 @@ export function hashOf(route: Route): string {
       return "#/question-map";
     case "scout-management":
       return "#/scout-management";
+    case "scout-form":
+      return route.scout !== undefined
+        ? `${SCOUT_FORM}${encodeURIComponent(route.scout)}/edit`
+        : route.assigning === undefined
+          ? `${SCOUT_FORM}new`
+          : `${SCOUT_FORM}new?assign=${encodeURIComponent(route.assigning)}`;
     case "experiments":
       return "#/experiments";
     case "vault":
@@ -200,6 +221,34 @@ function parseSource(hash: string): Route {
 }
 
 /**
+ * A Scout form's Address: `new`, `new?assign=<id>` or `<id>/edit`. Anything
+ * else under the prefix is an Address nothing wrote and lands on the Inbox
+ * saying so, rather than quietly opening the screen above it.
+ */
+function parseScoutForm(hash: string): Route {
+  const rest = hash.slice(SCOUT_FORM.length);
+  const unresolved = (reason: string): Route => ({
+    surface: "inbox",
+    unresolved: { address: hash, reason },
+  });
+  try {
+    if (rest === "new") return newScout();
+    if (rest.startsWith("new?")) {
+      const query = new URLSearchParams(rest.slice("new?".length));
+      const assign = query.get("assign");
+      return query.size === 1 && assign !== null && assign !== ""
+        ? newScout(assign)
+        : unresolved("not a Scout form this app opens (new?assign=<id>)");
+    }
+    const edit = /^([^/?]+)\/edit$/.exec(rest);
+    if (edit) return editScout(decodeURIComponent(edit[1]!));
+  } catch {
+    // Falls through to the same landing as any other Address nothing wrote.
+  }
+  return unresolved("not a Scouts screen address");
+}
+
+/**
  * The route a hash names. An empty hash is the window before it has decided
  * where it is, and that is Home; anything else unrecognised is the Inbox. Two
  * different things arrive there and the second is owed a word: a hash nothing
@@ -214,6 +263,7 @@ function parseHash(hash: string): Route {
   // the canonicalising replace below rewrites the window to the new one.
   if (hash === "#/scout-management") return SCOUT_MANAGEMENT;
   if (hash === "#/scout-activity") return SCOUT_MANAGEMENT;
+  if (hash.startsWith(SCOUT_FORM)) return parseScoutForm(hash);
   if (hash === "#/experiments") return EXPERIMENTS;
   if (hash === "#/vault") return VAULT;
   if (hash === "#/settings") return SETTINGS;
