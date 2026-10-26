@@ -361,6 +361,43 @@
   list-style: none;
 }
 
+.railWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+}
+
+.railWrap .rail {
+  padding: 0 0 var(--space-3);
+}
+
+/* The collapsed rail (ADR 0054 decision 4): about 48px a Scout, an initial and
+   the marker, the same raised ground as the open entries. */
+.entry[data-collapsed] {
+  min-width: 0;
+  width: 3rem;
+  align-items: center;
+}
+
+.entry[data-collapsed] button {
+  align-items: center;
+}
+
+.initial {
+  font-weight: 600;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .railFoot {
   margin: 0;
   padding: 0 var(--space-5) var(--space-3);
