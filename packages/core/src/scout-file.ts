@@ -126,7 +126,11 @@ export const scoutIdOf = (file: string) => file.replace(SCOUT_FILE, "");
 export type Tombstone = { id: string; name: string };
 const TOMBSTONE_FILE = /\.erased$/;
 export const isTombstoneFile = (name: string) => TOMBSTONE_FILE.test(name);
-/** The id a name in the Scouts folder takes, whichever kind of file it is: what a new Scout's id must not repeat. */
+/**
+ * The id a name in the Scouts folder takes, whichever kind of file it is: what
+ * a new Scout's id must not repeat, since a record still points at an erased
+ * Scout's id and a new Scout under it would inherit that history.
+ */
 export const takenIdOf = (file: string) =>
   scoutIdOf(file).replace(TOMBSTONE_FILE, "");
 

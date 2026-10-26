@@ -57,7 +57,7 @@ const READS: Array<Call & { empty: unknown }> = [
   {
     call: "scouts.list",
     how: "query",
-    empty: { scouts: [], dropped: [], erased: [], unreadable: [] },
+    empty: { scouts: [], dropped: [], unreadable: [] },
   },
   {
     call: "scouts.health",

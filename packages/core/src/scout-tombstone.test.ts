@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ScoutActivity } from "./scout-activity.js";
-import type { Scout, Tombstone, UnreadableScout } from "./scout-file.js";
+import type { Scout, UnreadableScout } from "./scout-file.js";
 import type { Readings } from "./question-map.js";
 import type { Accepted, Card } from "./scouts.js";
 import type { NamedScout, RunLine } from "./scout-names.js";
@@ -35,7 +35,6 @@ async function opened(files: Record<string, string>) {
       read<{
         scouts: Scout[];
         dropped: Scout[];
-        erased: Tombstone[];
         unreadable: UnreadableScout[];
       }>("scouts.list"),
     activity: () => read<ScoutActivity>("scouts.activity"),
@@ -192,7 +191,7 @@ describe("a tombstone is not a Scout", () => {
     expect(list.scouts.map((s) => s.id)).toEqual(["live"]);
     expect(list.dropped).toEqual([]);
     expect(list.unreadable).toEqual([]);
-    expect(list.erased).toEqual([{ id: "sleep", name: "Sleep and memory" }]);
+    expect(JSON.stringify(list)).not.toContain("Sleep and memory");
     expect(
       activity.rows.map((r) => (r.kind === "scout" ? r.id : r.file))
     ).toEqual(["live"]);
@@ -230,8 +229,11 @@ describe("a tombstone is not a Scout", () => {
 
   it("reads a tombstone whose name cannot be read as the id, still erased", async () => {
     const f = await opened({ "sleep.erased": "{{ not yaml" });
+    f.seed("sleep");
 
-    expect((await f.listed()).erased).toEqual([{ id: "sleep", name: "sleep" }]);
+    const [line] = await f.runs();
+
+    expect(line!.scout).toEqual({ id: "sleep", name: "sleep", erased: true });
   });
 });
 

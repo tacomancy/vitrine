@@ -675,7 +675,15 @@ export const router = t.router({
   scouts: t.router({
     list: t.procedure.query(async ({ ctx }) => {
       const { vault } = await requireVault(ctx);
-      return refusing(readScouts(vault.path));
+      // Without `erased`: a tombstone is not a Scout, so the list of Scouts
+      // does not carry it; only a record that names its id reads it.
+      return refusing(
+        readScouts(vault.path).then(({ scouts, dropped, unreadable }) => ({
+          scouts,
+          dropped,
+          unreadable,
+        }))
+      );
     }),
     // The Scout a stub says found it, and the newest runs, each named: a
     // Scout since erased reads as its tombstone's name, marked erased.
