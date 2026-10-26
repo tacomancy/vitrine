@@ -257,38 +257,39 @@ describe("scouts.erase", () => {
     expect((await f.activity()).dropped).toHaveLength(1);
   });
 
-  it("serialises with a restore of the same Scout, whichever lands first", async () => {
-    const f = await opened({ "sleep.yaml": SLEEP });
-    await f.drop("sleep");
+  // Which of two calls started together is served first is the transport's to
+  // say, not the test's: so each Scout is raced in both orders, and what is
+  // asserted is that the folder agrees with whichever one won.
+  it("serialises with a restore of the same Scout: one wins, and the folder says which, never both or neither", async () => {
+    const ids = ["a", "b", "c", "d"];
+    const f = await opened(
+      Object.fromEntries(ids.map((id) => [`${id}.yaml`, arxivScout(id)]))
+    );
+    for (const id of ids) await f.drop(id);
 
-    // Started together: the erase has to see the Scout as the restore left it
-    // (not dropped, so refused) or the restore has to see it erased (refused),
-    // never a Scout file written back beside a tombstone, or neither.
-    const [erased, restored] = await Promise.all([
-      f.erase("sleep"),
-      f.c.mutate("scouts.restore", { scoutId: "sleep" }),
-    ]);
+    const outcomes = await Promise.all(
+      ids.map(async (id, n) => {
+        const erase = () => f.erase(id);
+        const restore = () => f.c.mutate("scouts.restore", { scoutId: id });
+        const [erased, restored] =
+          n % 2 === 0
+            ? await Promise.all([erase(), restore()])
+            : await Promise.all([restore(), erase()]).then(([r, e]) => [e, r]);
+        return { id, erased: erased!, restored: restored! };
+      })
+    );
 
-    expect([erased.error, restored.error].filter(Boolean)).toHaveLength(1);
-    const names = await f.folder();
-    expect(names).toEqual(erased.error ? ["sleep.yaml"] : ["sleep.erased"]);
-    if (erased.error) {
-      expect(erased.error.message).toMatch(/is not dropped/);
-      expect((await f.activity()).dropped).toEqual([]);
+    for (const { id, erased, restored } of outcomes) {
+      expect([erased.error, restored.error].filter(Boolean)).toHaveLength(1);
+      if (erased.error) {
+        expect(erased.error.message).toMatch(/is not dropped/);
+        expect(await f.folder()).toContain(`${id}.yaml`);
+        expect(await f.folder()).not.toContain(`${id}.erased`);
+      } else {
+        expect(restored.error?.message).toMatch(/was erased/);
+        expect(await f.folder()).toContain(`${id}.erased`);
+        expect(await f.folder()).not.toContain(`${id}.yaml`);
+      }
     }
-  });
-
-  it("serialises with a restore started the other way round", async () => {
-    const f = await opened({ "sleep.yaml": SLEEP });
-    await f.drop("sleep");
-
-    const [restored, erased] = await Promise.all([
-      f.c.mutate("scouts.restore", { scoutId: "sleep" }),
-      f.erase("sleep"),
-    ]);
-
-    expect(restored.error).toBeUndefined();
-    expect(erased.error?.message).toMatch(/is not dropped/);
-    expect(await f.folder()).toEqual(["sleep.yaml"]);
   });
 });
