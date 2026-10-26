@@ -66,7 +66,7 @@ const steps = {
       "document.querySelectorAll('ul[aria-label=\"Scouts\"] > li').length"
     );
     expect(
-      entries >= COUNT,
+      entries === COUNT,
       `the rail lists the ${COUNT} Scouts (saw ${entries})`
     );
     expect(
@@ -85,6 +85,14 @@ const steps = {
       text.includes("Scouts screen"),
       "the Queue links to the Scouts screen"
     );
+    // Both shapes: ◇ for a Scout waiting on a key, ⚠ for one that failed.
+    const needs = await page.eval(
+      "document.querySelector('[aria-label=\"Needs you\"]').parentElement.innerText"
+    );
+    expect(
+      needs.includes("◇") && needs.includes("⚠"),
+      "the rail marks a Scout waiting on a key and one that failed, each with its own shape"
+    );
     await shoot(page, "1-queue-rail");
 
     await click(page, "a", "Scouts screen");
@@ -97,13 +105,18 @@ const steps = {
     await shoot(page, "2-scouts-screen");
 
     await go(page, "#/scouts", QUEUE_READY);
+    const href = await page.eval(
+      "document.querySelector('[aria-label=\"Needs you\"] a').getAttribute('href')"
+    );
     await page.eval(
       "document.querySelector('[aria-label=\"Needs you\"] a').click()"
     );
     await page.wait(SCREEN_READY, 20000);
     const hash = await page.eval("location.hash");
     expect(
-      hash.startsWith("#/scout-management") && hash.includes("scout="),
+      hash.startsWith("#/scout-management") &&
+        hash.includes("scout=") &&
+        hash === href,
       `a marked Scout's line lands on its row (${hash})`
     );
     await settle(page);
@@ -117,7 +130,7 @@ const steps = {
     await page.wait("document.body.innerText.includes('undo')", 10000);
     await click(page, `button[aria-label=${JSON.stringify(`${B}: drop`)}]`);
     await page.wait(
-      "document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter(b => b.textContent.trim() === 'undo').length === 2",
+      "[...document.querySelectorAll('button')].filter(b => b.textContent.trim() === 'undo').length === 2",
       10000
     );
     await settle(page);

@@ -51,5 +51,28 @@ export async function scoutsScreenVault(
       iso(now - 60_000)
     );
   }
+  // A rejected Proposal under each Scout the run drops, so that "nothing
+  // changed" compares real rows: a rejected one does not block an erase, and
+  // its Appearance is what a tombstone has to keep resolving.
+  for (const { id } of scoutsOf(join(vault, ".vitrine/scouts")).slice(0, 2)) {
+    const runId = db
+      .prepare("SELECT MAX(id) AS id FROM scout_runs WHERE scout_id = ?")
+      .get(id).id;
+    const proposal = Number(
+      db
+        .prepare(
+          `INSERT INTO proposals (source_key, title, authors, published, venue, abstract, url, lane, state, first_seen)
+           VALUES (?, ?, '["R. Archive"]', '2026-09-01', NULL, 'An abstract.', 'https://example.test/r', 'review', 'rejected', ?)`
+        )
+        .run(`demo-${id}`, `An earlier paper from ${id}`, iso(now - 86_400_000))
+        .lastInsertRowid
+    );
+    db.prepare(
+      "INSERT INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, 'https://example.test/r')"
+    ).run(proposal, runId, id, iso(now - 86_400_000));
+    db.prepare(
+      "INSERT INTO triage (proposal_id, action, at) VALUES (?, 'reject', ?)"
+    ).run(proposal, iso(now - 80_000_000));
+  }
   db.close();
 }
