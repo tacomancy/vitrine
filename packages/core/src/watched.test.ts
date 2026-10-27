@@ -451,11 +451,13 @@ describe("what the model is shown", () => {
     await lab.run();
 
     const shown = lab.calls.pages[0]!;
+    expect(shown).toContain("Updated Oct 20, 2026");
     expect(shown).toContain("Oct 9, 2026");
     expect(shown).toContain("Sep 2, 2026");
     expect(shown).toContain("Aug 14, 2026");
     expect(shown).not.toContain("Try the Lab Portal");
     expect(shown).not.toContain("Careers");
+    expect(shown).not.toContain("Page generated");
   });
 });
 

@@ -29,25 +29,19 @@ function stripBanners(html: string): string {
   let from = 0;
   let within = 0;
   let banner = -1;
-  let depth = 0;
   for (const match of html.matchAll(SECTIONING)) {
     const closing = match[1] === "/";
     const tag = match[2]!.toLowerCase();
-    if (banner >= 0) {
-      if (tag === "header") depth += closing ? -1 : 1;
-      if (depth === 0) {
-        kept += " ";
-        from = match.index + match[0].length;
-        banner = -1;
-      }
-    } else if (tag === "header") {
-      if (!closing && within === 0) {
-        kept += html.slice(from, match.index);
-        banner = match.index;
-        depth = 1;
-      }
-    } else {
+    if (tag !== "header") {
       within = Math.max(0, within + (closing ? -1 : 1));
+    } else if (!closing && banner < 0 && within === 0) {
+      kept += html.slice(from, match.index);
+      banner = match.index;
+    } else if (closing && banner >= 0) {
+      // No nesting to count: HTML does not allow a header inside a header.
+      kept += " ";
+      from = match.index + match[0].length;
+      banner = -1;
     }
   }
   // An unclosed banner is kept, as the whole-element strip always left it.
