@@ -64,3 +64,7 @@ The spec grill for beat 7 settled three places this ADR could not all be true at
 ## Update (2026-10-07, ADR 0043)
 
 **ADR 0043** narrows two decisions without superseding them. Decision 7's "last `ok` run" — for the page-unchanged comparison and for the structure-change test alike — is the last `ok` run at the Scout's current page, so a Scout pointed at another page is never judged against the old one's titles or hash. Decision 9's "first run" is the first run at a page: a Scout pointed at another page has a first look again, Retroactive, and proposes everything the page lists.
+
+## Update (2026-10-27, ADR 0055)
+
+**ADR 0055** extends decision 5: a Watched source is one page, its feed, and the Item page of each item it has not seen, on the listing's host, up to 25 per run. Nothing linked from an Item page is followed, so "no link-following" now means *nothing past the Item page*. Decision 7's verification is extended to every value an Item page's Extraction fills.

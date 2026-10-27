@@ -35,3 +35,7 @@ The spec grill for beat 7 (#174), run on 2026-10-02 against ADR 0017, ADR 0025 a
 ## Update (2026-10-07, ADR 0043)
 
 **ADR 0043** extends two decisions. Decision 5's first run is the first run at a page: a Scout pointed at another page is *not yet* again until a run has read it, and saving the change runs nothing. Decision 7's "prior `ok` run that found items" is a prior one at the Scout's current page, so a first look that finds nothing is the generic failed-Scout row, not *structure change detected*.
+
+## Update (2026-10-27, ADR 0055)
+
+**ADR 0055** extends two decisions. Decision 3's "no link-following, no crawl" now allows the Item pages of new items on the listing's host; a Feed entry's Item page is read for declared metadata only, so a Feed still never reaches a model. Decision 4's *try* also reads up to three Item pages and projects the first look's cost. Decision 6 stands: no cap.
