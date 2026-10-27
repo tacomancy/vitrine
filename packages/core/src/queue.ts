@@ -49,8 +49,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    Watched Scout's Item pages owe and read (#885, ADR 0055).
  * 15: no column; the pending cards a Watched Scout proposed before Item pages
  *    become Listing-only, so they fill in (#887, ADR 0055 decision 5).
+ * 16: `scout_runs.item_pages_unread`, the Item pages a run tried and could
+ *    not read (#888, ADR 0055 decision 6).
  */
-export const QUEUE_SCHEMA_VERSION = 15;
+export const QUEUE_SCHEMA_VERSION = 16;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -332,6 +334,12 @@ WHERE state = 'pending' AND item_page_tries IS NULL AND id IN (
 );
 `;
 
+// 0 on an earlier run: it counted no failed read, and #887's failures are
+// in its cards' `item_page_tries`, not in a figure on the run.
+const ITEM_PAGES_UNREAD_COUNT = `
+ALTER TABLE scout_runs ADD COLUMN item_pages_unread INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -354,6 +362,7 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_PUBLISHER_NAME,
   ITEM_PAGES,
   LISTING_ONLY_BEFORE,
+  ITEM_PAGES_UNREAD_COUNT,
 ];
 
 /**

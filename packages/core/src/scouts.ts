@@ -18,6 +18,7 @@ import {
 } from "./openalex.js";
 import { arxivIdOf, sourceKeyOf } from "./source-key.js";
 import {
+  ITEM_PAGES_UNREAD,
   readWatched,
   WatchedError,
   type Arrival,
@@ -99,14 +100,19 @@ export type RunSummary = {
 const iso = (date: Date) => date.toISOString();
 const DAY_MS = 86_400_000;
 
-/** A clean run that asked the Scout's current page; a run from before the column (no page) is taken as belonging, as in `finishedRunsAtPage`. */
+/**
+ * A run that read the Scout's current page cleanly; a run from before the
+ * column (no page) is taken as belonging, as in `finishedRunsAtPage`. A run
+ * whose Item pages went unread still read its listing and proposed what it
+ * listed, so it was a first look all the same (ADR 0055 decision 6).
+ */
 function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
   return (
     queue
       .prepare(
-        "SELECT 1 FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND (query IS NULL OR query = ?) LIMIT 1"
+        "SELECT 1 FROM scout_runs WHERE scout_id = ? AND (outcome = 'ok' OR error_message = ?) AND (query IS NULL OR query = ?) LIMIT 1"
       )
-      .get(scout.id, scout.query) !== undefined
+      .get(scout.id, ITEM_PAGES_UNREAD, scout.query) !== undefined
   );
 }
 
@@ -221,17 +227,25 @@ export async function runScout(
     const arrived = inTransaction(queue, () => {
       const arrived = arrive(deps, scout, runId, read.items, rules);
       for (const card of read.listingOnly ?? []) fillListingOnly(queue, card);
-      // A clean run is the moment a deferral ends (ADR 0016 decision 8).
-      returnDeferred(deps, scout.id);
+      // A clean run is the moment a deferral ends (ADR 0016 decision 8), and
+      // a run that proposed with a fault is not one.
+      if (read.fault === undefined) returnDeferred(deps, scout.id);
       return arrived;
     });
     record(queue, runId, read.facts);
+    // A fault that still proposed is a failed run with its finds counted:
+    // *last new item* moves and *last successful extraction* does not
+    // (ADR 0055 decision 6).
+    const { fault } = read;
     queue
       .prepare(
-        "UPDATE scout_runs SET finished = ?, outcome = 'ok', fetched = ?, new = ?, held = ?, truncated = ? WHERE id = ?"
+        "UPDATE scout_runs SET finished = ?, outcome = ?, error_kind = ?, error_message = ?, fetched = ?, new = ?, held = ?, truncated = ? WHERE id = ?"
       )
       .run(
         iso(deps.now()),
+        fault === undefined ? "ok" : "failed",
+        fault?.kind ?? null,
+        fault?.message ?? null,
         read.fetched,
         arrived.new,
         arrived.held,
@@ -240,8 +254,8 @@ export async function runScout(
       );
     summary = {
       runId,
-      outcome: "ok",
-      errorKind: null,
+      outcome: fault === undefined ? "ok" : "failed",
+      errorKind: fault?.kind ?? null,
       fetched: read.fetched,
       ...arrived,
       unverified: read.facts?.unverified ?? 0,
@@ -504,6 +518,7 @@ async function readArxiv(
   fetched: number;
   facts?: undefined;
   listingOnly?: undefined;
+  fault?: undefined;
 }> {
   const found = await arxiv.search(query, { from, to });
   return {
@@ -539,6 +554,7 @@ async function readOpenAlex(
   fetched: number;
   facts?: undefined;
   listingOnly?: undefined;
+  fault?: undefined;
 }> {
   const search =
     scout.tags === undefined ? asked : asked.slice(SEARCH_FILTER.length);
@@ -585,7 +601,7 @@ function record(
   queue
     .prepare(
       `UPDATE scout_runs SET model = ?, input_tokens = ?, output_tokens = ?, cache_read_tokens = ?,
-              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ? WHERE id = ?`
+              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ?, item_pages_unread = ? WHERE id = ?`
     )
     .run(
       facts.model ?? null,
@@ -598,6 +614,7 @@ function record(
       facts.capped === true ? 1 : 0,
       facts.unverified ?? 0,
       facts.itemPagesRead ?? 0,
+      facts.itemPagesUnread ?? 0,
       runId
     );
 }

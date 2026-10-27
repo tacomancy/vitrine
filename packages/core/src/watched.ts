@@ -77,6 +77,8 @@ export type RunFacts = {
   capped: boolean;
   unverified: number;
   itemPagesRead: number;
+  /** Item pages this run tried and could not fetch. */
+  itemPagesUnread: number;
 };
 
 export class WatchedError extends Error {
@@ -97,6 +99,12 @@ export type Read = {
   facts: RunFacts;
   /** Item pages read this run for Listing-only cards already in the queue; the run writes them (ADR 0055 decision 5). */
   listingOnly?: ListingOnlyRead[];
+  /**
+   * A fault the run records though its items are still proposed: fewer than
+   * half its Item pages could be read (ADR 0055 decision 6). Absent on a
+   * clean read.
+   */
+  fault?: { kind: "extraction"; message: typeof ITEM_PAGES_UNREAD };
 };
 
 /** A Listing-only card's Item page as this run read it: what it declares, or null when it could not be fetched. */
@@ -106,6 +114,8 @@ export type ListingOnlyRead = { id: number; declared: Declared | null };
 export const TOKEN_BUDGET = 40_000;
 /** The most Item pages one run reads (ADR 0055 decision 2), a starting point. */
 export const ITEM_PAGE_CEILING = 25;
+/** The most times one Item page is tried, across runs, before its card stays Listing-only for good (ADR 0055 decision 6), a starting point. */
+export const ITEM_PAGE_TRIES = 3;
 
 /** The extraction's messages; the sentences that say them live in `scout-health.ts`. */
 export const FEED_UNREADABLE = "feed unreadable";
@@ -117,6 +127,7 @@ export const LISTING_MISSED = "listing missed";
 export const STRUCTURE_CHANGE = "structure change";
 export const NO_LISTING = "no listing found";
 export const FEW_VERIFIED = "fewer than half verified";
+export const ITEM_PAGES_UNREAD = "item pages unread";
 
 export async function readWatched(
   deps: WatchedDeps,
@@ -187,6 +198,7 @@ export async function readWatched(
     capped: false,
     unverified: 0,
     itemPagesRead: 0,
+    itemPagesUnread: 0,
   };
 
   // A page that has not changed since the last clean look costs nothing: the
@@ -194,11 +206,13 @@ export async function readWatched(
   // its chrome is the same page. Only runs at this page vouch for it: a
   // changed page is read once even when its text hashes as the old one's
   // (ADR 0043 d.3); a run from before the column recorded no page and counts.
+  // A run whose Item pages went unread looked at its listing cleanly too.
   const last = queue
     .prepare(
-      "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
+      "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND (outcome = 'ok' OR error_message = ?) AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
     )
-    .get(scout.id, scout.url) as { page_hash: string } | undefined;
+    .get(scout.id, ITEM_PAGES_UNREAD, scout.url) as
+    { page_hash: string } | undefined;
   // It skips the listing's Extraction only: the Item pages owed are read all
   // the same, or a Listing-only card would wait on the listing to change
   // (ADR 0055 decision 5).
@@ -258,7 +272,8 @@ function siteOf(url: string): string | null {
  * one site, never a crawl. An item on another site is not owed a read, so it
  * is neither fetched nor a failure. An item already in the queue was read, or
  * owed, when it first arrived. A page that cannot be fetched leaves its card
- * as the listing showed it, with the try counted.
+ * as the listing showed it, with the try counted, and is tried again on
+ * later runs, `ITEM_PAGE_TRIES` times in all.
  *
  * What the ceiling leaves after this run's new items goes to the Scout's
  * Listing-only cards, oldest first (decision 5): today's finds fill in
@@ -318,15 +333,16 @@ async function readItemPages(
   if (asked < ceiling && site !== null) {
     // Pending only: a triaged card is never written, so its page is not
     // worth a request. The run's write checks again, since a card can be
-    // triaged while its page is in flight.
+    // triaged while its page is in flight. A card tried three times stays
+    // Listing-only for good, and a null is no read owed: `NULL < ?` is not true.
     const owed = queue
       .prepare(
         `SELECT p.id, p.url FROM proposals p
-         WHERE p.state = 'pending' AND p.item_page_tries IS NOT NULL
+         WHERE p.state = 'pending' AND p.item_page_tries < ?
            AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
          ORDER BY p.first_seen, p.id`
       )
-      .all(scoutId) as Array<{ id: number; url: string }>;
+      .all(ITEM_PAGE_TRIES, scoutId) as Array<{ id: number; url: string }>;
     // A Scout re-pointed at another site reads no page of the old one.
     for (const card of owed.filter((o) => siteOf(o.url) === site)) {
       if (asked >= ceiling) break;
@@ -334,11 +350,24 @@ async function readItemPages(
       listingOnly.push({ id: card.id, declared: await readOne(card.url) });
     }
   }
+  // One page that will not load is a dead link and breaks nothing; most of
+  // them refusing is a site that stopped letting itself be read, and must
+  // not look like a quiet field (ADR 0055 decision 6). The listing still
+  // read, so its items are proposed with what it showed.
+  const fault =
+    readCount * 2 < asked
+      ? { fault: { kind: "extraction", message: ITEM_PAGES_UNREAD } as const }
+      : {};
   return {
     ...read,
     items,
     listingOnly,
-    facts: { ...read.facts, itemPagesRead: readCount },
+    facts: {
+      ...read.facts,
+      itemPagesRead: readCount,
+      itemPagesUnread: asked - readCount,
+    },
+    ...fault,
   };
 }
 
@@ -437,6 +466,7 @@ const noFacts = (): RunFacts => ({
   capped: false,
   unverified: 0,
   itemPagesRead: 0,
+  itemPagesUnread: 0,
 });
 
 /** `message` is what a failure says; null leaves the default for an address that was itself a feed. */

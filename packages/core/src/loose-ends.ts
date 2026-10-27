@@ -31,6 +31,7 @@ import {
   type RunErrorKind,
 } from "./scout-health.js";
 import { unmatchedRows, type UnmatchedRow } from "./unmatched.js";
+import { ITEM_PAGES_UNREAD } from "./watched.js";
 import type { VaultIndex } from "./vault-index.js";
 
 /**
@@ -211,7 +212,7 @@ export type FailedScout = {
 /**
  * A watched Scout whose page stopped yielding what it did (#470; ADR 0040
  * decision 7): an `extraction` run, on a Scout with an earlier clean run that
- * found items. It replaces the failed-Scout row, so one failure is one row; a
+ * found items, other than *item pages unread* (ADR 0055 decision 6). It replaces the failed-Scout row, so one failure is one row; a
  * first-ever extraction failure has nothing to compare against and stays
  * generic. `address` is what *open the page* opens.
  */
@@ -526,12 +527,15 @@ async function scoutRows(
     // Only a page that once yielded items can be said to have *changed*;
     // with no such run at this page there is nothing to compare against, and a
     // page the Scout was pointed at is not judged by the old one (ADR 0043 d.6).
+    // Item pages unread is no change to the listing, which read and proposed:
+    // it is the items' own pages refusing, and *open the page* would show a
+    // listing that looks fine (ADR 0055 decision 6).
+    const runs = finishedRunsAtPage(queue, scout);
     if (
       health.kind === "extraction" &&
       scout.source.kind === "watched" &&
-      finishedRunsAtPage(queue, scout).some(
-        (r) => r.outcome === "ok" && r.fetched > 0
-      )
+      runs.at(-1)?.error_message !== ITEM_PAGES_UNREAD &&
+      runs.some((r) => r.outcome === "ok" && r.fetched > 0)
     ) {
       rows.push({
         kind: "structure-change",
