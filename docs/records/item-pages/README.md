@@ -1,6 +1,6 @@
 # Item pages record: the anthropic.com Scouts end to end
 
-Spec #884, ADR 0055, closing ticket #892. Produced by `node Scripts/item-pages-demo.mjs docs/records/item-pages`: two hidden launches on one scratch copy of the fixture vault, against a local stand-in for anthropic.com's alignment listing, its Item pages (the core's recorded fixtures, the site's origin rewritten to the stand-in's, plus twenty generated notes so the listing passes the 25) and the model's API. Nothing is sent to the real site or the real API: the core's provider requests reach the stand-in through a demo-only preload under the pinned fetch (`docs/agents/run.md`), and the script fails if anything was bound off the machine. Each drive throws when the page does not show what its step claims, so these pictures are from a green run.
+Spec #884, ADR 0055, closing ticket #892. Produced by `node Scripts/item-pages-demo.mjs docs/records/item-pages`: two hidden launches on one scratch copy of the fixture vault, against a local stand-in for anthropic.com's alignment listing, its Item pages (the core's recorded fixtures, the site's origin rewritten to the stand-in's, plus twenty generated notes so the listing passes the 25) and the model's API. Nothing is sent to the real site or the real API: the core's provider requests reach the stand-in through a demo-only preload under the pinned fetch (`docs/agents/run.md`), and the script fails if the core's `fetch`, which is all its egress, asked for anything off the machine. The shell and the renderer are not wrapped. Each drive throws when the page does not show what its step claims, so these pictures are from a green run.
 
 | Step | Dark | Light |
 |---|---|---|
@@ -20,6 +20,8 @@ The script also reads the queue and the vault: the first look is an `ok` run wit
 Each mutant was applied to a scratch `git archive` export of `main` at `10e69505`, the Item-page suites were run (`item-pages`, `item-pages-unread`, `listing-only`, `paper-link`, `loose-ends`, `watched`, `scout-form` and the v14–v17 migrations in the core; `scout-queue*` and `scout-form` in the renderer), then the export was restored. A survivor was run again against the whole core suite. *Caught by* names the tests that failed; "same" means the result matches what the ticket's PR recorded.
 
 ### #886, Verify (PR #895): 21 of 23 caught, 2 survive by design, as recorded
+
+PR #895's prose says 19 of 20; its table, which this follows, has 23 rows with the two survivors.
 
 | Mutant | Caught by now | Same? |
 |---|---|---|
@@ -47,7 +49,9 @@ Each mutant was applied to a scratch `git archive` export of `main` at `10e69505
 | Listing-only: the row's venue ignored when asking | asked only for what its row still lacks | same |
 | Listing-only: write-time `venue` guard becomes `COALESCE` | **survives by design**, whole suite too | same |
 
-### #887, Listing-only (PR #894): 13 of 13 caught
+### #887, Listing-only (PR #894): 13 of 13 caught, with the write-time guard split out and surviving by design
+
+The first two rows were one mutant each in PR #894, written when the fill had one guard, at the write. #886 then put the same rule on the read (`filled`, shared with new items), so the rerun breaks each side apart: the read side alone and both together are caught, and the write side alone survives the whole suite, as #886's write-time `venue` guard does. *gains only the fields it lacks* now fails only with both broken. No test lost a mutant it once caught: the mutant it caught is the both-sides one.
 
 | Mutant | Caught by now | Same? |
 |---|---|---|
@@ -98,15 +102,16 @@ Each mutant was applied to a scratch `git archive` export of `main` at `10e69505
 | Listing-only backlog skipped for a feed | *drains the Scout's Listing-only cards…* | same |
 | Backlog read marked unread for a feed | *drains the Scout's Listing-only cards…* | same |
 
-### #890, the Paper link (PR #899): 7 of 8 caught, 1 survives by design, as recorded
+### #890, the Paper link (PR #899): 8 of 9 caught, 1 survives by design, as recorded
 
 | Mutant | Caught by now | Same? |
 |---|---|---|
 | **`heldIn` reads `paper:` as a key** | *holds nothing: the paper itself, found by an arXiv Scout, is proposed though a stub names it as `paper:`* | same |
 | `paperUrl` not Verified | *drops a Paper link that is not on the page* | same |
 | `paperUrl` never asked for | 7 tests (paper-link, item-pages, listing-only) | same |
-| Paper link replaces the link back | 2 paper-link tests | same mutant, fewer tests: this one swaps the card's `url` only |
+| Paper link replaces the link back | 2 paper-link tests | differs: PR #899 names neither where its mutant sat nor its four tests; this one swaps the card's `url` for the Paper link where the row becomes a `Card` |
 | stub omits `paper:` | *writes `paper:` after `url:`* | same |
 | Listing-only fill drops `paper_url` | listing-only *…asked for the fields its row lacks, and Verified* | same |
 | Queue hides *paper* | renderer *shows the Paper link beside the link back* | same |
+| Queue swaps *paper* for the link back | renderer *shows the Paper link beside the link back* | same (recorded with the row above) |
 | a copy overwrites a set Paper link | **survives, by design**: a card that has one is never asked again, and the write's `COALESCE` keeps it, whole suite too | same |

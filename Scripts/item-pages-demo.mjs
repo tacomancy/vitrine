@@ -84,9 +84,13 @@ const launch = async (drive, after = 60000) => {
           ...process.env,
           DEMO_OUT: out,
           DEMO_ORIGIN: standin.origin,
-          DEMO_PROVIDER: standin.origin,
           DEMO_EGRESS_LOG: egressLog,
-          NODE_OPTIONS: `--import ${pathToFileURL(join(here, "item-pages-demo/egress.mjs"))}`,
+          NODE_OPTIONS: [
+            process.env.NODE_OPTIONS,
+            `--import ${pathToFileURL(join(here, "item-pages-demo/egress.mjs"))}`,
+          ]
+            .filter(Boolean)
+            .join(" "),
           VITRINE_CREDENTIALS: "memory",
           // No arXiv or OpenAlex Scout is in the vault; a dead port all the same.
           VITRINE_ARXIV_ENDPOINT: "http://127.0.0.1:9",
@@ -100,10 +104,10 @@ const launch = async (drive, after = 60000) => {
   });
 };
 
-const queue = (sql) => {
+const queue = (sql, ...params) => {
   const db = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
   try {
-    return db.prepare(sql).all();
+    return db.prepare(sql).all(...params);
   } finally {
     db.close();
   }
@@ -114,7 +118,8 @@ const runs = () =>
   );
 const proposal = (title) =>
   queue(
-    `SELECT state, authors, published, abstract, paper_url, item_page_tries FROM proposals WHERE title = '${title.replaceAll("'", "''")}'`
+    `SELECT state, authors, published, abstract, paper_url, item_page_tries FROM proposals WHERE title = ?`,
+    title
   )[0];
 
 try {

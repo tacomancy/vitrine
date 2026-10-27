@@ -56,8 +56,8 @@ export default async (page) => {
   }
   expect(/\npaper\n/.test(card), "the card labels its Paper link *paper*");
   expect(
-    !card.includes("This builds on"),
-    "nothing cited on the page stands in for the paper"
+    !card.includes("arxiv.org"),
+    "none of the arXiv works the page cites stands in for the paper"
   );
   await shoot(page, "2-card-with-paper");
 
