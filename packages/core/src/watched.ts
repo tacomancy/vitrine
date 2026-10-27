@@ -9,7 +9,8 @@ import { CEILING } from "./arxiv.js";
 import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
 import { ModelError, type ModelProvider } from "./model-provider.js";
-import { FetchError, fetchPage } from "./page-fetch.js";
+import { blurbOf, declaredOf, type Declared } from "./item-page.js";
+import { FetchError, fetchPage, type Page } from "./page-fetch.js";
 import { reduceHtml } from "./page-reduce.js";
 import { doiOf, sourceKeyOf } from "./source-key.js";
 
@@ -54,6 +55,8 @@ export type Arrival = {
   publisherName?: string | null;
   abstract: string;
   url: string;
+  /** A Watched Scout's Item page still owed, with the tries spent on it; absent or null when none is (ADR 0055). */
+  itemPageTries?: number | null;
 };
 
 export type WatchedErrorKind =
@@ -68,6 +71,7 @@ export type RunFacts = {
   pageLength: number | null;
   capped: boolean;
   unverified: number;
+  itemPagesRead: number;
 };
 
 export class WatchedError extends Error {
@@ -90,6 +94,8 @@ export type Read = {
 
 /** Input tokens the reduced text may use before the call (counted, not guessed). */
 export const TOKEN_BUDGET = 40_000;
+/** The most Item pages one run reads (ADR 0055 decision 2), a starting point. */
+export const ITEM_PAGE_CEILING = 25;
 
 /** The extraction's messages; the sentences that say them live in `scout-health.ts`. */
 export const FEED_UNREADABLE = "feed unreadable";
@@ -105,7 +111,9 @@ export const FEW_VERIFIED = "fewer than half verified";
 export async function readWatched(
   deps: WatchedDeps,
   queue: DatabaseSync,
-  scout: { id: string; url: string }
+  scout: { id: string; url: string },
+  /** How many Item pages it may read; *try* reads none yet. */
+  itemPages = ITEM_PAGE_CEILING
 ): Promise<Read> {
   const fetchOptions = {
     fetch: deps.fetch,
@@ -168,6 +176,7 @@ export async function readWatched(
     pageLength: text.length,
     capped: false,
     unverified: 0,
+    itemPagesRead: 0,
   };
 
   // A page that has not changed since the last clean look costs nothing: the
@@ -186,6 +195,7 @@ export async function readWatched(
 
   const model = await deps.model();
   facts.model = model;
+  let read: Read;
   try {
     const tokens = await deps.models.countTokens({ key, model, text });
     if (tokens > TOKEN_BUDGET) {
@@ -196,7 +206,7 @@ export async function readWatched(
     const extracted = await deps.models.extract({ key, model, page: text });
     facts.usage = extracted.usage;
     facts.costUsd = costUsd(model, extracted.usage);
-    return verify(extracted.items, text, facts, queue, scout);
+    read = verify(extracted.items, text, facts, queue, scout);
   } catch (cause) {
     if (cause instanceof ModelError) {
       const spent = cause.usage ?? null;
@@ -208,7 +218,76 @@ export async function readWatched(
     }
     throw cause;
   }
+  return readItemPages(read, page, queue, fetchOptions, itemPages);
 }
+
+/** A host with any leading `www.` dropped, so `anthropic.com` and `www.anthropic.com` are one site; null for a link that does not parse. */
+function siteOf(url: string): string | null {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the Item page of each new item on the listing's own site, up to the
+ * ceiling, and fill what the listing left empty from what the page declares
+ * (ADR 0055 decisions 2 and 3). One page per item, with the listing's
+ * etiquette, and nothing the page links to: a Watched source is a reading of
+ * one site, never a crawl. An item on another site is not owed a read, so it
+ * is neither fetched nor a failure. An item already in the queue was read, or
+ * owed, when it first arrived. A page that cannot be fetched leaves its card
+ * as the listing showed it, with the try counted.
+ */
+async function readItemPages(
+  read: Read,
+  listing: Page,
+  queue: DatabaseSync,
+  fetchOptions: { fetch: typeof fetch; timeoutMs?: number },
+  ceiling: number
+): Promise<Read> {
+  const site = siteOf(listing.url);
+  const blurb = blurbOf(listing.body);
+  const known = queue.prepare("SELECT 1 FROM proposals WHERE source_key = ?");
+  // A listing may link one item twice; it is one card, read once.
+  const seen = new Set<string>();
+  let asked = 0;
+  let readCount = 0;
+  const items: Arrival[] = [];
+  for (const item of read.items) {
+    const owed =
+      siteOf(item.url) === site &&
+      !seen.has(item.key) &&
+      known.get(item.key) === undefined;
+    seen.add(item.key);
+    if (!owed) {
+      items.push(item);
+    } else if (asked >= ceiling) {
+      items.push({ ...item, itemPageTries: 0 });
+    } else {
+      asked++;
+      try {
+        const page = await fetchPage(item.url, fetchOptions);
+        readCount++;
+        items.push(filled(item, declaredOf(page.body, blurb)));
+      } catch (cause) {
+        if (!(cause instanceof FetchError)) throw cause;
+        items.push({ ...item, itemPageTries: 1 });
+      }
+    }
+  }
+  return { ...read, items, facts: { ...read.facts, itemPagesRead: readCount } };
+}
+
+/** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
+const filled = (item: Arrival, declared: Declared): Arrival => ({
+  ...item,
+  authors: item.authors.length > 0 ? item.authors : declared.authors,
+  published: item.published !== "" ? item.published : (declared.date ?? ""),
+  doi: item.doi ?? declared.doi,
+  abstract: item.abstract !== "" ? item.abstract : (declared.abstract ?? ""),
+});
 
 /** Collapse whitespace the way reduction did, so a title that wrapped on the page still matches. */
 const squash = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -298,6 +377,7 @@ const noFacts = (): RunFacts => ({
   pageLength: null,
   capped: false,
   unverified: 0,
+  itemPagesRead: 0,
 });
 
 /** `message` is what a failure says; null leaves the default for an address that was itself a feed. */

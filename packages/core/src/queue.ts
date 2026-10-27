@@ -45,8 +45,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    publisher Mute rule matches on (#806).
  * 13: `proposals.publisher_name`, the first publisher's name, so a card can
  *    offer a publisher rule by name (#806).
+ * 14: `proposals.item_page_tries` and `scout_runs.item_pages_read`, what a
+ *    Watched Scout's Item pages owe and read (#885, ADR 0055).
  */
-export const QUEUE_SCHEMA_VERSION = 13;
+export const QUEUE_SCHEMA_VERSION = 14;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -290,6 +292,15 @@ const PROPOSAL_PUBLISHER_NAME = `
 ALTER TABLE proposals ADD COLUMN publisher_name TEXT;
 `;
 
+// An Item page is read once (ADR 0055 decision 2): `item_page_tries` is null
+// when no read is owed — read already, on another host, or not a page's item
+// at all — and counts the tries of one that is. Null on every earlier row.
+// `item_pages_read` is 0 on an earlier run, which read none.
+const ITEM_PAGES = `
+ALTER TABLE proposals ADD COLUMN item_page_tries INTEGER;
+ALTER TABLE scout_runs ADD COLUMN item_pages_read INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -310,6 +321,7 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_VENUE_TYPE,
   PROPOSAL_VENUE_IDS,
   PROPOSAL_PUBLISHER_NAME,
+  ITEM_PAGES,
 ];
 
 /**

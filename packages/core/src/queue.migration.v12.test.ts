@@ -13,6 +13,8 @@ describe("the queue database, version 12 to 13", () => {
     const vault = await mkdtemp(join(tmpdir(), "vitrine-queue-"));
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     const first = await openQueue(vault);
+    first.exec("ALTER TABLE proposals DROP COLUMN item_page_tries");
+    first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_read");
     first.exec("ALTER TABLE proposals DROP COLUMN publisher_name");
     first.exec(
       `INSERT INTO proposals (id, source_key, title, authors, published, venue, venue_source_id, publisher_lineage, abstract, url, lane, state, first_seen)

@@ -796,10 +796,13 @@ export async function tryPage(
   const url = address.trim();
   if (!WEB_ADDRESS.test(url)) throw new VaultError("refused", ADDRESS_REFUSAL);
   try {
-    const read = await readWatched(deps.watched, deps.queue, {
-      id: TRY_ID,
-      url,
-    });
+    // No Item page yet: what *try* reads of them, and projects, is #891's.
+    const read = await readWatched(
+      deps.watched,
+      deps.queue,
+      { id: TRY_ID, url },
+      0
+    );
     const titles = read.items.slice(0, 5).map((item) => item.title);
     if (read.facts.model === null) {
       return { outcome: "found", via: "feed", total: read.fetched, titles };
