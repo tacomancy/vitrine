@@ -862,12 +862,16 @@ describe("a page that advertises a feed", () => {
     expect(cards.map((c) => c.title)).toContain(
       "Sleep Spindles & Next-Day Learning"
     );
-    // The feed is a second request to the same host with robots.txt read first.
+    // The feed is a second request to the same host with robots.txt read
+    // first, then the Item page of the one entry on that host; the arXiv
+    // entry is elsewhere and is not read (ADR 0055 decision 7).
     expect(lab.requests.map((r) => r.url.pathname)).toEqual([
       "/robots.txt",
       "/publications",
       "/robots.txt",
       "/feed.xml",
+      "/robots.txt",
+      "/papers/spindles/",
     ]);
     expect(lab.requests.every((r) => r.url.host === "lab.example")).toBe(true);
   });
@@ -962,7 +966,7 @@ describe("a page that advertises a feed", () => {
 });
 
 describe("an address that is itself a feed", () => {
-  it("is parsed directly with no second request and no key", async () => {
+  it("is parsed directly with no request for a feed and no key", async () => {
     const lab = await opened({
       key: null,
       page: () => ({ body: ATOM, type: "application/atom+xml" }),
@@ -970,9 +974,12 @@ describe("an address that is itself a feed", () => {
 
     expect(await lab.run()).toMatchObject({ outcome: "ok", fetched: 2 });
 
+    // The only other request is the same-host entry's Item page.
     expect(lab.requests.map((r) => r.url.pathname)).toEqual([
       "/robots.txt",
       "/publications",
+      "/robots.txt",
+      "/papers/nap",
     ]);
     expect(lab.calls.count + lab.calls.extract).toBe(0);
   });

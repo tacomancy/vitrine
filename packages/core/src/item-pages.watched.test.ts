@@ -122,9 +122,12 @@ async function opened(
   await writeFile(path, SCOUT);
   const pages = { ...(options.pages ?? PAGES) };
   const requests: URL[] = [];
-  const calls = { extract: 0, itemPages: [] as ItemPageCall[] };
+  const calls = { count: 0, extract: 0, itemPages: [] as ItemPageCall[] };
   const models: ModelProvider = {
-    countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
+    countTokens: ({ text }) => {
+      calls.count++;
+      return Promise.resolve(Math.ceil(text.length / 4));
+    },
     extract: () => {
       calls.extract++;
       return Promise.resolve({
@@ -770,5 +773,171 @@ describe("an Item page's Extraction", () => {
     expect((await lab.cards()).map((card) => card.title)).toEqual([
       "A Byline With No Markup",
     ]);
+  });
+});
+
+// A feed Scout stays free (#889; ADR 0055 decision 7): a Feed entry's Item
+// page is read for what it declares and nothing else. Its reduced text never
+// goes to the model, even with a key stored and fields still empty, or the
+// Feed path would quietly become a paid one (ADR 0040 decision 3).
+
+const FEED = await fixture("feed.rss.xml");
+
+describe("a Feed entry's Item page", () => {
+  /** The Scout's address is the feed itself, or a listing that advertises one. */
+  const fed = (at: "feed" | "listing") =>
+    opened({
+      pages: {
+        ...PAGES,
+        ...(at === "feed"
+          ? { "/research/team/alignment": FEED }
+          : {
+              "/research/team/alignment": PAGES[
+                "/research/team/alignment"
+              ]!.replace(
+                "</head>",
+                '<link rel="alternate" type="application/rss+xml" href="/feed.xml" /></head>'
+              ),
+              "/feed.xml": FEED,
+            }),
+      },
+    });
+
+  it.each(["feed", "listing"] as const)(
+    "fills an entry that has no authors or abstract from what its page declares (at a %s)",
+    async (at) => {
+      const lab = await fed(at);
+
+      expect(await lab.run()).toMatchObject({ outcome: "ok", new: 5 });
+      const cards = await lab.cards();
+
+      expect(byTitle(cards, AGENTIC)).toMatchObject({
+        published: "2025-06-20",
+        abstract:
+          "We stress-tested 16 leading models in hypothetical corporate environments to identify risky agentic behaviors before they cause real harm.",
+        authors: [],
+      });
+      expect(
+        byTitle(cards, "Natural Emergent Misalignment from Reward Hacking")
+      ).toMatchObject({
+        authors: ["Monte MacDiarmid", "Evan Hubinger"],
+        published: "2025-11-21",
+      });
+      expect(byTitle(cards, "A Plain Post With No Markup")).toMatchObject({
+        published: "2025-05-02",
+        abstract: "",
+        authors: [],
+      });
+      // Read, so owed nothing: a page declaring little is not a failure.
+      expect(
+        lab.rows(
+          "SELECT item_pages_read, item_values_dropped, model, cost_usd FROM scout_runs"
+        )
+      ).toEqual([
+        {
+          item_pages_read: 4,
+          item_values_dropped: 0,
+          model: null,
+          cost_usd: null,
+        },
+      ]);
+      expect(
+        lab.rows(
+          "SELECT DISTINCT item_page_tries FROM proposals WHERE url LIKE 'https://www.anthropic.com/%'"
+        )
+      ).toEqual([{ item_page_tries: null }]);
+    }
+  );
+
+  it.each(["feed", "listing"] as const)(
+    "makes no model call of either kind with a key stored and fields still empty (at a %s)",
+    async (at) => {
+      const lab = await fed(at);
+
+      await lab.run();
+
+      // The plain post's authors and abstract are still empty, and a key is
+      // stored: the one thing between it and a call is that it came by feed.
+      expect(
+        byTitle(await lab.cards(), "A Plain Post With No Markup").abstract
+      ).toBe("");
+      expect(lab.calls).toEqual({ count: 0, extract: 0, itemPages: [] });
+    }
+  );
+
+  it("never overwrites what the entry itself said, and fills only what it left empty", async () => {
+    const lab = await fed("feed");
+
+    await lab.run();
+
+    expect(
+      byTitle(await lab.cards(), "Sparse Probes Find Planning Features")
+    ).toMatchObject({
+      authors: ["Feed Author"],
+      published: "2025-09-01",
+      abstract: "The feed's own summary of the probes.",
+      // The one field the entry left empty is the page's.
+      doi: "10.5555/sparse.probes.2025",
+    });
+  });
+
+  it("is read only on the feed's own site, and nothing it links to is asked for", async () => {
+    const lab = await fed("feed");
+
+    await lab.run();
+
+    expect(lab.pagesAsked().sort()).toEqual(
+      [
+        "www.anthropic.com/research/team/alignment",
+        "www.anthropic.com/research/agentic-misalignment",
+        "www.anthropic.com/research/reward-hacking",
+        "www.anthropic.com/research/plain-post",
+        "www.anthropic.com/research/sparse-probes",
+      ].sort()
+    );
+  });
+
+  it("drains the Scout's Listing-only cards on a later run the same way: declared only, owing nothing", async () => {
+    const many = Array.from(
+      { length: 27 },
+      (_, n) => `/research/post-${n + 1}`
+    );
+    const pages: Record<string, string> = {
+      "/research/team/alignment": `<rss version="2.0"><channel>${many
+        .map(
+          (path, n) =>
+            `<item><title>Post number ${n + 1}</title><link>https://www.anthropic.com${path}</link></item>`
+        )
+        .join("")}</channel></rss>`,
+    };
+    for (const path of many) {
+      // A date and nothing else: authors and abstract stay empty.
+      pages[path] =
+        `<html><head><meta property="article:published_time" content="2025-09-01T00:00:00Z"></head><body>${path}</body></html>`;
+    }
+    const lab = await opened({ pages });
+    await lab.run();
+    expect(
+      lab.rows("SELECT COUNT(*) AS n FROM proposals WHERE item_page_tries = 0")
+    ).toEqual([{ n: 2 }]);
+    lab.requests.length = 0;
+
+    await lab.run();
+
+    expect(lab.pagesAsked().filter((p) => p.includes("/post-"))).toEqual([
+      "www.anthropic.com/research/post-26",
+      "www.anthropic.com/research/post-27",
+    ]);
+    expect(byTitle(await lab.cards(), "Post number 27")).toMatchObject({
+      published: "2025-09-01",
+      abstract: "",
+      authors: [],
+    });
+    expect(
+      lab.rows(
+        "SELECT COUNT(*) AS n FROM proposals WHERE item_page_tries IS NOT NULL"
+      )
+    ).toEqual([{ n: 0 }]);
+    expect(lab.calls).toEqual({ count: 0, extract: 0, itemPages: [] });
   });
 });

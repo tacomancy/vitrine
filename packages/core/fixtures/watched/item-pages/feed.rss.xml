@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Anthropic — Alignment</title>
+    <link>https://www.anthropic.com/research/team/alignment</link>
+    <item>
+      <title>Agentic Misalignment: How LLMs could be insider threats</title>
+      <link>https://www.anthropic.com/research/agentic-misalignment</link>
+    </item>
+    <item>
+      <title>Natural Emergent Misalignment from Reward Hacking</title>
+      <link>https://www.anthropic.com/research/reward-hacking</link>
+    </item>
+    <item>
+      <title>A Plain Post With No Markup</title>
+      <link>https://www.anthropic.com/research/plain-post</link>
+    </item>
+    <item>
+      <title>Sparse Probes Find Planning Features</title>
+      <link>https://www.anthropic.com/research/sparse-probes</link>
+      <dc:creator>Feed Author</dc:creator>
+      <pubDate>Mon, 01 Sep 2025 08:00:00 GMT</pubDate>
+      <description>The feed's own summary of the probes.</description>
+    </item>
+    <item>
+      <title>A Post on the Alignment Science Blog</title>
+      <link>https://alignment.anthropic.com/2025/off-host/</link>
+    </item>
+  </channel>
+</rss>
