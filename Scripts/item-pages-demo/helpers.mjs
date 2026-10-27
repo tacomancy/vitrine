@@ -6,10 +6,11 @@ import {
   button,
   openQueue,
   press,
+  runNow,
   storeKey,
 } from "../page-change-demo/helpers.mjs";
 import { fillPageScout, saveScout } from "../watched-demo/helpers.mjs";
-export { button, fillPageScout, openQueue, press, saveScout, storeKey };
+export { button, fillPageScout, openQueue, press, runNow, saveScout, storeKey };
 
 export const NAME = "Anthropic alignment";
 export const TRACING = "Tracing the thoughts of a large language model";
@@ -34,20 +35,6 @@ export async function shoot(page, name) {
     );
     console.log(`shot ${name}-${theme}`);
   }
-}
-
-/**
- * *Run now* in the Scout's header, reached by choosing it on the rail: the
- * rail only filters since #857, so scout-demo's rail-row button is gone.
- */
-export async function runNow(page, name) {
-  const entry = `[...document.querySelectorAll('ul[aria-label="Scouts"] li button')].find(b => b.innerText.includes(${JSON.stringify(name)}))`;
-  await page.wait(`!!${entry}`, 20000);
-  await page.eval(`${entry}.click()`);
-  await page.wait(
-    `[...document.querySelectorAll('h2')].some(h => h.textContent === ${JSON.stringify(name)})`
-  );
-  await page.eval(`${button("Run now")}.click()`);
 }
 
 const batchToggle = `[...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes(${JSON.stringify(NAME)}) && b.innerText.includes('first look'))`;

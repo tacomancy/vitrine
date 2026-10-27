@@ -1,6 +1,7 @@
-// Loaded into the core's process by NODE_OPTIONS=--import, for this demo
-// only. The key is pinned to https://api.anthropic.com in code with no seam
-// (ADR 0048), so the earlier demos' ANTHROPIC_BASE_URL no longer reaches a
+// Loaded into the core's process by NODE_OPTIONS=--import, by the demos whose
+// stand-in answers for the model's API (item-pages, page-change, watched). The
+// key is pinned to https://api.anthropic.com in code with no seam (ADR 0048),
+// so ANTHROPIC_BASE_URL, which those demos once used, no longer reaches a
 // stand-in. This is not a seam either: it is code put into the process through
 // the launching environment, which is outside the BYOK claim (architecture.md
 // § BYOK). It wraps the global fetch *under* the core's pinned fetch, which

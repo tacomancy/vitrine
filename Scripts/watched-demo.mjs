@@ -3,8 +3,9 @@
 // scratch copy of the fixture vault, one PNG each (docs/agents/run.md),
 // against a local stand-in for a lab's website and for the model's API —
 // never a real site or the real one. The key is kept in memory by
-// VITRINE_CREDENTIALS=memory, so the user's Keychain is never touched. Needs
-// both packages built.
+// VITRINE_CREDENTIALS=memory, so the user's Keychain is never touched, and
+// `demo-egress.mjs` hands the core's provider requests to the stand-in and
+// refuses anything else bound off this machine. Needs both packages built.
 //
 //   node Scripts/watched-demo.mjs <out-folder>
 //
@@ -17,10 +18,18 @@
 //    Loose Ends in the same sentence.
 // 5. The lab redesigns its page: the structure-change row.
 import { spawn } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { startStandin } from "./watched-demo/standin.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,15 +39,28 @@ mkdirSync(out, { recursive: true });
 const scratch = mkdtempSync(join(tmpdir(), "vitrine-watched-demo-"));
 const vault = join(scratch, "vault");
 const support = join(scratch, "support");
+const egressLog = join(scratch, "egress.log");
 cpSync(join(repo, "packages/core/fixtures/obsidian-vault"), vault, {
   recursive: true,
 });
 
 const standin = await startStandin();
+
+// run-hidden's default debug port is whoever got there first, and another
+// session's app may hold it: a drive would then talk to the wrong window.
+const freePort = () =>
+  new Promise((done) => {
+    const probe = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => done(port));
+    });
+  });
+
 // Async, not execFileSync: the stand-in lives in this process and a blocked
 // event loop would leave the app's requests unanswered.
-const launch = (png, drive, after = 25000) =>
-  new Promise((done, fail) => {
+const launch = async (png, drive, after = 25000) => {
+  const port = await freePort();
+  return new Promise((done, fail) => {
     const child = spawn(
       "node",
       [
@@ -49,6 +71,8 @@ const launch = (png, drive, after = 25000) =>
         vault,
         "--support",
         support,
+        "--port",
+        String(port),
         "--drive",
         join(here, "watched-demo", drive),
         "--after",
@@ -59,9 +83,17 @@ const launch = (png, drive, after = 25000) =>
         env: {
           ...process.env,
           DEMO_ORIGIN: standin.origin,
-          // The SDK reads this itself; the provider needs no demo code.
-          ANTHROPIC_BASE_URL: standin.origin,
+          DEMO_EGRESS_LOG: egressLog,
+          NODE_OPTIONS: [
+            process.env.NODE_OPTIONS,
+            `--import ${pathToFileURL(join(here, "demo-egress.mjs"))}`,
+          ]
+            .filter(Boolean)
+            .join(" "),
           VITRINE_CREDENTIALS: "memory",
+          // No arXiv or OpenAlex Scout is in the vault; a dead port all the same.
+          VITRINE_ARXIV_ENDPOINT: "http://127.0.0.1:9",
+          VITRINE_OPENALEX_ENDPOINT: "http://127.0.0.1:9",
         },
       }
     );
@@ -69,6 +101,7 @@ const launch = (png, drive, after = 25000) =>
       code === 0 ? done() : fail(new Error(`${png}: exit ${code}`))
     );
   });
+};
 
 try {
   await launch("1-feed.png", "feed.mjs");
@@ -88,6 +121,9 @@ try {
   standin.mode.redesigned = true;
   await launch("5a-redesigned-rail.png", "redesigned.mjs");
   await launch("5b-structure-loose-ends.png", "structure-loose-ends.mjs");
+  const egress = existsSync(egressLog) ? readFileSync(egressLog, "utf8") : "";
+  if (egress !== "")
+    throw new Error(`requests to a non-local host:\n${egress}`);
   console.log(`scratch vault: ${vault}`);
 } finally {
   standin.close();

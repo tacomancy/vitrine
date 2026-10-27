@@ -1,5 +1,6 @@
 // 1. A page that advertises a feed: read from the feed, no model, no cost.
 import {
+  chooseFirstLook,
   fillPageScout,
   openQueue,
   railText,
@@ -11,6 +12,6 @@ export default async (page) => {
   await fillPageScout(page, { name: "Lab feed", path: "/feed-lab/" });
   await saveScout(page);
   await runNow(page, "Lab feed");
-  await page.wait("!!document.querySelector('article[aria-label]')", 20000);
+  await chooseFirstLook(page, "Lab feed");
   console.log(`RAIL: ${await railText(page)}`);
 };

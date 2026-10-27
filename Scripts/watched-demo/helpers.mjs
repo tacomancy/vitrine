@@ -1,7 +1,13 @@
 // Shared by the drives (docs/agents/run.md). The stand-in's origin arrives in
 // the environment of the launching script, which a drive runs inside.
-import { button, openQueue, railText, runNow } from "../scout-demo/helpers.mjs";
-export { button, openQueue, railText, runNow };
+import {
+  button,
+  chooseFirstLook,
+  openQueue,
+  railText,
+  runNow,
+} from "../scout-demo/helpers.mjs";
+export { button, chooseFirstLook, openQueue, railText, runNow };
 
 export const origin = () => process.env.DEMO_ORIGIN;
 

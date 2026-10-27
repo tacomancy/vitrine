@@ -4,7 +4,7 @@
 // against a local stand-in for anthropic.com's alignment listing, its Item
 // pages and the model's API — never the real site or the real API. The key
 // is kept in memory by VITRINE_CREDENTIALS=memory, so the user's Keychain is
-// never touched, and `egress.mjs` hands the core's provider requests to the
+// never touched, and `demo-egress.mjs` hands the core's provider requests to the
 // stand-in and refuses anything else bound off this machine. Each drive takes
 // its own PNGs, dark and light. Needs both packages built.
 //
@@ -87,7 +87,7 @@ const launch = async (drive, after = 60000) => {
           DEMO_EGRESS_LOG: egressLog,
           NODE_OPTIONS: [
             process.env.NODE_OPTIONS,
-            `--import ${pathToFileURL(join(here, "item-pages-demo/egress.mjs"))}`,
+            `--import ${pathToFileURL(join(here, "demo-egress.mjs"))}`,
           ]
             .filter(Boolean)
             .join(" "),
