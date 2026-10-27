@@ -95,7 +95,12 @@ export type Read = {
   moreMatched: number;
   fetched: number;
   facts: RunFacts;
+  /** Item pages read this run for Listing-only cards already in the queue; the run writes them (ADR 0055 decision 5). */
+  listingOnly?: ListingOnlyRead[];
 };
+
+/** A Listing-only card's Item page as this run read it: what it declares, or null when it could not be fetched. */
+export type ListingOnlyRead = { id: number; declared: Declared | null };
 
 /** Input tokens the reduced text may use before the call (counted, not guessed). */
 export const TOKEN_BUDGET = 40_000;
@@ -194,8 +199,18 @@ export async function readWatched(
       "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
     )
     .get(scout.id, scout.url) as { page_hash: string } | undefined;
+  // It skips the listing's Extraction only: the Item pages owed are read all
+  // the same, or a Listing-only card would wait on the listing to change
+  // (ADR 0055 decision 5).
   if (last?.page_hash === facts.pageHash) {
-    return { items: [], moreMatched: 0, fetched: 0, facts };
+    return readItemPages(
+      { items: [], moreMatched: 0, fetched: 0, facts },
+      page,
+      queue,
+      fetchOptions,
+      scout.id,
+      itemPages
+    );
   }
 
   const model = await deps.model();
@@ -223,7 +238,7 @@ export async function readWatched(
     }
     throw cause;
   }
-  return readItemPages(read, page, queue, fetchOptions, itemPages);
+  return readItemPages(read, page, queue, fetchOptions, scout.id, itemPages);
 }
 
 /** A host with any leading `www.` dropped, so `anthropic.com` and `www.anthropic.com` are one site; null for a link that does not parse. */
@@ -244,12 +259,18 @@ function siteOf(url: string): string | null {
  * is neither fetched nor a failure. An item already in the queue was read, or
  * owed, when it first arrived. A page that cannot be fetched leaves its card
  * as the listing showed it, with the try counted.
+ *
+ * What the ceiling leaves after this run's new items goes to the Scout's
+ * Listing-only cards, oldest first (decision 5): today's finds fill in
+ * first, and the backlog drains in the order it arrived. Which pages a run
+ * owes is decided here and nowhere else.
  */
 async function readItemPages(
   read: Read,
   listing: Page,
   queue: DatabaseSync,
   fetchOptions: PageFetchOptions,
+  scoutId: string,
   ceiling: number
 ): Promise<Read> {
   const site = siteOf(listing.url);
@@ -259,6 +280,17 @@ async function readItemPages(
   const seen = new Set<string>();
   let asked = 0;
   let readCount = 0;
+  /** What one Item page declares, or null when it could not be fetched. */
+  const readOne = async (url: string): Promise<Declared | null> => {
+    try {
+      const page = await fetchPage(url, fetchOptions);
+      readCount++;
+      return declaredOf(page.body, blurb);
+    } catch (cause) {
+      if (!(cause instanceof FetchError)) throw cause;
+      return null;
+    }
+  };
   const items: Arrival[] = [];
   for (const item of read.items) {
     const owed =
@@ -273,17 +305,41 @@ async function readItemPages(
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
-      try {
-        const page = await fetchPage(item.url, fetchOptions);
-        readCount++;
-        items.push(filled(item, declaredOf(page.body, blurb)));
-      } catch (cause) {
-        if (!(cause instanceof FetchError)) throw cause;
-        items.push({ ...item, itemPageTries: 1 });
-      }
+      const declared = await readOne(item.url);
+      items.push(
+        declared === null
+          ? { ...item, itemPageTries: 1 }
+          : filled(item, declared)
+      );
     }
   }
-  return { ...read, items, facts: { ...read.facts, itemPagesRead: readCount } };
+
+  const listingOnly: ListingOnlyRead[] = [];
+  if (asked < ceiling && site !== null) {
+    // Pending only: a triaged card is never written, so its page is not
+    // worth a request. The run's write checks again, since a card can be
+    // triaged while its page is in flight.
+    const owed = queue
+      .prepare(
+        `SELECT p.id, p.url FROM proposals p
+         WHERE p.state = 'pending' AND p.item_page_tries IS NOT NULL
+           AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
+         ORDER BY p.first_seen, p.id`
+      )
+      .all(scoutId) as Array<{ id: number; url: string }>;
+    // A Scout re-pointed at another site reads no page of the old one.
+    for (const card of owed.filter((o) => siteOf(o.url) === site)) {
+      if (asked >= ceiling) break;
+      asked++;
+      listingOnly.push({ id: card.id, declared: await readOne(card.url) });
+    }
+  }
+  return {
+    ...read,
+    items,
+    listingOnly,
+    facts: { ...read.facts, itemPagesRead: readCount },
+  };
 }
 
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
