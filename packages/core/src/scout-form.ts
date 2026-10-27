@@ -9,7 +9,14 @@ import {
   type NameResult,
   type OpenAlexClient,
 } from "./openalex.js";
-import { NO_KEY, WatchedError, readWatched } from "./watched.js";
+import { costUsd } from "./model-prices.js";
+import {
+  NO_KEY,
+  WatchedError,
+  readWatched,
+  type Arrival,
+  type Read,
+} from "./watched.js";
 import { errorMessageWithoutPath, VaultError } from "./errors.js";
 import {
   isScoutFile,
@@ -778,9 +785,27 @@ export type TriedPage =
       titles: string[];
       tokens: { input: number; output: number } | null;
       costUsd: number | null;
+      /** The new items whose Item page *try* read, filled from it. */
+      cards: TriedCard[];
+      /**
+       * What reading every new item's Item page would cost, at the mean of
+       * what `cards` cost (#891); null when no page was read to measure, or
+       * the model's price is not known.
+       */
+      projection: { costUsd: number; itemPages: number } | null;
+      /** Item pages *try* asked for that could not be fetched, said so a sample of none is not silent. */
+      itemPagesUnfetched: number;
     }
   | { outcome: "no-key"; sentence: string }
   | { outcome: "failed"; sentence: string };
+
+export type TriedCard = Pick<
+  Arrival,
+  "title" | "url" | "authors" | "published" | "venue" | "abstract"
+>;
+
+/** How many Item pages *try* reads: enough to measure a page's cost, few enough to be quick. */
+export const TRY_ITEM_PAGES = 3;
 
 /**
  * *Try* for a page: the whole pipeline — fetch, feed or extraction,
@@ -796,12 +821,11 @@ export async function tryPage(
   const url = address.trim();
   if (!WEB_ADDRESS.test(url)) throw new VaultError("refused", ADDRESS_REFUSAL);
   try {
-    // No Item page yet: what *try* reads of them, and projects, is #891's.
     const read = await readWatched(
       deps.watched,
       deps.queue,
       { id: TRY_ID, url },
-      { itemPages: 0 }
+      { itemPages: TRY_ITEM_PAGES }
     );
     const titles = read.items.slice(0, 5).map((item) => item.title);
     if (read.facts.model === null) {
@@ -818,6 +842,18 @@ export async function tryPage(
       tokens:
         usage === null ? null : { input: usage.input, output: usage.output },
       costUsd: read.facts.costUsd,
+      cards: (read.itemPageSample?.read ?? []).map(
+        ({ title, url, authors, published, venue, abstract }) => ({
+          title,
+          url,
+          authors,
+          published,
+          venue,
+          abstract,
+        })
+      ),
+      projection: projected(read),
+      itemPagesUnfetched: read.facts.itemPagesUnread,
     };
   } catch (cause) {
     // A bug here must not be worded as a page's fault.
@@ -827,6 +863,31 @@ export async function tryPage(
       ? { outcome: "no-key", sentence }
       : { outcome: "failed", sentence };
   }
+}
+
+/**
+ * The mean of what *try*'s fetched Item pages cost, a page that declared
+ * everything at nothing, times every new item the listing showed: the first look reads
+ * them all, past the ceiling over later runs (ADR 0055 decision 2). It is a
+ * measurement, so with no page read there is nothing to project from.
+ */
+function projected(read: Read): { costUsd: number; itemPages: number } | null {
+  const pages = read.itemPageSample;
+  const model = read.facts.model;
+  if (pages === undefined || pages.fetched === 0 || model === null) {
+    return null;
+  }
+  // Priced even when nothing was spent: a model with no known price
+  // projects nothing, never a free first look.
+  const spent = costUsd(
+    model,
+    pages.usage ?? { input: 0, output: 0, cacheRead: 0 }
+  );
+  if (spent === null) return null;
+  return {
+    costUsd: (spent / pages.fetched) * pages.owed,
+    itemPages: pages.owed,
+  };
 }
 
 /** A Scout id no file can have (ids are file names): *try* is looking for no one's history. */

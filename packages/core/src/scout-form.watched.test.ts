@@ -12,6 +12,7 @@ import {
 import type { Scout } from "./scout-file.js";
 import type { Health } from "./scout-health.js";
 import type { TriedPage } from "./scout-form.js";
+import { costUsd } from "./model-prices.js";
 import {
   copiesNothing,
   closeCores,
@@ -66,13 +67,17 @@ async function opened(
     served?: Record<string, { body: string; type?: string }>;
     key?: string | null;
     model?: () => Extraction | Error;
+    /** The model's copy of an Item page; nothing found, at no cost, by default. */
+    itemPage?: ModelProvider["extractItemPage"];
+    modelId?: string;
   } = {}
 ) {
   const vault = await fixtureCopy("obsidian-vault");
   const served = options.served ?? { "/publications": { body: PAGE } };
   let extractions = 0;
+  const asked: string[] = [];
   const models: ModelProvider = {
-    extractItemPage: copiesNothing,
+    extractItemPage: options.itemPage ?? copiesNothing,
     countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
     extract: () => {
       extractions++;
@@ -94,9 +99,10 @@ async function opened(
       credentials: createMemoryCredentialStore(
         options.key === null ? {} : { anthropic: options.key ?? "sk-test" }
       ),
-      model: "claude-sonnet-5-5",
+      model: options.modelId ?? "claude-sonnet-5-5",
       fetch: (input) => {
         const url = urlOf(input);
+        asked.push(url.pathname);
         const found = served[url.pathname];
         return Promise.resolve(
           found === undefined
@@ -123,6 +129,8 @@ async function opened(
     vault,
     c,
     extractions: () => extractions,
+    /** Every path asked for, robots.txt aside. */
+    asked: () => asked.filter((p) => p !== "/robots.txt"),
     save: (input: Record<string, unknown>) =>
       ok<{ id: string }>("mutate", "scouts.save", {
         name: "Sleep Lab",
@@ -156,6 +164,9 @@ async function opened(
           },
           proposals: db
             .prepare("SELECT count(*) AS n FROM proposals")
+            .get() as { n: number },
+          appearances: db
+            .prepare("SELECT count(*) AS n FROM appearances")
             .get() as { n: number },
         };
       } finally {
@@ -322,7 +333,11 @@ describe("trying a page", () => {
       costUsd: expect.any(Number) as number,
     });
     // Writes nothing: no run, no Proposal.
-    expect(c.written()).toEqual({ runs: { n: 0 }, proposals: { n: 0 } });
+    expect(c.written()).toEqual({
+      runs: { n: 0 },
+      proposals: { n: 0 },
+      appearances: { n: 0 },
+    });
   });
 
   it("reads a feed with no model call, and says so", async () => {
@@ -334,6 +349,8 @@ describe("trying a page", () => {
     const tried = await c.tryPage(LAB);
 
     expect(tried).toMatchObject({ outcome: "found", via: "feed" });
+    // A feed costs nothing to read, so there is nothing to project.
+    expect(tried).not.toHaveProperty("projection");
     expect(c.extractions()).toBe(0);
     expect(c.written().proposals.n).toBe(0);
   });
@@ -385,5 +402,155 @@ describe("trying a page", () => {
     const c = await opened();
     const r = await c.c.mutate("scouts.tryWatched", { address: "nope" });
     expect(r.error).toBeDefined();
+  });
+});
+
+// #891 (spec #884 story 41; ADR 0055): *try* reads up to three Item pages and
+// projects what the first look will spend on the rest from what they cost.
+describe("trying a page reads three of its Item pages", () => {
+  const N = 24;
+  const link = (n: number) => `https://lab.example/papers/p${n}/`;
+  const LISTING = `<!doctype html><html><head><title>Publications</title></head><body><main><ul>${Array.from(
+    { length: N },
+    (_, i) => `<li><a href="${link(i + 1)}">Paper Number ${i + 1}</a></li>`
+  ).join("")}</ul></main></body></html>`;
+  const LISTED = Array.from({ length: N }, (_, i) =>
+    item({ title: `Paper Number ${i + 1}`, url: link(i + 1) })
+  );
+  // The first page declares everything a card needs, so it costs no call;
+  // the rest declare nothing, so each costs one.
+  const DECLARED = `<!doctype html><html><head><title>Paper Number 1</title>
+    <meta name="citation_title" content="Paper Number 1" />
+    <meta name="citation_author" content="Rowe, Ada" />
+    <meta name="citation_publication_date" content="2026/09/14" />
+    <meta name="citation_abstract" content="Probes read planning off the residual stream." />
+    </head><body><main><h1>Paper Number 1</h1></main></body></html>`;
+  const plain = (n: number) =>
+    `<!doctype html><html><head><title>Paper Number ${n}</title></head><body><main><article><h1>Paper Number ${n}</h1><p>By Ben Ito</p><p>Posted September 20, 2026</p><p>Replay consolidates what was learned in the day.</p></article></main></body></html>`;
+  const itemUsage = { input: 400, output: 60, cacheRead: 100 };
+  const perCall = costUsd("claude-sonnet-5-5", itemUsage)!;
+  const served: Record<string, { body: string }> = {
+    "/publications": { body: LISTING },
+    "/papers/p1/": { body: DECLARED },
+    ...Object.fromEntries(
+      Array.from({ length: N - 1 }, (_, i) => [
+        `/papers/p${i + 2}/`,
+        { body: plain(i + 2) },
+      ])
+    ),
+  };
+  const copies: ModelProvider["extractItemPage"] = () =>
+    Promise.resolve({
+      fields: {
+        authors: ["Ben Ito"],
+        date: "September 20, 2026",
+        venue: null,
+        abstract: "Replay consolidates what was learned in the day.",
+        paperUrl: null,
+      },
+      usage: itemUsage,
+    });
+
+  it("returns three filled cards and projects their mean cost over every new item", async () => {
+    const c = await opened({
+      served,
+      model: () => ({ items: LISTED, usage }),
+      itemPage: copies,
+    });
+
+    const tried = await c.tryPage(LAB);
+
+    expect(c.asked().filter((p) => p.startsWith("/papers/"))).toEqual([
+      "/papers/p1/",
+      "/papers/p2/",
+      "/papers/p3/",
+    ]);
+    expect(tried).toMatchObject({
+      outcome: "found",
+      via: "model",
+      cards: [
+        {
+          title: "Paper Number 1",
+          url: link(1),
+          authors: ["Rowe, Ada"],
+          published: "2026-09-14",
+          abstract: "Probes read planning off the residual stream.",
+        },
+        {
+          title: "Paper Number 2",
+          url: link(2),
+          authors: ["Ben Ito"],
+          published: "2026-09-20",
+          abstract: "Replay consolidates what was learned in the day.",
+        },
+        { title: "Paper Number 3", authors: ["Ben Ito"] },
+      ],
+      projection: { itemPages: N },
+      itemPagesUnfetched: 0,
+    });
+    // Two of the three pages cost a call and one cost nothing: the mean, not
+    // the dearest page, is what the rest are projected at.
+    expect(
+      (tried as { projection: { costUsd: number } }).projection.costUsd
+    ).toBeCloseTo(((2 * perCall) / 3) * N, 10);
+    expect(c.written()).toEqual({
+      runs: { n: 0 },
+      proposals: { n: 0 },
+      appearances: { n: 0 },
+    });
+  });
+
+  it("measures a page the model failed on, and says how many could not be fetched", async () => {
+    const missingP3 = { ...served };
+    delete missingP3["/papers/p3/"];
+    let call = 0;
+    const c = await opened({
+      // p2 is the only page asked of the model, and the call fails after spending.
+      served: missingP3,
+      model: () => ({ items: LISTED, usage }),
+      itemPage: (req) =>
+        call++ === 0
+          ? Promise.reject(new ModelError("model", "overloaded", itemUsage))
+          : copies(req),
+    });
+
+    const tried = (await c.tryPage(LAB)) as Extract<
+      TriedPage,
+      { via: "model" }
+    >;
+
+    // p1 declared everything; p2's card keeps only what it declared; p3 was
+    // not there. The three fetched pages are the sample, p2's spend in it.
+    expect(tried.cards.map((card) => card.title)).toEqual(["Paper Number 1"]);
+    expect(tried.itemPagesUnfetched).toBe(1);
+    expect(tried.projection?.itemPages).toBe(N);
+    expect(tried.projection?.costUsd).toBeCloseTo((perCall / 2) * N, 10);
+  });
+
+  it("projects nothing for a model whose price is not known, even when no page cost a call", async () => {
+    const declaredOnly = Object.fromEntries(
+      Object.entries(served).map(([path, page]) =>
+        path === "/publications" ? [path, page] : [path, { body: DECLARED }]
+      )
+    );
+    const c = await opened({
+      served: declaredOnly,
+      model: () => ({ items: LISTED, usage }),
+      modelId: "an-unpriced-model",
+    });
+
+    const tried = await c.tryPage(LAB);
+
+    expect(tried).toMatchObject({ outcome: "found", projection: null });
+  });
+
+  it("projects nothing when there is no key, and reads no Item page", async () => {
+    const c = await opened({ key: null, served, itemPage: copies });
+
+    expect(await c.tryPage(LAB)).toEqual({
+      outcome: "no-key",
+      sentence: "No model key is stored, so this page has not been read yet.",
+    });
+    expect(c.asked()).toEqual(["/publications"]);
   });
 });

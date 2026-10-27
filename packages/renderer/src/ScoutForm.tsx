@@ -592,6 +592,21 @@ export function ScoutForm({
 const OPENALEX_NOTE =
   "OpenAlex searches journals and conferences only. A work that only exists as a preprint will not appear; an arXiv Scout is where to find those.";
 
+const pages = (n: number) => `${n} ${n === 1 ? "item page" : "item pages"}`;
+
+/** An estimate in cents; one under a cent is not said as free. */
+const dollars = (usd: number) =>
+  usd > 0 && usd < 0.005 ? "< $0.01" : `$${usd.toFixed(2)}`;
+
+/** A field *try*'s Item page left empty, said as the Queue card says it: never a blank. */
+function Missing({ value, label }: { value: string; label: string }) {
+  return value === "" ? (
+    <span className={styles.missing}>{label} missing</span>
+  ) : (
+    <>{value}</>
+  );
+}
+
 /** What *try* learned about a page, in the words the Scout would use for it. */
 function PageResult({ result }: { result: TriedPage }) {
   if (result.outcome === "failed") {
@@ -624,6 +639,34 @@ function PageResult({ result }: { result: TriedPage }) {
           <li key={i}>{title}</li>
         ))}
       </ol>
+      {result.via === "model" && result.projection !== null && (
+        // What saving will spend on Item pages, before it is spent (#891).
+        <span className={styles.triedLine}>
+          ≈ {dollars(result.projection.costUsd)} for{" "}
+          {pages(result.projection.itemPages)}
+        </span>
+      )}
+      {result.via === "model" && result.itemPagesUnfetched > 0 && (
+        <span className={styles.triedLine}>
+          {pages(result.itemPagesUnfetched)} could not be fetched
+        </span>
+      )}
+      {result.via === "model" && result.cards.length > 0 && (
+        <ol aria-label="Item pages read" className={styles.titles}>
+          {result.cards.map((card) => (
+            <li key={card.url}>
+              <span>{card.title}</span>
+              <span className={styles.byline}>
+                <Missing value={card.authors.join(", ")} label="authors" /> ·{" "}
+                <Missing value={card.published} label="date" />
+              </span>
+              <p className={styles.abstract}>
+                <Missing value={card.abstract} label="abstract" />
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
     </span>
   );
 }
