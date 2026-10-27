@@ -248,6 +248,26 @@ describe("a new item's Item page", () => {
     ).toMatchObject({ published: "2025-05-02", abstract: "", authors: [] });
   });
 
+  it("leaves the card as the listing showed it when its Item page cannot be fetched, and counts the try", async () => {
+    const served = { ...PAGES };
+    delete served["/research/plain-post"];
+    const lab = await opened({ pages: served });
+
+    await lab.run();
+
+    expect(
+      byTitle(await lab.cards(), "A Plain Post With No Markup")
+    ).toMatchObject({ published: "", abstract: "", authors: [] });
+    expect(
+      lab.rows(
+        "SELECT item_page_tries FROM proposals WHERE title = 'A Plain Post With No Markup'"
+      )
+    ).toEqual([{ item_page_tries: 1 }]);
+    expect(lab.rows("SELECT item_pages_read FROM scout_runs")).toEqual([
+      { item_pages_read: 5 },
+    ]);
+  });
+
   it("fills only what the listing left empty", async () => {
     const lab = await opened();
 

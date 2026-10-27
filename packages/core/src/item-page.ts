@@ -1,4 +1,4 @@
-import { decode } from "./page-reduce.js";
+import { decode, squash } from "./page-reduce.js";
 
 /**
  * What an Item page declares for machines (ADR 0055 decisions 3 and 9;
@@ -26,9 +26,6 @@ export type Declared = {
 };
 
 const ARTICLE_TYPES = ["Article", "ScholarlyArticle", "BlogPosting"];
-
-/** Collapse whitespace, so a description that wrapped in the markup compares equal. */
-const squash = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const ATTRIBUTE = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
 
@@ -71,10 +68,10 @@ function articleOf(html: string): Record<string, unknown> | null {
       // A malformed block declares nothing; the next source is asked.
       continue;
     }
-    const queue = [parsed];
+    const queue: unknown[] = [parsed];
     while (queue.length > 0) {
       const node = queue.shift();
-      if (Array.isArray(node)) queue.push(...node);
+      if (Array.isArray(node)) queue.push(...(node as unknown[]));
       else if (typeof node === "object" && node !== null) {
         const record = node as Record<string, unknown>;
         if (typesOf(record).some((t) => ARTICLE_TYPES.includes(t as string))) {
@@ -87,8 +84,10 @@ function articleOf(html: string): Record<string, unknown> | null {
   return null;
 }
 
-const text = (value: unknown): string | null =>
-  typeof value === "string" && squash(value) !== "" ? squash(value) : null;
+function text(value: unknown): string | null {
+  const squashed = typeof value === "string" ? squash(value) : "";
+  return squashed === "" ? null : squashed;
+}
 
 /** People only: an untyped name is not known to be one, and an `Organization` is never one (ADR 0055 decision 9). */
 function peopleOf(author: unknown): string[] {
@@ -116,7 +115,8 @@ export function declaredOf(html: string, blurb: string | null): Declared {
   const meta = metaOf(html);
   const first = (key: string) => meta.get(key)?.[0] ?? null;
   const article = articleOf(html);
-  const time = /<time\b[^>]*>/i.exec(html);
+  // The first `<time>` that carries a machine date; one with only words in it says nothing.
+  const time = /<time\b[^>]*\bdatetime\s*=[^>]*>/i.exec(html);
 
   const citationAuthors = meta.get("citation_author") ?? [];
   const authors =
@@ -127,8 +127,7 @@ export function declaredOf(html: string, blurb: string | null): Declared {
     first("article:published_time"),
     time === null ? null : text(attributesOf(time[0]).get("datetime")),
   ].find((d) => d !== null);
-  const notBlurb = (d: string | null) =>
-    d !== null && (blurb === null || d !== squash(blurb));
+  const notBlurb = (d: string | null) => d !== null && d !== blurb;
   const abstract = [
     first("citation_abstract"),
     text(article?.description),

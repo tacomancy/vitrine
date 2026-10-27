@@ -10,8 +10,13 @@ import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
 import { ModelError, type ModelProvider } from "./model-provider.js";
 import { blurbOf, declaredOf, type Declared } from "./item-page.js";
-import { FetchError, fetchPage, type Page } from "./page-fetch.js";
-import { reduceHtml } from "./page-reduce.js";
+import {
+  FetchError,
+  fetchPage,
+  type Page,
+  type PageFetchOptions,
+} from "./page-fetch.js";
+import { reduceHtml, squash } from "./page-reduce.js";
 import { doiOf, sourceKeyOf } from "./source-key.js";
 
 /**
@@ -113,9 +118,9 @@ export async function readWatched(
   queue: DatabaseSync,
   scout: { id: string; url: string },
   /** How many Item pages it may read; *try* reads none yet. */
-  itemPages = ITEM_PAGE_CEILING
+  { itemPages = ITEM_PAGE_CEILING }: { itemPages?: number } = {}
 ): Promise<Read> {
-  const fetchOptions = {
+  const fetchOptions: PageFetchOptions = {
     fetch: deps.fetch,
     ...(deps.timeoutMs === undefined ? {} : { timeoutMs: deps.timeoutMs }),
   };
@@ -244,7 +249,7 @@ async function readItemPages(
   read: Read,
   listing: Page,
   queue: DatabaseSync,
-  fetchOptions: { fetch: typeof fetch; timeoutMs?: number },
+  fetchOptions: PageFetchOptions,
   ceiling: number
 ): Promise<Read> {
   const site = siteOf(listing.url);
@@ -257,6 +262,7 @@ async function readItemPages(
   const items: Arrival[] = [];
   for (const item of read.items) {
     const owed =
+      site !== null &&
       siteOf(item.url) === site &&
       !seen.has(item.key) &&
       known.get(item.key) === undefined;
@@ -288,9 +294,6 @@ const filled = (item: Arrival, declared: Declared): Arrival => ({
   doi: item.doi ?? declared.doi,
   abstract: item.abstract !== "" ? item.abstract : (declared.abstract ?? ""),
 });
-
-/** Collapse whitespace the way reduction did, so a title that wrapped on the page still matches. */
-const squash = (value: string) => value.replace(/\s+/g, " ").trim();
 
 function verify(
   returned: Array<{

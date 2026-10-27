@@ -801,7 +801,7 @@ export async function tryPage(
       deps.watched,
       deps.queue,
       { id: TRY_ID, url },
-      0
+      { itemPages: 0 }
     );
     const titles = read.items.slice(0, 5).map((item) => item.title);
     if (read.facts.model === null) {

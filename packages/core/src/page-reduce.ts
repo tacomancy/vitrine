@@ -109,6 +109,9 @@ const ENTITIES: Record<string, string> = {
   nbsp: " ",
 };
 
+/** Collapse whitespace the way reduction does, so a value that wrapped in the markup still compares equal. */
+export const squash = (value: string) => value.replace(/\s+/g, " ").trim();
+
 export function decode(value: string): string {
   return value.replace(
     /&(#x[0-9a-f]+|#\d+|\w+);/gi,
