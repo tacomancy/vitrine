@@ -163,7 +163,11 @@ export async function readWatched(
 
   // A feed needs no model and so no key, which is why the key is read only
   // once the page is known not to be one or to advertise one (ADR 0040 d.3).
-  if (isFeed(page.body)) return fromFeed(page.body, null);
+  // Its entries' Item pages are read with no reader, so for what they
+  // declare and never by a model (ADR 0055 decision 7).
+  const fed = (read: Read) =>
+    readItemPages(read, page, queue, fetchOptions, scout.id, null, itemPages);
+  if (isFeed(page.body)) return fed(fromFeed(page.body, null));
   const advertised = advertisedFeed(page.body, page.url);
   if (advertised !== null) {
     // The page's HTML is never reduced or sent anywhere, and a feed that
@@ -181,7 +185,8 @@ export async function readWatched(
       }
       throw cause;
     }
-    return fromFeed(feed.body, FEED_UNREADABLE);
+    // The listing is still the page, so its own `og:description` is the blurb an Item page's is compared against.
+    return fed(fromFeed(feed.body, FEED_UNREADABLE));
   }
 
   let key;
@@ -296,6 +301,10 @@ function siteOf(url: string): string | null {
  * as the listing showed it, with the try counted; one the model cannot read
  * keeps what it declared, and is a try too.
  *
+ * With no reader — a feed's entries — a page is read for what it declares
+ * and nothing more: whatever is still empty stays empty, and the page is
+ * read all the same, owing nothing (ADR 0055 decision 7).
+ *
  * What the ceiling leaves after this run's new items goes to the Scout's
  * Listing-only cards, oldest first (decision 5): today's finds fill in
  * first, and the backlog drains in the order it arrived. Which pages a run
@@ -307,7 +316,7 @@ async function readItemPages(
   queue: DatabaseSync,
   fetchOptions: PageFetchOptions,
   scoutId: string,
-  reader: ItemPageReader,
+  reader: ItemPageReader | null,
   ceiling: number
 ): Promise<Read> {
   const site = siteOf(listing.url);
@@ -339,7 +348,7 @@ async function readItemPages(
     const pageDeclared = declaredOf(page.body, blurb);
     const declared = filled(card, pageDeclared);
     const needed = neededOf(declared);
-    if (needed.length === 0) {
+    if (needed.length === 0 || reader === null) {
       readCount++;
       return { card: declared, read: true };
     }
@@ -371,9 +380,12 @@ async function readItemPages(
     ...read.facts,
     // An unchanged listing made no call of its own; the model is named on
     // the run only once something was spent on it.
-    model: usage === null ? read.facts.model : reader.model,
+    model: usage === null || reader === null ? read.facts.model : reader.model,
     usage,
-    costUsd: usage === null ? read.facts.costUsd : costUsd(reader.model, usage),
+    costUsd:
+      usage === null || reader === null
+        ? read.facts.costUsd
+        : costUsd(reader.model, usage),
     itemPagesRead: readCount,
     itemValuesDropped: dropped,
   });
