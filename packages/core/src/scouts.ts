@@ -581,7 +581,7 @@ function record(
   queue
     .prepare(
       `UPDATE scout_runs SET model = ?, input_tokens = ?, output_tokens = ?, cache_read_tokens = ?,
-              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ? WHERE id = ?`
+              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ?, item_values_dropped = ? WHERE id = ?`
     )
     .run(
       facts.model ?? null,
@@ -594,6 +594,7 @@ function record(
       facts.capped === true ? 1 : 0,
       facts.unverified ?? 0,
       facts.itemPagesRead ?? 0,
+      facts.itemValuesDropped ?? 0,
       runId
     );
 }

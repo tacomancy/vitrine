@@ -47,8 +47,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    offer a publisher rule by name (#806).
  * 14: `proposals.item_page_tries` and `scout_runs.item_pages_read`, what a
  *    Watched Scout's Item pages owe and read (#885, ADR 0055).
+ * 15: `scout_runs.item_values_dropped`, values an Item page's Extraction
+ *    copied that were not on that page (#886, ADR 0055).
  */
-export const QUEUE_SCHEMA_VERSION = 14;
+export const QUEUE_SCHEMA_VERSION = 15;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -301,6 +303,13 @@ ALTER TABLE proposals ADD COLUMN item_page_tries INTEGER;
 ALTER TABLE scout_runs ADD COLUMN item_pages_read INTEGER NOT NULL DEFAULT 0;
 `;
 
+// Counted like `unverified`, so a model that copies badly shows on the run
+// even though the cards it read still arrive. 0 on an earlier run, which
+// asked the model nothing of an Item page.
+const ITEM_VALUES_DROPPED = `
+ALTER TABLE scout_runs ADD COLUMN item_values_dropped INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
@@ -322,6 +331,7 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_VENUE_IDS,
   PROPOSAL_PUBLISHER_NAME,
   ITEM_PAGES,
+  ITEM_VALUES_DROPPED,
 ];
 
 /**

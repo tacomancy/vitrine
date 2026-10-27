@@ -8,7 +8,11 @@ import {
 import { CEILING } from "./arxiv.js";
 import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
-import { ModelError, type ModelProvider } from "./model-provider.js";
+import {
+  ModelError,
+  type ItemPageField,
+  type ModelProvider,
+} from "./model-provider.js";
 import { blurbOf, declaredOf, type Declared } from "./item-page.js";
 import {
   FetchError,
@@ -77,6 +81,8 @@ export type RunFacts = {
   capped: boolean;
   unverified: number;
   itemPagesRead: number;
+  /** Values an Item page's Extraction copied that were not on that page. */
+  itemValuesDropped: number;
 };
 
 export class WatchedError extends Error {
@@ -101,6 +107,8 @@ export type Read = {
 export const TOKEN_BUDGET = 40_000;
 /** The most Item pages one run reads (ADR 0055 decision 2), a starting point. */
 export const ITEM_PAGE_CEILING = 25;
+/** Input tokens one Item page's reduced text may use (ADR 0055 decision 2): the card fields sit at its top. */
+export const ITEM_PAGE_BUDGET = 8_000;
 
 /** The extraction's messages; the sentences that say them live in `scout-health.ts`. */
 export const FEED_UNREADABLE = "feed unreadable";
@@ -182,6 +190,7 @@ export async function readWatched(
     capped: false,
     unverified: 0,
     itemPagesRead: 0,
+    itemValuesDropped: 0,
   };
 
   // A page that has not changed since the last clean look costs nothing: the
@@ -223,7 +232,14 @@ export async function readWatched(
     }
     throw cause;
   }
-  return readItemPages(read, page, queue, fetchOptions, itemPages);
+  return readItemPages(
+    read,
+    page,
+    queue,
+    fetchOptions,
+    { models: deps.models, key, model },
+    itemPages
+  );
 }
 
 /** A host with any leading `www.` dropped, so `anthropic.com` and `www.anthropic.com` are one site; null for a link that does not parse. */
@@ -243,13 +259,15 @@ function siteOf(url: string): string | null {
  * one site, never a crawl. An item on another site is not owed a read, so it
  * is neither fetched nor a failure. An item already in the queue was read, or
  * owed, when it first arrived. A page that cannot be fetched leaves its card
- * as the listing showed it, with the try counted.
+ * as the listing showed it, with the try counted; one the model cannot read
+ * keeps what it declared, and is a try too.
  */
 async function readItemPages(
   read: Read,
   listing: Page,
   queue: DatabaseSync,
   fetchOptions: PageFetchOptions,
+  reader: ItemPageReader,
   ceiling: number
 ): Promise<Read> {
   const site = siteOf(listing.url);
@@ -259,6 +277,8 @@ async function readItemPages(
   const seen = new Set<string>();
   let asked = 0;
   let readCount = 0;
+  let dropped = 0;
+  let usage = read.facts.usage;
   const items: Arrival[] = [];
   for (const item of read.items) {
     const owed =
@@ -273,18 +293,190 @@ async function readItemPages(
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
+      let page;
       try {
-        const page = await fetchPage(item.url, fetchOptions);
-        readCount++;
-        items.push(filled(item, declaredOf(page.body, blurb)));
+        page = await fetchPage(item.url, fetchOptions);
       } catch (cause) {
         if (!(cause instanceof FetchError)) throw cause;
         items.push({ ...item, itemPageTries: 1 });
+        continue;
+      }
+      const declared = filled(item, declaredOf(page.body, blurb));
+      const needed = neededOf(declared);
+      if (needed.length === 0) {
+        readCount++;
+        items.push(declared);
+        continue;
+      }
+      try {
+        const copied = await copiedFrom(page, needed, reader);
+        usage = plus(usage, copied.usage);
+        dropped += copied.dropped;
+        readCount++;
+        items.push(filledFromCopy(declared, copied.fields));
+      } catch (cause) {
+        if (!(cause instanceof ModelError)) throw cause;
+        if (cause.usage !== undefined) usage = plus(usage, cause.usage);
+        items.push({ ...declared, itemPageTries: 1 });
       }
     }
   }
-  return { ...read, items, facts: { ...read.facts, itemPagesRead: readCount } };
+  return {
+    ...read,
+    items,
+    facts: {
+      ...read.facts,
+      usage,
+      costUsd: usage === null ? null : costUsd(reader.model, usage),
+      itemPagesRead: readCount,
+      itemValuesDropped: dropped,
+    },
+  };
 }
+
+type ItemPageReader = { models: ModelProvider; key: string; model: string };
+
+const plus = (a: Usage | null, b: Usage): Usage => ({
+  input: (a?.input ?? 0) + b.input,
+  output: (a?.output ?? 0) + b.output,
+  cacheRead: (a?.cacheRead ?? 0) + b.cacheRead,
+});
+
+/**
+ * What is still empty once the page's declarations are in, and so worth a
+ * call. A missing venue never makes a call on its own: nothing a page
+ * declares fills a venue, so counting it would make every Item page a paid
+ * one, and a post with no venue is a valid card (ADR 0055 decision 3; brief
+ * `## Scouts` § Proposals). It is asked for when the call is made anyway.
+ */
+function neededOf(card: Arrival): ItemPageField[] {
+  const empty = {
+    authors: card.authors.length === 0,
+    date: card.published === "",
+    venue: card.venue === null || card.venue === "",
+    abstract: card.abstract === "",
+  };
+  if (!empty.authors && !empty.date && !empty.abstract) return [];
+  return (["authors", "date", "venue", "abstract"] as const).filter(
+    (field) => empty[field]
+  );
+}
+
+type Copied = {
+  fields: { authors: string[]; date: string; venue: string; abstract: string };
+  dropped: number;
+  usage: Usage;
+};
+
+/**
+ * Ask the model for one Item page's missing fields, and keep each value only
+ * if it occurs on the text the model was shown (ADR 0055 decision 4). On a
+ * listing the title and link are what a model would invent; on an Item page
+ * those are already known, so its mistakes land in the authors, the date and
+ * the abstract instead, and every one of them is checked: each author name on
+ * its own, so one invented co-author costs that name and not the byline. A
+ * value that fails is dropped and counted, and the rest of the card stands.
+ */
+async function copiedFrom(
+  page: Page,
+  needed: ItemPageField[],
+  { models, key, model }: ItemPageReader
+): Promise<Copied> {
+  let text = reduceHtml(page.body, page.url);
+  const tokens = await models.countTokens({ key, model, text });
+  if (tokens > ITEM_PAGE_BUDGET) {
+    // Cut as a listing is cut: a page that is a whole paper is paid for as its top.
+    text = text.slice(0, Math.floor((text.length * ITEM_PAGE_BUDGET) / tokens));
+  }
+  const answer = await models.extractItemPage({
+    key,
+    model,
+    page: text,
+    needed,
+  });
+
+  const flat = squash(text);
+  let dropped = 0;
+  // Whitespace collapsed on both sides, as the listing's Verify does: a
+  // sentence the page wrapped is still the page's sentence.
+  const verified = (value: string | null): string => {
+    const copied = squash(value ?? "");
+    if (copied === "") return "";
+    if (flat.includes(copied)) return copied;
+    dropped++;
+    return "";
+  };
+  // A field the model was not asked for is ignored, never filled.
+  const asked = (field: ItemPageField) => needed.includes(field);
+  const fields = {
+    authors: asked("authors")
+      ? (answer.fields.authors ?? []).map(verified).filter((a) => a !== "")
+      : [],
+    date: asked("date") ? dayOfCopied(verified(answer.fields.date)) : "",
+    venue: asked("venue") ? verified(answer.fields.venue) : "",
+    abstract: asked("abstract") ? verified(answer.fields.abstract) : "",
+  };
+  return { fields, dropped, usage: answer.usage };
+}
+
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+/**
+ * A date as the page wrote it, as a day when it plainly is one: ISO, or a
+ * month by name with its day and year (`Jun 20, 2025`, `20 June 2025`). It
+ * was Verified as copied, so this only formats. Anything else — `06/20/2025`,
+ * whose order is a guess, or `Summer 2025`, which is no day — is kept as
+ * copied, and no time zone is involved, so a day never shifts by one.
+ */
+function dayOfCopied(copied: string): string {
+  const day = (y: string, m: number, d: string) =>
+    m < 1 || m > 12 || Number(d) < 1 || Number(d) > 31
+      ? copied
+      : `${y}-${String(m).padStart(2, "0")}-${d.padStart(2, "0")}`;
+  // `Jun`, `June` and `Sept` name a month; `Junk` does not.
+  const month = (name: string) =>
+    name.length < 3
+      ? 0
+      : MONTHS.findIndex((m) => m.startsWith(name.toLowerCase())) + 1;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})\b/.exec(copied);
+  if (iso !== null) return day(iso[1]!, Number(iso[2]), iso[3]!);
+  const monthFirst = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(
+    copied
+  );
+  if (monthFirst !== null && month(monthFirst[1]!) > 0) {
+    return day(monthFirst[3]!, month(monthFirst[1]!), monthFirst[2]!);
+  }
+  const dayFirst = /^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/.exec(copied);
+  if (dayFirst !== null && month(dayFirst[2]!) > 0) {
+    return day(dayFirst[3]!, month(dayFirst[2]!), dayFirst[1]!);
+  }
+  return copied;
+}
+
+/** The copy fills only what is still empty: what the listing or the page declared stands. */
+const filledFromCopy = (card: Arrival, copied: Copied["fields"]): Arrival => ({
+  ...card,
+  authors: card.authors.length > 0 ? card.authors : copied.authors,
+  published: card.published !== "" ? card.published : copied.date,
+  venue:
+    card.venue !== null && card.venue !== ""
+      ? card.venue
+      : copied.venue || null,
+  abstract: card.abstract !== "" ? card.abstract : copied.abstract,
+});
 
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
 const filled = (item: Arrival, declared: Declared): Arrival => ({
@@ -381,6 +573,7 @@ const noFacts = (): RunFacts => ({
   capped: false,
   unverified: 0,
   itemPagesRead: 0,
+  itemValuesDropped: 0,
 });
 
 /** `message` is what a failure says; null leaves the default for an address that was itself a feed. */

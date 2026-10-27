@@ -25,6 +25,24 @@ export type ExtractedItem = {
 
 export type Extraction = { items: ExtractedItem[]; usage: Usage };
 
+/**
+ * The card fields an Item page's Extraction may fill (ADR 0055 decision 3).
+ * Title and link are already known from the listing. Keywords are not asked
+ * for: a Proposal has nowhere to keep them, so they would be paid for and
+ * dropped.
+ */
+export type ItemPageField = "authors" | "date" | "venue" | "abstract";
+
+/** One Item page as the model copied it; a field it was not asked for, or did not find, is `null`. */
+export type ItemPageFields = {
+  authors: string[] | null;
+  date: string | null;
+  venue: string | null;
+  abstract: string | null;
+};
+
+export type ItemPageExtraction = { fields: ItemPageFields; usage: Usage };
+
 /** `credentials` is a 401; `model` is everything else the provider can do wrong, after its retries. */
 export class ModelError extends Error {
   constructor(
@@ -48,6 +66,13 @@ export type ModelProvider = {
     model: string;
     page: string;
   }) => Promise<Extraction>;
+  /** One Item page's fields still empty after what it declared; never called with none. */
+  extractItemPage: (req: {
+    key: string;
+    model: string;
+    page: string;
+    needed: readonly ItemPageField[];
+  }) => Promise<ItemPageExtraction>;
 };
 
 export const EXTRACTION_PROMPT =
@@ -55,6 +80,30 @@ export const EXTRACTION_PROMPT =
   "Copy, never compose: every value must appear on the page exactly as written, " +
   "and a value that is not on the page is null. Write no summaries, give no " +
   "confidence, and return an empty list when the page lists no papers.";
+
+// Authors are where a model reading one post goes wrong first: the lab is on
+// every page, and naming it would make every card from the lab match every
+// other on Rank's first signal (ADR 0055 decision 9).
+export const ITEM_PAGE_PROMPT =
+  "You copy one paper's or post's card fields from its own web page. " +
+  "Copy, never compose: every value must appear on the page exactly as written, " +
+  "and a value that is not on the page is null. Fill only the fields you are " +
+  "asked for and leave every other null. Authors are the people the page names " +
+  "in its byline or citation block, each name as written; an organisation is " +
+  "never an author. The date is the one the page gives this item, as written. " +
+  "The abstract is the summary the page publishes, copied; write no summaries.";
+
+const ITEM_PAGE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["authors", "date", "venue", "abstract"],
+  properties: {
+    authors: { type: ["array", "null"], items: { type: "string" } },
+    date: { type: ["string", "null"] },
+    venue: { type: ["string", "null"] },
+    abstract: { type: ["string", "null"] },
+  },
+} as const;
 
 const SCHEMA = {
   type: "object",
@@ -88,8 +137,6 @@ const SCHEMA = {
     },
   },
 } as const;
-
-class NotItems extends Error {}
 
 /**
  * The one host the key may reach (#749). The SDK would otherwise read
@@ -148,6 +195,61 @@ export function createAnthropicProvider(
         : "the provider could not be reached";
     return new ModelError("model", reason, usage);
   };
+  const unmatched = (usage: Usage) =>
+    new ModelError(
+      "model",
+      "the answer did not match what was asked for",
+      usage
+    );
+  /** One structured-output call, its answer parsed but not yet checked against what was asked. */
+  const structured = async (
+    key: string,
+    model: string,
+    system: string,
+    content: string,
+    schema: Record<string, unknown>
+  ): Promise<{ parsed: unknown; usage: Usage }> => {
+    let usage: Usage | undefined;
+    try {
+      const message = await makeClient(key).messages.create({
+        model,
+        max_tokens: 16_000,
+        system,
+        messages: [{ role: "user", content }],
+        output_config: {
+          effort: "low",
+          format: { type: "json_schema", schema },
+        },
+      });
+      usage = {
+        input: message.usage.input_tokens,
+        output: message.usage.output_tokens,
+        cacheRead: message.usage.cache_read_input_tokens ?? 0,
+      };
+      if (message.stop_reason === "refusal") {
+        // The category is the provider's own word for why; null when it
+        // names none, and then nothing is added (ADR 0017 decision 6).
+        const category = message.stop_details?.category;
+        throw new ModelError(
+          "model",
+          `the model refused to read the page${category ? ` (${category})` : ""}`,
+          usage
+        );
+      }
+      const block = message.content.find((b) => b.type === "text");
+      return {
+        parsed: JSON.parse(block?.type === "text" ? block.text : "") as unknown,
+        usage,
+      };
+    } catch (cause) {
+      // A schema violation arrives as text that does not parse: `model`,
+      // not a crash, and the tokens it cost are still recorded.
+      if (cause instanceof SyntaxError && usage !== undefined) {
+        throw unmatched(usage);
+      }
+      throw fault(cause, usage);
+    }
+  };
   return {
     countTokens: async ({ key, model, text }) => {
       try {
@@ -161,51 +263,50 @@ export function createAnthropicProvider(
       }
     },
     extract: async ({ key, model, page }) => {
-      let usage: Usage | undefined;
-      try {
-        const message = await makeClient(key).messages.create({
-          model,
-          max_tokens: 16_000,
-          system: EXTRACTION_PROMPT,
-          messages: [{ role: "user", content: page }],
-          output_config: {
-            effort: "low",
-            format: { type: "json_schema", schema: SCHEMA },
-          },
-        });
-        usage = {
-          input: message.usage.input_tokens,
-          output: message.usage.output_tokens,
-          cacheRead: message.usage.cache_read_input_tokens ?? 0,
-        };
-        if (message.stop_reason === "refusal") {
-          // The category is the provider's own word for why; null when it
-          // names none, and then nothing is added (ADR 0017 decision 6).
-          const category = message.stop_details?.category;
-          throw new ModelError(
-            "model",
-            `the model refused to read the page${category ? ` (${category})` : ""}`,
-            usage
-          );
-        }
-        const block = message.content.find((b) => b.type === "text");
-        const parsed = JSON.parse(block?.type === "text" ? block.text : "") as {
-          items?: unknown;
-        };
-        if (!Array.isArray(parsed.items)) throw new NotItems();
-        return { items: parsed.items as ExtractedItem[], usage };
-      } catch (cause) {
-        // A schema violation arrives as text that does not parse: `model`,
-        // not a crash, and the tokens it cost are still recorded.
-        if (cause instanceof SyntaxError || cause instanceof NotItems) {
-          throw new ModelError(
-            "model",
-            "the answer did not match what was asked for",
-            usage
-          );
-        }
-        throw fault(cause, usage);
+      const { parsed, usage } = await structured(
+        key,
+        model,
+        EXTRACTION_PROMPT,
+        page,
+        SCHEMA
+      );
+      const items = (parsed as { items?: unknown } | null)?.items;
+      if (!Array.isArray(items)) throw unmatched(usage);
+      return { items: items as ExtractedItem[], usage };
+    },
+    extractItemPage: async ({ key, model, page, needed }) => {
+      // The fields asked for lead the message; the page is what is Verified against.
+      const { parsed, usage } = await structured(
+        key,
+        model,
+        ITEM_PAGE_PROMPT,
+        `Fields asked for: ${needed.join(", ")}\n\n${page}`,
+        ITEM_PAGE_SCHEMA
+      );
+      if (
+        typeof parsed !== "object" ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        throw unmatched(usage);
       }
+      const answer = parsed as Record<string, unknown>;
+      const one = (value: unknown) =>
+        typeof value === "string" ? value : null;
+      const authors = answer.authors;
+      return {
+        fields: {
+          authors:
+            Array.isArray(authors) &&
+            authors.every((name) => typeof name === "string")
+              ? authors
+              : null,
+          date: one(answer.date),
+          venue: one(answer.venue),
+          abstract: one(answer.abstract),
+        },
+        usage,
+      };
     },
   };
 }

@@ -3,7 +3,13 @@ import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryCredentialStore } from "./credentials.js";
-import type { ExtractedItem, ModelProvider } from "./model-provider.js";
+import { costUsd } from "./model-prices.js";
+import {
+  ModelError,
+  type ExtractedItem,
+  type ItemPageFields,
+  type ModelProvider,
+} from "./model-provider.js";
 import type { Card, RunSummary } from "./scouts.js";
 import {
   closeCores,
@@ -39,6 +45,7 @@ const PAGES: Record<string, string> = {
   "/research/reward-hacking": await fixture("reward-hacking.html"),
   "/research/plain-post": await fixture("plain-post.html"),
   "/research/already-dated": await fixture("already-dated.html"),
+  "/research/byline": await fixture("byline.html"),
 };
 
 const SCOUT = `name: Alignment
@@ -96,11 +103,17 @@ const LISTED: ExtractedItem[] = [
 ];
 
 const usage = { input: 1200, output: 300, cacheRead: 0 };
+const itemUsage = { input: 400, output: 60, cacheRead: 100 };
+
+/** What the model is asked of one Item page: the reduced text and the fields still empty. */
+type ItemPageCall = { page: string; needed: string[] };
 
 async function opened(
   options: {
     pages?: Record<string, string>;
     listed?: () => ExtractedItem[];
+    /** The model's copy of an Item page; nothing found by default. */
+    itemPage?: (call: ItemPageCall) => Partial<ItemPageFields>;
   } = {}
 ) {
   const vault = await fixtureCopy("obsidian-vault");
@@ -109,7 +122,7 @@ async function opened(
   await writeFile(path, SCOUT);
   const pages = { ...(options.pages ?? PAGES) };
   const requests: URL[] = [];
-  const calls = { extract: 0 };
+  const calls = { extract: 0, itemPages: [] as ItemPageCall[] };
   const models: ModelProvider = {
     countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
     extract: () => {
@@ -117,6 +130,20 @@ async function opened(
       return Promise.resolve({
         items: (options.listed ?? (() => LISTED))(),
         usage,
+      });
+    },
+    extractItemPage: ({ page, needed }) => {
+      const call = { page, needed: [...needed] };
+      calls.itemPages.push(call);
+      return Promise.resolve({
+        fields: {
+          authors: null,
+          date: null,
+          venue: null,
+          abstract: null,
+          ...options.itemPage?.(call),
+        },
+        usage: itemUsage,
       });
     },
   };
@@ -159,6 +186,7 @@ async function opened(
     pages,
     requests,
     calls,
+    models,
     rows,
     /** Every page asked for, robots.txt aside, as a host and path. */
     pagesAsked: () =>
@@ -409,6 +437,241 @@ describe("a new item's Item page", () => {
     // Six on the listing's host; the seventh is elsewhere and is not counted.
     expect(lab.rows("SELECT item_pages_read FROM scout_runs")).toEqual([
       { item_pages_read: 6 },
+    ]);
+  });
+});
+
+// The Extraction for the gap (#886; ADR 0055 decisions 3 and 4): what an Item
+// page did not declare is asked of the model, and every value it copies must
+// occur on that page as the model was shown it, or it is dropped and counted
+// while the rest of the card stands. The model here is a stand-in that copies
+// whatever a test says it copied, so a value it "made up" is one the page
+// does not have.
+
+const AGENTIC = "Agentic Misalignment: How LLMs could be insider threats";
+const BYLINE: ExtractedItem = item({
+  title: "A Byline With No Markup",
+  url: "https://www.anthropic.com/research/byline",
+});
+
+const onPage = (call: ItemPageCall, title: string) => call.page.includes(title);
+
+describe("an Item page's Extraction", () => {
+  it("fills authors copied from a citation block when the page declares none", async () => {
+    const lab = await opened({
+      itemPage: (call) =>
+        onPage(call, AGENTIC)
+          ? { authors: ["Lynch, Aengus", "Wright, Benjamin"] }
+          : {},
+    });
+
+    await lab.run();
+
+    expect(byTitle(await lab.cards(), AGENTIC)).toMatchObject({
+      authors: ["Lynch, Aengus", "Wright, Benjamin"],
+      // What the page declared still stands beside what was copied.
+      published: "2025-06-20",
+    });
+  });
+
+  it("drops a made-up author and counts it, and keeps the rest of the card", async () => {
+    const lab = await opened({
+      itemPage: (call) =>
+        onPage(call, AGENTIC)
+          ? { authors: ["Lynch, Aengus", "Chris Invented"] }
+          : {},
+    });
+
+    await lab.run();
+
+    expect(byTitle(await lab.cards(), AGENTIC)).toMatchObject({
+      authors: ["Lynch, Aengus"],
+      published: "2025-06-20",
+      abstract:
+        "We stress-tested 16 leading models in hypothetical corporate environments to identify risky agentic behaviors before they cause real harm.",
+    });
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 1 },
+    ]);
+  });
+
+  it("never takes a name the page hid in a script, which the model was never shown", async () => {
+    // The fixture's script payload names "Not An Author"; reduction strips it.
+    const lab = await opened({
+      itemPage: (call) =>
+        onPage(call, AGENTIC) ? { authors: ["Not An Author"] } : {},
+    });
+
+    await lab.run();
+
+    expect(byTitle(await lab.cards(), AGENTIC).authors).toEqual([]);
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 1 },
+    ]);
+  });
+
+  it("checks a date as the page wrote it, then stores it as a day", async () => {
+    const lab = await opened({
+      listed: () => [BYLINE],
+      itemPage: () => ({
+        authors: ["Aengus Lynch", "Benjamin Wright"],
+        date: "Jun 20, 2025",
+        venue: "Transactions on Machine Learning Research",
+        abstract:
+          "We find that models trained to hide a goal still reveal it under light probing.",
+      }),
+    });
+
+    await lab.run();
+
+    expect((await lab.cards())[0]).toMatchObject({
+      authors: ["Aengus Lynch", "Benjamin Wright"],
+      published: "2025-06-20",
+      venue: "Transactions on Machine Learning Research",
+      // The page wraps the sentence across lines; whitespace is collapsed.
+      abstract:
+        "We find that models trained to hide a goal still reveal it under light probing.",
+    });
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 0 },
+    ]);
+  });
+
+  it("drops a date the page does not write, even one that means the same day", async () => {
+    const lab = await opened({
+      listed: () => [BYLINE],
+      itemPage: () => ({ date: "2025-06-20", abstract: "A summary of mine." }),
+    });
+
+    await lab.run();
+
+    expect((await lab.cards())[0]).toMatchObject({
+      published: "",
+      abstract: "",
+    });
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 2 },
+    ]);
+  });
+
+  it("keeps a date as copied when it does not read as a day", async () => {
+    const page = PAGES["/research/byline"]!.replace(
+      "Jun 20, 2025",
+      "Summer 2025"
+    );
+    const lab = await opened({
+      pages: { ...PAGES, "/research/byline": page },
+      listed: () => [BYLINE],
+      itemPage: () => ({ date: "Summer 2025" }),
+    });
+
+    await lab.run();
+
+    expect((await lab.cards())[0]).toMatchObject({ published: "Summer 2025" });
+  });
+
+  it("asks only for what is still empty, and makes no call for a page whose declared metadata left nothing empty", async () => {
+    const lab = await opened();
+
+    await lab.run();
+
+    const asked = (title: string) =>
+      lab.calls.itemPages
+        .filter((call) => onPage(call, title))
+        .map((call) => call.needed);
+    // Declared people, date and summary: nothing to ask.
+    expect(asked("Sparse Probes Find Planning Features")).toEqual([]);
+    expect(asked("Natural Emergent Misalignment from Reward Hacking")).toEqual(
+      []
+    );
+    // The listing gave the date and author, the page its summary.
+    expect(asked("A Card the Listing Already Dated")).toEqual([]);
+    // A date and summary declared, an Organization for its author.
+    expect(asked(AGENTIC)).toEqual([["authors", "venue"]]);
+    // Only a date declared; its summary was the site's blurb.
+    expect(asked("Claude's new constitution")).toEqual([
+      ["authors", "venue", "abstract"],
+    ]);
+    expect(asked("A Plain Post With No Markup")).toEqual([
+      ["authors", "venue", "abstract"],
+    ]);
+    expect(lab.calls.itemPages).toHaveLength(3);
+  });
+
+  it("cuts a long Item page to its budget before the call, and a value past the cut is not on the page it was shown", async () => {
+    const filler = "<p>A paragraph of the paper itself.</p>".repeat(1500);
+    const long = PAGES["/research/byline"]!.replace(
+      "</article>",
+      `${filler}<p>Acknowledged: Late Name.</p></article>`
+    );
+    const lab = await opened({
+      pages: { ...PAGES, "/research/byline": long },
+      listed: () => [BYLINE],
+      itemPage: () => ({ authors: ["Aengus Lynch", "Late Name"] }),
+    });
+
+    await lab.run();
+
+    const shown = lab.calls.itemPages[0]!.page;
+    // The stand-in counts a token as four characters; the budget is 8K.
+    expect(Math.ceil(shown.length / 4)).toBeLessThanOrEqual(8000);
+    expect(shown).toContain("By Aengus Lynch and Benjamin Wright");
+    expect(shown).not.toContain("Late Name");
+    expect((await lab.cards())[0]!.authors).toEqual(["Aengus Lynch"]);
+  });
+
+  it("sums the Item pages' tokens and cost into the run's", async () => {
+    const lab = await opened();
+
+    await lab.run();
+
+    const [row] = lab.rows<{
+      model: string;
+      input_tokens: number;
+      output_tokens: number;
+      cache_read_tokens: number;
+      cost_usd: number;
+    }>(
+      "SELECT model, input_tokens, output_tokens, cache_read_tokens, cost_usd FROM scout_runs"
+    );
+    // The listing's one call and three Item page calls.
+    const spent = {
+      input: usage.input + 3 * itemUsage.input,
+      output: usage.output + 3 * itemUsage.output,
+      cacheRead: usage.cacheRead + 3 * itemUsage.cacheRead,
+    };
+    expect(row).toMatchObject({
+      input_tokens: spent.input,
+      output_tokens: spent.output,
+      cache_read_tokens: spent.cacheRead,
+    });
+    expect(row!.cost_usd).toBeCloseTo(costUsd(row!.model, spent)!, 10);
+  });
+
+  it("leaves the card as declared, and the page owed again, when the model cannot read it", async () => {
+    const lab = await opened({ listed: () => [BYLINE, LISTED[0]!] });
+    lab.models.extractItemPage = () =>
+      Promise.reject(
+        new ModelError("model", "the provider answered HTTP 529", itemUsage)
+      );
+
+    expect(await lab.run()).toMatchObject({ outcome: "ok", new: 2 });
+
+    expect(byTitle(await lab.cards(), AGENTIC)).toMatchObject({
+      published: "2025-06-20",
+      authors: [],
+    });
+    expect(
+      lab.rows("SELECT item_page_tries FROM proposals ORDER BY id")
+    ).toEqual([{ item_page_tries: 1 }, { item_page_tries: 1 }]);
+    expect(
+      lab.rows("SELECT item_pages_read, input_tokens FROM scout_runs")
+    ).toEqual([
+      {
+        item_pages_read: 0,
+        // What the failed calls cost is still the run's.
+        input_tokens: usage.input + 2 * itemUsage.input,
+      },
     ]);
   });
 });

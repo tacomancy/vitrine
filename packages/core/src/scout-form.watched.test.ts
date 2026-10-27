@@ -13,6 +13,7 @@ import type { Scout } from "./scout-file.js";
 import type { Health } from "./scout-health.js";
 import type { TriedPage } from "./scout-form.js";
 import {
+  copiesNothing,
   closeCores,
   core,
   fixtureCopy,
@@ -71,6 +72,7 @@ async function opened(
   const served = options.served ?? { "/publications": { body: PAGE } };
   let extractions = 0;
   const models: ModelProvider = {
+    extractItemPage: copiesNothing,
     countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
     extract: () => {
       extractions++;
