@@ -455,8 +455,10 @@ describe("what the model is shown", () => {
     expect(shown).toContain("Oct 9, 2026");
     expect(shown).toContain("Sep 2, 2026");
     expect(shown).toContain("Aug 14, 2026");
+    expect(shown).toContain("Jul 3, 2026");
     expect(shown).not.toContain("Try the Lab Portal");
     expect(shown).not.toContain("Careers");
+    expect(shown).not.toContain("Press Kit");
     expect(shown).not.toContain("Page generated");
   });
 });
