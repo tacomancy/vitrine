@@ -1541,7 +1541,9 @@ function Proposal({
       )}
       <dl className={styles.fields}>
         <Field label="authors" value={card.authors.join(", ") || null} />
-        <Field label="published" value={card.published.slice(0, 10)} />
+        {/* An undated card's date is '' rather than null (a Listing-only
+            card's, before its Item page is read): still *missing*. */}
+        <Field label="published" value={card.published.slice(0, 10) || null} />
         <Field
           label="venue"
           value={

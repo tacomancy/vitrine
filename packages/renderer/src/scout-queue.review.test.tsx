@@ -322,4 +322,14 @@ describe("the detail", () => {
     expect(authors.textContent).toBe("missing");
     expect(authors.className).toMatch(/missing/);
   });
+
+  it("says missing for a date the listing did not give, as a Listing-only card has", async () => {
+    renderApp(answers([{ ...card(1), published: "" }]));
+    const article = await detail("Paper 1");
+
+    const published =
+      within(article).getByText("published").nextElementSibling!;
+    expect(published.textContent).toBe("missing");
+    expect(published.className).toMatch(/missing/);
+  });
 });
