@@ -6,10 +6,12 @@ import {
   button,
   openQueue,
   press,
+  runNow,
   storeKey,
 } from "../page-change-demo/helpers.mjs";
 import { fillPageScout, saveScout } from "../watched-demo/helpers.mjs";
-export { button, fillPageScout, openQueue, press, saveScout, storeKey };
+import { openFirstLook } from "../scout-demo/helpers.mjs";
+export { button, fillPageScout, openQueue, press, runNow, saveScout, storeKey };
 
 export const NAME = "Anthropic alignment";
 export const TRACING = "Tracing the thoughts of a large language model";
@@ -36,29 +38,10 @@ export async function shoot(page, name) {
   }
 }
 
-/**
- * *Run now* in the Scout's header, reached by choosing it on the rail: the
- * rail only filters since #857, so scout-demo's rail-row button is gone.
- */
-export async function runNow(page, name) {
-  const entry = `[...document.querySelectorAll('ul[aria-label="Scouts"] li button')].find(b => b.innerText.includes(${JSON.stringify(name)}))`;
-  await page.wait(`!!${entry}`, 20000);
-  await page.eval(`${entry}.click()`);
-  await page.wait(
-    `[...document.querySelectorAll('h2')].some(h => h.textContent === ${JSON.stringify(name)})`
-  );
-  await page.eval(`${button("Run now")}.click()`);
-}
-
-const batchToggle = `[...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes(${JSON.stringify(NAME)}) && b.innerText.includes('first look'))`;
-
 /** The Scout's first-look batch, open, with one title chosen; its card's text. */
 export async function chooseInBatch(page, title) {
-  await page.wait(`!!${batchToggle}`, 30000);
-  await page.eval(
-    `${batchToggle}.getAttribute('aria-expanded') === 'true' || ${batchToggle}.click()`
-  );
-  const row = `document.querySelector('[aria-label=${JSON.stringify(`${NAME} first look`)}] button[aria-label=${JSON.stringify(title)}]')`;
+  const list = await openFirstLook(page, NAME, 30000);
+  const row = `document.querySelector(${JSON.stringify(`${list} button[aria-label=${JSON.stringify(title)}]`)})`;
   await page.wait(`!!${row}`, 10000);
   await page.eval(`${row}.click()`);
   return cardText(page, title);

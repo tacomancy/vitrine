@@ -18,8 +18,10 @@ export default async (page) => {
   );
   await saveScout(page);
   await runNow(page, "Lab page");
+  // The voice, not its words: the sentence names what is missing, and need
+  // not say "not yet" to be in that voice.
   await page.wait(
-    "(document.querySelector('ul[aria-label=\"Scouts\"]')?.innerText ?? '').toLowerCase().includes('not yet')",
+    `!!document.querySelector('ul[aria-label="Scouts"] [data-voice="not yet"]')`,
     15000
   );
   console.log(`RAIL: ${await railText(page)}`);

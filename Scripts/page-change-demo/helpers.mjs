@@ -2,13 +2,23 @@
 // the environment of the launching script.
 import {
   button,
+  chooseFirstLook,
   openQueue,
   press,
   railText,
   runNow,
 } from "../scout-demo/helpers.mjs";
 import { fillPageScout, saveScout } from "../watched-demo/helpers.mjs";
-export { button, fillPageScout, openQueue, press, railText, runNow, saveScout };
+export {
+  button,
+  chooseFirstLook,
+  fillPageScout,
+  openQueue,
+  press,
+  railText,
+  runNow,
+  saveScout,
+};
 
 /**
  * Settings ▸ What it talks to, once its keychain probe has answered: a field

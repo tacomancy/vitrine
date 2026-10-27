@@ -4,7 +4,9 @@
 // (docs/agents/run.md), against a local stand-in for a lab that moves its
 // publications page and for the model's API — never the real network. The
 // key is kept in memory by VITRINE_CREDENTIALS=memory, so the user's Keychain
-// is never touched. Needs both packages built.
+// is never touched, and `demo-egress.mjs` hands the core's provider requests
+// to the stand-in and refuses anything else bound off this machine. Needs
+// both packages built.
 //
 //   node Scripts/page-change-demo.mjs <out-folder>
 //
@@ -17,12 +19,19 @@
 //    page (4b).
 // 5. The weekly line says in one sentence that it spans two pages.
 import { spawn } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { startStandin } from "./page-change-demo/standin.mjs";
 import { expect } from "./page-change-demo/helpers.mjs";
 
@@ -34,6 +43,7 @@ const scratch = mkdtempSync(join(tmpdir(), "vitrine-page-change-demo-"));
 const vault = join(scratch, "vault");
 const support = join(scratch, "support");
 const mark = join(scratch, "saved-at");
+const egressLog = join(scratch, "egress.log");
 cpSync(join(repo, "packages/core/fixtures/obsidian-vault"), vault, {
   recursive: true,
 });
@@ -78,8 +88,17 @@ const launch = async (png, drive, after = 25000) => {
           ...process.env,
           DEMO_MARK: mark,
           DEMO_ORIGIN: standin.origin,
-          ANTHROPIC_BASE_URL: standin.origin,
+          DEMO_EGRESS_LOG: egressLog,
+          NODE_OPTIONS: [
+            process.env.NODE_OPTIONS,
+            `--import ${pathToFileURL(join(here, "demo-egress.mjs"))}`,
+          ]
+            .filter(Boolean)
+            .join(" "),
           VITRINE_CREDENTIALS: "memory",
+          // No arXiv or OpenAlex Scout is in the vault; a dead port all the same.
+          VITRINE_ARXIV_ENDPOINT: "http://127.0.0.1:9",
+          VITRINE_OPENALEX_ENDPOINT: "http://127.0.0.1:9",
         },
       }
     );
@@ -136,7 +155,10 @@ try {
   );
   await launch("4b-loose-ends.png", "loose-ends.mjs");
   await launch("5-weekly-line.png", "weekly-line.mjs");
+  const egress = existsSync(egressLog) ? readFileSync(egressLog, "utf8") : "";
+  expect(egress === "", `requests to a non-local host:\n${egress}`);
 
+  expect(standin.mode.modelCalls > 0, "no run reached the model stand-in");
   console.log(`MODEL CALLS: ${standin.mode.modelCalls}`);
   console.log(`RUNS: ${JSON.stringify(runs())}`);
   console.log(`scratch vault: ${vault}`);

@@ -2,6 +2,7 @@
 // accepted, so its Accept rate has something to say.
 import {
   NAME,
+  chooseFirstLook,
   storeKey,
   expect,
   fillPageScout,
@@ -19,7 +20,7 @@ export default async (page) => {
   await fillPageScout(page, { name: NAME, path: "/old/" });
   await saveScout(page);
   await runNow(page, NAME);
-  await page.wait("!!document.querySelector('article[aria-label]')", 20000);
+  await chooseFirstLook(page, NAME);
   // The weekly line is drawn once a week holds five triaged items.
   for (let i = 0; i < 5; i++) {
     await press(page, "a");

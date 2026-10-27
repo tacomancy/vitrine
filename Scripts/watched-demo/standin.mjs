@@ -1,10 +1,10 @@
 // A local stand-in for a lab's website and for the model's API, so the
 // Watched sources demo never talks to a real site or spends a real key. The
-// site serves the core's recorded pages; the model endpoint is the one the
-// Anthropic SDK is pointed at with ANTHROPIC_BASE_URL. The model answers the
-// way a model does on the demo's page — the three papers it lists plus one it
-// made up, which verification must drop — and reads nothing from a page it
-// cannot find them on.
+// site serves the core's recorded pages; the model endpoint is where
+// `demo-egress.mjs` hands the core's requests to the provider. The model
+// answers the way a model does on the demo's page — the three papers it lists
+// plus one it made up, which verification must drop — and reads nothing from
+// a page it cannot find them on.
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
