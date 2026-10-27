@@ -85,6 +85,14 @@ async function opened(key: string | null) {
       fetch: (input) => {
         const path = urlOf(input).pathname;
         const known = ["/publications", "/moved", "/other"].includes(path);
+        // Each paper's own Item page answers, so this stays a site that can be read (ADR 0055 d.6).
+        if (path.startsWith("/papers/")) {
+          return Promise.resolve(
+            new Response("<html><body></body></html>", {
+              headers: { "content-type": "text/html" },
+            })
+          );
+        }
         // Each page's text differs, so the page-unchanged lookup stays out of it.
         return Promise.resolve(
           known

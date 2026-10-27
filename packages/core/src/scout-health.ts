@@ -6,6 +6,7 @@ import {
   FEED_NOT_READ,
   FEED_UNREADABLE,
   FEW_VERIFIED,
+  ITEM_PAGES_UNREAD,
   KEY_REJECTED,
   LISTING_MISSED,
   KEYCHAIN_FAULT,
@@ -355,7 +356,9 @@ function baseFaultSentence(
           ? "The model returned nothing, but the papers seen last time are still on the page: the listing was missed."
           : message === FEW_VERIFIED
             ? "Fewer than half of what the model returned appears on the page, so nothing was proposed."
-            : "The model found no papers listed on this page.";
+            : message === ITEM_PAGES_UNREAD
+              ? "Fewer than half of this page's items could be read on their own pages, so its cards show only what the listing gave."
+              : "The model found no papers listed on this page.";
     case "network":
       return `${name} could not be reached, so nothing was checked.`;
     case "http": {

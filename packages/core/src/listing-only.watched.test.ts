@@ -478,6 +478,7 @@ describe("a Listing-only card", () => {
                   (2, 2, 'sleep', '2026-10-21T10:01:00Z', 'http://arxiv.org/abs/2610.00001')`
         );
         // A queue file written before this build's backfill.
+        queue.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_unread");
         queue.exec("PRAGMA user_version = 14");
         queue.close();
       },
