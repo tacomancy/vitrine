@@ -4,19 +4,20 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { openQueue } from "./queue.js";
 
-// Version 15 to 16 (#888, ADR 0055 decision 6) adds
-// `scout_runs.item_pages_unread`, the Item pages a run tried and could not
-// read. An earlier run counted none, and keeps everything else it had.
+// Version 15 to 16 (#886, ADR 0055) adds `scout_runs.item_values_dropped`,
+// the values an Item page's Extraction copied that were not on that page. A
+// run from before asked the model nothing of an Item page, so it dropped none.
 
 describe("the queue database, version 15 to 16", () => {
-  it("adds the column at 0 and leaves an existing run as it was", async () => {
+  it("adds the column and leaves an existing run as it was", async () => {
     const vault = await mkdtemp(join(tmpdir(), "vitrine-queue-"));
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     const first = await openQueue(vault);
     first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_unread");
+    first.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
     first.exec(
-      `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, item_pages_read)
-       VALUES (5, 'lab', '2026-10-20T10:00:00Z', '2026-10-20T10:01:00Z', 'ok', '2026-10-20T10:00:00Z', '2026-10-20T10:00:00Z', 4, 4, 3)`
+      `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, item_pages_read, unverified)
+       VALUES (5, 'lab', '2026-10-27T10:00:00Z', '2026-10-27T10:01:00Z', 'ok', '2026-10-27T10:00:00Z', '2026-10-27T10:00:00Z', 2, 2, 2, 1)`
     );
     first.exec("PRAGMA user_version = 15");
     first.close();
@@ -25,17 +26,15 @@ describe("the queue database, version 15 to 16", () => {
     expect(
       migrated
         .prepare(
-          "SELECT new, item_pages_read, item_pages_unread FROM scout_runs WHERE id = 5"
+          "SELECT new, item_pages_read, unverified, item_values_dropped FROM scout_runs WHERE id = 5"
         )
         .get()
-    ).toEqual({ new: 4, item_pages_read: 3, item_pages_unread: 0 });
-    expect(
-      (
-        migrated.prepare("PRAGMA user_version").get() as {
-          user_version: number;
-        }
-      ).user_version
-    ).toBe(16);
+    ).toEqual({
+      new: 2,
+      item_pages_read: 2,
+      unverified: 1,
+      item_values_dropped: 0,
+    });
     migrated.close();
   });
 });

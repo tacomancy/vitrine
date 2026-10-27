@@ -5,6 +5,7 @@ import { createMemoryCredentialStore } from "./credentials.js";
 import { ModelError, type Extraction } from "./model-provider.js";
 import type { Health } from "./scout-health.js";
 import {
+  copiesNothing,
   closeCores,
   core,
   fixtureCopy,
@@ -87,6 +88,7 @@ created: 2026-09-20T00:00:00Z
     watched: {
       timeoutMs: 1000,
       models: {
+        extractItemPage: copiesNothing,
         countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
         extract: () =>
           answer instanceof Error

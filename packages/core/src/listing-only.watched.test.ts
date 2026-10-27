@@ -3,11 +3,16 @@ import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryCredentialStore } from "./credentials.js";
-import type { ExtractedItem, ModelProvider } from "./model-provider.js";
+import {
+  ModelError,
+  type ExtractedItem,
+  type ModelProvider,
+} from "./model-provider.js";
 import { openQueue } from "./queue.js";
 import type { Card, RunSummary } from "./scouts.js";
 import {
   closeCores,
+  copiesNothing,
   core,
   fixtureCopy,
   urlOf,
@@ -55,6 +60,12 @@ const itemPage = (n: number) =>
 <meta name="citation_doi" content="10.5555/post.${n}">
 </head><body><h1>Post number ${n}</h1></body></html>`;
 
+/** A post whose page declares only its date; its author is in a byline the model must copy (#886). */
+const bylinePage = (n: number) =>
+  `<html><head>
+<meta property="article:published_time" content="2025-09-01T00:00:00Z">
+</head><body><main><h1>Post number ${n}</h1><p>By Ada Rowe</p><p>What post ${n} found.</p></main></body></html>`;
+
 const listingOf = (ns: number[]) =>
   `<html><body><main>${ns
     .map(
@@ -88,6 +99,8 @@ async function opened(
   const held = new Map<string, Promise<void>>();
   /** Paths that answer 404. */
   const missing = new Set<string>();
+  /** Posts whose page declares only a date. */
+  const bylined = new Set<number>();
   const models: ModelProvider = {
     countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
     extract: () => {
@@ -97,6 +110,7 @@ async function opened(
         usage,
       });
     },
+    extractItemPage: copiesNothing,
   };
   const c = await core({
     now: () => now,
@@ -118,7 +132,9 @@ async function opened(
           : url.pathname === "/research"
             ? listingOf(listed)
             : post !== null
-              ? itemPage(Number(post[1]))
+              ? (bylined.has(Number(post[1])) ? bylinePage : itemPage)(
+                  Number(post[1])
+                )
               : undefined;
         return body === undefined
           ? new Response("", { status: 404 })
@@ -146,6 +162,8 @@ async function opened(
   return {
     c,
     missing,
+    bylined,
+    models,
     /** Writes to the queue as another source would have. */
     write: (sql: string) => {
       const handle = new DatabaseSync(join(vault, ".vitrine/queue.sqlite"));
@@ -443,6 +461,7 @@ describe("a Listing-only card", () => {
     const lab = await opened({
       seed: async (vault) => {
         const queue = await openQueue(vault);
+        queue.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
         queue.exec(
           `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, query)
            VALUES (1, 'lab', '2026-10-21T10:00:00Z', '2026-10-21T10:01:00Z', 'ok', '2026-10-21T10:00:00Z', '2026-10-21T10:00:00Z', 1, 1, '${LISTING}'),
@@ -479,5 +498,102 @@ describe("a Listing-only card", () => {
         "SELECT abstract, item_page_tries FROM proposals WHERE source_key = 'arxiv:2610.00001'"
       )
     ).toEqual([{ abstract: "Abstract.", item_page_tries: null }]);
+  });
+
+  it("has what its page did not declare copied by the model, asked for the fields its row lacks, and Verified", async () => {
+    const lab = await opened();
+    lab.list(range(1, 26));
+    lab.bylined.add(26);
+    await lab.run();
+    expect(lab.listingOnly()).toEqual(["Post number 26"]);
+    const asked: string[][] = [];
+    lab.models.extractItemPage = ({ needed }) => {
+      asked.push([...needed]);
+      return Promise.resolve({
+        fields: {
+          authors: ["Ada Rowe", "Made Up"],
+          date: null,
+          venue: null,
+          abstract: `What post 26 found.`,
+        },
+        usage: { input: 400, output: 60, cacheRead: 0 },
+      });
+    };
+
+    lab.later();
+    await lab.run();
+
+    // The page declared its date; the row had no authors, venue or summary.
+    expect(asked).toEqual([["authors", "venue", "abstract"]]);
+    expect(await lab.card(26)).toMatchObject({
+      published: "2025-09-01",
+      authors: ["Ada Rowe"],
+      abstract: "What post 26 found.",
+    });
+    expect(lab.listingOnly()).toEqual([]);
+    expect(
+      lab.rows(
+        "SELECT item_values_dropped, input_tokens FROM scout_runs ORDER BY id"
+      )
+    ).toEqual([
+      { item_values_dropped: 0, input_tokens: usage.input },
+      // An unchanged listing: the one call was the Item page's.
+      { item_values_dropped: 1, input_tokens: 400 },
+    ]);
+  });
+
+  it("keeps what its page declared, and stays owed with the try counted, when the model cannot read it", async () => {
+    const lab = await opened();
+    lab.list(range(1, 26));
+    lab.bylined.add(26);
+    await lab.run();
+    lab.models.extractItemPage = () =>
+      Promise.reject(new ModelError("model", "the provider answered HTTP 529"));
+
+    lab.later();
+    expect(await lab.run()).toMatchObject({ outcome: "ok" });
+
+    expect(await lab.card(26)).toMatchObject({
+      published: "2025-09-01",
+      authors: [],
+    });
+    expect(
+      lab.rows(
+        "SELECT item_page_tries FROM proposals WHERE title = 'Post number 26'"
+      )
+    ).toEqual([{ item_page_tries: 1 }]);
+  });
+
+  it("is asked only for what its row still lacks, so a venue another source gave is neither asked for nor replaced", async () => {
+    const lab = await opened();
+    lab.list(range(1, 26));
+    lab.bylined.add(26);
+    await lab.run();
+    lab.write(
+      `UPDATE proposals SET venue = 'Workshop on Probes' WHERE title = 'Post number 26'`
+    );
+    const asked: string[][] = [];
+    lab.models.extractItemPage = ({ needed }) => {
+      asked.push([...needed]);
+      return Promise.resolve({
+        fields: {
+          authors: ["Ada Rowe"],
+          date: null,
+          // On the page, but not asked for.
+          venue: "Post number 26",
+          abstract: null,
+        },
+        usage: { input: 400, output: 60, cacheRead: 0 },
+      });
+    };
+
+    lab.later();
+    await lab.run();
+
+    expect(asked).toEqual([["authors", "abstract"]]);
+    expect(await lab.card(26)).toMatchObject({
+      venue: "Workshop on Probes",
+      authors: ["Ada Rowe"],
+    });
   });
 });

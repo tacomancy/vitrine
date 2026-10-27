@@ -601,7 +601,7 @@ function record(
   queue
     .prepare(
       `UPDATE scout_runs SET model = ?, input_tokens = ?, output_tokens = ?, cache_read_tokens = ?,
-              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ?, item_pages_unread = ? WHERE id = ?`
+              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ?, item_values_dropped = ?, item_pages_unread = ? WHERE id = ?`
     )
     .run(
       facts.model ?? null,
@@ -614,6 +614,7 @@ function record(
       facts.capped === true ? 1 : 0,
       facts.unverified ?? 0,
       facts.itemPagesRead ?? 0,
+      facts.itemValuesDropped ?? 0,
       facts.itemPagesUnread ?? 0,
       runId
     );
@@ -743,13 +744,14 @@ function arrive(
  * triaged is what they saw. The state is checked here, at the write, and not
  * only where the page was chosen, because a card can be accepted or rejected
  * while its page is being fetched. A page that could not be fetched leaves
- * the card as it was, with the try counted.
+ * the card as it was, with the try counted; one the model could not read
+ * gives what it declared, and counts a try too.
  */
 function fillListingOnly(
   queue: DatabaseSync,
-  { id, declared }: ListingOnlyRead
+  { id, card, read }: ListingOnlyRead
 ): void {
-  if (declared === null) {
+  if (card === null) {
     queue
       .prepare(
         "UPDATE proposals SET item_page_tries = item_page_tries + 1 WHERE id = ? AND state = 'pending'"
@@ -757,21 +759,26 @@ function fillListingOnly(
       .run(id);
     return;
   }
+  // The guards repeat at the write what the read already chose: a field the
+  // card gained since it was read, from another Scout, is not overwritten.
   queue
     .prepare(
       `UPDATE proposals SET
          authors = CASE WHEN authors = '[]' THEN ? ELSE authors END,
          published = CASE WHEN published = '' THEN ? ELSE published END,
+         venue = CASE WHEN venue IS NULL OR venue = '' THEN ? ELSE venue END,
          doi = COALESCE(doi, ?),
          abstract = CASE WHEN abstract = '' THEN ? ELSE abstract END,
-         item_page_tries = NULL
+         item_page_tries = CASE WHEN ? THEN NULL ELSE item_page_tries + 1 END
        WHERE id = ? AND state = 'pending'`
     )
     .run(
-      JSON.stringify(declared.authors),
-      declared.date ?? "",
-      declared.doi,
-      declared.abstract ?? "",
+      JSON.stringify(card.authors),
+      card.published,
+      card.venue,
+      card.doi,
+      card.abstract,
+      read ? 1 : 0,
       id
     );
 }

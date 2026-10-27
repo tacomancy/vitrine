@@ -16,6 +16,7 @@ describe("the queue database, version 13 to 14", () => {
     const first = await openQueue(vault);
     first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_unread");
     first.exec("ALTER TABLE proposals DROP COLUMN item_page_tries");
+    first.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
     first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_read");
     first.exec(
       `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new)

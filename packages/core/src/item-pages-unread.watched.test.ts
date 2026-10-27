@@ -4,12 +4,17 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryCredentialStore } from "./credentials.js";
 import type { LooseEnds } from "./loose-ends.js";
-import type { ExtractedItem, ModelProvider } from "./model-provider.js";
+import {
+  ModelError,
+  type ExtractedItem,
+  type ModelProvider,
+} from "./model-provider.js";
 import type { ScoutActivity, ScoutRow } from "./scout-activity.js";
 import type { FleetClaim, FleetHealth } from "./scout-health.js";
 import type { Card, RunSummary } from "./scouts.js";
 import {
   closeCores,
+  copiesNothing,
   core,
   fixtureCopy,
   urlOf,
@@ -88,6 +93,7 @@ async function opened() {
       calls.extract++;
       return Promise.resolve({ items: listed.map((n) => item(n)), usage });
     },
+    extractItemPage: copiesNothing,
   };
   const c = await core({
     now: () => now,
@@ -146,6 +152,7 @@ async function opened() {
   };
   return {
     c,
+    models,
     calls,
     missing,
     rows,
@@ -301,6 +308,20 @@ describe("an Item page that fails", () => {
 });
 
 describe("a run that could read fewer than half its Item pages", () => {
+  it("is not one whose pages the model could not read: the site answered, the provider failed", async () => {
+    const lab = await opened();
+    lab.list(range(1, 4));
+    lab.models.extractItemPage = () =>
+      Promise.reject(new ModelError("model", "the provider answered HTTP 529"));
+
+    expect(await lab.run()).toMatchObject({ outcome: "ok", new: 4 });
+    expect(lab.lastRun()).toMatchObject({
+      item_pages_read: 0,
+      item_pages_unread: 0,
+    });
+    expect(lab.tries(1)).toBe(1);
+  });
+
   it("is an extraction failure, item pages unread, with its cards in the Queue", async () => {
     const lab = await opened();
     lab.list(range(1, 4));
