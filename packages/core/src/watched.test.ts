@@ -440,6 +440,25 @@ describe("what a run records", () => {
   });
 });
 
+const TEAM = await fixture("team-page.html");
+
+describe("what the model is shown", () => {
+  // #881: a listing that puts each card's date in the card's own <header>
+  // lost every date when all headers were stripped as chrome.
+  it("keeps a card's own header, with its date, and drops the page's banner and nav", async () => {
+    const lab = await opened({ page: () => ({ body: TEAM }) });
+
+    await lab.run();
+
+    const shown = lab.calls.pages[0]!;
+    expect(shown).toContain("Oct 9, 2026");
+    expect(shown).toContain("Sep 2, 2026");
+    expect(shown).toContain("Aug 14, 2026");
+    expect(shown).not.toContain("Try the Lab Portal");
+    expect(shown).not.toContain("Careers");
+  });
+});
+
 const retimed = await fixture("lab-page-retimed.html");
 
 describe("the fetch", () => {
