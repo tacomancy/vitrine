@@ -581,7 +581,7 @@ function record(
   queue
     .prepare(
       `UPDATE scout_runs SET model = ?, input_tokens = ?, output_tokens = ?, cache_read_tokens = ?,
-              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ? WHERE id = ?`
+              cost_usd = ?, page_hash = ?, page_length = ?, page_capped = ?, unverified = ?, item_pages_read = ? WHERE id = ?`
     )
     .run(
       facts.model ?? null,
@@ -593,6 +593,7 @@ function record(
       facts.pageLength ?? null,
       facts.capped === true ? 1 : 0,
       facts.unverified ?? 0,
+      facts.itemPagesRead ?? 0,
       runId
     );
 }
@@ -615,8 +616,8 @@ function arrive(
   const at = iso(deps.now());
   const known = queue.prepare("SELECT * FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
-    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path, item_page_tries)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
@@ -672,7 +673,8 @@ function arrive(
           scout.lane,
           heldBy === null ? "pending" : "held",
           at,
-          heldBy
+          heldBy,
+          item.itemPageTries ?? null
         ).lastInsertRowid
       );
       if (heldBy === null) {

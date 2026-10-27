@@ -471,9 +471,13 @@ describe("the fetch", () => {
 
     await lab.run();
 
+    // The one card on the lab's own host has its Item page read after the
+    // listing, with the same etiquette (ADR 0055 decision 2).
     expect(lab.requests.map((r) => r.url.pathname)).toEqual([
       "/robots.txt",
       "/publications",
+      "/robots.txt",
+      "/papers/spindles/",
     ]);
     for (const request of lab.requests) {
       expect(request.headers.get("user-agent")).toMatch(
