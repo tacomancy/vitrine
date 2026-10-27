@@ -111,6 +111,7 @@ describe("reading one Item page", () => {
             date: null,
             venue: null,
             abstract: null,
+            paperUrl: "https://example.org/paper.pdf",
           }),
         },
       ],
@@ -123,6 +124,7 @@ describe("reading one Item page", () => {
         date: null,
         venue: null,
         abstract: null,
+        paperUrl: "https://example.org/paper.pdf",
       },
       usage: { input: 900, output: 40, cacheRead: 12 },
     });
@@ -130,6 +132,9 @@ describe("reading one Item page", () => {
     expect(request!.system).toBe(ITEM_PAGE_PROMPT);
     expect(ITEM_PAGE_PROMPT).toMatch(/Copy, never compose/);
     expect(ITEM_PAGE_PROMPT).toMatch(/an organisation is never an author/);
+    expect(ITEM_PAGE_PROMPT).toMatch(
+      /paperUrl is the link this page gives as its own paper; null when it gives none; never a work it cites/
+    );
     expect(request!.messages).toEqual([
       {
         role: "user",
@@ -140,7 +145,7 @@ describe("reading one Item page", () => {
       format: {
         type: "json_schema",
         schema: {
-          required: ["authors", "date", "venue", "abstract"],
+          required: ["authors", "date", "venue", "abstract", "paperUrl"],
           additionalProperties: false,
         },
       },
@@ -173,7 +178,13 @@ describe("reading one Item page", () => {
         usage: USAGE,
       })
     ).toMatchObject({
-      fields: { authors: null, date: null, venue: null, abstract: null },
+      fields: {
+        authors: null,
+        date: null,
+        venue: null,
+        abstract: null,
+        paperUrl: null,
+      },
     });
   });
 

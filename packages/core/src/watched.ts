@@ -66,6 +66,8 @@ export type Arrival = {
   url: string;
   /** A Watched Scout's Item page still owed, with the tries spent on it; absent or null when none is (ADR 0055). */
   itemPageTries?: number | null;
+  /** The link an Item page gives as this work's own paper (ADR 0055 decision 10): shown and carried, never followed and never a key. */
+  paperUrl?: string | null;
 };
 
 export type WatchedErrorKind =
@@ -116,7 +118,7 @@ export type Read = {
 /** The card fields an Item page can fill. */
 export type ItemFields = Pick<
   Arrival,
-  "authors" | "published" | "venue" | "abstract" | "doi"
+  "authors" | "published" | "venue" | "abstract" | "doi" | "paperUrl"
 >;
 
 /**
@@ -456,7 +458,7 @@ async function readItemPages(
     // Listing-only for good, and a null is no read owed: `NULL < ?` is not true.
     const owed = queue
       .prepare(
-        `SELECT p.id, p.url, p.authors, p.published, p.venue, p.abstract, p.doi, p.item_page_tries AS tries FROM proposals p
+        `SELECT p.id, p.url, p.authors, p.published, p.venue, p.abstract, p.doi, p.paper_url, p.item_page_tries AS tries FROM proposals p
          WHERE p.state = 'pending' AND p.item_page_tries < ?
            AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
          ORDER BY p.first_seen, p.id`
@@ -470,6 +472,7 @@ async function readItemPages(
       venue: string | null;
       abstract: string;
       doi: string | null;
+      paper_url: string | null;
     }>;
     // A Scout re-pointed at another site reads no page of the old one.
     for (const card of owed.filter((o) => siteOf(o.url) === site)) {
@@ -483,6 +486,7 @@ async function readItemPages(
         venue: card.venue,
         abstract: card.abstract,
         doi: card.doi,
+        paperUrl: card.paper_url,
       });
       tally(card.tries === 0, r);
       listingOnly.push({
@@ -524,15 +528,24 @@ function neededOf(card: ItemFields): ItemPageField[] {
     date: card.published === "",
     venue: card.venue === null || card.venue === "",
     abstract: card.abstract === "",
+    paperUrl: !card.paperUrl,
   };
   if (!empty.authors && !empty.date && !empty.abstract) return [];
-  return (["authors", "date", "venue", "abstract"] as const).filter(
+  // The Paper link rides along like the venue: most pages name no paper, so
+  // asking for one alone would make every Item page a paid one.
+  return (["authors", "date", "venue", "abstract", "paperUrl"] as const).filter(
     (field) => empty[field]
   );
 }
 
 type Copied = {
-  fields: { authors: string[]; date: string; venue: string; abstract: string };
+  fields: {
+    authors: string[];
+    date: string;
+    venue: string;
+    abstract: string;
+    paperUrl: string;
+  };
   dropped: number;
   usage: Usage;
 };
@@ -595,6 +608,9 @@ async function copiedFrom(
     date: asked("date") ? dayOfCopied(verified(answer.fields.date)) : "",
     venue: asked("venue") ? verified(answer.fields.venue) : "",
     abstract: asked("abstract") ? verified(answer.fields.abstract) : "",
+    // On the page is all Verify can say of it: a link the page only cites
+    // passes too, which is why a Paper link is never a key (decision 10).
+    paperUrl: asked("paperUrl") ? verified(answer.fields.paperUrl) : "",
   };
   return { fields, dropped, usage: answer.usage };
 }
@@ -658,6 +674,7 @@ const filledFromCopy = <T extends ItemFields>(
       ? card.venue
       : copied.venue || null,
   abstract: card.abstract !== "" ? card.abstract : copied.abstract,
+  paperUrl: card.paperUrl || copied.paperUrl || null,
 });
 
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */

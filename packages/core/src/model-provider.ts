@@ -26,12 +26,13 @@ export type ExtractedItem = {
 export type Extraction = { items: ExtractedItem[]; usage: Usage };
 
 /**
- * The card fields an Item page's Extraction may fill (ADR 0055 decision 3).
- * Title and link are already known from the listing. Keywords are not asked
- * for: a Proposal has nowhere to keep them, so they would be paid for and
- * dropped.
+ * The card fields an Item page's Extraction may fill (ADR 0055 decision 3),
+ * and the Paper link (decision 10). Title and link are already known from the
+ * listing. Keywords are not asked for: a Proposal has nowhere to keep them,
+ * so they would be paid for and dropped.
  */
-export type ItemPageField = "authors" | "date" | "venue" | "abstract";
+export type ItemPageField =
+  "authors" | "date" | "venue" | "abstract" | "paperUrl";
 
 /** One Item page as the model copied it; a field it was not asked for, or did not find, is `null`. */
 export type ItemPageFields = {
@@ -39,6 +40,8 @@ export type ItemPageFields = {
   date: string | null;
   venue: string | null;
   abstract: string | null;
+  /** The link the page gives as this work's own paper; never one it cites. */
+  paperUrl: string | null;
 };
 
 export type ItemPageExtraction = { fields: ItemPageFields; usage: Usage };
@@ -91,17 +94,20 @@ export const ITEM_PAGE_PROMPT =
   "asked for and leave every other null. Authors are the people the page names " +
   "in its byline or citation block, each name as written; an organisation is " +
   "never an author. The date is the one the page gives this item, as written. " +
-  "The abstract is the summary the page publishes, copied; write no summaries.";
+  "The abstract is the summary the page publishes, copied; write no summaries. " +
+  "paperUrl is the link this page gives as its own paper; null when it gives " +
+  "none; never a work it cites.";
 
 const ITEM_PAGE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["authors", "date", "venue", "abstract"],
+  required: ["authors", "date", "venue", "abstract", "paperUrl"],
   properties: {
     authors: { type: ["array", "null"], items: { type: "string" } },
     date: { type: ["string", "null"] },
     venue: { type: ["string", "null"] },
     abstract: { type: ["string", "null"] },
+    paperUrl: { type: ["string", "null"] },
   },
 } as const;
 
@@ -309,6 +315,7 @@ export function createAnthropicProvider(
           date: one(answer.date),
           venue: one(answer.venue),
           abstract: one(answer.abstract),
+          paperUrl: one(answer.paperUrl),
         },
         usage,
       };

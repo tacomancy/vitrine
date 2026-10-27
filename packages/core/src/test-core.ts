@@ -76,7 +76,13 @@ export function virtualClock(): ArxivClock & { slept: number[] } {
  */
 export const copiesNothing: ModelProvider["extractItemPage"] = () =>
   Promise.resolve({
-    fields: { authors: null, date: null, venue: null, abstract: null },
+    fields: {
+      authors: null,
+      date: null,
+      venue: null,
+      abstract: null,
+      paperUrl: null,
+    },
     usage: { input: 0, output: 0, cacheRead: 0 },
   });
 

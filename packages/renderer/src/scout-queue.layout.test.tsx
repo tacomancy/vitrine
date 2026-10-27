@@ -26,6 +26,7 @@ const card = (id: number, rest: Partial<Card> = {}): Card => ({
   venueType: null,
   venueId: null,
   alsoOnArxiv: null,
+  paperUrl: null,
   publisher: null,
   abstract: "An abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
