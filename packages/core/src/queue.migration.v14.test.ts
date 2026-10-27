@@ -23,6 +23,7 @@ describe("the queue database, version 14 to 15", () => {
     const vault = await mkdtemp(join(tmpdir(), "vitrine-queue-"));
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     const first = await openQueue(vault);
+    first.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
     first.exec(
       `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, query) VALUES
        ${[

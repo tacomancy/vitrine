@@ -8,7 +8,11 @@ import {
 import { CEILING } from "./arxiv.js";
 import { advertisedFeed, isFeed, readFeed, type FeedEntry } from "./feed.js";
 import { costUsd, type Usage } from "./model-prices.js";
-import { ModelError, type ModelProvider } from "./model-provider.js";
+import {
+  ModelError,
+  type ItemPageField,
+  type ModelProvider,
+} from "./model-provider.js";
 import { blurbOf, declaredOf, type Declared } from "./item-page.js";
 import {
   FetchError,
@@ -77,6 +81,8 @@ export type RunFacts = {
   capped: boolean;
   unverified: number;
   itemPagesRead: number;
+  /** Values an Item page's Extraction copied that were not on that page. */
+  itemValuesDropped: number;
 };
 
 export class WatchedError extends Error {
@@ -99,13 +105,29 @@ export type Read = {
   listingOnly?: ListingOnlyRead[];
 };
 
-/** A Listing-only card's Item page as this run read it: what it declares, or null when it could not be fetched. */
-export type ListingOnlyRead = { id: number; declared: Declared | null };
+/** The card fields an Item page can fill. */
+export type ItemFields = Pick<
+  Arrival,
+  "authors" | "published" | "venue" | "abstract" | "doi"
+>;
+
+/**
+ * A Listing-only card's Item page as this run read it: the card's fields with
+ * the page's filled in, or null when it could not be fetched. `read` is false
+ * when the page was fetched but the model could not read it, which is a try.
+ */
+export type ListingOnlyRead = {
+  id: number;
+  card: ItemFields | null;
+  read: boolean;
+};
 
 /** Input tokens the reduced text may use before the call (counted, not guessed). */
 export const TOKEN_BUDGET = 40_000;
 /** The most Item pages one run reads (ADR 0055 decision 2), a starting point. */
 export const ITEM_PAGE_CEILING = 25;
+/** Input tokens one Item page's reduced text may use (ADR 0055 decision 2): the card fields sit at its top. */
+export const ITEM_PAGE_BUDGET = 8_000;
 
 /** The extraction's messages; the sentences that say them live in `scout-health.ts`. */
 export const FEED_UNREADABLE = "feed unreadable";
@@ -187,6 +209,7 @@ export async function readWatched(
     capped: false,
     unverified: 0,
     itemPagesRead: 0,
+    itemValuesDropped: 0,
   };
 
   // A page that has not changed since the last clean look costs nothing: the
@@ -199,6 +222,10 @@ export async function readWatched(
       "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
     )
     .get(scout.id, scout.url) as { page_hash: string } | undefined;
+  // Asked for before the page-unchanged test, since an Item page owed on an
+  // unchanged listing may still need an Extraction.
+  const model = await deps.model();
+  const reader = { models: deps.models, key, model };
   // It skips the listing's Extraction only: the Item pages owed are read all
   // the same, or a Listing-only card would wait on the listing to change
   // (ADR 0055 decision 5).
@@ -209,11 +236,11 @@ export async function readWatched(
       queue,
       fetchOptions,
       scout.id,
+      reader,
       itemPages
     );
   }
 
-  const model = await deps.model();
   facts.model = model;
   let read: Read;
   try {
@@ -238,7 +265,15 @@ export async function readWatched(
     }
     throw cause;
   }
-  return readItemPages(read, page, queue, fetchOptions, scout.id, itemPages);
+  return readItemPages(
+    read,
+    page,
+    queue,
+    fetchOptions,
+    scout.id,
+    reader,
+    itemPages
+  );
 }
 
 /** A host with any leading `www.` dropped, so `anthropic.com` and `www.anthropic.com` are one site; null for a link that does not parse. */
@@ -258,7 +293,8 @@ function siteOf(url: string): string | null {
  * one site, never a crawl. An item on another site is not owed a read, so it
  * is neither fetched nor a failure. An item already in the queue was read, or
  * owed, when it first arrived. A page that cannot be fetched leaves its card
- * as the listing showed it, with the try counted.
+ * as the listing showed it, with the try counted; one the model cannot read
+ * keeps what it declared, and is a try too.
  *
  * What the ceiling leaves after this run's new items goes to the Scout's
  * Listing-only cards, oldest first (decision 5): today's finds fill in
@@ -271,6 +307,7 @@ async function readItemPages(
   queue: DatabaseSync,
   fetchOptions: PageFetchOptions,
   scoutId: string,
+  reader: ItemPageReader,
   ceiling: number
 ): Promise<Read> {
   const site = siteOf(listing.url);
@@ -280,17 +317,66 @@ async function readItemPages(
   const seen = new Set<string>();
   let asked = 0;
   let readCount = 0;
-  /** What one Item page declares, or null when it could not be fetched. */
-  const readOne = async (url: string): Promise<Declared | null> => {
+  let dropped = 0;
+  let usage = read.facts.usage;
+  /**
+   * One Item page read into a card's empty fields: what the page declares,
+   * then the Extraction for what is still empty. Null when the page could
+   * not be fetched; `read` is false when the model could not read it, and
+   * the card then carries what the page declared, with the try counted.
+   */
+  const readOne = async <T extends ItemFields>(
+    url: string,
+    card: T
+  ): Promise<{ card: T; read: boolean } | null> => {
+    let page;
     try {
-      const page = await fetchPage(url, fetchOptions);
-      readCount++;
-      return declaredOf(page.body, blurb);
+      page = await fetchPage(url, fetchOptions);
     } catch (cause) {
       if (!(cause instanceof FetchError)) throw cause;
       return null;
     }
+    const pageDeclared = declaredOf(page.body, blurb);
+    const declared = filled(card, pageDeclared);
+    const needed = neededOf(declared);
+    if (needed.length === 0) {
+      readCount++;
+      return { card: declared, read: true };
+    }
+    try {
+      const copied = await copiedFrom(
+        page,
+        needed,
+        pageDeclared.organisations,
+        reader
+      );
+      usage = plus(usage, copied.usage);
+      dropped += copied.dropped;
+      readCount++;
+      return { card: filledFromCopy(declared, copied.fields), read: true };
+    } catch (cause) {
+      if (!(cause instanceof ModelError)) throw cause;
+      if (cause.usage !== undefined) usage = plus(usage, cause.usage);
+      // A key rejected mid-run is a broken Scout, not one page's bad luck:
+      // the run fails as the listing's call would, with what it spent, and
+      // its items arrive on the next run that can read them.
+      if (cause.kind === "credentials") {
+        throw new WatchedError("credentials", KEY_REJECTED, spent());
+      }
+      return { card: declared, read: false };
+    }
   };
+  /** The run's facts with what its Item pages cost added in. */
+  const spent = (): RunFacts => ({
+    ...read.facts,
+    // An unchanged listing made no call of its own; the model is named on
+    // the run only once something was spent on it.
+    model: usage === null ? read.facts.model : reader.model,
+    usage,
+    costUsd: usage === null ? read.facts.costUsd : costUsd(reader.model, usage),
+    itemPagesRead: readCount,
+    itemValuesDropped: dropped,
+  });
   const items: Arrival[] = [];
   for (const item of read.items) {
     const owed =
@@ -305,11 +391,13 @@ async function readItemPages(
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
-      const declared = await readOne(item.url);
+      const r = await readOne(item.url, item);
       items.push(
-        declared === null
+        r === null
           ? { ...item, itemPageTries: 1 }
-          : filled(item, declared)
+          : r.read
+            ? r.card
+            : { ...r.card, itemPageTries: 1 }
       );
     }
   }
@@ -321,29 +409,202 @@ async function readItemPages(
     // triaged while its page is in flight.
     const owed = queue
       .prepare(
-        `SELECT p.id, p.url FROM proposals p
+        `SELECT p.id, p.url, p.authors, p.published, p.venue, p.abstract, p.doi FROM proposals p
          WHERE p.state = 'pending' AND p.item_page_tries IS NOT NULL
            AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
          ORDER BY p.first_seen, p.id`
       )
-      .all(scoutId) as Array<{ id: number; url: string }>;
+      .all(scoutId) as Array<{
+      id: number;
+      url: string;
+      authors: string;
+      published: string;
+      venue: string | null;
+      abstract: string;
+      doi: string | null;
+    }>;
     // A Scout re-pointed at another site reads no page of the old one.
     for (const card of owed.filter((o) => siteOf(o.url) === site)) {
       if (asked >= ceiling) break;
       asked++;
-      listingOnly.push({ id: card.id, declared: await readOne(card.url) });
+      // What the card already has decides what is asked: only its empty
+      // fields are worth a call.
+      const r = await readOne(card.url, {
+        authors: JSON.parse(card.authors) as string[],
+        published: card.published,
+        venue: card.venue,
+        abstract: card.abstract,
+        doi: card.doi,
+      });
+      listingOnly.push({
+        id: card.id,
+        card: r?.card ?? null,
+        read: r?.read ?? false,
+      });
     }
   }
-  return {
-    ...read,
-    items,
-    listingOnly,
-    facts: { ...read.facts, itemPagesRead: readCount },
-  };
+  return { ...read, items, listingOnly, facts: spent() };
 }
 
+type ItemPageReader = { models: ModelProvider; key: string; model: string };
+
+const plus = (a: Usage | null, b: Usage): Usage => ({
+  input: (a?.input ?? 0) + b.input,
+  output: (a?.output ?? 0) + b.output,
+  cacheRead: (a?.cacheRead ?? 0) + b.cacheRead,
+});
+
+/**
+ * What is still empty once the page's declarations are in, and so worth a
+ * call. A missing venue never makes a call on its own: nothing a page
+ * declares fills a venue, so counting it would make every Item page a paid
+ * one, and a post with no venue is a valid card (ADR 0055 decision 3; brief
+ * `## Scouts` § Proposals). It is asked for when the call is made anyway.
+ */
+function neededOf(card: ItemFields): ItemPageField[] {
+  const empty = {
+    authors: card.authors.length === 0,
+    date: card.published === "",
+    venue: card.venue === null || card.venue === "",
+    abstract: card.abstract === "",
+  };
+  if (!empty.authors && !empty.date && !empty.abstract) return [];
+  return (["authors", "date", "venue", "abstract"] as const).filter(
+    (field) => empty[field]
+  );
+}
+
+type Copied = {
+  fields: { authors: string[]; date: string; venue: string; abstract: string };
+  dropped: number;
+  usage: Usage;
+};
+
+/**
+ * Ask the model for one Item page's missing fields, and keep each value only
+ * if it occurs on the text the model was shown (ADR 0055 decision 4). On a
+ * listing the title and link are what a model would invent; on an Item page
+ * those are already known, so its mistakes land in the authors, the date and
+ * the abstract instead, and every one of them is checked: each author name on
+ * its own, so one invented co-author costs that name and not the byline. A
+ * value that fails is dropped and counted, and the rest of the card stands.
+ * An organisation the page declares as its author is on the page, so the
+ * substring check would pass it: it is refused by name, as declared authors
+ * are (ADR 0055 decision 9).
+ */
+async function copiedFrom(
+  page: Page,
+  needed: ItemPageField[],
+  organisations: string[],
+  { models, key, model }: ItemPageReader
+): Promise<Copied> {
+  let text = reduceHtml(page.body, page.url);
+  const tokens = await models.countTokens({ key, model, text });
+  if (tokens > ITEM_PAGE_BUDGET) {
+    // Cut as a listing is cut: a page that is a whole paper is paid for as its top.
+    text = text.slice(0, Math.floor((text.length * ITEM_PAGE_BUDGET) / tokens));
+  }
+  const answer = await models.extractItemPage({
+    key,
+    model,
+    page: text,
+    needed,
+  });
+
+  const flat = squash(text);
+  let dropped = 0;
+  // Whitespace collapsed on both sides, as the listing's Verify does: a
+  // sentence the page wrapped is still the page's sentence.
+  const verified = (value: string | null): string => {
+    const copied = squash(value ?? "");
+    if (copied === "") return "";
+    if (flat.includes(copied)) return copied;
+    dropped++;
+    return "";
+  };
+  const asked = (field: ItemPageField) => needed.includes(field);
+  const organisation = new Set(organisations.map((o) => o.toLowerCase()));
+  const person = (name: string) => {
+    if (!organisation.has(name.toLowerCase())) return true;
+    dropped++;
+    return false;
+  };
+  const fields = {
+    authors: asked("authors")
+      ? (answer.fields.authors ?? [])
+          .map(verified)
+          .filter((a) => a !== "" && person(a))
+      : [],
+    date: asked("date") ? dayOfCopied(verified(answer.fields.date)) : "",
+    venue: asked("venue") ? verified(answer.fields.venue) : "",
+    abstract: asked("abstract") ? verified(answer.fields.abstract) : "",
+  };
+  return { fields, dropped, usage: answer.usage };
+}
+
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+/**
+ * A date as the page wrote it, as a day when it plainly is one: ISO, or a
+ * month by name with its day and year (`Jun 20, 2025`, `20 June 2025`). It
+ * was Verified as copied, so this only formats. Anything else — `06/20/2025`,
+ * whose order is a guess, or `Summer 2025`, which is no day — is kept as
+ * copied, and no time zone is involved, so a day never shifts by one.
+ */
+function dayOfCopied(copied: string): string {
+  // `Jun`, `June` and `Sept` name a month; `Junk` does not.
+  const month = (name: string) =>
+    name.length < 3
+      ? 0
+      : MONTHS.findIndex((m) => m.startsWith(name.toLowerCase())) + 1;
+  const parts =
+    /^(?<y>\d{4})-(?<m>\d{2})-(?<d>\d{2})\b/.exec(copied)?.groups ??
+    /^(?<name>[A-Za-z]{3,9})\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})$/.exec(copied)
+      ?.groups ??
+    /^(?<d>\d{1,2})\s+(?<name>[A-Za-z]{3,9})\.?,?\s+(?<y>\d{4})$/.exec(copied)
+      ?.groups;
+  if (parts === undefined) return copied;
+  const y = Number(parts.y);
+  const m = parts.name === undefined ? Number(parts.m) : month(parts.name);
+  const d = Number(parts.d);
+  // A day the calendar does not have (`Feb 31`) is no day: kept as copied.
+  const at = new Date(Date.UTC(y, m - 1, d));
+  if (m < 1 || at.getUTCMonth() !== m - 1 || at.getUTCDate() !== d) {
+    return copied;
+  }
+  return at.toISOString().slice(0, 10);
+}
+
+/** The copy fills only what is still empty: what the listing or the page declared stands. */
+const filledFromCopy = <T extends ItemFields>(
+  card: T,
+  copied: Copied["fields"]
+): T => ({
+  ...card,
+  authors: card.authors.length > 0 ? card.authors : copied.authors,
+  published: card.published !== "" ? card.published : copied.date,
+  venue:
+    card.venue !== null && card.venue !== ""
+      ? card.venue
+      : copied.venue || null,
+  abstract: card.abstract !== "" ? card.abstract : copied.abstract,
+});
+
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
-const filled = (item: Arrival, declared: Declared): Arrival => ({
+const filled = <T extends ItemFields>(item: T, declared: Declared): T => ({
   ...item,
   authors: item.authors.length > 0 ? item.authors : declared.authors,
   published: item.published !== "" ? item.published : (declared.date ?? ""),
@@ -437,6 +698,7 @@ const noFacts = (): RunFacts => ({
   capped: false,
   unverified: 0,
   itemPagesRead: 0,
+  itemValuesDropped: 0,
 });
 
 /** `message` is what a failure says; null leaves the default for an address that was itself a feed. */

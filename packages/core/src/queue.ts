@@ -49,8 +49,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    Watched Scout's Item pages owe and read (#885, ADR 0055).
  * 15: no column; the pending cards a Watched Scout proposed before Item pages
  *    become Listing-only, so they fill in (#887, ADR 0055 decision 5).
+ * 16: `scout_runs.item_values_dropped`, values an Item page's Extraction
+ *    copied that were not on that page (#886, ADR 0055).
  */
-export const QUEUE_SCHEMA_VERSION = 15;
+export const QUEUE_SCHEMA_VERSION = 16;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -303,6 +305,13 @@ ALTER TABLE proposals ADD COLUMN item_page_tries INTEGER;
 ALTER TABLE scout_runs ADD COLUMN item_pages_read INTEGER NOT NULL DEFAULT 0;
 `;
 
+// Counted like `unverified`, so a model that copies badly shows on the run
+// even though the cards it read still arrive. 0 on an earlier run, which
+// asked the model nothing of an Item page.
+const ITEM_VALUES_DROPPED = `
+ALTER TABLE scout_runs ADD COLUMN item_values_dropped INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * A URL's host in SQL, lowercased and with any leading `www.` dropped: the
  * part between `://` and the first `/`. Close enough to `siteOf` in
@@ -354,6 +363,7 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_PUBLISHER_NAME,
   ITEM_PAGES,
   LISTING_ONLY_BEFORE,
+  ITEM_VALUES_DROPPED,
 ];
 
 /**

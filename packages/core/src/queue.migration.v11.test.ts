@@ -14,6 +14,7 @@ describe("the queue database, version 11 to 12", () => {
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     const first = await openQueue(vault);
     first.exec("ALTER TABLE proposals DROP COLUMN item_page_tries");
+    first.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
     first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_read");
     first.exec("ALTER TABLE proposals DROP COLUMN publisher_name");
     first.exec("ALTER TABLE proposals DROP COLUMN publisher_lineage");

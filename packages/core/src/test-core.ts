@@ -24,6 +24,7 @@ import { PDF_FOLDER } from "./pdf-folder.js";
 import { effectiveRunWindowMs } from "./run-window.js";
 import { effectiveSettleMs } from "./vault-watcher.js";
 import type { ArxivClock } from "./arxiv.js";
+import type { ModelProvider } from "./model-provider.js";
 import type { Host } from "./host.js";
 import { readOutline, type WriteResult } from "./vault-files.js";
 import type { CoreEvent } from "./events.js";
@@ -66,6 +67,18 @@ export function virtualClock(): ArxivClock & { slept: number[] } {
     slept,
   };
 }
+
+/**
+ * A model's reading of an Item page that copies nothing and costs nothing,
+ * for a test about something else whose fake server may answer an item's own
+ * link: that page is then read and asked about (ADR 0055), and this keeps it
+ * out of what the test counts.
+ */
+export const copiesNothing: ModelProvider["extractItemPage"] = () =>
+  Promise.resolve({
+    fields: { authors: null, date: null, venue: null, abstract: null },
+    usage: { input: 0, output: 0, cacheRead: 0 },
+  });
 
 /** The URL a `fetch` was asked for, whichever of its three forms it came in. */
 export const urlOf = (input: string | URL | Request): URL =>

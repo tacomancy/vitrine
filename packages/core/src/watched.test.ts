@@ -15,6 +15,7 @@ import {
 } from "./model-provider.js";
 import type { Accepted, Card, RunSummary } from "./scouts.js";
 import {
+  copiesNothing,
   closeCores,
   core,
   fixtureCopy,
@@ -126,6 +127,7 @@ async function opened(
   const calls = { count: 0, extract: 0, pages: [] as string[] };
   let page: () => Page = options.page ?? (() => ({ body: "" }));
   const models: ModelProvider = {
+    extractItemPage: copiesNothing,
     countTokens: ({ text }) => {
       calls.count++;
       return Promise.resolve(Math.ceil(text.length / 4));

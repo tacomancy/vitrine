@@ -7,7 +7,7 @@ import {
   type CredentialStore,
 } from "./credentials.js";
 import { ModelError, type ModelProvider } from "./model-provider.js";
-import { closeCores, core, tmp } from "./test-core.js";
+import { copiesNothing, closeCores, core, tmp } from "./test-core.js";
 
 afterEach(closeCores);
 
@@ -24,6 +24,7 @@ function models(
   count: ModelProvider["countTokens"] = () => Promise.resolve(8)
 ): ModelProvider {
   return {
+    extractItemPage: copiesNothing,
     countTokens: count,
     extract: () => Promise.reject(new Error("not called")),
   };

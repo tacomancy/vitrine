@@ -6,7 +6,13 @@ import type { LooseEnds } from "./loose-ends.js";
 import type { ModelProvider } from "./model-provider.js";
 import type { Scout, UnreadableScout } from "./scout-file.js";
 import type { FleetHealth } from "./scout-health.js";
-import { closeCores, core, tmp, type CoreOptions } from "./test-core.js";
+import {
+  copiesNothing,
+  closeCores,
+  core,
+  tmp,
+  type CoreOptions,
+} from "./test-core.js";
 
 // A Scouts folder the app cannot list is not a vault with no Scouts (#526).
 // Only the folder's absence is empty (`CLAUDE.md` § Invariants, no silent
@@ -193,6 +199,7 @@ describe("a Scouts folder that cannot be listed", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const store = createMemoryCredentialStore();
     const models: ModelProvider = {
+      extractItemPage: copiesNothing,
       countTokens: () => Promise.resolve(8),
       extract: () => Promise.reject(new Error("not called")),
     };

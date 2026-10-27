@@ -5,6 +5,7 @@ import { createMemoryCredentialStore } from "./credentials.js";
 import type { ModelProvider } from "./model-provider.js";
 import type { ScoutActivity } from "./scout-activity.js";
 import {
+  copiesNothing,
   closeCores,
   core,
   fixtureCopy,
@@ -45,6 +46,7 @@ async function opened(key: string | null) {
     key === null ? {} : { anthropic: key }
   );
   const models: ModelProvider = {
+    extractItemPage: copiesNothing,
     countTokens: ({ text }) => Promise.resolve(Math.ceil(text.length / 4)),
     extract: () =>
       Promise.resolve({
