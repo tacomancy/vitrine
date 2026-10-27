@@ -863,7 +863,7 @@ describe("a Feed entry's Item page", () => {
     }
   );
 
-  it("never overwrites what the entry itself said", async () => {
+  it("never overwrites what the entry itself said, and fills only what it left empty", async () => {
     const lab = await fed("feed");
 
     await lab.run();
@@ -893,5 +893,49 @@ describe("a Feed entry's Item page", () => {
         "www.anthropic.com/research/sparse-probes",
       ].sort()
     );
+  });
+
+  it("drains the Scout's Listing-only cards on a later run the same way: declared only, owing nothing", async () => {
+    const many = Array.from(
+      { length: 27 },
+      (_, n) => `/research/post-${n + 1}`
+    );
+    const pages: Record<string, string> = {
+      "/research/team/alignment": `<rss version="2.0"><channel>${many
+        .map(
+          (path, n) =>
+            `<item><title>Post number ${n + 1}</title><link>https://www.anthropic.com${path}</link></item>`
+        )
+        .join("")}</channel></rss>`,
+    };
+    for (const path of many) {
+      // A date and nothing else: authors and abstract stay empty.
+      pages[path] =
+        `<html><head><meta property="article:published_time" content="2025-09-01T00:00:00Z"></head><body>${path}</body></html>`;
+    }
+    const lab = await opened({ pages });
+    await lab.run();
+    expect(
+      lab.rows("SELECT COUNT(*) AS n FROM proposals WHERE item_page_tries = 0")
+    ).toEqual([{ n: 2 }]);
+    lab.requests.length = 0;
+
+    await lab.run();
+
+    expect(lab.pagesAsked().filter((p) => p.includes("/post-"))).toEqual([
+      "www.anthropic.com/research/post-26",
+      "www.anthropic.com/research/post-27",
+    ]);
+    expect(byTitle(await lab.cards(), "Post number 27")).toMatchObject({
+      published: "2025-09-01",
+      abstract: "",
+      authors: [],
+    });
+    expect(
+      lab.rows(
+        "SELECT COUNT(*) AS n FROM proposals WHERE item_page_tries IS NOT NULL"
+      )
+    ).toEqual([{ n: 0 }]);
+    expect(lab.calls).toEqual({ count: 0, extract: 0, itemPages: [] });
   });
 });
