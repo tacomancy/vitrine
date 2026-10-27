@@ -495,6 +495,35 @@ describe("an Item page's Extraction", () => {
     ]);
   });
 
+  it("never replaces what the page declared, and ignores a field it was not asked for", async () => {
+    // Asked for authors and venue only; it also copies a summary that is on
+    // the page and a date that is not.
+    const lab = await opened({
+      itemPage: (call) =>
+        onPage(call, AGENTIC)
+          ? {
+              authors: ["Lynch, Aengus"],
+              date: "Jan 1, 2020",
+              abstract:
+                "Agentic Misalignment: How LLMs could be insider threats",
+            }
+          : {},
+    });
+
+    await lab.run();
+
+    expect(byTitle(await lab.cards(), AGENTIC)).toMatchObject({
+      authors: ["Lynch, Aengus"],
+      published: "2025-06-20",
+      abstract:
+        "We stress-tested 16 leading models in hypothetical corporate environments to identify risky agentic behaviors before they cause real harm.",
+    });
+    // Neither unasked value is weighed, so neither is counted as dropped.
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 0 },
+    ]);
+  });
+
   it("never takes a name the page hid in a script, which the model was never shown", async () => {
     // The fixture's script payload names "Not An Author"; reduction strips it.
     const lab = await opened({
