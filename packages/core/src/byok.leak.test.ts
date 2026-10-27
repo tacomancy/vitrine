@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +39,37 @@ async function filesUnder(dir: string): Promise<string[]> {
     else out.push(path);
   }
   return out;
+}
+
+type Kept = Array<{ path: string; bytes: Buffer }>;
+
+/**
+ * Every file under `dirs` with its bytes. A file listed and gone before it is
+ * read is a temp file a rename took (#898): the whole walk is listed and read
+ * again, once, so its bytes are read under their new name. Never skipped — a
+ * temp file is where a key would sit mid-write. A second race in the second
+ * walk fails the test, by choice: a flake that says so over a check gone blind.
+ * `read` is a seam only so the tests below can stage the rename.
+ */
+async function contentsOf(
+  dirs: string[],
+  read: (path: string) => Promise<Buffer> = (path) => readFile(path)
+): Promise<Kept> {
+  const walk = async () => {
+    const out: Kept = [];
+    for (const dir of dirs) {
+      for (const path of await filesUnder(dir)) {
+        out.push({ path, bytes: await read(path) });
+      }
+    }
+    return out;
+  };
+  try {
+    return await walk();
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+    return walk();
+  }
 }
 
 function dump(path: string): string {
@@ -172,15 +203,58 @@ describe("where the key goes", () => {
     // Nothing the core answered, logged, or wrote contains it.
     expect(hasKey(JSON.stringify(replies))).toBe(false);
     expect(logged.filter(hasKey)).toEqual([]);
-    for (const dir of [vault, appSupportDir]) {
-      for (const path of await filesUnder(dir)) {
-        const bytes = await readFile(path);
-        if (path.endsWith(".sqlite")) {
-          expect(hasKey(dump(path)), path).toBe(false);
-        }
-        expect(hasKey(bytes.toString("latin1")), path).toBe(false);
+    for (const { path, bytes } of await contentsOf([vault, appSupportDir])) {
+      if (path.endsWith(".sqlite")) {
+        expect(hasKey(dump(path)), path).toBe(false);
       }
+      expect(hasKey(bytes.toString("latin1")), path).toBe(false);
     }
+  });
+});
+
+// The write that raced the walk (#898) is the open's Ingest minting an id into
+// a Source note in `sources/`. That pass is not awaited by anything the test
+// can reach — not `indexed()`, not `close()` — so the walk handles the race.
+describe("the walk over what the app keeps", () => {
+  it("reads a temp file's bytes under its new name when a rename takes it between listing and reading", async () => {
+    const dir = await tmp("byok-walk");
+    await mkdir(join(dir, "sources"));
+    const target = join(dir, "sources/rasch2013.md");
+    const temp = join(dir, "sources/.7f2bc3042704.tmp");
+    await writeFile(target, "id: before\n");
+    await writeFile(temp, `id: after ${KEY}\n`);
+    let renamed = false;
+    const contents = await contentsOf([dir], async (path) => {
+      // The rename lands after the listing named the temp file, before it is read.
+      if (path === temp && !renamed) {
+        renamed = true;
+        await rename(temp, target);
+      }
+      return readFile(path);
+    });
+    expect(renamed).toBe(true);
+    expect(contents.map(({ path }) => path)).toEqual([target]);
+    expect(hasKey(contents[0]!.bytes.toString("latin1"))).toBe(true);
+    // A walk that skipped the temp file passes this too, when the listing
+    // names the temp before its target; the next test is the one that fails it.
+  });
+
+  it("fails when a listed file is gone on both readings", async () => {
+    const dir = await tmp("byok-walk");
+    await writeFile(join(dir, ".7f2bc3042704.tmp"), KEY);
+    let readings = 0;
+    const gone = () => {
+      readings += 1;
+      return Promise.reject<Buffer>(
+        Object.assign(new Error("ENOENT: no such file or directory"), {
+          code: "ENOENT",
+        })
+      );
+    };
+    await expect(contentsOf([dir], gone)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(readings).toBe(2);
   });
 });
 
