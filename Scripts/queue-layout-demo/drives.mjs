@@ -51,7 +51,6 @@ const measure = (page) =>
       layout: surface?.dataset.layout,
       queue: px(surface),
       railHeight: rail ? Math.round(rail.getBoundingClientRect().height) : null,
-      railNames: rail ? rail.innerText.length : null,
       list: px(document.querySelector('[class*="listPane"]')),
       detail: px(document.querySelector('[class*="detailPane"]')),
       abstractWidth: px(abstract),
@@ -90,6 +89,8 @@ export default async function (page) {
   await shoot(page, "1-1280-rail-collapsed.png");
 
   expect(collapsed.layout === "wide", "1280px is the wide layout");
+  // 55–85 is the usual comfortable measure for running text around the
+  // brief's ~60; the rule is that it is a line, not a column of fragments.
   expect(
     collapsed.chars >= 55 && collapsed.chars <= 85,
     `the abstract keeps a readable line at 1280px (${collapsed.chars} characters)`

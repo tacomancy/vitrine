@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The Queue's layout check (#871, spec #867, beat #853): one hidden launch on
-// beat 14's scratch vault (six Scouts, the triage history, two Retroactive
-// batches), the arXiv endpoint on beat 6b's stand-in — never the real arXiv.
+// beat 14's scratch vault (nine rail entries: eight Scouts and one file that does not parse,
+// the triage history, two Retroactive batches), the arXiv endpoint on beat 6b's stand-in — never the real arXiv.
 // jsdom cannot evaluate a container query or lay out text, so this is where the
 // abstract's line length and the order space is given up are measured. The
 // drive screenshots 1280px with the sidebar open and the rail collapsed, then
@@ -78,7 +78,7 @@ try {
   });
   console.log(`\nPictures and measurements in ${out}`);
 } finally {
-  standin.close?.();
+  standin.close();
   if (process.env.KEEP) console.log(`kept: ${scratch}`);
   else rmSync(scratch, { recursive: true, force: true });
 }

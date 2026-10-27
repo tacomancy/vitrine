@@ -34,7 +34,7 @@ Each rule broken in the code that enforces it, on a scratch export of the branch
 |---|---|---|---|---|
 | M1 | Exactly one row is open (Review) | `stacked && current` → `stacked` in `ScoutQueue.tsx` | `scout-queue.expand` › *opens exactly one row as J and K move it* | 13 |
 | M2 | Exactly one row is open (Skim) | `stacked && l === line` → `stacked` | `scout-queue.expand` › *opens the Skim line chosen in its row too* | 1 |
-| M3 | Wide opens nothing in the list | `stacked && current` → `current` | `scout-queue.expand` › *wide: nothing opens in the list* | 100 |
+| M3 | Wide opens nothing in the list | `stacked && current` → `current` | `scout-queue.expand` › *wide: nothing opens in the list* › *keeps the detail in its pane, outside every row* | 100 |
 | M4 | Stacked, no separate pane exists | `!stacked &&` → `true &&` on the Review detail pane | `scout-queue.expand` › *holds the detail in the chosen row, with no separate pane* | 12 |
 | M5 | The threshold reads the Queue's width, not the window's | `width >=` → `window.innerWidth >=` in `queue-width.ts` | `scout-queue.layout` › *follows the Queue's width at one window size* | 9 |
 | M6 | The threshold is 960px, inclusive | `>=` → `>` | `scout-queue.layout` › *follows the Queue's width…* (the one test that sets the width to 960) | 1 |
@@ -50,4 +50,5 @@ M3, M4 and M5 fail many tests because a second detail, a pane that should not ex
 ## Not shown
 
 - The Queue's J/K, A/D/R/P and chosen-in-view behaviour in either layout are the jsdom tests' (`scout-queue.expand`, ADR 0030); a hidden launch measures space, not keys.
+- **Divergence from ADR 0054, to be recorded in the `Shipped:` comment.** Decision 4 draws the collapsed rail as a strip of about 48px that gives its width back to the list. As built (#857, #870) the rail is a wrapping row above the panes, so collapsing it gives back height only (the list and detail are 401px and 601px either way).
 - The rail yielding "first" is a measure of cost, not an automatic behaviour: nothing collapses it as the window narrows. That is as ADR 0054 decision 4 has it (a key and a hover), but ADR 0054 decision 5's wording could be read as a window-driven collapse.
