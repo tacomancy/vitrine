@@ -6,7 +6,7 @@ import { createMemoryCredentialStore } from "./credentials.js";
 import type { LooseEnds } from "./loose-ends.js";
 import type { ExtractedItem, ModelProvider } from "./model-provider.js";
 import type { ScoutActivity, ScoutRow } from "./scout-activity.js";
-import type { FleetHealth } from "./scout-health.js";
+import type { FleetClaim, FleetHealth } from "./scout-health.js";
 import type { Card, RunSummary } from "./scouts.js";
 import {
   closeCores,
@@ -197,6 +197,12 @@ async function opened() {
         (row): row is ScoutRow => row.kind === "scout" && row.id === "lab"
       )!;
     },
+    /** Home's line about the fleet: withheld, naming the broken, or the claim. */
+    fleet: async () => {
+      const r = await c.query<FleetClaim>("scouts.fleet");
+      expect(r.error).toBeUndefined();
+      return r.result!.data;
+    },
     looseEnds: async () => {
       const r = await c.query<LooseEnds>("looseEnds.rows");
       expect(r.error).toBeUndefined();
@@ -261,18 +267,35 @@ describe("an Item page that fails", () => {
     expect(await lab.card(2)).toMatchObject({ authors: [], abstract: "" });
   });
 
-  it("is counted unread on a run that read only Listing-only cards", async () => {
+  it("is counted unread on a retry, and one dead link retried alone breaks nothing", async () => {
     const lab = await opened();
     lab.list(range(1, 4));
     lab.missing.add("/research/post-2");
     await lab.run();
 
-    lab.later();
-    await lab.run();
+    for (let retry = 0; retry < 2; retry++) {
+      lab.later();
+      expect(await lab.run()).toMatchObject({ outcome: "ok" });
+      expect(lab.lastRun()).toMatchObject({
+        outcome: "ok",
+        item_pages_read: 0,
+        item_pages_unread: 1,
+      });
+    }
+  });
 
-    expect(lab.lastRun()).toMatchObject({
-      item_pages_read: 0,
-      item_pages_unread: 1,
+  it("is a refusing site when a Listing-only card's first read fails too", async () => {
+    const lab = await opened();
+    lab.list(range(1, 30));
+    lab.robots("User-agent: *\nDisallow: /research/post-2");
+    // A prefix: post-2 and post-20 to post-29 are refused, post-30 is not.
+    // Posts 26 to 30 are past the 25, so the next run is their first read.
+    expect(await lab.run()).toMatchObject({ outcome: "ok" });
+
+    lab.later();
+    expect(await lab.run()).toMatchObject({
+      outcome: "failed",
+      errorKind: "extraction",
     });
   });
 });
@@ -320,8 +343,9 @@ describe("a run that could read fewer than half its Item pages", () => {
       kind: "extraction",
       sentence: UNREAD_SENTENCE,
     };
-    // Home's broken Scouts read this.
+    // Home names it broken, and withholds its claim.
     expect(await lab.health()).toEqual(broken);
+    expect(await lab.fleet()).toEqual({ claim: null, naming: ["Lab"] });
     const after = await lab.activity();
     expect(after.health).toEqual(broken);
     // Last new item moved: the three new cards are this Scout's finds, and
@@ -335,6 +359,13 @@ describe("a run that could read fewer than half its Item pages", () => {
         "SELECT COUNT(*) AS n FROM scout_runs WHERE outcome = 'ok'"
       )
     ).toEqual([{ n: 1 }]);
+
+    // A clean run that finds nothing new: Home's last new proposal is the
+    // failed run's day, 28 October, not the first clean run's.
+    lab.robots(null);
+    lab.later();
+    expect(await lab.run()).toMatchObject({ outcome: "ok", new: 0 });
+    expect((await lab.fleet()).claim).toContain("last new proposal 28 Oct");
   });
 
   it("is a failure with one page of three read", async () => {

@@ -91,7 +91,11 @@ async function opened() {
       credentials: createMemoryCredentialStore({ anthropic: "sk-test" }),
       model: "claude-sonnet-5-5",
       fetch: (input) => {
-        const served = pages[urlOf(input).pathname];
+        // Each paper's own Item page answers, so this stays a site that can be read (ADR 0055 d.6).
+        const path = urlOf(input).pathname;
+        const served = path.startsWith("/papers/")
+          ? { body: "<html><body></body></html>", type: undefined }
+          : pages[path];
         return Promise.resolve(
           served === undefined
             ? new Response("", { status: 404 })

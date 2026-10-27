@@ -295,11 +295,21 @@ async function readItemPages(
   const seen = new Set<string>();
   let asked = 0;
   let readCount = 0;
+  // First reads only, for the 50 % rule: a retry is a page that already
+  // failed, which says something about that page and nothing about the site,
+  // so one dead link retried alone must not fail the run (ADR 0055 d.6).
+  let firstAsked = 0;
+  let firstRead = 0;
   /** What one Item page declares, or null when it could not be fetched. */
-  const readOne = async (url: string): Promise<Declared | null> => {
+  const readOne = async (
+    url: string,
+    first: boolean
+  ): Promise<Declared | null> => {
+    if (first) firstAsked++;
     try {
       const page = await fetchPage(url, fetchOptions);
       readCount++;
+      if (first) firstRead++;
       return declaredOf(page.body, blurb);
     } catch (cause) {
       if (!(cause instanceof FetchError)) throw cause;
@@ -320,7 +330,7 @@ async function readItemPages(
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
-      const declared = await readOne(item.url);
+      const declared = await readOne(item.url, true);
       items.push(
         declared === null
           ? { ...item, itemPageTries: 1 }
@@ -337,28 +347,27 @@ async function readItemPages(
     // Listing-only for good, and a null is no read owed: `NULL < ?` is not true.
     const owed = queue
       .prepare(
-        `SELECT p.id, p.url FROM proposals p
+        `SELECT p.id, p.url, p.item_page_tries AS tries FROM proposals p
          WHERE p.state = 'pending' AND p.item_page_tries < ?
            AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
          ORDER BY p.first_seen, p.id`
       )
-      .all(ITEM_PAGE_TRIES, scoutId) as Array<{ id: number; url: string }>;
+      .all(ITEM_PAGE_TRIES, scoutId) as Array<{
+      id: number;
+      url: string;
+      tries: number;
+    }>;
     // A Scout re-pointed at another site reads no page of the old one.
     for (const card of owed.filter((o) => siteOf(o.url) === site)) {
       if (asked >= ceiling) break;
       asked++;
-      listingOnly.push({ id: card.id, declared: await readOne(card.url) });
+      listingOnly.push({
+        id: card.id,
+        declared: await readOne(card.url, card.tries === 0),
+      });
     }
   }
-  // One page that will not load is a dead link and breaks nothing; most of
-  // them refusing is a site that stopped letting itself be read, and must
-  // not look like a quiet field (ADR 0055 decision 6). The listing still
-  // read, so its items are proposed with what it showed.
-  const fault =
-    readCount * 2 < asked
-      ? { fault: { kind: "extraction", message: ITEM_PAGES_UNREAD } as const }
-      : {};
-  return {
+  const result: Read = {
     ...read,
     items,
     listingOnly,
@@ -367,8 +376,15 @@ async function readItemPages(
       itemPagesRead: readCount,
       itemPagesUnread: asked - readCount,
     },
-    ...fault,
   };
+  // One page that will not load is a dead link and breaks nothing; most of
+  // them refusing is a site that stopped letting itself be read, and must
+  // not look like a quiet field (ADR 0055 decision 6). The listing still
+  // read, so its items are proposed with what it showed.
+  if (firstRead * 2 < firstAsked) {
+    result.fault = { kind: "extraction", message: ITEM_PAGES_UNREAD };
+  }
+  return result;
 }
 
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
@@ -427,6 +443,9 @@ function verify(
     // memory of its own until it adds a paper (the page predicate is
     // `finishedRunsAtPage`'s, in SQL; a run with no recorded page is taken as this one), and an empty read of it is *no
     // listing found*, never *its structure changed* (ADR 0043 d.6).
+    // Last time is an `ok` run's: an *item pages unread* run proposed what it
+    // listed, but it is no successful extraction to compare against
+    // (ADR 0055 d.6).
     const before = (
       queue
         .prepare(

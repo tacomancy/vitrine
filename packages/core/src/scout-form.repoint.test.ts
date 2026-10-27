@@ -100,7 +100,11 @@ async function opened(
       ),
       model: "claude-sonnet-5-5",
       fetch: (input) => {
-        const body = served(urlOf(input).pathname);
+        // Each paper's own Item page answers, so this stays a site that can be read (ADR 0055 d.6).
+        const path = urlOf(input).pathname;
+        const body = path.startsWith("/papers/")
+          ? "<html><body></body></html>"
+          : served(path);
         return Promise.resolve(
           body === undefined
             ? new Response("", { status: 404 })

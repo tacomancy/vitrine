@@ -99,7 +99,10 @@ created: 2026-09-20T00:00:00Z
       model: "claude-sonnet-5-5",
       fetch: (input) => {
         const path = urlOf(input).pathname;
-        const body = pages[path];
+        // Each paper's own Item page answers, so this stays a site that can be read (ADR 0055 d.6).
+        const body = path.startsWith("/papers/")
+          ? "<html><body></body></html>"
+          : pages[path];
         return Promise.resolve(
           body === undefined
             ? new Response("", { status: path === "/robots.txt" ? 404 : 500 })

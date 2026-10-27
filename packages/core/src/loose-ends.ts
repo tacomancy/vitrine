@@ -211,10 +211,11 @@ export type FailedScout = {
 
 /**
  * A watched Scout whose page stopped yielding what it did (#470; ADR 0040
- * decision 7): an `extraction` run, on a Scout with an earlier clean run that
- * found items, other than *item pages unread* (ADR 0055 decision 6). It replaces the failed-Scout row, so one failure is one row; a
- * first-ever extraction failure has nothing to compare against and stays
- * generic. `address` is what *open the page* opens.
+ * decision 7): an `extraction` run other than *item pages unread* (ADR 0055
+ * decision 6), on a Scout with an earlier clean run that found items. It
+ * replaces the failed-Scout row, so one failure is one row; a first-ever
+ * extraction failure has nothing to compare against and stays generic.
+ * `address` is what *open the page* opens.
  */
 export type StructureChange = {
   kind: "structure-change";
@@ -535,6 +536,8 @@ async function scoutRows(
       health.kind === "extraction" &&
       scout.source.kind === "watched" &&
       runs.at(-1)?.error_message !== ITEM_PAGES_UNREAD &&
+      // An *item pages unread* run is no baseline, though it proposed: it is
+      // no successful extraction, and a change is judged against one.
       runs.some((r) => r.outcome === "ok" && r.fetched > 0)
     ) {
       rows.push({
