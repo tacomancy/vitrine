@@ -23,6 +23,8 @@ export type Declared = {
   date: string | null;
   doi: string | null;
   abstract: string | null;
+  /** The organisations it names as its author, never authors themselves, kept so a model's copy of one is refused too. */
+  organisations: string[];
 };
 
 const ARTICLE_TYPES = ["Article", "ScholarlyArticle", "BlogPosting"];
@@ -89,13 +91,13 @@ function text(value: unknown): string | null {
   return squashed === "" ? null : squashed;
 }
 
-/** People only: an untyped name is not known to be one, and an `Organization` is never one (ADR 0055 decision 9). */
-function peopleOf(author: unknown): string[] {
+/** The names of the entries of one `@type`; an untyped name is neither a person nor an organisation. */
+function namesOf(author: unknown, type: "Person" | "Organization"): string[] {
   const all = Array.isArray(author) ? author : [author];
   return all.flatMap((a) =>
     typeof a === "object" &&
     a !== null &&
-    typesOf(a as Record<string, unknown>).includes("Person")
+    typesOf(a as Record<string, unknown>).includes(type)
       ? (text((a as Record<string, unknown>).name) ?? [])
       : []
   );
@@ -120,7 +122,10 @@ export function declaredOf(html: string, blurb: string | null): Declared {
 
   const citationAuthors = meta.get("citation_author") ?? [];
   const authors =
-    citationAuthors.length > 0 ? citationAuthors : peopleOf(article?.author);
+    citationAuthors.length > 0
+      ? citationAuthors
+      : // People only: an `Organization` is never one (ADR 0055 decision 9).
+        namesOf(article?.author, "Person");
   const date = [
     first("citation_publication_date"),
     text(article?.datePublished),
@@ -139,6 +144,7 @@ export function declaredOf(html: string, blurb: string | null): Declared {
     date: date === undefined ? null : dayOf(date),
     doi: first("citation_doi"),
     abstract: abstract ?? null,
+    organisations: namesOf(article?.author, "Organization"),
   };
 }
 

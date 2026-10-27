@@ -202,13 +202,19 @@ export function createAnthropicProvider(
       usage
     );
   /** One structured-output call, its answer parsed but not yet checked against what was asked. */
-  const structured = async (
-    key: string,
-    model: string,
-    system: string,
-    content: string,
-    schema: Record<string, unknown>
-  ): Promise<{ parsed: unknown; usage: Usage }> => {
+  const structured = async ({
+    key,
+    model,
+    system,
+    content,
+    schema,
+  }: {
+    key: string;
+    model: string;
+    system: string;
+    content: string;
+    schema: Record<string, unknown>;
+  }): Promise<{ parsed: unknown; usage: Usage }> => {
     let usage: Usage | undefined;
     try {
       const message = await makeClient(key).messages.create({
@@ -263,26 +269,25 @@ export function createAnthropicProvider(
       }
     },
     extract: async ({ key, model, page }) => {
-      const { parsed, usage } = await structured(
+      const { parsed, usage } = await structured({
         key,
         model,
-        EXTRACTION_PROMPT,
-        page,
-        SCHEMA
-      );
+        system: EXTRACTION_PROMPT,
+        content: page,
+        schema: SCHEMA,
+      });
       const items = (parsed as { items?: unknown } | null)?.items;
       if (!Array.isArray(items)) throw unmatched(usage);
       return { items: items as ExtractedItem[], usage };
     },
     extractItemPage: async ({ key, model, page, needed }) => {
-      // The fields asked for lead the message; the page is what is Verified against.
-      const { parsed, usage } = await structured(
+      const { parsed, usage } = await structured({
         key,
         model,
-        ITEM_PAGE_PROMPT,
-        `Fields asked for: ${needed.join(", ")}\n\n${page}`,
-        ITEM_PAGE_SCHEMA
-      );
+        system: ITEM_PAGE_PROMPT,
+        content: `Fields asked for: ${needed.join(", ")}\n\n${page}`,
+        schema: ITEM_PAGE_SCHEMA,
+      });
       if (
         typeof parsed !== "object" ||
         parsed === null ||

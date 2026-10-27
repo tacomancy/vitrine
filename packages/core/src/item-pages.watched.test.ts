@@ -524,6 +524,24 @@ describe("an Item page's Extraction", () => {
     ]);
   });
 
+  it("drops the organisation the page declares as its author when the model copies it, though it is on the page", async () => {
+    const lab = await opened({
+      itemPage: (call) =>
+        onPage(call, AGENTIC)
+          ? { authors: ["Anthropic", "Lynch, Aengus"] }
+          : {},
+    });
+
+    await lab.run();
+
+    expect(byTitle(await lab.cards(), AGENTIC).authors).toEqual([
+      "Lynch, Aengus",
+    ]);
+    expect(lab.rows("SELECT item_values_dropped FROM scout_runs")).toEqual([
+      { item_values_dropped: 1 },
+    ]);
+  });
+
   it("never takes a name the page hid in a script, which the model was never shown", async () => {
     // The fixture's script payload names "Not An Author"; reduction strips it.
     const lab = await opened({
@@ -597,6 +615,22 @@ describe("an Item page's Extraction", () => {
     await lab.run();
 
     expect((await lab.cards())[0]).toMatchObject({ published: "Summer 2025" });
+  });
+
+  it("keeps a date the calendar does not have as copied, never a day it is not", async () => {
+    const page = PAGES["/research/byline"]!.replace(
+      "Jun 20, 2025",
+      "Feb 31, 2025"
+    );
+    const lab = await opened({
+      pages: { ...PAGES, "/research/byline": page },
+      listed: () => [BYLINE],
+      itemPage: () => ({ date: "Feb 31, 2025" }),
+    });
+
+    await lab.run();
+
+    expect((await lab.cards())[0]).toMatchObject({ published: "Feb 31, 2025" });
   });
 
   it("asks only for what is still empty, and makes no call for a page whose declared metadata left nothing empty", async () => {
@@ -701,6 +735,32 @@ describe("an Item page's Extraction", () => {
         // What the failed calls cost is still the run's.
         input_tokens: usage.input + 2 * itemUsage.input,
       },
+    ]);
+  });
+
+  it("fails the run when the key is rejected on an Item page, with what it spent, and its cards come on the next run", async () => {
+    const lab = await opened({ listed: () => [BYLINE] });
+    const copy = lab.models.extractItemPage;
+    lab.models.extractItemPage = () =>
+      Promise.reject(new ModelError("credentials", "key rejected"));
+
+    expect(await lab.run()).toMatchObject({ outcome: "failed" });
+    expect(await lab.cards()).toEqual([]);
+    expect(
+      lab.rows("SELECT error_kind, error_message, input_tokens FROM scout_runs")
+    ).toEqual([
+      {
+        error_kind: "credentials",
+        error_message: "key rejected",
+        input_tokens: usage.input,
+      },
+    ]);
+
+    lab.models.extractItemPage = copy;
+    await lab.run();
+
+    expect((await lab.cards()).map((card) => card.title)).toEqual([
+      "A Byline With No Markup",
     ]);
   });
 });

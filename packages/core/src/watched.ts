@@ -301,7 +301,8 @@ async function readItemPages(
         items.push({ ...item, itemPageTries: 1 });
         continue;
       }
-      const declared = filled(item, declaredOf(page.body, blurb));
+      const pageDeclared = declaredOf(page.body, blurb);
+      const declared = filled(item, pageDeclared);
       const needed = neededOf(declared);
       if (needed.length === 0) {
         readCount++;
@@ -309,7 +310,12 @@ async function readItemPages(
         continue;
       }
       try {
-        const copied = await copiedFrom(page, needed, reader);
+        const copied = await copiedFrom(
+          page,
+          needed,
+          pageDeclared.organisations,
+          reader
+        );
         usage = plus(usage, copied.usage);
         dropped += copied.dropped;
         readCount++;
@@ -317,6 +323,16 @@ async function readItemPages(
       } catch (cause) {
         if (!(cause instanceof ModelError)) throw cause;
         if (cause.usage !== undefined) usage = plus(usage, cause.usage);
+        // A key rejected mid-run is a broken Scout, not one page's bad
+        // luck: the run fails as the listing's call would, with what it
+        // spent, and its items arrive on the next run that can read them.
+        if (cause.kind === "credentials") {
+          throw new WatchedError("credentials", KEY_REJECTED, {
+            ...read.facts,
+            usage,
+            costUsd: usage === null ? null : costUsd(reader.model, usage),
+          });
+        }
         items.push({ ...declared, itemPageTries: 1 });
       }
     }
@@ -376,10 +392,14 @@ type Copied = {
  * the abstract instead, and every one of them is checked: each author name on
  * its own, so one invented co-author costs that name and not the byline. A
  * value that fails is dropped and counted, and the rest of the card stands.
+ * An organisation the page declares as its author is on the page, so the
+ * substring check would pass it: it is refused by name, as declared authors
+ * are (ADR 0055 decision 9).
  */
 async function copiedFrom(
   page: Page,
   needed: ItemPageField[],
+  organisations: string[],
   { models, key, model }: ItemPageReader
 ): Promise<Copied> {
   let text = reduceHtml(page.body, page.url);
@@ -406,11 +426,18 @@ async function copiedFrom(
     dropped++;
     return "";
   };
-  // A field the model was not asked for is ignored, never filled.
   const asked = (field: ItemPageField) => needed.includes(field);
+  const organisation = new Set(organisations.map((o) => o.toLowerCase()));
+  const person = (name: string) => {
+    if (!organisation.has(name.toLowerCase())) return true;
+    dropped++;
+    return false;
+  };
   const fields = {
     authors: asked("authors")
-      ? (answer.fields.authors ?? []).map(verified).filter((a) => a !== "")
+      ? (answer.fields.authors ?? [])
+          .map(verified)
+          .filter((a) => a !== "" && person(a))
       : [],
     date: asked("date") ? dayOfCopied(verified(answer.fields.date)) : "",
     venue: asked("venue") ? verified(answer.fields.venue) : "",
@@ -442,28 +469,27 @@ const MONTHS = [
  * copied, and no time zone is involved, so a day never shifts by one.
  */
 function dayOfCopied(copied: string): string {
-  const day = (y: string, m: number, d: string) =>
-    m < 1 || m > 12 || Number(d) < 1 || Number(d) > 31
-      ? copied
-      : `${y}-${String(m).padStart(2, "0")}-${d.padStart(2, "0")}`;
   // `Jun`, `June` and `Sept` name a month; `Junk` does not.
   const month = (name: string) =>
     name.length < 3
       ? 0
       : MONTHS.findIndex((m) => m.startsWith(name.toLowerCase())) + 1;
-  const iso = /^(\d{4})-(\d{2})-(\d{2})\b/.exec(copied);
-  if (iso !== null) return day(iso[1]!, Number(iso[2]), iso[3]!);
-  const monthFirst = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(
-    copied
-  );
-  if (monthFirst !== null && month(monthFirst[1]!) > 0) {
-    return day(monthFirst[3]!, month(monthFirst[1]!), monthFirst[2]!);
+  const parts =
+    /^(?<y>\d{4})-(?<m>\d{2})-(?<d>\d{2})\b/.exec(copied)?.groups ??
+    /^(?<name>[A-Za-z]{3,9})\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})$/.exec(copied)
+      ?.groups ??
+    /^(?<d>\d{1,2})\s+(?<name>[A-Za-z]{3,9})\.?,?\s+(?<y>\d{4})$/.exec(copied)
+      ?.groups;
+  if (parts === undefined) return copied;
+  const y = Number(parts.y);
+  const m = parts.name === undefined ? Number(parts.m) : month(parts.name);
+  const d = Number(parts.d);
+  // A day the calendar does not have (`Feb 31`) is no day: kept as copied.
+  const at = new Date(Date.UTC(y, m - 1, d));
+  if (m < 1 || at.getUTCMonth() !== m - 1 || at.getUTCDate() !== d) {
+    return copied;
   }
-  const dayFirst = /^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/.exec(copied);
-  if (dayFirst !== null && month(dayFirst[2]!) > 0) {
-    return day(dayFirst[3]!, month(dayFirst[2]!), dayFirst[1]!);
-  }
-  return copied;
+  return at.toISOString().slice(0, 10);
 }
 
 /** The copy fills only what is still empty: what the listing or the page declared stands. */

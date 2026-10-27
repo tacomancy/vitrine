@@ -68,12 +68,11 @@ export function virtualClock(): ArxivClock & { slept: number[] } {
   };
 }
 
-/** The URL a `fetch` was asked for, whichever of its three forms it came in. */
 /**
  * A model's reading of an Item page that copies nothing and costs nothing,
- * for a Watched test about something else: its fake server answers every
- * path, so each new item's page is read and asked about (ADR 0055), and this
- * keeps that out of what the test counts.
+ * for a test about something else whose fake server may answer an item's own
+ * link: that page is then read and asked about (ADR 0055), and this keeps it
+ * out of what the test counts.
  */
 export const copiesNothing: ModelProvider["extractItemPage"] = () =>
   Promise.resolve({
@@ -81,6 +80,7 @@ export const copiesNothing: ModelProvider["extractItemPage"] = () =>
     usage: { input: 0, output: 0, cacheRead: 0 },
   });
 
+/** The URL a `fetch` was asked for, whichever of its three forms it came in. */
 export const urlOf = (input: string | URL | Request): URL =>
   new URL(
     typeof input === "string"
