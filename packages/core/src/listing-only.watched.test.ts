@@ -562,4 +562,37 @@ describe("a Listing-only card", () => {
       )
     ).toEqual([{ item_page_tries: 1 }]);
   });
+
+  it("is asked only for what its row still lacks, so a venue another source gave is neither asked for nor replaced", async () => {
+    const lab = await opened();
+    lab.list(range(1, 26));
+    lab.bylined.add(26);
+    await lab.run();
+    lab.write(
+      `UPDATE proposals SET venue = 'Workshop on Probes' WHERE title = 'Post number 26'`
+    );
+    const asked: string[][] = [];
+    lab.models.extractItemPage = ({ needed }) => {
+      asked.push([...needed]);
+      return Promise.resolve({
+        fields: {
+          authors: ["Ada Rowe"],
+          date: null,
+          // On the page, but not asked for.
+          venue: "Post number 26",
+          abstract: null,
+        },
+        usage: { input: 400, output: 60, cacheRead: 0 },
+      });
+    };
+
+    lab.later();
+    await lab.run();
+
+    expect(asked).toEqual([["authors", "abstract"]]);
+    expect(await lab.card(26)).toMatchObject({
+      venue: "Workshop on Probes",
+      authors: ["Ada Rowe"],
+    });
+  });
 });
