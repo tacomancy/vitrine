@@ -21,6 +21,7 @@ import {
   readWatched,
   WatchedError,
   type Arrival,
+  type ListingOnlyRead,
   type RunFacts,
   type WatchedDeps,
 } from "./watched.js";
@@ -219,6 +220,7 @@ export async function runScout(
     }
     const arrived = inTransaction(queue, () => {
       const arrived = arrive(deps, scout, runId, read.items, rules);
+      for (const card of read.listingOnly ?? []) fillListingOnly(queue, card);
       // A clean run is the moment a deferral ends (ADR 0016 decision 8).
       returnDeferred(deps, scout.id);
       return arrived;
@@ -501,6 +503,7 @@ async function readArxiv(
   moreMatched: number;
   fetched: number;
   facts?: undefined;
+  listingOnly?: undefined;
 }> {
   const found = await arxiv.search(query, { from, to });
   return {
@@ -535,6 +538,7 @@ async function readOpenAlex(
   moreMatched: number;
   fetched: number;
   facts?: undefined;
+  listingOnly?: undefined;
 }> {
   const search =
     scout.tags === undefined ? asked : asked.slice(SEARCH_FILTER.length);
@@ -713,6 +717,53 @@ function arrive(
   );
   releaseCounterweight(deps, revisited);
   return { new: fresh, held };
+}
+
+/**
+ * A Listing-only card's Item page, read on a later run, gives the card the
+ * fields it lacks (ADR 0055 decision 5): the brief's "most complete metadata
+ * winning". Only an empty field is written, never one the listing or a feed
+ * already gave, and only while the card is pending: what the researcher
+ * triaged is what they saw. The state is checked here, at the write, and not
+ * only where the page was chosen, because a card can be accepted or rejected
+ * while its page is being fetched. A page that could not be fetched leaves
+ * the card as it was, with the try counted; one the model could not read
+ * gives what it declared, and counts a try too.
+ */
+function fillListingOnly(
+  queue: DatabaseSync,
+  { id, card, read }: ListingOnlyRead
+): void {
+  if (card === null) {
+    queue
+      .prepare(
+        "UPDATE proposals SET item_page_tries = item_page_tries + 1 WHERE id = ? AND state = 'pending'"
+      )
+      .run(id);
+    return;
+  }
+  // The guards repeat at the write what the read already chose: a field the
+  // card gained since it was read, from another Scout, is not overwritten.
+  queue
+    .prepare(
+      `UPDATE proposals SET
+         authors = CASE WHEN authors = '[]' THEN ? ELSE authors END,
+         published = CASE WHEN published = '' THEN ? ELSE published END,
+         venue = CASE WHEN venue IS NULL OR venue = '' THEN ? ELSE venue END,
+         doi = COALESCE(doi, ?),
+         abstract = CASE WHEN abstract = '' THEN ? ELSE abstract END,
+         item_page_tries = CASE WHEN ? THEN NULL ELSE item_page_tries + 1 END
+       WHERE id = ? AND state = 'pending'`
+    )
+    .run(
+      JSON.stringify(card.authors),
+      card.published,
+      card.venue,
+      card.doi,
+      card.abstract,
+      read ? 1 : 0,
+      id
+    );
 }
 
 /**

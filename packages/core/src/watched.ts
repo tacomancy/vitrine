@@ -101,6 +101,25 @@ export type Read = {
   moreMatched: number;
   fetched: number;
   facts: RunFacts;
+  /** Item pages read this run for Listing-only cards already in the queue; the run writes them (ADR 0055 decision 5). */
+  listingOnly?: ListingOnlyRead[];
+};
+
+/** The card fields an Item page can fill. */
+export type ItemFields = Pick<
+  Arrival,
+  "authors" | "published" | "venue" | "abstract" | "doi"
+>;
+
+/**
+ * A Listing-only card's Item page as this run read it: the card's fields with
+ * the page's filled in, or null when it could not be fetched. `read` is false
+ * when the page was fetched but the model could not read it, which is a try.
+ */
+export type ListingOnlyRead = {
+  id: number;
+  card: ItemFields | null;
+  read: boolean;
 };
 
 /** Input tokens the reduced text may use before the call (counted, not guessed). */
@@ -203,11 +222,25 @@ export async function readWatched(
       "SELECT page_hash FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' AND page_hash IS NOT NULL AND (query IS NULL OR query = ?) ORDER BY id DESC LIMIT 1"
     )
     .get(scout.id, scout.url) as { page_hash: string } | undefined;
+  // Asked for before the page-unchanged test, since an Item page owed on an
+  // unchanged listing may still need an Extraction.
+  const model = await deps.model();
+  const reader = { models: deps.models, key, model };
+  // It skips the listing's Extraction only: the Item pages owed are read all
+  // the same, or a Listing-only card would wait on the listing to change
+  // (ADR 0055 decision 5).
   if (last?.page_hash === facts.pageHash) {
-    return { items: [], moreMatched: 0, fetched: 0, facts };
+    return readItemPages(
+      { items: [], moreMatched: 0, fetched: 0, facts },
+      page,
+      queue,
+      fetchOptions,
+      scout.id,
+      reader,
+      itemPages
+    );
   }
 
-  const model = await deps.model();
   facts.model = model;
   let read: Read;
   try {
@@ -237,7 +270,8 @@ export async function readWatched(
     page,
     queue,
     fetchOptions,
-    { models: deps.models, key, model },
+    scout.id,
+    reader,
     itemPages
   );
 }
@@ -261,12 +295,18 @@ function siteOf(url: string): string | null {
  * owed, when it first arrived. A page that cannot be fetched leaves its card
  * as the listing showed it, with the try counted; one the model cannot read
  * keeps what it declared, and is a try too.
+ *
+ * What the ceiling leaves after this run's new items goes to the Scout's
+ * Listing-only cards, oldest first (decision 5): today's finds fill in
+ * first, and the backlog drains in the order it arrived. Which pages a run
+ * owes is decided here and nowhere else.
  */
 async function readItemPages(
   read: Read,
   listing: Page,
   queue: DatabaseSync,
   fetchOptions: PageFetchOptions,
+  scoutId: string,
   reader: ItemPageReader,
   ceiling: number
 ): Promise<Read> {
@@ -279,6 +319,64 @@ async function readItemPages(
   let readCount = 0;
   let dropped = 0;
   let usage = read.facts.usage;
+  /**
+   * One Item page read into a card's empty fields: what the page declares,
+   * then the Extraction for what is still empty. Null when the page could
+   * not be fetched; `read` is false when the model could not read it, and
+   * the card then carries what the page declared, with the try counted.
+   */
+  const readOne = async <T extends ItemFields>(
+    url: string,
+    card: T
+  ): Promise<{ card: T; read: boolean } | null> => {
+    let page;
+    try {
+      page = await fetchPage(url, fetchOptions);
+    } catch (cause) {
+      if (!(cause instanceof FetchError)) throw cause;
+      return null;
+    }
+    const pageDeclared = declaredOf(page.body, blurb);
+    const declared = filled(card, pageDeclared);
+    const needed = neededOf(declared);
+    if (needed.length === 0) {
+      readCount++;
+      return { card: declared, read: true };
+    }
+    try {
+      const copied = await copiedFrom(
+        page,
+        needed,
+        pageDeclared.organisations,
+        reader
+      );
+      usage = plus(usage, copied.usage);
+      dropped += copied.dropped;
+      readCount++;
+      return { card: filledFromCopy(declared, copied.fields), read: true };
+    } catch (cause) {
+      if (!(cause instanceof ModelError)) throw cause;
+      if (cause.usage !== undefined) usage = plus(usage, cause.usage);
+      // A key rejected mid-run is a broken Scout, not one page's bad luck:
+      // the run fails as the listing's call would, with what it spent, and
+      // its items arrive on the next run that can read them.
+      if (cause.kind === "credentials") {
+        throw new WatchedError("credentials", KEY_REJECTED, spent());
+      }
+      return { card: declared, read: false };
+    }
+  };
+  /** The run's facts with what its Item pages cost added in. */
+  const spent = (): RunFacts => ({
+    ...read.facts,
+    // An unchanged listing made no call of its own; the model is named on
+    // the run only once something was spent on it.
+    model: usage === null ? read.facts.model : reader.model,
+    usage,
+    costUsd: usage === null ? read.facts.costUsd : costUsd(reader.model, usage),
+    itemPagesRead: readCount,
+    itemValuesDropped: dropped,
+  });
   const items: Arrival[] = [];
   for (const item of read.items) {
     const owed =
@@ -293,61 +391,59 @@ async function readItemPages(
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
-      let page;
-      try {
-        page = await fetchPage(item.url, fetchOptions);
-      } catch (cause) {
-        if (!(cause instanceof FetchError)) throw cause;
-        items.push({ ...item, itemPageTries: 1 });
-        continue;
-      }
-      const pageDeclared = declaredOf(page.body, blurb);
-      const declared = filled(item, pageDeclared);
-      const needed = neededOf(declared);
-      if (needed.length === 0) {
-        readCount++;
-        items.push(declared);
-        continue;
-      }
-      try {
-        const copied = await copiedFrom(
-          page,
-          needed,
-          pageDeclared.organisations,
-          reader
-        );
-        usage = plus(usage, copied.usage);
-        dropped += copied.dropped;
-        readCount++;
-        items.push(filledFromCopy(declared, copied.fields));
-      } catch (cause) {
-        if (!(cause instanceof ModelError)) throw cause;
-        if (cause.usage !== undefined) usage = plus(usage, cause.usage);
-        // A key rejected mid-run is a broken Scout, not one page's bad
-        // luck: the run fails as the listing's call would, with what it
-        // spent, and its items arrive on the next run that can read them.
-        if (cause.kind === "credentials") {
-          throw new WatchedError("credentials", KEY_REJECTED, {
-            ...read.facts,
-            usage,
-            costUsd: usage === null ? null : costUsd(reader.model, usage),
-          });
-        }
-        items.push({ ...declared, itemPageTries: 1 });
-      }
+      const r = await readOne(item.url, item);
+      items.push(
+        r === null
+          ? { ...item, itemPageTries: 1 }
+          : r.read
+            ? r.card
+            : { ...r.card, itemPageTries: 1 }
+      );
     }
   }
-  return {
-    ...read,
-    items,
-    facts: {
-      ...read.facts,
-      usage,
-      costUsd: usage === null ? null : costUsd(reader.model, usage),
-      itemPagesRead: readCount,
-      itemValuesDropped: dropped,
-    },
-  };
+
+  const listingOnly: ListingOnlyRead[] = [];
+  if (asked < ceiling && site !== null) {
+    // Pending only: a triaged card is never written, so its page is not
+    // worth a request. The run's write checks again, since a card can be
+    // triaged while its page is in flight.
+    const owed = queue
+      .prepare(
+        `SELECT p.id, p.url, p.authors, p.published, p.venue, p.abstract, p.doi FROM proposals p
+         WHERE p.state = 'pending' AND p.item_page_tries IS NOT NULL
+           AND EXISTS (SELECT 1 FROM appearances a WHERE a.proposal_id = p.id AND a.scout_id = ?)
+         ORDER BY p.first_seen, p.id`
+      )
+      .all(scoutId) as Array<{
+      id: number;
+      url: string;
+      authors: string;
+      published: string;
+      venue: string | null;
+      abstract: string;
+      doi: string | null;
+    }>;
+    // A Scout re-pointed at another site reads no page of the old one.
+    for (const card of owed.filter((o) => siteOf(o.url) === site)) {
+      if (asked >= ceiling) break;
+      asked++;
+      // What the card already has decides what is asked: only its empty
+      // fields are worth a call.
+      const r = await readOne(card.url, {
+        authors: JSON.parse(card.authors) as string[],
+        published: card.published,
+        venue: card.venue,
+        abstract: card.abstract,
+        doi: card.doi,
+      });
+      listingOnly.push({
+        id: card.id,
+        card: r?.card ?? null,
+        read: r?.read ?? false,
+      });
+    }
+  }
+  return { ...read, items, listingOnly, facts: spent() };
 }
 
 type ItemPageReader = { models: ModelProvider; key: string; model: string };
@@ -365,7 +461,7 @@ const plus = (a: Usage | null, b: Usage): Usage => ({
  * one, and a post with no venue is a valid card (ADR 0055 decision 3; brief
  * `## Scouts` § Proposals). It is asked for when the call is made anyway.
  */
-function neededOf(card: Arrival): ItemPageField[] {
+function neededOf(card: ItemFields): ItemPageField[] {
   const empty = {
     authors: card.authors.length === 0,
     date: card.published === "",
@@ -493,7 +589,10 @@ function dayOfCopied(copied: string): string {
 }
 
 /** The copy fills only what is still empty: what the listing or the page declared stands. */
-const filledFromCopy = (card: Arrival, copied: Copied["fields"]): Arrival => ({
+const filledFromCopy = <T extends ItemFields>(
+  card: T,
+  copied: Copied["fields"]
+): T => ({
   ...card,
   authors: card.authors.length > 0 ? card.authors : copied.authors,
   published: card.published !== "" ? card.published : copied.date,
@@ -505,7 +604,7 @@ const filledFromCopy = (card: Arrival, copied: Copied["fields"]): Arrival => ({
 });
 
 /** Only what the listing left empty: a field it gave is never replaced (ADR 0055 decision 5). */
-const filled = (item: Arrival, declared: Declared): Arrival => ({
+const filled = <T extends ItemFields>(item: T, declared: Declared): T => ({
   ...item,
   authors: item.authors.length > 0 ? item.authors : declared.authors,
   published: item.published !== "" ? item.published : (declared.date ?? ""),
