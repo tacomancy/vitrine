@@ -577,6 +577,9 @@ describe("the form, watching a page", () => {
         titles: ["First paper", "Second paper"],
         tokens: { input: 1200, output: 300 },
         costUsd: 0.0054,
+        cards: [],
+        projection: null,
+        itemPagesUnfetched: 0,
       },
     });
     watch();
@@ -593,6 +596,114 @@ describe("the form, watching a page", () => {
         .getAllByRole("listitem")
         .map((li) => li.textContent)
     ).toEqual(["First paper", "Second paper"]);
+  });
+
+  // #891: what the first look will spend on Item pages, from what try's cost.
+  it("projects the first look's cost, and shows the Item pages it read", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "found",
+        via: "model",
+        total: 24,
+        verified: 24,
+        dropped: 0,
+        titles: ["First paper"],
+        tokens: { input: 2400, output: 420 },
+        costUsd: 0.0123,
+        cards: [
+          {
+            title: "First paper",
+            url: "https://lab.example/papers/p1/",
+            authors: ["Ada Rowe", "Ben Ito"],
+            published: "2026-09-14",
+            venue: null,
+            abstract: "Probes read planning off the residual stream.",
+          },
+        ],
+        projection: { costUsd: 1.2345, itemPages: 24 },
+        itemPagesUnfetched: 0,
+      },
+    });
+    watch();
+    type("Address", "https://lab.example/publications");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    expect(await screen.findByText("≈ $1.23 for 24 item pages")).toBeDefined();
+    const read = screen.getByRole("list", { name: "Item pages read" });
+    expect(within(read).getByText("First paper")).toBeDefined();
+    expect(
+      within(read).getByText(/Ada Rowe, Ben Ito · 2026-09-14/)
+    ).toBeDefined();
+    expect(
+      within(read).getByText("Probes read planning off the residual stream.")
+    ).toBeDefined();
+  });
+
+  it("says a field an Item page left empty as missing, a page it could not fetch, and a cost under a cent", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "found",
+        via: "model",
+        total: 24,
+        verified: 24,
+        dropped: 0,
+        titles: ["First paper"],
+        tokens: { input: 2400, output: 420 },
+        costUsd: 0.0001,
+        cards: [
+          {
+            title: "First paper",
+            url: "https://lab.example/papers/p1/",
+            authors: [],
+            published: "",
+            venue: null,
+            abstract: "",
+          },
+        ],
+        projection: { costUsd: 0.003, itemPages: 24 },
+        itemPagesUnfetched: 1,
+      },
+    });
+    watch();
+    type("Address", "https://lab.example/publications");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    expect(
+      await screen.findByText("≈ < $0.01 for 24 item pages")
+    ).toBeDefined();
+    expect(screen.getByText("1 item page could not be fetched")).toBeDefined();
+    const read = screen.getByRole("list", { name: "Item pages read" });
+    for (const missing of ["authors", "date", "abstract"]) {
+      expect(within(read).getByText(`${missing} missing`)).toBeDefined();
+    }
+  });
+
+  it("projects nothing when no Item page was read", async () => {
+    await open({
+      "scouts.tryWatched": {
+        outcome: "found",
+        via: "model",
+        total: 2,
+        verified: 2,
+        dropped: 0,
+        titles: ["First paper"],
+        tokens: { input: 1200, output: 300 },
+        costUsd: 0.0054,
+        cards: [],
+        projection: null,
+        itemPagesUnfetched: 0,
+      },
+    });
+    watch();
+    type("Address", "https://lab.example/publications");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+
+    await screen.findByText(/2 found/);
+    expect(screen.queryByText(/item page/)).toBeNull();
+    expect(screen.queryByRole("list", { name: "Item pages read" })).toBeNull();
   });
 
   it("says a feed was found, and that no model was called", async () => {
@@ -613,6 +724,7 @@ describe("the form, watching a page", () => {
       await screen.findByText(/a feed was found · no model call/)
     ).toBeDefined();
     expect(screen.getByText(/14 found/)).toBeDefined();
+    expect(screen.queryByText(/item page/)).toBeNull();
   });
 
   it("says a failure in the Scout's own sentence", async () => {
@@ -645,6 +757,7 @@ describe("the form, watching a page", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
     expect(await screen.findByText(/No model key is stored/)).toBeDefined();
+    expect(screen.queryByText(/item page/)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Add a key" }));
 

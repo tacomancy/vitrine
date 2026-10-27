@@ -113,6 +113,19 @@ export type Read = {
    * clean read.
    */
   fault?: { kind: "extraction"; message: typeof ITEM_PAGES_UNREAD };
+  /** What *try* projects a first look's cost from (#891). */
+  itemPageSample?: ItemPageSample;
+};
+
+/**
+ * This run's new items owed an Item page, past the ceiling too; the cards
+ * whose page was read; the pages fetched; and what every Item page's calls cost, apart from the listing's.
+ */
+export type ItemPageSample = {
+  owed: number;
+  read: Arrival[];
+  fetched: number;
+  usage: Usage | null;
 };
 
 /** The card fields an Item page can fill. */
@@ -157,7 +170,7 @@ export async function readWatched(
   deps: WatchedDeps,
   queue: DatabaseSync,
   scout: { id: string; url: string },
-  /** How many Item pages it may read; *try* reads none yet. */
+  /** How many Item pages it may read; *try* reads fewer. */
   { itemPages = ITEM_PAGE_CEILING }: { itemPages?: number } = {}
 ): Promise<Read> {
   const fetchOptions: PageFetchOptions = {
@@ -346,6 +359,9 @@ async function readItemPages(
   let readCount = 0;
   let dropped = 0;
   let usage = read.facts.usage;
+  // Apart from the listing's, so a page's own cost can be told.
+  let itemUsage: Usage | null = null;
+  let fetched = 0;
   // What the site refused: a page that could not be fetched. One the model
   // could not read is a try (above), but it says the provider failed, not
   // the site, so it is in neither count (ADR 0055 d.6).
@@ -378,6 +394,9 @@ async function readItemPages(
       if (!(cause instanceof FetchError)) throw cause;
       return null;
     }
+    // A page the model then fails on still cost what it cost, so it is
+    // measured with the rest.
+    fetched++;
     const pageDeclared = declaredOf(page.body, blurb);
     const declared = filled(card, pageDeclared);
     const needed = neededOf(declared);
@@ -393,12 +412,16 @@ async function readItemPages(
         reader
       );
       usage = plus(usage, copied.usage);
+      itemUsage = plus(itemUsage, copied.usage);
       dropped += copied.dropped;
       readCount++;
       return { card: filledFromCopy(declared, copied.fields), read: true };
     } catch (cause) {
       if (!(cause instanceof ModelError)) throw cause;
-      if (cause.usage !== undefined) usage = plus(usage, cause.usage);
+      if (cause.usage !== undefined) {
+        usage = plus(usage, cause.usage);
+        itemUsage = plus(itemUsage, cause.usage);
+      }
       // A key rejected mid-run is a broken Scout, not one page's bad luck:
       // the run fails as the listing's call would, with what it spent, and
       // its items arrive on the next run that can read them.
@@ -425,6 +448,8 @@ async function readItemPages(
     itemPagesUnread: unread,
   });
   const items: Arrival[] = [];
+  let owedCount = 0;
+  const readCards: Arrival[] = [];
   for (const item of read.items) {
     const owed =
       site !== null &&
@@ -434,11 +459,15 @@ async function readItemPages(
     seen.add(item.key);
     if (!owed) {
       items.push(item);
-    } else if (asked >= ceiling) {
+      continue;
+    }
+    owedCount++;
+    if (asked >= ceiling) {
       items.push({ ...item, itemPageTries: 0 });
     } else {
       asked++;
       const r = await readOne(item.url, item);
+      if (r?.read === true) readCards.push(r.card);
       tally(true, r);
       items.push(
         r === null
@@ -496,7 +525,18 @@ async function readItemPages(
       });
     }
   }
-  const result: Read = { ...read, items, listingOnly, facts: spent() };
+  const result: Read = {
+    ...read,
+    items,
+    listingOnly,
+    itemPageSample: {
+      owed: owedCount,
+      read: readCards,
+      fetched,
+      usage: itemUsage,
+    },
+    facts: spent(),
+  };
   // One page that will not load is a dead link and breaks nothing; most of
   // them refusing is a site that stopped letting itself be read, and must
   // not look like a quiet field (ADR 0055 decision 6). The listing still
