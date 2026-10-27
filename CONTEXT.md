@@ -381,8 +381,20 @@ A hand-written search string, in the Structured source's own syntax, that a Scou
 _Avoid_: Prompt, search
 
 **Watched source**:
-One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that, and the page is never sent to a model; otherwise it needs an Extraction. Never crawled: one page and the feed it advertises, no link-following. Has no Filter until Tags exist; its Scout is made on the same form as an arXiv Scout and is first run at its first due check, never on save. Its URL can be changed on the form (the field is labelled *Address*, which is not an Address, the router's): the same Scout is then pointed at another page (ADR 0043).
+One URL a Scout fetches on its cadence — a lab's publications page, a blog, a proceedings index. When the page advertises a Feed the Scout reads that, and the page is never sent to a model; otherwise it needs an Extraction. Never crawled: one page, the feed it advertises, and the Item page of each item it has not seen before, on the same site, up to a ceiling per run; nothing linked from an Item page is followed (ADR 0055). Whether an item is a paper or a post is never decided: a post is a valid card, and Lanes and Mute rules govern attention. Has no Filter until Tags exist; its Scout is made on the same form as an arXiv Scout and is first run at its first due check, never on save. Its URL can be changed on the form (the field is labelled *Address*, which is not an Address, the router's): the same Scout is then pointed at another page (ADR 0043).
 _Avoid_: Site, crawl target, scrape
+
+**Item page**:
+The page a Watched source's listing links one item to — a post, an announcement, a paper published as a web page — on the same site as the listing. Read once, the first time the item is seen, to fill the card fields the listing does not show: first from the metadata the page declares for machines, then by an Extraction of that page for the fields still missing, Verified against that page. It is the item's own page and never stands for a paper it links to. Its authors are people only: an organisation the page names as its author never fills the field. A Feed entry's Item page is read for its declared metadata only, never by a model, so a Feed stays free.
+_Avoid_: Detail page, article, subpage, landing page
+
+**Listing-only** (of a Proposal):
+A pending Proposal from a Watched source whose Item page has not yet been read — past the run's ceiling, or a read that failed and will be tried again, up to three times. Proposed at once with what the listing showed; when its Item page is read, the card gains the fields it was missing, filling empty fields only and only while it is pending. A triaged card is never changed.
+_Avoid_: Unread (that is a Source never annotated), partial, incomplete, stale
+
+**Paper link** (of a Proposal or a stub):
+The link an Item page's own text gives as this work's paper — *read the paper*, *full paper* — copied from that page and Verified against it, shown beside the link back. Null when the page names none; a work the page merely cites is never its Paper link. Carried onto the Source stub on acceptance, beside the link back. Never the Source key, and never what makes another Proposal Held: a wrong pick is a link that can be ignored, never two works merged into one (ADR 0055).
+_Avoid_: Paper URL, PDF link, canonical, primary source
 
 **Feed**:
 An RSS or Atom document a Watched source advertises, whose entries map to a Proposal card directly. Read deterministically; no model call, no Extraction. A feed that fails is a failure said as one, never a reason to fall back to the model.
@@ -392,7 +404,7 @@ The one model call in the Scout pipeline: a Watched source's page, reduced to te
 _Avoid_: Summarisation, parsing (that is what a Feed or an API gets), scraping
 
 **Verified** (of an extracted item):
-Its title and link both occur literally on the fetched page. An item that is not Verified is dropped and counted on the run, never proposed. What stands between a hallucinated card and the Queue.
+Each value it copied occurs literally, whitespace collapsed, on the page it was copied from. From a listing, that is its title and link, and an item whose title or link is not Verified is dropped and counted on the run, never proposed. From an Item page, it is every field the Extraction filled, and a value that is not Verified is dropped and counted while the rest of the card stands; a date is checked as copied and formatted after. What stands between a hallucinated card and the Queue.
 _Avoid_: Confident, high-confidence (nothing is scored), validated
 
 **Source key**:
@@ -430,7 +442,7 @@ _Avoid_: Candidate, suggestion, result, message, proposed Source
 Which Scout found it, which Questions that Scout is Assigned to, and whether it came from a Retroactive search. Carried onto the Source stub on acceptance.
 
 **Retroactive** (of a Proposal or a stub):
-Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run at that page. Shown as such so the batch can be triaged or rejected together.
+Found by a backward search over already-published work rather than by an ongoing run: for a Structured source, a search offered when the Scout is created and bounded by a backstop date; for a Watched source, everything already on the page at the Scout's first run at that page — what the page serves, not what a *see more* control would load. Shown as such so the batch can be triaged or rejected together.
 _Avoid_: Backfill, historical, catch-up
 
 **New find**:
