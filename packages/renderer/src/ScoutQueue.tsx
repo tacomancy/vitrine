@@ -22,6 +22,7 @@ import { Button } from "./Form";
 import {
   DROPPED,
   HEALTH_UNREAD,
+  Marker,
   NOTHING_PENDING,
   VoiceLine,
   dollars,
@@ -106,6 +107,8 @@ export function ScoutQueue({
   // *Group by Question* (ADR 0044 decision 10): Scout is the default, and the
   // Question view is Review's alone. The core says which cards each group holds.
   const [groupBy, setGroupBy] = useState<"scout" | "question">("scout");
+  const [railOpen, setRailOpen] = useState(true);
+  const [railHovered, setRailHovered] = useState(false);
   const questionGroups = useQuery({
     ...trpc.scouts.questionGroups.queryOptions(),
     enabled: groupBy === "question",
@@ -448,6 +451,12 @@ export function ScoutQueue({
       to: SCOUT_MANAGEMENT,
     })),
   ];
+  // Collapsing is the researcher's own and outlasts a filter change; hover
+  // only lends the names while the pointer is over the strip (ADR 0054
+  // decision 4). The button and the key both flip the researcher's own
+  // choice, never the lent names, so a click under the pointer pins the strip
+  // open instead of shutting it.
+  const showNames = railOpen || railHovered;
   const questions = questionChoices(questionList.data);
   // A dropped Scout is not looking, so it has no Voice of its own. What it
   // found stays in Review under its name (ADR 0042 decision 1), so while
@@ -623,6 +632,12 @@ export function ScoutQueue({
         event.preventDefault();
         onUndo();
       }
+      // The key that opens the strip is the one that shuts it, so the rail is
+      // never reachable by pointer alone (ADR 0054 decision 4).
+      if (bare && key === "[") {
+        event.preventDefault();
+        setRailOpen((was) => !was);
+      }
       if (bare && !mutedOpen && (key === "j" || key === "k")) {
         const step = key === "j" ? 1 : -1;
         if (lane === "review" && card !== undefined) {
@@ -760,51 +775,94 @@ export function ScoutQueue({
           Health Loose Ends reads, that only filters, under every grouping. A
           broken Scout keeps its entry so it cannot hide in a rail nobody
           filters. */}
-      <ul className={styles.rail} aria-label="Scouts">
-        {scouts.isError && (
-          <li>
-            <FirstSlot voice="wrong" claim="" />
-          </li>
-        )}
-        {(scouts.data?.scouts ?? []).map((listed) => (
-          <RailEntry
-            key={listed.id}
-            name={listed.name}
-            id={listed.id}
-            pending={queue.isError ? null : countFor(listed.id)}
-            chosen={listed.id === selected}
-            onChoose={() => choose(listed.id === selected ? null : listed.id)}
-          >
-            {health.isError ? (
-              <span className={styles.voice}>{HEALTH_UNREAD}</span>
+      <div
+        className={styles.railWrap}
+        onMouseEnter={() => setRailHovered(true)}
+        onMouseLeave={() => setRailHovered(false)}
+      >
+        <Button aria-expanded={railOpen} onClick={() => setRailOpen(!railOpen)}>
+          {railOpen ? "Collapse the rail" : "Open the rail"}
+        </Button>
+        <ul
+          className={styles.rail}
+          data-collapsed={showNames ? undefined : ""}
+          aria-label="Scouts"
+        >
+          {scouts.isError && (
+            <li>
+              <FirstSlot voice="wrong" claim="" />
+            </li>
+          )}
+          {(scouts.data?.scouts ?? []).map((listed) => (
+            <RailEntry
+              key={listed.id}
+              name={listed.name}
+              id={listed.id}
+              pending={queue.isError ? null : countFor(listed.id)}
+              chosen={listed.id === selected}
+              collapsed={!showNames}
+              marker={
+                health.isError ? (
+                  // A failed read must not look like a quiet Scout.
+                  <span role="img" aria-label={HEALTH_UNREAD}>
+                    ?
+                  </span>
+                ) : (
+                  <Marker health={healthOf(listed.id)} />
+                )
+              }
+              onChoose={() => choose(listed.id === selected ? null : listed.id)}
+            >
+              {health.isError ? (
+                <span className={styles.voice}>{HEALTH_UNREAD}</span>
+              ) : (
+                <VoiceLine health={healthOf(listed.id)} />
+              )}
+            </RailEntry>
+          ))}
+          {droppedStacks.map((dropped) => (
+            <RailEntry
+              key={dropped.id}
+              name={dropped.name}
+              id={dropped.id}
+              pending={queue.isError ? null : countFor(dropped.id)}
+              chosen={dropped.id === selected}
+              collapsed={!showNames}
+              marker={null}
+              onChoose={() =>
+                choose(dropped.id === selected ? null : dropped.id)
+              }
+            >
+              <span className={styles.voice}>dropped</span>
+            </RailEntry>
+          ))}
+          {/* A file that does not parse is a Scout the researcher made, not one
+              nobody did: named, with what is wrong. */}
+          {(scouts.data?.unreadable ?? []).map((file) => {
+            const wrong = {
+              voice: "wrong" as const,
+              kind: null,
+              sentence: file.sentence,
+            };
+            // The strip's face here mirrors RailEntry's; it is not a filter, so
+            // it is not a Button.
+            return showNames ? (
+              <li key={file.file} className={styles.entry}>
+                <span className={styles.entryName}>{file.file}</span>
+                <VoiceLine health={wrong} />
+              </li>
             ) : (
-              <VoiceLine health={healthOf(listed.id)} />
-            )}
-          </RailEntry>
-        ))}
-        {droppedStacks.map((dropped) => (
-          <RailEntry
-            key={dropped.id}
-            name={dropped.name}
-            id={dropped.id}
-            pending={queue.isError ? null : countFor(dropped.id)}
-            chosen={dropped.id === selected}
-            onChoose={() => choose(dropped.id === selected ? null : dropped.id)}
-          >
-            <span className={styles.voice}>dropped</span>
-          </RailEntry>
-        ))}
-        {/* A file that does not parse is a Scout the researcher made, not one
-            nobody did: named, with what is wrong. */}
-        {(scouts.data?.unreadable ?? []).map((file) => (
-          <li key={file.file} className={styles.entry}>
-            <span className={styles.entryName}>{file.file}</span>
-            <VoiceLine
-              health={{ voice: "wrong", kind: null, sentence: file.sentence }}
-            />
-          </li>
-        ))}
-      </ul>
+              <li key={file.file} className={styles.entry} data-collapsed="">
+                <span className={styles.initial} aria-hidden="true">
+                  {initialOf(file.file)}
+                </span>
+                <span className={styles.srOnly}>{file.file}</span>{" "}
+                <Marker health={wrong} />
+              </li>
+            );
+          })}
+        </ul>
+      </div>
       {/* The Scouts are managed on their own screen (ADR 0053 decision 1); the
           way there is always at the rail's foot, filtered or not. */}
       <p className={styles.railFoot}>
@@ -1222,6 +1280,8 @@ function RailEntry({
   name,
   pending,
   chosen,
+  collapsed,
+  marker,
   onChoose,
   children,
 }: {
@@ -1230,29 +1290,45 @@ function RailEntry({
   /** Null while the stack could not be read: a count beside a failed read would read as all clear. */
   pending: number | null;
   chosen: boolean;
+  /** The strip: an initial and the marker, the name kept for a screen reader. */
+  collapsed: boolean;
+  marker: ReactNode;
   onChoose: () => void;
   children: ReactNode;
 }) {
   return (
-    <li className={styles.entry}>
+    <li className={styles.entry} data-collapsed={collapsed ? "" : undefined}>
       <Button
         tier="listRow"
         id={`scout-rail-${id}`}
         aria-pressed={chosen}
         onClick={onChoose}
       >
-        <span className={styles.entryHead}>
-          <span className={styles.entryName}>{name}</span>
-          {/* A quiet Scout is said by its Voice; a bare 0 would read as the claim without its Warrant. */}
-          {pending !== null && pending > 0 && (
-            <span className={styles.count}>{pending}</span>
-          )}
-        </span>
-        {children}
+        {collapsed ? (
+          <>
+            <span className={styles.initial} aria-hidden="true">
+              {initialOf(name)}
+            </span>
+            <span className={styles.srOnly}>{name}</span> {marker}
+          </>
+        ) : (
+          <>
+            <span className={styles.entryHead}>
+              <span className={styles.entryName}>{name}</span>
+              {/* A quiet Scout is said by its Voice; a bare 0 would read as the claim without its Warrant. */}
+              {pending !== null && pending > 0 && (
+                <span className={styles.count}>{pending}</span>
+              )}
+            </span>
+            {children}
+          </>
+        )}
       </Button>
     </li>
   );
 }
+
+const initialOf = (name: string) => [...name][0]?.toUpperCase() ?? "";
 
 /**
  * The cards under each Question heading, in the Questions' order. A paper in

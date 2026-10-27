@@ -2,6 +2,24 @@ import type { Health } from "core";
 import styles from "./ScoutQueue.module.css";
 
 /**
+ * The shape beside a Scout that needs the researcher (ADR 0053 decision 3),
+ * drawn by the open rail's Voice line and by the collapsed strip alike so the
+ * two cannot disagree about who is marked. Nothing for any other Voice.
+ */
+export function Marker({ health }: { health: Health | undefined }) {
+  if (!needsYou(health)) return null;
+  return health.voice === "wrong" ? (
+    <span role="img" aria-label="not working" className={styles.glyph}>
+      ⚠
+    </span>
+  ) : (
+    <span role="img" aria-label="waiting for a key" className={styles.glyph}>
+      ◇
+    </span>
+  );
+}
+
+/**
  * A Scout's Voice where it is short on the rail row and in the header (ADR
  * 0032): rendered from the core's derivation and never worded here. *Wrong*
  * carries the warning glyph and its sentence, never red and never
@@ -12,28 +30,10 @@ import styles from "./ScoutQueue.module.css";
  */
 export function VoiceLine({ health }: { health: Health | undefined }) {
   if (health === undefined) return null;
-  if (health.voice === "wrong") {
+  if (health.voice === "wrong" || health.voice === "not yet") {
     return (
-      <span className={styles.voice} data-voice="wrong">
-        <span role="img" aria-label="not working" className={styles.glyph}>
-          ⚠
-        </span>
-        <span>{health.sentence}</span>
-      </span>
-    );
-  }
-  if (health.voice === "not yet") {
-    return (
-      <span className={styles.voice} data-voice="not yet">
-        {needsYou(health) && (
-          <span
-            role="img"
-            aria-label="waiting for a key"
-            className={styles.glyph}
-          >
-            ◇
-          </span>
-        )}
+      <span className={styles.voice} data-voice={health.voice}>
+        <Marker health={health} />
         <span>{health.sentence}</span>
       </span>
     );
