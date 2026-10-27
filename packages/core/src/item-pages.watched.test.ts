@@ -525,7 +525,13 @@ describe("an Item page's Extraction", () => {
   });
 
   it("drops the organisation the page declares as its author when the model copies it, though it is on the page", async () => {
+    // A byline naming the lab, as anthropic.com's posts do.
+    const signed = PAGES["/research/agentic-misalignment"]!.replace(
+      "<h2>Citation</h2>",
+      "<p>Published by Anthropic.</p><h2>Citation</h2>"
+    );
     const lab = await opened({
+      pages: { ...PAGES, "/research/agentic-misalignment": signed },
       itemPage: (call) =>
         onPage(call, AGENTIC)
           ? { authors: ["Anthropic", "Lynch, Aengus"] }
