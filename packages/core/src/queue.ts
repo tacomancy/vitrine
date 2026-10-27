@@ -47,8 +47,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    offer a publisher rule by name (#806).
  * 14: `proposals.item_page_tries` and `scout_runs.item_pages_read`, what a
  *    Watched Scout's Item pages owe and read (#885, ADR 0055).
+ * 15: no column; the pending cards a Watched Scout proposed before Item pages
+ *    become Listing-only, so they fill in (#887, ADR 0055 decision 5).
  */
-export const QUEUE_SCHEMA_VERSION = 14;
+export const QUEUE_SCHEMA_VERSION = 15;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -302,6 +304,35 @@ ALTER TABLE scout_runs ADD COLUMN item_pages_read INTEGER NOT NULL DEFAULT 0;
 `;
 
 /**
+ * A URL's host in SQL, lowercased and with any leading `www.` dropped: the
+ * part between `://` and the first `/`. Close enough to `siteOf` in
+ * `watched.ts` for the page and item links a Watched run records, which have
+ * a path; it does not parse a query or fragment straight after the host.
+ */
+const siteSql = (url: string) => {
+  const rest = `substr(${url}, instr(${url}, '://') + 3) || '/'`;
+  const host = `lower(substr(${rest}, 1, instr(${rest}, '/') - 1))`;
+  return `(CASE WHEN ${host} LIKE 'www.%' THEN substr(${host}, 5) ELSE ${host} END)`;
+};
+
+// The cards that prompted ADR 0055 were already in the queue, pending and
+// empty, when Item pages arrived; decision 5 has them fill in like any
+// Listing-only card. A Watched Scout's run records its page as `query`, so a
+// pending card seen by such a run on that page's own site starts owed, with
+// no tries spent. An arXiv or OpenAlex query has no `://`, so what it reads
+// as is a fragment of the query, never an item link's host; a run from
+// before runs recorded their page has none, and matches nothing.
+// Every other row keeps null: a card already triaged is never written, and
+// one from another source has no Item page.
+const LISTING_ONLY_BEFORE = `
+UPDATE proposals SET item_page_tries = 0
+WHERE state = 'pending' AND item_page_tries IS NULL AND id IN (
+  SELECT a.proposal_id FROM appearances a JOIN scout_runs r ON r.id = a.run_id
+  WHERE ${siteSql("a.url")} = ${siteSql("r.query")}
+);
+`;
+
+/**
  * `MIGRATIONS[v]` is what carries a database at version `v` to `v + 1`. A
  * fresh database is version 0 and runs all of them in order, which is what
  * keeps the empty case and the upgrade case from drifting apart — there is
@@ -322,6 +353,7 @@ const MIGRATIONS: readonly string[] = [
   PROPOSAL_VENUE_IDS,
   PROPOSAL_PUBLISHER_NAME,
   ITEM_PAGES,
+  LISTING_ONLY_BEFORE,
 ];
 
 /**
