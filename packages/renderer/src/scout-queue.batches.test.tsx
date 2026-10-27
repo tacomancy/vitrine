@@ -32,6 +32,7 @@ const card = (id: number, over: Partial<Card> = {}): Card => ({
   venueType: null,
   venueId: null,
   alsoOnArxiv: null,
+  paperUrl: null,
   publisher: null,
   abstract: `Abstract ${id}.`,
   url: "http://arxiv.org/abs/2609.05678v1",

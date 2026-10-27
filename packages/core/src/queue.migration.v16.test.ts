@@ -13,6 +13,7 @@ describe("the queue database, version 16 to 17", () => {
     const vault = await mkdtemp(join(tmpdir(), "vitrine-queue-"));
     await mkdir(join(vault, ".vitrine"), { recursive: true });
     const first = await openQueue(vault);
+    first.exec("ALTER TABLE proposals DROP COLUMN paper_url");
     first.exec("ALTER TABLE scout_runs DROP COLUMN item_pages_unread");
     first.exec(
       `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, item_pages_read)
@@ -35,7 +36,7 @@ describe("the queue database, version 16 to 17", () => {
           user_version: number;
         }
       ).user_version
-    ).toBe(17);
+    ).toBe(18);
     migrated.close();
   });
 });

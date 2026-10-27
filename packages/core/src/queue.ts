@@ -53,8 +53,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    copied that were not on that page (#886, ADR 0055).
  * 17: `scout_runs.item_pages_unread`, the Item pages a run tried and could
  *    not read (#888, ADR 0055 decision 6).
+ * 18: `proposals.paper_url`, the link an Item page gives as this work's own
+ *    paper (#890, ADR 0055 decision 10).
  */
-export const QUEUE_SCHEMA_VERSION = 17;
+export const QUEUE_SCHEMA_VERSION = 18;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -314,6 +316,12 @@ const ITEM_VALUES_DROPPED = `
 ALTER TABLE scout_runs ADD COLUMN item_values_dropped INTEGER NOT NULL DEFAULT 0;
 `;
 
+// Null on every earlier row: no page had been asked for its paper. A pending
+// Listing-only card gains one when its Item page is read.
+const PAPER_URL = `
+ALTER TABLE proposals ADD COLUMN paper_url TEXT;
+`;
+
 /**
  * A URL's host in SQL, lowercased and with any leading `www.` dropped: the
  * part between `://` and the first `/`. Close enough to `siteOf` in
@@ -373,6 +381,7 @@ const MIGRATIONS: readonly string[] = [
   LISTING_ONLY_BEFORE,
   ITEM_VALUES_DROPPED,
   ITEM_PAGES_UNREAD_COUNT,
+  PAPER_URL,
 ];
 
 /**

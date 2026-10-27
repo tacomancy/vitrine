@@ -64,7 +64,7 @@ const itemPage = (n: number) =>
 const bylinePage = (n: number) =>
   `<html><head>
 <meta property="article:published_time" content="2025-09-01T00:00:00Z">
-</head><body><main><h1>Post number ${n}</h1><p>By Ada Rowe</p><p>What post ${n} found.</p></main></body></html>`;
+</head><body><main><h1>Post number ${n}</h1><p>By Ada Rowe</p><p>What post ${n} found.</p><p><a href="${SITE}/papers/post-${n}.pdf">Read the paper</a></p></main></body></html>`;
 
 const listingOf = (ns: number[]) =>
   `<html><body><main>${ns
@@ -462,6 +462,7 @@ describe("a Listing-only card", () => {
       seed: async (vault) => {
         const queue = await openQueue(vault);
         queue.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
+        queue.exec("ALTER TABLE proposals DROP COLUMN paper_url");
         queue.exec(
           `INSERT INTO scout_runs (id, scout_id, started, finished, outcome, window_from, window_to, fetched, new, query)
            VALUES (1, 'lab', '2026-10-21T10:00:00Z', '2026-10-21T10:01:00Z', 'ok', '2026-10-21T10:00:00Z', '2026-10-21T10:00:00Z', 1, 1, '${LISTING}'),
@@ -515,6 +516,7 @@ describe("a Listing-only card", () => {
           date: null,
           venue: null,
           abstract: `What post 26 found.`,
+          paperUrl: `${SITE}/papers/post-26.pdf`,
         },
         usage: { input: 400, output: 60, cacheRead: 0 },
       });
@@ -524,11 +526,13 @@ describe("a Listing-only card", () => {
     await lab.run();
 
     // The page declared its date; the row had no authors, venue or summary.
-    expect(asked).toEqual([["authors", "venue", "abstract"]]);
+    expect(asked).toEqual([["authors", "venue", "abstract", "paperUrl"]]);
     expect(await lab.card(26)).toMatchObject({
       published: "2025-09-01",
       authors: ["Ada Rowe"],
       abstract: "What post 26 found.",
+      // A pending card gains its Paper link as it gains any field (#890).
+      paperUrl: `${SITE}/papers/post-26.pdf`,
     });
     expect(lab.listingOnly()).toEqual([]);
     expect(
@@ -582,6 +586,7 @@ describe("a Listing-only card", () => {
           // On the page, but not asked for.
           venue: "Post number 26",
           abstract: null,
+          paperUrl: null,
         },
         usage: { input: 400, output: 60, cacheRead: 0 },
       });
@@ -590,7 +595,7 @@ describe("a Listing-only card", () => {
     lab.later();
     await lab.run();
 
-    expect(asked).toEqual([["authors", "abstract"]]);
+    expect(asked).toEqual([["authors", "abstract", "paperUrl"]]);
     expect(await lab.card(26)).toMatchObject({
       venue: "Workshop on Probes",
       authors: ["Ada Rowe"],

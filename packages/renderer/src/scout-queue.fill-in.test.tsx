@@ -22,6 +22,7 @@ const listingOnly: Card = {
   venueType: null,
   venueId: null,
   alsoOnArxiv: null,
+  paperUrl: null,
   publisher: null,
   abstract: "",
   url: "https://www.anthropic.com/research/agentic-misalignment",

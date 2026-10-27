@@ -638,8 +638,8 @@ function arrive(
   const at = iso(deps.now());
   const known = queue.prepare("SELECT * FROM proposals WHERE source_key = ?");
   const insert = queue.prepare(
-    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path, item_page_tries)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO proposals (source_key, doi, title, authors, published, venue, venue_type, venue_source_id, publisher_lineage, publisher_name, abstract, url, lane, state, first_seen, stub_path, item_page_tries, paper_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const appear = queue.prepare(
     "INSERT OR IGNORE INTO appearances (proposal_id, run_id, scout_id, seen_at, url) VALUES (?, ?, ?, ?, ?)"
@@ -696,7 +696,8 @@ function arrive(
           heldBy === null ? "pending" : "held",
           at,
           heldBy,
-          item.itemPageTries ?? null
+          item.itemPageTries ?? null,
+          item.paperUrl ?? null
         ).lastInsertRowid
       );
       if (heldBy === null) {
@@ -769,6 +770,7 @@ function fillListingOnly(
          venue = CASE WHEN venue IS NULL OR venue = '' THEN ? ELSE venue END,
          doi = COALESCE(doi, ?),
          abstract = CASE WHEN abstract = '' THEN ? ELSE abstract END,
+         paper_url = COALESCE(paper_url, ?),
          item_page_tries = CASE WHEN ? THEN NULL ELSE item_page_tries + 1 END
        WHERE id = ? AND state = 'pending'`
     )
@@ -778,6 +780,7 @@ function fillListingOnly(
       card.venue,
       card.doi,
       card.abstract,
+      card.paperUrl ?? null,
       read ? 1 : 0,
       id
     );
@@ -1008,6 +1011,8 @@ export type Card = {
   publisher: { id: string; name: string | null } | null;
   abstract: string;
   url: string;
+  /** The link the Item page gives as this work's own paper, shown beside `url` (ADR 0055 decision 10); `null` when it gave none. Never what identifies the card. */
+  paperUrl: string | null;
   doi: string | null;
   lane: "review" | "skim";
   /** Every Scout that found it, with the Questions it is assigned to; the card says *assigned to*, never *matches*. */
@@ -1088,6 +1093,7 @@ type ProposalRow = {
   publisher_name: string | null;
   abstract: string;
   url: string;
+  paper_url: string | null;
   lane: "review" | "skim";
   state: string;
   stub_path: string | null;
@@ -1345,6 +1351,7 @@ async function readCards(
       publisher: publisherOf(row),
       abstract: row.abstract,
       url: row.url,
+      paperUrl: row.paper_url,
       alsoOnArxiv: alsoOnArxiv(row),
       doi: row.doi,
       lane: row.lane,
@@ -1581,6 +1588,10 @@ function stubText(
   if (row.venue !== null) lines.push(`venue: ${plain(row.venue)}`);
   if (row.doi !== null) lines.push(`doi: ${plain(row.doi)}`);
   lines.push(`url: ${plain(row.url)}`);
+  // Beside `url:`, which stays where the work was found. `heldIn` reads only
+  // `doi` and `url`, so a wrong Paper link never holds a real card out of
+  // the Queue (ADR 0055 decision 10).
+  if (row.paper_url !== null) lines.push(`paper: ${plain(row.paper_url)}`);
   if (scout !== undefined) lines.push(`origin_scout: ${plain(scout)}`);
   if (questions.length > 0) {
     lines.push("origin_question:", ...questions.map((q) => `  - ${plain(q)}`));

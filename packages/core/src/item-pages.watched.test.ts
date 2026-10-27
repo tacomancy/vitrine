@@ -141,6 +141,7 @@ async function opened(
           date: null,
           venue: null,
           abstract: null,
+          paperUrl: null,
           ...options.itemPage?.(call),
         },
         usage: itemUsage,
@@ -656,13 +657,14 @@ describe("an Item page's Extraction", () => {
     // The listing gave the date and author, the page its summary.
     expect(asked("A Card the Listing Already Dated")).toEqual([]);
     // A date and summary declared, an Organization for its author.
-    expect(asked(AGENTIC)).toEqual([["authors", "venue"]]);
+    // The Paper link rides along whenever a call is made (#890).
+    expect(asked(AGENTIC)).toEqual([["authors", "venue", "paperUrl"]]);
     // Only a date declared; its summary was the site's blurb.
     expect(asked("Claude's new constitution")).toEqual([
-      ["authors", "venue", "abstract"],
+      ["authors", "venue", "abstract", "paperUrl"],
     ]);
     expect(asked("A Plain Post With No Markup")).toEqual([
-      ["authors", "venue", "abstract"],
+      ["authors", "venue", "abstract", "paperUrl"],
     ]);
     expect(lab.calls.itemPages).toHaveLength(3);
   });

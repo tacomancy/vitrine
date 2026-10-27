@@ -1553,21 +1553,18 @@ function Proposal({
         <Field label="doi" value={card.doi} />
         <dt>link</dt>
         <dd>
-          {link.kind === "refused" ? (
-            <button
-              type="button"
-              className={styles.notLink}
-              aria-label={`not a link: ${card.url}`}
-              onClick={() => refusal.say(linkRefusal(link.scheme))}
-            >
-              {card.url}
-            </button>
-          ) : (
-            <a href={link.href} target="_blank" rel="noreferrer">
-              {card.url}
-            </a>
-          )}
+          <CardLink url={card.url} refusal={refusal} />
         </dd>
+        {/* The Item page's own paper, beside the link back and never in
+            place of it (ADR 0055 decision 10); nothing when it named none. */}
+        {card.paperUrl !== null && (
+          <>
+            <dt>paper</dt>
+            <dd>
+              <CardLink url={card.paperUrl} refusal={refusal} />
+            </dd>
+          </>
+        )}
         {card.alsoOnArxiv !== null && (
           <>
             <dt>also on arXiv</dt>
@@ -1620,6 +1617,34 @@ function Proposal({
         </>
       )}
     </article>
+  );
+}
+
+/**
+ * A link a source supplied, drawn as one only when the link rule lets it go
+ * out; otherwise plainly not one, saying why when pressed.
+ */
+function CardLink({
+  url,
+  refusal,
+}: {
+  url: string;
+  refusal: ReturnType<typeof useRefusal>;
+}) {
+  const link = classifyLink(url);
+  return link.kind === "refused" ? (
+    <button
+      type="button"
+      className={styles.notLink}
+      aria-label={`not a link: ${url}`}
+      onClick={() => refusal.say(linkRefusal(link.scheme))}
+    >
+      {url}
+    </button>
+  ) : (
+    <a href={link.href} target="_blank" rel="noreferrer">
+      {url}
+    </a>
   );
 }
 

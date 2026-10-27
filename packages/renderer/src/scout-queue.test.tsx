@@ -28,6 +28,7 @@ const card = (rest: Partial<Card> = {}): Card => ({
   venueType: null,
   venueId: null,
   alsoOnArxiv: null,
+  paperUrl: null,
   publisher: null,
   abstract: "A short abstract.",
   url: "http://arxiv.org/abs/2609.05678v1",
@@ -201,6 +202,61 @@ describe("the Scout Queue", () => {
       name: "Slow Oscillations Reconsidered",
     });
     expect(article.textContent).not.toContain("also on arXiv");
+  });
+
+  // ADR 0055 decision 10: the link an Item page gives as this work's paper is
+  // a second link beside the link back, which stays where it was found.
+  it("shows the Paper link beside the link back, on a Review card and a Skim line", async () => {
+    const announcement = card({
+      title: "Tracing the thoughts of a large language model",
+      url: "https://www.anthropic.com/research/tracing-thoughts-language-model",
+      paperUrl:
+        "https://transformer-circuits.pub/2025/attribution-graphs/biology.html",
+    });
+    renderApp(
+      answers([announcement], {
+        "scouts.skim": {
+          recent: [{ ...announcement, id: 8, lane: "skim" }],
+          older: [],
+        },
+      })
+    );
+
+    const hrefs = (article: HTMLElement) =>
+      within(article)
+        .getAllByRole("link")
+        .map((l) => l.getAttribute("href"));
+    const review = await screen.findByRole("article", {
+      name: "Tracing the thoughts of a large language model",
+    });
+    expect(hrefs(review)).toEqual([
+      "https://www.anthropic.com/research/tracing-thoughts-language-model",
+      "https://transformer-circuits.pub/2025/attribution-graphs/biology.html",
+    ]);
+    expect(within(review).getByText("paper").tagName).toBe("DT");
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Skim/ }));
+    await waitFor(() =>
+      expect(
+        hrefs(
+          screen.getByRole("article", {
+            name: "Tracing the thoughts of a large language model",
+          })
+        )
+      ).toContain(
+        "https://transformer-circuits.pub/2025/attribution-graphs/biology.html"
+      )
+    );
+  });
+
+  it("says nothing of a paper when the card has no Paper link", async () => {
+    renderApp(answers([card()]));
+
+    const article = await screen.findByRole("article", {
+      name: "Slow Oscillations Reconsidered",
+    });
+    expect(within(article).queryByText("paper")).toBeNull();
+    expect(within(article).getAllByRole("link")).toHaveLength(1);
   });
 
   it("names the Rank signals that fired and says nothing for a card with none", async () => {
