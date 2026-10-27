@@ -10,6 +10,7 @@ import {
   storeKey,
 } from "../page-change-demo/helpers.mjs";
 import { fillPageScout, saveScout } from "../watched-demo/helpers.mjs";
+import { openFirstLook } from "../scout-demo/helpers.mjs";
 export { button, fillPageScout, openQueue, press, runNow, saveScout, storeKey };
 
 export const NAME = "Anthropic alignment";
@@ -37,15 +38,10 @@ export async function shoot(page, name) {
   }
 }
 
-const batchToggle = `[...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes(${JSON.stringify(NAME)}) && b.innerText.includes('first look'))`;
-
 /** The Scout's first-look batch, open, with one title chosen; its card's text. */
 export async function chooseInBatch(page, title) {
-  await page.wait(`!!${batchToggle}`, 30000);
-  await page.eval(
-    `${batchToggle}.getAttribute('aria-expanded') === 'true' || ${batchToggle}.click()`
-  );
-  const row = `document.querySelector('[aria-label=${JSON.stringify(`${NAME} first look`)}] button[aria-label=${JSON.stringify(title)}]')`;
+  const list = await openFirstLook(page, NAME, 30000);
+  const row = `document.querySelector(${JSON.stringify(`${list} button[aria-label=${JSON.stringify(title)}]`)})`;
   await page.wait(`!!${row}`, 10000);
   await page.eval(`${row}.click()`);
   return cardText(page, title);

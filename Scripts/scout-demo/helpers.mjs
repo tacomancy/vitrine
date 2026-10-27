@@ -51,17 +51,22 @@ export async function runNow(page, name) {
 }
 
 /**
- * The Scout's first-look batch opened and its first row chosen, so a card is
- * drawn: a Retroactive run is a collapsed batch on the Queue, and a card is
- * only drawn for the chosen row.
+ * The Scout's first-look batch, opened: a Retroactive run is a collapsed batch
+ * on the Queue. Returns the selector of its list of rows.
  */
-export async function chooseFirstLook(page, name, ms = 20000) {
+export async function openFirstLook(page, name, ms = 20000) {
   const toggle = `[...document.querySelectorAll('button[aria-expanded]')].find(b => b.innerText.includes(${JSON.stringify(name)}) && b.innerText.includes('first look'))`;
   await page.wait(`!!${toggle}`, ms);
   await page.eval(
     `${toggle}.getAttribute('aria-expanded') === 'true' || ${toggle}.click()`
   );
-  const row = `document.querySelector(${JSON.stringify(`[aria-label="${name} first look"] button`)})`;
+  return `[aria-label=${JSON.stringify(`${name} first look`)}]`;
+}
+
+/** Its first row chosen, so a card is drawn: only the chosen row has one. */
+export async function chooseFirstLook(page, name, ms) {
+  const list = await openFirstLook(page, name, ms);
+  const row = `document.querySelector(${JSON.stringify(`${list} button`)})`;
   await page.wait(`!!${row}`, 10000);
   await page.eval(`${row}.click()`);
   await page.wait("!!document.querySelector('article[aria-label]')", 10000);
