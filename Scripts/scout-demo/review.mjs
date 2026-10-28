@@ -1,5 +1,12 @@
-// 2. The Scout is saved and run; the Review stack has a card in hand.
-import { button, fillNewScout, openQueue, runNow } from "./helpers.mjs";
+// 2. The Scout is saved and run; its first look is opened in the Review stack
+// and its first row chosen, since only the chosen row draws a card.
+import {
+  button,
+  chooseFirstLook,
+  fillNewScout,
+  openQueue,
+  runNow,
+} from "./helpers.mjs";
 export default async (page) => {
   await openQueue(page);
   await fillNewScout(page, {
@@ -13,7 +20,7 @@ export default async (page) => {
   await page.eval(`${button("Save")}.click()`);
   await page.wait("!document.querySelector('form[aria-label=\"New Scout\"]')");
   await runNow(page, "Overnight benefit");
-  await page.wait("!!document.querySelector('article[aria-label]')", 20000);
+  await chooseFirstLook(page, "Overnight benefit");
   console.log(
     `REVIEW: ${await page.eval("document.querySelector('[aria-label=\"Scout Queue\"]').innerText.slice(0, 700)")}`
   );

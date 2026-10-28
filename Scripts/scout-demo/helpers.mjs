@@ -10,6 +10,13 @@ export const press = (page, letter) =>
     text: letter,
   });
 
+/** A lane tab, which carries its count once read: *Skim 3*. */
+export async function openLane(page, lane) {
+  const tab = `[...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim().replace(/ \\d+$/, '') === ${JSON.stringify(lane)})`;
+  await page.wait(`!!${tab}`);
+  await page.eval(`${tab}.click()`);
+}
+
 export async function openQueue(page) {
   await page.eval("location.hash='#/scouts'");
   await page.wait("!!document.querySelector('[aria-label=\"Scout Queue\"]')");

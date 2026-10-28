@@ -1,6 +1,12 @@
 // Shared by the drives (docs/agents/run.md).
-import { button, openQueue, railText, runNow } from "../scout-demo/helpers.mjs";
-export { button, openQueue, railText, runNow };
+import {
+  button,
+  openLane,
+  openQueue,
+  railText,
+  runNow,
+} from "../scout-demo/helpers.mjs";
+export { button, openLane, openQueue, railText, runNow };
 export { expect } from "../scout-activity-demo/helpers.mjs";
 export { openMap } from "../question-map-demo/helpers.mjs";
 export { setValue } from "../attention-demo/helpers.mjs";

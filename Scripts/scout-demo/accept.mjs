@@ -1,9 +1,9 @@
 // 4. `A` on the card in hand writes the stub; Loose Ends then lists it under
 // Unfinished reading, with no PDF.
-import { openQueue, press } from "./helpers.mjs";
+import { chooseFirstLook, openQueue, press } from "./helpers.mjs";
 export default async (page) => {
   await openQueue(page);
-  await page.wait("!!document.querySelector('article[aria-label]')", 10000);
+  await chooseFirstLook(page, "Overnight benefit");
   const title = await page.eval(
     "document.querySelector('article[aria-label]').getAttribute('aria-label')"
   );
