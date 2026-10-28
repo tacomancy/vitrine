@@ -1,7 +1,13 @@
-import { cleanup, screen, within } from "@testing-library/react";
-import type { ActivityRow, Health, ScoutActivity } from "core";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import type {
+  ActivityRow,
+  Health,
+  PageAcceptRate,
+  ScoutActivity,
+  ScoutRow,
+} from "core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { empty, renderApp, vault } from "./fake-core";
+import { empty, rateOver, renderApp, vault, weeksOf } from "./fake-core";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -38,7 +44,7 @@ const BROKEN: Health = {
 const row = (
   pages: Array<{ url: string; health: Health }>,
   health: Health
-): ActivityRow => ({
+): ScoutRow => ({
   kind: "scout",
   id: "lab",
   name: "Lab",
@@ -166,5 +172,116 @@ describe("a Scout of several pages on the Scouts screen", () => {
     const cell = await watchingCell();
     expect(within(cell).queryByRole("list")).toBeNull();
     expect(cell.textContent).toBe(RESEARCH);
+  });
+});
+
+// #914 (ADR 0056 decision 8): the opened row breaks the Scout's one Accept
+// rate down by page, so removing a page can be decided on evidence. A plain
+// list: no colour, mark or order of merit.
+describe("the opened row of a Scout of several pages", () => {
+  const judged = (
+    acceptByPage: Array<{ url: string; rate: PageAcceptRate }> | undefined
+  ): ScoutRow => ({
+    ...row(
+      [
+        { url: RESEARCH, health: FINDING },
+        { url: NEWS, health: FINDING },
+        { url: BLOG, health: FINDING },
+      ],
+      FINDING
+    ),
+    acceptRate: rateOver(3, 4, weeksOf({ 11: { triaged: 4, rate: 0.75 } })),
+    ...(acceptByPage === undefined ? {} : { acceptByPage }),
+  });
+  const openRow = async () =>
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Lab: accept rate/ })
+    );
+
+  it("lists each page's rate in file order, in the words of the row's own column, a withheld one by its reason", async () => {
+    open([
+      judged([
+        {
+          url: RESEARCH,
+          rate: { kind: "rate", accepted: 2, triaged: 3, rate: 2 / 3 },
+        },
+        {
+          url: NEWS,
+          rate: {
+            kind: "unavailable",
+            reason: "Most of this page's papers arrive without authors.",
+          },
+        },
+        { url: BLOG, rate: { kind: "nothing triaged" } },
+      ]),
+    ]);
+    await openRow();
+
+    const list = screen.getByRole("list", { name: "Lab: accept rate by page" });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      `${RESEARCH} 67% · 3 triaged`,
+      `${NEWS} Most of this page's papers arrive without authors.`,
+      `${BLOG} nothing triaged yet`,
+    ]);
+  });
+
+  it("marks no page out from another", async () => {
+    open([
+      judged([
+        {
+          url: RESEARCH,
+          rate: { kind: "rate", accepted: 3, triaged: 3, rate: 1 },
+        },
+        {
+          url: NEWS,
+          rate: { kind: "rate", accepted: 0, triaged: 5, rate: 0 },
+        },
+      ]),
+    ]);
+    await openRow();
+
+    const items = within(
+      screen.getByRole("list", { name: "Lab: accept rate by page" })
+    ).getAllByRole("listitem");
+    expect(items.map((item) => item.className)).toEqual([
+      items[0]!.className,
+      items[0]!.className,
+    ]);
+    for (const item of items) {
+      expect(item.getAttribute("style")).toBeNull();
+      expect(item.querySelector("svg, img, [role=img]")).toBeNull();
+    }
+  });
+
+  it("lists nothing while nothing is triaged, which every page would only repeat", async () => {
+    open([
+      {
+        ...judged([
+          { url: RESEARCH, rate: { kind: "nothing triaged" } },
+          { url: NEWS, rate: { kind: "nothing triaged" } },
+        ]),
+        acceptRate: { kind: "nothing triaged" },
+      },
+    ]);
+    await openRow();
+
+    expect(screen.getByText("Nothing triaged yet.")).toBeDefined();
+    expect(
+      screen.queryByRole("list", { name: "Lab: accept rate by page" })
+    ).toBeNull();
+  });
+
+  it("lists nothing for a one-page Scout, whose headline is its page's", async () => {
+    open([judged(undefined)]);
+    await openRow();
+
+    expect(screen.getByText("75% over 12 weeks · 4 triaged")).toBeDefined();
+    expect(
+      screen.queryByRole("list", { name: "Lab: accept rate by page" })
+    ).toBeNull();
   });
 });

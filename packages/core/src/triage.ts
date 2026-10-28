@@ -225,18 +225,58 @@ const COUNTED = `t.action IN ('accept', 'reject')
  * before any ISO timestamp, so it means no lower bound.
  */
 export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
+  const byScout = new Map<string, AcceptCounts>();
+  for (const row of acceptCountsByPage(queue, since)) {
+    const sum = byScout.get(row.scoutId) ?? {
+      scoutId: row.scoutId,
+      accepted: 0,
+      rejected: 0,
+      noAuthors: 0,
+      noVenue: 0,
+    };
+    sum.accepted += row.accepted;
+    sum.rejected += row.rejected;
+    sum.noAuthors += row.noAuthors;
+    sum.noVenue += row.noVenue;
+    byScout.set(row.scoutId, sum);
+  }
+  return [...byScout.values()];
+}
+
+/**
+ * The page the first Appearance's run read: the same Appearance
+ * `firstAppearanceScout` credits (one ORDER BY), and null for a run from
+ * before `query` was recorded. A Structured Scout's is its Query.
+ */
+const firstAppearancePage = (proposal: string) =>
+  `(SELECT r.query FROM appearances a LEFT JOIN scout_runs r ON r.id = a.run_id
+     WHERE a.proposal_id = ${proposal} ORDER BY a.run_id, a.rowid LIMIT 1)`;
+
+/**
+ * `acceptCounts` split by the page that first found each Proposal, for the
+ * opened row's breakdown of a Scout of several pages (ADR 0056 decision 8).
+ * The headline is folded from these rows rather than read beside them, so a
+ * page's figure cannot rest on an item the headline leaves out, nor the
+ * headline on one no page holds: a removed page's rows are still summed,
+ * only not drawn.
+ */
+export function acceptCountsByPage(
+  queue: DatabaseSync,
+  since = ""
+): Array<AcceptCounts & { page: string | null }> {
   return queue
     .prepare(
       `SELECT ${firstAppearanceScout("t.proposal_id")} AS scoutId,
+              ${firstAppearancePage("t.proposal_id")} AS page,
               SUM(t.action = 'accept') AS accepted,
               SUM(t.action = 'reject') AS rejected,
               SUM(p.authors = '[]') AS noAuthors,
               SUM(p.venue IS NULL) AS noVenue
          FROM triage t JOIN proposals p ON p.id = t.proposal_id
         WHERE ${COUNTED}
-        GROUP BY scoutId ORDER BY scoutId`
+        GROUP BY scoutId, page ORDER BY scoutId, page`
     )
-    .all(since) as AcceptCounts[];
+    .all(since) as Array<AcceptCounts & { page: string | null }>;
 }
 
 /** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
@@ -729,20 +769,27 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
 }
 
 /**
- * When the page last changed, if the runs inside the weekly line's twelve
- * weeks asked more than one (ADR 0043 decision 8): the first run at the page
- * the Scout reads now, after a run at another. Derived from each run's
- * recorded `query`, so nothing is stored and the Queue and the file cannot
- * disagree about it. A run with no recorded page predates the column and is
- * never taken for an edit; an arXiv Scout's Query is a Filter on one source,
- * so it has no page change. The line's figures do not read this.
+ * What the weekly line says about the pages its twelve weeks read, so a
+ * change in the line can be read against a change in the Scout. A one-page
+ * Scout's is when its page last changed (ADR 0043 decision 8): the first run
+ * at the page it reads now, after a run at another. A Scout of several pages
+ * says only that a page was added or removed (ADR 0056 decision 8), since a
+ * removal is an edit no run records and has no date to give. Derived from
+ * each run's recorded `query`, so nothing is stored and the Queue and the file
+ * cannot disagree about it. A run with no recorded page predates the column
+ * and is never taken for an edit; an arXiv Scout's Query is a Filter on one
+ * source, so it has no page change. The line's figures do not read this.
  */
+export type PageChange =
+  { kind: "changed"; at: string } | { kind: "added or removed" } | null;
+
 export function pageChangeIn(
   queue: DatabaseSync,
   scout: Scout,
   now: Date
-): { at: string } | null {
+): PageChange {
   if (scout.source.kind !== "watched") return null;
+  const pages = scout.source.urls;
   const runs = queue
     .prepare(
       `SELECT finished, query, check_id FROM scout_runs
@@ -754,12 +801,27 @@ export function pageChangeIn(
     query: string;
     check_id: number | null;
   }>;
-  // A Scout of several pages asks a different page at every run of a check,
-  // so a change of `query` between runs is no change of page. What dates one
-  // is the newest first run at a page no earlier check read: a page added, and
-  // never a page of the Scout's first check. The sentence that says a page was
-  // removed too is #914's.
-  if (scout.source.urls.length > 1) {
+  // A Scout left with one page whose weeks hold a check of two is a Scout of
+  // several pages in those weeks: its runs alternate between pages, which the
+  // one-page reading would take for re-points.
+  const several =
+    pages.length > 1 ||
+    runs.some((run) =>
+      runs.some(
+        (other) =>
+          run.check_id !== null &&
+          other.check_id === run.check_id &&
+          other.query !== run.query
+      )
+    );
+  if (several) {
+    // A page the weeks read that the Scout no longer has was removed in them.
+    if (runs.some((run) => !pages.includes(run.query))) {
+      return { kind: "added or removed" };
+    }
+    // A change of `query` between the runs of one check is no change of page.
+    // What shows one added is a first run at a page no earlier check read,
+    // never a page of the Scout's first check.
     const read = new Set(
       (
         queue
@@ -770,7 +832,6 @@ export function pageChangeIn(
           .all(scout.id, acceptSince(now)) as Array<{ query: string }>
       ).map((r) => r.query)
     );
-    let added: string | null = null;
     let earlierCheck = read.size > 0;
     for (const [i, run] of runs.entries()) {
       // A row from before `check_id` is a check of its own.
@@ -780,10 +841,12 @@ export function pageChangeIn(
       ) {
         earlierCheck = true;
       }
-      if (!read.has(run.query) && earlierCheck) added = run.finished;
+      if (!read.has(run.query) && earlierCheck) {
+        return { kind: "added or removed" };
+      }
       read.add(run.query);
     }
-    return added === null ? null : { at: added };
+    return null;
   }
   // A re-point nothing has read yet has no date: the change is the edit, which
   // is stored nowhere, and the Voice already says the page is unread. Dating
@@ -794,5 +857,5 @@ export function pageChangeIn(
   for (let i = 1; i < runs.length; i++) {
     if (runs[i]!.query !== runs[i - 1]!.query) at = runs[i]!.finished;
   }
-  return at === null ? null : { at };
+  return at === null ? null : { kind: "changed", at };
 }

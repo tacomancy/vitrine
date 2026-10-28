@@ -2,7 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, TRPCClientError, type TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { AcceptRate, AcceptWeek, AppRouter, CoreEvent } from "core";
+import type {
+  AcceptRate,
+  AcceptWeek,
+  AppRouter,
+  CoreEvent,
+  PageChange,
+} from "core";
 import type { ReactNode } from "react";
 import { vi } from "vitest";
 import { App } from "./App";
@@ -152,7 +158,7 @@ export const rateOver = (
   accepted: number,
   triaged: number,
   weeks: AcceptWeek[] = weeksOf(),
-  pageChange: { at: string } | null = null
+  pageChange: PageChange = null
 ): AcceptRate => ({
   kind: "rate",
   accepted,

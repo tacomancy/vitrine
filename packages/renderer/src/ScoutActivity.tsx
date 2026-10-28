@@ -11,6 +11,7 @@ import {
 } from "react";
 import type {
   AcceptRate,
+  PageAcceptRate,
   ActivityRow,
   Cost,
   CoverageGap,
@@ -548,7 +549,7 @@ function NoRows({
 }
 
 /** A rate says what it rests on; one that cannot be said says why, and nothing judged is not 0% (ADR 0042 decisions 2 and 3). */
-function rateWords(rate: AcceptRate): string {
+function rateWords(rate: AcceptRate | PageAcceptRate): string {
   switch (rate.kind) {
     case "rate":
       return `${percent(rate.rate)} · ${rate.triaged} triaged`;
@@ -927,7 +928,7 @@ function Row({
             <ul className={styles.pages} aria-label={`${row.name}: pages`}>
               {pages.map((page) => (
                 <li key={page.url}>
-                  <span className={styles.page} title={page.url}>
+                  <span className={styles.pageUrl} title={page.url}>
                     {page.url}
                   </span>
                   <VoiceLine health={page.health} />
@@ -1054,6 +1055,25 @@ function Row({
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>
             <AcceptLine rate={row.acceptRate} />
+            {/* Each page's share, so removing one is decided on evidence: file
+                order and one voice, no colour, mark or order of merit (ADR
+                0056 decision 8). Nothing triaged is every page's too. */}
+            {row.acceptByPage !== undefined &&
+              row.acceptRate.kind !== "nothing triaged" && (
+                <ul
+                  className={styles.pageRates}
+                  aria-label={`${row.name}: accept rate by page`}
+                >
+                  {row.acceptByPage.map(({ url, rate }) => (
+                    <li key={url}>
+                      <span className={styles.pageUrl} title={url}>
+                        {url}
+                      </span>{" "}
+                      <span>{rateWords(rate)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             {row.lastQuery !== undefined && (
               <p className={styles.runs}>
                 Last run asked: <code>{row.lastQuery}</code>
