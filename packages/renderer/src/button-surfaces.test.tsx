@@ -5,8 +5,9 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import type { ListedQuestion, Revision } from "core";
+import type { ListedQuestion, Readings, Revision } from "core";
 import { afterEach, describe, expect, it } from "vitest";
+import { CandidateReview } from "./CandidateReview";
 import candidateStyles from "./CandidateReview.module.css";
 import { Detail } from "./Detail";
 import detailStyles from "./Detail.module.css";
@@ -27,8 +28,8 @@ afterEach(cleanup);
 // #822 moved these surfaces' buttons onto `Button`, and the rules it deleted
 // carried layout and type that `Button`'s own tier does not (#919). jsdom
 // lays nothing out, so each test asks what it can see: which tier the button
-// wears, and that the surface rule giving the rest back reaches it. The
-// overlaps, the 0 px rule and the 1130 px button were measured over CDP.
+// wears, and that the surface rule giving the rest back reaches it. What the
+// rules do on screen was measured over CDP; #919 and its PR hold the numbers.
 const rules = (name: string, styles: Record<string, string>) =>
   moduleRules(`${__dirname}/${name}.module.css`, styles);
 
@@ -105,7 +106,6 @@ describe("the link review", () => {
   }));
 
   it("keeps *next question* to its own width and *Undo reject* in the keys line's type", async () => {
-    const { CandidateReview } = await import("./CandidateReview");
     renderApp(
       {
         "questionMap.candidates": QUESTIONS,
@@ -132,23 +132,23 @@ describe("*review links* on an unanchored question", () => {
   it("stands apart from the question it follows, in the row's quiet type", () => {
     const empty = { count: 0, items: [] };
     const item = {
-      kind: "question",
+      kind: "question" as const,
+      id: "q-a",
       path: "q/a.md",
       question: "Is the overnight benefit consolidation?",
       material: 0,
       unresolved: [],
     };
+    const readings: Readings = {
+      depth: 1,
+      wellSupported: empty,
+      unanchored: { count: 1, items: [item] },
+      unquestionedKnowledge: empty,
+      clockedButUnquestioned: empty,
+    };
     render(
       <ReadingsStrip
-        readings={
-          {
-            depth: 1,
-            wellSupported: empty,
-            unanchored: { count: 1, items: [item] },
-            unquestionedKnowledge: empty,
-            clockedButUnquestioned: empty,
-          } as never
-        }
+        readings={readings}
         reviewable={new Set(["q/a.md"])}
         onReview={() => {}}
       />
@@ -159,9 +159,10 @@ describe("*review links* on an unanchored question", () => {
     });
     const css = rules("Readings", readingsStyles);
     expect(css.reaches(review, ".list li > button")).toBe(true);
-    expect(css.declarations(".list li > button")).toMatch(
-      /margin-left:\s*var\(--space-3\);/
-    );
+    const declared = css.declarations(".list li > button");
+    expect(declared).toMatch(/margin-left:\s*var\(--space-3\);/);
+    expect(declared).toMatch(/font-family:\s*var\(--font-mono\);/);
+    expect(declared).toMatch(/font-size:\s*var\(--text-xs\);/);
     // Nothing else in a row is a button the rule would also move.
     expect(within(review.closest("li")!).getAllByRole("button")).toEqual([
       review,
@@ -174,12 +175,13 @@ describe("a Position history's quiet trail", () => {
     { at: "2026-09-25T10:00:00+01:00", field: "claim", why: null, from: "b" },
     { at: "2026-09-21T10:00:00+01:00", field: "claim", why: null, from: "a" },
   ];
-  const history = () =>
+  const history = (rail = false) =>
     render(
       <PositionHistory
         entries={ENTRIES}
         current={{ claim: "c" }}
         whyLine={() => <p>why line</p>}
+        rail={rail}
       />
     );
 
@@ -188,25 +190,50 @@ describe("a Position history's quiet trail", () => {
     const trail = screen.getByRole("button", { name: /quiet revisions/ });
     const css = rules("PositionHistory", historyStyles);
     expect(css.reaches(trail, ".body > button")).toBe(true);
-    expect(css.declarations(".body > button")).toMatch(/display:\s*flex;/);
+    const declared = css.declarations(".body > button");
+    expect(declared).toMatch(/display:\s*flex;/);
+    expect(declared).toMatch(/gap:\s*var\(--space-3\);/);
+    expect(declared).toMatch(/font-family:\s*var\(--font-mono\);/);
+    expect(declared).toMatch(/font-size:\s*var\(--text-xs\);/);
+    expect(declared).toMatch(/color:\s*var\(--color-fg-secondary\);/);
     expect(trail.querySelector(`.${historyStyles.rule}`)).not.toBeNull();
+    expect(css.reaches(trail, ".rail .body > button")).toBe(false);
   });
 
-  it("keeps each *+ why* quiet until its entry is hovered, focused or opened", () => {
+  it("sets the trail in the sans, muted, in a rail as prototype 05 does", () => {
+    history(true);
+    const trail = screen.getByRole("button", { name: /quiet revisions/ });
+    const css = rules("PositionHistory", historyStyles);
+    expect(css.reaches(trail, ".rail .body > button")).toBe(true);
+    const declared = css.declarations(".rail .body > button");
+    expect(declared).toMatch(/font-family:\s*var\(--font-sans\);/);
+    expect(declared).toMatch(/color:\s*var\(--color-fg-muted\);/);
+  });
+
+  it("draws each *+ why* in the date's mono only for an entry hovered, focused, opened or loud", () => {
     history();
     fireEvent.click(screen.getByRole("button", { name: /quiet revisions/ }));
     const whys = screen.getAllByRole("button", { name: "+ why" });
     expect(whys).toHaveLength(2);
     const css = rules("PositionHistory", historyStyles);
-    expect(css.declarations(".quietWhen button")).toMatch(/opacity:\s*0;/);
+    const quiet = css.declarations(".quietWhen button");
+    expect(quiet).toMatch(/opacity:\s*0;/);
+    expect(quiet).toMatch(/font-family:\s*var\(--font-mono\);/);
+    expect(quiet).toMatch(/font-size:\s*var\(--text-xs\);/);
+    // One block brings it back for every case; a loud entry's (no why
+    // written) is the one that must never hide.
+    for (const shown of [
+      ".quiet:hover .quietWhen button",
+      ".quietWhen button:focus-visible",
+      '.quietWhen button[aria-expanded="true"]',
+      ".entry[data-loud] .quietWhen button",
+    ])
+      expect(css.declarations(shown)).toMatch(/opacity:\s*1;/);
     for (const why of whys) {
       expect(css.reaches(why, ".quietWhen button")).toBe(true);
       expect(css.reaches(why, ".body > button")).toBe(false);
       expect(css.reaches(why, ".quiet:hover .quietWhen button")).toBe(true);
     }
-    expect(css.declarations(".quiet:hover .quietWhen button")).toMatch(
-      /opacity:\s*1;/
-    );
     fireEvent.click(whys[0]!);
     expect(
       css.reaches(whys[0]!, '.quietWhen button[aria-expanded="true"]')
@@ -246,9 +273,18 @@ describe("the rest of a sitting in Detail", () => {
     const declared = css.declarations(".sitting button");
     expect(declared).toMatch(/flex-direction:\s*column;/);
     expect(declared).toMatch(/border-left:\s*2px solid var\(--color-line\);/);
+    expect(css.declarations(".sitting button:hover .otherText")).toMatch(
+      /color:\s*var\(--color-fg\);/
+    );
     for (const other of others) {
       expect(other.className).toBe(form.listRow);
       expect(css.reaches(other, ".sitting button")).toBe(true);
+      expect(
+        css.reaches(
+          other.querySelector(`.${detailStyles.otherText}`)!,
+          ".sitting button:hover .otherText"
+        )
+      ).toBe(true);
     }
   });
 });

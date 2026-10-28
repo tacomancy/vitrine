@@ -179,7 +179,9 @@
   color: var(--color-fg);
 }
 
-/* The prototype's rail sets a quiet run's line in the sans, muted. */
+/* The prototype's rail sets a quiet run's line in the sans, muted. Its hover
+   is said again because the rail's colour, as specific and later, would
+   otherwise win over the plain one. */
 .rail .body > button {
   font-family: var(--font-sans);
   color: var(--color-fg-muted);
@@ -224,7 +226,8 @@
    that is fine as it is. Always drawn for the keyboard, which cannot hover,
    and on a loud entry, whose missing why is the point. In the date's mono
    and size, beside it; `Button`'s own size and padding would set it above
-   the date's line (#919). */
+   the date's line. Not the `inline` tier, whose underline would make a quiet
+   offer the loudest thing on the row (#919). */
 .quietWhen button {
   padding: 0;
   font-family: var(--font-mono);

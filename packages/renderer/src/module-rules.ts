@@ -10,7 +10,9 @@ import { readFileSync } from "node:fs";
  */
 export function moduleRules(file: string, styles: Record<string, string>) {
   const css = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-  // No module these tests read holds an at-rule, so every block is flat.
+  // No module these tests read holds an at-rule, so every block is flat. An
+  // `@media` added to one nests a block, which this misreads: a rule inside
+  // it would be missed and `declarations` would throw for it.
   const blocks = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(
     ([, selectors, body]) => ({
       selectors: selectors!
