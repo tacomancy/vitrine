@@ -551,7 +551,7 @@ describe("an Accept rate in words", () => {
   const css = readFileSync(`${__dirname}/ScoutActivity.module.css`, "utf8");
   const rule = (selector: string) =>
     css.match(
-      new RegExp(`${selector.replace(/\./g, "\\.")}\\s*\\{([^}]*)\\}`)
+      new RegExp(`${selector.replace(/[.()]/g, "\\$&")}\\s*\\{([^}]*)\\}`)
     )?.[1] ?? "";
 
   it("wraps inside its column in the row's type, never printing over Proposed (#917)", async () => {
@@ -563,7 +563,9 @@ describe("an Accept rate in words", () => {
     expect(rate.textContent).toBe("nothing triaged yet");
     expect(rate.closest("td")!.className).toBe(styles.wraps);
     // `Button`'s own nowrap and size would win over the cell's: say both back.
-    expect(rule(".table tbody td button")).toMatch(/font-size:\s*inherit;/);
+    expect(rule(".table tbody td:not(.detail) button")).toMatch(
+      /font-size:\s*inherit;/
+    );
     expect(rule(".table tbody td.wraps button")).toMatch(
       /white-space:\s*normal;/
     );
