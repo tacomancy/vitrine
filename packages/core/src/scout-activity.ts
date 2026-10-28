@@ -34,6 +34,7 @@ import {
   MIN_WEEK_ITEMS,
   type AcceptCounts,
   type AcceptWeek,
+  type PageAcceptCounts,
   type PageChange,
 } from "./triage.js";
 
@@ -107,6 +108,9 @@ export type PageAcceptRate =
   | { kind: "nothing triaged" }
   | { kind: "unavailable"; reason: string };
 
+/** One page of a Scout of several pages, and its share of the Accept rate. */
+export type PageRate = { url: string; rate: PageAcceptRate };
+
 /**
  * The guard tests only the fields the source is expected to supply: arXiv
  * carries a venue only when a paper has a `journal_ref`, so counting it missing
@@ -162,10 +166,8 @@ function acceptRateOf(
  */
 function acceptByPageOf(
   scout: Scout,
-  byPage: Array<AcceptCounts & { page: string | null }>
-):
-  | { acceptByPage: Array<{ url: string; rate: PageAcceptRate }> }
-  | Record<string, never> {
+  byPage: PageAcceptCounts[]
+): { acceptByPage: PageRate[] } | Record<string, never> {
   const pages = pagesOf(scout);
   if (pages.length < 2) return {};
   return {
@@ -256,7 +258,7 @@ export type ActivityRow =
        * 8). Credited by the first Appearance's run's page, from the rows the
        * headline is summed from.
        */
-      acceptByPage?: Array<{ url: string; rate: PageAcceptRate }>;
+      acceptByPage?: PageRate[];
       /**
        * What waits in Review under this Scout's name: the stack the row links
        * to in the Queue. Figures only; whether *nothing pending* may be said

@@ -175,6 +175,9 @@ export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
   });
 }
 
+/** Which of a Proposal's Appearances is its first, over `appearances fa`: one clause, so the Scout and the page it credits are read off the same row. The alias is its own so a caller's `a.…` is never shadowed. */
+const FIRST_APPEARANCE = "ORDER BY fa.run_id, fa.rowid LIMIT 1";
+
 /**
  * The Scout a Proposal is credited to: the one whose Appearance came first, by
  * run and then by the order the rows were written, since two runs can overlap
@@ -186,8 +189,8 @@ export function promoteProposal(deps: ScoutDeps, proposalId: number): void {
  * is the SQL column that names the Proposal, never a value.
  */
 export const firstAppearanceScout = (proposal: string) =>
-  `(SELECT scout_id FROM appearances WHERE proposal_id = ${proposal}
-     ORDER BY run_id, rowid LIMIT 1)`;
+  `(SELECT fa.scout_id FROM appearances fa WHERE fa.proposal_id = ${proposal}
+     ${FIRST_APPEARANCE})`;
 
 /** Accepts and rejects that count toward each Scout's Accept rate (beat 9 reads this; ADR 0039 decisions 4 and 6). */
 export type AcceptCounts = {
@@ -245,12 +248,16 @@ export function acceptCounts(queue: DatabaseSync, since = ""): AcceptCounts[] {
 
 /**
  * The page the first Appearance's run read: the same Appearance
- * `firstAppearanceScout` credits (one ORDER BY), and null for a run from
- * before `query` was recorded. A Structured Scout's is its Query.
+ * `firstAppearanceScout` credits, and null for a run from before `query` was
+ * recorded. A Structured Scout's is its Query. The join is a LEFT one so a
+ * missing run can never skip to a later Appearance than the Scout's.
  */
 const firstAppearancePage = (proposal: string) =>
-  `(SELECT r.query FROM appearances a LEFT JOIN scout_runs r ON r.id = a.run_id
-     WHERE a.proposal_id = ${proposal} ORDER BY a.run_id, a.rowid LIMIT 1)`;
+  `(SELECT fr.query FROM appearances fa LEFT JOIN scout_runs fr ON fr.id = fa.run_id
+     WHERE fa.proposal_id = ${proposal} ${FIRST_APPEARANCE})`;
+
+/** `AcceptCounts` for the Proposals one page of a Scout found first. */
+export type PageAcceptCounts = AcceptCounts & { page: string | null };
 
 /**
  * `acceptCounts` split by the page that first found each Proposal, for the
@@ -263,7 +270,7 @@ const firstAppearancePage = (proposal: string) =>
 export function acceptCountsByPage(
   queue: DatabaseSync,
   since = ""
-): Array<AcceptCounts & { page: string | null }> {
+): PageAcceptCounts[] {
   return queue
     .prepare(
       `SELECT ${firstAppearanceScout("t.proposal_id")} AS scoutId,
@@ -276,7 +283,7 @@ export function acceptCountsByPage(
         WHERE ${COUNTED}
         GROUP BY scoutId, page ORDER BY scoutId, page`
     )
-    .all(since) as Array<AcceptCounts & { page: string | null }>;
+    .all(since) as PageAcceptCounts[];
 }
 
 /** A week's Accept rate needs at least this many triaged Review items to be a point; a thinner week is a gap, never a zero (ADR 0042 decision 2). */
@@ -768,6 +775,10 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
   });
 }
 
+/** What the weekly line says about the pages its twelve weeks read: `pageChangeIn`'s answer. */
+export type PageChange =
+  { kind: "changed"; at: string } | { kind: "added or removed" } | null;
+
 /**
  * What the weekly line says about the pages its twelve weeks read, so a
  * change in the line can be read against a change in the Scout. A one-page
@@ -779,10 +790,14 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
  * cannot disagree about it. A run with no recorded page predates the column
  * and is never taken for an edit; an arXiv Scout's Query is a Filter on one
  * source, so it has no page change. The line's figures do not read this.
+ *
+ * Runs are all it has, so some histories read alike: a Scout cut to one page
+ * whose pages per-page Due had put on separate checks reads as a one-page
+ * Scout re-pointed (still a sentence that the line spans more than one page),
+ * and a page removed and added back inside the weeks reads as never removed.
+ * A page added and not read yet is not said until its first run, as a
+ * re-point is not.
  */
-export type PageChange =
-  { kind: "changed"; at: string } | { kind: "added or removed" } | null;
-
 export function pageChangeIn(
   queue: DatabaseSync,
   scout: Scout,
