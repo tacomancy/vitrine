@@ -268,6 +268,22 @@
   white-space: normal;
 }
 
+/* A button in a data cell (the accept rate, the cadence, each run, a dropped
+   row's undo) is still the cell's words, so it wears the cell's type rather
+   than `Button`'s larger one. Not in a detail row: the edit's actions sit in
+   `ActionRow`, which is smaller than they are, and they keep `Button`'s size.
+   And in a cell that wraps, it wraps too: `Button` keeps an action to one
+   line, which the cell's own white-space cannot undo, and *nothing triaged
+   yet* in one line runs over Proposed (#917). */
+.table tbody td:not(.detail) button {
+  font-size: inherit;
+}
+
+.table tbody td.wraps button {
+  white-space: normal;
+  text-align: left;
+}
+
 .parts {
   margin: 0;
   padding: 0;
