@@ -274,6 +274,9 @@ describe("the rows about a broken page of a Scout of several pages", () => {
   };
 
   it("draws one row per page, each naming the Scout and its page with the page's own sentence", async () => {
+    // Rows of one Scout share a subject and kind; React says so when they
+    // also share a key, and two rows held under one key can be confused.
+    const errors = vi.spyOn(console, "error");
     several();
     for (const url of [NEWS, BLOG]) {
       const item = await rowAbout(url);
@@ -285,6 +288,10 @@ describe("the rows about a broken page of a Scout of several pages", () => {
     expect(within(item).getByText(CHANGED.sentence)).toBeDefined();
     expect(within(item).getByText("scout · structure change")).toBeDefined();
     expect(screen.getByText("3 items", { selector: "span" })).toBeDefined();
+    expect(
+      errors.mock.calls.filter((call) => String(call[0]).includes("same key"))
+    ).toEqual([]);
+    errors.mockRestore();
   });
 
   it("runs only that page on run now, and pauses the Scout", async () => {
