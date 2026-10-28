@@ -752,6 +752,21 @@ describe("rows about a broken page of a Scout of several pages", () => {
     expect(lab.runs()).toEqual([]);
   });
 
+  it("offer the Scout's key once, however many of its pages wait on it", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)), { key: false });
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html(2) };
+    await lab.run();
+
+    expect(await lab.looseEnds()).toEqual([
+      expect.objectContaining({
+        kind: "blocked-on-credentials",
+        subject: "lab",
+        voice: "not yet",
+      }),
+    ]);
+  });
+
   it("read as before for a one-page Scout, naming no page", async () => {
     const lab = await opened(fileWith(`  url: ${RESEARCH}`));
     await lab.run();

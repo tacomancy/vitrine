@@ -17,6 +17,7 @@ const FAILED = {
   subject: "sleep",
   path: ".vitrine/scouts/sleep.yaml",
   title: "Sleep and memory",
+  page: null,
   errorKind: "network" as const,
   sentence: SENTENCE,
 };
@@ -25,6 +26,7 @@ const CHANGED = {
   subject: "lab",
   path: ".vitrine/scouts/lab.yaml",
   title: "Sleep Lab",
+  page: null,
   address: "https://lab.example/publications",
   sentence:
     "The papers this page listed before are no longer on it: its structure changed.",
@@ -226,5 +228,102 @@ describe("the stub without a PDF row", () => {
         stub: "sources/klinzing2019.md",
       })
     );
+  });
+});
+
+// #913 (ADR 0056 decision 6): a Scout of several pages has a row per broken
+// page, naming the page, and mending it touches only that page.
+describe("the rows about a broken page of a Scout of several pages", () => {
+  const RESEARCH = "https://lab.example/research";
+  const NEWS = "https://lab.example/news";
+  const BLOG = "https://lab.example/blog";
+  const HTTP_404 =
+    "The page answered with an error (HTTP 404) or was too large to read, so nothing was checked.";
+  const page = (url: string) => ({
+    kind: "failed-scout" as const,
+    subject: "lab",
+    path: ".vitrine/scouts/lab.yaml",
+    title: "Lab",
+    page: url,
+    errorKind: "http" as const,
+    sentence: HTTP_404,
+  });
+  const changed = {
+    ...CHANGED,
+    title: "Lab",
+    page: RESEARCH,
+    address: RESEARCH,
+  };
+  const several = (more: Record<string, unknown> = {}) =>
+    open({
+      "looseEnds.rows": {
+        problems: [],
+        groups: [
+          {
+            group: "Broken plumbing",
+            rows: [changed, page(NEWS), page(BLOG)],
+          },
+        ],
+      } satisfies LooseEnds,
+      ...more,
+    });
+  const rowAbout = async (url: string) => {
+    const view = await screen.findByRole("region", { name: "Loose Ends" });
+    const items = await within(view).findAllByRole("listitem");
+    return items.find((li) => within(li).queryByText(url) !== null)!;
+  };
+
+  it("draws one row per page, each naming the Scout and its page with the page's own sentence", async () => {
+    several();
+    for (const url of [NEWS, BLOG]) {
+      const item = await rowAbout(url);
+      expect(within(item).getByText("Lab")).toBeDefined();
+      expect(within(item).getByText(HTTP_404)).toBeDefined();
+      expect(within(item).getByText("scout · http")).toBeDefined();
+    }
+    const item = await rowAbout(RESEARCH);
+    expect(within(item).getByText(CHANGED.sentence)).toBeDefined();
+    expect(within(item).getByText("scout · structure change")).toBeDefined();
+    expect(screen.getByText("3 items", { selector: "span" })).toBeDefined();
+  });
+
+  it("runs only that page on run now, and pauses the Scout", async () => {
+    const run = vi.fn<(input: unknown) => unknown>(() => ({}));
+    const pause = vi.fn<(input: unknown) => unknown>(() => undefined);
+    several({ "scouts.runNow": run, "scouts.pause": pause });
+    fireEvent.click(
+      within(await rowAbout(BLOG)).getByRole("button", { name: "run now" })
+    );
+    fireEvent.click(
+      within(await rowAbout(RESEARCH)).getByRole("button", { name: "run now" })
+    );
+    fireEvent.click(
+      within(await rowAbout(NEWS)).getByRole("button", { name: "pause" })
+    );
+    await vi.waitFor(() => expect(pause).toHaveBeenCalled());
+    expect(run.mock.calls).toEqual([
+      [{ scoutId: "lab", page: BLOG }],
+      [{ scoutId: "lab", page: RESEARCH }],
+    ]);
+    expect(pause).toHaveBeenCalledWith({ scoutId: "lab" });
+  });
+
+  it("opens that page on open the page", async () => {
+    several();
+    for (const url of [RESEARCH, NEWS]) {
+      const link = within(await rowAbout(url)).getByRole("link", {
+        name: "open the page",
+      });
+      expect(link.getAttribute("href")).toBe(url);
+    }
+  });
+
+  it("draws a one-page Scout's rows as before, naming no page", async () => {
+    open();
+    const item = await rowFor("Sleep and memory");
+    expect(
+      within(item).queryByRole("link", { name: "open the page" })
+    ).toBeNull();
+    expect(within(item).queryByText(/^https:/)).toBeNull();
   });
 });

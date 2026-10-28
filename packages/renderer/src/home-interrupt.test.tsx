@@ -285,3 +285,85 @@ describe("the acts", () => {
     ).toBeNull();
   });
 });
+
+// #913 (ADR 0056 decision 6): a Scout of several pages is named by its broken
+// pages, a line each, and run now on one reads that page alone.
+describe("a Scout of several pages with a broken page", () => {
+  const RESEARCH = "https://lab.example/research";
+  const NEWS = "https://lab.example/news";
+  const BLOG = "https://lab.example/blog";
+  const HTTP_404 =
+    "The page answered with an error (HTTP 404) or was too large to read, so nothing was checked.";
+  const pageWrong: Health = {
+    voice: "wrong",
+    kind: "http",
+    sentence: HTTP_404,
+  };
+  const lab = (over: Partial<ScoutRow> = {}) =>
+    scout({
+      id: "lab",
+      name: "Lab",
+      source: {
+        kind: "watched",
+        pages: [
+          { url: RESEARCH, health: LOOKING },
+          { url: NEWS, health: pageWrong },
+          { url: BLOG, health: pageWrong },
+        ],
+      },
+      health: {
+        voice: "wrong",
+        kind: "http",
+        sentence: `${NEWS}: ${HTTP_404} ${BLOG}: ${HTTP_404}`,
+      },
+      ...over,
+    });
+  const lineAbout = async (url: string) => {
+    const block = await interrupt();
+    return within(block)
+      .getAllByRole("listitem")
+      .find((li) => within(li).queryByText(url) !== null)!;
+  };
+
+  it("names each broken page on a line of its own, in the page's own sentence, and leaves the healthy page out", async () => {
+    open([lab()]);
+    for (const url of [NEWS, BLOG]) {
+      const line = within(await lineAbout(url));
+      expect(line.getByText("Lab")).toBeDefined();
+      expect(line.getByText(HTTP_404)).toBeDefined();
+    }
+    const block = within(await interrupt());
+    expect(block.getAllByRole("listitem")).toHaveLength(2);
+    expect(block.queryByText(RESEARCH)).toBeNull();
+  });
+
+  it("runs only that page on run now, and pauses the Scout", async () => {
+    const ran: unknown[] = [];
+    const paused: unknown[] = [];
+    open([lab()], {
+      "scouts.runNow": (input: unknown) => {
+        ran.push(input);
+        return { outcome: "ok", new: 1, held: 0, truncated: 0 };
+      },
+      "scouts.setPaused": (input: unknown) => {
+        paused.push(input);
+      },
+    });
+    fireEvent.click(
+      within(await lineAbout(BLOG)).getByRole("button", {
+        name: `Lab, ${BLOG}: run now`,
+      })
+    );
+    // What the run did is said on the line it was asked from, not on its sibling.
+    await within(await lineAbout(BLOG)).findByText("1 new");
+    expect(within(await lineAbout(NEWS)).queryByText("1 new")).toBeNull();
+    fireEvent.click(
+      within(await lineAbout(NEWS)).getByRole("button", {
+        name: `Lab, ${NEWS}: pause`,
+      })
+    );
+    await waitFor(() => expect(paused).toHaveLength(1));
+    expect(ran).toEqual([{ scoutId: "lab", page: BLOG }]);
+    expect(paused).toEqual([{ scoutId: "lab", paused: true }]);
+  });
+});

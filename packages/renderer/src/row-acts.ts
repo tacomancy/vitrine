@@ -24,6 +24,17 @@ const without = (
 
 export const scoutKey = (id: string) => `scout:${id}`;
 
+/** A page of a Scout of several, whose own *run now* is said on its own line. */
+export const pageKey = (id: string, page: string) => `scout:${id}:${page}`;
+
+const runKey = ({
+  scoutId,
+  page,
+}: {
+  scoutId: string;
+  page?: string | undefined;
+}) => (page === undefined ? scoutKey(scoutId) : pageKey(scoutId, page));
+
 /**
  * What an act on a row did, said on the row it was about and left there: no
  * row disappears from under the cursor, and what happened is not a toast that
@@ -126,12 +137,13 @@ export function useRowActs(hold: () => void) {
 
   const run = useMutation(
     trpc.scouts.runNow.mutationOptions({
-      onMutate: ({ scoutId }) => forgetRefusal(scoutKey(scoutId)),
-      onSuccess: (summary, { scoutId }) => {
-        say(scoutKey(scoutId), { refused: false, text: runWords(summary) });
+      onMutate: (input) => forgetRefusal(runKey(input)),
+      onSuccess: (summary, input) => {
+        say(runKey(input), { refused: false, text: runWords(summary) });
         reread();
       },
-      onError: refused,
+      onError: (error, input) =>
+        say(runKey(input), { refused: true, text: error.message }),
     })
   );
 
@@ -148,10 +160,16 @@ export function useRowActs(hold: () => void) {
     closeEdit: (key: string) => setEditing((was) => without(was, key)),
     toggleCadence: (key: string) => setCadenceOpen((was) => toggled(was, key)),
     closeCadence: (key: string) => setCadenceOpen((was) => without(was, key)),
-    /** Check now, due or not; the row says what the run found, or why it was refused. */
-    runNow(row: Pick<ScoutRow, "id">) {
+    /**
+     * Check now, due or not; the row says what the run found, or why it was
+     * refused. With `page`, that page of a Scout of several alone, said under
+     * `pageKey` (ADR 0056 decision 6).
+     */
+    runNow(row: Pick<ScoutRow, "id">, page?: string) {
       hold();
-      run.mutate({ scoutId: row.id });
+      run.mutate(
+        page === undefined ? { scoutId: row.id } : { scoutId: row.id, page }
+      );
     },
     pauseOrResume(row: ScoutRow) {
       hold();

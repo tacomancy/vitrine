@@ -550,12 +550,7 @@ function scoutRow(
   health: Health,
   path: string,
   page: string | null = null
-):
-  | FailedScout
-  | StructureChange
-  | BlockedOnCredentials
-  | WaitingScout
-  | null {
+): FailedScout | StructureChange | BlockedOnCredentials | WaitingScout | null {
   // A Scout is one row however it failed, so each of these replaces the
   // generic failed-Scout row rather than sitting beside it.
   if (isWaitingOnKey(health)) {
