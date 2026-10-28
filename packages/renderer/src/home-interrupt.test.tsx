@@ -337,6 +337,44 @@ describe("a Scout of several pages with a broken page", () => {
     expect(block.queryByText(RESEARCH)).toBeNull();
   });
 
+  it("opens that page on open the page", async () => {
+    open([lab()]);
+    for (const url of [NEWS, BLOG]) {
+      const link = within(await lineAbout(url)).getByRole("link", {
+        name: `Lab, ${url}: open the page`,
+      });
+      expect(link.getAttribute("href")).toBe(url);
+    }
+  });
+
+  it("says a key the provider refused once for the Scout, since every page uses the one key", async () => {
+    const REFUSED: Health = {
+      voice: "wrong",
+      kind: "credentials",
+      sentence:
+        "The model provider refused the stored key, so nothing was checked.",
+    };
+    open([
+      lab({
+        source: {
+          kind: "watched",
+          pages: [
+            { url: RESEARCH, health: REFUSED },
+            { url: NEWS, health: REFUSED },
+          ],
+        },
+        health: {
+          ...REFUSED,
+          sentence: `${RESEARCH}: ${REFUSED.sentence} ${NEWS}: ${REFUSED.sentence}`,
+        },
+      }),
+    ]);
+    const block = within(await interrupt());
+    expect(block.getAllByRole("listitem")).toHaveLength(1);
+    expect(block.getByText(REFUSED.sentence)).toBeDefined();
+    expect(block.getByRole("button", { name: "Lab: run now" })).toBeDefined();
+  });
+
   it("runs only that page on run now, and pauses the Scout", async () => {
     const ran: unknown[] = [];
     const paused: unknown[] = [];

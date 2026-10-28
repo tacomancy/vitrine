@@ -551,8 +551,10 @@ function scoutRow(
   path: string,
   page: string | null = null
 ): FailedScout | StructureChange | BlockedOnCredentials | WaitingScout | null {
-  // A Scout is one row however it failed, so each of these replaces the
-  // generic failed-Scout row rather than sitting beside it.
+  // A Scout, or a page of one of several, is one row however it failed, so
+  // each of these replaces the generic failed-Scout row rather than sitting
+  // beside it. *Waiting* on a budget is never a page's: it is OpenAlex's, and
+  // a Structured source has no pages, so only the key row is offered once.
   if (isWaitingOnKey(health)) {
     return {
       kind: "blocked-on-credentials",

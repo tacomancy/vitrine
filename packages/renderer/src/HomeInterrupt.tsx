@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "./Form";
 import type { ActivityRow, ScoutRow } from "core";
 import styles from "./Home.module.css";
+import { classifyLink } from "./link-rule";
 import { RefusalLine } from "./refusal-line";
 import { pageKey, scoutKey, useRowActs, type RowActs } from "./row-acts";
 import { hashOf, SCOUTS } from "./router";
@@ -19,11 +20,24 @@ type BrokenLine = { row: ScoutRow; page: string | null; sentence: string };
  */
 function linesOf(row: ScoutRow): BrokenLine[] {
   if (row.source.kind === "watched" && row.source.pages.length > 1) {
-    return row.source.pages.flatMap(({ url, health }) =>
-      health.voice === "wrong"
-        ? [{ row, page: url, sentence: health.sentence }]
-        : []
+    const wrong = row.source.pages.flatMap(({ url, health }) =>
+      health.voice === "wrong" ? [{ url, health }] : []
     );
+    // A refused key is the Scout's, since every page uses the one key: said
+    // once, on a line for the Scout, as Loose Ends offers Settings once.
+    const key = wrong.find(({ health }) => health.kind === "credentials");
+    return [
+      ...(key === undefined
+        ? []
+        : [{ row, page: null, sentence: key.health.sentence }]),
+      ...wrong
+        .filter(({ health }) => health.kind !== "credentials")
+        .map(({ url, health }) => ({
+          row,
+          page: url,
+          sentence: health.sentence,
+        })),
+    ];
   }
   return [
     {
@@ -38,8 +52,8 @@ function linesOf(row: ScoutRow): BrokenLine[] {
  * The interrupt: the one place on Home that raises its voice, and still only
  * to a polite `status` (ADR 0033 decision 1) — a Scout being broken is a state
  * the researcher is in, not a refusal of something they just did. Each broken
- * Scout is named with the core's fault sentence verbatim (ADR 0032 decision
- * 7), so Home, Loose Ends and Scout Activity cannot describe one fault three
+ * Scout — or each broken page of a Scout of several — is named with the core's
+ * fault sentence verbatim (ADR 0032 decision 7), so Home, Loose Ends and Scout Activity cannot describe one fault three
  * ways, and with what it last did, so the researcher can see how long it has
  * looked identical to a quiet field.
  *
@@ -112,6 +126,9 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
                   · found {row.volume.proposals} in the last 30 days
                 </span>
                 <span className={styles.acts}>
+                  {page !== null && (
+                    <OpenThePage label={label} address={page} />
+                  )}
                   <Button
                     aria-label={`${label}: run now`}
                     onClick={() => acts.runNow(row, page ?? undefined)}
@@ -179,8 +196,30 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
 }
 
 /**
- * What an act on this Scout did. A refusal is the user's act turned down and
- * so an alert, through the one refusal module; the Scout is named in it
+ * The broken page, opened outside the app to see what changed. The address
+ * came from a file the researcher may have hand-written, so it goes through
+ * the one link rule like every other outbound link.
+ */
+function OpenThePage({ label, address }: { label: string; address: string }) {
+  const link = classifyLink(address);
+  if (link.kind !== "out") return null;
+  return (
+    <a
+      className={styles.act}
+      href={link.href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${label}: open the page`}
+    >
+      open the page
+    </a>
+  );
+}
+
+/**
+ * What an act on this Scout, or on one page of it, did (`sayKey` says which).
+ * A refusal is the user's act turned down and so an alert, through the one
+ * refusal module; the Scout, and the page when there is one, is named in it
  * because the line is read apart from its row. What the core refused with has
  * no machine path in it (ADR 0028), so it is passed on as it came.
  */

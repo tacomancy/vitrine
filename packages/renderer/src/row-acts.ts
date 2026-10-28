@@ -97,10 +97,11 @@ export function useRowActs(hold: () => void) {
   }
   const reread = () =>
     void queryClient.invalidateQueries(trpc.scouts.pathFilter());
+  // Said where the act was asked from: a page's *run now* on its page's line.
   const refused = (
     error: { message: string },
-    { scoutId }: { scoutId: string }
-  ) => say(scoutKey(scoutId), { refused: true, text: error.message });
+    input: { scoutId: string; page?: string | undefined }
+  ) => say(runKey(input), { refused: true, text: error.message });
 
   const changeCadence = useMutation(
     trpc.scouts.setCadence.mutationOptions({
@@ -142,8 +143,7 @@ export function useRowActs(hold: () => void) {
         say(runKey(input), { refused: false, text: runWords(summary) });
         reread();
       },
-      onError: (error, input) =>
-        say(runKey(input), { refused: true, text: error.message }),
+      onError: refused,
     })
   );
 
