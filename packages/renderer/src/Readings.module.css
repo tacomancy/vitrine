@@ -38,6 +38,15 @@
   font-size: var(--text-sm);
 }
 
+/* *review links*, the one button in a row: set off from the question it
+   follows and in the row's quiet mono, as the row's other facts are. Without
+   the gap it prints flush against the question's last word (#919). */
+.list li > button {
+  margin-left: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .members {
   margin: var(--space-1) 0 var(--space-2);
   padding-left: var(--space-4);

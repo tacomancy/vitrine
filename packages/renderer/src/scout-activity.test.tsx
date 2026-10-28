@@ -17,6 +17,7 @@ import {
   vault,
   weeksOf,
 } from "./fake-core";
+import { moduleRules } from "./module-rules";
 import styles from "./ScoutActivity.module.css";
 
 afterEach(cleanup);
@@ -570,6 +571,21 @@ describe("an Accept rate in words", () => {
       /white-space:\s*normal;/
     );
     expect(rule(".table tbody td.wraps button")).toMatch(/text-align:\s*left;/);
+  });
+});
+
+describe("the cadence word", () => {
+  it("carries the caret that says it opens a menu (#919)", async () => {
+    open(fleet([QUIET]));
+
+    const [row] = await tableRows();
+    const cadence = within(row!).getByRole("button", { name: /: cadence,/ });
+    const selector = '.table button[aria-haspopup="menu"]::after';
+    const css = moduleRules(`${__dirname}/ScoutActivity.module.css`, styles);
+
+    expect(cadence.textContent).toBe(QUIET.cadence);
+    expect(css.reaches(cadence, selector)).toBe(true);
+    expect(css.declarations(selector)).toMatch(/content:\s*" ▾";/);
   });
 });
 

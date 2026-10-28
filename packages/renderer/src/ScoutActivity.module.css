@@ -257,6 +257,15 @@
   text-align: left;
 }
 
+/* The cadence word opens a menu, which a word in a table does not say by
+   itself: a caret beside it does, drawn and not typed, so the cell still reads
+   as the cadence and nothing but the cadence. #822 dropped it with the
+   button's own class (#919). */
+.table button[aria-haspopup="menu"]::after {
+  content: " ▾";
+  color: var(--color-fg-muted);
+}
+
 .parts {
   margin: 0;
   padding: 0;

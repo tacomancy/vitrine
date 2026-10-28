@@ -274,7 +274,10 @@ export function CandidateReview({
       </p>
       {lastRejected !== undefined && (
         <p className={styles.keys}>
-          <Button onClick={undo}>Undo reject</Button> <kbd>⌘Z</kbd>
+          <Button tier="inline" onClick={undo}>
+            Undo reject
+          </Button>{" "}
+          <kbd>⌘Z</kbd>
         </p>
       )}
       {refused !== null && (
