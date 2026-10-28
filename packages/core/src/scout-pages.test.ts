@@ -321,7 +321,7 @@ colour: teal
   it("writes `url:` in place of `urls:` when one page is left, the page's own comment with it", async () => {
     const lab = await opened(
       fileWith(
-        `  urls:\n    - ${RESEARCH} # the research list\n    - ${NEWS} # the news list`
+        `  urls:\n    - ${RESEARCH} # the research list\n    # the news list, from the spring\n    - ${NEWS} # the news list`
       )
     );
 
@@ -331,7 +331,7 @@ colour: teal
 
     const text = await readFile(lab.path, "utf8");
     expect(text).toContain(
-      `source:\n  kind: watched\n  url: ${NEWS} # the news list\n`
+      `source:\n  kind: watched\n  # the news list, from the spring\n  url: ${NEWS} # the news list\n`
     );
     expect(text).not.toContain("urls");
     expect((await lab.list()).scouts[0]!.source).toEqual({

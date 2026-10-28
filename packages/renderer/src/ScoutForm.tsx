@@ -246,7 +246,7 @@ export function ScoutForm({
   // A blank row is one not filled in yet, so it is left out rather than
   // refused; the core refuses what is sent and is not an address.
   const urls = addresses.map((a) => a.trim()).filter((a) => a !== "");
-  const twice = urls.some((url, at) => urls.indexOf(url) !== at);
+  const twice = addresses.some((_, at) => repeatsAt(addresses, at));
   const missing = [
     ...(name.trim() === "" ? ["a name"] : []),
     ...(page
@@ -599,6 +599,12 @@ export function ScoutForm({
   );
 }
 
+/** Whether the address at `at` is a page listed above it, once trimmed (ADR 0043 d.3). */
+const repeatsAt = (addresses: string[], at: number) => {
+  const page = addresses[at]!.trim();
+  return page !== "" && addresses.findIndex((a) => a.trim() === page) < at;
+};
+
 /**
  * A Watched Scout's pages (ADR 0056 decision 13): one group row, an input per
  * page with its own *remove*, and *add another address* under the last. A
@@ -621,9 +627,6 @@ function Addresses({
     >
       {addresses.map((address, at) => {
         const trimmed = address.trim();
-        const repeated =
-          trimmed !== "" &&
-          addresses.findIndex((a) => a.trim() === trimmed) < at;
         return (
           // By position: an address is edited in place, so its text is no key.
           <span key={at} className={styles.address}>
@@ -646,7 +649,7 @@ function Addresses({
               remove
             </Button>
             {one && <Unlocks>A Scout needs at least one page.</Unlocks>}
-            {repeated && (
+            {repeatsAt(addresses, at) && (
               <span role="alert">
                 Already listed. A Scout reads each page once.
               </span>

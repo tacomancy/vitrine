@@ -322,19 +322,34 @@ function writePages(doc: Document, scout: Scout, pages: string[]) {
     throw new VaultError("refused", "This Scout's file names no page.");
   }
   const was = pair.value;
-  // A comment written beside a page is the researcher's, about that page, so
-  // it stays with the page wherever the page now sits; an address edited in
-  // its place keeps the comment on its line, as a hand edit would.
+  // A comment written beside or above a page is the researcher's, about that
+  // page, so it stays with the page wherever the page now sits; an address
+  // edited in its place keeps the comments of its line, as a hand edit would.
   const before = (isSeq(was) ? was.items : [was]).filter(isScalar);
   const next = doc.createNode(pages.length === 1 ? pages[0] : pages);
   (isSeq(next) ? next.items : [next]).forEach((entry, at) => {
     if (!isScalar(entry)) return;
     const own = before.find((b) => String(b.value).trim() === entry.value);
     const replaced = before[at];
-    const gone =
-      replaced !== undefined && !pages.includes(String(replaced.value).trim());
-    entry.comment = (own ?? (gone ? replaced : undefined))?.comment ?? null;
+    let from = own;
+    if (
+      from === undefined &&
+      replaced !== undefined &&
+      !pages.includes(String(replaced.value).trim())
+    ) {
+      from = replaced;
+    }
+    entry.comment = from?.comment ?? null;
+    entry.commentBefore = from?.commentBefore ?? null;
   });
+  // A lone page's comment above it is drawn above its key, which is where
+  // `url:` would have it; under the key it would break the value's line.
+  if (isScalar(next) && next.commentBefore) {
+    pair.key.commentBefore = [pair.key.commentBefore, next.commentBefore]
+      .filter(Boolean)
+      .join("\n");
+    next.commentBefore = null;
+  }
   pair.key.value = pages.length === 1 ? "url" : "urls";
   pair.value = next;
 }
