@@ -215,15 +215,14 @@ describe("a Position history's quiet trail", () => {
 });
 
 describe("the rest of a sitting in Detail", () => {
-  const q = (n: number): ListedQuestion =>
-    ({
-      id: `q${n}`,
-      path: `/v/q${n}.md`,
-      question: `Question ${n}?`,
-      status: "open",
-      captured: `2026-10-20T09:${10 + n}:00Z`,
-      context: "other",
-    }) as ListedQuestion;
+  const q = (n: number): ListedQuestion => ({
+    id: `q${n}`,
+    path: `/v/q${n}.md`,
+    question: `Question ${n}?`,
+    status: "open",
+    captured: `2026-10-20T09:${10 + n}:00Z`,
+    context: "other",
+  });
 
   it("sets each other Question over its time, behind the train-of-thought rule", () => {
     const questions = [q(1), q(2), q(3)];
