@@ -6,6 +6,12 @@
   gap: var(--space-3);
 }
 
+/* *next question* at the width of its words: the column would otherwise
+   stretch it across the review, with its text centred in the middle (#919). */
+.review > button {
+  align-self: flex-start;
+}
+
 .question {
   margin: 0;
   font-size: var(--text-base);

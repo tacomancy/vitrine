@@ -61,7 +61,9 @@ export function Origins() {
       {total > rows.length && (
         <p className={styles.quiet}>
           top {rows.length} of {total} ·{" "}
-          <Button onClick={() => setAll(true)}>show all {total}</Button>
+          <Button tier="inline" onClick={() => setAll(true)}>
+            show all {total}
+          </Button>
         </p>
       )}
     </section>

@@ -160,6 +160,36 @@
   color: var(--color-fg-muted);
 }
 
+/* The trail: a soft rule running into the count, so movement is visible as
+   movement. It is a `Button` (listRow), the only button set straight in an
+   entry's body, and that tier is a bare inline box, so the flex the rule
+   needs to have any width is said here (#919). */
+.body > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
+.body > button:hover,
+.body > button:focus-visible {
+  color: var(--color-fg);
+}
+
+/* The prototype's rail sets a quiet run's line in the sans, muted. */
+.rail .body > button {
+  font-family: var(--font-sans);
+  color: var(--color-fg-muted);
+}
+
+.rail .body > button:hover,
+.rail .body > button:focus-visible {
+  color: var(--color-fg);
+}
+
 .rule {
   flex: 0 1 12ch;
   height: 1px;
@@ -186,6 +216,27 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
+}
+
+/* Quiet until wanted — *+ why* on hover (§ Research Question view and
+   triage; the 03 prototype's closing note draws it on the quiet row): the
+   offer is there months later without being a call to act on a Revision
+   that is fine as it is. Always drawn for the keyboard, which cannot hover,
+   and on a loud entry, whose missing why is the point. In the date's mono
+   and size, beside it; `Button`'s own size and padding would set it above
+   the date's line (#919). */
+.quietWhen button {
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  opacity: 0;
+}
+
+.quiet:hover .quietWhen button,
+.quietWhen button:focus-visible,
+.quietWhen button[aria-expanded="true"],
+.entry[data-loud] .quietWhen button {
+  opacity: 1;
 }
 
 /*

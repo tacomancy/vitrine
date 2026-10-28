@@ -64,6 +64,27 @@
   list-style: none;
 }
 
+/* Each row is a `Button` (listRow), which is a bare inline box: quieter than
+   the Question above it, the train of thought and not the subject, it sets
+   the question over its time behind a left rule. The rule is geometry inside
+   one surface, not a divider between two (ADR 0023 decision 3). #822 dropped
+   all of this with the row's own class (#919). */
+.sitting button {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 0 0 0 var(--space-3);
+  border-left: 2px solid var(--color-line);
+}
+
+/* Coming forward under the pointer or the keyboard, as the collapsed trail
+   does; the brass focus ring is the global one. */
+.sitting button:hover .otherText,
+.sitting button:focus-visible .otherText {
+  color: var(--color-fg);
+}
+
 .otherText {
   font-family: var(--font-serif);
   font-size: var(--text-sm);

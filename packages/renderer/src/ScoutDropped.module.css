@@ -21,6 +21,13 @@
   color: var(--color-fg-muted);
 }
 
+/* Every act on the line (the count, *restore*, *erase*, the question's two
+   answers) is a word of it, in the line's size; `Button` would set them a
+   size above the names beside them (#919). */
+.line button {
+  font-size: inherit;
+}
+
 .names {
   margin: var(--space-1) 0 0;
   padding: 0;

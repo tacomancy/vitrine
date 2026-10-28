@@ -27,7 +27,11 @@ export function FirstRun() {
           Your files stay plain Markdown on disk. Vitrine keeps its own state in
           one folder beside them.
         </p>
-        <Button onClick={() => pick.mutate()} disabled={pick.isPending}>
+        <Button
+          tier="primary"
+          onClick={() => pick.mutate()}
+          disabled={pick.isPending}
+        >
           Open a vault
         </Button>
         {pick.isError && (
