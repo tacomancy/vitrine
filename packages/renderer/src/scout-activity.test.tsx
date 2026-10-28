@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type {
   Cost,
@@ -16,6 +17,7 @@ import {
   vault,
   weeksOf,
 } from "./fake-core";
+import styles from "./ScoutActivity.module.css";
 
 afterEach(cleanup);
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -539,6 +541,35 @@ describe("a long Query", () => {
 
     expect(watching.getAttribute("title")).toBe(`arXiv · ${query}`);
     expect(watching.textContent).toBe(`arXiv · ${query}`);
+  });
+});
+
+// jsdom applies no stylesheet and lays out no table, so what it can see is
+// which cell the button sits in and what the module says about it; the
+// overlap itself was measured over CDP (#917).
+describe("an Accept rate in words", () => {
+  const css = readFileSync(`${__dirname}/ScoutActivity.module.css`, "utf8");
+  const rule = (selector: string) =>
+    css.match(
+      new RegExp(`${selector.replace(/[.()]/g, "\\$&")}\\s*\\{([^}]*)\\}`)
+    )?.[1] ?? "";
+
+  it("wraps inside its column in the row's type, never printing over Proposed (#917)", async () => {
+    open(fleet([{ ...QUIET, acceptRate: { kind: "nothing triaged" } }]));
+
+    const [row] = await tableRows();
+    const rate = within(row!).getByRole("button", { name: /accept rate/ });
+
+    expect(rate.textContent).toBe("nothing triaged yet");
+    expect(rate.closest("td")!.className).toBe(styles.wraps);
+    // `Button`'s own nowrap and size would win over the cell's: say both back.
+    expect(rule(".table tbody td:not(.detail) button")).toMatch(
+      /font-size:\s*inherit;/
+    );
+    expect(rule(".table tbody td.wraps button")).toMatch(
+      /white-space:\s*normal;/
+    );
+    expect(rule(".table tbody td.wraps button")).toMatch(/text-align:\s*left;/);
   });
 });
 
