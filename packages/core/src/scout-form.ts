@@ -24,6 +24,7 @@ import {
   parseQueueNumber,
   queueNumberProblem,
   QUEUE_KEYS,
+  pagesOf,
   readScouts,
   readScoutFile,
   scoutIdOf,
@@ -210,9 +211,7 @@ async function write(
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
     doc.set("name", name);
-    // `doc.set` keeps the comment on a scalar set to what it was, so an
-    // unchanged URL writes the same bytes; a changed one is the only edit.
-    if (watched) doc.setIn(["source", "url"], query);
+    if (watched) writePage(doc, before.scout, query);
   }
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
@@ -272,6 +271,30 @@ async function write(
           !sameList(before.scout.tags, tags))) &&
     !before.scout.paused;
   return { id, runAfter: edited };
+}
+
+/**
+ * The form's one *Address* written to the file under the key it already uses
+ * (ADR 0056 decision 12), so a save never gives a file both. A Scout of
+ * several pages is saved with its first page, which is what the form shows of
+ * it until it lists them (#911): that keeps its pages as they are, and any
+ * other address is refused, since writing it would drop the others unasked.
+ */
+function writePage(doc: Document, scout: Scout, query: string) {
+  const pages = pagesOf(scout);
+  if (pages.length > 1) {
+    if (query === pages[0]) return;
+    throw new VaultError(
+      "refused",
+      "This Scout reads several pages, and the form does not list them yet. Edit its file to change them."
+    );
+  }
+  // `doc.set` keeps the comment on a scalar set to what it was, so an
+  // unchanged URL writes the same bytes; a changed one is the only edit. A
+  // list is replaced whole, so it is written only when it changed.
+  if (doc.hasIn(["source", "urls"])) {
+    if (query !== pages[0]) doc.setIn(["source", "urls"], [query]);
+  } else doc.setIn(["source", "url"], query);
 }
 
 /**

@@ -192,7 +192,7 @@ describe("saving a Scout that watches a page", () => {
     expect(text).not.toContain("filter");
     expect(text).not.toContain("search_back_to");
     expect((await c.list())[0]).toMatchObject({
-      source: { kind: "watched", url: LAB },
+      source: { kind: "watched", urls: [LAB] },
       assigned: ["rq2b7x9mk4"],
     });
     expect(c.written().runs.n).toBe(0);
@@ -274,7 +274,7 @@ describe("editing a Scout that watches a page", () => {
       cadence: "monthly",
       lane: "skim",
       assigned: ["rq2b7x9mk4"],
-      source: { kind: "watched", url: LAB },
+      source: { kind: "watched", urls: [LAB] },
     });
     // Saving never runs a page's Scout (ADR 0040 decision 5), and a changed
     // Assigned Question is not a changed page.

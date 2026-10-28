@@ -145,7 +145,15 @@ describe("trying an edited Query over the last run's window", () => {
   it("never offers it, nor speaks of it, on a Watched Scout", async () => {
     const panel = await opened(
       scout({
-        source: { kind: "watched", url: "https://example.test/p" },
+        source: {
+          kind: "watched",
+          pages: [
+            {
+              url: "https://example.test/p",
+              health: { voice: "claim", warrant: null },
+            },
+          ],
+        },
         lastWindow: null,
       })
     );

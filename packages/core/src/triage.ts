@@ -717,14 +717,46 @@ export function pageChangeIn(
   if (scout.source.kind !== "watched") return null;
   const runs = queue
     .prepare(
-      `SELECT finished, query FROM scout_runs
+      `SELECT finished, query, check_id FROM scout_runs
         WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL AND finished >= ?
         ORDER BY id`
     )
     .all(scout.id, acceptSince(now)) as Array<{
     finished: string;
     query: string;
+    check_id: number | null;
   }>;
+  // A Scout of several pages asks a different page at every run of a check,
+  // so a change of `query` between runs is no change of page. What dates one
+  // is the newest first run at a page no earlier check read: a page added, and
+  // never a page of the Scout's first check. The sentence that says a page was
+  // removed too is #914's.
+  if (scout.source.urls.length > 1) {
+    const read = new Set(
+      (
+        queue
+          .prepare(
+            `SELECT DISTINCT query FROM scout_runs
+              WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL AND finished < ?`
+          )
+          .all(scout.id, acceptSince(now)) as Array<{ query: string }>
+      ).map((r) => r.query)
+    );
+    let added: string | null = null;
+    let earlierCheck = read.size > 0;
+    for (const [i, run] of runs.entries()) {
+      // A row from before `check_id` is a check of its own.
+      if (
+        i > 0 &&
+        (run.check_id === null || run.check_id !== runs[i - 1]!.check_id)
+      ) {
+        earlierCheck = true;
+      }
+      if (!read.has(run.query) && earlierCheck) added = run.finished;
+      read.add(run.query);
+    }
+    return added === null ? null : { at: added };
+  }
   // A re-point nothing has read yet has no date: the change is the edit, which
   // is stored nowhere, and the Voice already says the page is unread. Dating
   // it by the last change between runs would name an older one.

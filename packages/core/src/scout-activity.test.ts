@@ -185,7 +185,21 @@ describe("scouts.activity — what a Scout watches", () => {
     expect(
       rows.map((row) => row.kind === "scout" && [row.source, row.cadence])
     ).toEqual([
-      [{ kind: "watched", url: "https://lab.example/publications" }, "monthly"],
+      [
+        {
+          kind: "watched",
+          pages: [
+            {
+              url: "https://lab.example/publications",
+              health: {
+                voice: "not yet",
+                sentence: "Not yet — first check due now.",
+              },
+            },
+          ],
+        },
+        "monthly",
+      ],
       [{ kind: "arxiv", query: "all:sleep", tags: null }, "weekly"],
     ]);
     // A page saved but never checked says why it has not looked, in the rail's words.

@@ -1,5 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
-import { CADENCES, readScouts, type Scout } from "./scout-file.js";
+import {
+  atPage,
+  CADENCES,
+  pagesOf,
+  readScouts,
+  type Scout,
+} from "./scout-file.js";
 import { CADENCE_MS, finishedRunsAtPage } from "./scout-health.js";
 import { spentUntilOf } from "./openalex.js";
 import { runScout, type ScoutDeps } from "./scouts.js";
@@ -21,7 +27,22 @@ import { serialised } from "./serialise.js";
  * Query overrides that wait: the new text has not been tried.
  */
 export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
-  if (scout.paused) return false;
+  return duePages(queue, scout, now) !== null;
+}
+
+/**
+ * What a check of this Scout reads now, or null when it is not due: for a
+ * Watched Scout the pages that are due, in file order — each by its own runs,
+ * so a page added today is read at the next check and the others are not
+ * fetched early (ADR 0056 decision 4) — and an empty list for a Structured
+ * source, which has no pages and is due whole.
+ */
+export function duePages(
+  queue: DatabaseSync,
+  scout: Scout,
+  now: Date
+): string[] | null {
+  if (scout.paused) return null;
   const allRuns = queue
     .prepare(
       "SELECT finished FROM scout_runs WHERE scout_id = ? ORDER BY id DESC LIMIT 1"
@@ -29,8 +50,18 @@ export function isDue(queue: DatabaseSync, scout: Scout, now: Date): boolean {
     .get(scout.id) as { finished: string | null } | undefined;
   // A run in flight (Run now, or the previous check still going) is the
   // answer to being due; asking again would search the same window twice.
-  if (allRuns !== undefined && allRuns.finished === null) return false;
+  if (allRuns !== undefined && allRuns.finished === null) return null;
+  if (scout.source.kind !== "watched") {
+    return isDueAt(queue, scout, now) ? [] : null;
+  }
+  const due = pagesOf(scout).filter((url) =>
+    isDueAt(queue, atPage(scout, url), now)
+  );
+  return due.length === 0 ? null : due;
+}
 
+/** Whether one page, or a Structured source, is due by its own runs. */
+function isDueAt(queue: DatabaseSync, scout: Scout, now: Date): boolean {
   // A page the Scout has not read is a first look, due at the next check
   // whatever the cadence (ADR 0043 d.4).
   const runs = finishedRunsAtPage(queue, scout);
@@ -111,9 +142,10 @@ export function checkDue(deps: ScoutDeps): Promise<string[]> {
       (a, b) =>
         a.created.getTime() - b.created.getTime() || a.id.localeCompare(b.id)
     )) {
-      if (!isDue(deps.queue, scout, deps.now())) continue;
+      const pages = duePages(deps.queue, scout, deps.now());
+      if (pages === null) continue;
       try {
-        await runScout(deps, scout.id);
+        await runScout(deps, scout.id, pages.length === 0 ? {} : { pages });
         ran.push(scout.id);
       } catch (cause) {
         // A bug in a run must not stop the Scouts behind it; it reaches the

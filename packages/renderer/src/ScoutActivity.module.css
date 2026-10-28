@@ -235,6 +235,27 @@
   text-overflow: ellipsis;
 }
 
+/* A Scout of several pages: one page to a line, its Voice beneath it. */
+.pages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pages li {
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A cell that says something in words wraps, so a narrow column stacks what
    it has to say and never prints over the cell beside it. */
 .table tbody td.wraps {

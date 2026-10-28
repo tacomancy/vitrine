@@ -160,7 +160,15 @@ const RESTING: ActivityRow = {
   kind: "scout",
   id: "resting",
   name: "Resting",
-  source: { kind: "watched", url: "https://lab.example/publications" },
+  source: {
+    kind: "watched",
+    pages: [
+      {
+        url: "https://lab.example/publications",
+        health: { voice: "not yet", sentence: "Paused — it is not looking." },
+      },
+    ],
+  },
   cadence: "monthly",
   dueUnder: [],
   assigned: [],

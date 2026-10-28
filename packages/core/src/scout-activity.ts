@@ -11,8 +11,10 @@ import {
   isNoKeyRun,
   isWaitingOnKey,
   lastWindow,
+  pageHealthsOf,
   unreadableHealth,
   type Health,
+  type PageHealth,
   type RunRow,
   type RunWindow,
 } from "./scout-health.js";
@@ -144,8 +146,8 @@ export type ActivityRow =
       id: string;
       name: string;
       /**
-       * What it watches: an arXiv Query or Tags, or the one page a Watched
-       * source reads. A Tag Filter's Filter is its Tags as written, `query`
+       * What it watches: an arXiv Query or Tags, or the pages a Watched
+       * Scout reads. A Tag Filter's Filter is its Tags as written, `query`
        * is empty, and the compiled string is read on demand (`scouts.compiled`),
        * since it is the Lexicon's to say and changes as the Lexicon does.
        */
@@ -155,7 +157,15 @@ export type ActivityRow =
             query: string;
             tags: string[] | null;
           }
-        | { kind: "watched"; url: string };
+        | {
+            kind: "watched";
+            /**
+             * Every page, in file order, each with its own Voice (ADR 0056
+             * decision 5): a one-page Scout's one page carries the row's own
+             * `health`. A Quiet field is drawn here, on its page's line.
+             */
+            pages: PageHealth[];
+          };
       cadence: Scout["cadence"];
       /**
        * The cadences that would make this Scout due at the next check, which
@@ -659,7 +669,7 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
         name: scout.name,
         source:
           scout.source.kind === "watched"
-            ? { kind: "watched", url: scout.source.url }
+            ? { kind: "watched", pages: pageHealthsOf(deps.queue, scout, now) }
             : {
                 kind: scout.source.kind,
                 query: scout.query,

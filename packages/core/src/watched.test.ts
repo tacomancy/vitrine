@@ -235,7 +235,7 @@ describe("a Scout that watches a page", () => {
         {
           id: "lab",
           name: "Sleep Lab",
-          source: { kind: "watched", url: LAB },
+          source: { kind: "watched", urls: [LAB] },
           query: LAB,
         },
       ],
@@ -1147,7 +1147,7 @@ describe("a Scout waiting on a key", () => {
         )
       ).result!.data;
     expect(await waiting()).toEqual([
-      { id: "lab", name: "Sleep Lab", message: "no key" },
+      { id: "lab", name: "Sleep Lab", message: "no key", pages: [LAB] },
     ]);
 
     // A key the provider refuses leaves it waiting, with the other reason.
@@ -1157,7 +1157,7 @@ describe("a Scout waiting on a key", () => {
       key: "sk-bad",
     });
     expect(await waiting()).toEqual([
-      { id: "lab", name: "Sleep Lab", message: "key rejected" },
+      { id: "lab", name: "Sleep Lab", message: "key rejected", pages: [LAB] },
     ]);
   });
 

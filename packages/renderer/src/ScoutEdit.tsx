@@ -129,7 +129,9 @@ export function ScoutEdit({
             ? byTags
               ? ""
               : query
-            : row.source.url,
+            : // The form's one Address: a Scout of several pages is saved
+              // with its first, which keeps every page (#911 lists them).
+              row.source.pages[0]!.url,
         // Absent leaves a Query Scout's Filter alone; empty is the switch
         // back from Tags to a Query (the core's `ScoutForm.tags`).
         ...(byTags ? { tags } : savedTags !== null ? { tags: [] } : {}),

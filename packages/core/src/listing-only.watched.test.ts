@@ -461,6 +461,7 @@ describe("a Listing-only card", () => {
     const lab = await opened({
       seed: async (vault) => {
         const queue = await openQueue(vault);
+        queue.exec("ALTER TABLE scout_runs DROP COLUMN check_id");
         queue.exec("ALTER TABLE scout_runs DROP COLUMN item_values_dropped");
         queue.exec("ALTER TABLE proposals DROP COLUMN paper_url");
         queue.exec(

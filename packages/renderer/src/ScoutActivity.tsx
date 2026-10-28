@@ -72,7 +72,7 @@ function valueOf(row: ActivityRow, column: Column): string | number | null {
     case "watching":
       return row.source.kind !== "watched"
         ? (row.source.tags?.join(", ") ?? row.source.query)
-        : row.source.url;
+        : row.source.pages.map((page) => page.url).join(", ");
     case "cadence":
       return CADENCE_RANK[row.cadence];
     case "last run":
@@ -861,10 +861,11 @@ function Row({
       </>
     );
   }
+  const pages = row.source.kind === "watched" ? row.source.pages : [];
   const watching =
     row.source.kind !== "watched"
       ? `${row.source.kind === "openalex" ? "OpenAlex" : "arXiv"} · ${row.source.tags === null ? row.source.query : `Tags: ${row.source.tags.join(", ")}`}`
-      : row.source.url;
+      : pages.map((page) => page.url).join(", ");
   const detail = `${id}-detail`;
   const rate = rateWords(row.acceptRate);
   // A click anywhere on the row opens it, as prototype 10's does. A button in
@@ -918,9 +919,27 @@ function Row({
         </th>
         {/* The column cuts a long Query to one line; the cut is only to the
           eye, and the whole of it is here for whoever hovers. */}
-        <td className={styles.watching} title={watching}>
-          {watching}
-        </td>
+        {pages.length > 1 ? (
+          // Every page with its own Voice beneath it, always and not only when
+          // one is unwell: a page gone quiet must never hide behind a sibling
+          // that keeps finding (ADR 0056 decision 5).
+          <td className={styles.wraps}>
+            <ul className={styles.pages} aria-label={`${row.name}: pages`}>
+              {pages.map((page) => (
+                <li key={page.url}>
+                  <span className={styles.page} title={page.url}>
+                    {page.url}
+                  </span>
+                  <VoiceLine health={page.health} />
+                </li>
+              ))}
+            </ul>
+          </td>
+        ) : (
+          <td className={styles.watching} title={watching}>
+            {watching}
+          </td>
+        )}
         <td>
           <Button
             ref={cadenceButton}
