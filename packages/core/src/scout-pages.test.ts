@@ -573,6 +573,33 @@ describe("the Accept rate of a Scout of several pages", () => {
     ]);
   });
 
+  // The page is the Appearance the Scout was credited by: read off another
+  // Appearance, a card another Scout also found would credit this Scout by
+  // that Scout's page, which none of its pages is.
+  it("credits a page by the same Appearance that credits the Scout, when another Scout found the item later", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html(2) };
+    lab.pages["/other"] = { body: html(1) };
+    await lab.run();
+    await writeFile(
+      join(lab.vault, ".vitrine/scouts/other.yaml"),
+      fileWith("  url: https://lab.example/other").replace("Lab", "Other")
+    );
+    expect(
+      (await lab.mutate("scouts.runNow", { scoutId: "other" })).error
+    ).toBeUndefined();
+    await lab.triage(1, "accept");
+
+    expect((await lab.row()).acceptByPage).toEqual([
+      {
+        url: RESEARCH,
+        rate: { kind: "rate", accepted: 1, triaged: 1, rate: 1 },
+      },
+      { url: NEWS, rate: { kind: "nothing triaged" } },
+    ]);
+  });
+
   it("never rests a page's figure on an item the headline leaves out", async () => {
     const lab = await opened(fileWith(urls(RESEARCH)));
     lab.pages["/research"] = { body: html(1, 3) };
