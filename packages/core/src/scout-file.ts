@@ -17,9 +17,18 @@ export type Scout = {
   /** The file's own name, `.vitrine/scouts/<id>.yaml`: what a run row refers to. */
   id: string;
   name: string;
-  /** What it watches: arXiv or OpenAlex through their APIs, or one web page (ADR 0017, ADR 0051). */
-  source: { kind: "arxiv" | "openalex" } | { kind: "watched"; url: string };
-  /** The arXiv Query; for a Watched source, the address — what a run asked, so an edit to it overrides a wait. */
+  /**
+   * What it watches: arXiv or OpenAlex through their APIs, or one or more web
+   * pages (ADR 0017, ADR 0051, ADR 0056). A Watched Scout's pages are a list
+   * whichever key its file uses, in file order and each trimmed, so no reader
+   * asks which form the file was written in.
+   */
+  source: { kind: "arxiv" | "openalex" } | { kind: "watched"; urls: string[] };
+  /**
+   * The arXiv Query — what a run asked, so an edit to it overrides a wait. For
+   * a Watched source, its first page: the one *Address* the form shows until
+   * it lists them (#911). A read about a page asks `atPage`, never this.
+   */
   query: string;
   /**
    * A Tag Filter (spec #678): the Tags as written, whose Lexicons the run
@@ -305,12 +314,10 @@ function readScout(id: string, text: string): Read {
   let tags: string[] | undefined;
   let venues: Venue[] | undefined;
   if (kind === "watched") {
-    const url = declared?.["url"];
-    if (typeof url !== "string" || !/^https?:\/\/\S+$/i.test(url.trim())) {
-      return { ok: false, problem: "source.url is not a web address" };
-    }
-    query = url.trim();
-    source = { kind: "watched", url: query };
+    const read = readPages(declared!);
+    if (typeof read === "string") return { ok: false, problem: read };
+    query = read[0]!;
+    source = { kind: "watched", urls: read };
   } else if (kind === "arxiv" || kind === "openalex") {
     // A filter that is not a map is named, not read as "neither".
     const rawFilter = file["filter"];
@@ -434,6 +441,61 @@ function readScout(id: string, text: string): Read {
     },
   };
 }
+
+const WEB_ADDRESS = /^https?:\/\/\S+$/i;
+
+/**
+ * A Watched source's pages as written (ADR 0056 decision 12): `url:` is one
+ * page, every file from before several were possible, and `urls:` a list of
+ * one or more. Anything else is the sentence naming what is wrong, and never a
+ * Scout watching fewer pages than its file lists, or none: both keys, an empty
+ * list, an entry that is not an address, or one page twice, which a check
+ * would read twice (ADR 0039 decision 7). Page identity is the trimmed string
+ * (ADR 0043 decision 3), so that is what a duplicate is.
+ */
+function readPages(declared: Record<string, unknown>): string[] | string {
+  const url = declared["url"];
+  const listed = declared["urls"];
+  if (url !== undefined && listed !== undefined) {
+    return "source has both url and urls, and a Scout has one of them";
+  }
+  if (listed === undefined) {
+    return typeof url === "string" && WEB_ADDRESS.test(url.trim())
+      ? [url.trim()]
+      : "source.url is not a web address";
+  }
+  if (!Array.isArray(listed)) {
+    return "source.urls is not a list of web addresses";
+  }
+  if (listed.length === 0) return "source.urls lists no page";
+  const pages: string[] = [];
+  for (const entry of listed as unknown[]) {
+    if (typeof entry !== "string" || !WEB_ADDRESS.test(entry.trim())) {
+      return "source.urls has an entry that is not a web address";
+    }
+    const page = entry.trim();
+    if (pages.includes(page)) return `source.urls lists ${page} twice`;
+    pages.push(page);
+  }
+  return pages;
+}
+
+/** The pages a Watched Scout reads, in file order; none for a Structured source. */
+export const pagesOf = (scout: Scout): string[] =>
+  scout.source.kind === "watched" ? scout.source.urls : [];
+
+/**
+ * One of a Watched Scout's pages as a Scout of that page alone: what every
+ * read about a page — its Voice, its Due, its first look — is asked of, so a
+ * page of several is judged exactly as a one-page Scout is (ADR 0056
+ * decisions 3 to 5). The Scout's id stays, so its runs are found; ADR 0043's
+ * predicate then keeps the ones at this page.
+ */
+export const atPage = (scout: Scout, url: string): Scout => ({
+  ...scout,
+  source: { kind: "watched", urls: [url] },
+  query: url,
+});
 
 /**
  * The allowlist as written, or the sentence naming what is wrong with it. An

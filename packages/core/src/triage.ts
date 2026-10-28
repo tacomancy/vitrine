@@ -367,16 +367,34 @@ function runMembers(queue: DatabaseSync, runId: number): number[] {
         .prepare("SELECT retroactive FROM scout_runs WHERE id = ?")
         .get(runId) as { retroactive: number } | undefined
     )?.retroactive === 1;
+  const rows = checkRows(queue, runId);
   return (
     queue
       .prepare(
         `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
-          WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'
+          WHERE a.run_id IN (${rows.map(() => "?").join(", ")}) AND p.state = 'pending' AND p.lane = 'review'
             AND (? = 0 OR a.run_id = (SELECT MIN(f.run_id) FROM appearances f WHERE f.proposal_id = p.id))
           ORDER BY p.first_seen DESC, p.id DESC`
       )
-      .all(runId, +retroactive) as Array<{ id: number }>
+      .all(...rows, +retroactive) as Array<{ id: number }>
   ).map((row) => row.id);
+}
+
+/**
+ * The runs *reject this run* on `runId` acts on (ADR 0056 decision 3): an
+ * ordinary run stands for its check, so a check of several pages is rejected
+ * whole, as *Run now* made it; a Retroactive run is an added page's first
+ * look, a batch of its own (decision 7), so it is only itself, and so is a run
+ * from before `check_id`.
+ */
+function checkRows(queue: DatabaseSync, runId: number): number[] {
+  const rows = queue
+    .prepare(
+      `SELECT r.id FROM scout_runs r JOIN scout_runs given ON given.id = ?
+        WHERE r.check_id = given.check_id AND r.retroactive = 0 AND given.retroactive = 0`
+    )
+    .all(runId) as Array<{ id: number }>;
+  return rows.length === 0 ? [runId] : rows.map((r) => r.id);
 }
 
 /** A Retroactive run as the Queue lists it: what is left of a first look, and what it cost. */
@@ -648,11 +666,21 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
   // A dropped Scout's stack is cleared with *reject this run* like any other,
   // so it has a group though the rail does not list it (ADR 0042 decision 1).
   return [...scouts, ...dropped].map((scout) => {
+    // The newest clean check, by an ordinary run of it where it has one: an
+    // added page's first look in the same check is its own batch.
     const run = queue
       .prepare(
-        "SELECT id FROM scout_runs WHERE scout_id = ? AND outcome = 'ok' ORDER BY id DESC LIMIT 1"
+        `SELECT r.id FROM scout_runs r
+          WHERE r.scout_id = ? AND r.outcome = 'ok'
+          ORDER BY (r.check_id IS NOT NULL AND r.check_id = (
+                     SELECT n.check_id FROM scout_runs n
+                      WHERE n.scout_id = r.scout_id AND n.outcome = 'ok'
+                      ORDER BY n.id DESC LIMIT 1)) DESC,
+                   r.retroactive, r.id DESC
+          LIMIT 1`
       )
       .get(scout.id) as { id: number } | undefined;
+    const rows = run === undefined ? [] : checkRows(queue, run.id);
     const pending =
       run === undefined
         ? 0
@@ -660,9 +688,9 @@ export async function readGroups(deps: ScoutDeps): Promise<Group[]> {
             queue
               .prepare(
                 `SELECT DISTINCT p.id FROM proposals p JOIN appearances a ON a.proposal_id = p.id
-                  WHERE a.run_id = ? AND p.state = 'pending' AND p.lane = 'review'`
+                  WHERE a.run_id IN (${rows.map(() => "?").join(", ")}) AND p.state = 'pending' AND p.lane = 'review'`
               )
-              .all(run.id) as Array<{ id: number }>
+              .all(...rows) as Array<{ id: number }>
           ).filter((row) => !caught.has(row.id)).length;
     const deferred = (
       queue
@@ -717,14 +745,46 @@ export function pageChangeIn(
   if (scout.source.kind !== "watched") return null;
   const runs = queue
     .prepare(
-      `SELECT finished, query FROM scout_runs
+      `SELECT finished, query, check_id FROM scout_runs
         WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL AND finished >= ?
         ORDER BY id`
     )
     .all(scout.id, acceptSince(now)) as Array<{
     finished: string;
     query: string;
+    check_id: number | null;
   }>;
+  // A Scout of several pages asks a different page at every run of a check,
+  // so a change of `query` between runs is no change of page. What dates one
+  // is the newest first run at a page no earlier check read: a page added, and
+  // never a page of the Scout's first check. The sentence that says a page was
+  // removed too is #914's.
+  if (scout.source.urls.length > 1) {
+    const read = new Set(
+      (
+        queue
+          .prepare(
+            `SELECT DISTINCT query FROM scout_runs
+              WHERE scout_id = ? AND finished IS NOT NULL AND query IS NOT NULL AND finished < ?`
+          )
+          .all(scout.id, acceptSince(now)) as Array<{ query: string }>
+      ).map((r) => r.query)
+    );
+    let added: string | null = null;
+    let earlierCheck = read.size > 0;
+    for (const [i, run] of runs.entries()) {
+      // A row from before `check_id` is a check of its own.
+      if (
+        i > 0 &&
+        (run.check_id === null || run.check_id !== runs[i - 1]!.check_id)
+      ) {
+        earlierCheck = true;
+      }
+      if (!read.has(run.query) && earlierCheck) added = run.finished;
+      read.add(run.query);
+    }
+    return added === null ? null : { at: added };
+  }
   // A re-point nothing has read yet has no date: the change is the edit, which
   // is stored nowhere, and the Voice already says the page is unread. Dating
   // it by the last change between runs would name an older one.

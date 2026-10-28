@@ -32,7 +32,9 @@ import { readEdits } from "./lexicon-edits.js";
 import { termsInUse } from "./lexicon.js";
 import type { Events } from "./events.js";
 import {
+  atPage,
   DEFAULT_SKIM_DAYS,
+  pagesOf,
   readScouts,
   scoutIdOf,
   type Scout,
@@ -117,22 +119,81 @@ function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
 }
 
 /**
- * Run one Scout now, due or not (*Run now*). The window opens where the last
- * *clean* run's closed — a failed run never advances it, so the next attempt
- * re-covers the same days and identity by `arxiv_id` makes the overlap
- * harmless — and the first run opens at the Scout's creation, or at its
- * *search back to* date, whose finds are Retroactive (ADR 0016 decision 5).
+ * Run one Scout now, due or not (*Run now*): one check. A Watched Scout's
+ * check reads each of `pages` — every page unless told which — on its own
+ * run, one after another, each row tied to the check by `check_id` (ADR 0056
+ * decision 3). A page named that the Scout no longer lists is not read: the
+ * file is the later word, and a check left with no page is refused.
  */
 export async function runScout(
   deps: ScoutDeps,
-  scoutId: string
+  scoutId: string,
+  { pages }: { pages?: string[] } = {}
 ): Promise<RunSummary> {
-  const { queue, arxiv, events } = deps;
   const { scouts } = await readScouts(deps.vaultPath);
   const scout = scouts.find((s) => s.id === scoutId);
   if (scout === undefined) {
     throw new VaultError("refused", `There is no Scout named ${scoutId}.`);
   }
+  if (scout.source.kind !== "watched") return runOne(deps, scout, null);
+  const read = pagesOf(scout).filter(
+    (url) => pages === undefined || pages.includes(url)
+  );
+  if (read.length === 0) {
+    throw new VaultError("refused", `${scout.name} no longer reads that page.`);
+  }
+  const runs: RunSummary[] = [];
+  for (const url of read) {
+    runs.push(await runOne(deps, atPage(scout, url), runs[0]?.runId ?? null));
+  }
+  return checkSummary(runs);
+}
+
+/**
+ * What one check did, as one run's summary says it: its first run's id,
+ * which is the check's, the sums of what its pages read, and failed if any
+ * page failed, by the first page's fault. A note is a Tag Filter's or an
+ * allowlist's, neither of which a page has, and every page's ceiling is a
+ * Watched read's, so neither is lost. `runs` is never empty: `runScout`
+ * refuses a check of no page.
+ */
+function checkSummary(runs: RunSummary[]): RunSummary {
+  const first = runs[0]!;
+  if (runs.length === 1) return first;
+  const failed = runs.find((r) => r.outcome === "failed");
+  const sum = (
+    field: "fetched" | "new" | "held" | "unverified" | "truncated"
+  ) => runs.reduce((total, r) => total + r[field], 0);
+  return {
+    runId: first.runId,
+    outcome: failed === undefined ? "ok" : "failed",
+    errorKind: failed?.errorKind ?? null,
+    fetched: sum("fetched"),
+    new: sum("new"),
+    held: sum("held"),
+    unverified: sum("unverified"),
+    truncated: sum("truncated"),
+    ceiling: first.ceiling,
+    note: null,
+  };
+}
+
+/**
+ * One run: a Structured source, or one page of a Watched Scout. The window
+ * opens where the last *clean* run's closed — a failed run never advances it,
+ * so the next attempt re-covers the same days and identity by `arxiv_id`
+ * makes the overlap harmless — and the first run opens at the Scout's
+ * creation, or at its *search back to* date, whose finds are Retroactive (ADR
+ * 0016 decision 5). `checkId` is the check's first run, or null for the run
+ * that starts one.
+ */
+async function runOne(
+  deps: ScoutDeps,
+  scout: Scout,
+  checkId: number | null
+): Promise<RunSummary> {
+  const { queue, arxiv, events } = deps;
+  const scoutId = scout.id;
   // A Tag Filter is compiled here, at the run, from the Lexicon as it stands:
   // a Seed or Exclusion made since the last run changes this query and
   // nothing else (spec #678 decisions 2 and 6).
@@ -177,7 +238,7 @@ export async function runScout(
   const runId = Number(
     queue
       .prepare(
-        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO scout_runs (scout_id, started, window_from, window_to, retroactive, query, note, check_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       )
       .run(
         scoutId,
@@ -186,9 +247,17 @@ export async function runScout(
         iso(now),
         retroactive ? 1 : 0,
         asked,
-        note
+        note,
+        checkId
       ).lastInsertRowid
   );
+  // The run that starts a check is its id. Written second, so a crash between
+  // the two leaves a null, which every reader takes as a check of its own.
+  if (checkId === null) {
+    queue
+      .prepare("UPDATE scout_runs SET check_id = id WHERE id = ?")
+      .run(runId);
+  }
 
   let summary: RunSummary;
   try {
@@ -203,7 +272,7 @@ export async function runScout(
       scout.source.kind === "watched"
         ? await readWatched(deps.watched, queue, {
             id: scout.id,
-            url: scout.source.url,
+            url: scout.query,
           })
         : scout.source.kind === "openalex"
           ? await readOpenAlex(deps.openalex, scout, asked, from, now)
@@ -429,15 +498,24 @@ export async function previewTags(
   };
 }
 
-export type WaitingScout = { id: string; name: string; message: string };
+export type WaitingScout = {
+  id: string;
+  name: string;
+  /** The first such page's reason, which is what Settings says: one key mends them all. */
+  message: string;
+  /** The pages a key would start: those whose own newest run stopped for one, in file order. */
+  pages: string[];
+};
 
 /**
- * The Scouts whose newest run stopped for want of a usable key — *no key* and
- * *key rejected* both, since Settings names both (ADR 0040 decision 1). Read
- * from the run rows, never the Keychain, so it cannot disagree with the
- * Scout's own Voice. A paused Scout is not waiting on anything: it has been
- * told to stop, and a key must not start it. Watched Scouts are the only ones
- * that use a Provider, and there is one.
+ * The Scouts with a page whose newest run stopped for want of a usable key —
+ * *no key* and *key rejected* both, since Settings names both (ADR 0040
+ * decision 1). Read from the run rows, never the Keychain, so it cannot
+ * disagree with the page's own Voice; a Scout of several pages is waiting when
+ * any page is, and a key starts that page and not its siblings (ADR 0056
+ * decision 6). A paused Scout is not waiting on anything: it has been told to
+ * stop, and a key must not start it. Watched Scouts are the only ones that use
+ * a Provider, and there is one.
  */
 export async function waitingOnKey(deps: {
   vaultPath: string;
@@ -450,16 +528,28 @@ export async function waitingOnKey(deps: {
   return scouts.flatMap((scout) => {
     if (scout.paused || scout.source.kind !== "watched") return [];
     // A newest run still going is its own answer to being due. Past that, only a run
-    // at the page the Scout watches now can leave it waiting: one refused at
-    // the old page says nothing of the new one, whose first look is still to
-    // come (ADR 0043 d.2) — so this agrees with the Voice.
+    // at a page the Scout watches now can leave it waiting: one refused at
+    // a page since left says nothing of the new one, whose first look is still
+    // to come (ADR 0043 d.2) — so this agrees with the Voice.
     const newest = newestRow.get(scout.id) as
       { finished: string | null } | undefined;
     if (newest !== undefined && newest.finished === null) return [];
-    const run = finishedRunsAtPage(deps.queue, scout).at(-1);
-    return run?.error_kind === "credentials"
-      ? [{ id: scout.id, name: scout.name, message: run.error_message ?? "" }]
-      : [];
+    const refused = pagesOf(scout).flatMap((url) => {
+      const run = finishedRunsAtPage(deps.queue, atPage(scout, url)).at(-1);
+      return run?.error_kind === "credentials"
+        ? [{ url, message: run.error_message ?? "" }]
+        : [];
+    });
+    return refused.length === 0
+      ? []
+      : [
+          {
+            id: scout.id,
+            name: scout.name,
+            message: refused[0]!.message,
+            pages: refused.map((r) => r.url),
+          },
+        ];
   });
 }
 
@@ -493,9 +583,9 @@ export function runWaiting(deps: ScoutDeps): Promise<string[]> {
       );
       return ran;
     }
-    for (const { id } of waiting) {
+    for (const { id, pages } of waiting) {
       try {
-        await runScout(deps, id);
+        await runScout(deps, id, { pages });
         ran.push(id);
       } catch (cause) {
         console.error(

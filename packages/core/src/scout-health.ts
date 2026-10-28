@@ -1,5 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
-import { readScouts, type Scout, type UnreadableScout } from "./scout-file.js";
+import {
+  atPage,
+  pagesOf,
+  readScouts,
+  type Scout,
+  type UnreadableScout,
+} from "./scout-file.js";
 import { DISALLOWED } from "./page-fetch.js";
 import { firstAppearanceScout } from "./triage.js";
 import {
@@ -94,14 +100,15 @@ export function finishedRuns(queue: DatabaseSync, scoutId: string): RunRow[] {
 }
 
 /**
- * Finished runs that asked the Scout's current page, oldest first (ADR 0043
- * decisions 2 and 3). A figure that says something about the page reads these;
- * a figure that records what the Scout did reads `finishedRuns`. A run belongs
- * when the page it recorded is the Scout's URL, or recorded none — a run from
- * before the column, which must never be taken for an edit. An arXiv Scout's
- * runs all belong: its Query is a Filter on one source and its date window
- * carries over an edit. Nothing marks the change in the file or on the rows;
- * pointing a Scout back at a page it has read takes that page's runs again.
+ * Finished runs that asked one of the Scout's current pages, oldest first (ADR
+ * 0043 decisions 2 and 3). A figure that says something about a page reads
+ * these, of the Scout `atPage` makes; a figure that records what the Scout did
+ * reads `finishedRuns`. A run belongs when the page it recorded is one of the
+ * Scout's, or recorded none — a run from before the column, which must never
+ * be taken for an edit. An arXiv Scout's runs all belong: its Query is a
+ * Filter on one source and its date window carries over an edit. Nothing marks
+ * the change in the file or on the rows; pointing a Scout back at a page it
+ * has read takes that page's runs again.
  */
 export function finishedRunsAtPage(
   queue: DatabaseSync,
@@ -109,7 +116,9 @@ export function finishedRunsAtPage(
 ): RunRow[] {
   const runs = finishedRuns(queue, scout.id);
   return scout.source.kind === "watched"
-    ? runs.filter((run) => run.query === null || run.query === scout.query)
+    ? runs.filter(
+        (run) => run.query === null || pagesOf(scout).includes(run.query)
+      )
     : runs;
 }
 
@@ -178,7 +187,78 @@ export function isWaitingOnBudget(
   return health.voice === "not yet" && health.kind === "budget";
 }
 
+/** One of a Watched Scout's pages and how it is doing, as a one-page Scout's health would say it. */
+export type PageHealth = { url: string; health: Health };
+
+/**
+ * Each of a Watched Scout's pages, in file order, with its own Voice (ADR 0056
+ * decision 5); none for a Structured source. A page is judged by its own runs
+ * exactly as a one-page Scout is — its Warrant, its *no baseline yet* — so a
+ * Quiet field is a claim about a page: read across the Scout, a busy page's
+ * finds would move *last new item* and hide a page that has gone silent,
+ * which is the failure the brief calls the most dangerous (`## Scouts`
+ * § Source health).
+ */
+export function pageHealthsOf(
+  queue: DatabaseSync,
+  scout: Scout,
+  now: Date
+): PageHealth[] {
+  const pages = pagesOf(scout);
+  return pages.map((url) => ({
+    url,
+    health: pageHealthOf(queue, atPage(scout, url), now, pages),
+  }));
+}
+
+/** Worst first: the order a Scout's Voice is taken from its pages' (ADR 0056 decision 5). */
+const WORST = { wrong: 0, "not yet": 1, claim: 2 } as const;
+
+/**
+ * The Scout's own Voice: a Structured source's, or a one-page Scout's page's
+ * as it always read, or, for several pages, the worst of theirs (*wrong*, then
+ * *not yet*, then *claim*). When that is not a claim its sentence names every
+ * page that is not well, each in its own sentence verbatim (ADR 0032 decision
+ * 7), so a broken page is never hidden behind healthy ones. A claim carries no
+ * Warrant: a Quiet field is a page's, and is drawn on that page's line.
+ */
 export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
+  if (scout.source.kind !== "watched")
+    return pageHealthOf(queue, scout, now, []);
+  const pages = pageHealthsOf(queue, scout, now);
+  if (pages.length === 1) return pages[0]!.health;
+  // Paused is the Scout's, not a page's: every page says it, once is enough.
+  if (scout.paused) return pages[0]!.health;
+  const worst = [...pages].sort(
+    (a, b) => WORST[a.health.voice] - WORST[b.health.voice]
+  )[0]!.health;
+  if (worst.voice === "claim") return { voice: "claim", warrant: null };
+  const notWell = pages.flatMap(({ url, health }) =>
+    health.voice === "claim" ? [] : [{ url, health }]
+  );
+  const sentence = notWell
+    .map(({ url, health }) => `${url}: ${health.sentence}`)
+    .join(" ");
+  if (worst.voice === "wrong") return { ...worst, sentence };
+  // A page waiting on a key leaves the Scout waiting on one, so Settings
+  // offers the key and a coverage gap says why (ADR 0040 decision 1).
+  const waiting = notWell.find((p) => isWaitingOnKey(p.health));
+  return waiting === undefined
+    ? { voice: "not yet", sentence }
+    : { voice: "not yet", kind: "credentials", sentence };
+}
+
+/**
+ * One page's Voice, or a Structured source's. `siblings` are the Scout's
+ * pages, among which a clean run at another is no edit of this one: a page
+ * added beside others is a first look, never *its page changed*.
+ */
+function pageHealthOf(
+  queue: DatabaseSync,
+  scout: Scout,
+  now: Date,
+  siblings: string[]
+): Health {
   // A claim about the page rests on the runs that read it (ADR 0043 d.2).
   const runs = finishedRunsAtPage(queue, scout);
   // Before `wrong`: a paused Scout is not looking, so a retired Scout does
@@ -241,7 +321,11 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     // look at this one is an edit's fault; a page already read cleanly has
     // failed on its own (ADR 0043 d.4).
     const lastClean = finishedRuns(queue, scout.id)
-      .filter((r) => r.outcome === "ok")
+      .filter(
+        (r) =>
+          r.outcome === "ok" &&
+          (r.query === scout.query || !siblings.includes(r.query ?? ""))
+      )
       .at(-1);
     // A Tag Filter stores no string to compare: its query is compiled at every
     // run, so drift (a Seed, an Exclusion, a retagged paper) is read from what

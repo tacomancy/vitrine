@@ -818,7 +818,7 @@ describe("the form, editing a Scout that watches a page", () => {
         "scouts.list": {
           scouts: [
             kind === "watched"
-              ? scout({ source: { kind: "watched", url: LAB }, query: LAB })
+              ? scout({ source: { kind: "watched", urls: [LAB] }, query: LAB })
               : scout(),
           ],
           unreadable: [],

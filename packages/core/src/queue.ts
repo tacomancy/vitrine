@@ -55,8 +55,10 @@ import { errorMessageWithoutPath } from "./errors.js";
  *    not read (#888, ADR 0055 decision 6).
  * 18: `proposals.paper_url`, the link an Item page gives as this work's own
  *    paper (#890, ADR 0055 decision 10).
+ * 19: `scout_runs.check_id`, which ties together the runs one check of a
+ *    Scout's pages made (#910, ADR 0056 decision 3).
  */
-export const QUEUE_SCHEMA_VERSION = 18;
+export const QUEUE_SCHEMA_VERSION = 19;
 
 const PENDING_REVISIONS = `
 CREATE TABLE pending_revisions (
@@ -322,6 +324,12 @@ const PAPER_URL = `
 ALTER TABLE proposals ADD COLUMN paper_url TEXT;
 `;
 
+// The id of the check's first run, on every run of it. Null on an earlier
+// row: it was a check of its own, and a figure read per check takes it so.
+const SCOUT_RUN_CHECK = `
+ALTER TABLE scout_runs ADD COLUMN check_id INTEGER;
+`;
+
 /**
  * A URL's host in SQL, lowercased and with any leading `www.` dropped: the
  * part between `://` and the first `/`. Close enough to `siteOf` in
@@ -382,6 +390,7 @@ const MIGRATIONS: readonly string[] = [
   ITEM_VALUES_DROPPED,
   ITEM_PAGES_UNREAD_COUNT,
   PAPER_URL,
+  SCOUT_RUN_CHECK,
 ];
 
 /**

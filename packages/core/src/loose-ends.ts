@@ -531,10 +531,13 @@ async function scoutRows(
     // Item pages unread is no change to the listing, which read and proposed:
     // it is the items' own pages refusing, and *open the page* would show a
     // listing that looks fine (ADR 0055 decision 6).
+    // A Scout of several pages has the generic row until its rows are drawn
+    // per page (#913): its sentence already names the page.
     const runs = finishedRunsAtPage(queue, scout);
     if (
       health.kind === "extraction" &&
       scout.source.kind === "watched" &&
+      scout.source.urls.length === 1 &&
       runs.at(-1)?.error_message !== ITEM_PAGES_UNREAD &&
       // An *item pages unread* run is no baseline, though it proposed: it is
       // no successful extraction, and a change is judged against one.
@@ -545,7 +548,7 @@ async function scoutRows(
         subject: scout.id,
         path,
         title: scout.name,
-        address: scout.source.url,
+        address: scout.query,
         sentence: health.sentence,
       });
       continue;

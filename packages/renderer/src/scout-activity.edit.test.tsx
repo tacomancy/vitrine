@@ -914,7 +914,10 @@ describe("a Scout that watches a page", () => {
   const PAGE = scout({
     id: "lab",
     name: "Lab publications",
-    source: { kind: "watched", url: LAB },
+    source: {
+      kind: "watched",
+      pages: [{ url: LAB, health: { voice: "claim", warrant: null } }],
+    },
     cadence: "monthly",
     lane: "skim",
     assigned: ["q-replay"],
@@ -979,7 +982,7 @@ describe("a Scout that watches a page", () => {
           {
             id: "lab",
             name: "Lab publications",
-            source: { kind: "watched", url: LAB },
+            source: { kind: "watched", urls: [LAB] },
             query: LAB,
             cadence: "monthly",
             assigned: ["q-replay"],
