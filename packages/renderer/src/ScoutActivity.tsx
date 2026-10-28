@@ -758,20 +758,34 @@ const runParts = (run: ScoutRunCost): string[] => [
   run.costUsd === null ? "unpriced" : dollars(run.costUsd),
 ];
 
+/** A run's parts after its page, which a Scout of one page never names: its address is the row's. */
+const pageRunParts = (run: ScoutRunCost, several: boolean): string[] => [
+  ...(several && run.page !== null ? [run.page] : []),
+  ...runParts(run),
+];
+
 /**
- * One check of the row's figure. A check of one run — every check of a
- * one-page Scout — reads as a run always did; a check of several gives its sum
- * and lists its pages' runs beneath, so which page its cost came from can be
- * seen (ADR 0056 decision 9).
+ * One check of the row's figure. A check that called a model once — every
+ * check of a one-page Scout — is one line, as a run always was; a check of
+ * several runs gives its sum and lists its pages' runs beneath, so which page
+ * its cost came from can be seen (ADR 0056 decision 9).
  */
-function Check({ check, name }: { check: ScoutCheckCost; name: string }) {
+function Check({
+  check,
+  name,
+  several,
+}: {
+  check: ScoutCheckCost;
+  name: string;
+  several: boolean;
+}) {
   const when = <time dateTime={check.finished}>{check.ago}</time>;
-  const [only] = check.runs;
-  if (check.runs.length === 1 && only !== undefined) {
+  const only = check.runs.length === 1 ? check.runs[0] : undefined;
+  if (only !== undefined) {
     return (
       <li>
         {when}
-        {` · ${runParts(only).join(" · ")}`}
+        {` · ${pageRunParts(only, several).join(" · ")}`}
       </li>
     );
   }
@@ -784,11 +798,7 @@ function Check({ check, name }: { check: ScoutCheckCost; name: string }) {
         aria-label={`${name}: the check ${check.ago}, by page`}
       >
         {check.runs.map((run) => (
-          <li key={run.runId}>
-            {[...(run.page === null ? [] : [run.page]), ...runParts(run)].join(
-              " · "
-            )}
-          </li>
+          <li key={run.runId}>{pageRunParts(run, several).join(" · ")}</li>
         ))}
       </ul>
     </li>
@@ -796,7 +806,16 @@ function Check({ check, name }: { check: ScoutCheckCost; name: string }) {
 }
 
 /** The checks the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
-function Runs({ scoutId, name }: { scoutId: string; name: string }) {
+function Runs({
+  scoutId,
+  name,
+  several,
+}: {
+  scoutId: string;
+  name: string;
+  /** Whether the Scout reads several pages, so a run names the one it read. */
+  several: boolean;
+}) {
   const trpc = useTRPC();
   const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
   if (runs.isError) {
@@ -813,7 +832,12 @@ function Runs({ scoutId, name }: { scoutId: string; name: string }) {
   return (
     <ul className={styles.runs} aria-label={`${name} runs`}>
       {runs.data.map((check) => (
-        <Check key={check.checkId} check={check} name={name} />
+        <Check
+          key={check.checkId}
+          check={check}
+          name={name}
+          several={several}
+        />
       ))}
     </ul>
   );
@@ -1122,7 +1146,13 @@ function Row({
       {showRuns && row.cost.kind !== "no model call" && (
         <tr>
           <td className={styles.detail} colSpan={COLUMNS}>
-            <Runs scoutId={row.id} name={row.name} />
+            <Runs
+              scoutId={row.id}
+              name={row.name}
+              several={
+                row.source.kind === "watched" && row.source.pages.length > 1
+              }
+            />
           </td>
         </tr>
       )}

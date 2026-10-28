@@ -29,6 +29,8 @@ type Row = {
   /** A run whose model call returned usage. Off for a feed read. */
   called?: boolean;
   noKey?: boolean;
+  /** When this page's run finished, if not with the rest of its check. */
+  ago?: number;
 };
 
 const SONNET = "claude-sonnet-5-5";
@@ -49,13 +51,13 @@ async function opened(scouts: Record<string, string>) {
       )
       .run(
         scout,
-        daysAgo(ago),
-        daysAgo(ago),
+        daysAgo(row.ago ?? ago),
+        daysAgo(row.ago ?? ago),
         row.noKey === true ? "failed" : "ok",
         row.noKey === true ? "credentials" : null,
         row.noKey === true ? NO_KEY : null,
-        daysAgo(ago + 1),
-        daysAgo(ago),
+        daysAgo((row.ago ?? ago) + 1),
+        daysAgo(row.ago ?? ago),
         row.page,
         called ? (row.model ?? SONNET) : null,
         called ? 100 : null,
@@ -189,6 +191,22 @@ describe("a Scout of several pages: cost per run is per check", () => {
     expect(cost).toMatchObject({ kind: "cost", runs: 2, unpriced: 0 });
     expect(cost.kind === "cost" ? cost.perRun : null).toBeCloseTo(0.03, 10);
   });
+  it("counts a check that ended inside the thirty days whole, its page read just before the window included", async () => {
+    const f = await opened({ "lab.yaml": severalPages(RESEARCH, NEWS) });
+    f.check("lab", 29, [
+      { page: RESEARCH, usd: 0.02, ago: 30.5 },
+      { page: NEWS, usd: 0.04, ago: 29.5 },
+    ]);
+    // Ended outside the window: none of it is counted.
+    f.check("lab", 31, [
+      { page: RESEARCH, usd: 9, ago: 31 },
+      { page: NEWS, usd: 9, ago: 30.5 },
+    ]);
+
+    const { cost } = await f.row("lab");
+    expect(cost).toMatchObject({ kind: "cost", runs: 1, unpriced: 0 });
+    expect(cost.kind === "cost" ? cost.perRun : null).toBeCloseTo(0.06, 10);
+  });
 });
 
 describe("the opened row's mean per page", () => {
@@ -232,6 +250,28 @@ describe("the opened row's mean per page", () => {
       0.1,
       10
     );
+  });
+
+  it("credits a row that recorded no page to none of several pages, though the Scout's figure counts it", async () => {
+    const f = await opened({ "lab.yaml": severalPages(RESEARCH, NEWS) });
+    f.legacy("lab", 2, { page: null, usd: 0.5 });
+    f.check("lab", 1, [
+      { page: RESEARCH, usd: 0.02 },
+      { page: NEWS, usd: 0.04 },
+    ]);
+
+    const row = await f.row("lab");
+    expect(row.pageCosts).toEqual([
+      {
+        page: RESEARCH,
+        cost: { kind: "cost", perRun: 0.02, runs: 1, unpriced: 0 },
+      },
+      {
+        page: NEWS,
+        cost: { kind: "cost", perRun: 0.04, runs: 1, unpriced: 0 },
+      },
+    ]);
+    expect(row.cost).toMatchObject({ kind: "cost", runs: 2 });
   });
 
   it("is empty for a Structured source, which has no pages", async () => {
@@ -279,6 +319,21 @@ describe("scouts.runCosts — checks, each with its pages beneath", () => {
           [NEWS, 0.06],
         ],
       ],
+    ]);
+  });
+
+  it("dates a check by its newest run and lists its runs in the order it read them", async () => {
+    const f = await opened({ "lab.yaml": severalPages(RESEARCH, NEWS) });
+    f.check("lab", 3, [
+      { page: RESEARCH, usd: 0.02, ago: 3 },
+      { page: NEWS, usd: 0.04, ago: 1 },
+    ]);
+
+    const [check] = await f.checks("lab");
+    expect(check?.ago).toBe("1 day ago");
+    expect(check?.runs.map((r) => [r.page, r.ago])).toEqual([
+      [RESEARCH, "3 days ago"],
+      [NEWS, "1 day ago"],
     ]);
   });
 

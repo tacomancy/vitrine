@@ -236,7 +236,7 @@ describe("cost per run for a Scout of several pages", () => {
     },
   ];
 
-  it("lists each check under each run with its sum, and its pages' runs beneath it; a check of one run reads as a run did", async () => {
+  it("lists each check under each run with its sum, and its pages' runs beneath it; a check of one run names its page on one line", async () => {
     open([costed([...PAGE_COSTS])], { "scouts.runCosts": CHECKS });
 
     fireEvent.click(
@@ -262,8 +262,9 @@ describe("cost per run for a Scout of several pages", () => {
       `${NEWS} · claude-sonnet-5-5 · 1,200 in · 300 out · $0.30`,
       `${BLOG} · odd-model · 1,200 in · 300 out · unpriced`,
     ]);
+    // A check that called a model at one page only still says which page.
     expect(checks[1]!.textContent).toBe(
-      "8 days ago · claude-sonnet-5-5 · 1,200 in · 300 out · $0.05"
+      `8 days ago · ${RESEARCH} · claude-sonnet-5-5 · 1,200 in · 300 out · $0.05`
     );
   });
 

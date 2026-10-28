@@ -1,13 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import { coverage as mapCoverage } from "./question-map.js";
 import { readMuteState } from "./mutes.js";
-import { atPage, pagesOf, readScouts, type Scout } from "./scout-file.js";
+import { pagesOf, readScouts, type Scout } from "./scout-file.js";
 import { dueUnder } from "./scout-schedule.js";
 import type { VaultIndex } from "./vault-index.js";
 import {
   ago,
   finishedRuns,
-  finishedRunsAtPage,
   healthOf,
   isNoKeyRun,
   isWaitingOnKey,
@@ -71,6 +70,7 @@ export type Volume = {
  */
 export type Cost =
   | { kind: "no model call" }
+  /** `runs` counts checks here, as in `cost`; the runs left out are all of theirs. */
   | { kind: "unpriced"; runs: number }
   | { kind: "cost"; perRun: number; runs: number; unpriced: number };
 
@@ -487,21 +487,35 @@ const lookedRuns = (queue: DatabaseSync, scoutId: string) =>
 type ModelRun = RunRow & { input_tokens: number };
 
 /**
- * The runs a Scout's cost is read over, and the list behind its row: looked,
- * finished in the trailing thirty days, and whose model call returned usage —
- * so the list is exactly the runs the figure is over. Usage and not a model
- * id: a rejected key names the model and spent nothing, while a failed
- * extraction still spent its tokens (`record` in `scouts.ts` writes both).
- * An arXiv run, a feed read and a page unchanged since the last look make no
- * call and leave the tokens null.
+ * The checks a Scout's cost is read over, and the list behind its row, oldest
+ * first: their runs looked and their model call returned usage — so the list
+ * is exactly the runs the figure is over. Usage and not a model id: a rejected
+ * key names the model and spent nothing, while a failed extraction still spent
+ * its tokens (`record` in `scouts.ts` writes both). An arXiv run, a feed read
+ * and a page unchanged since the last look make no call and leave the tokens
+ * null. A check is in the trailing thirty days when its newest such run is, and
+ * is then counted whole, so a check that began just before the window is not
+ * read as a cheaper one (ADR 0056 decision 9).
+ *
+ * A row from before `check_id` has none and stands as a check of its own;
+ * keying it by its own id cannot meet a real check's key, which is that
+ * check's first run's id, set on that run too (`runOne` in `scouts.ts`).
+ * `finishedRuns` reads by id and a Map keeps insertion order, so checks and
+ * the runs in each come oldest first.
  */
-function modelRunsSince(
+function modelChecksSince(
   queue: DatabaseSync,
   scoutId: string,
   since: string
-): ModelRun[] {
-  return lookedRuns(queue, scoutId).filter(
-    (run): run is ModelRun => run.finished >= since && run.input_tokens !== null
+): ModelRun[][] {
+  const byCheck = new Map<number, ModelRun[]>();
+  for (const run of lookedRuns(queue, scoutId)) {
+    if (run.input_tokens === null) continue;
+    const key = run.check_id ?? run.id;
+    byCheck.set(key, [...(byCheck.get(key) ?? []), run as ModelRun]);
+  }
+  return [...byCheck.values()].filter((check) =>
+    check.some((run) => run.finished >= since)
   );
 }
 
@@ -578,21 +592,6 @@ function withheld(
   return byScout;
 }
 
-/**
- * A Scout's model runs as checks, oldest first. A row from before `check_id`
- * has none and stands as a check of its own; keying it by its own id cannot
- * meet a real check's key, which is that check's first run's id, set on that
- * run too (`runOne` in `scouts.ts`).
- */
-function checksOf(runs: ModelRun[]): ModelRun[][] {
-  const byCheck = new Map<number, ModelRun[]>();
-  for (const run of runs) {
-    const key = run.check_id ?? run.id;
-    byCheck.set(key, [...(byCheck.get(key) ?? []), run]);
-  }
-  return [...byCheck.values()];
-}
-
 const pricedOf = (runs: ModelRun[]) =>
   runs.flatMap((run) => (run.cost_usd === null ? [] : [run.cost_usd]));
 
@@ -615,26 +614,21 @@ function costOf(checks: ModelRun[][]): Cost {
 }
 
 /**
- * Each current page's mean, read over the runs at that page by ADR 0043's
- * predicate, the one every page-scoped figure reads (ADR 0056 decision 9).
+ * Each current page's mean over the runs of `checks` that asked it (ADR 0056
+ * decision 9). A run that recorded no page predates the column: ADR 0043 reads
+ * it as the one page's, but of several pages it cannot say whose it was, and
+ * crediting it to each would overstate every line, so it is in none — the
+ * Scout's own figure still counts it.
  */
 function pageCostsOf(
-  queue: DatabaseSync,
   scout: Scout,
-  since: string
+  checks: ModelRun[][]
 ): Array<{ page: string; cost: Cost }> {
-  const runs = modelRunsSince(queue, scout.id, since);
-  return pagesOf(scout).map((page) => {
-    const atThisPage = new Set(
-      finishedRunsAtPage(queue, atPage(scout, page)).map((run) => run.id)
-    );
-    return {
-      page,
-      cost: costOf(
-        runs.filter((run) => atThisPage.has(run.id)).map((run) => [run])
-      ),
-    };
-  });
+  const runs = checks.flat();
+  return pagesOf(scout).map((page) => ({
+    page,
+    cost: costOf(runs.filter((run) => run.query === page).map((run) => [run])),
+  }));
 }
 
 /** One run behind a row's figure: the page it read, what its model call spent and, where the model is priced, what that cost. */
@@ -657,6 +651,7 @@ export type ScoutCheckCost = {
   checkId: number;
   /** Its newest run's: when the check ended. */
   finished: string;
+  /** The phrase for `finished`, as a run's `ago` is. */
   ago: string;
   /** The sum of its priced runs; null when none is priced. */
   costUsd: number | null;
@@ -671,11 +666,11 @@ export function readRunCosts(
 ): ScoutCheckCost[] {
   const now = deps.now();
   const agoOf = (finished: string) => ago(now.getTime() - Date.parse(finished));
-  return checksOf(modelRunsSince(deps.queue, scoutId, thirtyDaysBefore(now)))
+  return modelChecksSince(deps.queue, scoutId, thirtyDaysBefore(now))
     .map((check): ScoutCheckCost => {
       const finished = check
         .map((run) => run.finished)
-        .reduce((a, b) => (b > a ? b : a));
+        .reduce((a, b) => (b.localeCompare(a) > 0 ? b : a));
       const priced = pricedOf(check);
       return {
         checkId: check[0]!.check_id ?? check[0]!.id,
@@ -749,6 +744,7 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
   const rows = [
     ...scouts.map((scout): ActivityRow => {
       const newest = lookedRuns(deps.queue, scout.id).at(-1);
+      const checks = modelChecksSince(deps.queue, scout.id, since);
       return {
         kind: "scout",
         id: scout.id,
@@ -793,8 +789,8 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
           ...volumeByScout.get(scout.id),
           ...(withheldByScout.get(scout.id) ?? { belowCap: 0, muted: 0 }),
         },
-        cost: costOf(checksOf(modelRunsSince(deps.queue, scout.id, since))),
-        pageCosts: pageCostsOf(deps.queue, scout, since),
+        cost: costOf(checks),
+        pageCosts: pageCostsOf(scout, checks),
       };
     }),
     ...unreadable.map((file): ActivityRow => ({
