@@ -251,7 +251,7 @@ export function ScoutActivity({
         {/* An empty fleet makes its offer in the first slot instead, so the
             screen never holds two (#905). */}
         {rows.length > 0 && (
-          <span className={styles.actions}>
+          <span className={styles.newScout}>
             <Button onClick={() => onNewScout()}>new scout</Button>
           </span>
         )}

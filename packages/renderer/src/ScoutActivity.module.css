@@ -21,7 +21,7 @@
 
 /* At the header's far end, apart from the fleet's facts: it is an act, and
    the facts beside the title are only read (#905). */
-.actions {
+.newScout {
   margin-left: auto;
   padding-left: var(--space-4);
 }
