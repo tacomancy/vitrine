@@ -975,6 +975,39 @@ describe("a Scout that watches a page", () => {
     ]);
   });
 
+  it("saves a Scout of several pages with every page it reads, so a row's save removes none", async () => {
+    const NEWS = "https://lab.example/news";
+    const asked: Array<{ urls?: string[] }> = [];
+    open(
+      () =>
+        fleet([
+          {
+            ...PAGE,
+            source: {
+              kind: "watched",
+              pages: [
+                { url: LAB, health: { voice: "claim", warrant: null } },
+                { url: NEWS, health: { voice: "claim", warrant: null } },
+              ],
+            },
+          },
+        ]),
+      {
+        "questions.list": QUESTIONS,
+        "scouts.save": (input: { urls?: string[] }) => {
+          asked.push(input);
+          return { id: "lab", run: null };
+        },
+      }
+    );
+    const edit = await panel();
+
+    fireEvent.click(edit.getByRole("button", { name: "Save" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe("Saved.");
+    expect(asked.map((a) => a.urls)).toEqual([[LAB, NEWS]]);
+  });
+
   it("takes the researcher to this Scout's form when they ask for it", async () => {
     open(() => fleet([PAGE]), {
       "questions.list": QUESTIONS,
@@ -1012,7 +1045,9 @@ describe("a Scout that watches a page", () => {
     expect(window.location.hash).toBe("#/scout-management/lab/edit");
     // The form, which is the one with an Address in it.
     expect(await screen.findByLabelText("Address 1")).toBeDefined();
-    expect(screen.getByLabelText<HTMLInputElement>("Address 1").value).toBe(LAB);
+    expect(screen.getByLabelText<HTMLInputElement>("Address 1").value).toBe(
+      LAB
+    );
   });
 });
 
