@@ -6,6 +6,7 @@ import { createMemoryCredentialStore } from "./credentials.js";
 import type { ModelProvider } from "./model-provider.js";
 import type { ScoutActivity, ScoutRow } from "./scout-activity.js";
 import type { Scout, UnreadableScout } from "./scout-file.js";
+import type { LooseEndRow, LooseEnds } from "./loose-ends.js";
 import type { Health } from "./scout-health.js";
 import type { RunSummary } from "./scouts.js";
 import {
@@ -156,6 +157,13 @@ async function opened(file: string, { key = true } = {}) {
     wait: (ms: number) => (at += ms),
     rewrite: (text: string) => writeFile(path, text),
     run: () => ok<RunSummary>("mutate", "scouts.runNow", { scoutId: "lab" }),
+    runPage: (page: string) =>
+      ok<RunSummary>("mutate", "scouts.runNow", { scoutId: "lab", page }),
+    // The fixture vault has rows of its own; these are the Scout's.
+    looseEnds: async () =>
+      (await ok<LooseEnds>("query", "looseEnds.rows")).groups
+        .flatMap((g): LooseEndRow[] => g.rows)
+        .filter((r) => r.subject === "lab"),
     checkDue: () => ok<string[]>("mutate", "scouts.checkDue"),
     list: () =>
       ok<{ scouts: Scout[]; unreadable: UnreadableScout[] }>(
@@ -660,5 +668,100 @@ describe("the health of a Scout of several pages", () => {
       kind: "watched",
       pages: [{ url: RESEARCH, health: row.health }],
     });
+  });
+});
+
+// #913 (ADR 0056 decision 6): every surface that names a broken Scout names
+// the broken page, and mending it touches only that page.
+describe("rows about a broken page of a Scout of several pages", () => {
+  const HTTP_404 =
+    "The page answered with an error (HTTP 404) or was too large to read, so nothing was checked.";
+
+  it("are one Loose Ends row per broken page, naming the Scout and the page in the page's own sentence", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS, BLOG)));
+    lab.pages["/research"] = { body: html(1) };
+    // News and blog answer 404.
+    await lab.run();
+
+    expect(await lab.looseEnds()).toEqual([
+      {
+        kind: "failed-scout",
+        subject: "lab",
+        path: ".vitrine/scouts/lab.yaml",
+        title: "Lab",
+        page: NEWS,
+        errorKind: "http",
+        sentence: HTTP_404,
+      },
+      {
+        kind: "failed-scout",
+        subject: "lab",
+        path: ".vitrine/scouts/lab.yaml",
+        title: "Lab",
+        page: BLOG,
+        errorKind: "http",
+        sentence: HTTP_404,
+      },
+    ]);
+  });
+
+  it("judge structure change detected per page, so only the page that once yielded items says it", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html() };
+    await lab.run();
+    // The research page drops what it listed; the news page has never listed anything.
+    lab.pages["/research"] = { body: html() };
+    lab.wait(WEEK);
+    await lab.run();
+
+    const rows = await lab.looseEnds();
+    expect(rows.map((r) => [r.kind, "page" in r ? r.page : null])).toEqual([
+      ["structure-change", RESEARCH],
+      ["failed-scout", NEWS],
+    ]);
+    expect(rows[0]).toMatchObject({ address: RESEARCH });
+  });
+
+  it("run now on a page's row reads that page only, as a check of one page", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+    lab.pages["/research"] = { body: html(1) };
+    await lab.run();
+    lab.pages["/news"] = feed(2);
+    lab.wait(HOUR);
+
+    const summary = await lab.runPage(NEWS);
+
+    expect(summary).toMatchObject({ outcome: "ok", new: 1 });
+    expect(lab.fetched["/research"]).toBe(1);
+    const runs = lab.runs();
+    expect(runs.map((r) => r.query)).toEqual([RESEARCH, NEWS, NEWS]);
+    expect(runs[2]!.check_id).not.toBe(runs[0]!.check_id);
+    expect(await lab.looseEnds()).toEqual([]);
+  });
+
+  it("refuses run now on a page the Scout no longer reads, reading nothing", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+
+    const refused = await lab.mutate("scouts.runNow", {
+      scoutId: "lab",
+      page: BLOG,
+    });
+
+    expect(refused.error?.message).toBe("Lab no longer reads that page.");
+    expect(lab.runs()).toEqual([]);
+  });
+
+  it("read as before for a one-page Scout, naming no page", async () => {
+    const lab = await opened(fileWith(`  url: ${RESEARCH}`));
+    await lab.run();
+
+    expect(await lab.looseEnds()).toEqual([
+      expect.objectContaining({
+        kind: "failed-scout",
+        page: null,
+        sentence: HTTP_404,
+      }),
+    ]);
   });
 });

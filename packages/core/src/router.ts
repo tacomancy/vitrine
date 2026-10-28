@@ -696,10 +696,24 @@ export const router = t.router({
     runs: t.procedure.query(async ({ ctx }) =>
       refusing(readRunLines(await scoutDeps(ctx)))
     ),
+    // `page` is a row about one page of a Scout of several (Loose Ends,
+    // Home): mending it reads that page alone and never spends on the others
+    // unasked (ADR 0056 decision 6). Without it, every page, as one check.
     runNow: t.procedure
-      .input(z.object({ scoutId: z.string().min(1) }))
+      .input(
+        z.object({
+          scoutId: z.string().min(1),
+          page: z.string().min(1).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) =>
-        refusing(runScout(await scoutDeps(ctx), input.scoutId))
+        refusing(
+          runScout(
+            await scoutDeps(ctx),
+            input.scoutId,
+            input.page === undefined ? {} : { pages: [input.page] }
+          )
+        )
       ),
     // Loose Ends' way out of a broken Scout: it stops looking, and its row
     // goes with the failure it was about (`healthOf` answers *paused*). The

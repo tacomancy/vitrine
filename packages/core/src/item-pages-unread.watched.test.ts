@@ -458,6 +458,7 @@ describe("a run that could read fewer than half its Item pages", () => {
         subject: "lab",
         path: ".vitrine/scouts/lab.yaml",
         title: "Lab",
+        page: null,
         errorKind: "extraction",
         sentence: UNREAD_SENTENCE,
       },
