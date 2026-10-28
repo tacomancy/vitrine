@@ -647,7 +647,10 @@ describe("a vault with no Scouts", () => {
       within(row!).getByRole("img", { name: "not working" })
     ).toBeDefined();
     expect(screen.queryByText("no scouts yet")).toBeNull();
-    expect(screen.queryByRole("button", { name: "new scout" })).toBeNull();
+    // The header's is the one way to a new Scout, as for any fleet with rows.
+    expect(screen.getAllByRole("button", { name: "new scout" })).toHaveLength(
+      1
+    );
   });
 
   it("spans every column after its name, so a column added to the table never leaves that row ragged", async () => {
@@ -665,6 +668,41 @@ describe("a vault with no Scouts", () => {
         .reduce((sum, cell) => sum + (cell as HTMLTableCellElement).colSpan, 1);
     expect(spanned(torn!)).toBe(columns);
     expect(spanned(readable!)).toBe(columns);
+  });
+});
+
+describe("a fleet with Scouts (#905)", () => {
+  it("offers a new Scout in the header, beside the title, once and only once", async () => {
+    open(fleet([QUIET, BROKEN]));
+    const view = await page();
+    await tableRows();
+
+    const buttons = within(view).getAllByRole("button", { name: "new scout" });
+    expect(buttons).toHaveLength(1);
+    const title = within(view).getByRole("heading", { name: "Scouts" });
+    expect(buttons[0]!.closest("div")).toBe(title.parentElement);
+  });
+
+  it("opens the new-Scout form at its own Address with nothing Assigned", async () => {
+    open(fleet([QUIET]), {
+      "scouts.list": { scouts: [], unreadable: [] },
+      "scouts.queue": [],
+      "scouts.batches": [],
+      "scouts.groups": [],
+      "scouts.muted": { rules: [], problem: null, items: [] },
+      "scouts.fleet": { claim: null, naming: [] },
+      "scouts.health": { scouts: [], unreadable: [] },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "new scout" }));
+
+    const form = await screen.findByRole("form", { name: "New Scout" });
+    expect(window.location.hash).toBe("#/scout-management/new");
+    expect(
+      within(form)
+        .queryAllByRole("checkbox")
+        .filter((box) => (box as HTMLInputElement).checked)
+    ).toEqual([]);
   });
 });
 

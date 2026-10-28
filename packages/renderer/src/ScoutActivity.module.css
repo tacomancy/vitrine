@@ -19,6 +19,13 @@
   padding: var(--space-2) var(--space-5);
 }
 
+/* At the header's far end, where the Queue's header kept its own before
+   making Scouts moved here (#860, #905). */
+.actions {
+  margin-left: auto;
+  padding-left: var(--space-4);
+}
+
 .title {
   margin: 0;
   flex: none;
