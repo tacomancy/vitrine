@@ -14,6 +14,7 @@
 // 6. The stand-in recovers; *run now* and both go quiet again.
 import { spawn } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,10 +32,22 @@ cpSync(join(repo, "packages/core/fixtures/obsidian-vault"), vault, {
 });
 
 const standin = await startStandin();
+
+// run-hidden's default debug port is whoever got there first, and another
+// session's app may hold it: a drive would then talk to the wrong window.
+const freePort = () =>
+  new Promise((done) => {
+    const probe = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => done(port));
+    });
+  });
+
 // Async, not execFileSync: the stand-in server lives in this process and a
 // blocked event loop would leave the app's requests unanswered.
-const launch = (png, drive, after = 18000) =>
-  new Promise((done, fail) => {
+const launch = async (png, drive, after = 18000) => {
+  const port = await freePort();
+  return new Promise((done, fail) => {
     const child = spawn(
       "node",
       [
@@ -45,6 +58,8 @@ const launch = (png, drive, after = 18000) =>
         vault,
         "--support",
         support,
+        "--port",
+        String(port),
         "--drive",
         join(here, "scout-demo", drive),
         "--after",
@@ -59,6 +74,7 @@ const launch = (png, drive, after = 18000) =>
       code === 0 ? done() : fail(new Error(`${png}: exit ${code}`))
     );
   });
+};
 
 try {
   await launch("1-form-try.png", "form.mjs");

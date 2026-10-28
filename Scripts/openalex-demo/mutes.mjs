@@ -1,7 +1,7 @@
 // 4. A venue and a publisher muted by name search: the Scout's cards exist
-// first (Run now), then each rule is found by name, its reach counted before
-// it is saved, and the muted view holds what it caught.
-import { button, expect, openQueue, runNow } from "./helpers.mjs";
+// first (Run now), then each rule is found by name from the Muted tab, its
+// reach counted before it is saved, and the muted view holds what it caught.
+import { button, expect, openLane, openQueue, runNow } from "./helpers.mjs";
 
 const search = async (page, kind, name) => {
   await page.wait(
@@ -31,6 +31,8 @@ export default async (page) => {
   // either way the run has answered and the cards are in the stack.
   await page.wait("/\\d+ new/.test(document.body.innerText)", 20000);
 
+  // *Mute by name* lives in the Muted tab (ADR 0052 decision 6).
+  await openLane(page, "Muted");
   await page.eval(`${button("Mute by name")}.click()`);
   await search(page, "Venue", "Probing");
   await page.eval(
@@ -55,13 +57,10 @@ export default async (page) => {
   await page.eval(`${button("Save rule")}.click()`);
   await page.wait("document.body.innerText.includes('Muted publisher')", 10000);
 
+  // Saving leaves the Muted tab open, so the rules and what they hold are here.
   await page.wait(
-    "[...document.querySelectorAll('button')].some(b=>/\\d+ muted/.test(b.textContent))"
+    "!!document.querySelector('ul[aria-label=\"Mute rules\"]') && !!document.querySelector('ul[aria-label=\"Muted\"]')"
   );
-  await page.eval(
-    `[...document.querySelectorAll('button')].find(b=>/\\d+ muted/.test(b.textContent)).click()`
-  );
-  await page.wait("!!document.querySelector('ul[aria-label=\"Mute rules\"]')");
   const rules = await page.eval(
     "document.querySelector('ul[aria-label=\"Mute rules\"]').innerText"
   );
