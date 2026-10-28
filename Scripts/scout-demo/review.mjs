@@ -1,4 +1,5 @@
-// 2. The Scout is saved and run; the Review stack has a card in hand.
+// 2. The Scout is saved and run; its first look is opened in the Review stack
+// and its first row chosen, since only the chosen row draws a card.
 import {
   button,
   chooseFirstLook,

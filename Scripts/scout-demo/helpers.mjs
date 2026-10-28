@@ -12,7 +12,7 @@ export const press = (page, letter) =>
 
 /** A lane tab, which carries its count once read: *Skim 3*. */
 export async function openLane(page, lane) {
-  const tab = `[...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim().split(' ')[0] === ${JSON.stringify(lane)})`;
+  const tab = `[...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim().replace(/ \\d+$/, '') === ${JSON.stringify(lane)})`;
   await page.wait(`!!${tab}`);
   await page.eval(`${tab}.click()`);
 }

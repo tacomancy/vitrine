@@ -6,7 +6,8 @@
 //   node Scripts/scout-demo.mjs <out-folder>
 //
 // 1. The form, with *try* answered.
-// 2. The Scout saved and run; the Review stack with a card in hand.
+// 2. The Scout saved and run; its first look opened in the Review stack, the
+//    first row chosen so its card is drawn.
 // 3. A Skim Scout; the Skim feed.
 // 4. `A` on the card; the stub's file and its *Unfinished reading* row.
 // 5. The stand-in answers 503: the *wrong* voice on the rail, and in Loose
@@ -88,7 +89,9 @@ try {
     throw new Error(`accept wrote no stub: ${stubs.join(", ")}`);
   console.log(`sources/: ${stubs.join(", ")}`);
   standin.mode.failing = true;
-  await launch("5a-broken-rail.png", "broken-rail.mjs");
+  // The drive waits up to 20 s for the 503, and the app captures and quits at
+  // --after whether the drive is done or not, so 18 s is too short a window.
+  await launch("5a-broken-rail.png", "broken-rail.mjs", 30000);
   await launch("5b-broken-loose-ends.png", "broken-loose-ends.mjs");
   standin.mode.failing = false;
   await launch("6-recovered.png", "recover.mjs", 30000);
