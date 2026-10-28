@@ -102,3 +102,7 @@ The spec grill for this beat closed seven cases the decisions above left open; *
 ## Update (2026-10-16, #183)
 
 **ADR 0044** discharges the half of decision 6's Wait list that needed accept history: ranking signals and rank sort, the counterweight slot, Lane moves (a recorded *demote* and *raise*, not a score), Review aging (as a digest, not a demotion), muting, per-Scout Caps and bulk-defer, plus group by Question. What still waits: topic-cluster grouping, keyword-overlap ranking and Corroboration through the Lexicon (beat 10). Title merging is struck from the list: `source_key` already merges on arXiv id, DOI and url (ADR 0018).
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** lets a Watched Scout read several pages. A Structured source is still one per Scout; a Watched Scout has one or more Watched sources, each with its own runs, Due and health, and the Scout's Voice is the worst of its pages'.

@@ -38,3 +38,7 @@ ADR 0042 decision 5 kept changing a Watched Scout's page on the form and left wh
 - **−** A cosmetic edit of a URL, or identical text at a new one, costs one read, which for a page with no feed is a model call.
 - **−** `CONTEXT.md` **Watched source**, **Retroactive**, **Source health**, **Quiet field** and **Due** widen, and ADRs 0016, 0017, 0032, 0040 and 0042 take dated Updates.
 - The spec (#563) carries: the page predicate and the reads that apply it; `scouts.save` writing the URL and running nothing for a page; the first-look Voice sentence, the fault clause and the first run's Retroactive flag; the Loose Ends gate; the weekly line's sentence, as a separable ticket; the form's two sentences; the removal of the *until … lands* notes and the *decided, built by its tickets* lead in `docs/architecture.md`; and the closing demo.
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** makes this ADR the one-page case of a rule per page. A run is at page P when its `query` is P, unchanged; a Scout's pages are a list, and changing one is removing it and adding another. Decision 8's sentence becomes *a page was added or removed* within the twelve weeks.
