@@ -611,30 +611,6 @@ describe("a vault with no Scouts", () => {
     expect(within(view).queryByRole("table")).toBeNull();
   });
 
-  it("opens the new-Scout form at its own Address when asked for one", async () => {
-    open(NONE, {
-      "scouts.list": { scouts: [], unreadable: [] },
-      "scouts.queue": [],
-      "scouts.batches": [],
-      "scouts.groups": [],
-      "scouts.muted": { rules: [], problem: null, items: [] },
-      "scouts.fleet": { claim: null, naming: [] },
-      "scouts.health": { scouts: [], unreadable: [] },
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "new scout" }));
-
-    const form = await screen.findByRole("form", { name: "New Scout" });
-    expect(window.location.hash).toBe("#/scout-management/new");
-    // Nothing is Assigned: only *brief a scout* starts a Scout on a Question,
-    // and the click that opened this one is not an id.
-    expect(
-      within(form)
-        .queryAllByRole("checkbox")
-        .filter((box) => (box as HTMLInputElement).checked)
-    ).toEqual([]);
-  });
-
   it("is not drawn for a fleet that holds only a file that will not parse: that file is a row", async () => {
     open(fleet([TORN]));
 
@@ -647,7 +623,10 @@ describe("a vault with no Scouts", () => {
       within(row!).getByRole("img", { name: "not working" })
     ).toBeDefined();
     expect(screen.queryByText("no scouts yet")).toBeNull();
-    expect(screen.queryByRole("button", { name: "new scout" })).toBeNull();
+    // The header's is the one way to a new Scout, as for any fleet with rows.
+    expect(screen.getAllByRole("button", { name: "new scout" })).toHaveLength(
+      1
+    );
   });
 
   it("spans every column after its name, so a column added to the table never leaves that row ragged", async () => {
@@ -666,6 +645,60 @@ describe("a vault with no Scouts", () => {
     expect(spanned(torn!)).toBe(columns);
     expect(spanned(readable!)).toBe(columns);
   });
+});
+
+describe("a fleet with Scouts (#905)", () => {
+  it("offers a new Scout in the header, once and only once", async () => {
+    open(fleet([QUIET, BROKEN]));
+    const view = await page();
+    await tableRows();
+
+    const buttons = within(view).getAllByRole("button", { name: "new scout" });
+    expect(buttons).toHaveLength(1);
+    const title = within(view).getByRole("heading", { name: "Scouts" });
+    expect(buttons[0]!.closest("div")).toBe(title.parentElement);
+  });
+});
+
+describe("new scout, from the first slot or the header", () => {
+  it.each([
+    ["an empty fleet", NONE],
+    ["a fleet with rows", fleet([QUIET])],
+  ])(
+    "opens the form at its own Address with nothing Assigned, for %s",
+    async (_, activity) => {
+      open(activity, {
+        "questions.list": {
+          ...empty,
+          questions: [
+            {
+              id: "id-Open?",
+              question: "Open?",
+              status: "open",
+              path: "a.md",
+            },
+          ],
+        },
+        "scouts.list": { scouts: [], unreadable: [] },
+        "scouts.queue": [],
+        "scouts.batches": [],
+        "scouts.groups": [],
+        "scouts.muted": { rules: [], problem: null, items: [] },
+        "scouts.fleet": { claim: null, naming: [] },
+        "scouts.health": { scouts: [], unreadable: [] },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "new scout" }));
+
+      const form = await screen.findByRole("form", { name: "New Scout" });
+      expect(window.location.hash).toBe("#/scout-management/new");
+      // Nothing is Assigned: only *brief a scout* starts a Scout on a
+      // Question, and the click that opened this one is not an id. The open
+      // Question is there so an Assigned one would show as a checked box.
+      const box = await within(form).findByRole("checkbox", { name: /Open\?/ });
+      expect((box as HTMLInputElement).checked).toBe(false);
+    }
+  );
 });
 
 describe("a read that has not answered, or has failed", () => {

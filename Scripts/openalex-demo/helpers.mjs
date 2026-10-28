@@ -19,7 +19,7 @@ export const select = (page, optionValue) =>
     s.dispatchEvent(new Event('change',{bubbles:true}));
   })()`);
 
-/** + New Scout ▸ named ▸ watching OpenAlex. */
+/** The new-Scout form at its Address ▸ named ▸ watching OpenAlex. */
 export async function newOpenAlexScout(page, name) {
   await openQueue(page);
   await page.eval(`location.hash = "#/scout-management/new"`);

@@ -248,6 +248,13 @@ export function ScoutActivity({
             {rows.length > 0 && <FleetReview review={activity.data.review} />}
           </div>
         )}
+        {/* An empty fleet makes its offer in the first slot instead, so the
+            screen never holds two (#905). */}
+        {rows.length > 0 && (
+          <span className={styles.newScout}>
+            <Button onClick={() => onNewScout()}>new scout</Button>
+          </span>
+        )}
       </div>
       {/* Beneath the fleet's facts and above the rows, as prototype 10 sets it
           in the header strip: the most actionable thing on the screen, so it is

@@ -32,7 +32,7 @@ export function questionChoices(
 }
 
 /**
- * The Questions a Scout is Assigned to, as checkboxes: the Queue's form and a
+ * The Questions a Scout is Assigned to, as checkboxes: the Scout form and a
  * Scout Activity row's edit are one picker and so write one thing. Open
  * Questions only are offered (spec #447 story 5); one the Scout is already
  * assigned to stays on the list even when it has closed, so the researcher can
