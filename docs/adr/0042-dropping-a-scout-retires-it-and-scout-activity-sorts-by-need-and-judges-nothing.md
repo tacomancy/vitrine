@@ -42,3 +42,7 @@ Decision 5's last sentence is resolved by **ADR 0043**: a changed page is the sa
 ## Update (2026-10-26, ADR 0053)
 
 Decision 1 gains one exception: a dropped Scout can now be **erased**, which removes its file and leaves a tombstone (name and id), so its runs, `triage` rows and `origin_scout` still resolve. Erase is refused while it has pending or deferred Proposals. ADR 0053 decision 6; nothing else here changes.
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** keeps the Accept rate and Candidates proposed the Scout's, over every page past and present, and adds a per-page breakdown to the opened row, credited by first Appearance. Cost per run is now per check, the sum of its pages' rows, with a mean per page beside it.

@@ -68,3 +68,7 @@ The spec grill for beat 7 settled three places this ADR could not all be true at
 ## Update (2026-10-27, ADR 0055)
 
 **ADR 0055** extends decision 5: a Watched source is one page, its feed, and the Item page of each item it has not seen, on the listing's host, up to 25 per run. Nothing linked from an Item page is followed, so "no link-following" now means *nothing past the Item page*. Decision 7's verification is extended to every value an Item page's Extraction fills.
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** makes decision 5's "one page" one page *per Watched source*: a Scout of several pages reads each on its own run, with every per-run budget applied per page, tied into one check by `check_id`.
