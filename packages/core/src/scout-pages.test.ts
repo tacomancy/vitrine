@@ -585,6 +585,31 @@ describe("the health of a Scout of several pages", () => {
     ]);
   });
 
+  it("starts only the page that was waiting when a key is stored, so its siblings are not read again unasked", async () => {
+    const lab = await opened(fileWith(urls(NEWS, RESEARCH)), { key: false });
+    lab.pages["/news"] = feed(1);
+    lab.pages["/research"] = { body: html(2) };
+    await lab.run();
+
+    expect(
+      (
+        await lab.mutate("credentials.set", {
+          provider: "anthropic",
+          key: "sk-new",
+        })
+      ).error
+    ).toBeUndefined();
+
+    expect(
+      lab
+        .runs()
+        .slice(2)
+        .map((r) => [r.query, r.outcome])
+    ).toEqual([[RESEARCH, "ok"]]);
+    expect(lab.fetched["/news"]).toBe(1);
+    expect(await lab.waiting()).toEqual([]);
+  });
+
   it("reads a one-page Scout's health exactly as before", async () => {
     const lab = await opened(fileWith(`  url: ${RESEARCH}`));
     lab.pages["/research"] = { body: html(1) };
