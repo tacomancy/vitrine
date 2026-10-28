@@ -1,6 +1,13 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { Document, isMap, parseDocument, stringify } from "yaml";
+import {
+  Document,
+  isMap,
+  isScalar,
+  isSeq,
+  parseDocument,
+  stringify,
+} from "yaml";
 import { ArxivError } from "./arxiv.js";
 import {
   openAlexId,
@@ -60,9 +67,15 @@ export type ScoutForm = {
   /** Present when editing; the file's own name. */
   id?: string | undefined;
   name: string;
-  /** What it watches; a page's *Address* travels in `query`, so one field is one field (ADR 0040 d.4). */
+  /** What it watches. */
   watching?: "arxiv" | "openalex" | "watched" | undefined;
   query: string;
+  /**
+   * A Watched Scout's *Addresses*, in the order the form lists them (ADR 0056
+   * decision 13). Absent, `query` is its one page, as every save sent before
+   * a Scout could have several.
+   */
+  urls?: string[] | undefined;
   /**
    * The Filter as Tags, as written (spec #678): present and non-empty makes it
    * a Tag Filter, and then `query` must be empty — a Scout has one or the
@@ -144,7 +157,11 @@ async function write(
       : saysNothingOfFilter
         ? before?.scout.tags
         : undefined;
-  if (name === "" || (query === "" && tags === undefined)) {
+  const pages = watched ? (form.urls ?? [form.query]).map((u) => u.trim()) : [];
+  const nothingWatched = watched
+    ? pages.every((page) => page === "")
+    : query === "" && tags === undefined;
+  if (name === "" || nothingWatched) {
     throw new VaultError(
       "refused",
       watched
@@ -152,8 +169,17 @@ async function write(
         : "A Scout needs a name and a Query."
     );
   }
-  if (watched && !WEB_ADDRESS.test(query)) {
+  if (pages.some((page) => !WEB_ADDRESS.test(page))) {
     throw new VaultError("refused", ADDRESS_REFUSAL);
+  }
+  // A page listed twice would be read twice in a check (ADR 0039 d.7); page
+  // identity is the trimmed string (ADR 0043 d.3).
+  const twice = pages.find((page, at) => pages.indexOf(page) !== at);
+  if (twice !== undefined) {
+    throw new VaultError(
+      "refused",
+      `${twice} is listed twice. A Scout reads each page once.`
+    );
   }
   // Only a Tag this save adds is refused: a Tag already in the file whose
   // Lexicon later emptied must not trap the Scout's other edits (its run
@@ -178,9 +204,11 @@ async function write(
     doc.set("name", name);
     doc.set(
       "source",
-      watched
-        ? { kind: "watched", url: query }
-        : { kind: form.watching === "openalex" ? "openalex" : "arxiv" }
+      !watched
+        ? { kind: form.watching === "openalex" ? "openalex" : "arxiv" }
+        : pages.length === 1
+          ? { kind: "watched", url: pages[0] }
+          : { kind: "watched", urls: pages }
     );
     doc.set("created", deps.now().toISOString());
     // A page has no date window: its first run proposes all it lists.
@@ -211,7 +239,7 @@ async function write(
     }
     doc = parseDocument(await readScoutFile(deps.vaultPath, before.file));
     doc.set("name", name);
-    if (watched) writePage(doc, before.scout, query);
+    if (watched) writePages(doc, before.scout, pages);
   }
   doc.set("cadence", form.cadence);
   doc.set("lane", form.lane);
@@ -274,27 +302,41 @@ async function write(
 }
 
 /**
- * The form's one *Address* written to the file under the key it already uses
- * (ADR 0056 decision 12), so a save never gives a file both. A Scout of
- * several pages is saved with its first page, which is what the form shows of
- * it until it lists them (#911): that keeps its pages as they are, and any
- * other address is refused, since writing it would drop the others unasked.
+ * The form's *Addresses* written to the file (ADR 0056 decision 12): `url:`
+ * for one page and `urls:` for several, in the place of the key the file had,
+ * so a save never gives a file both and moves nothing around it. Pages saved
+ * as they were are not written at all, so a one-page Scout keeps `url:` and a
+ * list keeps the style and comments it was written with (ADR 0009).
  */
-function writePage(doc: Document, scout: Scout, query: string) {
-  const pages = pagesOf(scout);
-  if (pages.length > 1) {
-    if (query === pages[0]) return;
-    throw new VaultError(
-      "refused",
-      "This Scout reads several pages, and the form does not list them yet. Edit its file to change them."
-    );
+function writePages(doc: Document, scout: Scout, pages: string[]) {
+  if (sameList(pagesOf(scout), pages)) return;
+  const source = doc.get("source");
+  const pair = isMap(source)
+    ? source.items.find(
+        (p) =>
+          isScalar(p.key) && (p.key.value === "url" || p.key.value === "urls")
+      )
+    : undefined;
+  // `readScout` has read this file as a Watched Scout, so it holds one of them.
+  if (pair === undefined || !isScalar(pair.key)) {
+    throw new VaultError("refused", "This Scout's file names no page.");
   }
-  // `doc.set` keeps the comment on a scalar set to what it was, so an
-  // unchanged URL writes the same bytes; a changed one is the only edit. A
-  // list is replaced whole, so it is written only when it changed.
-  if (doc.hasIn(["source", "urls"])) {
-    if (query !== pages[0]) doc.setIn(["source", "urls"], [query]);
-  } else doc.setIn(["source", "url"], query);
+  const was = pair.value;
+  // A comment written beside a page is the researcher's, about that page, so
+  // it stays with the page wherever the page now sits; an address edited in
+  // its place keeps the comment on its line, as a hand edit would.
+  const before = (isSeq(was) ? was.items : [was]).filter(isScalar);
+  const next = doc.createNode(pages.length === 1 ? pages[0] : pages);
+  (isSeq(next) ? next.items : [next]).forEach((entry, at) => {
+    if (!isScalar(entry)) return;
+    const own = before.find((b) => String(b.value).trim() === entry.value);
+    const replaced = before[at];
+    const gone =
+      replaced !== undefined && !pages.includes(String(replaced.value).trim());
+    entry.comment = (own ?? (gone ? replaced : undefined))?.comment ?? null;
+  });
+  pair.key.value = pages.length === 1 ? "url" : "urls";
+  pair.value = next;
 }
 
 /**

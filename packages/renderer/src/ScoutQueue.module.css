@@ -209,6 +209,19 @@
   padding-left: var(--space-5);
 }
 
+/* One of a Scout's Addresses: its input at its own width, its *remove* and
+   whatever is said of it on the same line, wrapping under it when narrow. */
+.address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  width: 100%;
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+}
+
 /* *Try*'s own lines under its counts: the projection, and each Item page's who and when. */
 .triedLine {
   display: block;

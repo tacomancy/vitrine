@@ -33,6 +33,7 @@ import {
   Button,
   FieldRow,
   FormSection,
+  GroupRow,
   SegmentedRow,
   Input,
   Select,
@@ -56,6 +57,8 @@ export type FormValues = {
   name: string;
   watching: "arxiv" | "openalex" | "watched";
   query: string;
+  /** A Watched Scout's pages as typed, blanks and all, so the rows come back as left. */
+  addresses: string[];
   /** Which Filter the form is on; the other's text is kept, so switching back loses nothing. */
   filter: "query" | "tags";
   tags: string[];
@@ -119,6 +122,10 @@ export function ScoutForm({
     values?.watching ?? scout?.source.kind ?? "arxiv"
   );
   const [query, setQuery] = useState(values?.query ?? scout?.query ?? "");
+  const [addresses, setAddresses] = useState<string[]>(
+    values?.addresses ??
+      (scout?.source.kind === "watched" ? scout.source.urls : [""])
+  );
   const [filter, setFilter] = useState<FormValues["filter"]>(
     values?.filter ?? (scout?.tags === undefined ? "query" : "tags")
   );
@@ -160,6 +167,7 @@ export function ScoutForm({
           name,
           watching,
           query,
+          addresses,
           filter,
           tags,
           venues,
@@ -178,6 +186,7 @@ export function ScoutForm({
       name,
       watching,
       query,
+      addresses,
       filter,
       tags,
       venues,
@@ -234,15 +243,25 @@ export function ScoutForm({
   };
 
   const byTags = !page && filter === "tags";
+  // A blank row is one not filled in yet, so it is left out rather than
+  // refused; the core refuses what is sent and is not an address.
+  const urls = addresses.map((a) => a.trim()).filter((a) => a !== "");
+  const twice = urls.some((url, at) => urls.indexOf(url) !== at);
   const missing = [
     ...(name.trim() === "" ? ["a name"] : []),
-    ...(byTags
-      ? tags.length === 0
-        ? ["a Tag"]
-        : []
-      : query.trim() === ""
-        ? [page ? "an Address" : "a Query"]
-        : []),
+    ...(page
+      ? urls.length === 0
+        ? ["an Address"]
+        : twice
+          ? ["each page once"]
+          : []
+      : byTags
+        ? tags.length === 0
+          ? ["a Tag"]
+          : []
+        : query.trim() === ""
+          ? ["a Query"]
+          : []),
   ];
   const ready = missing.length === 0;
 
@@ -256,7 +275,8 @@ export function ScoutForm({
       watching,
       // A Scout has Tags or a Query: the one not in use is sent empty, and
       // an empty list is how an existing Tag Scout is switched back to a Query.
-      query: byTags ? "" : query,
+      query: byTags || page ? "" : query,
+      ...(page ? { urls } : {}),
       ...(byTags ? { tags } : scout?.tags === undefined ? {} : { tags: [] }),
       // An allowlist is sent when there is one, and when emptying a saved
       // one: the core leaves a key alone it is not told about.
@@ -300,7 +320,11 @@ export function ScoutForm({
       ? last.result
       : undefined;
   const pageResult = last?.kind === "page" ? last.result : undefined;
-  const tryable = byTags ? tags.length > 0 : query.trim() !== "";
+  const tryable = page
+    ? urls.length > 0
+    : byTags
+      ? tags.length > 0
+      : query.trim() !== "";
   const where = openalex
     ? "journals and conferences in OpenAlex"
     : "all of arXiv";
@@ -348,7 +372,7 @@ export function ScoutForm({
             >
               <option value="arxiv">arXiv</option>
               <option value="openalex">OpenAlex</option>
-              <option value="watched">a web page</option>
+              <option value="watched">web pages</option>
             </Select>
           )}
         </FieldRow>
@@ -389,27 +413,13 @@ export function ScoutForm({
           </FieldRow>
         )}
         {page && (
-          <FieldRow
-            label="Address"
-            note={
-              scout === undefined
-                ? undefined
-                : "Changing the page points this Scout at another one: the next check reads it as a first look, and everything it lists arrives as Retroactive. Its Proposals, stubs and Accept rate go on."
-            }
-          >
-            {(field) => (
-              <Input
-                {...field}
-                type="url"
-                value={query}
-                placeholder="https://"
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  forget("page");
-                }}
-              />
-            )}
-          </FieldRow>
+          <Addresses
+            addresses={addresses}
+            onChange={(next) => {
+              setAddresses(next);
+              forget("page");
+            }}
+          />
         )}
         <ActionRow>
           <Button
@@ -419,7 +429,8 @@ export function ScoutForm({
             onClick={() => {
               forget(page ? "page" : byTags ? "tags" : "query");
               return page
-                ? triedPage.mutate({ address: query })
+                ? // The first page until *try* reads every one (#912).
+                  triedPage.mutate({ address: urls[0]! })
                 : byTags
                   ? triedTags.mutate({
                       tags,
@@ -585,6 +596,68 @@ export function ScoutForm({
         </span>
       </div>
     </form>
+  );
+}
+
+/**
+ * A Watched Scout's pages (ADR 0056 decision 13): one group row, an input per
+ * page with its own *remove*, and *add another address* under the last. A
+ * Scout has at least one page, so the last one's *remove* waits beside why;
+ * a page listed twice would be read twice in a check, so the second copy is
+ * refused where it was typed.
+ */
+function Addresses({
+  addresses,
+  onChange,
+}: {
+  addresses: string[];
+  onChange: (addresses: string[]) => void;
+}) {
+  const one = addresses.length === 1;
+  return (
+    <GroupRow
+      label="Addresses"
+      note="Each page is read on its own and has its own health. Adding a page runs nothing; its first look proposes everything it lists."
+    >
+      {addresses.map((address, at) => {
+        const trimmed = address.trim();
+        const repeated =
+          trimmed !== "" &&
+          addresses.findIndex((a) => a.trim() === trimmed) < at;
+        return (
+          // By position: an address is edited in place, so its text is no key.
+          <span key={at} className={styles.address}>
+            <Input
+              type="url"
+              aria-label={`Address ${at + 1}`}
+              value={address}
+              placeholder="https://"
+              onChange={(e) =>
+                onChange(
+                  addresses.map((a, i) => (i === at ? e.target.value : a))
+                )
+              }
+            />
+            <Button
+              aria-label={`remove ${trimmed === "" ? `address ${at + 1}` : trimmed}`}
+              disabled={one}
+              onClick={() => onChange(addresses.filter((_, i) => i !== at))}
+            >
+              remove
+            </Button>
+            {one && <Unlocks>A Scout needs at least one page.</Unlocks>}
+            {repeated && (
+              <span role="alert">
+                Already listed. A Scout reads each page once.
+              </span>
+            )}
+          </span>
+        );
+      })}
+      <Button onClick={() => onChange([...addresses, ""])}>
+        add another address
+      </Button>
+    </GroupRow>
   );
 }
 

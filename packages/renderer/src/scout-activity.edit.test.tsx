@@ -937,7 +937,7 @@ describe("a Scout that watches a page", () => {
     const edit = await panel();
 
     expect(edit.queryByLabelText("Query")).toBeNull();
-    expect(edit.queryByLabelText("Address")).toBeNull();
+    expect(edit.queryByLabelText("Address 1")).toBeNull();
     expect(edit.getByText("Its address is changed on the form.")).toBeDefined();
     // What it shares with every Scout is still the row's to edit.
     expect(await edit.findAllByRole("checkbox")).toHaveLength(2);
@@ -965,7 +965,8 @@ describe("a Scout that watches a page", () => {
         id: "lab",
         name: "Lab publications",
         watching: "watched",
-        query: LAB,
+        query: "",
+        urls: [LAB],
         cadence: "monthly",
         assigned: ["q-replay", "q-spindles"],
         lane: "skim",
@@ -1010,8 +1011,8 @@ describe("a Scout that watches a page", () => {
 
     expect(window.location.hash).toBe("#/scout-management/lab/edit");
     // The form, which is the one with an Address in it.
-    expect(await screen.findByLabelText("Address")).toBeDefined();
-    expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(LAB);
+    expect(await screen.findByLabelText("Address 1")).toBeDefined();
+    expect(screen.getByLabelText<HTMLInputElement>("Address 1").value).toBe(LAB);
   });
 });
 
