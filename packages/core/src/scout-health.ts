@@ -204,9 +204,10 @@ export function pageHealthsOf(
   scout: Scout,
   now: Date
 ): PageHealth[] {
-  return pagesOf(scout).map((url) => ({
+  const pages = pagesOf(scout);
+  return pages.map((url) => ({
     url,
-    health: pageHealthOf(queue, atPage(scout, url), now, pagesOf(scout)),
+    health: pageHealthOf(queue, atPage(scout, url), now, pages),
   }));
 }
 
@@ -232,11 +233,11 @@ export function healthOf(queue: DatabaseSync, scout: Scout, now: Date): Health {
     (a, b) => WORST[a.health.voice] - WORST[b.health.voice]
   )[0]!.health;
   if (worst.voice === "claim") return { voice: "claim", warrant: null };
-  const notWell = pages.filter((p) => p.health.voice !== "claim");
+  const notWell = pages.flatMap(({ url, health }) =>
+    health.voice === "claim" ? [] : [{ url, health }]
+  );
   const sentence = notWell
-    .map(({ url, health }) =>
-      health.voice === "claim" ? "" : `${url}: ${health.sentence}`
-    )
+    .map(({ url, health }) => `${url}: ${health.sentence}`)
     .join(" ");
   if (worst.voice === "wrong") return { ...worst, sentence };
   // A page waiting on a key leaves the Scout waiting on one, so Settings

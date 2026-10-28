@@ -164,6 +164,7 @@ async function opened(file: string, { key = true } = {}) {
       ),
     activity: () => ok<ScoutActivity>("query", "scouts.activity"),
     mutate: (route: string, input: unknown) => c.mutate(route, input),
+    ok,
     row,
     health: async () =>
       (
@@ -430,6 +431,37 @@ describe("a check of several pages", () => {
       [RESEARCH, 0],
       [BLOG, 0],
     ]);
+  });
+});
+
+describe("reject this run on a Scout of several pages", () => {
+  it("counts and rejects what every page of the newest check found, and leaves an added page's Retroactive batch to its own", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = feed(2);
+    await lab.run();
+    lab.wait(WEEK);
+    lab.pages["/research"] = { body: html(1, 3) };
+    lab.pages["/news"] = feed(2, 4);
+    lab.pages["/blog"] = { body: html(5) };
+    await lab.rewrite(fileWith(urls(RESEARCH, NEWS, BLOG)));
+    await lab.run();
+
+    const group = (
+      await lab.ok<Array<{ id: string; runId: number; runPending: number }>>(
+        "query",
+        "scouts.groups"
+      )
+    ).find((g) => g.id === "lab")!;
+    expect(group.runPending).toBe(2);
+    expect(
+      await lab.ok<{ rejected: number }>("mutate", "scouts.rejectRun", {
+        runId: group.runId,
+      })
+    ).toEqual({ rejected: 2 });
+
+    const pending = (await lab.cards()).map((c) => c.title).sort();
+    expect(pending).toEqual([1, 2, 5].map((n) => paper(n).title).sort());
   });
 });
 

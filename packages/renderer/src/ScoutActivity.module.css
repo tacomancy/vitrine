@@ -254,7 +254,6 @@
 .pages li {
   display: flex;
   flex-direction: column;
-  overflow-wrap: anywhere;
 }
 
 .page {

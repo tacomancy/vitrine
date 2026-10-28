@@ -123,7 +123,7 @@ function hasCleanRunAtPage(queue: DatabaseSync, scout: Scout): boolean {
  * check reads each of `pages` — every page unless told which — on its own
  * run, one after another, each row tied to the check by `check_id` (ADR 0056
  * decision 3). A page named that the Scout no longer lists is not read: the
- * file is the later word.
+ * file is the later word, and a check left with no page is refused.
  */
 export async function runScout(
   deps: ScoutDeps,
@@ -152,11 +152,14 @@ export async function runScout(
 /**
  * What one check did, as one run's summary says it: its first run's id,
  * which is the check's, the sums of what its pages read, and failed if any
- * page failed, by the first page's fault.
+ * page failed, by the first page's fault. A note is a Tag Filter's or an
+ * allowlist's, neither of which a page has, and every page's ceiling is a
+ * Watched read's, so neither is lost. `runs` is never empty: `runScout`
+ * refuses a check of no page.
  */
 function checkSummary(runs: RunSummary[]): RunSummary {
-  const [first] = runs;
-  if (first === undefined || runs.length === 1) return first!;
+  const first = runs[0]!;
+  if (runs.length === 1) return first;
   const failed = runs.find((r) => r.outcome === "failed");
   const sum = (
     field: "fetched" | "new" | "held" | "unverified" | "truncated"
@@ -248,6 +251,8 @@ async function runOne(
         checkId
       ).lastInsertRowid
   );
+  // The run that starts a check is its id. Written second, so a crash between
+  // the two leaves a null, which every reader takes as a check of its own.
   if (checkId === null) {
     queue
       .prepare("UPDATE scout_runs SET check_id = id WHERE id = ?")
@@ -496,6 +501,7 @@ export async function previewTags(
 export type WaitingScout = {
   id: string;
   name: string;
+  /** The first such page's reason, which is what Settings says: one key mends them all. */
   message: string;
   /** The pages a key would start: those whose own newest run stopped for one, in file order. */
   pages: string[];
