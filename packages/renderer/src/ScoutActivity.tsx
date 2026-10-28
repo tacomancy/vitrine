@@ -19,6 +19,8 @@ import type {
   FleetSource,
   Health,
   ReviewDepth,
+  ScoutCheckCost,
+  ScoutRow,
   ScoutRunCost,
   Volume,
 } from "core";
@@ -756,7 +758,44 @@ const runParts = (run: ScoutRunCost): string[] => [
   run.costUsd === null ? "unpriced" : dollars(run.costUsd),
 ];
 
-/** The runs the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
+/**
+ * One check of the row's figure. A check of one run — every check of a
+ * one-page Scout — reads as a run always did; a check of several gives its sum
+ * and lists its pages' runs beneath, so which page its cost came from can be
+ * seen (ADR 0056 decision 9).
+ */
+function Check({ check, name }: { check: ScoutCheckCost; name: string }) {
+  const when = <time dateTime={check.finished}>{check.ago}</time>;
+  const [only] = check.runs;
+  if (check.runs.length === 1 && only !== undefined) {
+    return (
+      <li>
+        {when}
+        {` · ${runParts(only).join(" · ")}`}
+      </li>
+    );
+  }
+  return (
+    <li>
+      {when}
+      {` · ${check.costUsd === null ? "unpriced" : dollars(check.costUsd)}`}
+      <ul
+        className={styles.checkPages}
+        aria-label={`${name}: the check ${check.ago}, by page`}
+      >
+        {check.runs.map((run) => (
+          <li key={run.runId}>
+            {[...(run.page === null ? [] : [run.page]), ...runParts(run)].join(
+              " · "
+            )}
+          </li>
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+/** The checks the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
 function Runs({ scoutId, name }: { scoutId: string; name: string }) {
   const trpc = useTRPC();
   const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
@@ -773,11 +812,28 @@ function Runs({ scoutId, name }: { scoutId: string; name: string }) {
   }
   return (
     <ul className={styles.runs} aria-label={`${name} runs`}>
-      {runs.data.map((run) => (
-        <li key={run.runId}>
-          <time dateTime={run.finished}>{run.ago}</time>
-          {` · ${runParts(run).join(" · ")}`}
-        </li>
+      {runs.data.map((check) => (
+        <Check key={check.checkId} check={check} name={name} />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Each page's mean cost per run, in file order, for a Scout of several pages:
+ * a plain list with no colour, mark or order of merit, so the costly page can
+ * be found and nothing is judged (ADR 0056 decisions 8 and 9). A one-page
+ * Scout's figure is already its page's.
+ */
+function PageCosts({ row }: { row: ScoutRow }) {
+  if (row.pageCosts.length < 2) return null;
+  return (
+    <ul
+      className={styles.runs}
+      aria-label={`${row.name}: cost per run, by page`}
+    >
+      {row.pageCosts.map(({ page, cost }) => (
+        <li key={page}>{[page, ...costParts(cost)].join(" · ")}</li>
       ))}
     </ul>
   );
@@ -1054,6 +1110,7 @@ function Row({
         <tr id={detail}>
           <td className={styles.detail} colSpan={COLUMNS}>
             <AcceptLine rate={row.acceptRate} />
+            <PageCosts row={row} />
             {row.lastQuery !== undefined && (
               <p className={styles.runs}>
                 Last run asked: <code>{row.lastQuery}</code>

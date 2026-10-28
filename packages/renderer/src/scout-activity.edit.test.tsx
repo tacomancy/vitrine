@@ -64,6 +64,7 @@ const scout = (over: Partial<ScoutRow> = {}): ScoutRow => ({
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
   ...over,
 });
 
