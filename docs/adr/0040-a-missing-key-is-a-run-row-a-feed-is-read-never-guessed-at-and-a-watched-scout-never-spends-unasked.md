@@ -39,3 +39,7 @@ The spec grill for beat 7 (#174), run on 2026-10-02 against ADR 0017, ADR 0025 a
 ## Update (2026-10-27, ADR 0055)
 
 **ADR 0055** extends two decisions. Decision 3's "no link-following, no crawl" now allows the Item pages of new items on the listing's host; a Feed entry's Item page is read for declared metadata only, so a Feed still never reaches a model. Decision 4's *try* also reads up to three Item pages and projects the first look's cost. Decision 6 stands: no cap.
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** applies decisions 5 and 7 per page. An added page is a first look at that page alone and saving runs nothing; Loose Ends draws one row per broken page, and *structure change detected* is judged per page. Decision 6 stands for the sum of a check's pages: no cap on spend, and none on pages.

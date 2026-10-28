@@ -39,3 +39,7 @@ Test-driving the two Watched Scouts on Anthropic's team pages — the brief's ow
 - **−** A first look can cost roughly 15–20× a listing read (≈ $1–1.50 for 25 Item pages on `claude-opus-5`, against $0.07 for the listing). It is shown on *try* and on the run, and is uncapped.
 - **−** A Proposal's fields can now change while it is pending, filling only. The Queue's detail must show the card as it is now, never a snapshot taken when it arrived.
 - **−** An announcement and its paper found by an arXiv Scout stay two cards.
+
+## Update (2026-10-28, ADR 0056)
+
+**ADR 0056** applies decision 2's ceiling of 25 Item pages and decision 8's *try* per page: a check of several pages reads up to 25 for each, and *try* reads up to three per page and sums their projections. An item two of a Scout's pages list is one card, and its Item page is read once.
