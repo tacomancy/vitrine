@@ -83,6 +83,8 @@ export type RunRow = {
   input_tokens: number | null;
   output_tokens: number | null;
   cache_read_tokens: number | null;
+  /** The check this run was one page of; null for a row from before the column, a check of its own. */
+  check_id: number | null;
 };
 
 /**
