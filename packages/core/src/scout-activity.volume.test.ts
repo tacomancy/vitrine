@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type {
   ActivityRow,
   ScoutActivity,
-  ScoutRunCost,
+  ScoutCheckCost,
 } from "./scout-activity.js";
 import {
   arxivScout,
@@ -64,9 +64,15 @@ async function opened(scouts: Record<string, string>) {
     },
     row,
     runs: async (scoutId: string) => {
-      const r = await c.query<ScoutRunCost[]>("scouts.runCosts", { scoutId });
+      const r = await c.query<ScoutCheckCost[]>("scouts.runCosts", {
+        scoutId,
+      });
       expect(r.error).toBeUndefined();
-      return r.result!.data;
+      // A one-page Scout's checks are its runs, one each.
+      return r.result!.data.map((check) => {
+        expect(check.runs).toHaveLength(1);
+        return check.runs[0]!;
+      });
     },
   };
 }

@@ -159,6 +159,7 @@ describe("scouts.activity — a row for each readable Scout", () => {
           muted: 0,
         },
         cost: { kind: "no model call" },
+        pageCosts: [],
       },
     ]);
   });
