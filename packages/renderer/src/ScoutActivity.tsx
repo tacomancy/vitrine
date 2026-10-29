@@ -20,6 +20,8 @@ import type {
   FleetSource,
   Health,
   ReviewDepth,
+  ScoutCheckCost,
+  ScoutRow,
   ScoutRunCost,
   Volume,
 } from "core";
@@ -757,8 +759,64 @@ const runParts = (run: ScoutRunCost): string[] => [
   run.costUsd === null ? "unpriced" : dollars(run.costUsd),
 ];
 
-/** The runs the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
-function Runs({ scoutId, name }: { scoutId: string; name: string }) {
+/** A run's parts after its page, which a Scout of one page never names: its address is the row's. */
+const pageRunParts = (run: ScoutRunCost, several: boolean): string[] => [
+  ...(several && run.page !== null ? [run.page] : []),
+  ...runParts(run),
+];
+
+/**
+ * One check of the row's figure. A check that called a model once — every
+ * check of a one-page Scout — is one line, as a run always was; a check of
+ * several runs gives its sum and lists its pages' runs beneath, so which page
+ * its cost came from can be seen (ADR 0056 decision 9).
+ */
+function Check({
+  check,
+  name,
+  several,
+}: {
+  check: ScoutCheckCost;
+  name: string;
+  several: boolean;
+}) {
+  const when = <time dateTime={check.finished}>{check.ago}</time>;
+  const only = check.runs.length === 1 ? check.runs[0] : undefined;
+  if (only !== undefined) {
+    return (
+      <li>
+        {when}
+        {` · ${pageRunParts(only, several).join(" · ")}`}
+      </li>
+    );
+  }
+  return (
+    <li>
+      {when}
+      {` · ${check.costUsd === null ? "unpriced" : dollars(check.costUsd)}`}
+      <ul
+        className={styles.checkPages}
+        aria-label={`${name}: the check ${check.ago}, by page`}
+      >
+        {check.runs.map((run) => (
+          <li key={run.runId}>{pageRunParts(run, several).join(" · ")}</li>
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+/** The checks the row's *cost / run* is the mean of, newest first as the core orders them; read only once the row is opened. */
+function Runs({
+  scoutId,
+  name,
+  several,
+}: {
+  scoutId: string;
+  name: string;
+  /** Whether the Scout reads several pages, so a run names the one it read. */
+  several: boolean;
+}) {
   const trpc = useTRPC();
   const runs = useQuery(trpc.scouts.runCosts.queryOptions({ scoutId }));
   if (runs.isError) {
@@ -774,11 +832,33 @@ function Runs({ scoutId, name }: { scoutId: string; name: string }) {
   }
   return (
     <ul className={styles.runs} aria-label={`${name} runs`}>
-      {runs.data.map((run) => (
-        <li key={run.runId}>
-          <time dateTime={run.finished}>{run.ago}</time>
-          {` · ${runParts(run).join(" · ")}`}
-        </li>
+      {runs.data.map((check) => (
+        <Check
+          key={check.checkId}
+          check={check}
+          name={name}
+          several={several}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Each page's mean cost per run, in file order, for a Scout of several pages:
+ * a plain list with no colour, mark or order of merit, so the costly page can
+ * be found and nothing is judged (ADR 0056 decisions 8 and 9). A one-page
+ * Scout's figure is already its page's.
+ */
+function PageCosts({ row }: { row: ScoutRow }) {
+  if (row.pageCosts.length < 2) return null;
+  return (
+    <ul
+      className={styles.runs}
+      aria-label={`${row.name}: cost per run, by page`}
+    >
+      {row.pageCosts.map(({ page, cost }) => (
+        <li key={page}>{[page, ...costParts(cost)].join(" · ")}</li>
       ))}
     </ul>
   );
@@ -1074,6 +1154,7 @@ function Row({
                   ))}
                 </ul>
               )}
+            <PageCosts row={row} />
             {row.lastQuery !== undefined && (
               <p className={styles.runs}>
                 Last run asked: <code>{row.lastQuery}</code>
@@ -1085,7 +1166,13 @@ function Row({
       {showRuns && row.cost.kind !== "no model call" && (
         <tr>
           <td className={styles.detail} colSpan={COLUMNS}>
-            <Runs scoutId={row.id} name={row.name} />
+            <Runs
+              scoutId={row.id}
+              name={row.name}
+              several={
+                row.source.kind === "watched" && row.source.pages.length > 1
+              }
+            />
           </td>
         </tr>
       )}

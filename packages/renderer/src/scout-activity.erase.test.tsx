@@ -45,6 +45,7 @@ const BLOG: ScoutRow = {
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
 };
 const SLEEPING = { id: "sleep", name: "Sleep and memory" };
 const GONE = { id: "gone", name: "Gone" };
