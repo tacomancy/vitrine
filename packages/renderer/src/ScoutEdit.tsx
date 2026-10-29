@@ -124,14 +124,11 @@ export function ScoutEdit({
         id: row.id,
         name: row.name,
         watching: row.source.kind,
-        query:
-          row.source.kind !== "watched"
-            ? byTags
-              ? ""
-              : query
-            : // The form's one Address: a Scout of several pages is saved
-              // with its first, which keeps every page (#911 lists them).
-              row.source.pages[0]!.url,
+        query: row.source.kind !== "watched" ? (byTags ? "" : query) : "",
+        // Every page as it is, so a save of the row's other fields keeps them.
+        ...(row.source.kind === "watched"
+          ? { urls: row.source.pages.map((p) => p.url) }
+          : {}),
         // Absent leaves a Query Scout's Filter alone; empty is the switch
         // back from Tags to a Query (the core's `ScoutForm.tags`).
         ...(byTags ? { tags } : savedTags !== null ? { tags: [] } : {}),

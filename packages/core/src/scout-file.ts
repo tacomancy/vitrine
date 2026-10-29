@@ -26,8 +26,8 @@ export type Scout = {
   source: { kind: "arxiv" | "openalex" } | { kind: "watched"; urls: string[] };
   /**
    * The arXiv Query — what a run asked, so an edit to it overrides a wait. For
-   * a Watched source, its first page: the one *Address* the form shows until
-   * it lists them (#911). A read about a page asks `atPage`, never this.
+   * a Watched source, its first page. A read about a page asks `atPage`, and
+   * the form lists `source.urls`, never this.
    */
   query: string;
   /**
