@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Scout, TriedPage, TriedQuery, Venue } from "core";
+import type { Scout, TriedPage, TriedPages, TriedQuery, Venue } from "core";
 
 /** What the form edits of a Scout, as the wire carries it (dates arrive as strings). */
 type Editable = Pick<
@@ -81,7 +81,7 @@ export type FormValues = {
  */
 export type Tried =
   | { kind: "query" | "tags"; result: TriedQuery }
-  | { kind: "page"; result: TriedPage };
+  | { kind: "pages"; result: TriedPages };
 
 const DAY_MS = 24 * 3_600_000;
 /** The default *also search back to* (ADR 0016 decision 5), a day-granular date. */
@@ -228,9 +228,9 @@ export function ScoutForm({
       onSuccess: (result) => setLast({ kind: "tags", result }),
     })
   );
-  const triedPage = useMutation(
+  const triedPages = useMutation(
     trpc.scouts.tryWatched.mutationOptions({
-      onSuccess: (result) => setLast({ kind: "page", result }),
+      onSuccess: (result) => setLast({ kind: "pages", result }),
     })
   );
   // What was tried was the old text, so its answer goes: the mutation's and
@@ -238,7 +238,7 @@ export function ScoutForm({
   const forget = (...kinds: Tried["kind"][]) => {
     if (kinds.includes("query")) tried.reset();
     if (kinds.includes("tags")) triedTags.reset();
-    if (kinds.includes("page")) triedPage.reset();
+    if (kinds.includes("pages")) triedPages.reset();
     setLast((was) => (was !== null && kinds.includes(was.kind) ? null : was));
   };
 
@@ -247,21 +247,23 @@ export function ScoutForm({
   // refused; the core refuses what is sent and is not an address.
   const urls = addresses.map((a) => a.trim()).filter((a) => a !== "");
   const twice = addresses.some((_, at) => repeatsAt(addresses, at));
+  // What the source still lacks, which Save and *try* both wait on.
+  const lacks = page
+    ? urls.length === 0
+      ? "an Address"
+      : twice
+        ? "each page once"
+        : null
+    : byTags
+      ? tags.length === 0
+        ? "a Tag"
+        : null
+      : query.trim() === ""
+        ? "a Query"
+        : null;
   const missing = [
     ...(name.trim() === "" ? ["a name"] : []),
-    ...(page
-      ? urls.length === 0
-        ? ["an Address"]
-        : twice
-          ? ["each page once"]
-          : []
-      : byTags
-        ? tags.length === 0
-          ? ["a Tag"]
-          : []
-        : query.trim() === ""
-          ? ["a Query"]
-          : []),
+    ...(lacks === null ? [] : [lacks]),
   ];
   const ready = missing.length === 0;
 
@@ -315,22 +317,17 @@ export function ScoutForm({
   const attempt = byTags ? triedTags : tried;
   const result =
     last !== null &&
-    last.kind !== "page" &&
+    last.kind !== "pages" &&
     last.kind === (byTags ? "tags" : "query")
       ? last.result
       : undefined;
-  const pageResult = last?.kind === "page" ? last.result : undefined;
-  const tryable = page
-    ? urls.length > 0
-    : byTags
-      ? tags.length > 0
-      : query.trim() !== "";
+  const pageResults = last?.kind === "pages" ? last.result : undefined;
+  const tryable = lacks === null;
   const where = openalex
     ? "journals and conferences in OpenAlex"
     : "all of arXiv";
   // What *try* is told of the allowlist, so it counts what a run would.
   const asked = openalex && venues.length > 0 ? { venues } : {};
-  const needed = byTags ? "a Tag" : page ? "an Address" : "a Query";
   return (
     <form
       className={styles.form}
@@ -367,7 +364,7 @@ export function ScoutForm({
               disabled={scout !== undefined}
               onChange={(e) => {
                 setWatching(e.target.value as FormValues["watching"]);
-                forget("query", "tags", "page");
+                forget("query", "tags", "pages");
               }}
             >
               <option value="arxiv">arXiv</option>
@@ -417,20 +414,19 @@ export function ScoutForm({
             addresses={addresses}
             onChange={(next) => {
               setAddresses(next);
-              forget("page");
+              forget("pages");
             }}
           />
         )}
         <ActionRow>
           <Button
             disabled={
-              !tryable || (page ? triedPage.isPending : attempt.isPending)
+              !tryable || (page ? triedPages.isPending : attempt.isPending)
             }
             onClick={() => {
-              forget(page ? "page" : byTags ? "tags" : "query");
+              forget(page ? "pages" : byTags ? "tags" : "query");
               return page
-                ? // The first page until *try* reads every one (#912).
-                  triedPage.mutate({ address: urls[0]! })
+                ? triedPages.mutate({ addresses: urls })
                 : byTags
                   ? triedTags.mutate({
                       tags,
@@ -446,7 +442,7 @@ export function ScoutForm({
           >
             Try
           </Button>
-          {!tryable && <Unlocks>Try needs {needed}.</Unlocks>}
+          {!tryable && <Unlocks>Try needs {lacks}.</Unlocks>}
           {!page && (
             <>
               {attempt.isPending && <span>trying…</span>}
@@ -477,11 +473,16 @@ export function ScoutForm({
           )}
           {page && (
             <>
-              {triedPage.isPending && <span>trying…</span>}
-              {triedPage.isError && (
-                <span role="alert">{triedPage.error.message}</span>
+              {triedPages.isPending && <span>trying…</span>}
+              {triedPages.isError && (
+                <span role="alert">{triedPages.error.message}</span>
               )}
-              {pageResult !== undefined && <PageResult result={pageResult} />}
+              {pageResults?.length === 1 && (
+                <PageResult result={pageResults[0]!.tried} offersKey />
+              )}
+              {pageResults !== undefined && pageResults.length > 1 && (
+                <PagesResult results={pageResults} />
+              )}
             </>
           )}
         </ActionRow>
@@ -683,17 +684,83 @@ function Missing({ value, label }: { value: string; label: string }) {
   );
 }
 
+/** The way to Settings from a page *try* could not read without a key. */
+function AddKey() {
+  // The draft is kept under the form's Address, so back returns to it as left.
+  return <Button onClick={() => pushRoute(SETTINGS)}>Add a key</Button>;
+}
+
+/**
+ * *Try* on several pages (ADR 0056 decision 13): each page's answer under
+ * its own address, so one that fails never hides the others', then what the
+ * first look at all of them would spend. Adding a key is one act however
+ * many pages wait on it, so it is offered once.
+ */
+function PagesResult({ results }: { results: TriedPages }) {
+  const costs = results.map(({ address, tried }) => ({
+    address,
+    cost: firstLook(tried),
+  }));
+  const known = costs.flatMap(({ cost }) => (cost === null ? [] : [cost]));
+  const unknown = costs.flatMap(({ address, cost }) =>
+    cost === null ? [address] : []
+  );
+  const sum = known.reduce((a, b) => a + b, 0);
+  const named = unknown.join(" and ");
+  return (
+    <>
+      <ul aria-label="Pages tried" className={styles.triedPages}>
+        {results.map(({ address, tried }) => (
+          <li key={address}>
+            <span className={styles.triedAddress}>{address}</span>
+            <PageResult result={tried} offersKey={false} />
+          </li>
+        ))}
+      </ul>
+      <span className={styles.triedLine}>
+        {known.length === 0
+          ? `The first look's cost is not known for ${named}.`
+          : `≈ ${dollars(sum)} for the first look at ${known.length} ${known.length === 1 ? "page" : "pages"}${unknown.length > 0 ? ` · not known for ${named}` : ""}`}
+      </span>
+      {results.some(({ tried }) => tried.outcome === "no-key") && <AddKey />}
+    </>
+  );
+}
+
+/**
+ * What a page's first look is projected to spend, or null when it is not
+ * known. A feed's calls no model, so its cost is known, and it is nothing;
+ * any other page without a projection is named, never summed as free.
+ */
+const firstLook = (tried: TriedPage): number | null =>
+  tried.outcome !== "found"
+    ? null
+    : tried.via === "feed"
+      ? 0
+      : (tried.projection?.costUsd ?? null);
+
 /** What *try* learned about a page, in the words the Scout would use for it. */
-function PageResult({ result }: { result: TriedPage }) {
+function PageResult({
+  result,
+  offersKey,
+}: {
+  result: TriedPage;
+  /** False when the pages beside it share one *Add a key*. */
+  offersKey: boolean;
+}) {
   if (result.outcome === "failed") {
     return <span role="alert">{result.sentence}</span>;
   }
   if (result.outcome === "no-key") {
     return (
       <span role="alert">
-        {result.sentence}{" "}
-        {/* The draft is kept under the form's Address, so back returns to it as left. */}
-        <Button onClick={() => pushRoute(SETTINGS)}>Add a key</Button>
+        {result.sentence}
+        {offersKey && (
+          <>
+            {" "}
+            <AddKey />
+          </>
+        )}
       </span>
     );
   }

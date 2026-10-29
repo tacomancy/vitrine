@@ -209,6 +209,7 @@ export type { Scout, UnreadableScout, Venue } from "./scout-file.js";
 export type {
   NamesFound,
   TriedPage,
+  TriedPages,
   TriedQuery,
   TriedWindow,
 } from "./scout-form.js";

@@ -99,7 +99,7 @@ import {
   setDropped,
   eraseScout,
   setPaused,
-  tryPage,
+  tryPages,
   tryQuery,
   tryTags,
   tryWindow,
@@ -918,12 +918,12 @@ export const router = t.router({
       .mutation(async ({ ctx, input }) =>
         refusing(tryWindow(await scoutDeps(ctx), input.scoutId, input.query))
       ),
-    // *Try* for a page: a mutation like `tryQuery`, since it spends a request
-    // and perhaps a model call, and writes nothing.
+    // *Try* for a Scout's pages: a mutation like `tryQuery`, since it spends
+    // a request and perhaps a model call per page, and writes nothing.
     tryWatched: t.procedure
-      .input(z.object({ address: z.string() }))
+      .input(z.object({ addresses: z.array(z.string()) }))
       .mutation(async ({ ctx, input }) =>
-        refusing(tryPage(await scoutDeps(ctx), input.address))
+        refusing(tryPages(await scoutDeps(ctx), input.addresses))
       ),
     accept: t.procedure
       .input(z.object({ proposalId: z.number().int() }))

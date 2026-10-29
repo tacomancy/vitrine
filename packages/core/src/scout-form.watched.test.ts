@@ -11,7 +11,7 @@ import {
 } from "./model-provider.js";
 import type { Scout } from "./scout-file.js";
 import type { Health } from "./scout-health.js";
-import type { TriedPage } from "./scout-form.js";
+import type { TriedPage, TriedPages } from "./scout-form.js";
 import { costUsd } from "./model-prices.js";
 import {
   copiesNothing,
@@ -142,8 +142,14 @@ async function opened(
         searchBackTo: null,
         ...input,
       }),
-    tryPage: (address: string) =>
-      ok<TriedPage>("mutate", "scouts.tryWatched", { address }),
+    tryPage: async (address: string) =>
+      (
+        await ok<TriedPages>("mutate", "scouts.tryWatched", {
+          addresses: [address],
+        })
+      )[0]!.tried,
+    tryPages: (addresses: string[]) =>
+      ok<TriedPages>("mutate", "scouts.tryWatched", { addresses }),
     list: async () =>
       (await ok<{ scouts: Scout[] }>("query", "scouts.list")).scouts,
     health: () =>
@@ -398,10 +404,105 @@ describe("trying a page", () => {
     });
   });
 
-  it("refuses an address that is not a web address", async () => {
+  it("says an address that is not a web address is not one, and fetches nothing", async () => {
     const c = await opened();
-    const r = await c.c.mutate("scouts.tryWatched", { address: "nope" });
-    expect(r.error).toBeDefined();
+    expect(await c.tryPage("nope")).toEqual({
+      outcome: "failed",
+      sentence: "An address needs to start with http:// or https://.",
+    });
+    expect(c.asked()).toEqual([]);
+  });
+});
+
+// #912 (ADR 0056 decisions 10 and 13): one *try* reads every page of the
+// list, each as a one-page *try* reads it, and answers per page.
+describe("trying several pages", () => {
+  const NEWS = "https://lab.example/news";
+  const GONE = "https://lab.example/gone";
+  const served = {
+    "/publications": { body: PAGE },
+    "/news": { body: FEED, type: "application/atom+xml" },
+  };
+
+  it("answers each page under its own address, a failing page among good ones, and writes nothing", async () => {
+    const c = await opened({ served });
+
+    const tried = await c.tryPages([LAB, ` ${GONE} `, NEWS]);
+
+    expect(tried).toEqual([
+      {
+        address: LAB,
+        tried: expect.objectContaining({
+          outcome: "found",
+          via: "model",
+          verified: 2,
+        }) as TriedPage,
+      },
+      {
+        address: GONE,
+        tried: {
+          outcome: "failed",
+          sentence:
+            "The page answered with an error (HTTP 404) or was too large to read, so nothing was checked.",
+        },
+      },
+      {
+        address: NEWS,
+        tried: expect.objectContaining({
+          outcome: "found",
+          via: "feed",
+        }) as TriedPage,
+      },
+    ]);
+    expect(c.extractions()).toBe(1);
+    expect(c.written()).toEqual({
+      runs: { n: 0 },
+      proposals: { n: 0 },
+      appearances: { n: 0 },
+    });
+  });
+
+  // A feed needs no key, so a missing key holds back only the page that
+  // needs a model.
+  it("reads a feed page with no key beside a page that needs one", async () => {
+    const c = await opened({ served, key: null });
+
+    const tried = await c.tryPages([LAB, NEWS]);
+
+    expect(tried.map((t) => t.tried.outcome)).toEqual(["no-key", "found"]);
+    expect(c.extractions()).toBe(0);
+  });
+
+  // Story 38: one bad address must not hide the good ones, so a row that is
+  // not a web address is that page's answer and the rest are still read.
+  it("answers an address that is not a web address as its own page, and reads the others", async () => {
+    const c = await opened({ served });
+
+    const tried = await c.tryPages([LAB, "nope"]);
+
+    expect(tried[0]!.tried.outcome).toBe("found");
+    expect(tried[1]).toEqual({
+      address: "nope",
+      tried: {
+        outcome: "failed",
+        sentence: "An address needs to start with http:// or https://.",
+      },
+    });
+  });
+
+  it("refuses a page twice, or no page, and fetches nothing", async () => {
+    const c = await opened({ served });
+
+    const twice = await c.c.mutate("scouts.tryWatched", {
+      addresses: [LAB, `${LAB} `],
+    });
+    const none = await c.c.mutate("scouts.tryWatched", { addresses: [] });
+
+    expect(twice.error?.message).toBe(
+      `${LAB} is listed twice. A Scout reads each page once.`
+    );
+    expect(none.error).toBeDefined();
+    expect(c.asked()).toEqual([]);
   });
 });
 
