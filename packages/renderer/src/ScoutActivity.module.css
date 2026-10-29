@@ -263,10 +263,11 @@
   flex-direction: column;
 }
 
+/* Wrapped, never cut: a Scout's pages often share a host, so the end of an
+   address is what tells one page's line from another's (#916). */
 .pageUrl {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* The opened row's breakdown by page, under the weekly line: one voice for
