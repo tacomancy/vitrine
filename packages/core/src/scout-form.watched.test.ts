@@ -404,10 +404,13 @@ describe("trying a page", () => {
     });
   });
 
-  it("refuses an address that is not a web address", async () => {
+  it("says an address that is not a web address is not one, and fetches nothing", async () => {
     const c = await opened();
-    const r = await c.c.mutate("scouts.tryWatched", { addresses: ["nope"] });
-    expect(r.error).toBeDefined();
+    expect(await c.tryPage("nope")).toEqual({
+      outcome: "failed",
+      sentence: "An address needs to start with http:// or https://.",
+    });
+    expect(c.asked()).toEqual([]);
   });
 });
 
@@ -470,20 +473,31 @@ describe("trying several pages", () => {
     expect(c.extractions()).toBe(0);
   });
 
-  it("refuses a list with an address that is not a web address, or a page twice, and fetches nothing", async () => {
+  // Story 38: one bad address must not hide the good ones, so a row that is
+  // not a web address is that page's answer and the rest are still read.
+  it("answers an address that is not a web address as its own page, and reads the others", async () => {
     const c = await opened({ served });
 
-    const bad = await c.c.mutate("scouts.tryWatched", {
-      addresses: [LAB, "nope"],
+    const tried = await c.tryPages([LAB, "nope"]);
+
+    expect(tried[0]!.tried.outcome).toBe("found");
+    expect(tried[1]).toEqual({
+      address: "nope",
+      tried: {
+        outcome: "failed",
+        sentence: "An address needs to start with http:// or https://.",
+      },
     });
+  });
+
+  it("refuses a page twice, or no page, and fetches nothing", async () => {
+    const c = await opened({ served });
+
     const twice = await c.c.mutate("scouts.tryWatched", {
       addresses: [LAB, `${LAB} `],
     });
     const none = await c.c.mutate("scouts.tryWatched", { addresses: [] });
 
-    expect(bad.error?.message).toBe(
-      "An address needs to start with http:// or https://."
-    );
     expect(twice.error?.message).toBe(
       `${LAB} is listed twice. A Scout reads each page once.`
     );
