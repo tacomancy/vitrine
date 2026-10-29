@@ -5,8 +5,15 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { TriedPage, TriedPages } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { question, renderApp, vault } from "./fake-core";
+
+/** *Try*'s answer for every address it is asked of, the same for each. */
+const onEach =
+  (tried: TriedPage) =>
+  ({ addresses }: { addresses: string[] }): TriedPages =>
+    addresses.map((address) => ({ address, tried }));
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -568,7 +575,7 @@ describe("the form, watching a page", () => {
 
   it("says what a model read: counts, five titles and what it cost", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "found",
         via: "model",
         total: 3,
@@ -580,7 +587,7 @@ describe("the form, watching a page", () => {
         cards: [],
         projection: null,
         itemPagesUnfetched: 0,
-      },
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/publications");
@@ -601,7 +608,7 @@ describe("the form, watching a page", () => {
   // #891: what the first look will spend on Item pages, from what try's cost.
   it("projects the first look's cost, and shows the Item pages it read", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "found",
         via: "model",
         total: 24,
@@ -622,7 +629,7 @@ describe("the form, watching a page", () => {
         ],
         projection: { costUsd: 1.2345, itemPages: 24 },
         itemPagesUnfetched: 0,
-      },
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/publications");
@@ -642,7 +649,7 @@ describe("the form, watching a page", () => {
 
   it("says a field an Item page left empty as missing, a page it could not fetch, and a cost under a cent", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "found",
         via: "model",
         total: 24,
@@ -663,7 +670,7 @@ describe("the form, watching a page", () => {
         ],
         projection: { costUsd: 0.003, itemPages: 24 },
         itemPagesUnfetched: 1,
-      },
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/publications");
@@ -682,7 +689,7 @@ describe("the form, watching a page", () => {
 
   it("projects nothing when no Item page was read", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "found",
         via: "model",
         total: 2,
@@ -694,7 +701,7 @@ describe("the form, watching a page", () => {
         cards: [],
         projection: null,
         itemPagesUnfetched: 0,
-      },
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/publications");
@@ -708,12 +715,12 @@ describe("the form, watching a page", () => {
 
   it("says a feed was found, and that no model was called", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "found",
         via: "feed",
         total: 14,
         titles: ["First paper"],
-      },
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/");
@@ -729,7 +736,10 @@ describe("the form, watching a page", () => {
 
   it("says a failure in the Scout's own sentence", async () => {
     await open({
-      "scouts.tryWatched": { outcome: "failed", sentence: wrong.sentence },
+      "scouts.tryWatched": onEach({
+        outcome: "failed",
+        sentence: wrong.sentence,
+      }),
     });
     watch();
     type("Address 1", "https://lab.example/");
@@ -741,10 +751,10 @@ describe("the form, watching a page", () => {
 
   it("with no key says so, offers Settings, and loses nothing on the trip", async () => {
     await open({
-      "scouts.tryWatched": {
+      "scouts.tryWatched": onEach({
         outcome: "no-key",
         sentence: "No model key is stored, so this page has not been read yet.",
-      },
+      }),
       "credentials.status": { state: "absent" },
       "credentials.model": { model: "claude-sonnet-5-5" },
     });
@@ -1044,10 +1054,9 @@ describe("the form's Try, announced", () => {
     async (watched) => {
       await open(
         {
-          [watched ? "scouts.tryWatched" : "scouts.tryQuery"]: {
-            outcome: "failed",
-            sentence,
-          },
+          [watched ? "scouts.tryWatched" : "scouts.tryQuery"]: watched
+            ? onEach({ outcome: "failed", sentence })
+            : { outcome: "failed", sentence },
         },
         watched
       );
@@ -1070,12 +1079,12 @@ describe("the form's Try, announced", () => {
   it("says a page result in a status", async () => {
     await open(
       {
-        "scouts.tryWatched": {
+        "scouts.tryWatched": onEach({
           outcome: "found",
           via: "feed",
           total: 14,
           titles: ["A"],
-        },
+        }),
       },
       true
     );
@@ -1088,7 +1097,10 @@ describe("the form's Try, announced", () => {
   it("says no key in an alert, with the way to Settings inside it", async () => {
     await open(
       {
-        "scouts.tryWatched": { outcome: "no-key", sentence: "No model key." },
+        "scouts.tryWatched": onEach({
+          outcome: "no-key",
+          sentence: "No model key.",
+        }),
       },
       true
     );

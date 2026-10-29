@@ -169,18 +169,7 @@ async function write(
         : "A Scout needs a name and a Query."
     );
   }
-  if (pages.some((page) => !WEB_ADDRESS.test(page))) {
-    throw new VaultError("refused", ADDRESS_REFUSAL);
-  }
-  // A page listed twice would be read twice in a check (ADR 0039 d.7); page
-  // identity is the trimmed string (ADR 0043 d.3).
-  const twice = pages.find((page, at) => pages.indexOf(page) !== at);
-  if (twice !== undefined) {
-    throw new VaultError(
-      "refused",
-      `${twice} is listed twice. A Scout reads each page once.`
-    );
-  }
+  refuseUnreadable(pages);
   // Only a Tag this save adds is refused: a Tag already in the file whose
   // Lexicon later emptied must not trap the Scout's other edits (its run
   // fails by name instead).
@@ -894,12 +883,7 @@ export const TRY_ITEM_PAGES = 3;
  * about does not exist, so the hash short-circuit has nothing to hit.
  * A missing key is not a failure; it is the one outcome that offers a way on.
  */
-export async function tryPage(
-  deps: ScoutDeps,
-  address: string
-): Promise<TriedPage> {
-  const url = address.trim();
-  if (!WEB_ADDRESS.test(url)) throw new VaultError("refused", ADDRESS_REFUSAL);
+async function tryPage(deps: ScoutDeps, url: string): Promise<TriedPage> {
   try {
     const read = await readWatched(
       deps.watched,
@@ -968,6 +952,48 @@ function projected(read: Read): { costUsd: number; itemPages: number } | null {
     costUsd: (spent / pages.fetched) * pages.owed,
     itemPages: pages.owed,
   };
+}
+
+/** One page's answer to *try*, under the address it was asked of. */
+export type TriedPages = Array<{ address: string; tried: TriedPage }>;
+
+/**
+ * *Try* for a Scout of several pages (ADR 0056 decisions 10 and 13): each
+ * page read as a one-page *try* reads it, so one page's failure is its own
+ * answer and never hides the others'. The list is refused whole, before
+ * anything is fetched, for what Save would refuse it for.
+ */
+export async function tryPages(
+  deps: ScoutDeps,
+  addresses: string[]
+): Promise<TriedPages> {
+  const pages = addresses.map((a) => a.trim());
+  if (pages.length === 0) {
+    throw new VaultError("refused", "There is no address to try.");
+  }
+  refuseUnreadable(pages);
+  return Promise.all(
+    pages.map(async (address) => ({
+      address,
+      tried: await tryPage(deps, address),
+    }))
+  );
+}
+
+/** Trimmed pages that are not web addresses, or that repeat, are not a Scout's to read. */
+function refuseUnreadable(pages: string[]): void {
+  if (pages.some((page) => !WEB_ADDRESS.test(page))) {
+    throw new VaultError("refused", ADDRESS_REFUSAL);
+  }
+  // A page listed twice would be read twice in a check (ADR 0039 d.7); page
+  // identity is the trimmed string (ADR 0043 d.3).
+  const twice = pages.find((page, at) => pages.indexOf(page) !== at);
+  if (twice !== undefined) {
+    throw new VaultError(
+      "refused",
+      `${twice} is listed twice. A Scout reads each page once.`
+    );
+  }
 }
 
 /** A Scout id no file can have (ids are file names): *try* is looking for no one's history. */

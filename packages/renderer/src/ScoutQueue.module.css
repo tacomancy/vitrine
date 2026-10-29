@@ -228,6 +228,21 @@
   margin-top: var(--space-1);
 }
 
+/* *Try*'s answers for a Scout of several pages, one under each address. */
+.triedPages {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  row-gap: var(--space-3);
+}
+
+.triedAddress {
+  display: block;
+  color: var(--color-fg);
+}
+
 .byline {
   display: block;
   font-size: var(--text-sm);
