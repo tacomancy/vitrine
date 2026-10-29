@@ -12,7 +12,7 @@ import {
   storeKey,
 } from "../page-change-demo/helpers.mjs";
 import { PAGES } from "./standin.mjs";
-export { button, openQueue, press, runNow, storeKey };
+export { button, openQueue, press, storeKey };
 
 export const NAME = "Sleep lab";
 export const KEY = "sk-demo-good";
@@ -61,11 +61,29 @@ export async function runAndWait(cdp, rows, run = () => runNow(cdp, NAME)) {
   expect(before >= 0, "no run is going before *run now*");
   await run();
   for (let i = 0; i < 120; i++) {
-    if (finished() >= before + rows) return;
+    const done = finished();
+    // Exactly: one more would be a run the click did not start, and the
+    // pictures would be of a check nobody asked for.
+    if (done >= before + rows) {
+      expect(done === before + rows, `the check wrote ${rows} runs, no more`);
+      return;
+    }
     await cdp.sleep(500);
   }
   throw new Error(`demo: the check never wrote its ${rows} runs`);
 }
+
+const PAGES_LIST = `ul[aria-label="${NAME}: pages"]`;
+const pageLines = (cdp) =>
+  cdp.eval(
+    `[...document.querySelectorAll(${JSON.stringify(`${PAGES_LIST} > li`)})].map(li => li.innerText)`
+  );
+
+/** The Scout's header cell: its name, its Voice and its buttons. */
+export const scoutHeader = (cdp) =>
+  cdp.eval(
+    `document.querySelector('table[aria-label="Scouts"] th[scope=row]').innerText`
+  );
 
 /** The Scouts screen with the Scout's row drawn, and its pages' lines as text, in file order. */
 export async function openScouts(cdp) {
@@ -77,12 +95,6 @@ export async function openScouts(cdp) {
   await cdp.sleep(1000);
   return pageLines(cdp);
 }
-const PAGES_LIST = `ul[aria-label="${NAME}: pages"]`;
-export const pageLines = (cdp) =>
-  cdp.eval(
-    `[...document.querySelectorAll(${JSON.stringify(`${PAGES_LIST} > li`)})].map(li => li.innerText)`
-  );
-
 /** Wait until `test` holds of the Scouts screen's page lines; they are re-read as runs land. */
 export async function waitForLines(cdp, test, what, ms = 20000) {
   for (let t = 0; t < ms; t += 500) {

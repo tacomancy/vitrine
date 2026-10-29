@@ -12,6 +12,7 @@ import {
   openScouts,
   page,
   runAndWait,
+  scoutHeader,
   shoot,
   storeKey,
   waitForLines,
@@ -36,9 +37,7 @@ export default async (cdp) => {
     )
   );
   console.log(`PAGES: ${JSON.stringify(lines)}`);
-  const header = await cdp.eval(
-    `document.querySelector('table[aria-label="Scouts"] th[scope=row]').innerText`
-  );
+  const header = await scoutHeader(cdp);
   console.log(`HEADER: ${header}`);
   expect(
     header.includes(`${page("papers")}:`),
@@ -55,8 +54,10 @@ export default async (cdp) => {
   const loose = await body(cdp);
   console.log(`LOOSE ENDS: ${loose.slice(0, 900)}`);
   expect(
-    !loose.includes(page("talks")) && !loose.includes(page("feed")),
-    "Loose Ends has a row for the broken page and none for its siblings"
+    loose.split(page("papers")).length === 2 &&
+      !loose.includes(page("talks")) &&
+      !loose.includes(page("feed")),
+    "Loose Ends has one row for the broken page and none for its siblings"
   );
   await shoot(cdp, "5b-broken-loose-ends");
 
@@ -79,7 +80,11 @@ export default async (cdp) => {
   await runAndWait(cdp, 1, () =>
     cdp.eval(`document.querySelector(${JSON.stringify(runNow)}).click()`)
   );
-  await cdp.wait(`!document.querySelector(${JSON.stringify(broken)})`, 15000);
+  // Positive as well as negative: an unmounted Home has no block either.
+  await cdp.wait(
+    `!document.querySelector(${JSON.stringify(broken)}) && document.body.innerText.includes('scout watching')`,
+    15000
+  );
   await cdp.sleep(1000);
   await shoot(cdp, "6a-mended-home");
 

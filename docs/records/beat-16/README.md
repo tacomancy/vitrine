@@ -23,9 +23,8 @@ The script also reads the file and the queue: the saved file lists the three pag
 
 ## What diverged from the spec
 
-- **Cost per run by page counts only runs that called a model.** The talks page's second look found its listing unchanged and made no call, so its line says *1 run* while it has been read twice. That is ADR 0056 decision 9 as built (a page's mean is over its runs that spent), and the Scout's own *cost / run* is over checks, so nothing is wrong; it is noted because the two counts read differently side by side.
+- **Cost per run by page counts only runs that called a model.** The talks page's second look found its listing unchanged and made no call, so its line says *1 run* while it has been read twice. That is the code's reading of ADR 0056 decision 9 (`pageCostsOf` in `scout-activity.ts` takes a page's mean over its runs that called a model, as the Scout's *cost / run* is over checks that did), and the Scout's own *cost / run* is over checks, so nothing is wrong; it is noted because the two counts read differently side by side.
 - **The withheld page's sentence says *papers* of a blog's posts.** *Most of this page's papers arrive without venue.* is the Scout-wide sentence with *page* put in (ADR 0042 decision 3); whether an item is a paper or a post is never decided (`CONTEXT.md` § Watched source), so the word is the one the app has.
-
 - **The quiet page's Warrant says *nothing found yet (3 runs)* at 5a and 6b**, though its first look proposed three talks. A first look is Retroactive, so its finds are the page's back catalogue and the baseline starts after it (`usualRate` in `scout-health.ts`); the talks page has found nothing new since, which is what the claim says.
 
 ## Not shown here

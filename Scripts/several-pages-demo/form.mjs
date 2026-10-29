@@ -88,7 +88,7 @@ export default async (cdp) => {
     cdp,
     (lines) =>
       lines.length === 3 && lines.every((l, i) => l.trim() === pages[i]),
-    "the first check leaves every page well, each finding"
+    "the first check leaves every page with nothing to say: each found something"
   );
   console.log(`PAGES: ${JSON.stringify(lines)}`);
   await shoot(cdp, "2-first-check");

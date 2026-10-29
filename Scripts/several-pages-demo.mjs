@@ -32,6 +32,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { NEW_AT, PAGES, startStandin } from "./several-pages-demo/standin.mjs";
+import { expect } from "./several-pages-demo/helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "..");
@@ -47,9 +48,6 @@ cpSync(join(repo, "packages/core/fixtures/obsidian-vault"), vault, {
 
 const standin = await startStandin();
 const url = (which) => `${standin.origin}${PAGES[which]}`;
-const expect = (ok, what) => {
-  if (!ok) throw new Error(`demo expectation failed: ${what}`);
-};
 
 // run-hidden's default debug port is whoever got there first, and another
 // session's app may hold it: a drive would then talk to the wrong window.
@@ -118,10 +116,10 @@ const queue = (sql, ...params) => {
     db.close();
   }
 };
-/** Each check's runs, oldest first, as `[{ check, runs: [{ query, outcome, new }] }]`. */
+/** Each check's runs, oldest first: an array per check of its rows, in the order it read its pages. */
 const checks = () => {
   const rows = queue(
-    "SELECT id, check_id, query, outcome, error_kind, new, cost_usd FROM scout_runs WHERE finished IS NOT NULL ORDER BY id"
+    "SELECT id, check_id, query, outcome, new FROM scout_runs WHERE finished IS NOT NULL ORDER BY id"
   );
   const by = new Map();
   for (const row of rows) {
@@ -146,10 +144,11 @@ try {
   await launch("form.mjs");
   const file = scoutFile();
   console.log(`SCOUT FILE:\n${file}`);
+  const listed = /\n {2}urls:\n((?: {4}- .*\n)+)/.exec(file)?.[1];
   expect(
-    /urls:/.test(file) &&
-      ["feed", "papers", "talks"].every((w) => file.includes(url(w))),
-    "the saved file lists the three pages under urls:"
+    listed ===
+      ["feed", "papers", "talks"].map((w) => `    - ${url(w)}\n`).join(""),
+    "the saved file lists the three pages under urls:, in the order added"
   );
   const [first] = checks();
   console.log(`FIRST CHECK: ${JSON.stringify(first)}`);
@@ -185,8 +184,11 @@ try {
   console.log(`MENDING CHECK: ${JSON.stringify(mended)}`);
   expect(
     broken.length === 3 &&
-      broken.find((r) => r.query === url("papers"))?.outcome === "failed",
-    "the papers page failed on its own check of three"
+      broken.every(
+        (r) => r.outcome === (r.query === url("papers") ? "failed" : "ok")
+      ) &&
+      broken.find((r) => r.query === url("talks")).new === 0,
+    "the papers page alone failed on a check of three, and the talks page stayed quiet"
   );
   expect(
     mended.length === 1 &&

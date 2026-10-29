@@ -14,6 +14,7 @@ import {
   page,
   press,
   runAndWait,
+  scoutHeader,
   shoot,
   storeKey,
   waitForLines,
@@ -54,21 +55,18 @@ export default async (cdp) => {
     "the talks page goes quiet on its own line while the others find"
   );
   console.log(`PAGES: ${JSON.stringify(lines)}`);
-  const voice = await cdp.eval(
-    `document.querySelector('table[aria-label="Scouts"] th[scope=row]').innerText`
-  );
+  const voice = await scoutHeader(cdp);
   expect(
     !/parsed cleanly/.test(voice),
     "the Quiet field is the page's, never the Scout's header"
   );
   await shoot(cdp, "3-quiet-page");
 
-  const fresh = NEW_AT(2);
   await openQueue(cdp);
-  await judge(cdp, fresh.papers[0], "a", "Accepted into");
-  await judge(cdp, fresh.papers[1], "a", "Accepted into");
-  await judge(cdp, fresh.papers[2], "r", "Rejected “");
-  await judge(cdp, fresh.feed[0], "a", "Accepted into");
+  await judge(cdp, NEW_AT(2).papers[0], "a", "Accepted into");
+  await judge(cdp, NEW_AT(2).papers[1], "a", "Accepted into");
+  await judge(cdp, NEW_AT(2).papers[2], "r", "Rejected “");
+  await judge(cdp, NEW_AT(2).feed[0], "a", "Accepted into");
 
   await openScouts(cdp);
   await cdp.eval(`${byLabel(`${NAME}: accept rate,`)}.click()`);

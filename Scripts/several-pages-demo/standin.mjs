@@ -100,6 +100,8 @@ export function startStandin() {
     const text = String(
       Array.isArray(content) ? content.map((c) => c.text).join("") : content
     );
+    // The core opens an Item page's Extraction with this line
+    // (`model-provider.ts`); anything else is a listing's.
     if (!text.startsWith("Fields asked for:")) {
       mode.listingCalls += 1;
       const found = [...PAPERS, ...TALKS]
