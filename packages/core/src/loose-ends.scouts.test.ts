@@ -87,6 +87,7 @@ describe("looseEnds.rows — a failed Scout", () => {
           subject: "sleep",
           path: ".vitrine/scouts/sleep.yaml",
           title: "Sleep and memory",
+          page: null,
           errorKind: "http",
           // One test pins the two surfaces together: the sentence is the
           // rail's, not a second wording of the same fault.

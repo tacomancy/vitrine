@@ -134,6 +134,17 @@ a.rowTitle:focus-visible {
   text-decoration: underline;
 }
 
+/* The page of a Scout of several that a row is about, in the data voice, as
+   the Scouts screen draws its addresses. A long address wraps rather than
+   pushing the actions off the row. */
+.page {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
 .why {
   margin: 0;
   font-size: var(--text-sm);

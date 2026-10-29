@@ -2,18 +2,58 @@ import { useState } from "react";
 import { Button } from "./Form";
 import type { ActivityRow, ScoutRow } from "core";
 import styles from "./Home.module.css";
+import { classifyLink } from "./link-rule";
 import { RefusalLine } from "./refusal-line";
-import { scoutKey, useRowActs, type RowActs } from "./row-acts";
+import { pageKey, scoutKey, useRowActs, type RowActs } from "./row-acts";
 import { hashOf, SCOUTS } from "./router";
 
 type Unreadable = Extract<ActivityRow, { kind: "unreadable" }>;
+
+/** One line of the block: a broken Scout, or one broken page of a Scout of several. */
+type BrokenLine = { row: ScoutRow; page: string | null; sentence: string };
+
+/**
+ * A Scout of several pages is a line per broken page, each in that page's own
+ * sentence, so the researcher knows where to look before opening anything and
+ * *run now* reads that page alone (ADR 0056 decision 6). Any other Scout is one
+ * line in its own sentence, as it always was.
+ */
+function linesOf(row: ScoutRow): BrokenLine[] {
+  if (row.source.kind === "watched" && row.source.pages.length > 1) {
+    const wrong = row.source.pages.flatMap(({ url, health }) =>
+      health.voice === "wrong" ? [{ url, health }] : []
+    );
+    // A refused key is the Scout's, since every page uses the one key: said
+    // once, on a line for the Scout, as Loose Ends offers Settings once.
+    const key = wrong.find(({ health }) => health.kind === "credentials");
+    return [
+      ...(key === undefined
+        ? []
+        : [{ row, page: null, sentence: key.health.sentence }]),
+      ...wrong
+        .filter(({ health }) => health.kind !== "credentials")
+        .map(({ url, health }) => ({
+          row,
+          page: url,
+          sentence: health.sentence,
+        })),
+    ];
+  }
+  return [
+    {
+      row,
+      page: null,
+      sentence: row.health.voice === "wrong" ? row.health.sentence : "",
+    },
+  ];
+}
 
 /**
  * The interrupt: the one place on Home that raises its voice, and still only
  * to a polite `status` (ADR 0033 decision 1) — a Scout being broken is a state
  * the researcher is in, not a refusal of something they just did. Each broken
- * Scout is named with the core's fault sentence verbatim (ADR 0032 decision
- * 7), so Home, Loose Ends and Scout Activity cannot describe one fault three
+ * Scout — or each broken page of a Scout of several — is named with the core's
+ * fault sentence verbatim (ADR 0032 decision 7), so Home, Loose Ends and Scout Activity cannot describe one fault three
  * ways, and with what it last did, so the researcher can see how long it has
  * looked identical to a quiet field.
  *
@@ -68,35 +108,54 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
       aria-label="Scouts that are not working"
     >
       <ul className={styles.broken}>
-        {brokenScouts.map((row) => (
-          <li key={row.id} className={styles.brokenRow}>
-            <span className={styles.brokenName}>{row.name}</span>
-            <span className={styles.sentence}>
-              {row.health.voice === "wrong" ? row.health.sentence : ""}
-            </span>
-            <span className={styles.facts}>
-              {row.lastRun === null
-                ? "has not checked yet"
-                : `last checked ${row.lastRun.ago}`}{" "}
-              · found {row.volume.proposals} in the last 30 days
-            </span>
-            <span className={styles.acts}>
-              <Button
-                aria-label={`${row.name}: run now`}
-                onClick={() => acts.runNow(row)}
-              >
-                run now
-              </Button>
-              <Button
-                aria-label={`${row.name}: pause`}
-                onClick={() => pause(row)}
-              >
-                pause
-              </Button>
-            </span>
-            <Said name={row.name} id={row.id} acts={acts} />
-          </li>
-        ))}
+        {brokenScouts
+          .flatMap(linesOf)
+          .map(({ row, page, sentence }, i, all) => {
+            // A page's line is named by its page too, so its buttons are told
+            // apart from its siblings'.
+            const label = page === null ? row.name : `${row.name}, ${page}`;
+            return (
+              <li key={`${row.id}:${page ?? ""}`} className={styles.brokenRow}>
+                <span className={styles.brokenName}>{row.name}</span>
+                {page !== null && <span className={styles.page}>{page}</span>}
+                <span className={styles.sentence}>{sentence}</span>
+                <span className={styles.facts}>
+                  {row.lastRun === null
+                    ? "has not checked yet"
+                    : `last checked ${row.lastRun.ago}`}{" "}
+                  · found {row.volume.proposals} in the last 30 days
+                </span>
+                <span className={styles.acts}>
+                  {page !== null && (
+                    <OpenThePage label={label} address={page} />
+                  )}
+                  <Button
+                    aria-label={`${label}: run now`}
+                    onClick={() => acts.runNow(row, page ?? undefined)}
+                  >
+                    run now
+                  </Button>
+                  <Button
+                    aria-label={`${label}: pause`}
+                    onClick={() => pause(row)}
+                  >
+                    pause
+                  </Button>
+                </span>
+                {page !== null && (
+                  <Said
+                    name={label}
+                    sayKey={pageKey(row.id, page)}
+                    acts={acts}
+                  />
+                )}
+                {/* What was said of the Scout (a pause refused), once under its first line. */}
+                {all[i - 1]?.row.id !== row.id && (
+                  <Said name={row.name} sayKey={scoutKey(row.id)} acts={acts} />
+                )}
+              </li>
+            );
+          })}
         {files.map((row) => (
           <li key={row.file} className={styles.brokenRow}>
             <span className={styles.brokenName}>{row.file}</span>
@@ -117,7 +176,7 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
         {undoable.map((row) => (
           <li key={row.id} className={styles.brokenRow}>
             <span className={styles.brokenName}>{row.name}</span>
-            <Said name={row.name} id={row.id} acts={acts} />
+            <Said name={row.name} sayKey={scoutKey(row.id)} acts={acts} />
             <span className={styles.acts}>
               <Button
                 aria-label={`${row.name}: undo`}
@@ -137,13 +196,43 @@ export function HomeInterrupt({ rows }: { rows: ActivityRow[] }) {
 }
 
 /**
- * What an act on this Scout did. A refusal is the user's act turned down and
- * so an alert, through the one refusal module; the Scout is named in it
+ * The broken page, opened outside the app to see what changed. The address
+ * came from a file the researcher may have hand-written, so it goes through
+ * the one link rule like every other outbound link.
+ */
+function OpenThePage({ label, address }: { label: string; address: string }) {
+  const link = classifyLink(address);
+  if (link.kind !== "out") return null;
+  return (
+    <a
+      className={styles.act}
+      href={link.href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${label}: open the page`}
+    >
+      open the page
+    </a>
+  );
+}
+
+/**
+ * What an act on this Scout, or on one page of it, did (`sayKey` says which).
+ * A refusal is the user's act turned down and so an alert, through the one
+ * refusal module; the Scout, and the page when there is one, is named in it
  * because the line is read apart from its row. What the core refused with has
  * no machine path in it (ADR 0028), so it is passed on as it came.
  */
-function Said({ name, id, acts }: { name: string; id: string; acts: RowActs }) {
-  const said = acts.said.get(scoutKey(id));
+function Said({
+  name,
+  sayKey,
+  acts,
+}: {
+  name: string;
+  sayKey: string;
+  acts: RowActs;
+}) {
+  const said = acts.said.get(sayKey);
   if (said === undefined) return null;
   if (said.refused)
     return (

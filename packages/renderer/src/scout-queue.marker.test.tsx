@@ -257,3 +257,22 @@ describe("the line above the list", () => {
     expect(markers(await entry("Failing"))).toEqual([]);
   });
 });
+
+// #913 (ADR 0056 decision 6): a Scout of several pages is marked by its own
+// Voice, its worst page's, and the line names the page from the core's sentence.
+describe("a Scout of several pages with one broken page", () => {
+  const NEWS = "https://lab.example/news";
+  const BROKEN_PAGE = {
+    voice: "wrong",
+    kind: "http",
+    sentence: `${NEWS}: The page answered with an error (HTTP 404) or was too large to read, so nothing was checked.`,
+  };
+
+  it("is marked as not working, and the line above the list names the page", async () => {
+    renderApp(answersFor([["Lab", BROKEN_PAGE, "wrong"]]));
+    expect(markers(await entry("Lab"))).toEqual(["not working"]);
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    expect(within(needs).getByRole("link", { name: "Lab" })).toBeDefined();
+    expect(needs.textContent).toContain(`Lab — ${BROKEN_PAGE.sentence}`);
+  });
+});

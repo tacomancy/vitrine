@@ -86,9 +86,20 @@ const headingId = (group: LooseEndGroupName) =>
 const MARKED =
   "marked deliberate — permanently out of this list, still in the vault";
 
-/** One row: what a resolution is asked for, and what this visit remembers it by. */
+/**
+ * One row: what a resolution is asked for, and what this visit remembers it by.
+ * A Scout of several pages has a row per broken page under one subject and
+ * kind, so for those two kinds the page is part of what tells them apart (ADR
+ * 0056 decision 6). Only those: an unmatched annotation's `page` is a number
+ * in its PDF, and its rows are already one per subject.
+ */
 type Resolving = { subject: string; kind: string };
-const keyOf = (row: Resolving) => `${row.kind}:${row.subject}`;
+const keyOf = (row: Resolving | LooseEndRow) =>
+  (row.kind === "failed-scout" || row.kind === "structure-change") &&
+  "page" in row &&
+  row.page !== null
+    ? `${row.kind}:${row.subject}:${row.page}`
+    : `${row.kind}:${row.subject}`;
 
 /**
  * Where one row stands with this visit's resolutions, passed through its kind
@@ -338,6 +349,7 @@ function RowShell({
   meta,
   title,
   href,
+  page,
   why,
   actions,
   children,
@@ -347,6 +359,8 @@ function RowShell({
   meta: ReactNode;
   title: string;
   href?: string;
+  /** The page of a Scout of several that the row is about, named under the Scout. */
+  page?: string | null;
   why: ReactNode;
   actions: ReactNode;
   children?: ReactNode;
@@ -373,6 +387,7 @@ function RowShell({
             {title}
           </a>
         )}
+        {page != null && <p className={styles.page}>{page}</p>}
         {resolved ? (
           <p className={styles.resolved}>{MARKED}</p>
         ) : (
@@ -583,6 +598,36 @@ function useScoutActions() {
   return { run, pause, refusal };
 }
 
+/**
+ * *Run now* from a row: a page's row reads that page alone, so mending one
+ * page never spends on the others unasked (ADR 0056 decision 6); a one-page
+ * Scout's row runs the Scout, as it always did.
+ */
+const runInput = (row: FailedScout | StructureChange) =>
+  row.page === null
+    ? { scoutId: row.subject }
+    : { scoutId: row.subject, page: row.page };
+
+/**
+ * The page a row is about, opened outside the app. The address came from a
+ * file the researcher may have hand-written, so it goes through the one link
+ * rule like every other outbound link.
+ */
+function OpenThePage({ address }: { address: string }) {
+  const link = classifyLink(address);
+  if (link.kind !== "out") return null;
+  return (
+    <a
+      className={styles.primary}
+      href={link.href}
+      target="_blank"
+      rel="noreferrer"
+    >
+      open the page
+    </a>
+  );
+}
+
 function BrokenScout({
   row,
   resolution,
@@ -596,13 +641,15 @@ function BrokenScout({
       meta={`scout · ${row.errorKind.replaceAll("_", " ")}`}
       title={row.title}
       href={hashOf(SCOUTS)}
+      page={row.page}
       why={row.sentence}
       resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
       actions={
         <>
+          {row.page !== null && <OpenThePage address={row.page} />}
           <Button
             disabled={run.isPending}
-            onClick={() => run.mutate({ scoutId: row.subject })}
+            onClick={() => run.mutate(runInput(row))}
           >
             run now
           </Button>
@@ -634,31 +681,20 @@ function ChangedPage({
   resolution: Resolution;
 }) {
   const { run, pause, refusal } = useScoutActions();
-  // The address came from a file the researcher may have hand-written, so
-  // it goes through the one link rule like every other outbound link.
-  const link = classifyLink(row.address);
   return (
     <RowShell
       meta="scout · structure change"
       title={row.title}
       href={hashOf(SCOUTS)}
+      page={row.page}
       why={row.sentence}
       resolution={{ ...resolution, refused: resolution.refused ?? refusal }}
       actions={
         <>
-          {link.kind === "out" && (
-            <a
-              className={styles.primary}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              open the page
-            </a>
-          )}
+          <OpenThePage address={row.address} />
           <Button
             disabled={run.isPending}
-            onClick={() => run.mutate({ scoutId: row.subject })}
+            onClick={() => run.mutate(runInput(row))}
           >
             run now
           </Button>
