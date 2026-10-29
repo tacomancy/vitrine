@@ -21,7 +21,7 @@ afterEach(closeCores);
 
 // #910 (spec #909, ADR 0056): one Watched Scout reads several pages, each on
 // its own run, Due on its own, with its own health. Driven through the router
-// on a temp vault: the Scout file is written by hand (the form is #911), the
+// on a temp vault: the Scout file is written by hand or by the form's save, the
 // pages and the model are injected, and what is read back is what a surface
 // is handed.
 
@@ -277,55 +277,173 @@ describe("a Scout file with several pages", () => {
   });
 });
 
-describe("a save of a Scout whose file lists its pages", () => {
-  const save = (query: string) => ({
-    id: "lab",
+describe("a save of a Scout's Addresses (#911)", () => {
+  const save = (urls: string[], id: string | null = "lab") => ({
+    ...(id === null ? {} : { id }),
     name: "Lab",
     watching: "watched",
-    query,
+    query: "",
+    urls,
     cadence: "daily",
     assigned: [],
     lane: "review",
     searchBackTo: null,
   });
+  // A hand-written file: a comment on the page, a key the app has never
+  // heard of after it, and one at the top level.
+  const handWritten = `name: Lab
+# kept by every read
+source:
+  kind: watched
+  url: ${RESEARCH} # the lab's own list
+  mirror: no
+cadence: weekly
+lane: review
+created: 2026-09-20T00:00:00Z
+colour: teal
+`;
 
-  it("keeps every page and the file's comments when the row saves what it shows", async () => {
-    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+  it("writes `urls:` in place of `url:` when a page is added, keeping comments, key order and unknown keys, and runs nothing", async () => {
+    const lab = await opened(handWritten);
 
     expect(
-      (await lab.mutate("scouts.save", save(RESEARCH))).error
+      (await lab.mutate("scouts.save", save([RESEARCH, ` ${BLOG} `]))).error
     ).toBeUndefined();
 
     const text = await readFile(lab.path, "utf8");
-    expect(text).toContain(urls(RESEARCH, NEWS));
-    expect(text).toContain("# kept by every read");
-    expect((await lab.list()).scouts[0]).toMatchObject({
-      cadence: "daily",
-      source: { urls: [RESEARCH, NEWS] },
+    expect(text).toBe(`name: Lab
+# kept by every read
+source:
+  kind: watched
+  urls:
+    - ${RESEARCH} # the lab's own list
+    - ${BLOG}
+  mirror: no
+cadence: daily
+lane: review
+created: 2026-09-20T00:00:00Z
+colour: teal
+`);
+    expect(lab.fetched).toEqual({});
+    expect(lab.runs()).toEqual([]);
+  });
+
+  it("writes `url:` in place of `urls:` when one page is left, the page's own comment with it", async () => {
+    const lab = await opened(
+      fileWith(
+        `  urls:\n    - ${RESEARCH} # the research list\n    # the news list, from the spring\n    - ${NEWS} # the news list`
+      )
+    );
+
+    expect(
+      (await lab.mutate("scouts.save", save([NEWS]))).error
+    ).toBeUndefined();
+
+    const text = await readFile(lab.path, "utf8");
+    expect(text).toContain(
+      `source:\n  kind: watched\n  # the news list, from the spring\n  url: ${NEWS} # the news list\n`
+    );
+    expect(text).not.toContain("urls");
+    expect((await lab.list()).scouts[0]!.source).toEqual({
+      kind: "watched",
+      urls: [NEWS],
     });
   });
 
-  it("refuses a changed address while the form shows only one of several pages, writing nothing", async () => {
-    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+  it.each([
+    [
+      "a one-page `url:` Scout",
+      () => fileWith(`  url: ${RESEARCH}`),
+      [RESEARCH],
+    ],
+    ["a one-page `urls:` Scout", () => fileWith(urls(RESEARCH)), [RESEARCH]],
+    [
+      "a Scout of several pages",
+      () => fileWith(urls(RESEARCH, NEWS)),
+      [RESEARCH, NEWS],
+    ],
+  ])(
+    "leaves %s's pages as written when they are saved unchanged",
+    async (_, file, pages) => {
+      const lab = await opened(
+        file().replace("cadence: weekly", "cadence: daily")
+      );
+      const before = await readFile(lab.path, "utf8");
+
+      expect(
+        (await lab.mutate("scouts.save", save(pages))).error
+      ).toBeUndefined();
+
+      expect(await readFile(lab.path, "utf8")).toBe(before);
+    }
+  );
+
+  it("makes a new Scout of one page with `url:` and of several with `urls:`", async () => {
+    const lab = await opened(fileWith(`  url: ${RESEARCH}`));
+
+    const one = await lab.mutate("scouts.save", {
+      ...save([NEWS], null),
+      name: "One",
+    });
+    const two = await lab.mutate("scouts.save", {
+      ...save([NEWS, BLOG], null),
+      name: "Two",
+    });
+
+    const fileOf = (id: string) =>
+      readFile(join(lab.vault, `.vitrine/scouts/${id}.yaml`), "utf8");
+    const ids = [one, two].map((r) => (r.result!.data as { id: string }).id);
+    expect(await fileOf(ids[0]!)).toContain(`  url: ${NEWS}\n`);
+    expect(await fileOf(ids[1]!)).toContain(
+      `  urls:\n    - ${NEWS}\n    - ${BLOG}\n`
+    );
+  });
+
+  it.each([
+    ["no address", [], "A Scout needs a name and an address."],
+    ["only blank addresses", ["  "], "A Scout needs a name and an address."],
+    [
+      "an address that is not one",
+      [RESEARCH, "lab.example/news"],
+      "An address needs to start with http:// or https://.",
+    ],
+    [
+      "the same page twice once trimmed",
+      [RESEARCH, `${RESEARCH} `],
+      `${RESEARCH} is listed twice. A Scout reads each page once.`,
+    ],
+  ])("refuses %s, writing nothing", async (_, given, sentence) => {
+    const lab = await opened(handWritten);
     const before = await readFile(lab.path, "utf8");
 
-    const refused = await lab.mutate("scouts.save", save(BLOG));
+    const refused = await lab.mutate("scouts.save", save(given));
 
-    expect(refused.error?.message).toBe(
-      "This Scout reads several pages, and the form does not list them yet. Edit its file to change them."
-    );
+    expect(refused.error?.message).toBe(sentence);
     expect(await readFile(lab.path, "utf8")).toBe(before);
   });
 
-  it("writes a one-page `urls:` file's page in place, never a second key", async () => {
-    const lab = await opened(fileWith(urls(RESEARCH)));
+  it("makes an added page a first look of its own, and an edited address a removal and an addition", async () => {
+    const lab = await opened(fileWith(`  url: ${RESEARCH}`));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/blog"] = { body: html(2) };
+    lab.pages["/news"] = { body: html(3) };
+    await lab.run();
 
-    expect((await lab.mutate("scouts.save", save(BLOG))).error).toBeUndefined();
+    await lab.mutate("scouts.save", save([RESEARCH, BLOG]));
+    await lab.run();
+    // The blog, renamed: the trimmed string is the page.
+    await lab.mutate("scouts.save", save([RESEARCH, ` ${NEWS}`]));
+    await lab.run();
 
-    expect((await lab.list()).scouts[0]!.source).toEqual({
-      kind: "watched",
-      urls: [BLOG],
-    });
+    expect(lab.runs().map((r) => [r.query, r.retroactive])).toEqual([
+      [RESEARCH, 1],
+      [RESEARCH, 0],
+      [BLOG, 1],
+      [RESEARCH, 0],
+      [NEWS, 1],
+    ]);
+    // The blog's find stays the Scout's after its page is gone.
+    expect((await lab.row()).volume.proposals).toBe(3);
   });
 });
 

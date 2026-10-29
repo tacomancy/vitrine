@@ -789,6 +789,7 @@ export const router = t.router({
           name: z.string(),
           watching: z.enum(["arxiv", "openalex", "watched"]).optional(),
           query: z.string(),
+          urls: z.array(z.string()).optional(),
           tags: z.array(z.string()).optional(),
           venues: z.array(venueInput).optional(),
           cadence: z.enum(CADENCES),

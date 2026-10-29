@@ -553,7 +553,7 @@ describe("the form, watching a page", () => {
     expect(save.disabled).toBe(true);
     type("Name", "Sleep Lab");
     expect(save.disabled).toBe(true);
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
     expect(save.disabled).toBe(false);
 
     fireEvent.click(save);
@@ -561,7 +561,7 @@ describe("the form, watching a page", () => {
     await waitFor(() => expect(saves).toHaveLength(1));
     expect(saves[0]).toMatchObject({
       watching: "watched",
-      query: "https://lab.example/publications",
+      urls: ["https://lab.example/publications"],
       searchBackTo: null,
     });
   });
@@ -583,7 +583,7 @@ describe("the form, watching a page", () => {
       },
     });
     watch();
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -625,7 +625,7 @@ describe("the form, watching a page", () => {
       },
     });
     watch();
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -666,7 +666,7 @@ describe("the form, watching a page", () => {
       },
     });
     watch();
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -697,7 +697,7 @@ describe("the form, watching a page", () => {
       },
     });
     watch();
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -716,7 +716,7 @@ describe("the form, watching a page", () => {
       },
     });
     watch();
-    type("Address", "https://lab.example/");
+    type("Address 1", "https://lab.example/");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -732,7 +732,7 @@ describe("the form, watching a page", () => {
       "scouts.tryWatched": { outcome: "failed", sentence: wrong.sentence },
     });
     watch();
-    type("Address", "https://lab.example/");
+    type("Address 1", "https://lab.example/");
 
     fireEvent.click(screen.getByRole("button", { name: "Try" }));
 
@@ -750,7 +750,7 @@ describe("the form, watching a page", () => {
     });
     type("Name", "Sleep Lab");
     watch();
-    type("Address", "https://lab.example/publications");
+    type("Address 1", "https://lab.example/publications");
     type("Cadence", "monthly");
     fireEvent.click(
       await screen.findByRole("checkbox", { name: /Is it consolidation/ })
@@ -777,7 +777,7 @@ describe("the form, watching a page", () => {
     expect(screen.getByLabelText<HTMLSelectElement>("Watching").value).toBe(
       "watched"
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Address").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Address 1").value).toBe(
       "https://lab.example/publications"
     );
     expect(screen.getByLabelText<HTMLSelectElement>("Cadence").value).toBe(
@@ -835,15 +835,15 @@ describe("the form, editing a Scout that watches a page", () => {
     return saves;
   };
 
-  it("keeps the Address editable and says what changing it does", async () => {
+  it("keeps the Address editable and says what saving a page does", async () => {
     await edit("watched");
 
-    const address = screen.getByLabelText<HTMLInputElement>("Address");
+    const address = screen.getByLabelText<HTMLInputElement>("Address 1");
     expect(address.disabled).toBe(false);
     expect(address.value).toBe(LAB);
     expect(
       screen.getByText(
-        "Changing the page points this Scout at another one: the next check reads it as a first look, and everything it lists arrives as Retroactive. Its Proposals, stubs and Accept rate go on."
+        "Each page is read on its own and has its own health. Adding a page runs nothing; its first look proposes everything it lists."
       )
     ).toBeDefined();
   });
@@ -875,7 +875,7 @@ describe("the form, editing a Scout that watches a page", () => {
   it("sends the new address with the Scout's id", async () => {
     const saves = await edit("watched");
 
-    fireEvent.change(screen.getByLabelText("Address"), {
+    fireEvent.change(screen.getByLabelText("Address 1"), {
       target: { value: MOVED },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -884,7 +884,7 @@ describe("the form, editing a Scout that watches a page", () => {
     expect(saves[0]).toMatchObject({
       id: "sleep",
       watching: "watched",
-      query: MOVED,
+      urls: [MOVED],
       searchBackTo: null,
     });
   });
@@ -1014,7 +1014,7 @@ describe("the form's Try, announced", () => {
         target: { value: "watched" },
       });
     }
-    fireEvent.change(screen.getByLabelText(watched ? "Address" : "Query"), {
+    fireEvent.change(screen.getByLabelText(watched ? "Address 1" : "Query"), {
       target: { value: watched ? "https://lab.example/" : "all:sleep" },
     });
   };
