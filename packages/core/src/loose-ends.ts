@@ -22,10 +22,18 @@ import {
   type UnlinkedAnnotations,
 } from "./pdf-plumbing.js";
 import { unnamedPdfs, type PdfReads, type UnreadablePdfs } from "./sources.js";
-import { readScouts, SCOUTS_FOLDER } from "./scout-file.js";
+import {
+  atPage,
+  pagesOf,
+  readScouts,
+  SCOUTS_FOLDER,
+  type Scout,
+} from "./scout-file.js";
 import {
   finishedRunsAtPage,
   healthOf,
+  pageHealthsOf,
+  type Health,
   isWaitingOnBudget,
   isWaitingOnKey,
   type RunErrorKind,
@@ -194,7 +202,9 @@ export type UnreadablePdf = {
 
 /**
  * A Scout whose newest run failed (#453; spec #447 stories 82–89; ADR 0039
- * decision 7). `sentence` is `healthOf`'s, never reworded here, so the rail
+ * decision 7), or one page of a Scout of several whose newest run there failed
+ * (ADR 0056 decision 6: one row per page, where ADR 0040 decision 7 said per
+ * Scout). `sentence` is `healthOf`'s, never reworded here, so the rail
  * and this row cannot disagree about the same fault.
  */
 export type FailedScout = {
@@ -205,7 +215,10 @@ export type FailedScout = {
   path: string;
   /** The Scout's name. */
   title: string;
+  /** The broken page of a Scout of several pages, which *run now* reads alone; null for a Scout of one source, whose row names none. */
+  page: string | null;
   errorKind: RunErrorKind;
+  /** The page's own sentence when `page` is set, never prefixed with it. */
   sentence: string;
 };
 
@@ -215,13 +228,16 @@ export type FailedScout = {
  * decision 6), on a Scout with an earlier clean run that found items. It
  * replaces the failed-Scout row, so one failure is one row; a first-ever
  * extraction failure has nothing to compare against and stays generic.
- * `address` is what *open the page* opens.
+ * `address` is what *open the page* opens. Judged per page (ADR 0056
+ * decision 6): on a Scout of several, one page's change is that page's row.
  */
 export type StructureChange = {
   kind: "structure-change";
   subject: string;
   path: string;
   title: string;
+  /** As on `FailedScout`: set only for a page of several. */
+  page: string | null;
   address: string;
   sentence: string;
 };
@@ -486,81 +502,28 @@ async function scoutRows(
     | UnreadableScoutFile
   > = [];
   for (const scout of scouts) {
-    const health = healthOf(queue, scout, now);
     const path = `${SCOUTS_FOLDER}/${scout.id}.yaml`;
-    // A Scout is one row however it failed, so each of these replaces the
-    // generic failed-Scout row rather than sitting beside it.
-    if (isWaitingOnKey(health)) {
-      rows.push({
-        kind: "blocked-on-credentials",
-        subject: scout.id,
-        path,
-        title: scout.name,
-        voice: "not yet",
-        sentence: health.sentence,
-      });
+    const pages = pagesOf(scout);
+    // A Scout of several pages is judged a page at a time, so a broken page is
+    // its own row and *run now* on it reads it alone (ADR 0056 decision 6). A
+    // paused one is not looking, which is the Scout's, not a page's.
+    if (pages.length < 2 || scout.paused) {
+      const row = scoutRow(queue, scout, healthOf(queue, scout, now), path);
+      if (row !== null) rows.push(row);
       continue;
     }
-    if (isWaitingOnBudget(health)) {
-      rows.push({
-        kind: "waiting-scout",
-        subject: scout.id,
-        path,
-        title: scout.name,
-        voice: "not yet",
-        sentence: health.sentence,
-      });
-      continue;
+    let keyRow = false;
+    for (const { url, health } of pageHealthsOf(queue, scout, now)) {
+      const row = scoutRow(queue, atPage(scout, url), health, path, url);
+      if (row === null) continue;
+      // The key is the Scout's and every page waits on the same one, so the
+      // way to Settings is offered once however many pages need it.
+      if (row.kind === "blocked-on-credentials") {
+        if (keyRow) continue;
+        keyRow = true;
+      }
+      rows.push(row);
     }
-    // `kind` is null only for an unreadable file, which has its own row.
-    if (health.voice !== "wrong" || health.kind === null) continue;
-    if (health.kind === "credentials") {
-      rows.push({
-        kind: "blocked-on-credentials",
-        subject: scout.id,
-        path,
-        title: scout.name,
-        voice: "wrong",
-        sentence: health.sentence,
-      });
-      continue;
-    }
-    // Only a page that once yielded items can be said to have *changed*;
-    // with no such run at this page there is nothing to compare against, and a
-    // page the Scout was pointed at is not judged by the old one (ADR 0043 d.6).
-    // Item pages unread is no change to the listing, which read and proposed:
-    // it is the items' own pages refusing, and *open the page* would show a
-    // listing that looks fine (ADR 0055 decision 6).
-    // A Scout of several pages has the generic row until its rows are drawn
-    // per page (#913): its sentence already names the page.
-    const runs = finishedRunsAtPage(queue, scout);
-    if (
-      health.kind === "extraction" &&
-      scout.source.kind === "watched" &&
-      scout.source.urls.length === 1 &&
-      runs.at(-1)?.error_message !== ITEM_PAGES_UNREAD &&
-      // An *item pages unread* run is no baseline, though it proposed: it is
-      // no successful extraction, and a change is judged against one.
-      runs.some((r) => r.outcome === "ok" && r.fetched > 0)
-    ) {
-      rows.push({
-        kind: "structure-change",
-        subject: scout.id,
-        path,
-        title: scout.name,
-        address: scout.query,
-        sentence: health.sentence,
-      });
-      continue;
-    }
-    rows.push({
-      kind: "failed-scout",
-      subject: scout.id,
-      path: `${SCOUTS_FOLDER}/${scout.id}.yaml`,
-      title: scout.name,
-      errorKind: health.kind,
-      sentence: health.sentence,
-    });
   }
   for (const file of unreadable) {
     rows.push({
@@ -573,6 +536,91 @@ async function scoutRows(
     });
   }
   return { rows, problems: [] };
+}
+
+/**
+ * The one row a Scout, or one page of a Scout of several, is drawn as, or null
+ * when it is well. `page` is set only for a page of several, so a one-page
+ * Scout's row reads as it always did; `scout` is then that page alone
+ * (`atPage`), so the structure-change test reads that page's runs.
+ */
+function scoutRow(
+  queue: DatabaseSync,
+  scout: Scout,
+  health: Health,
+  path: string,
+  page: string | null = null
+): FailedScout | StructureChange | BlockedOnCredentials | WaitingScout | null {
+  // A Scout, or a page of one of several, is one row however it failed, so
+  // each of these replaces the generic failed-Scout row rather than sitting
+  // beside it. *Waiting* on a budget is never a page's: it is OpenAlex's, and
+  // a Structured source has no pages, so only the key row is offered once.
+  if (isWaitingOnKey(health)) {
+    return {
+      kind: "blocked-on-credentials",
+      subject: scout.id,
+      path,
+      title: scout.name,
+      voice: "not yet",
+      sentence: health.sentence,
+    };
+  }
+  if (isWaitingOnBudget(health)) {
+    return {
+      kind: "waiting-scout",
+      subject: scout.id,
+      path,
+      title: scout.name,
+      voice: "not yet",
+      sentence: health.sentence,
+    };
+  }
+  // `kind` is null only for an unreadable file, which has its own row.
+  if (health.voice !== "wrong" || health.kind === null) return null;
+  if (health.kind === "credentials") {
+    return {
+      kind: "blocked-on-credentials",
+      subject: scout.id,
+      path,
+      title: scout.name,
+      voice: "wrong",
+      sentence: health.sentence,
+    };
+  }
+  // Only a page that once yielded items can be said to have *changed*;
+  // with no such run at this page there is nothing to compare against, and a
+  // page the Scout was pointed at is not judged by the old one (ADR 0043 d.6).
+  // Item pages unread is no change to the listing, which read and proposed:
+  // it is the items' own pages refusing, and *open the page* would show a
+  // listing that looks fine (ADR 0055 decision 6).
+  const runs = finishedRunsAtPage(queue, scout);
+  if (
+    health.kind === "extraction" &&
+    scout.source.kind === "watched" &&
+    runs.at(-1)?.error_message !== ITEM_PAGES_UNREAD &&
+    // An *item pages unread* run is no baseline, though it proposed: it is
+    // no successful extraction, and a change is judged against one.
+    runs.some((r) => r.outcome === "ok" && r.fetched > 0)
+  ) {
+    return {
+      kind: "structure-change",
+      subject: scout.id,
+      path,
+      title: scout.name,
+      page,
+      address: scout.query,
+      sentence: health.sentence,
+    };
+  }
+  return {
+    kind: "failed-scout",
+    subject: scout.id,
+    path,
+    title: scout.name,
+    page,
+    errorKind: health.kind,
+    sentence: health.sentence,
+  };
 }
 
 /**

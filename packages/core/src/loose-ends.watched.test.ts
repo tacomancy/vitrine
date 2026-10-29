@@ -146,6 +146,7 @@ describe("looseEnds.rows — a page whose structure changed", () => {
           subject: "lab",
           path: ".vitrine/scouts/lab.yaml",
           title: "Sleep Lab",
+          page: null,
           address: LAB,
           sentence: h.sentence,
         },

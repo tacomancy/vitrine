@@ -163,6 +163,15 @@
   font-weight: 600;
 }
 
+/* The broken page of a Scout of several, in the data voice the Scouts screen
+   draws addresses in. */
+.page {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
 .sentence {
   flex: 1;
   min-width: 0;
