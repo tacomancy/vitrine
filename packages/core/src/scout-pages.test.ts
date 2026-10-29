@@ -148,11 +148,21 @@ async function opened(file: string, { key = true } = {}) {
     if (found === undefined) throw new Error("no row");
     return found;
   };
+  const idOf = (n: number) =>
+    sql<Array<{ id: number }>>(
+      `SELECT id FROM proposals WHERE title = '${paper(n).title}'`
+    )[0]!.id;
+  const triage = async (n: number, action: "accept" | "reject") =>
+    expect(
+      (await c.mutate(`scouts.${action}`, { proposalId: idOf(n) })).error
+    ).toBeUndefined();
   return {
     vault,
     path,
     pages,
     fetched,
+    idOf,
+    triage,
     wait: (ms: number) => (at += ms),
     rewrite: (text: string) => writeFile(path, text),
     run: () => ok<RunSummary>("mutate", "scouts.runNow", { scoutId: "lab" }),
@@ -606,11 +616,158 @@ describe("the weekly line of a Scout of several pages", () => {
     lab.wait(HOUR);
     await lab.rewrite(fileWith(urls(RESEARCH, NEWS, BLOG)));
     await lab.checkDue();
-    const added = lab.runs().at(-1)!;
-    expect(added.query).toBe(BLOG);
+    expect(lab.runs().at(-1)!.query).toBe(BLOG);
     expect((await lab.row()).acceptRate).toMatchObject({
-      pageChange: { at: added.finished },
+      pageChange: { kind: "added or removed" },
     });
+  });
+
+  it("says a page was added or removed when one was removed within the twelve weeks", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS, BLOG)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html(2) };
+    lab.pages["/blog"] = { body: html(3) };
+    await lab.run();
+    await lab.triage(1, "accept");
+    await lab.rewrite(fileWith(urls(RESEARCH, NEWS)));
+
+    expect((await lab.row()).acceptRate).toMatchObject({
+      pageChange: { kind: "added or removed" },
+    });
+  });
+
+  // Its runs alternate between two pages, which the one-page reading would
+  // take for re-points and date by the newest of them.
+  it("says a page was added or removed when a Scout of two pages is left with one, never that its page changed", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, BLOG)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/blog"] = { body: html(2) };
+    await lab.run();
+    lab.wait(WEEK);
+    await lab.run();
+    await lab.triage(1, "accept");
+    await lab.rewrite(fileWith(urls(RESEARCH)));
+
+    expect((await lab.row()).acceptRate).toMatchObject({
+      pageChange: { kind: "added or removed" },
+    });
+  });
+});
+
+describe("the Accept rate of a Scout of several pages", () => {
+  it("is one headline over every page, and lists each page's rate in file order, credited by the page that found it first", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS, BLOG)));
+    lab.pages["/research"] = { body: html(1, 3, 5) };
+    // The feed lists paper 1 too: one card, the research page's, which was
+    // read first. Its entries arrive with no authors or venue.
+    lab.pages["/news"] = feed(2, 1);
+    lab.pages["/blog"] = { body: html(4) };
+    await lab.run();
+    await lab.triage(1, "accept");
+    await lab.triage(3, "reject");
+    await lab.triage(5, "accept");
+    await lab.triage(2, "accept");
+
+    const row = await lab.row();
+    expect(row.acceptRate).toMatchObject({
+      kind: "rate",
+      accepted: 3,
+      triaged: 4,
+    });
+    expect(row.acceptByPage).toEqual([
+      {
+        url: RESEARCH,
+        rate: { kind: "rate", accepted: 2, triaged: 3, rate: 2 / 3 },
+      },
+      // The guard is the page's own: the headline can be said, this cannot.
+      {
+        url: NEWS,
+        rate: {
+          kind: "unavailable",
+          reason: "Most of this page's papers arrive without authors or venue.",
+        },
+      },
+      { url: BLOG, rate: { kind: "nothing triaged" } },
+    ]);
+  });
+
+  // The page is the Appearance the Scout was credited by: read off another
+  // Appearance, a card another Scout also found would credit this Scout by
+  // that Scout's page, which none of its pages is.
+  it("credits a page by the same Appearance that credits the Scout, when another Scout found the item later", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html(2) };
+    lab.pages["/other"] = { body: html(1) };
+    await lab.run();
+    await writeFile(
+      join(lab.vault, ".vitrine/scouts/other.yaml"),
+      fileWith("  url: https://lab.example/other").replace("Lab", "Other")
+    );
+    expect(
+      (await lab.mutate("scouts.runNow", { scoutId: "other" })).error
+    ).toBeUndefined();
+    await lab.triage(1, "accept");
+
+    expect((await lab.row()).acceptByPage).toEqual([
+      {
+        url: RESEARCH,
+        rate: { kind: "rate", accepted: 1, triaged: 1, rate: 1 },
+      },
+      { url: NEWS, rate: { kind: "nothing triaged" } },
+    ]);
+  });
+
+  it("never rests a page's figure on an item the headline leaves out", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH)));
+    lab.pages["/research"] = { body: html(1, 3) };
+    await lab.run();
+    await lab.triage(1, "accept");
+    // A reject taken back is no reject.
+    await lab.triage(3, "reject");
+    expect(
+      (await lab.mutate("scouts.undo", { proposalId: lab.idOf(3) })).error
+    ).toBeUndefined();
+    // An added page's first look, cleared whole: no judgement of the brief.
+    lab.wait(WEEK);
+    lab.pages["/blog"] = { body: html(4, 6) };
+    await lab.rewrite(fileWith(urls(RESEARCH, BLOG)));
+    await lab.run();
+    const blogRun = lab.runs().find((r) => r.query === BLOG)!.id;
+    expect(
+      (await lab.mutate("scouts.rejectRun", { runId: blogRun })).error
+    ).toBeUndefined();
+
+    const row = await lab.row();
+    expect(row.acceptRate).toMatchObject({ accepted: 1, triaged: 1 });
+    expect(row.acceptByPage).toEqual([
+      {
+        url: RESEARCH,
+        rate: { kind: "rate", accepted: 1, triaged: 1, rate: 1 },
+      },
+      { url: BLOG, rate: { kind: "nothing triaged" } },
+    ]);
+  });
+
+  it("keeps a removed page's items in the headline, lists only the pages the Scout has, and lists none for one page", async () => {
+    const lab = await opened(fileWith(urls(RESEARCH, NEWS, BLOG)));
+    lab.pages["/research"] = { body: html(1) };
+    lab.pages["/news"] = { body: html(2) };
+    lab.pages["/blog"] = { body: html(3) };
+    await lab.run();
+    await lab.triage(1, "accept");
+    await lab.triage(2, "accept");
+    await lab.triage(3, "reject");
+
+    await lab.rewrite(fileWith(urls(RESEARCH, NEWS)));
+    const removed = await lab.row();
+    expect(removed.acceptRate).toMatchObject({ accepted: 2, triaged: 3 });
+    expect(removed.acceptByPage?.map((p) => p.url)).toEqual([RESEARCH, NEWS]);
+
+    await lab.rewrite(fileWith(urls(RESEARCH)));
+    const one = await lab.row();
+    expect(one.acceptRate).toMatchObject({ accepted: 2, triaged: 3 });
+    expect(one).not.toHaveProperty("acceptByPage");
   });
 });
 
