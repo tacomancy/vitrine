@@ -1,5 +1,11 @@
-import { cleanup, screen, within } from "@testing-library/react";
-import type { ActivityRow, Health, ScoutActivity } from "core";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import type {
+  ActivityRow,
+  Health,
+  ScoutActivity,
+  ScoutCheckCost,
+  ScoutRow,
+} from "core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { empty, renderApp, vault } from "./fake-core";
 
@@ -38,7 +44,7 @@ const BROKEN: Health = {
 const row = (
   pages: Array<{ url: string; health: Health }>,
   health: Health
-): ActivityRow => ({
+): ScoutRow => ({
   kind: "scout",
   id: "lab",
   name: "Lab",
@@ -67,9 +73,10 @@ const row = (
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
 });
 
-const open = (rows: ActivityRow[]) => {
+const open = (rows: ActivityRow[], more: Record<string, unknown> = {}) => {
   const activity: ScoutActivity = {
     rows,
     fleet: {
@@ -103,6 +110,7 @@ const open = (rows: ActivityRow[]) => {
       current: { ok: true },
     },
     "scouts.activity": activity,
+    ...more,
   });
 };
 
@@ -166,5 +174,137 @@ describe("a Scout of several pages on the Scouts screen", () => {
     const cell = await watchingCell();
     expect(within(cell).queryByRole("list")).toBeNull();
     expect(cell.textContent).toBe(RESEARCH);
+  });
+});
+
+// #915 (ADR 0056 decision 9): cost per run is per check; *each run* lists
+// checks with their pages beneath, and the opened row gives each page's mean.
+describe("cost per run for a Scout of several pages", () => {
+  const costed = (pageCosts: ScoutRow["pageCosts"]): ActivityRow => ({
+    ...row(
+      [
+        { url: RESEARCH, health: FINDING },
+        { url: NEWS, health: FINDING },
+        { url: BLOG, health: FINDING },
+      ],
+      FINDING
+    ),
+    cost: { kind: "cost", perRun: 0.32, runs: 1, unpriced: 1 },
+    pageCosts,
+  });
+  const PAGE_COSTS = [
+    {
+      page: RESEARCH,
+      cost: { kind: "cost", perRun: 0.02, runs: 1, unpriced: 0 },
+    },
+    { page: NEWS, cost: { kind: "cost", perRun: 0.3, runs: 1, unpriced: 0 } },
+    { page: BLOG, cost: { kind: "no model call" } },
+  ] as const;
+
+  const run = (
+    runId: number,
+    page: string | null,
+    costUsd: number | null,
+    model = "claude-sonnet-5-5"
+  ) => ({
+    runId,
+    page,
+    finished: "2026-10-04T12:00:00.000Z",
+    ago: "1 day ago",
+    model,
+    tokens: { input: 1200, output: 300, cacheRead: 0 },
+    costUsd,
+  });
+  const CHECKS: ScoutCheckCost[] = [
+    {
+      checkId: 7,
+      finished: "2026-10-04T12:00:00.000Z",
+      ago: "1 day ago",
+      costUsd: 0.32,
+      runs: [
+        run(7, RESEARCH, 0.02),
+        run(8, NEWS, 0.3),
+        run(9, BLOG, null, "odd-model"),
+      ],
+    },
+    {
+      checkId: 3,
+      finished: "2026-09-27T12:00:00.000Z",
+      ago: "8 days ago",
+      costUsd: 0.05,
+      runs: [{ ...run(3, RESEARCH, 0.05), ago: "8 days ago" }],
+    },
+  ];
+
+  it("lists each check under each run with its sum, and its pages' runs beneath it; a check of one run names its page on one line", async () => {
+    open([costed([...PAGE_COSTS])], { "scouts.runCosts": CHECKS });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Lab: each run" })
+    );
+    const list = await screen.findByRole("list", { name: "Lab runs" });
+    const checks = within(list)
+      .getAllByRole("listitem")
+      .filter((item) => item.parentElement === list);
+    expect(checks).toHaveLength(2);
+
+    const pages = within(checks[0]!).getByRole("list", {
+      name: "Lab: the check 1 day ago, by page",
+    });
+    expect(checks[0]!.firstChild?.textContent).toBe("1 day ago");
+    expect(checks[0]!.textContent).toContain("1 day ago · $0.32");
+    expect(
+      within(pages)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      `${RESEARCH} · claude-sonnet-5-5 · 1,200 in · 300 out · $0.02`,
+      `${NEWS} · claude-sonnet-5-5 · 1,200 in · 300 out · $0.30`,
+      `${BLOG} · odd-model · 1,200 in · 300 out · unpriced`,
+    ]);
+    // A check that called a model at one page only still says which page.
+    expect(checks[1]!.textContent).toBe(
+      `8 days ago · ${RESEARCH} · claude-sonnet-5-5 · 1,200 in · 300 out · $0.05`
+    );
+  });
+
+  it("gives each page's mean in the opened row, in file order, as plain text", async () => {
+    open([costed([...PAGE_COSTS])]);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Lab: accept rate/ })
+    );
+    const list = await screen.findByRole("list", {
+      name: "Lab: cost per run, by page",
+    });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      `${RESEARCH} · $0.02 · 1 run`,
+      `${NEWS} · $0.30 · 1 run`,
+      `${BLOG} · no model call`,
+    ]);
+  });
+
+  it("draws no per-page list for a one-page Scout, whose figure is already its page's", async () => {
+    open([
+      {
+        ...row([{ url: RESEARCH, health: FINDING }], FINDING),
+        pageCosts: [{ page: RESEARCH, cost: { kind: "no model call" } }],
+      },
+    ]);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Lab: accept rate/ })
+    );
+    await screen.findByRole("button", {
+      name: /^Lab: accept rate/,
+      expanded: true,
+    });
+    expect(
+      screen.queryByRole("list", { name: "Lab: cost per run, by page" })
+    ).toBeNull();
   });
 });

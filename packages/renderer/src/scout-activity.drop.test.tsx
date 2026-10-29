@@ -52,6 +52,7 @@ const scout = (id: string, name: string): ScoutRow => ({
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
 });
 const SLEEP = scout("sleep", "Sleep and memory");
 const BLOG = scout("blog", "Blog ring");
