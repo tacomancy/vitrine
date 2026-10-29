@@ -6,6 +6,7 @@ import type {
   CoverageGaps,
   ScoutActivity,
   ActivityRow,
+  ScoutCheckCost,
   ScoutRunCost,
 } from "core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +125,7 @@ const BROKEN: ActivityRow = {
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
 };
 const QUIET: ActivityRow = {
   kind: "scout",
@@ -158,6 +160,7 @@ const QUIET: ActivityRow = {
     muted: 0,
   },
   cost: { kind: "no model call" },
+  pageCosts: [],
 };
 const RESTING: ActivityRow = {
   kind: "scout",
@@ -193,6 +196,7 @@ const RESTING: ActivityRow = {
     muted: 0,
   },
   cost: { kind: "cost", perRun: 0.0312, runs: 3, unpriced: 0 },
+  pageCosts: [],
 };
 const TORN: ActivityRow = {
   kind: "unreadable",
@@ -433,24 +437,35 @@ describe("a row's cost", () => {
 });
 
 describe("the runs behind a row", () => {
-  const RUNS: ScoutRunCost[] = [
-    {
-      runId: 9,
-      finished: "2026-09-29T09:00:00.000Z",
-      ago: "1 day ago",
-      model: "claude-sonnet-5-5",
-      tokens: { input: 1200, output: 300, cacheRead: 0 },
-      costUsd: 0.0054,
-    },
-    {
-      runId: 8,
-      finished: "2026-09-28T09:00:00.000Z",
-      ago: "2 days ago",
-      model: "odd-model",
-      tokens: { input: 50, output: 5, cacheRead: 40 },
-      costUsd: null,
-    },
-  ];
+  // An arXiv Scout's checks are one run each, drawn as a run always was.
+  const RUNS: ScoutCheckCost[] = (
+    [
+      {
+        runId: 9,
+        page: null,
+        finished: "2026-09-29T09:00:00.000Z",
+        ago: "1 day ago",
+        model: "claude-sonnet-5-5",
+        tokens: { input: 1200, output: 300, cacheRead: 0 },
+        costUsd: 0.0054,
+      },
+      {
+        runId: 8,
+        page: null,
+        finished: "2026-09-28T09:00:00.000Z",
+        ago: "2 days ago",
+        model: "odd-model",
+        tokens: { input: 50, output: 5, cacheRead: 40 },
+        costUsd: null,
+      },
+    ] satisfies ScoutRunCost[]
+  ).map((run) => ({
+    checkId: run.runId,
+    finished: run.finished,
+    ago: run.ago,
+    costUsd: run.costUsd,
+    runs: [run],
+  }));
   // A Scout whose cost has runs behind it: one that made no model call has
   // none to list.
   const COSTLY: ActivityRow = {

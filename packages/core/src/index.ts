@@ -199,6 +199,7 @@ export type {
   DroppedRow,
   FleetSource,
   ScoutActivity,
+  ScoutCheckCost,
   ScoutRunCost,
   Volume,
 } from "./scout-activity.js";
