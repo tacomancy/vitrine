@@ -128,6 +128,7 @@ describe("the accept-rate line", () => {
 
   describe("when the weeks span more than one page", () => {
     const span = rateOver(4, 5, weeksOf({ 11: { triaged: 5, rate: 0.8 } }), {
+      kind: "changed",
       at: "2026-07-08T09:00:00.000Z",
     });
 
@@ -137,6 +138,22 @@ describe("the accept-rate line", () => {
       expect(
         screen.getByText(
           "The page last changed on 8 Jul, so this line spans more than one page."
+        )
+      ).toBeDefined();
+    });
+
+    it("says a page was added or removed, with no date, for a Scout of several pages", () => {
+      render(
+        <AcceptLine
+          rate={rateOver(4, 5, weeksOf({ 11: { triaged: 5, rate: 0.8 } }), {
+            kind: "added or removed",
+          })}
+        />
+      );
+
+      expect(
+        screen.getByText(
+          "A page was added or removed in these 12 weeks, so this line spans more than one set of pages."
         )
       ).toBeDefined();
     });

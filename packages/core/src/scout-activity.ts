@@ -26,6 +26,7 @@ import {
 } from "./review-depth.js";
 import {
   acceptCounts,
+  acceptCountsByPage,
   acceptSince,
   acceptWeeks,
   pageChangeIn,
@@ -33,6 +34,8 @@ import {
   MIN_WEEK_ITEMS,
   type AcceptCounts,
   type AcceptWeek,
+  type PageAcceptCounts,
+  type PageChange,
 } from "./triage.js";
 
 /** The window every figure that says *30 days* reads: a count of finds and the mean cost of a run (ADR 0042 decisions 6 and 10). */
@@ -93,24 +96,38 @@ export type AcceptRate =
       /** Twelve weeks, oldest first; a week under `weekFloor` items is a gap (ADR 0042 decision 2). */
       weeks: AcceptWeek[];
       weekFloor: number;
-      /** Set when the runs inside the weeks asked more than one page: when it last changed (ADR 0043 decision 8). */
-      pageChange: { at: string } | null;
+      /** Set when the runs inside the weeks asked more than one page (ADR 0043 decision 8; ADR 0056 decision 8). */
+      pageChange: PageChange;
     }
   | { kind: "nothing triaged" }
   | { kind: "unavailable"; reason: string };
 
 /**
+ * One page's share of a Scout's Accept rate, in the opened row of a Scout of
+ * several pages (ADR 0056 decision 8): the headline's three readings without
+ * a line, which stays the Scout's.
+ */
+export type PageAcceptRate =
+  | { kind: "rate"; accepted: number; triaged: number; rate: number }
+  | { kind: "nothing triaged" }
+  | { kind: "unavailable"; reason: string };
+
+/** One page of a Scout of several pages, and its share of the Accept rate. */
+export type PageRate = { url: string; rate: PageAcceptRate };
+
+/**
  * The guard tests only the fields the source is expected to supply: arXiv
  * carries a venue only when a paper has a `journal_ref`, so counting it missing
  * would have withheld every arXiv Scout's rate (ADR 0042 decision 3). It is a
- * fact about the measure, never a health state: the items verified.
+ * fact about the measure, never a health state: the items verified. A page's
+ * figure is guarded on its own items, so a page whose cards lack authors is
+ * withheld beside a sibling's that can be said (ADR 0056 decision 8).
  */
-function acceptRateOf(
+function guardedRate(
   scout: Scout,
   counts: AcceptCounts | undefined,
-  weeks: AcceptWeek[],
-  pageChange: { at: string } | null
-): AcceptRate {
+  whose: "Scout" | "page"
+): PageAcceptRate {
   // `acceptCounts` groups only the rows it counts, so a Scout it names has at least one.
   if (counts === undefined) return { kind: "nothing triaged" };
   const triaged = counts.accepted + counts.rejected;
@@ -123,17 +140,49 @@ function acceptRateOf(
   if (missing.length > 0) {
     return {
       kind: "unavailable",
-      reason: `Most of this Scout's papers arrive without ${missing.join(" or ")}.`,
+      reason: `Most of this ${whose}'s papers arrive without ${missing.join(" or ")}.`,
     };
   }
   return {
     kind: "rate",
-    weeks,
-    weekFloor: MIN_WEEK_ITEMS,
-    pageChange,
     accepted: counts.accepted,
     triaged,
     rate: counts.accepted / triaged,
+  };
+}
+
+function acceptRateOf(
+  scout: Scout,
+  counts: AcceptCounts | undefined,
+  weeks: AcceptWeek[],
+  pageChange: PageChange
+): AcceptRate {
+  const rate = guardedRate(scout, counts, "Scout");
+  return rate.kind === "rate"
+    ? { ...rate, weeks, weekFloor: MIN_WEEK_ITEMS, pageChange }
+    : rate;
+}
+
+/**
+ * Each page the Scout has, in file order, with its rate; none for a one-page
+ * Scout, whose headline is its page's. A removed page is not listed, though
+ * its items stay in the headline (ADR 0056 decision 7).
+ */
+function acceptByPageOf(
+  scout: Scout,
+  byPage: PageAcceptCounts[]
+): { acceptByPage: PageRate[] } | Record<string, never> {
+  const pages = pagesOf(scout);
+  if (pages.length < 2) return {};
+  return {
+    acceptByPage: pages.map((url) => ({
+      url,
+      rate: guardedRate(
+        scout,
+        byPage.find((c) => c.scoutId === scout.id && c.page === url),
+        "page"
+      ),
+    })),
   };
 }
 
@@ -207,6 +256,13 @@ export type ActivityRow =
       lastQuery?: string;
       health: Health;
       acceptRate: AcceptRate;
+      /**
+       * Each page's share of the Accept rate, for a Scout of several pages:
+       * absent for one page, whose headline is its page's (ADR 0056 decision
+       * 8). Credited by the first Appearance's run's page, from the rows the
+       * headline is summed from.
+       */
+      acceptByPage?: PageRate[];
       /**
        * What waits in Review under this Scout's name: the stack the row links
        * to in the Queue. Figures only; whether *nothing pending* may be said
@@ -727,6 +783,7 @@ export async function readReviewDepth(
 export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
   const { scouts, dropped, unreadable } = await readScouts(deps.vaultPath);
   const now = deps.now();
+  const byPage = acceptCountsByPage(deps.queue, acceptSince(now));
   const counts = acceptCounts(deps.queue, acceptSince(now));
   const { caught } = await readMuteState(deps);
   const depth = reviewDepth(
@@ -781,6 +838,7 @@ export async function readActivity(deps: ActivityDeps): Promise<ScoutActivity> {
           acceptWeeks(deps.queue, scout.id, now),
           pageChangeIn(deps.queue, scout, now)
         ),
+        ...acceptByPageOf(scout, byPage),
         review: depth.byScout.get(scout.id) ?? NOTHING_WAITING,
         volume: {
           proposals: 0,

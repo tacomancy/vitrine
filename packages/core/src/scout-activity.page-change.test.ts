@@ -62,7 +62,10 @@ describe("the weekly line's page change", () => {
     f.runAt("w", 20, LAB);
     f.runAt("w", 10, LAB);
 
-    expect(await pageChange(f, "w")).toEqual({ at: daysAgo(20) });
+    expect(await pageChange(f, "w")).toEqual({
+      kind: "changed",
+      at: daysAgo(20),
+    });
   });
 
   it("is the latest change when the Scout went A, B, A", async () => {
@@ -72,7 +75,10 @@ describe("the weekly line's page change", () => {
     f.runAt("w", 30, MOVED);
     f.runAt("w", 10, LAB);
 
-    expect(await pageChange(f, "w")).toEqual({ at: daysAgo(10) });
+    expect(await pageChange(f, "w")).toEqual({
+      kind: "changed",
+      at: daysAgo(10),
+    });
   });
 
   it("is null when the runs inside the weeks all asked one page, even if an older run asked another", async () => {
